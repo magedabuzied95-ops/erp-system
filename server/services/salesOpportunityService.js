@@ -7,6 +7,13 @@ import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCus
 
 const SALES_OPPORTUNITY_TTL_MS = 24 * 60 * 60 * 1000;
 const tableColumnsCache = new Map();
+// The owner excluded Crocs from فرص البيع entirely (2026-08-29): their J/C/M-W
+// sizing flooded the board's size filter with entries the floor never uses.
+// Applies to both the sales board and the per-branch opportunity alerts.
+const SALES_OPPORTUNITY_PRODUCT_EXCLUSION_SQL = `
+      AND LOWER(COALESCE(p.name, '')) NOT LIKE '%crocs%'
+      AND LOWER(COALESCE(p.name, '')) NOT LIKE '%كروكس%'
+      AND LOWER(COALESCE(p.product_type, '')) NOT LIKE '%crocs%'`;
 const SALES_OPPORTUNITY_TYPES = {
   LAST_ONE: {
     badge: "آخر قطعة",
@@ -357,6 +364,7 @@ const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branch
       AND v.deleted_at IS NULL
       AND COALESCE(p.is_active, TRUE) = TRUE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+      ${SALES_OPPORTUNITY_PRODUCT_EXCLUSION_SQL}
     GROUP BY
       ${resolvedBranchIdExpr},
       ${resolvedBranchNameExpr},
@@ -786,6 +794,7 @@ const loadSalesBoardColorRows = async ({ clientOrPool = db, tenantId = null } = 
         AND v.is_active IS DISTINCT FROM FALSE
         AND v.deleted_at IS NULL
         AND COALESCE(v.stock, 0) > 0
+        ${SALES_OPPORTUNITY_PRODUCT_EXCLUSION_SQL}
     )
     SELECT
       product_id,
