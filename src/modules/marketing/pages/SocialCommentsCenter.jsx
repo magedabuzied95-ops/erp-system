@@ -44,18 +44,48 @@ const tenantIdFromAuth = () => {
   return clean(user.tenant_id || user.tenantId || tenant.id || tenant.tenant_id || "");
 };
 
+// Posts reach this page in two shapes: raw fast-list rows (snake_case) and the
+// output of normalizeSocialPostDisplay, which is camelCase only. A chain that
+// lists just one shape silently falls through to `id` — and on a fast-list row
+// `id` is the automation RUN id, not a post id, so asking the API for the thread
+// with it returns nothing. Every field before `id` is either a real platform
+// post id or empty, which is what makes `id` a safe last resort.
+const resolvePlatformPostId = (item = {}) =>
+  clean(
+    item?.canonicalPostId ||
+      item?.canonical_post_id ||
+      item?.finalCanonicalPostId ||
+      item?.final_canonical_post_id ||
+      item?.platformPostId ||
+      item?.platform_post_id ||
+      item?.postId ||
+      item?.post_id ||
+      item?.sourcePostId ||
+      item?.source_post_id ||
+      item?.conversationId ||
+      item?.conversation_id ||
+      item?.id ||
+      ""
+  );
+
 const socialPostIdentity = (item = {}) =>
   clean(
     item?.platform_post_id ||
+      item?.platformPostId ||
       item?.source_post_id ||
       item?.sourcePostId ||
       item?.post_id ||
+      item?.postId ||
       item?.canonical_post_id ||
+      item?.canonicalPostId ||
       item?.final_canonical_post_id ||
+      item?.finalCanonicalPostId ||
       item?.permalink_url ||
+      item?.permalinkUrl ||
       item?.post_permalink_url ||
       item?.display_permalink ||
       item?.conversation_id ||
+      item?.conversationId ||
       item?.id ||
       item?.comment_id ||
       `${clean(item?.platform || "social")}:${clean(item?.post_id || item?.comment_id || "")}`
@@ -231,7 +261,7 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
 
   if (normalizedPostId) {
     return (
-      list.find((item) => clean(item?.canonical_post_id || item?.final_canonical_post_id || item?.post_id || item?.conversation_id || item?.id || "") === normalizedPostId) ||
+      list.find((item) => resolvePlatformPostId(item) === normalizedPostId) ||
       null
     );
   }
@@ -239,7 +269,7 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
   const matched = list.find((item) => {
     const itemPlatform = clean(item?.platform || item?.source_platform || "").toLowerCase();
     const itemPageId = clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || "");
-    const itemPostId = clean(item?.canonical_post_id || item?.final_canonical_post_id || item?.post_id || item?.conversation_id || item?.id || "");
+    const itemPostId = resolvePlatformPostId(item);
     const itemCommentId = clean(item?.comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || "");
 
     if (normalizedPostId && matchesValue(itemPostId, normalizedPostId)) return true;
@@ -616,7 +646,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
     }
     if (!postIdParam && nextIdentity) {
       const nextParams = new URLSearchParams(searchParams);
-      nextParams.set("postId", clean(nextPost?.post_id || nextPost?.conversation_id || nextPost?.id || nextIdentity));
+      nextParams.set("postId", resolvePlatformPostId(nextPost) || nextIdentity);
       if (clean(nextPost?.platform || "") && !nextParams.get("platform")) nextParams.set("platform", clean(nextPost.platform));
       if (tenantId && !nextParams.get("tenant")) nextParams.set("tenant", tenantId);
       if (clean(nextPost?.page_id || nextPost?.metadata?.page_id || "") && !nextParams.get("pageId")) {
@@ -635,14 +665,14 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
     const matchedPost = Array.isArray(items)
       ? items.find((item) => {
-          const itemPostId = clean(item?.canonical_post_id || item?.final_canonical_post_id || item?.post_id || item?.conversation_id || item?.id || "");
+          const itemPostId = resolvePlatformPostId(item);
           return Boolean(itemPostId && itemPostId === postIdParam);
         }) || null
       : null;
 
     if (matchedPost) {
       const hydratedPost = normalizeSocialPostDisplay(matchedPost);
-      const selected_post_id = clean(hydratedPost?.postId || hydratedPost?.post_id || hydratedPost?.conversationId || hydratedPost?.id || "");
+      const selected_post_id = resolvePlatformPostId(hydratedPost);
       setResolvedPostByUrl(hydratedPost);
       requestedPostIdRef.current = "";
       console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
@@ -667,7 +697,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
         if (cancelled) return;
         const postPayload = payload?.post || payload?.data?.post || payload?.data || null;
         const resolvedPost = postPayload ? normalizeSocialPostDisplay(postPayload) : null;
-        const selected_post_id = clean(resolvedPost?.postId || resolvedPost?.post_id || resolvedPost?.conversationId || resolvedPost?.id || "");
+        const selected_post_id = resolvePlatformPostId(resolvedPost);
         if (!resolvedPost || !selected_post_id) {
           console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
             url_post_id: postIdParam,
@@ -680,7 +710,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
         setResolvedPostByUrl(resolvedPost);
         setItems((current) => {
           const existing = Array.isArray(current)
-            ? current.some((item) => clean(item?.canonical_post_id || item?.final_canonical_post_id || item?.post_id || item?.conversation_id || item?.id || "") === selected_post_id)
+            ? current.some((item) => resolvePlatformPostId(item) === selected_post_id)
             : false;
           return existing ? current : [resolvedPost, ...current];
         });
@@ -712,7 +742,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   useEffect(() => {
     if (!activePost) return;
     console.info("SOCIAL_UI_POST_DISPLAY_FIELDS", {
-      post_id: clean(activePost?.canonical_post_id || activePost?.final_canonical_post_id || activePost?.post_id || activePost?.conversation_id || activePost?.id || ""),
+      post_id: resolvePlatformPostId(activePost),
       displayText: Boolean(selectedPostDisplay.displayText),
       displayImage: Boolean(selectedPostDisplay.displayImage),
       displayPermalink: Boolean(selectedPostDisplay.displayPermalink),
@@ -722,7 +752,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
   useEffect(() => {
     if (!activePost) return;
-    const postId = clean(activePost?.canonical_post_id || activePost?.final_canonical_post_id || activePost?.post_id || activePost?.conversation_id || activePost?.id || "");
+    const postId = resolvePlatformPostId(activePost);
     if (!postId) return;
 
     let cancelled = false;
@@ -829,7 +859,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   }, [loadGlobalSettings, loadPosts]);
 
   const handleSelectPost = useCallback((item = {}, itemKey = "") => {
-    const nextPostId = clean(item?.canonical_post_id || item?.final_canonical_post_id || item?.post_id || item?.conversation_id || item?.id || itemKey);
+    const nextPostId = resolvePlatformPostId(item) || clean(itemKey);
     if (!nextPostId) return;
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("postId", nextPostId);
