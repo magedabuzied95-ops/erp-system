@@ -4769,6 +4769,20 @@ export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, medi
             skipAutomation,
           });
         }
+        const newEventIds = new Set(newEvents.map((event) => text(event.comment_id)));
+        const existingEvents = events.filter((event) => !newEventIds.has(text(event.comment_id)));
+        if (existingEvents.length) {
+          await backfillSocialCommentIdentities({
+            tenantId: context.safeTenantId,
+            platform: "instagram",
+            fills: existingEvents.map((event) => ({
+              commentId: text(event.comment_id),
+              commenterId: text(event.commenter_id || ""),
+              commenterName: text(event.commenter_name || ""),
+              commenterPictureUrl: text(event.commenter_profile_picture_url || ""),
+            })),
+          });
+        }
         return { seen: comments.length, saved: newEvents.length };
       } catch (error) {
         errors.push({ media_id: text(post.id), message: error?.message || "Unable to sync Instagram comments" });
@@ -5673,6 +5687,121 @@ const commentAlreadyInSocialRuns = async ({ tenantId, platform = "facebook", com
     [safeTenantId, text(platform || "facebook"), safeCommentId]
   );
   return Boolean(result.rows?.length);
+};
+
+const getStoredSocialCommentIdentity = async ({ tenantId, platform = "facebook", commentId = "" } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeCommentId = text(commentId);
+  if (!safeTenantId || !safeCommentId) return null;
+  const result = await db.query(
+    `
+    SELECT commenter_id, commenter_name, commenter_profile_picture_url
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+    LIMIT 1
+    `,
+    [safeTenantId, text(platform || "facebook"), safeCommentId]
+  );
+  return result.rows?.[0] || null;
+};
+
+// Graph never sends a profile picture through webhooks (`value.from` is {id,name}
+// at best), and per-commenter privacy can hide `from` entirely — so a stored row
+// can be missing identity that a later poll response actually carries.
+const extractGraphFromIdentity = (from = {}) => {
+  const safeFrom = from && typeof from === "object" ? from : {};
+  const pictureValue = safeFrom.picture ?? safeFrom.profile_pic ?? safeFrom.profile_picture_url ?? "";
+  let pictureUrl = "";
+  if (typeof pictureValue === "string") {
+    pictureUrl = text(pictureValue);
+  } else if (pictureValue && typeof pictureValue === "object") {
+    // A silhouette is Meta's anonymous placeholder — the initials avatar is better.
+    if (pictureValue?.data?.is_silhouette !== true) {
+      pictureUrl = text(pictureValue?.data?.url || pictureValue?.url || pictureValue?.source || "");
+    }
+  }
+  return {
+    commenterId: text(safeFrom.id || safeFrom.user_id || ""),
+    commenterName: text(safeFrom.name || safeFrom.full_name || safeFrom.username || ""),
+    commenterPictureUrl: pictureUrl,
+  };
+};
+
+const storedCommentIdentityMissing = (stored = {}, fill = {}) =>
+  (!text(stored?.commenter_name || "") && Boolean(text(fill?.commenterName || ""))) ||
+  (!text(stored?.commenter_profile_picture_url || "") && Boolean(text(fill?.commenterPictureUrl || ""))) ||
+  (!text(stored?.commenter_id || "") && Boolean(text(fill?.commenterId || "")));
+
+// Fill-only backfill: blanks take the offered value, existing values are never
+// overwritten. The WHERE guard keeps this a no-op write when nothing is fillable.
+const backfillSocialCommentIdentities = async ({ tenantId = null, platform = "", fills = [] } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safePlatform = text(platform);
+  const byCommentId = new Map();
+  for (const fill of asArray(fills)) {
+    const fillCommentId = text(fill?.commentId || fill?.comment_id || "");
+    if (!fillCommentId || byCommentId.has(fillCommentId)) continue;
+    const commenterName = text(fill?.commenterName || fill?.commenter_name || "");
+    const commenterPictureUrl = text(fill?.commenterPictureUrl || fill?.commenter_profile_picture_url || "");
+    const commenterId = text(fill?.commenterId || fill?.commenter_id || "");
+    if (!commenterName && !commenterPictureUrl && !commenterId) continue;
+    byCommentId.set(fillCommentId, { commenterName, commenterPictureUrl, commenterId });
+  }
+  if (!safeTenantId || !safePlatform || !byCommentId.size) return 0;
+  const commentIds = [...byCommentId.keys()];
+  const result = await db.query(
+    `
+    UPDATE social_comment_automation_runs AS run
+    SET
+      commenter_name = CASE WHEN COALESCE(run.commenter_name, '') = '' THEN fill.commenter_name ELSE run.commenter_name END,
+      commenter_profile_picture_url = CASE WHEN COALESCE(run.commenter_profile_picture_url, '') = '' THEN fill.commenter_profile_picture_url ELSE run.commenter_profile_picture_url END,
+      commenter_id = CASE WHEN COALESCE(run.commenter_id, '') = '' THEN fill.commenter_id ELSE run.commenter_id END,
+      updated_at = CURRENT_TIMESTAMP
+    FROM (
+      SELECT
+        unnest($3::text[]) AS comment_id,
+        unnest($4::text[]) AS commenter_name,
+        unnest($5::text[]) AS commenter_profile_picture_url,
+        unnest($6::text[]) AS commenter_id
+    ) AS fill
+    WHERE run.tenant_id = $1::bigint
+      AND run.platform = $2::text
+      AND run.comment_id = fill.comment_id
+      AND (
+        (COALESCE(run.commenter_name, '') = '' AND fill.commenter_name <> '')
+        OR (COALESCE(run.commenter_profile_picture_url, '') = '' AND fill.commenter_profile_picture_url <> '')
+        OR (COALESCE(run.commenter_id, '') = '' AND fill.commenter_id <> '')
+      )
+    `,
+    [
+      safeTenantId,
+      safePlatform,
+      commentIds,
+      commentIds.map((id) => byCommentId.get(id).commenterName),
+      commentIds.map((id) => byCommentId.get(id).commenterPictureUrl),
+      commentIds.map((id) => byCommentId.get(id).commenterId),
+    ]
+  ).catch((error) => {
+    console.warn("SOCIAL_COMMENT_IDENTITY_BACKFILL_FAILED", {
+      tenant_id: safeTenantId,
+      platform: safePlatform,
+      comments: commentIds.length,
+      message: error?.message || "",
+    });
+    return null;
+  });
+  const updated = Number(result?.rowCount || 0);
+  if (updated > 0) {
+    console.log("SOCIAL_COMMENT_IDENTITY_BACKFILLED", {
+      tenant_id: safeTenantId,
+      platform: safePlatform,
+      comments: commentIds.length,
+      updated,
+    });
+  }
+  return updated;
 };
 
 const maskSecret = (value = "") => {
@@ -8163,8 +8292,18 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
       commentsSeen += 1;
       const commentId = text(comment?.id || "");
       if (!commentId) continue;
-      const alreadyStored = await commentAlreadyInSocialRuns({ tenantId: safeTenantId, platform: "facebook", commentId }).catch(() => false);
-      if (alreadyStored) continue;
+      const storedIdentity = await getStoredSocialCommentIdentity({ tenantId: safeTenantId, platform: "facebook", commentId }).catch(() => null);
+      if (storedIdentity) {
+        const identityFill = extractGraphFromIdentity(comment?.from);
+        if (storedCommentIdentityMissing(storedIdentity, identityFill)) {
+          await backfillSocialCommentIdentities({
+            tenantId: safeTenantId,
+            platform: "facebook",
+            fills: [{ commentId, ...identityFill }],
+          });
+        }
+        continue;
+      }
       const enrichedComment = await fetchMetaCommentDetailsForPolling({ commentId, token }).catch(() => null);
       const effectiveComment = enrichedComment || comment;
       const isPageOwnedComment = text(effectiveComment?.from?.id || comment?.from?.id || "") === pageId;
@@ -8385,13 +8524,21 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
         for (const comment of comments) {
           totals.comments_seen += 1;
           const commentId = text(comment.id || "");
-          const alreadyStoredBeforeEnrichment = await commentAlreadyInSocialRuns({
+          const storedIdentityBeforeEnrichment = await getStoredSocialCommentIdentity({
             tenantId: safeTenantId,
             platform: "facebook",
             commentId,
-          }).catch(() => false);
-          if (alreadyStoredBeforeEnrichment) {
+          }).catch(() => null);
+          if (storedIdentityBeforeEnrichment) {
             totals.duplicates += 1;
+            const identityFill = extractGraphFromIdentity(comment?.from);
+            if (storedCommentIdentityMissing(storedIdentityBeforeEnrichment, identityFill)) {
+              await backfillSocialCommentIdentities({
+                tenantId: safeTenantId,
+                platform: "facebook",
+                fills: [{ commentId, ...identityFill }],
+              });
+            }
             debugSocialCommentsLog("META_COMMENTS_POLL_COMMENT_DUPLICATE", {
               tenant_id: safeTenantId,
               page_id: pageId,

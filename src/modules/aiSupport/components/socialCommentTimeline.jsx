@@ -428,8 +428,11 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const data = resolveCommentTimelineData(comment, fallbackPlatform);
   const [expanded, setExpanded] = useState(false);
+  // Graph CDN avatar URLs carry expiring signatures; a dead URL must fall back
+  // to the initials avatar instead of a broken image.
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState("");
   const canCollapse = compact && data.text.length > 120;
-  const hasAvatar = Boolean(data.customerAvatarUrl);
+  const hasAvatar = Boolean(data.customerAvatarUrl) && failedAvatarUrl !== data.customerAvatarUrl;
   const interactive = typeof onSelect === "function";
   const handleKeyDown =
     onKeyDown ||
@@ -478,6 +481,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 alt={data.customerName}
                 className={`${compact ? "h-9 w-9" : "h-12 w-12"} rounded-full object-cover`}
                 loading="lazy"
+                onError={() => setFailedAvatarUrl(data.customerAvatarUrl)}
               />
             </button>
           ) : (
