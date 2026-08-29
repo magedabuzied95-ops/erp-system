@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import { productMatchesAudience } from "../../../shared/lib/productAudiences";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeePortalProducts, getEmployeePortalCompactProducts, requestEmployeeWarehousePick } from "../services/employeePortalProductsApi";
 import { saveWarehouseDraft, loadWarehouseDraft, clearWarehouseDraft, sweepExpiredDrafts } from "../services/employeeDrafts/employeeDraftStore.js";
@@ -564,7 +565,7 @@ function ProductCard({ product, active, onOpen }) {
       <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
         {previewImageUrl ? (
           <img
-            src={previewImageUrl}
+            src={resolveProductImageUrl(previewImageUrl)}
             alt={product.name}
             className="h-full w-full object-contain p-2"
             loading="lazy"
@@ -679,7 +680,7 @@ function ProductPickerSheet({
             <div className="flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1rem] bg-black/25 sm:min-h-[12rem]">
               {previewImageUrl ? (
                 <img
-                  src={previewImageUrl}
+                  src={resolveProductImageUrl(previewImageUrl)}
                   alt={product.name}
                   className="max-h-[11rem] w-full object-contain p-2 sm:max-h-[14rem] sm:p-3"
                   loading="eager"

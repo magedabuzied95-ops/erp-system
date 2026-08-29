@@ -46,7 +46,7 @@ import { api } from "../../../shared/api/api";
 import { mergeChatMessages } from "../../../shared/lib/chatState";
 import { API_ORIGIN, SOCKET_URL } from "../../../shared/constants/app";
 import { formatCurrency } from "../../../shared/lib/currency";
-import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
+import { resolveEmployeeProfileImageUrl, resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import {
   BARCODE_PRINT_DEFAULTS,
@@ -746,7 +746,7 @@ const buildDisplayRefillLabelItems = (alert, copies = 1) => {
       comparePrice: 0,
       saleActive: false,
       imageUrl,
-      resolvedImage: imageUrl,
+      resolvedImage: resolveProductImageUrl(imageUrl),
       quantity,
     },
   ]);
@@ -3919,7 +3919,7 @@ export default function EmployeePayrollPortal() {
                         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80">
                           {card.image_url ? (
                             <img
-                              src={card.image_url}
+                              src={resolveProductImageUrl(card.image_url)}
                               alt={card.product_name || "Opportunity product"}
                               className="h-full w-full object-cover"
                               loading="lazy"
@@ -4639,7 +4639,7 @@ export default function EmployeePayrollPortal() {
                             <div className="flex items-start justify-between gap-3">
                               {task.product_image_url || task.variant_image_url ? (
                                 <img
-                                  src={task.variant_image_url || task.product_image_url}
+                                  src={resolveProductImageUrl(task.variant_image_url || task.product_image_url)}
                                   alt={task.product_name || "منتج"}
                                   className="h-16 w-16 shrink-0 rounded-[var(--radius-card)] border border-slate-200 bg-white object-cover"
                                   loading="lazy"
