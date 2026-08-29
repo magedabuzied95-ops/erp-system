@@ -3976,9 +3976,6 @@ export default function EmployeePayrollPortal() {
                               ) : null}
                             </div>
                           ) : null}
-                          <div className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-300" dir="auto">
-                            {card.message || "فرصة بيع جديدة متاحة الآن."}
-                          </div>
                           <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                             {card.price > 0 ? (
                               <div className="flex items-baseline gap-2">
