@@ -300,3 +300,22 @@
 :is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="bg-rose-500/"],[class*="bg-rose-400/"],[class*="bg-red-500/"]) { background: var(--danger-soft) !important; }
 
 html[data-theme="light"] :is(.m1-shell-root .m1-shell-content, .pos-pro-shell, body.pos-route) :where([class*="opacity-"],button:disabled) { text-shadow: none; }
+
+/* ==========================================================================
+   ARABIC NEVER TRACKS
+   --------------------------------------------------------------------------
+   WebKit disables Arabic cursive joining under letter-spacing: every tracked
+   eyebrow/label ("tracking-[0.22em]" and friends) renders as ISOLATED letters
+   on iPhones — the "الكلام بيظهر متقطع" reports. Chromium merely widens the
+   gaps between still-joined letters, which is why desktop always looked fine.
+
+   Arabic typography never wants tracking, so neutralize the utilities wherever
+   the content language is Arabic (html lang="ar" app-wide; an explicit
+   lang="en" subtree keeps its tracking). Latin-only labels inside Arabic pages
+   give up a purely cosmetic 0.2em; Arabic gets its letters joined back.
+   Unlayered on purpose: it must beat the layered Tailwind utilities.
+   ========================================================================== */
+:lang(ar) :where([class*="tracking-"]),
+:where([class*="tracking-"]):lang(ar) {
+  letter-spacing: 0 !important;
+}
