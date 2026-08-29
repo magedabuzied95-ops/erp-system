@@ -3128,6 +3128,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     ai_support_sessions_customer_avatar_url: text(sessionResult.rows[0]?.customer_avatar_url),
     ai_channel_conversations_customer_avatar_url: text(channelConversationResult.rows[0]?.customer_avatar_url),
   });
+  linkCommentIdentitiesAfterProfileLearned({ tenantId, psid });
   return {
     id: profileId,
     name,
@@ -3149,6 +3150,20 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     profile_fetched_at: profileFetchedAt,
     updated_rows: Number(profileResult.rowCount || 0) + Number(sessionResult.rowCount || 0) + Number(messagesResult.rowCount || 0) + Number(channelConversationResult.rowCount || 0),
   };
+};
+
+// This is the moment the identity Graph withholds on comments becomes known, so
+// it is also the moment their past comments can be named. Best-effort: a failed
+// link must never fail the profile write that triggered it.
+const linkCommentIdentitiesAfterProfileLearned = ({ tenantId = null, psid = "" } = {}) => {
+  const safePsid = text(psid);
+  if (!numberOrNull(tenantId) || !safePsid) return;
+  void linkSocialCommentIdentitiesFromInbox({ tenantId, commenterIds: [safePsid] }).catch((error) => {
+    console.warn("SOCIAL_COMMENT_INBOX_IDENTITY_LINK_FAILED", {
+      tenant_id: numberOrNull(tenantId),
+      message: error?.message || "",
+    });
+  });
 };
 
 export const refreshMessengerProfileForConversation = async ({
@@ -5798,6 +5813,103 @@ const backfillSocialCommentIdentities = async ({ tenantId = null, platform = "",
       tenant_id: safeTenantId,
       platform: safePlatform,
       comments: commentIds.length,
+      updated,
+    });
+  }
+  return updated;
+};
+
+// A commenter's Facebook `from.id` and their Messenger PSID are the same
+// page-scoped id (proven in production 2026-08-29: commenter 27617983947902214
+// on a post is the same person as that Messenger thread). So the moment someone
+// messages the page we learn a name Graph refuses to put on their comments, and
+// it can be linked back by id alone.
+//
+// The identity lives in two places and neither is joined by the comment list:
+// ai_channel_conversations (where an inbound DM records it) and
+// ai_customer_profiles (where the messaging profile fetch persists it). This
+// fills the ledger's own columns so BOTH the fast list and the thread show it —
+// read-time hydration only ever fixed the thread.
+export const linkSocialCommentIdentitiesFromInbox = async ({ tenantId = null, commenterIds = [] } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  if (!safeTenantId) return 0;
+  const targeted = Array.from(new Set(asArray(commenterIds).map((value) => text(value)).filter(Boolean)));
+  const params = [safeTenantId];
+  let targetClause = "";
+  if (targeted.length) {
+    params.push(targeted);
+    targetClause = `AND run.commenter_id = ANY($${params.length}::text[])`;
+  }
+  const result = await db.query(
+    `
+    WITH sources AS (
+      SELECT
+        c.external_customer_id AS commenter_id,
+        COALESCE(NULLIF(c.customer_name, ''), '') AS known_name,
+        COALESCE(NULLIF(c.customer_avatar_url, ''), '') AS known_avatar,
+        c.updated_at AS seen_at
+      FROM ai_channel_conversations c
+      WHERE c.tenant_id = $1::bigint
+        AND COALESCE(c.external_customer_id, '') <> ''
+      UNION ALL
+      SELECT
+        p.external_customer_id,
+        COALESCE(NULLIF(p.display_name, ''), NULLIF(p.customer_name, ''), NULLIF(p.facebook_name, ''), NULLIF(p.messenger_name, ''), ''),
+        COALESCE(NULLIF(p.profile_pic_url, ''), ''),
+        p.updated_at
+      FROM ai_customer_profiles p
+      WHERE p.tenant_id = $1::bigint
+        AND COALESCE(p.external_customer_id, '') <> ''
+    ),
+    known AS (
+      SELECT
+        commenter_id,
+        (ARRAY_AGG(known_name ORDER BY seen_at DESC NULLS LAST) FILTER (WHERE known_name <> ''))[1] AS known_name,
+        (ARRAY_AGG(known_avatar ORDER BY seen_at DESC NULLS LAST) FILTER (WHERE known_avatar <> ''))[1] AS known_avatar
+      FROM sources
+      WHERE (
+          known_name <> ''
+          AND known_name !~ '^[0-9+]+$'
+          AND LOWER(known_name) NOT IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+        )
+        OR known_avatar <> ''
+      GROUP BY commenter_id
+    )
+    UPDATE social_comment_automation_runs AS run
+    SET
+      commenter_name = CASE
+        WHEN COALESCE(run.commenter_name, '') = '' THEN COALESCE(known.known_name, '')
+        ELSE run.commenter_name
+      END,
+      commenter_profile_picture_url = CASE
+        WHEN COALESCE(run.commenter_profile_picture_url, '') = '' THEN COALESCE(known.known_avatar, '')
+        ELSE run.commenter_profile_picture_url
+      END,
+      updated_at = CURRENT_TIMESTAMP
+    FROM known
+    WHERE run.tenant_id = $1::bigint
+      AND COALESCE(run.commenter_id, '') <> ''
+      AND run.commenter_id = known.commenter_id
+      ${targetClause}
+      AND (
+        (COALESCE(run.commenter_name, '') = '' AND COALESCE(known.known_name, '') <> '')
+        OR (COALESCE(run.commenter_profile_picture_url, '') = '' AND COALESCE(known.known_avatar, '') <> '')
+      )
+    `,
+    params
+  ).catch((error) => {
+    console.warn("SOCIAL_COMMENT_INBOX_IDENTITY_LINK_FAILED", {
+      tenant_id: safeTenantId,
+      targeted: targeted.length,
+      message: error?.message || "",
+    });
+    return null;
+  });
+  const updated = Number(result?.rowCount || 0);
+  if (updated > 0) {
+    console.log("SOCIAL_COMMENT_INBOX_IDENTITY_LINKED", {
+      tenant_id: safeTenantId,
+      targeted: targeted.length,
       updated,
     });
   }
@@ -8755,6 +8867,26 @@ let metaCommentsPollingSchedulerStarted = false;
 let metaCommentsPollingSchedulerTimer = null;
 let metaCommentsPollingSchedulerRunning = false;
 
+// Catches the backlog and anyone whose name we learned through a path that does
+// not go through persistMessengerProfile (an inbound DM that names the
+// conversation directly, a history sync, a manual rename).
+const linkSocialCommentIdentitiesForAllTenants = async () => {
+  const tenants = await db.query(
+    `
+    SELECT DISTINCT tenant_id
+    FROM social_comment_automation_runs
+    WHERE COALESCE(commenter_id, '') <> ''
+      AND (COALESCE(commenter_name, '') = '' OR COALESCE(commenter_profile_picture_url, '') = '')
+    LIMIT 50
+    `
+  ).catch(() => ({ rows: [] }));
+  let linked = 0;
+  for (const row of asArray(tenants.rows)) {
+    linked += await linkSocialCommentIdentitiesFromInbox({ tenantId: row.tenant_id }).catch(() => 0);
+  }
+  return linked;
+};
+
 export const startMetaCommentsPollingScheduler = () => {
   if (metaCommentsPollingSchedulerStarted) return;
   if (!getMetaPollingEnabled()) {
@@ -8775,6 +8907,17 @@ export const startMetaCommentsPollingScheduler = () => {
       console.error("[meta-comments-poll] scheduler scan error", {
         message: error?.message || String(error),
         stack: error?.stack || "",
+      });
+    }
+    try {
+      // Deliberately outside the scan's try: this is pure SQL over our own
+      // tables, so it must still run on the ticks where the Graph scan bails
+      // on the shared app budget. It converges — once a row is named it is no
+      // longer fillable — so steady state is a no-op.
+      await linkSocialCommentIdentitiesForAllTenants();
+    } catch (error) {
+      console.error("[meta-comments-poll] comment identity link error", {
+        message: error?.message || String(error),
       });
     } finally {
       metaCommentsPollingSchedulerRunning = false;
