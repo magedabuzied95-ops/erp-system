@@ -1,7 +1,8 @@
 import express from "express";
 import db from "../database/db.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { previewProductPurge, purgeProduct } from "../controllers/productPurgeController.js";
 import {
   createProduct,
   createVariant,
@@ -457,6 +458,11 @@ router.delete("/variants/:id", protect, permit("products", "delete"), deleteVari
 router.put("/:id/prices", protect, permit("products", "edit"), updateProductPrices);
 router.patch("/:id/status", protect, permit("products", "edit"), updateProductStatus);
 router.put("/:id", protect, permit("products", "edit"), updateProduct);
+// Hard delete. `requireAdmin` rather than `permit("products", "delete")`: no
+// permission row should be able to grant this, and the delete grant already
+// means "archive" everywhere else in the app.
+router.get("/:id/purge-preview", protect, requireAdmin, previewProductPurge);
+router.delete("/:id/purge", protect, requireAdmin, purgeProduct);
 router.delete("/:id", protect, permit("products", "delete"), deleteProduct);
 
 export default router;

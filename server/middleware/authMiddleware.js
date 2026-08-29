@@ -114,3 +114,31 @@ export const protect = async (
     });
   }
 };
+
+const ADMIN_ROLE_NAMES = ["admin", "super admin", "superadmin", "platform admin"];
+
+const normalizeRoleName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+/**
+ * The gate for actions no permission row should ever be able to grant - today
+ * that is the hard product purge. Deliberately narrower than `permit()`, which
+ * resolves a user four different ways: this asks only whether the account is
+ * admin-shaped or carries the super-admin flag.
+ */
+export const isAdminAccount = (user = {}) =>
+  user?.is_super_admin === true ||
+  ADMIN_ROLE_NAMES.includes(normalizeRoleName(user?.role)) ||
+  ADMIN_ROLE_NAMES.includes(normalizeRoleName(user?.role_name));
+
+export const requireAdmin = (req, res, next) => {
+  if (isAdminAccount(req.user)) return next();
+  return res.status(403).json({
+    success: false,
+    code: "ADMIN_ONLY",
+    message: "This action is restricted to administrators.",
+  });
+};

@@ -158,7 +158,8 @@
     "prices": "Prices",
     "removeFromOffers": "Remove from offers",
     "scheduleStory": "Schedule story",
-    "stock": "Stock"
+    "stock": "Stock",
+    "purge": "Delete from database"
   },
   "actions": {
     "confirmDelete": "Delete this product and its variants?",
@@ -988,5 +989,31 @@
     "nav": "Print list",
     "addAction": "Add to the print list",
     "added": "The product was added to the print list"
+  },
+  "purge": {
+    "title": "Delete this product from the database?",
+    "description": "This is a permanent, irreversible delete. The product, its variants, its stock, its images and its presence on the storefront and POS are all removed, its lines are taken out of every purchase invoice, and each of those invoices is recalculated. Sales invoices stay exactly as they are, under the product name already stored on the line.",
+    "loading": "Working out what will be removed…",
+    "previewFailed": "Could not build the delete report.",
+    "failed": "Failed to delete the product from the database.",
+    "statVariants": "Variants",
+    "statRows": "Rows deleted",
+    "statPurchases": "Purchase invoices",
+    "statSalesKept": "Sales lines kept",
+    "blockedTitle": "Blocked: unclassified tables still reference this product",
+    "purchasesTitle": "Purchase invoices that will change",
+    "purchasesHint": "The header tax and discount are left alone — the total is recomputed from the remaining lines, exactly as it is when you edit the invoice by hand. What was paid to the supplier does not change.",
+    "colInvoice": "Invoice",
+    "colLines": "Lines",
+    "colBefore": "Before",
+    "colAfter": "After",
+    "becomesEmpty": "will be left empty",
+    "tablesTitle": "Tables rows will be deleted from",
+    "salesKeptHint": "{{total}} sales invoice line(s) stay in place under their stored name and SKU, losing only the pointer to the product — so historic revenue and profit do not move.",
+    "confirmLabel": "Type this code to confirm:",
+    "confirmButton": "Delete permanently",
+    "purging": "Deleting…",
+    "done": "Product permanently removed from the database.",
+    "doneWithPurchases": "Product permanently removed. {{total}} purchase invoice(s) updated."
   }
 }

@@ -458,6 +458,16 @@ export const regenerateAiShoeCover = async ({ productId, targetType = "product",
 
 export const deleteProduct = async (id) => api.delete(`/products/${id}`);
 
+/**
+ * Admin-only hard delete. The preview is a real dry run on the server - it plans
+ * the whole purge inside a transaction and rolls it back - so the dialog shows
+ * the exact row counts and the recomputed purchase-invoice totals.
+ */
+export const getProductPurgePreview = async (id) => api.get(`/products/${id}/purge-preview`, { timeoutMs: 60000 });
+
+export const purgeProductFromDatabase = async (id, confirm) =>
+  api.delete(`/products/${id}/purge`, { body: { confirm }, timeoutMs: 120000 });
+
 export const getBrands = async () => unwrapArray(await api.get("/brands"));
 
 export const createBrand = async (body) => unwrapItem(await api.post("/brands", body));

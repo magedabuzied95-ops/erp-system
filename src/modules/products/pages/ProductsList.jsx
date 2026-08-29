@@ -21,6 +21,7 @@ import {
   Printer,
   Power,
   Search,
+  ShieldAlert,
   Tag,
   Barcode,
   CalendarClock,
@@ -40,6 +41,7 @@ import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { canViewCostPrices, hasPermission } from "../../permissions/lib/rbacStore";
 
 import ProductsShell from "../components/ProductsShell";
+import PurgeProductDialog from "../components/PurgeProductDialog";
 import { addProductsToPrintList } from "../lib/productPrintList";
 
 import { useProductClassifications } from "../hooks/useProductClassifications";
@@ -2004,6 +2006,7 @@ function ProductsList() {
   const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 0 : window.innerWidth));
   const [priceEditorProduct, setPriceEditorProduct] = useState(null);
   const [statusActionProduct, setStatusActionProduct] = useState(null);
+  const [purgeTargetProduct, setPurgeTargetProduct] = useState(null);
   const [marketingEditorOpen, setMarketingEditorOpen] = useState(false);
   const [marketingEditorPost, setMarketingEditorPost] = useState(null);
   const [marketingSaving, setMarketingSaving] = useState(false);
@@ -2023,6 +2026,9 @@ function ProductsList() {
   const canCreateMarketingPost = hasPermission("marketing.create");
   const canUpdateMarketingPost = hasPermission("marketing.update");
   const canPublishMarketingPost = hasPermission("marketing.publish");
+  // Hard delete is admin-only. The server enforces the same gate with
+  // `requireAdmin`; this only decides whether the menu item is drawn.
+  const canPurgeProducts = isAdminUser();
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
 
   useEffect(() => {
@@ -2834,6 +2840,20 @@ function ProductsList() {
           setOpenActionId(null);
         },
       },
+      {
+        key: "purge",
+        icon: ShieldAlert,
+        label: t("products.actionsMenu.purge", "مسح من الداتا بيز"),
+        placement: "dropdown",
+        tone: "danger",
+        hidden: !canPurgeProducts,
+        onClick: () => {
+          console.log("[products:list] action click", { action: "purge", productId: row.id });
+          setOpenActionId(null);
+          setActionMenuPosition(null);
+          setPurgeTargetProduct(row);
+        },
+      },
     ];
 
     const inlineActions = actions.filter((action) => action.placement === "primary" && !action.hidden);
@@ -2869,6 +2889,26 @@ function ProductsList() {
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.deleteFailed", "Failed to delete product"));
       refreshProducts();
     }
+  };
+
+  const handleProductPurged = (result) => {
+    const purgedId = purgeTargetProduct?.id;
+    setPurgeTargetProduct(null);
+    if (purgedId) {
+      removeProductMeta(purgedId);
+      setSelectedIds((prev) => prev.filter((item) => item !== purgedId));
+      setSelectedProduct((prev) => (prev?.id === purgedId ? null : prev));
+    }
+    const purchasesUpdated = Number(result?.summary?.purchases_affected || 0);
+    toast.success(
+      purchasesUpdated
+        ? t("products.purge.doneWithPurchases", {
+            total: purchasesUpdated,
+            defaultValue: "تم مسح المنتج نهائيًا، وتم تحديث {{total}} فاتورة شراء.",
+          })
+        : t("products.purge.done", "تم مسح المنتج نهائيًا من قاعدة البيانات.")
+    );
+    refreshProducts();
   };
 
   const handleGenerateMarketingPost = async (product) => {
@@ -3851,6 +3891,14 @@ function ProductsList() {
             {t("products.newProduct")}
           </button>
         </div>
+      ) : null}
+
+      {purgeTargetProduct && canPurgeProducts ? (
+        <PurgeProductDialog
+          product={purgeTargetProduct}
+          onClose={() => setPurgeTargetProduct(null)}
+          onPurged={handleProductPurged}
+        />
       ) : null}
 
       {priceEditorProduct ? (
