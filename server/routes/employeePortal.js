@@ -53,7 +53,7 @@ import {
   resolveDisplayRefillAlert,
 } from "../services/displayRefillAlertService.js";
 import { getSettingsByCategory } from "../services/settingsService.js";
-import { getSalesOpportunitiesForScope } from "../services/salesOpportunityService.js";
+import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../services/salesOpportunityService.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -732,6 +732,28 @@ router.get("/:token/sales-opportunities", async (req, res) => {
       code: error?.code || null,
     });
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load sales opportunities" });
+  }
+});
+
+// Browsable "فرص البيع" board: models in العروض + models down to their last
+// piece, faceted by size / الجمهور / الفئة. Separate from the route above, which
+// stays the push-notification sync.
+router.get("/:token/sales-board", async (req, res) => {
+  let employee = null;
+  try {
+    employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const payload = await loadEmployeeSalesBoard({ employee, query: req.query || {} });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[employee-payroll-portal] sales board load error", {
+      route: "GET /api/employee-portal/:token/sales-board",
+      requestId: req.id ?? null,
+      tenantId: employee?.tenant_id ?? null,
+      error: error?.message || String(error),
+      code: error?.code || null,
+    });
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load sales board" });
   }
 });
 

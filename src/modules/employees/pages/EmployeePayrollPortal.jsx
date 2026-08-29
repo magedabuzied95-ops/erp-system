@@ -32,6 +32,7 @@ import {
   Settings,
   Star,
   Sun,
+  Tag,
   Target,
   Trophy,
   UserRound,
@@ -66,7 +67,7 @@ import i18n from "../../../i18n/i18n";
 const ringText = (key) => i18n.t(`common.chatRing.${key}`);
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
-import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
+import { getEmployeeSalesOpportunities, getEmployeeSalesBoard } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
 import "./EmployeePayrollPortal.m1.css";
@@ -107,8 +108,22 @@ const labels = {
     photoPreview: "معاينة الصورة",
     photoHint: "JPG أو PNG أو WebP — بحد أقصى 5MB",
     salesOpportunitiesEyebrow: "فرص البيع",
-    salesOpportunitiesSubtitle: "بطاقات سريعة تكشف آخر قطعة، آخر قطعتين، أو آخر مقاس في فرعك.",
+    salesOpportunitiesSubtitle: "الموديلات اللي في العروض، والموديلات اللي باقي منها آخر قطعة.",
     salesOpportunitiesTitle: "فرص البيع اليوم",
+    salesBoardSizeFilter: "المقاس",
+    salesBoardAudienceFilter: "الجمهور",
+    salesBoardGradeFilter: "الفئة",
+    salesBoardAllSizes: "كل المقاسات",
+    salesBoardAllAudiences: "كل الجمهور",
+    salesBoardAllGrades: "كل الفئات",
+    salesBoardOfferBadge: "عرض",
+    salesBoardLastOneBadge: "آخر قطعة",
+    salesBoardAvailableSizes: "المقاسات:",
+    salesBoardEmpty: "لا توجد فرص بيع بهذه الفلاتر.",
+    salesBoardShowMore: "عرض المزيد",
+    salesBoardClearFilters: "مسح الفلاتر",
+    salesBoardOffersCount: "عروض",
+    salesBoardLastOneCount: "آخر قطعة",
     today: "اليوم",
     title: "محفظة الموظف",
     subtitle: "رابطك الآمن يفتح المرتب والحضور والطلبات مباشرة.",
@@ -193,8 +208,22 @@ const labels = {
     photoPreview: "Photo preview",
     photoHint: "JPG, PNG or WebP — 5MB max",
     salesOpportunitiesEyebrow: "Sales opportunities",
-    salesOpportunitiesSubtitle: "Quick cards revealing the last piece, last two pieces, or last size in your branch.",
+    salesOpportunitiesSubtitle: "Models on offer, and models down to their last piece.",
     salesOpportunitiesTitle: "Today's sales opportunities",
+    salesBoardSizeFilter: "Size",
+    salesBoardAudienceFilter: "Audience",
+    salesBoardGradeFilter: "Grade",
+    salesBoardAllSizes: "All sizes",
+    salesBoardAllAudiences: "All audiences",
+    salesBoardAllGrades: "All grades",
+    salesBoardOfferBadge: "Offer",
+    salesBoardLastOneBadge: "Last piece",
+    salesBoardAvailableSizes: "Sizes:",
+    salesBoardEmpty: "No sales opportunities match these filters.",
+    salesBoardShowMore: "Show more",
+    salesBoardClearFilters: "Clear filters",
+    salesBoardOffersCount: "offers",
+    salesBoardLastOneCount: "last piece",
     today: "Today",
     title: "Employee Portal",
     subtitle: "Your secure employee link opens payroll, attendance, and requests.",
@@ -252,10 +281,13 @@ const labels = {
 
 const EMPLOYEE_PORTAL_INITIAL_TIMEOUT_MS = 10000;
 const EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS = 8000;
-const SALES_OPPORTUNITY_TYPE_LABELS = {
-  LAST_ONE: "آخر قطعة",
-  LAST_TWO: "آخر قطعتين",
-  LAST_SIZE: "آخر مقاس",
+const SALES_BOARD_PAGE_SIZE = 6;
+const SALES_BOARD_EMPTY_FILTERS = { size: "all", audience: "all", grade: "all" };
+const SALES_BOARD_EMPTY = {
+  items: [],
+  facets: { sizes: [], audiences: [], grades: [] },
+  counts: { total: 0, offers: 0, last_one: 0 },
+  has_more: false,
 };
 
 Object.assign(labels.ar, {
@@ -1197,20 +1229,32 @@ const renderTransactionIcon = (type, className = "") => {
   return <ReceiptText className={className} />;
 };
 
-const salesOpportunityBadgeLabel = (type = "") => SALES_OPPORTUNITY_TYPE_LABELS[String(type || "").trim().toUpperCase()] || "فرصة بيع";
 const salesOpportunityRoute = (token = "", opportunity = {}) => {
   const params = new URLSearchParams();
   if (opportunity.product_id) params.set("productId", String(opportunity.product_id));
   if (opportunity.product_variant_id) params.set("variantId", String(opportunity.product_variant_id));
   return `/employee-portal/${encodeURIComponent(token || "")}/products${params.toString() ? `?${params.toString()}` : ""}`;
 };
-const salesOpportunityImage = (opportunity = {}) =>
-  opportunity.image_url ||
-  opportunity.metadata?.image_url ||
-  opportunity.metadata?.variant_image_url ||
-  opportunity.metadata?.color_image_url ||
-  opportunity.metadata?.product_image_url ||
-  "";
+
+function SalesBoardFilter({ label, allLabel, value, options = [], onChange, className = "" }) {
+  return (
+    <label className={`flex min-w-0 flex-col gap-1 text-right ${className}`}>
+      <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="min-h-[var(--control-height-md)] w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 px-2 text-[13px] font-black text-white outline-none focus:border-primary/60"
+      >
+        <option value="all">{allLabel}</option>
+        {safeArray(options).map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 function MetricCard({ label, value, icon: Icon, tone = "slate" }) {
   const tones = {
@@ -1493,9 +1537,11 @@ export default function EmployeePayrollPortal() {
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [salesOpportunities, setSalesOpportunities] = useState([]);
-  const [salesOpportunitiesLoading, setSalesOpportunitiesLoading] = useState(true);
-  const [salesOpportunitiesError, setSalesOpportunitiesError] = useState("");
+  const [salesBoard, setSalesBoard] = useState(SALES_BOARD_EMPTY);
+  const [salesBoardLoading, setSalesBoardLoading] = useState(true);
+  const [salesBoardError, setSalesBoardError] = useState("");
+  const [salesBoardFilters, setSalesBoardFilters] = useState(SALES_BOARD_EMPTY_FILTERS);
+  const [salesBoardLimit, setSalesBoardLimit] = useState(SALES_BOARD_PAGE_SIZE);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [branchToken, setBranchToken] = useState("");
   const [attendanceSaving, setAttendanceSaving] = useState("");
@@ -1889,41 +1935,86 @@ export default function EmployeePayrollPortal() {
     [token, text, loadDisplayRefillAlerts]
   );
 
-  const loadSalesOpportunities = useCallback(
-    async ({ silent = false, activeRef = null } = {}) => {
+  // Fired once per portal open for its SERVER-SIDE effect only: this endpoint is
+  // what runs syncSalesOpportunities, and that sync is the only thing that emits
+  // the "فرصة بيع" push notification. The board below is what the page renders.
+  const syncSalesOpportunities = useCallback(async () => {
+    if (!token) return;
+    try {
+      await getEmployeeSalesOpportunities(token, { timeoutMs: EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS });
+    } catch {
+      // The board does not depend on it — a failed sync must not surface as an error.
+    }
+  }, [token]);
+
+  const loadSalesBoard = useCallback(
+    async ({ activeRef = null } = {}) => {
       if (!token) {
-        if (!silent) setSalesOpportunitiesLoading(false);
-        setSalesOpportunities([]);
+        setSalesBoardLoading(false);
+        setSalesBoard(SALES_BOARD_EMPTY);
         return;
       }
       try {
-        if (!silent) setSalesOpportunitiesLoading(true);
-        setSalesOpportunitiesError("");
-        const response = await getEmployeeSalesOpportunities(token, {
+        setSalesBoardLoading(true);
+        setSalesBoardError("");
+        const response = await getEmployeeSalesBoard(token, {
+          size: salesBoardFilters.size,
+          audience: salesBoardFilters.audience,
+          grade: salesBoardFilters.grade,
+          limit: salesBoardLimit,
           timeoutMs: EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS,
         });
         if (activeRef && !activeRef.current) return;
-        const opportunities = safeArray(response.opportunities || response.data?.opportunities || response.sales_opportunities);
-        setSalesOpportunities(opportunities);
+        setSalesBoard({
+          items: safeArray(response.items),
+          facets: {
+            sizes: safeArray(response.facets?.sizes),
+            audiences: safeArray(response.facets?.audiences),
+            grades: safeArray(response.facets?.grades),
+          },
+          counts: response.counts || SALES_BOARD_EMPTY.counts,
+          has_more: Boolean(response.has_more),
+        });
       } catch (err) {
         if (activeRef && !activeRef.current) return;
-        setSalesOpportunities([]);
-        setSalesOpportunitiesError(err?.responseBody?.message || err?.message || "لا يمكن تحميل فرص البيع حالياً.");
+        setSalesBoard(SALES_BOARD_EMPTY);
+        setSalesBoardError(err?.responseBody?.message || err?.message || "لا يمكن تحميل فرص البيع حالياً.");
       } finally {
-        if (!silent && (!activeRef || activeRef.current)) setSalesOpportunitiesLoading(false);
+        if (!activeRef || activeRef.current) setSalesBoardLoading(false);
       }
     },
-    [token]
+    [token, salesBoardFilters.size, salesBoardFilters.audience, salesBoardFilters.grade, salesBoardLimit]
   );
+
+  const updateSalesBoardFilter = useCallback((key, value) => {
+    setSalesBoardLimit(SALES_BOARD_PAGE_SIZE);
+    setSalesBoardFilters((current) => ({ ...current, [key]: value || "all" }));
+  }, []);
+
+  const salesBoardCounts = salesBoard.counts || SALES_BOARD_EMPTY.counts;
+  const salesBoardSizeOptions = useMemo(
+    () => safeArray(salesBoard.facets?.sizes).map((size) => ({ value: String(size), label: String(size) })),
+    [salesBoard.facets?.sizes]
+  );
+  const salesBoardFiltersActive =
+    salesBoardFilters.size !== "all" || salesBoardFilters.audience !== "all" || salesBoardFilters.grade !== "all";
 
   useEffect(() => {
     const activeRef = { current: true };
     loadPortalByToken({ activeRef });
-    loadSalesOpportunities({ activeRef });
+    void syncSalesOpportunities();
     return () => {
       activeRef.current = false;
     };
-  }, [loadPortalByToken, loadSalesOpportunities]);
+  }, [loadPortalByToken, syncSalesOpportunities]);
+
+  useEffect(() => {
+    const activeRef = { current: true };
+    loadSalesBoard({ activeRef });
+    return () => {
+      activeRef.current = false;
+    };
+  }, [loadSalesBoard]);
 
   const wallet = portal?.wallet_summary || {};
   const payrollExists = Boolean(
@@ -3750,11 +3841,49 @@ export default function EmployeePayrollPortal() {
                   </div>
                   <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{text.today}</div>
-                    <div className="mt-0.5 text-lg font-black text-primary">{salesOpportunities.length}</div>
+                    <div className="mt-0.5 text-lg font-black text-primary">{salesBoardCounts.total || 0}</div>
                   </div>
                 </div>
 
-                {salesOpportunitiesLoading ? (
+                {/* Two columns on a phone: "مستورد فيتنامي" does not fit a third
+                    of 375px, so الفئة takes the full row below. */}
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <SalesBoardFilter
+                    label={text.salesBoardSizeFilter}
+                    allLabel={text.salesBoardAllSizes}
+                    value={salesBoardFilters.size}
+                    options={salesBoardSizeOptions}
+                    onChange={(value) => updateSalesBoardFilter("size", value)}
+                  />
+                  <SalesBoardFilter
+                    label={text.salesBoardAudienceFilter}
+                    allLabel={text.salesBoardAllAudiences}
+                    value={salesBoardFilters.audience}
+                    options={salesBoard.facets.audiences}
+                    onChange={(value) => updateSalesBoardFilter("audience", value)}
+                  />
+                  <SalesBoardFilter
+                    className="col-span-2 sm:col-span-1"
+                    label={text.salesBoardGradeFilter}
+                    allLabel={text.salesBoardAllGrades}
+                    value={salesBoardFilters.grade}
+                    options={salesBoard.facets.grades}
+                    onChange={(value) => updateSalesBoardFilter("grade", value)}
+                  />
+                </div>
+
+                {salesBoardCounts.total ? (
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 text-[11px] font-black">
+                    <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary">
+                      {salesBoardCounts.offers || 0} {text.salesBoardOffersCount}
+                    </span>
+                    <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-amber-100">
+                      {salesBoardCounts.last_one || 0} {text.salesBoardLastOneCount}
+                    </span>
+                  </div>
+                ) : null}
+
+                {salesBoardLoading && !salesBoard.items.length ? (
                   <div className="mt-4 grid gap-2">
                     {Array.from({ length: 2 }).map((_, index) => (
                       <div key={index} className="flex flex-row-reverse gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3">
@@ -3768,30 +3897,30 @@ export default function EmployeePayrollPortal() {
                       </div>
                     ))}
                   </div>
-                ) : salesOpportunitiesError ? (
+                ) : salesBoardError ? (
                   <div className="mt-4 rounded-[22px] border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold leading-6 text-amber-50">
-                    <div>{salesOpportunitiesError}</div>
+                    <div>{salesBoardError}</div>
                     <button
                       type="button"
-                      onClick={() => void loadSalesOpportunities()}
+                      onClick={() => void loadSalesBoard()}
                       className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-200/20 bg-white/10 px-4 text-xs font-black text-white"
                     >
                       <RefreshCw className="h-4 w-4" />
                       إعادة المحاولة
                     </button>
                   </div>
-                ) : salesOpportunities.length ? (
-                  <div className="mt-4 grid gap-2">
-                    {salesOpportunities.slice(0, 4).map((opportunity) => (
+                ) : salesBoard.items.length ? (
+                  <div className={`mt-4 grid gap-2 transition-opacity ${salesBoardLoading ? "opacity-60" : "opacity-100"}`}>
+                    {salesBoard.items.map((card) => (
                       <article
-                        key={opportunity.id}
+                        key={card.key}
                         className="flex flex-row-reverse gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3 shadow-[0_8px_18px_rgba(2,6,23,0.12)]"
                       >
                         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80">
-                          {salesOpportunityImage(opportunity) ? (
+                          {card.image_url ? (
                             <img
-                              src={salesOpportunityImage(opportunity)}
-                              alt={opportunity.product_name || "Opportunity product"}
+                              src={card.image_url}
+                              alt={card.product_name || "Opportunity product"}
                               className="h-full w-full object-cover"
                               loading="lazy"
                             />
@@ -3801,37 +3930,102 @@ export default function EmployeePayrollPortal() {
                         </div>
                         <div className="min-w-0 flex-1 text-right">
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
-                            <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">
-                              {salesOpportunityBadgeLabel(opportunity.type)}
-                            </span>
-                            <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-black text-slate-100">
-                              {text(opportunity.stock_snapshot || 0)} متبقية
-                            </span>
+                            {card.is_offer ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">
+                                <Tag className="h-3 w-3 shrink-0" />
+                                {text.salesBoardOfferBadge}
+                              </span>
+                            ) : null}
+                            {card.has_last_one ? (
+                              <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-black text-amber-100">
+                                {text.salesBoardLastOneBadge}
+                              </span>
+                            ) : null}
+                            {card.grade_label ? (
+                              <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-black text-slate-100">
+                                {card.grade_label}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mt-2 truncate text-[15px] font-black leading-5 text-white" dir="auto">
-                            {opportunity.product_name || "منتج"}
+                            {card.product_name || "منتج"}
                           </div>
                           <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[11px] font-bold text-slate-300">
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{opportunity.color || "بدون لون"}</span>
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{opportunity.size || "بدون مقاس"}</span>
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{card.color || "بدون لون"}</span>
+                            {safeArray(card.audience_labels).map((label) => (
+                              <span key={label} className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{label}</span>
+                            ))}
                           </div>
+                          {safeArray(card.sizes).length ? (
+                            <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
+                              <span className="text-[11px] font-bold text-slate-400">{text.salesBoardAvailableSizes}</span>
+                              {card.sizes.slice(0, 8).map((size) => (
+                                <span
+                                  key={size}
+                                  className={`rounded-full px-2 py-0.5 text-[11px] font-black ${
+                                    safeArray(card.last_one_sizes).includes(size)
+                                      ? "border border-amber-300/40 bg-amber-400/15 text-amber-100"
+                                      : "border border-white/10 bg-white/5 text-slate-200"
+                                  }`}
+                                >
+                                  {size}
+                                </span>
+                              ))}
+                              {card.sizes.length > 8 ? (
+                                <span className="text-[11px] font-black text-slate-400">+{card.sizes.length - 8}</span>
+                              ) : null}
+                            </div>
+                          ) : null}
                           <div className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-300" dir="auto">
-                            {opportunity.message || "فرصة بيع جديدة متاحة الآن."}
+                            {card.message || "فرصة بيع جديدة متاحة الآن."}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => window.location.assign(salesOpportunityRoute(token, opportunity))}
-                            className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-primary"
-                          >
-                            عرض المنتج
-                          </button>
+                          <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                            {card.price > 0 ? (
+                              <div className="flex items-baseline gap-2">
+                                {card.compare_price > card.price ? (
+                                  <span className="text-[12px] font-bold text-slate-400 line-through">{formatCurrency(card.compare_price)}</span>
+                                ) : null}
+                                <span className="text-[15px] font-black text-primary">{formatCurrency(card.price)}</span>
+                              </div>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => window.location.assign(salesOpportunityRoute(token, card))}
+                              className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-primary"
+                            >
+                              عرض المنتج
+                            </button>
+                          </div>
                         </div>
                       </article>
                     ))}
+                    {salesBoard.has_more ? (
+                      <button
+                        type="button"
+                        onClick={() => setSalesBoardLimit((current) => current + SALES_BOARD_PAGE_SIZE)}
+                        disabled={salesBoardLoading}
+                        className="mt-1 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-xs font-black text-white disabled:opacity-60"
+                      >
+                        {salesBoardLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                        {text.salesBoardShowMore}
+                      </button>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[22px] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold leading-6 text-slate-300">
-                    لا توجد فرص بيع حالياً
+                    <div>{salesBoardFiltersActive ? text.salesBoardEmpty : "لا توجد فرص بيع حالياً"}</div>
+                    {salesBoardFiltersActive ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSalesBoardLimit(SALES_BOARD_PAGE_SIZE);
+                          setSalesBoardFilters(SALES_BOARD_EMPTY_FILTERS);
+                        }}
+                        className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/10 px-4 text-xs font-black text-white"
+                      >
+                        {text.salesBoardClearFilters}
+                      </button>
+                    ) : null}
                   </div>
                 )}
               </section>

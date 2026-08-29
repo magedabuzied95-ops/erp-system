@@ -7,7 +7,7 @@ const PRODUCT_GROUP_ORDER = ["sneakers", "crocs", "bags", "winter"];
 const SOURCE_LABELS = { imported_vietnam: "مستورد فيتنامي", mirror_original: "ميرور أوريجنال", egyptian: "مصري" };
 const AUDIENCE_LABELS = { men: "رجالي", women: "حريمي", kids: "أطفال", special: "خاص" };
 
-const normalizeSource = (value = "") => {
+export const normalizeSource = (value = "") => {
   const text = String(value || "").trim().toLowerCase();
   if (/(mirror|ميرور)/i.test(text)) return "mirror_original";
   if (/(vietnam|فيتنام|مستورد)/i.test(text)) return "imported_vietnam";

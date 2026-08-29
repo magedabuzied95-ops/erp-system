@@ -1,5 +1,9 @@
 import db from "../database/db.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
+import { normalizeSource } from "./employeeDisplayAuditService.js";
+import { normalizeProductAudiences, numericSize } from "../utils/sizeGroups.js";
+import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
+import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
 
 const SALES_OPPORTUNITY_TTL_MS = 24 * 60 * 60 * 1000;
 const tableColumnsCache = new Map();
@@ -268,6 +272,16 @@ const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branch
     tableColumns(client, "warehouses"),
   ]);
   const inventoryHasBranchId = inventoryColumns.has("branch_id");
+  // warehouse_inventory does not carry tenant_id on every schema. Asking for it
+  // unconditionally made this whole sync throw 42703, which took the "فرصة بيع"
+  // push notification down with it; fall back to the warehouse's tenant.
+  const inventoryHasTenantId = inventoryColumns.has("tenant_id");
+  const warehouseHasTenantId = warehouseColumns.has("tenant_id");
+  const inventoryTenantClause = inventoryHasTenantId
+    ? "($1::bigint IS NULL OR wi.tenant_id = $1::bigint)"
+    : warehouseHasTenantId
+      ? "($1::bigint IS NULL OR w.tenant_id = $1::bigint)"
+      : "TRUE";
   const warehouseHasBranchId = warehouseColumns.has("branch_id");
   const warehouseHasBranchName = warehouseColumns.has("branch_name");
   const resolvedBranchIdExpr = inventoryHasBranchId
@@ -335,7 +349,7 @@ const loadCurrentStockRows = async ({ clientOrPool = db, tenantId = null, branch
       ORDER BY pi.is_primary DESC, pi.sort_order ASC, pi.id ASC
       LIMIT 1
     ) color_image ON TRUE
-    WHERE ($1::bigint IS NULL OR wi.tenant_id = $1::bigint)
+    WHERE ${inventoryTenantClause}
       AND COALESCE(wi.stock, 0) > 0
       AND ${resolvedBranchIdExpr} IS NOT NULL
       ${branchClause}
@@ -667,3 +681,278 @@ export const getSalesOpportunitiesForScope = async ({ tenantId = null, branchId 
 
 export const listActiveSalesOpportunities = loadActiveSalesOpportunities;
 export const buildSalesOpportunityMessage = buildOpportunityMessage;
+
+// ---------------------------------------------------------------------------
+// Sales board — the browsable "فرص البيع" list in the Employee Portal.
+//
+// Two kinds of card, both asked for by the owner: models sitting in العروض, and
+// models whose colour is down to its LAST piece. One card per product + colour
+// (a "موديل"), filterable by size / الجمهور / الفئة.
+//
+// Stock authority here is `product_variants.stock` — the same column every other
+// live Employee Portal surface reads (display audit, warehouse request, facets).
+// The push-notification sync above instead resolves stock through
+// warehouse_inventory -> warehouses -> branches, which returns nothing on this
+// deployment; that is why the card has been showing 0. The sync is left exactly
+// as it is because it is the only thing that emits the "فرصة بيع" push.
+// ---------------------------------------------------------------------------
+
+const SALES_BOARD_ROW_CAP = 6000;
+const SALES_BOARD_DEFAULT_LIMIT = 12;
+const SALES_BOARD_MAX_LIMIT = 60;
+
+// Same three buckets the display audit files products into (normalizeSource is
+// its normalizer, imported here so there is one definition of الفئة), labelled
+// with the owner's own wording.
+const SALES_BOARD_GRADES = [
+  { key: "imported_vietnam", label: "مستورد فيتنامي" },
+  { key: "mirror_original", label: "ميرور" },
+  { key: "egyptian", label: "محل" },
+];
+const SALES_BOARD_AUDIENCES = [
+  { key: "men", label: "رجالي" },
+  { key: "women", label: "حريمي" },
+  { key: "kids", label: "أطفال" },
+];
+const SALES_BOARD_GRADE_LABELS = Object.fromEntries(SALES_BOARD_GRADES.map((entry) => [entry.key, entry.label]));
+const SALES_BOARD_AUDIENCE_LABELS = Object.fromEntries(SALES_BOARD_AUDIENCES.map((entry) => [entry.key, entry.label]));
+
+const boardFilterValue = (value = "") => {
+  const text = lower(value);
+  return !text || text === "all" ? "" : text;
+};
+
+const sortBoardSizes = (sizes = []) =>
+  [...new Set(sizes.map((size) => clean(size)).filter(Boolean))].sort((left, right) => {
+    const leftNumber = numericSize(left);
+    const rightNumber = numericSize(right);
+    if (leftNumber !== null && rightNumber !== null) return leftNumber - rightNumber;
+    if (leftNumber !== null) return -1;
+    if (rightNumber !== null) return 1;
+    return String(left).localeCompare(String(right), "ar");
+  });
+
+const PRODUCT_PRICING_JSON = `jsonb_build_object(
+        'selling_price', p.selling_price,
+        'price', p.price,
+        'regular_price', p.regular_price,
+        'purchase_selling_price', p.purchase_selling_price,
+        'manual_selling_price', p.manual_selling_price,
+        'manual_price_override_active', p.manual_price_override_active,
+        'sale_price', p.sale_price,
+        'is_offer_story', COALESCE(p.is_offer_story, FALSE),
+        'use_custom_compare_price', p.use_custom_compare_price
+      )`;
+
+const VARIANT_PRICING_JSON = `jsonb_build_object(
+        'selling_price', v.selling_price,
+        'price', v.price,
+        'regular_price', v.regular_price,
+        'purchase_selling_price', v.purchase_selling_price,
+        'manual_selling_price', v.manual_selling_price,
+        'manual_price_override_active', v.manual_price_override_active,
+        'sale_price', v.sale_price
+      )`;
+
+// One row per product + colour that is either in العروض or holds a last piece.
+// Deliberately unfiltered: the dropdowns are faceted and filtered off this full
+// candidate set, so picking one value never collapses the others.
+const loadSalesBoardColorRows = async ({ clientOrPool = db, tenantId = null } = {}) => {
+  const client = clientOrPool || db;
+  const result = await client.query(
+    `
+    WITH scoped AS (
+      SELECT
+        p.id AS product_id,
+        p.name AS product_name,
+        COALESCE(NULLIF(p.grade, ''), '') AS grade,
+        COALESCE(NULLIF(p.gender, ''), '') AS gender,
+        COALESCE(p.is_offer_story, FALSE) AS is_offer,
+        COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+        ${PRODUCT_PRICING_JSON} AS product_pricing,
+        COALESCE(NULLIF(v.color_group_key, ''), LOWER(TRIM(COALESCE(v.color, '')))) AS color_key,
+        COALESCE(NULLIF(v.color, ''), '') AS color,
+        COALESCE(NULLIF(v.size, ''), '') AS size,
+        COALESCE(v.stock, 0)::int AS stock,
+        COALESCE(NULLIF(v.audience, ''), '') AS audience,
+        COALESCE(NULLIF(v.image_url, ''), NULLIF(v.image, ''), NULLIF(v.photo_url, ''), NULLIF(v.thumbnail_url, ''), '') AS variant_image_url,
+        v.id AS variant_id,
+        ${VARIANT_PRICING_JSON} AS variant_pricing
+      FROM products p
+      JOIN product_variants v ON v.product_id = p.id
+      WHERE ($1::bigint IS NULL OR p.tenant_id IS NULL OR p.tenant_id = $1::bigint)
+        AND COALESCE(p.is_active, TRUE) = TRUE
+        AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+        AND v.is_active IS DISTINCT FROM FALSE
+        AND v.deleted_at IS NULL
+        AND COALESCE(v.stock, 0) > 0
+    )
+    SELECT
+      product_id,
+      color_key,
+      MIN(product_name) AS product_name,
+      MIN(grade) AS grade,
+      MIN(gender) AS gender,
+      bool_or(is_offer) AS is_offer,
+      bool_or(stock = 1) AS has_last_one,
+      SUM(stock)::int AS color_stock,
+      MIN(product_image_url) AS product_image_url,
+      (array_agg(product_pricing))[1] AS product_pricing,
+      (array_agg(color ORDER BY (color <> '') DESC, variant_id))[1] AS color,
+      (array_agg(variant_image_url ORDER BY (variant_image_url <> '') DESC, variant_id))[1] AS variant_image_url,
+      (array_agg(variant_id ORDER BY stock ASC, variant_id))[1] AS representative_variant_id,
+      (array_agg(variant_pricing ORDER BY stock ASC, variant_id))[1] AS variant_pricing,
+      array_agg(DISTINCT size) FILTER (WHERE size <> '') AS sizes,
+      array_agg(DISTINCT size) FILTER (WHERE size <> '' AND stock = 1) AS last_one_sizes,
+      string_agg(DISTINCT audience, ',') FILTER (WHERE audience <> '') AS audience_text
+    FROM scoped
+    GROUP BY product_id, color_key
+    HAVING bool_or(is_offer) OR bool_or(stock = 1)
+    ORDER BY bool_or(is_offer) DESC, bool_or(stock = 1) DESC, MIN(product_name) ASC, color_key ASC
+    LIMIT $2::int
+    `,
+    [tenantId, SALES_BOARD_ROW_CAP]
+  );
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  if (rows.length >= SALES_BOARD_ROW_CAP) {
+    console.warn("[sales-board] candidate rows hit the cap — the tail is not listed", {
+      tenantId: tenantId ?? null,
+      cap: SALES_BOARD_ROW_CAP,
+    });
+  }
+  return rows;
+};
+
+const buildSalesBoardMessage = ({ isOffer, lastOneSizes = [], productName = "", color = "" }) => {
+  const model = `${productName || "منتج"}${color ? ` - ${color}` : ""}`;
+  const sizeText = lastOneSizes.length > 1
+    ? ` في المقاسات ${lastOneSizes.join("، ")}`
+    : lastOneSizes.length
+      ? ` مقاس ${lastOneSizes[0]}`
+      : "";
+  if (isOffer && lastOneSizes.length) return `${model} ضمن العروض، وباقي آخر قطعة${sizeText}.`;
+  if (isOffer) return `${model} ضمن العروض الآن.`;
+  return `باقي آخر قطعة${sizeText} من ${model}.`;
+};
+
+const buildSalesBoardCard = (row = {}, { saleModeSettings = null } = {}) => {
+  const productId = toPositiveInt(row.product_id, 0);
+  if (!productId) return null;
+  const productName = firstNonEmpty(row.product_name, "منتج");
+  const color = clean(row.color);
+  const sizes = sortBoardSizes(Array.isArray(row.sizes) ? row.sizes : []);
+  const lastOneSizes = sortBoardSizes(Array.isArray(row.last_one_sizes) ? row.last_one_sizes : []);
+  const isOffer = row.is_offer === true;
+  const hasLastOne = row.has_last_one === true;
+  const gradeKey = normalizeSource(row.grade);
+
+  // Colour-level الجمهور wins; a colour that carries none inherits the product's
+  // gender; a model that resolves to nothing stays a wildcard and shows under
+  // every audience — the same rule the storefront sections apply.
+  const colorAudiences = normalizeProductAudiences(clean(row.audience_text));
+  const audiences = colorAudiences.length ? colorAudiences : normalizeProductAudiences(clean(row.gender));
+
+  const productScope = normalizeMetadata(row.product_pricing);
+  const variantScope = normalizeMetadata(row.variant_pricing);
+  const pricing = resolveEffectiveCustomerPrice({
+    product: productScope,
+    variant: variantScope,
+    saleModeSettings: saleModeSettings || { sale_mode_enabled: false },
+  });
+
+  return {
+    key: `${productId}:${clean(row.color_key) || "color"}`,
+    product_id: productId,
+    product_variant_id: toPositiveInt(row.representative_variant_id, 0) || null,
+    product_name: productName,
+    color,
+    kind: isOffer && hasLastOne ? "offer_last_one" : isOffer ? "offer" : "last_one",
+    is_offer: isOffer,
+    has_last_one: hasLastOne,
+    sizes,
+    last_one_sizes: lastOneSizes,
+    color_stock: Math.max(0, toInt(row.color_stock, 0)),
+    grade: clean(row.grade),
+    grade_key: gradeKey,
+    grade_label: SALES_BOARD_GRADE_LABELS[gradeKey] || "",
+    audiences,
+    audience_labels: audiences.map((key) => SALES_BOARD_AUDIENCE_LABELS[key]).filter(Boolean),
+    price: Math.round(Number(pricing.active_price) || 0),
+    compare_price: Math.round(Number(pricing.compare_price) || 0),
+    offer_price_applied: pricing.price_source === "sale",
+    image_url: firstNonEmpty(row.variant_image_url, row.product_image_url),
+    message: buildSalesBoardMessage({ isOffer, lastOneSizes, productName, color }),
+  };
+};
+
+// The size filter matches only the sizes that put a card on the board: every
+// in-stock size of an offer colour, but ONLY the last-piece sizes of a card that
+// is here purely because it is running out. Otherwise "مقاس 42" would return a
+// card whose 42 is fully stocked and whose 43 is the actual opportunity.
+const boardCardMatchesSize = (card = {}, size = "") => {
+  if (!size) return true;
+  const pool = card.is_offer ? card.sizes : card.last_one_sizes;
+  return pool.some((value) => lower(value) === size);
+};
+
+const boardCardMatchesAudience = (card = {}, audience = "") => {
+  if (!audience) return true;
+  if (!card.audiences.length) return true;
+  return card.audiences.includes(audience);
+};
+
+const boardCardMatchesGrade = (card = {}, grade = "") => {
+  if (!grade) return true;
+  return card.grade_key === grade;
+};
+
+export const loadEmployeeSalesBoard = async ({ employee = null, query = {}, clientOrPool = db, saleModeSettings = null } = {}) => {
+  const tenantId = employee?.tenant_id ?? null;
+  const size = boardFilterValue(query.size ?? query.selectedSize ?? query.selected_size);
+  const audience = boardFilterValue(query.audience ?? query.gender);
+  const grade = boardFilterValue(query.grade ?? query.quality);
+  const kind = boardFilterValue(query.kind);
+  const page = Math.max(1, toPositiveInt(query.page, 1));
+  const limit = Math.min(Math.max(toPositiveInt(query.limit ?? query.per_page ?? query.perPage, SALES_BOARD_DEFAULT_LIMIT), 1), SALES_BOARD_MAX_LIMIT);
+
+  const [rows, resolvedSaleMode] = await Promise.all([
+    loadSalesBoardColorRows({ clientOrPool, tenantId }),
+    saleModeSettings ? Promise.resolve(saleModeSettings) : loadTenantSaleModeSettings({ tenantId }),
+  ]);
+
+  const cards = rows.map((row) => buildSalesBoardCard(row, { saleModeSettings: resolvedSaleMode })).filter(Boolean);
+
+  // Facets come off the FULL candidate set, before any filter is applied.
+  const facets = {
+    sizes: sortBoardSizes(cards.flatMap((card) => (card.is_offer ? card.sizes : card.last_one_sizes))),
+    audiences: SALES_BOARD_AUDIENCES.map((entry) => ({ value: entry.key, label: entry.label })),
+    grades: SALES_BOARD_GRADES.filter((entry) => cards.some((card) => card.grade_key === entry.key))
+      .map((entry) => ({ value: entry.key, label: entry.label })),
+  };
+
+  const matched = cards.filter(
+    (card) =>
+      (!kind || card.kind === kind || (kind === "offer" && card.is_offer) || (kind === "last_one" && card.has_last_one)) &&
+      boardCardMatchesSize(card, size) &&
+      boardCardMatchesAudience(card, audience) &&
+      boardCardMatchesGrade(card, grade)
+  );
+
+  const offset = (page - 1) * limit;
+  const items = matched.slice(offset, offset + limit);
+
+  return {
+    items,
+    facets,
+    filters: { size, audience, grade, kind },
+    counts: {
+      total: matched.length,
+      offers: matched.filter((card) => card.is_offer).length,
+      last_one: matched.filter((card) => card.has_last_one).length,
+      candidates: cards.length,
+    },
+    page,
+    limit,
+    has_more: offset + items.length < matched.length,
+  };
+};
