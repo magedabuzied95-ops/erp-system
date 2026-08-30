@@ -661,38 +661,38 @@ function CartSidebar({
       />
 
       <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)] xl:min-h-[13rem]">
-        {/* The invoice type belongs where the cashier decides it — at the top of the cart,
-            not in the toolbar, where it read as a label and nobody found it. */}
+        {/* A dropdown, as asked for — but at the top of the cart rather than in the toolbar,
+            where the same control read as a label and went unfound. The border, the caret and
+            the field label are what make it read as something you can open. */}
         {onInvoiceModeChange ? (
-          <div role="group" aria-label={posLabel("onlineOrder.modeLabel", "Invoice type")} className="mb-2 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-black/30 p-1">
-            {[
-              { key: "counter", label: posLabel("onlineOrder.modeCounter", "Counter invoice"), icon: <ReceiptText className="h-4 w-4" /> },
-              { key: "online", label: posLabel("onlineOrder.modeOnline", "Online order"), icon: <Truck className="h-4 w-4" /> },
-            ].map((option) => {
-              const active = option.key === (onlineMode ? "online" : "counter");
-              const blocked = option.key === "online" && Boolean(onlineModeBlockedReason);
-              return (
-                <button
-                  key={option.key}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={blocked}
-                  title={blocked ? onlineModeBlockedReason : undefined}
-                  onClick={() => onInvoiceModeChange(option.key)}
-                  className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                    active
-                      ? option.key === "online"
-                        ? "bg-sky-400/20 text-sky-100 shadow-[0_0_0_1px_rgba(125,211,252,0.35)_inset]"
-                        : "bg-emerald-400/15 text-emerald-100 shadow-[0_0_0_1px_rgba(52,211,153,0.35)_inset]"
-                      : "text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200"
-                  }`}
-                >
-                  {option.icon}
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
+          <label className="mb-2 block">
+            <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+              {posLabel("onlineOrder.modeLabel", "Invoice type")}
+            </span>
+            <div className="relative">
+              <span className={`pointer-events-none absolute inset-y-0 start-3 flex items-center ${onlineMode ? "text-sky-200" : "text-emerald-200"}`}>
+                {onlineMode ? <Truck className="h-4 w-4" /> : <ReceiptText className="h-4 w-4" />}
+              </span>
+              <select
+                value={onlineMode ? "online" : "counter"}
+                onChange={(event) => onInvoiceModeChange(event.target.value)}
+                className={`h-11 w-full appearance-none rounded-xl border px-3 ps-9 pe-9 text-sm font-black outline-none transition ${
+                  onlineMode
+                    ? "border-sky-300/45 bg-sky-400/15 text-sky-50"
+                    : "border-emerald-300/35 bg-emerald-400/10 text-emerald-50"
+                }`}
+              >
+                <option value="counter" className="bg-zinc-900 text-zinc-100">{posLabel("onlineOrder.modeCounter", "Counter invoice")}</option>
+                {/* Kept selectable but inert while blocked, so the reason can be read rather
+                    than the option simply vanishing from the list. */}
+                <option value="online" disabled={Boolean(onlineModeBlockedReason)} className="bg-zinc-900 text-zinc-100">
+                  {posLabel("onlineOrder.modeOnline", "Online order")}
+                  {onlineModeBlockedReason ? ` — ${onlineModeBlockedReason}` : ""}
+                </option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute inset-y-0 end-3 my-auto h-4 w-4 text-zinc-400" />
+            </div>
+          </label>
         ) : null}
         <div className="flex items-center justify-between gap-3">
           <div>

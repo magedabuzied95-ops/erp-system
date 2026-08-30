@@ -131,14 +131,17 @@ test("online mode is locked out wherever it could not settle", () => {
   }
 });
 
-test("the invoice-type switch sits in the cart, where the cashier decides it", () => {
-  // It started life as a <select> in the top toolbar and read as a label — the shop owner
-  // could not find it. It belongs above the cart, as two buttons that show which is active.
-  assert.match(cartSource, /role="group" aria-label=\{posLabel\("onlineOrder\.modeLabel"/);
-  assert.match(cartSource, /\{ key: "counter", label: posLabel\("onlineOrder\.modeCounter"/);
-  assert.match(cartSource, /\{ key: "online", label: posLabel\("onlineOrder\.modeOnline"/);
-  assert.match(cartSource, /onClick=\{\(\) => onInvoiceModeChange\(option\.key\)\}/);
-  assert.match(cartSource, /const active = option\.key === \(onlineMode \? "online" : "counter"\);/);
+test("the invoice-type dropdown sits in the cart, where the cashier decides it", () => {
+  // It first shipped as a <select> in the top toolbar, where it read as a label and the shop
+  // owner could not find it at all. Same control, moved above the cart and given a field
+  // label, a caret and a coloured border so it reads as something you open.
+  assert.match(cartSource, /onChange=\{\(event\) => onInvoiceModeChange\(event\.target\.value\)\}/);
+  assert.match(cartSource, /value=\{onlineMode \? "online" : "counter"\}/);
+  assert.match(cartSource, /posLabel\("onlineOrder\.modeLabel", "Invoice type"\)/);
+  assert.match(cartSource, /<option value="counter"[\s\S]{0,120}posLabel\("onlineOrder\.modeCounter"/);
+  assert.match(cartSource, /<option value="online" disabled=\{Boolean\(onlineModeBlockedReason\)\}/);
+  // The caret is what tells a cashier this opens; without it the field is just a box.
+  assert.match(cartSource, /<ChevronDown className="pointer-events-none absolute inset-y-0 end-3/);
   // Both cart instances — desktop column and mobile drawer — must be able to switch it.
   assert.equal((posSource.match(/onInvoiceModeChange=\{setInvoiceMode\}/g) || []).length, 2);
   // And the old toolbar control must not come back alongside it: two controls for one
