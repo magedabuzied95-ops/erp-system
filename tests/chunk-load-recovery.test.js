@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { isChunkLoadError } from "../src/shared/utils/chunkLoadRecovery.js";
+import { isAppBundleScript, isChunkLoadError } from "../src/shared/utils/chunkLoadRecovery.js";
 
 const recoverySource = await readFile(new URL("../src/shared/utils/chunkLoadRecovery.js", import.meta.url), "utf8");
 const mainSource = await readFile(new URL("../src/main.jsx", import.meta.url), "utf8");
@@ -17,7 +17,59 @@ test("module MIME and script element failures trigger stale-build recovery", () 
   assert.match(recoverySource, /failed to load module script/);
   assert.match(recoverySource, /expected a javascript-or-wasm module script/);
   assert.match(recoverySource, /error\.target\?\.src/);
-  assert.match(recoverySource, /error\?\.target\?\.tagName === "SCRIPT"/);
+  assert.equal(
+    isChunkLoadError(new Error("Failed to load module script: expected a JavaScript-or-Wasm module script")),
+    true
+  );
+  assert.equal(isChunkLoadError({ type: "error", target: { tagName: "SCRIPT", src: "https://m1store-egy.com/assets/app-cIU1UnFY.js" } }), true);
+});
+
+// Recovery deletes every CacheStorage entry, unregisters every service worker --
+// the inbox PWA's shell worker and its push worker included -- and force-reloads
+// the tab. A third-party script that fails is not a reason to do any of that,
+// and third-party scripts fail all the time: ad blockers, filtering ISPs, a bad
+// edge. Production was answering 503 for the Meta pixel on every single load,
+// so every load nuked the workers and reloaded, and the inbox never held still
+// long enough to finish fetching its conversations.
+test("a failing third-party script is never read as a stale build", () => {
+  const scriptError = (src) => ({ type: "error", target: { tagName: "SCRIPT", src } });
+  const page = "https://m1store-egy.com/inbox";
+
+  assert.equal(isChunkLoadError(scriptError("https://connect.facebook.net/en_US/fbevents.js")), false);
+  assert.equal(isChunkLoadError(scriptError("https://static.cloudflareinsights.com/beacon.min.js/v3d52b4")), false);
+  assert.equal(isChunkLoadError(scriptError("https://www.googletagmanager.com/gtag/js?id=X")), false);
+
+  // Our own hashed bundle failing IS the signal, and still fires.
+  assert.equal(isChunkLoadError(scriptError("https://m1store-egy.com/assets/App-BZmQex79.js")), true);
+
+  // Same path, somebody else's origin: not our bundle.
+  assert.equal(isAppBundleScript(scriptError("https://cdn.example.com/assets/app.js").target, page), false);
+  assert.equal(isAppBundleScript(scriptError("https://m1store-egy.com/assets/app.js").target, page), true);
+  assert.equal(isAppBundleScript(scriptError("https://m1store-egy.com/uploads/x.js").target, page), false);
+  assert.equal(isAppBundleScript({ tagName: "IMG", src: "https://m1store-egy.com/assets/a.js" }, page), false);
+});
+
+test("the boot guard reads only this deployment's own bundles as a stale build", async () => {
+  const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const guard = indexSource.slice(
+    indexSource.indexOf("function isAssetScript"),
+    indexSource.indexOf("var overlay = null")
+  );
+  assert.ok(guard.length > 0);
+  assert.match(guard, /url\.origin === window\.location\.origin/);
+  assert.match(guard, /url\.pathname\.indexOf\("\/assets\/"\) === 0/);
+  // The rule that matched any src ending in ".js" — i.e. every third-party script.
+  assert.doesNotMatch(guard, /\.m\?js/);
+});
+
+test("the readiness probe survives a proxy that refuses HEAD", async () => {
+  const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  // A HEAD answered 503 where the same GET returns the bundle leaves the probe
+  // unable to ever say "ready", so every recovery burns the full 12s ceiling.
+  assert.match(
+    indexSource,
+    /method: "HEAD"[\s\S]{0,300}if \(bootable\(response\)\) return true;[\s\S]{0,200}fetch\(match\[1\], \{ cache: "no-store", credentials: "omit" \}\)\.then\(bootable\)/
+  );
 });
 
 test("the application entry import has an explicit recovery path", () => {

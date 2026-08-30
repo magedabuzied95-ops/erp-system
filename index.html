@@ -353,10 +353,25 @@
           }
         }
 
+        // ONLY this deployment's own bundles. Every page also loads third-party
+        // scripts -- the Meta pixel, the analytics beacon -- and those fail all
+        // the time: an ad blocker eats them, a filtering ISP answers 503, the
+        // edge hiccups. None of that says anything about whether the build is
+        // stale, and treating it as a stale build wipes CacheStorage, unregisters
+        // every service worker (the inbox PWA's and its push worker with it) and
+        // force-reloads the tab -- on EVERY page load, for as long as the pixel
+        // stays blocked. Matching any URL ending in ".js" is what let a blocked
+        // pixel do that.
         function isAssetScript(target) {
           if (!target || target.tagName !== "SCRIPT") return false;
           var src = String(target.src || "");
-          return src.indexOf("/assets/") !== -1 || /\.m?js(\?|$)/.test(src);
+          if (!src) return false;
+          try {
+            var url = new URL(src, window.location.href);
+            return url.origin === window.location.origin && url.pathname.indexOf("/assets/") === 0;
+          } catch (error) {
+            return false;
+          }
         }
 
         // A recovery that lands on a blank page is worse than the failure it was
@@ -398,13 +413,22 @@
             .then(function (html) {
               var match = html.match(/<script[^>]+type="module"[^>]+src="(\/assets\/[^"]+)"/);
               if (!match) return false;
-              // HEAD, so the probe costs headers rather than the whole entry bundle.
-              return fetch(match[1], { method: "HEAD", cache: "no-store", credentials: "omit" }).then(function (response) {
+              // The SPA rewrite serves index.html for anything it cannot find, so
+              // a 200 alone proves nothing -- the MIME type is the real test.
+              function bootable(response) {
                 var type = String(response.headers.get("content-type") || "").toLowerCase();
-                // The SPA rewrite serves index.html for anything it cannot find,
-                // so a 200 alone proves nothing -- the MIME type is the real test.
                 return response.ok && type.indexOf("javascript") !== -1;
-              });
+              }
+              // HEAD first, so the probe costs headers rather than the whole entry
+              // bundle -- but a proxy or WAF that refuses HEAD (seen answering 503
+              // on a request the same GET serves fine) must not make the probe
+              // permanently unable to say "ready", which would leave every real
+              // recovery sitting on the overlay for the full 12-second ceiling.
+              return fetch(match[1], { method: "HEAD", cache: "no-store", credentials: "omit" })
+                .then(function (response) {
+                  if (bootable(response)) return true;
+                  return fetch(match[1], { cache: "no-store", credentials: "omit" }).then(bootable);
+                });
             })
             .catch(function () { return false; });
         }

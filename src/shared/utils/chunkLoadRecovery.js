@@ -31,11 +31,32 @@ const getErrorText = (error) => {
   return parts.filter(Boolean).join(" ").toLowerCase();
 };
 
+// A failed <script> is only evidence of a stale build when the script is one of
+// OURS. Every page also carries third-party scripts -- the Meta pixel above all
+// -- and those fail routinely: ad blockers, filtering ISPs, a bad edge. Reading
+// "any src ending in .js" as a stale build handed a blocked pixel the power to
+// wipe CacheStorage, unregister every service worker and force-reload the tab on
+// every single page load.
+export const isAppBundleScript = (target, pageUrl) => {
+  if (!target || target.tagName !== "SCRIPT") return false;
+  const source = String(target.src || "");
+  if (!source) return false;
+
+  const base = pageUrl || (typeof window !== "undefined" ? window.location.href : "");
+  try {
+    const url = base ? new URL(source, base) : new URL(source);
+    // Same origin AND under /assets/: the build stamps every bundle there, and
+    // nothing else the app loads lives at that path.
+    if (base && url.origin !== new URL(base).origin) return false;
+    return url.pathname.startsWith("/assets/");
+  } catch {
+    return false;
+  }
+};
+
 export const isChunkLoadError = (error) => {
   const text = getErrorText(error);
-  const failedScriptSource = String(error?.target?.src || "").toLowerCase();
-  const isFailedModuleScript = error?.target?.tagName === "SCRIPT"
-    && (failedScriptSource.includes("/assets/") || failedScriptSource.endsWith(".js"));
+  const isFailedModuleScript = isAppBundleScript(error?.target);
   return isFailedModuleScript || CHUNK_ERROR_PATTERNS.some((pattern) => text.includes(pattern));
 };
 
