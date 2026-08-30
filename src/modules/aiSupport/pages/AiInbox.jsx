@@ -82,6 +82,7 @@ import {
   subscribeToPushWorkerMessages,
 } from "../services/inboxNotifications";
 import InboxNotificationBell from "../components/InboxNotificationBell";
+import WhatsappSessionAlert from "../components/WhatsappSessionAlert";
 import usePermission from "../../permissions/hooks/usePermission";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
@@ -11168,6 +11169,14 @@ export default function AiInbox({ reviewerMode = false }) {
                   </div>
 	                </div>
 	                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                  {/* A dead WhatsApp session is indistinguishable from a quiet day
+                      unless something says so — one went unnoticed for 37 hours. */}
+                  <WhatsappSessionAlert
+                    headers={headers}
+                    enabled={pageVisible}
+                    onConnected={() => requestRefresh("whatsapp-reconnected", { silent: true, force: true })}
+                    className="mb-2"
+                  />
                   {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
                   {filteredConversations.length ? (
                     <div className="space-y-2 pr-1">

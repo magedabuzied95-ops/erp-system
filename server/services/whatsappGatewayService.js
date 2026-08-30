@@ -1013,6 +1013,48 @@ export const getStatus = async ({ instance = "" } = {}) => {
   return { ...current, configured: true, connected, state: state || "unknown", raw: data };
 };
 
+// Pairing material for a dropped session.
+//
+// A WhatsApp session dies on its own — the phone is offline too long, the
+// account logs the device out — and the only cure is scanning a fresh QR from
+// the shop's phone. Until this existed that meant opening Evolution's own
+// manager on the VPS with the gateway API key in hand, so in practice nobody
+// could do it: on 2026-08-30 the session had been `close` for 37 hours, the
+// inbox looked frozen, and WhatsApp (~90% of the traffic) was dark the whole
+// time. The key stays server-side; the operator only ever sees the QR.
+const EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS = 15000;
+
+export const connectInstance = async ({ instance = "", number = "" } = {}) => {
+  const current = requireEvolutionConfig(instance);
+  // With a number Evolution answers with an 8-character pairing code instead of
+  // (or alongside) a QR. That is the only route that works when the phone
+  // holding the WhatsApp account is the same phone reading this screen — it
+  // cannot scan its own display.
+  const pairingNumber = normalizeEgyptPhone(number) || text(number).replace(/[^\d]/g, "");
+  const query = pairingNumber ? `?number=${encodeURIComponent(pairingNumber)}` : "";
+  const data = await evolutionFetch(`/instance/connect/${encodeURIComponent(current.instanceName)}${query}`, {
+    method: "GET",
+    timeoutMs: EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS,
+  });
+
+  // Evolution moves this payload between versions: a flat {base64, code,
+  // pairingCode} on 2.x, nested under `qrcode` on others, and — when the
+  // session is already live — no pairing material at all, just the instance.
+  const qr = data?.qrcode || data?.qrCode || {};
+  const rawImage = text(data?.base64 || qr?.base64);
+  const state = text(data?.instance?.state || data?.state || qr?.state || "");
+
+  return {
+    instanceName: current.instanceName,
+    // An <img> needs a data URL; some versions return the bare base64 payload.
+    qr_image: rawImage ? (rawImage.startsWith("data:") ? rawImage : `data:image/png;base64,${rawImage}`) : "",
+    qr_code: text(data?.code || qr?.code),
+    pairing_code: text(data?.pairingCode || qr?.pairingCode),
+    state: state || "",
+    already_connected: ["open", "connected", "online"].includes(state.toLowerCase()),
+  };
+};
+
 export const sendTextMessage = async ({ phone, message, instance = "" } = {}) => {
   // A customer who hides their number behind a WhatsApp username reaches us with
   // a LID and nothing else — the webhook carries no phone number anywhere. The

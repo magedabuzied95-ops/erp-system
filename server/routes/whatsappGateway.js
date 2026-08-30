@@ -4,6 +4,7 @@ import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
 import {
+  connectInstance,
   getRecentEvolutionWebhookEvents,
   getStatus,
   handleIncomingWebhook,
@@ -47,6 +48,29 @@ router.get("/status", protect, permit("settings", "view"), async (req, res) => {
     return res.json({ success: true, status });
   } catch (error) {
     return sendError(res, error, "Failed to load WhatsApp gateway status");
+  }
+});
+
+// Re-pair a dropped WhatsApp session from inside the ERP. Gated on settings:edit
+// because the QR it returns links a device to the shop's WhatsApp account — the
+// same authority the Evolution manager grants, and the reason the gateway API
+// key never leaves the server.
+router.post("/instance/connect", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const result = await connectInstance({
+      instance: req.body?.instance || "",
+      number: req.body?.number || "",
+    });
+    console.info("[whatsapp:instance-connect]", {
+      instanceName: result.instanceName,
+      state: result.state,
+      hasQr: Boolean(result.qr_image),
+      alreadyConnected: result.already_connected,
+      userId: req.user?.id || null,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to start WhatsApp pairing");
   }
 });
 

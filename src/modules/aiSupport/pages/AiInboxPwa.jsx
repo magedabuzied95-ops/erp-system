@@ -47,6 +47,7 @@ import {
   subscribeToPushWorkerMessages,
 } from "../services/inboxNotifications";
 import InboxNotificationBell from "../components/InboxNotificationBell";
+import WhatsappSessionAlert from "../components/WhatsappSessionAlert";
 import usePermission from "../../permissions/hooks/usePermission";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
@@ -6841,6 +6842,16 @@ export default function AiInboxPwa() {
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400"
                 />
               </label>
+              {tab === "conversations" ? (
+                // A dead WhatsApp session looks exactly like a quiet day, which is
+                // how one went unnoticed for 37 hours. Say it where the operator is
+                // already looking.
+                <WhatsappSessionAlert
+                  headers={headers}
+                  enabled={pageVisible}
+                  onConnected={() => requestRefresh("whatsapp-reconnected", { silent: true, force: true })}
+                />
+              ) : null}
               {tab === "conversations" ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {MESSAGE_PLATFORM_FILTERS.map((item) => (

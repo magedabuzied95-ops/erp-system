@@ -1757,6 +1757,11 @@
       "mediaUnavailable": "Attachment unavailable",
       "file": "File",
       "transcribed": "Auto transcript"
+    },
+    "channelAlert": {
+      "whatsappTitle": "WhatsApp is disconnected",
+      "whatsappBody": "New WhatsApp messages will not reach the inbox until the session is paired again.",
+      "stateLabel": "State"
     }
   },
   "integrations": {
@@ -1993,6 +1998,19 @@
         "inactive": "Paused",
         "testInstance": "Send from number",
         "note": "Create the instance and scan its QR with the new number on the Evolution server first, then register it here by name. Inbound events arrive through the existing webhook."
+      },
+      "pairing": {
+        "title": "Re-pair the WhatsApp session",
+        "start": "Reconnect",
+        "refresh": "New code",
+        "scanHint": "On the shop phone: WhatsApp → Linked devices → Link a device, then scan this code.",
+        "codeHint": "Or pick “Link with phone number” on the same screen and type this code:",
+        "phoneLabel": "Shop WhatsApp number (optional — returns a code instead of a QR)",
+        "waiting": "Waiting for the phone to pair…",
+        "connected": "Paired — messages are flowing again.",
+        "failed": "Could not start pairing",
+        "expired": "The code rotates — press “New code” if it expires.",
+        "noQr": "The gateway returned no code. Try again in a moment."
       }
     },
     "tiktok": {

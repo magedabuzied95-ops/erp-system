@@ -1,4 +1,5 @@
 import { api } from "../../../shared/api/api";
+import { whenWorkerActive } from "./serviceWorkerActivation";
 
 // Sound + web push for inbound AI Inbox messages.
 //
@@ -149,10 +150,14 @@ const registerPushWorker = async () => {
   // `navigator.serviceWorker.ready` instead would resolve to whichever worker
   // controls the page — on `/inbox` that is the caching `inbox-sw.js`, and the
   // subscription would land on the wrong registration.
-  return navigator.serviceWorker.register(PUSH_SW_URL, { scope: PUSH_SW_SCOPE }).catch((error) => {
-    console.warn("[ai-inbox-push] worker registration failed", error?.message || error);
-    return null;
-  });
+  const registration = await navigator.serviceWorker
+    .register(PUSH_SW_URL, { scope: PUSH_SW_SCOPE })
+    .catch((error) => {
+      console.warn("[ai-inbox-push] worker registration failed", error?.message || error);
+      return null;
+    });
+  if (!registration) return null;
+  return whenWorkerActive(registration);
 };
 
 export const enableInboxPush = async ({ surface = "/inbox" } = {}) => {

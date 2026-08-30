@@ -12,6 +12,8 @@ import { useTranslation } from "react-i18next";
 import { MessageCircle, Phone, Plus, RefreshCw, Send, ShieldCheck } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
+import { WhatsappPairingCard } from "../WhatsappSessionAlert";
+import { isWhatsappSessionDown } from "../../services/whatsappSession";
 import {
   ActionButton,
   CheckRow,
@@ -181,6 +183,15 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
             <FieldRow label={t("aiSupport.integrations.whatsapp.gateway.apiUrl")} value={gateway?.apiUrl} fallback={t("aiSupport.integrations.whatsapp.gateway.apiUrlMissing")} />
             <FieldRow label={t("aiSupport.integrations.whatsapp.gateway.apiKey")} value={gateway?.apiKeyConfigured ? t("aiSupport.integrations.whatsapp.gateway.configured") : ""} fallback={t("aiSupport.integrations.whatsapp.gateway.apiKeyMissing")} />
             <FieldRow label={t("aiSupport.integrations.whatsapp.gateway.instance")} value={gateway?.instanceName} fallback={t("aiSupport.integrations.whatsapp.gateway.instanceMissing")} />
+            {isWhatsappSessionDown(gateway) ? (
+              // Re-pairing used to mean opening Evolution's own manager on the VPS
+              // with the gateway API key, so in practice a dropped session stayed
+              // dropped. The key still never leaves the server; only the QR does.
+              <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
+                <div className="text-xs font-black text-white">{t("aiSupport.integrations.whatsapp.pairing.title")}</div>
+                <WhatsappPairingCard headers={headers} onConnected={() => load({ silent: true })} className="mt-2" />
+              </div>
+            ) : null}
           </div>
           <div className="rounded-xl border border-white/10 bg-slate-950/40 p-3">
             <div className="text-xs font-black text-white">{t("aiSupport.integrations.whatsapp.gateway.testTitle")}</div>
