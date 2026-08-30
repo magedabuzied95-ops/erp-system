@@ -11444,12 +11444,14 @@ const buildMessengerGenericTemplatePayload = ({ recipientId = "", product = {} }
 };
 
 
-// One generic-template ELEMENT for a Messenger carousel — the same card shape as the single
-// send above, but a list of these in ONE message renders as a horizontal swipeable carousel
+// One generic-template ELEMENT for a Meta carousel — the same card shape as the single send
+// above, but a list of these in ONE message renders as a horizontal swipeable carousel
 // (side by side, like the WhatsApp colour carousel) instead of one stacked message per product.
-// A colour card with a variant id gets a postback button (choose_color:<id>) so the tap comes
-// back structured; without one it keeps the "عرض المنتج" web_url.
-const buildMessengerCarouselElement = (product = {}) => {
+// Messenger and Instagram share this shape and both cap it at 10 elements, 3 buttons, and 80
+// characters of title and subtitle. A colour card with a variant id gets a postback button
+// (choose_color:<id>) so the tap comes back structured — Instagram allows postback and web_url
+// buttons too; without one it keeps the "عرض المنتج" web_url.
+const buildMetaCarouselElement = (product = {}) => {
   const title = text(product.color || product.name || product.title || product.product_name || "");
   const imageUrl = text(product.image_url || product.image || product.main_image || "");
   const availableSizes = [...new Set([
@@ -11485,7 +11487,7 @@ const buildMessengerCarouselPayload = ({ recipientId = "", products = [] } = {})
   message: {
     attachment: {
       type: "template",
-      payload: { template_type: "generic", image_aspect_ratio: "square", elements: products.map(buildMessengerCarouselElement).filter((el) => el.image_url && el.buttons) },
+      payload: { template_type: "generic", image_aspect_ratio: "square", elements: products.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons) },
     },
   },
 });
@@ -23528,54 +23530,76 @@ export const sendMetaInboxOutboundMessage = async ({
   let meta = null;
   const imageResults = [];
   const productCardMessages = [];
-  // ── Messenger multi-card carousel ────────────────────────────────────────────────────────────
+  // ── Meta multi-card carousel (Messenger + Instagram) ─────────────────────────────────────────
   // A list of generic-template ELEMENTS in ONE message renders as a horizontal swipeable carousel —
-  // side by side like WhatsApp — instead of one stacked card per product. Only for Messenger with
-  // ≥2 cards; Instagram has no carousel and keeps the per-card loop. Any failure falls straight
-  // through to that loop, so the carousel is an upgrade, never a new way to lose the message.
-  let messengerCarouselDone = false;
+  // side by side like WhatsApp — instead of one stacked card per product. Instagram runs the same
+  // generic template as Messenger (≤10 elements, postback/web_url buttons); Meta's only documented
+  // limit is that instagram.com on desktop does not render it, and the phone app — where the
+  // customers are — does. Any failure falls straight through to the per-card loop below, so the
+  // carousel is an upgrade, never a new way to lose the message.
+  const metaCarouselChannels = [AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM];
+  let metaCarouselDone = false;
   let leadTextSentBeforeCarousel = false;
-  if (cards.length >= 2 && normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && text(token)) {
+  if (cards.length >= 2 && metaCarouselChannels.includes(normalizedChannel) && text(token)) {
     try {
-      const elements = cards.map(buildMessengerCarouselElement).filter((el) => el.image_url && el.buttons);
+      const elements = cards.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons);
       if (elements.length >= 2) {
         // The lead line ("... اختار اللون اللي يعجبك 👇") introduces the carousel, so it must land
         // ABOVE the cards, not after them. The general message body is otherwise sent last (below);
         // send it here first and mark it done so the trailing send skips it.
         if (text(safeMessage)) {
           meta = await postMetaMessage({ token, recipientId: safeRecipientId, messageText: safeMessage, sendContext }).catch((leadError) => {
-            console.warn("[meta] messenger carousel lead text send failed", { tenant_id: scopedTenantId, message: leadError?.message });
+            console.warn("[meta] carousel lead text send failed", { tenant_id: scopedTenantId, channel: normalizedChannel, message: leadError?.message });
             return null;
           });
           if (meta) leadTextSentBeforeCarousel = true;
         }
-        // Messenger caps a generic template at 10 elements; chunk instead of truncating.
+        // Both channels cap a generic template at 10 elements; chunk instead of truncating.
+        // The send goes through postMetaMessageWithThreadControl, NOT a raw /me/messages fetch:
+        // an Instagram Business Login account must be addressed on graph.instagram.com/<IG_ID>/messages,
+        // and only that helper knows which endpoint the resolved config belongs to. image_aspect_ratio
+        // is a Messenger field — Instagram's template reference does not carry it, so it is omitted
+        // there; the photos are already padded onto a square canvas during colour expansion.
         for (let i = 0; i < elements.length; i += 10) {
-          const carouselResponse = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: json({ recipient: { id: safeRecipientId }, messaging_type: "RESPONSE", message: { attachment: { type: "template", payload: { template_type: "generic", image_aspect_ratio: "square", elements: elements.slice(i, i + 10) } } } }),
+          const carouselResult = await postMetaMessageWithThreadControl({
+            token,
+            recipientId: safeRecipientId,
+            sendContext,
+            body: {
+              recipient: { id: safeRecipientId },
+              messaging_type: "RESPONSE",
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "generic",
+                    ...(normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? { image_aspect_ratio: "square" } : {}),
+                    elements: elements.slice(i, i + 10),
+                  },
+                },
+              },
+            },
           });
-          const carouselResult = await carouselResponse.json().catch(() => ({}));
-          if (!carouselResponse.ok) throw Object.assign(new Error(carouselResult?.error?.message || "Messenger carousel failed"), { status: carouselResponse.status, responseBody: carouselResult });
           imageResults.push(carouselResult);
         }
-        messengerCarouselDone = true;
-        console.info("[meta] messenger carousel sent", {
+        metaCarouselDone = true;
+        console.info("[meta] carousel sent", {
           tenant_id: scopedTenantId,
+          channel: normalizedChannel,
           elements: elements.length,
           with_variant_buttons: elements.filter((el) => el.buttons?.[0]?.type === "postback").length,
         });
       }
     } catch (carouselError) {
-      console.warn("[meta] messenger carousel failed; falling back to per-card", {
+      console.warn("[meta] carousel failed; falling back to per-card", {
         tenant_id: scopedTenantId,
+        channel: normalizedChannel,
         message: carouselError?.message,
         status: carouselError?.status || "",
       });
     }
   }
-  if (cards.length && !messengerCarouselDone) {
+  if (cards.length && !metaCarouselDone) {
     try {
       for (const product of cards) {
         console.log("ai_inbox_selected_product_card", {

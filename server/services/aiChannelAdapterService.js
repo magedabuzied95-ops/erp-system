@@ -2042,6 +2042,8 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
 };
 
 const metaMessagesUrl = (graphVersion = "v20.0") => `https://graph.facebook.com/${graphVersion}/me/messages`;
+// The two Meta channels that render a multi-element generic template as one swipeable carousel.
+const metaCarouselChannels = [AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM];
 const PRODUCT_CARD_BATCH_SIZE = 6;
 
 const chunkItems = (items = [], batchSize = PRODUCT_CARD_BATCH_SIZE) => {
@@ -2186,16 +2188,16 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
       },
     });
   }
-  // ── Messenger generic-template carousel (Facebook Messenger only) ────────────────────────────
-  // Messenger has a FIRST-PARTY horizontal carousel (attachment.type "template",
+  // ── Meta generic-template carousel (Messenger + Instagram) ───────────────────────────────────
+  // Both Meta channels have a FIRST-PARTY horizontal carousel (attachment.type "template",
   // template_type "generic"): up to 10 elements, each an image + title + subtitle + buttons.
   // It is the same shape the WhatsApp colour carousel gives, but officially supported here.
   // A postback button carries choose_color:<variant_id> back through the webhook — the same
-  // structured tap the grounding gate already resolves. Instagram does NOT support this button
-  // carousel, so it stays on the per-card path below. Any failure falls through to that path too:
-  // the carousel is an upgrade, never a new way to lose the message.
+  // structured tap the grounding gate already resolves, and Instagram allows postback buttons
+  // on this template exactly as Messenger does. Any failure falls through to the per-card path
+  // below: the carousel is an upgrade, never a new way to lose the message.
   let metaCarouselHandled = false;
-  if (normalized === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && productCards.length >= 2) {
+  if (metaCarouselChannels.includes(normalized) && productCards.length >= 2) {
     try {
       const elements = productCards.map((product) => {
         const title = [toText(product.color) || toText(product.name), toText(product.price_text)].filter(Boolean).join(" — ").slice(0, 80);
@@ -2230,14 +2232,16 @@ export const sendMetaPageReply = async ({ channel, to, reply = {}, messageText =
         }
         for (const batchSummary of productCardBatchSummaries) batchSummary.sent_count = batchSummary.normalized_count;
         metaCarouselHandled = true;
-        console.info("[ai-agent:meta] messenger carousel sent", {
+        console.info("[ai-agent:meta] carousel sent", {
+          channel: normalized,
           to: maskSecret(recipient),
           elements: elements.length,
           with_variant_buttons: elements.filter((el) => el.buttons?.[0]?.type === "postback").length,
         });
       }
     } catch (carouselError) {
-      console.warn("[ai-agent:meta] messenger carousel failed; falling back to per-card sends", {
+      console.warn("[ai-agent:meta] carousel failed; falling back to per-card sends", {
+        channel: normalized,
         message: carouselError?.message,
         code: carouselError?.code || "",
       });

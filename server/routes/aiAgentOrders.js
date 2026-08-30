@@ -6552,12 +6552,18 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
   const enrichedProductCards = await Promise.all(
     normalizedProductCards.map((card) => enrichSelectedProductCard({ tenantId, card }))
   );
-  // WhatsApp (Evolution carousel) and Messenger (generic-template carousel) both render the colour
-  // cards as one swipeable strip, so expand a multi-colour product for them. Instagram has no
-  // button carousel and Telegram no carousel transport here, so they keep one card per product —
-  // expanding there would just fan one product into N separate images.
+  // WhatsApp (Evolution carousel), Messenger and Instagram (Meta generic-template carousel) all
+  // render the colour cards as one swipeable strip, so expand a multi-colour product for them.
+  // Instagram runs the SAME generic template as Messenger — ≤10 elements, postback/web_url buttons,
+  // 80-char title+subtitle — the earlier "Instagram has no button carousel" line was our assumption,
+  // not Meta's rule; Meta's only stated limit is that instagram.com on desktop does not render it.
+  // Telegram has no carousel transport here, so it keeps one card per product — expanding there
+  // would just fan one product into N separate images.
   const conversationKey = envText(req.params.conversationId);
-  const supportsColorCarousel = conversationKey.startsWith("whatsapp") || conversationKey.startsWith("facebook_messenger");
+  const supportsColorCarousel =
+    conversationKey.startsWith("whatsapp") ||
+    conversationKey.startsWith("facebook_messenger") ||
+    conversationKey.startsWith("instagram");
   const productCards = supportsColorCarousel
     ? await expandProductCardsByColor({ tenantId, cards: enrichedProductCards })
     : enrichedProductCards;

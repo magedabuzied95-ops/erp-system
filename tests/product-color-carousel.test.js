@@ -110,12 +110,15 @@ test("a colour carousel is never narrated twice", () => {
   assert.match(inbox, /editedText \|\| variantOptionsLead \|\| activeAiSuggestionText/, "a manual edit still wins");
 });
 
-test("colour expansion covers the carousel channels, excludes Instagram/Telegram", () => {
-  // WhatsApp (Evolution) and Messenger (generic template) both carry a carousel; Instagram has
-  // no button carousel and Telegram none here, so they keep one card per product.
+test("colour expansion covers the carousel channels, excludes Telegram", () => {
+  // WhatsApp (Evolution), Messenger and Instagram all carry a carousel — Messenger and Instagram
+  // on the same Meta generic template. Telegram has none here, so it keeps one card per product.
   const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
-  assert.ok(routes.includes('conversationKey.startsWith("whatsapp") || conversationKey.startsWith("facebook_messenger")'),
-    "both carousel channels expand");
+  const gate = routes.slice(routes.indexOf("const supportsColorCarousel ="), routes.indexOf("const productCards = supportsColorCarousel"));
+  for (const channel of ["whatsapp", "facebook_messenger", "instagram"]) {
+    assert.ok(gate.includes(`conversationKey.startsWith("${channel}")`), `${channel} expands by colour`);
+  }
+  assert.ok(!gate.includes('startsWith("telegram")'), "Telegram keeps one card per product");
   assert.ok(routes.includes("supportsColorCarousel"), "gated by an explicit capability flag");
 });
 
