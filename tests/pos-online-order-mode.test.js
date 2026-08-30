@@ -132,24 +132,56 @@ test("online mode is locked out wherever it could not settle", () => {
 });
 
 test("the invoice-type dropdown sits in the toolbar beside the shift control", () => {
-  // Maged asked for it here, next to Close Shift. It shipped here once as a bare <select>
-  // and read as a label — he could not find it at all — so the border, the leading icon and
-  // the caret are load-bearing, not decoration. Losing them brings the original bug back.
-  const control = posSource.match(/\{\/\* Invoice type, sitting with the shift control[\s\S]*?<\/label>/);
+  // Maged asked for it here, next to Close Shift, twice. It must sit immediately before that
+  // button — the shift control is the landmark he navigates by.
+  const control = posSource.match(/\{\/\* Invoice type, sitting with the shift control[\s\S]*?\/>/);
   assert.ok(control, "the invoice-type control must exist in the toolbar");
   const markup = control[0];
+  assert.match(markup, /<PosInvoiceModeMenu/);
   assert.match(markup, /value=\{invoiceMode\}/);
-  assert.match(markup, /onChange=\{\(event\) => setInvoiceMode\(event\.target\.value\)\}/);
-  assert.match(markup, /aria-label=\{t\("pos\.onlineOrder\.modeLabel"\)\}/);
-  assert.match(markup, /<option value="counter"[\s\S]{0,120}pos\.onlineOrder\.modeCounter/);
-  assert.match(markup, /<option value="online" disabled=\{Boolean\(onlineInvoiceBlockedReason\)\}/);
-  assert.match(markup, /rounded-full border/, "a bare select reads as a label; keep the border");
-  assert.match(markup, /isOnlineInvoiceMode \? <Truck /, "the icon has to follow the mode");
-  assert.match(markup, /<ChevronDown className="pointer-events-none absolute/, "the caret is what says it opens");
-  // It must sit immediately before the shift button — that is the landmark he navigates by.
-  assert.match(posSource, /<\/label>\s*\n\s*<button\s*\n\s*type="button"\s*\n\s*onClick=\{handleCloseShift\}/);
+  assert.match(markup, /onChange=\{setInvoiceMode\}/);
+  assert.match(markup, /blockedReason=\{onlineInvoiceBlockedReason \? t\(`pos\.onlineOrder\.blocked\./);
+  // Adjacency, checked by reading what actually follows — a regex like /\/>\s*<button.../
+  // passes happily when another element is spliced in, because that element supplies its own
+  // "/>" for the pattern to latch onto. So: take the next element and insist it is the button.
+  const afterClose = posSource.slice(posSource.indexOf("<PosInvoiceModeMenu"));
+  const afterSelfClose = afterClose.slice(afterClose.indexOf("/>") + 2);
+  const nextTagAt = afterSelfClose.indexOf("<");
+  assert.match(afterSelfClose.slice(0, nextTagAt), /^\s*$/, "only whitespace may separate them");
+  assert.match(
+    afterSelfClose.slice(nextTagAt, nextTagAt + 200),
+    /^<button\s*\n\s*type="button"\s*\n\s*onClick=\{handleCloseShift\}/,
+    "the element right after the invoice-type control must be the shift button"
+  );
   // One control for one piece of state: the cart must not grow a second switch beside it.
   assert.doesNotMatch(cartSource, /onInvoiceModeChange/);
+});
+
+test("the invoice-type list is drawn, not delegated to the OS", () => {
+  // A native <select> was tried here and looked wrong: Windows paints the option list as a
+  // bare rectangle that ignores the POS theme, and <option> cannot be styled past its own
+  // colours. So the list is rendered by hand — and it has to portal, because the toolbar row
+  // is overflow-x-hidden inside an overflow-hidden shell and would clip an inline panel.
+  const menuSource = read("src/modules/pos/components/PosInvoiceModeMenu.jsx");
+  // Comments stripped first: the file explains what it replaced, and that prose must not
+  // read as the very markup being forbidden.
+  const menuCode = menuSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  assert.doesNotMatch(menuCode, /<select/, "the OS list is what this component exists to replace");
+  assert.doesNotMatch(menuCode, /<option/);
+  assert.match(menuSource, /createPortal\(/);
+  assert.match(menuSource, /document\.fullscreenElement \|\| document\.body/, "the till runs fullscreen; body-mounted panels hide behind it");
+  assert.match(menuSource, /position: "fixed"/);
+  // Reposition on scroll and resize, or the panel drifts off its button.
+  assert.match(menuSource, /window\.addEventListener\("resize", onViewportChange\)/);
+  assert.match(menuSource, /window\.addEventListener\("scroll", onViewportChange, true\)/);
+  // Dismissal: click-outside and Escape both have to work, or the panel traps the till.
+  assert.match(menuSource, /document\.addEventListener\("mousedown", onPointerDown\)/);
+  assert.match(menuSource, /if \(event\.key === "Escape"\)/);
+  // The blocked option stays listed with its reason instead of vanishing.
+  assert.match(menuSource, /if \(option\.blocked\) return;/);
+  assert.match(menuSource, /\{option\.blocked \? \(/);
+  assert.match(menuSource, /role="listbox"/);
+  assert.match(menuSource, /aria-expanded=\{open\}/);
 });
 
 test("the till collects nothing on an online order", () => {
