@@ -43,7 +43,13 @@ const emptyForm = {
   template_kind: "daily",
   is_opening_day_task: false,
   is_template_record: false,
+  // Scheduling and ownership. Without these the page could only ever save a
+  // template that generated unassigned instances nobody could work on.
+  weekdays: [],
+  due_time: "",
+  fixed_employee_id: "",
 };
+const weekdayOrder = [6, 0, 1, 2, 3, 4, 5];
 
 const sameJson = (left, right) => {
   try {
@@ -142,6 +148,9 @@ const STAFF_TASK_COPY = {
     taskTitle: "Task title", autoAssignEmployee: "Auto assign employee", anyBranch: "Any branch", photoProof: "Photo proof", qrVerification: "QR verification", gpsValidation: "GPS validation",
     recurringRule: "Recurring task rule", frequency: "Frequency", one_time: "One time", daily: "Daily", weekly: "Weekly", monthly: "Monthly", weekdays: "Weekdays", dayOfMonth: "Day of month", requiresCheckin: "Requires check-in", autoAssignEnabled: "Auto assign", assignmentStrategy: "Assignment strategy", first_checked_in: "First checked-in", round_robin: "Round robin", least_tasks_today: "Least tasks today", fixed_employee: "Fixed employee", waitingEligible: "Waiting for eligible employee", dailyAutoTask: "Daily auto task", weeklyAutoTask: "Weekly auto task", monthlyAutoTask: "Monthly auto task", autoAssign: "Auto assign", todayTasks: "Today's tasks", dailyTemplates: "Daily templates", weeklyTemplates: "Weekly templates", openingDayTask: "Opening day task", dailyTask: "Daily task", weeklyTask: "Weekly task", automaticDistribution: "Automatic distribution by attendance", taskTemplates: "Templates",
     taskDetails: "Task details", checklistItems: "Checklist items, one per line", saveTask: "Save task",
+    dueTime: "Due time", everyDay: "Every day", pickWeekdays: "Pick weekdays", weekdayRequired: "Pick at least one weekday for a weekly task.",
+    assignTo: "Assign to", autoAssignLeastBusy: "Auto — least busy on shift",
+    sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
     employeePortalSettings: "Employee portal settings", portalDescription: "Controls QR check-in redirect and task visibility enforcement.", requireCheckIn: "Require check-in", autoRedirect: "Auto redirect",
     taskQueue: "Task queue", loadingTasks: "Loading tasks", visibleTasks: "visible tasks", allStatuses: "All statuses", allEmployees: "All employees", allBranches: "All branches", allPriorities: "All priorities", today: "Today",
     loadingTaskQueue: "Loading task queue...", noTasksMatch: "No tasks match this view.", performance: "Performance", auditTrail: "Audit trail", noTaskHistory: "No task history yet.",
@@ -202,7 +211,21 @@ const STAFF_TASK_AR_EXTRA = {
   weeklyTask: "مهمة أسبوعية",
   automaticDistribution: "توزيع تلقائي حسب الحضور",
   taskTemplates: "القوالب",
+  dueTime: "موعد التسليم",
+  everyDay: "كل يوم",
+  pickWeekdays: "اختر أيام الأسبوع",
+  weekdayRequired: "اختر يوماً واحداً على الأقل للمهمة الأسبوعية.",
+  assignTo: "الإسناد إلى",
+  autoAssignLeastBusy: "تلقائي — الأقل انشغالاً من الحاضرين",
+  sun: "الأحد",
+  mon: "الاثنين",
+  tue: "الثلاثاء",
+  wed: "الأربعاء",
+  thu: "الخميس",
+  fri: "الجمعة",
+  sat: "السبت",
 };
+const weekdayKeys = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const taskLabel = (language, key) => (isArabicLocale(language) ? STAFF_TASK_AR_EXTRA[key] : "") || STAFF_TASK_COPY[isArabicLocale(language) ? "ar" : "en"]?.[key] || STAFF_TASK_COPY.en[key] || key;
 const statusLabel = (status, language) => taskLabel(language, status) || statusLabels[status] || status;
 const priorityLabel = (priority, language) => taskLabel(language, priority) || priority;
@@ -540,6 +563,9 @@ function StaffTasks() {
       template_kind: scope === "weekly" ? "weekly" : "daily",
       is_opening_day_task: scope === "opening_day" || Boolean(task.metadata?.is_opening_day_task),
       is_template_record: !task.status && Boolean(task.template_kind || task.metadata?.template_kind),
+      weekdays: Array.isArray(task.weekdays) ? task.weekdays : (task.recurring_rule?.weekdays || []),
+      due_time: task.recurring_rule?.due_time || task.due_time || "",
+      fixed_employee_id: task.fixed_employee_id ? String(task.fixed_employee_id) : "",
     });
     setPanelOpen(true);
   };
@@ -547,6 +573,14 @@ function StaffTasks() {
   const saveTask = () => runAction("save-task", async () => {
     const templateKind = form.template_kind === "weekly" ? "weekly" : "daily";
     const taskType = templateKind === "weekly" ? "weekly" : form.is_opening_day_task ? "opening_day" : "daily";
+    const weekdays = Array.isArray(form.weekdays) ? form.weekdays : [];
+    // A weekly template with no pinned day generates one instance per week on
+    // whichever day the scheduler happens to run — never what anyone means.
+    if (templateKind === "weekly" && !weekdays.length) {
+      toast.error(tr("weekdayRequired"));
+      return;
+    }
+    const fixedEmployeeId = form.fixed_employee_id ? Number(form.fixed_employee_id) : null;
     const payload = {
       title: form.title,
       description: form.description,
@@ -557,12 +591,19 @@ function StaffTasks() {
       is_opening_day_task: templateKind === "daily" ? Boolean(form.is_opening_day_task) : false,
       task_type: taskType,
       save_as_template: true,
-      auto_assign_enabled: false,
+      weekdays,
+      due_time: form.due_time || null,
+      fixed_employee_id: fixedEmployeeId,
+      // A named employee owns the task outright; otherwise it goes to the
+      // least-busy person on shift at check-in. Hard-coding this to false was
+      // what left every template from this page generating orphans.
+      auto_assign_enabled: !fixedEmployeeId,
+      assignment_strategy: "least_tasks_today",
       requires_checkin: false,
       requires_photo: false,
       requires_qr: false,
       requires_gps: false,
-      recurring_rule: { frequency: templateKind },
+      recurring_rule: { frequency: templateKind, weekdays, due_time: form.due_time || null },
       metadata: { template_kind: templateKind, is_opening_day_task: templateKind === "daily" ? Boolean(form.is_opening_day_task) : false, task_kind: taskType },
     };
     if (form.is_template_record) {
@@ -726,6 +767,42 @@ function StaffTasks() {
                 {taskLabel(language, "automaticDistribution")}
               </div>
             )}
+            <label className="flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)]">
+              <span className="shrink-0 text-[var(--muted)]">{tr("dueTime")}</span>
+              <input type="time" value={form.due_time} onChange={(e) => setForm((v) => ({ ...v, due_time: e.target.value }))} className="min-w-0 flex-1 bg-transparent text-start outline-none" />
+            </label>
+            <select value={form.fixed_employee_id} onChange={(e) => setForm((v) => ({ ...v, fixed_employee_id: e.target.value }))} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none">
+              <option value="">{tr("autoAssignLeastBusy")}</option>
+              {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name || employee.employee_code}</option>)}
+            </select>
+            <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 md:col-span-2">
+              <div className="mb-2 text-xs font-black text-[var(--muted)]">
+                {form.template_kind === "weekly" ? tr("pickWeekdays") : form.weekdays.length ? tr("weekdays") : tr("everyDay")}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {weekdayOrder.map((day) => {
+                  const active = form.weekdays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => setForm((v) => ({
+                        ...v,
+                        weekdays: active ? v.weekdays.filter((item) => item !== day) : [...v.weekdays, day].sort((a, b) => a - b),
+                      }))}
+                      className={`rounded-full border px-3 py-1 text-xs font-black transition ${active ? "border-[var(--primary)] bg-[var(--primary)] text-white" : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)]"}`}
+                    >
+                      {tr(weekdayKeys[day])}
+                    </button>
+                  );
+                })}
+                {form.template_kind === "daily" && form.weekdays.length ? (
+                  <button type="button" onClick={() => setForm((v) => ({ ...v, weekdays: [] }))} className="px-2 text-xs font-black text-[var(--primary)]">
+                    {tr("everyDay")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
             <textarea value={form.description} onChange={(e) => setForm((v) => ({ ...v, description: e.target.value }))} placeholder={tr("taskDetails")} className="min-h-24 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] px-3 py-3 text-start text-sm font-semibold text-[var(--text)] outline-none md:col-span-2" />
           </div>
           <div className="mt-4 flex justify-end">

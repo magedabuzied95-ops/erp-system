@@ -16,6 +16,10 @@ const TASK_FREQUENCIES = new Set(["one_time", "daily", "weekly", "monthly"]);
 const TEMPLATE_KINDS = new Set(["manual", "daily", "weekly"]);
 const ASSIGNMENT_STRATEGIES = new Set(["attendance_first_checkin", "first_checked_in", "round_robin", "least_tasks_today", "fixed_employee"]);
 const OPEN_STATUSES = ["pending", "in_progress", "overdue"];
+// What still counts as "on my plate" in the employee portal — wider than
+// OPEN_STATUSES because a task waiting on the manager, or just handed over,
+// is still the employee's to watch.
+const OPEN_PORTAL_STATUSES = ["pending", "in_progress", "manager_review", "overdue", "reassigned"];
 const ATTENDANCE_TASK_SOURCE = "branch_qr_attendance";
 const HOT_PRODUCT_COUNTS_ENABLED = String(process.env.STAFF_TASK_HOT_PRODUCT_COUNTS_ENABLED ?? "false").toLowerCase() === "true";
 const STATIC_ATTENDANCE_TASKS_ENABLED = String(process.env.STAFF_TASK_STATIC_ATTENDANCE_PLAN_ENABLED ?? "false").toLowerCase() === "true";
@@ -770,7 +774,7 @@ const enforcePortalAttendanceAccess = async ({ tenantId, employeeId, action = "v
 
 const buildEmployeePortalTaskSummary = (tasks = []) => ({
   today: tasks.length,
-  pending: tasks.filter((task) => ["pending", "in_progress", "manager_review", "overdue", "reassigned"].includes(task.status)).length,
+  pending: tasks.filter((task) => OPEN_PORTAL_STATUSES.includes(task.status)).length,
   completed: tasks.filter((task) => task.status === "completed").length,
   critical: tasks.filter((task) => task.priority === "critical").length,
 });
@@ -782,16 +786,39 @@ export const getEmployeePortal = async (token = "") => {
     employeeId: session.employee_id,
     action: "view",
   });
-  const tasks = await listStaffTasks(
-    {
-      tenantId: session.tenant_id,
-      employee_id: session.employee_id,
-      branch_id: session.branch_id || null,
-      include_branch_unassigned: true,
-      limit: 200,
-    },
-    {}
-  );
+  // Strictly this employee's own tasks. Unassigned branch tasks used to be
+  // folded in here, so every employee in the branch saw a task none of them
+  // could act on — updateEmployeePortalTaskStatus requires ownership, so the
+  // buttons answered 404. An unassigned task is a manager problem now, not a
+  // row in four people's task lists.
+  const [openTasks, completedToday] = await Promise.all([
+    listStaffTasks(
+      {
+        tenantId: session.tenant_id,
+        employee_id: session.employee_id,
+        status: OPEN_PORTAL_STATUSES.join(","),
+        limit: 200,
+      },
+      {}
+    ),
+    listStaffTasks(
+      {
+        tenantId: session.tenant_id,
+        employee_id: session.employee_id,
+        status: "completed",
+        assigned_date: "today",
+        limit: 50,
+      },
+      {}
+    ),
+  ]);
+  const seenTaskIds = new Set();
+  const tasks = [...openTasks, ...completedToday].filter((task) => {
+    const key = String(task?.id || "");
+    if (!key || seenTaskIds.has(key)) return false;
+    seenTaskIds.add(key);
+    return true;
+  });
 
   return {
     employee: {
@@ -1260,7 +1287,11 @@ export const markDueTasksOverdue = async ({ tenantId = null } = {}) => {
   return result.rows.map(normalizeTaskRow);
 };
 
-export const findEligibleEmployees = async (client, { tenantId, branchId = null, department = null, roleKey = null } = {}) => {
+// presentOnly is the default on purpose. This used to merely *sort* checked-in
+// employees first and then hand callers row 0, so on a quiet branch — or at
+// night, when everyone has checked out — the "best" candidate was somebody who
+// was not at work. They got the task, the email and the push notification.
+export const findEligibleEmployees = async (client, { tenantId, branchId = null, department = null, roleKey = null, presentOnly = true } = {}) => {
   const params = [tenantId, branchId, nullableText(department), nullableText(roleKey)];
   const result = await client.query(
     `
@@ -1295,12 +1326,13 @@ export const findEligibleEmployees = async (client, { tenantId, branchId = null,
       AND ($2::bigint IS NULL OR e.branch_id = $2::bigint OR e.branch_id IS NULL)
       AND ($3::text IS NULL OR LOWER(COALESCE(e.department, '')) = LOWER($3) OR LOWER(COALESCE(e.role, '')) = LOWER($3))
       AND ($4::text IS NULL OR LOWER(COALESCE(e.role, '')) = LOWER($4))
+      AND ($6::boolean IS FALSE OR COALESCE(ta.attendance_status, 'absent') = 'checked_in')
     ORDER BY
       CASE WHEN COALESCE(ta.attendance_status, 'absent') = 'checked_in' THEN 0 ELSE 1 END,
       COALESCE(ot.open_count, 0) ASC,
       e.id ASC
     `,
-    [...params, OPEN_STATUSES]
+    [...params, OPEN_STATUSES, Boolean(presentOnly)]
   );
   return result.rows || [];
 };
@@ -1703,12 +1735,17 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
     const templateKind = normalizeTemplateKind(template.template_kind || template.metadata?.template_kind);
     const isOpeningDayTask = Boolean(template.is_opening_day_task || template.metadata?.is_opening_day_task);
     const pinnedWeekdays = normalizeWeekdays(template.weekdays || template.recurring_rule?.weekdays);
-    // Weekday-pinned weekly templates are keyed on the actual day so two
-    // pinned days in one week produce two instances; legacy weekly stays
-    // keyed on the week start (one per week).
-    const scheduleDate = templateKind === "weekly" && !pinnedWeekdays.length ? weekStartKey(dueDate) : dateKey(dueDate);
+    // The instance always lands on the day it is generated for. It used to be
+    // stamped with the week start for legacy weekly templates, which made it
+    // born days overdue and left the check-in assigner (which searches by the
+    // day) unable to find weekday-pinned weekly work at all.
+    const scheduleDate = dateKey(dueDate);
+    const weekKey = templateKind === "weekly" ? weekStartKey(dueDate) : null;
+    // Dedupe only. A weekly template without pinned weekdays still yields one
+    // instance per week; with pinned weekdays, one per pinned day.
+    const dedupeKey = templateKind === "weekly" && !pinnedWeekdays.length ? weekKey : scheduleDate;
     const sourceRefType = templateKind === "daily" ? "daily_task_template" : templateKind === "weekly" ? "weekly_task_template" : "task_template";
-    const sourceRefId = `${template.id}:${scheduleDate}`;
+    const sourceRefId = `${template.id}:${dedupeKey}`;
     // The generator runs on a timer now; skip cheaply before going through the
     // full create path (and its logging) for an instance that already exists.
     const existing = await db.query(
@@ -1730,7 +1767,7 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       recurring_template: true,
       template_kind: templateKind,
       is_opening_day_task: isOpeningDayTask,
-      week_key: templateKind === "weekly" ? scheduleDate : null,
+      week_key: weekKey,
       recurring_rule: {
         frequency: template.frequency || template.recurrence,
         weekdays: normalizeWeekdays(template.weekdays || template.recurring_rule?.weekdays),
@@ -2237,12 +2274,9 @@ export const listStaffTasks = async (filters = {}, user = {}) => {
   } else if (filters.employee_id || filters.employeeId) {
     console.log("[staff-tasks-service] list:step employee filter");
     params.push(filters.employee_id || filters.employeeId);
-    if (filters.include_branch_unassigned && (filters.branch_id || filters.branchId)) {
-      params.push(filters.branch_id || filters.branchId);
-      clauses.push(`(sta.current_assignee_id = $${params.length - 1} OR (sta.current_assignee_id IS NULL AND sta.branch_id = $${params.length}))`);
-    } else {
-      clauses.push(`sta.current_assignee_id = $${params.length}`);
-    }
+    // Deliberately no "…OR unassigned in my branch" escape hatch: it leaked one
+    // task into every colleague's list and none of them could act on it.
+    clauses.push(`sta.current_assignee_id = $${params.length}`);
   }
   if (filters.branch_id || filters.branchId) {
     console.log("[staff-tasks-service] list:step branch");
@@ -2590,6 +2624,11 @@ export const redistributeTasks = async ({ tenantId = null, employeeId = null, re
       params.push(employeeId);
       clauses.push(`sta.current_assignee_id = $${params.length}`);
     } else {
+      // Redistribution moves work *away from* an absent owner. Without this an
+      // unassigned task matched the NOT EXISTS below (nothing joins to NULL),
+      // so every five minutes the timer quietly flipped never-assigned tasks to
+      // 'reassigned' and pushed them at whoever sorted first.
+      clauses.push("sta.current_assignee_id IS NOT NULL");
       clauses.push(`
         NOT EXISTS (
           SELECT 1
@@ -2779,6 +2818,13 @@ export const deleteStaffTask = async (taskId, actor = {}) => {
 export const assignDailyInventoryCountTasks = async ({ tenantId = null, actor = null, limit = 20 } = {}) => {
   await ensureStaffTasksSchema();
   const eligibleEmployees = await findEligibleEmployees(db, { tenantId });
+  // This runs on boot. Restarting at night used to mint twenty inventory tasks
+  // and hand them to people who were not at work — or, with nobody eligible,
+  // leave twenty orphans behind. No one on shift, no counting today.
+  if (!eligibleEmployees.length) {
+    console.info("[daily-inventory-count] skipped — no checked-in employee available", { tenant_id: tenantId });
+    return [];
+  }
   const employeeLoad = new Map(eligibleEmployees.map((employee) => [String(employee.id), Number(employee.open_task_count || 0)]));
   const pickNextEmployee = () => {
     const selected = eligibleEmployees
@@ -3191,7 +3237,7 @@ const assignWeeklyAttendanceTasksForCheckIn = async ({ tenantId, branchId, atten
       FROM staff_task_assignments sta
       WHERE sta.tenant_id = $1
         AND sta.branch_id = $2
-        AND sta.assigned_date = $3::date
+        AND sta.assigned_date = ANY($3::date[])
         AND sta.source_module = $4
         AND sta.source_ref_type = 'weekly_task_template'
         AND sta.current_assignee_id IS NULL
@@ -3200,7 +3246,12 @@ const assignWeeklyAttendanceTasksForCheckIn = async ({ tenantId, branchId, atten
       ORDER BY CASE sta.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, sta.id ASC
       FOR UPDATE SKIP LOCKED
       `,
-      [tenantId, branchId, weekStart, ATTENDANCE_TASK_SOURCE]
+      // Search by the day, not just the week start. Weekly instances are now
+      // stamped with the day they are due; searching only the Monday of the
+      // week meant every weekly routine that was not a Monday routine went
+      // unassigned. weekStart stays in the list so rows generated under the
+      // old stamping are still picked up.
+      [tenantId, branchId, [...new Set([attendanceDate, weekStart])], ATTENDANCE_TASK_SOURCE]
     );
     const candidateEmployees = presentEmployees.length
       ? presentEmployees
@@ -3521,7 +3572,44 @@ const notifyEmployeeTaskDigest = async ({ tenantId, branchId, employeeId, attend
   return { notification: true, email: "queued" };
 };
 
-const notifyManagerAttendanceTaskState = async ({ tenantId, branchId, attendanceDate, redistributedCount, presentCount }) => {
+// Tasks that exist for today but that nobody owns. Employees no longer see
+// these, so the branch manager has to.
+const countUnassignedBranchTasks = async ({ tenantId, branchId, attendanceDate }) => {
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS unassigned_count
+    FROM staff_task_assignments
+    WHERE tenant_id = $1
+      AND branch_id = $2
+      AND assigned_date = $3::date
+      AND current_assignee_id IS NULL
+      AND assigned_employee_id IS NULL
+      AND status = ANY($4::text[])
+    `,
+    [tenantId, branchId, attendanceDate, OPEN_STATUSES]
+  );
+  return Number(result.rows[0]?.unassigned_count || 0);
+};
+
+const notifyManagerAttendanceTaskState = async ({ tenantId, branchId, attendanceDate, redistributedCount, presentCount, unassignedCount = 0 }) => {
+  if (unassignedCount > 0) {
+    await createNotification({
+      tenant_id: tenantId,
+      role_key: "manager",
+      branch_id: branchId,
+      type: "staff_tasks_unassigned",
+      category: "staff_tasks",
+      priority: "high",
+      title: "مهام بدون موظف",
+      message: `${unassignedCount} مهمة اليوم لم يتم إسنادها لأي موظف.`,
+      action_url: "/staff/tasks",
+      action_label: "إسناد المهام",
+      entity_type: "staff_task_unassigned",
+      entity_id: `${branchId}:${attendanceDate}`,
+      metadata: { branch_id: branchId, attendance_date: attendanceDate, unassigned_count: unassignedCount },
+    });
+  }
+
   if (redistributedCount > 0) {
     await createNotification({
       tenant_id: tenantId,
@@ -3632,18 +3720,25 @@ export const handleBranchQrCheckInStaffTasks = async ({ tenantId, branchId, empl
     attendanceDate: safeDate,
     tasks: employeeTasks,
   });
+  const unassignedCount = await countUnassignedBranchTasks({
+    tenantId: safeTenantId,
+    branchId: safeBranchId,
+    attendanceDate: safeDate,
+  });
   await notifyManagerAttendanceTaskState({
     tenantId: safeTenantId,
     branchId: safeBranchId,
     attendanceDate: safeDate,
     redistributedCount: redistributed.length,
     presentCount: presentEmployees.length,
+    unassignedCount,
   });
 
   return {
     skipped: false,
     attendance_date: safeDate,
     present_count: presentEmployees.length,
+    unassigned_task_count: unassignedCount,
     generated_recurring_tasks: generatedRecurring.created.length,
     checkin_assigned_tasks: checkInAssigned.length,
     created_daily_tasks: dailyTasks.length,

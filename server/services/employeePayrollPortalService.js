@@ -1871,11 +1871,12 @@ export const createEmployeePortalNotification = async ({
 
 const getEmployeeWalletTasks = async ({ employee }) => {
   try {
+    // This employee's own tasks only. Folding in the branch's unassigned rows
+    // showed the same task to every colleague, and none of them could act on
+    // it — the status endpoint checks ownership.
     const commonFilters = {
       tenantId: employee.tenant_id,
       employee_id: employee.id,
-      branch_id: employee.branch_id || null,
-      include_branch_unassigned: true,
       limit: 50,
     };
     const [activeTasks, completedToday] = await Promise.all([
