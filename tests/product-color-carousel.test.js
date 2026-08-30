@@ -91,6 +91,11 @@ test("the inbox transcript mirrors the WhatsApp strip", () => {
   assert.ok(!inboxRenderer.includes("items.slice(0, 4)"), "no hidden card cap");
   assert.match(inboxRenderer, /aspect-square w-full bg-white object-contain/);
   assert.match(inboxRenderer, /chooseColorButton/, "the card footer mirrors the WhatsApp button label");
+  // Every colour card of one product carries the SAME product_id, so keying the strip on the
+  // product identity alone gave React one key for the whole carousel. An abandoned cart holding
+  // the same product in two sizes does it too.
+  assert.match(inboxRenderer, /const cardKey = `\$\{clean\(card\.product_id \|\| card\.id\)\}:\$\{clean\(card\.variant_id\)\}:\$\{index\}`/,
+    "the card key is unique inside the strip");
 });
 
 test("a colour carousel is never narrated twice", () => {

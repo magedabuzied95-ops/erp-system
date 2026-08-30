@@ -109,6 +109,94 @@ test("card photos are swapped for the padded square variant before building", ()
   assert.match(tick, /squared \? \{ \.\.\.item, image_url: squared \} : item/, "a failed square keeps the original photo");
 });
 
+// ── The transcript side ───────────────────────────────────────────────────────────────────────
+// Evolution's echo of our own send carries the carousel's BODY TEXT only, so the inbox showed the
+// nudge words with no products under them while the customer was looking at a strip of photos.
+// The cards are written by the reminder itself, as a `product_card` row. Same extraction trick as
+// the carousel builder above: run the REAL code with stubs for its imports.
+const recorded = [];
+const emitted = [];
+const inboxFrom = service.indexOf("const inboxCardFromItem");
+const inboxTo = service.indexOf("const claimCart");
+assert.ok(inboxFrom > -1 && inboxTo > inboxFrom, "inbox card block found");
+// eslint-disable-next-line no-new-func
+const { buildAbandonedCartInboxCards, recordAbandonedCartInboxCards } = new Function(
+  "ABANDONED_CART_DEFAULTS", "appendChannelOutboundSupportReply", "emitToRooms",
+  "normalizeWhatsappSessionId", "normalizeWhatsappPhone",
+  `const text=(v="")=>String(v??"").trim();\n${service.slice(inboxFrom, inboxTo).replaceAll("export const", "const")}\nreturn { buildAbandonedCartInboxCards, recordAbandonedCartInboxCards };`
+)(
+  ABANDONED_CART_DEFAULTS,
+  async (options) => { recorded.push(options); return { id: 501, message_type: options.messageType }; },
+  (rooms, event, payload) => emitted.push({ rooms, event, payload }),
+  (phone) => (String(phone || "").trim() ? `whatsapp:20${String(phone || "").trim().slice(-10)}` : ""),
+  (phone) => String(phone || "").trim()
+);
+
+const CART_ROW = { id: 9, tenant_id: 4, customer_phone: "01011122233" };
+const recordOnce = async (overrides = {}) => {
+  recorded.length = 0;
+  emitted.length = 0;
+  return recordAbandonedCartInboxCards({
+    row: CART_ROW,
+    items: CART,
+    config: ABANDONED_CART_DEFAULTS,
+    claimedAt: "2026-08-30T15:00:00.000Z",
+    sendResult: { instanceName: "m1" },
+    ...overrides,
+  });
+};
+
+test("the cards the customer swiped are written to the transcript, not only the nudge text", async () => {
+  await recordOnce();
+  assert.equal(recorded.length, 1, "one transcript row per reminder");
+  const [saved] = recorded;
+  assert.equal(saved.messageType, "product_card", "the inbox renders cards off this type");
+  assert.equal(saved.channel, "whatsapp");
+  assert.equal(saved.productCards.length, 2, "a card per cart line, same as the carousel");
+  assert.equal(saved.productCards[0].product_name, "Nike Air Force 1");
+  assert.equal(saved.productCards[0].price, 1245);
+  assert.equal(saved.productCards[0].image_url, "/uploads/nike.jpg", "the photo is what was missing");
+  assert.equal(saved.productCards[1].image_url, "https://cdn.example.com/nb.jpg");
+  assert.equal(saved.sessionId, "whatsapp:201011122233", "keyed off the customer's phone");
+});
+
+test("the card row leaves the echo's text bubble alone", async () => {
+  await recordOnce();
+  const [saved] = recorded;
+  // Claiming the send's provider id would make the echo dedupe INTO this row and the sent words
+  // would vanish from the transcript. WhatsApp shows the customer text AND cards; so does the inbox.
+  assert.ok(!saved.providerMessageId, "no provider id on the card row");
+  assert.ok(!saved.externalMessageId, "no external id either");
+  assert.equal(saved.clientRequestId, "abandoned_cart:9:2026-08-30T15:00:00.000Z", "one claim, one row");
+});
+
+test("a marketing nudge never hands a human-run conversation back to the AI", async () => {
+  await recordOnce();
+  const [saved] = recorded;
+  assert.equal(saved.preserveSessionState, true, "status and list preview stay as the customer left them");
+  assert.equal(saved.senderType, "system", "nobody sent this by hand");
+});
+
+test("the open conversation sees the cards without a reload", async () => {
+  await recordOnce();
+  const message = emitted.find((event) => event.event === "ai_inbox:message");
+  assert.ok(message, "the transcript row is pushed to the open inbox");
+  assert.deepEqual(message.rooms, ["tenant:4"]);
+  assert.equal(message.payload.message.direction, "outbound");
+});
+
+test("nothing is written when there is no conversation to write to", async () => {
+  await recordOnce({ row: { ...CART_ROW, customer_phone: "" } });
+  assert.equal(recorded.length, 0, "an unkeyable phone writes no orphan row");
+  await recordOnce({ items: [{ price: 100 }] });
+  assert.equal(recorded.length, 0, "a nameless cart writes no empty card strip");
+});
+
+test("the inbox cards are capped the same way the carousel is", () => {
+  const many = Array.from({ length: 9 }, (_, i) => ({ name: `منتج ${i + 1}`, price: 100 }));
+  assert.equal(buildAbandonedCartInboxCards(many).length, ABANDONED_CART_DEFAULTS.max_cards);
+});
+
 test("the square variant pads instead of cropping, so no client crop can eat the product", () => {
   const variants = fs.readFileSync(new URL("../server/services/productImageVariantService.js", import.meta.url), "utf8");
   const fn = variants.slice(variants.indexOf("export const ensureSquareCardImageUrl"));

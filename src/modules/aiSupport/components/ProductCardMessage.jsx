@@ -187,10 +187,13 @@ function ProductCardMessage({ message = {}, cards = [], compact = false }) {
           const image = cardImage(card);
           const priceValue = Number(card.price ?? card.final_price ?? 0);
           const storefrontUrl = resolveStorefrontUrl(card);
-          const cardKey = clean(card.product_id || card.id || card.variant_id || `${index}`);
+          // Every card of a colour carousel carries the SAME product_id, and an abandoned cart can
+          // hold one product in two sizes — the product identity alone is not unique inside a strip,
+          // so the position completes the key.
+          const cardKey = `${clean(card.product_id || card.id)}:${clean(card.variant_id)}:${index}`;
           return (
             <div
-              key={cardKey || index}
+              key={cardKey}
               className={`overflow-hidden border border-white/10 bg-slate-950/70 ${compact ? "rounded-xl" : "rounded-2xl"} ${items.length > 1 ? "w-52 shrink-0 snap-start" : ""}`}
             >
               {storefrontUrl ? (
