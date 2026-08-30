@@ -63,6 +63,7 @@ import {
   resolveShippingProofImageUrl,
 } from "../../../shared/lib/imageUrls";
 import { normalizeOrderLifecycleStatus } from "../../../../shared/orderStatus.js";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const ORDERS_DEBUG = String(import.meta.env.VITE_ERP_PERF_DEBUG || "").trim().toLowerCase() === "true";
@@ -1943,12 +1944,16 @@ function Select({ value, onChange, options, label, allLabel = "All", labels = {}
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm text-text outline-none">
-        {options.map((option) => {
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        options={options.map((option) => {
           const display = labels[option] && t ? t(labels[option]) : labels[option] || option;
-          return <option key={String(option)} value={option} className="bg-surface text-text">{option === "all" ? allLabel : display}</option>;
+          return { value: option, label: option === "all" ? allLabel : display };
         })}
-      </select>
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm text-text outline-none"
+      />
     </label>
   );
 }

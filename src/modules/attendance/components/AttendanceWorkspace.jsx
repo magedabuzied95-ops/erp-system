@@ -39,6 +39,7 @@ import {
 } from "../attendanceApi";
 import { uploadProductImage, resolveUploadedImageUrl } from "../../products/services/productsApi";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const todayValue = () => new Date().toISOString().slice(0, 10);
 const rangeStartValue = () => {
@@ -2670,18 +2671,14 @@ function SelectField({ label, value, onChange, options = [], disabled = false })
   return (
     <label className="block">
       <div className="text-[10px] font-bold text-zinc-500">{label}</div>
-      <select
+      <ThemedSelect
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         disabled={disabled}
-        className="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {options.map((option) => (
-          <option key={String(option.id)} value={option.id} disabled={Boolean(option.disabled)}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        ariaLabel={label}
+        options={options.map((option) => ({ value: option.id, label: option.label, disabled: Boolean(option.disabled) }))}
+        triggerClassName="mt-2 w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none disabled:cursor-not-allowed disabled:opacity-60"
+      />
     </label>
   );
 }

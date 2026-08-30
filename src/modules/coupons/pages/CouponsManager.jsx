@@ -10,6 +10,7 @@ import { getToken } from "../../../shared/auth/authStorage";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { instantToWallClock, wallClockToInstant } from "../../../shared/lib/appTimezone";
 import { getBrands, getProductsAdminList } from "../../products/services/productsApi";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const emptyForm = {
   name: "",
@@ -1204,9 +1205,13 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none">
-        {options.map(([key, labelText]) => <option key={key} value={key}>{labelText}</option>)}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        options={options.map(([key, labelText]) => ({ value: key, label: labelText }))}
+        triggerClassName="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none"
+      />
     </label>
   );
 }

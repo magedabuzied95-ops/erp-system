@@ -29,6 +29,7 @@ import { Pagination } from "../../../shared/ui";
 import FlowShell from "../components/FlowShell";
 import StatusBadge from "../components/StatusBadge";
 import { formatCurrency, formatDateTime, formatPurchaseCode, getLocalPurchases, normalizeSupplier, seedSuppliers } from "../lib/flowStore";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const SUPPLIER_ACTIONS_MENU_WIDTH = 256;
@@ -541,13 +542,12 @@ function Kpi({ label, value, tone = "zinc" }) {
 
 function Select({ value, onChange, options }) {
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50">
-      {options.map(([optionValue, label]) => (
-        <option key={optionValue} value={optionValue} className="bg-zinc-950 text-white">
-          {label}
-        </option>
-      ))}
-    </select>
+    <ThemedSelect
+      value={value}
+      onChange={onChange}
+      options={options.map(([optionValue, label]) => ({ value: optionValue, label }))}
+      triggerClassName="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-emerald-400/50"
+    />
   );
 }
 

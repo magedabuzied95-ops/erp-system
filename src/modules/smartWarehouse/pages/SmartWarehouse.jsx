@@ -21,6 +21,7 @@ import { api } from "../../../shared/api/api";
 import InventoryShell from "../../inventory/components/InventoryShell";
 import i18n from "../../../i18n/i18n";
 import { smartWarehouseApi } from "../services/smartWarehouseApi";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 /** Module scope: resolve through i18n at CALL time, never eagerly at import. */
 const tt = (key, options) => i18n.t(key, options);
@@ -536,10 +537,14 @@ function Select({ label, value, onChange, rows, labelKey = "name" }) {
   return (
     <label className="block">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none">
-        <option value="">{tt("inventory.smartWarehouse.fields.selectPlaceholder", { label: String(label || "").toLowerCase() })}</option>
-        {rows.map((row) => <option key={row.id} value={row.id}>{row[labelKey] || row.name || row.code || row.id}</option>)}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        placeholder={tt("inventory.smartWarehouse.fields.selectPlaceholder", { label: String(label || "").toLowerCase() })}
+        options={rows.map((row) => ({ value: row.id, label: row[labelKey] || row.name || row.code || row.id }))}
+        triggerClassName="mt-2 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 text-sm text-[var(--text)] outline-none"
+      />
     </label>
   );
 }

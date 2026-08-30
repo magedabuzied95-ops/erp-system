@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Children, isValidElement, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 /** Module scope: resolve through i18n at CALL time, never eagerly at import. */
 const tt = (key, options) => i18n.t(key, options);
@@ -144,8 +145,26 @@ function KpiCard({ label, value, active, onClick }) {
   );
 }
 
+// Call sites pass <option> children, the way they would to a native select. They keep doing
+// that; the children are read into the option list here so no filter had to be rewritten.
+const optionsFromChildren = (children) =>
+  Children.toArray(children)
+    .filter((child) => isValidElement(child) && child.type === "option")
+    .map((child) => ({
+      value: String(child.props.value ?? ""),
+      label: child.props.children,
+      disabled: Boolean(child.props.disabled),
+    }));
+
 function Select({ value, onChange, children }) {
-  return <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-300/50">{children}</select>;
+  return (
+    <ThemedSelect
+      value={value}
+      onChange={onChange}
+      options={optionsFromChildren(children)}
+      triggerClassName="h-[var(--control-height-md)] w-auto min-w-44 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-300/50"
+    />
+  );
 }
 
 function ShipmentDrawer({ order, onClose, onPrintLabel }) {

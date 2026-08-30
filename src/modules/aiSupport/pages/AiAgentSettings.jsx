@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Children, isValidElement, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { useTenant } from "../../saas/context/TenantContext";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const linesToArray = (value = "") => String(value || "").split(/\n+/).map((item) => item.trim()).filter(Boolean);
@@ -79,8 +80,21 @@ function TextArea(props) {
   return <textarea {...props} className={`min-h-28 w-full resize-y rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-600 focus:border-primary/40 ${props.className || ""}`} />;
 }
 
-function SelectInput(props) {
-  return <select {...props} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />;
+function SelectInput({ value, onChange, children, ...rest }) {
+  // Call sites pass <option> children and an event-shaped onChange, exactly as they would to
+  // a native select. Both are adapted here so none of them had to change.
+  const options = Children.toArray(children)
+    .filter((child) => isValidElement(child) && child.type === "option")
+    .map((child) => ({ value: String(child.props.value ?? ""), label: child.props.children, disabled: Boolean(child.props.disabled) }));
+  return (
+    <ThemedSelect
+      {...rest}
+      value={value}
+      onChange={(nextValue) => onChange?.({ target: { value: nextValue } })}
+      options={options}
+      triggerClassName="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40"
+    />
+  );
 }
 
 function Toggle({ label, checked, onChange, hint = "" }) {

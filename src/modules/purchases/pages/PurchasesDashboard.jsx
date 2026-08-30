@@ -35,6 +35,7 @@ import {
   seedWarehouses,
 } from "../lib/flowStore";
 import { getPrintDirection, normalizePrintLanguage, openPrintHtml, tPrint, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const purchaseTableColumns = "grid-cols-[3.5rem_8.5rem_minmax(9rem,1fr)_minmax(12rem,1.3fr)_minmax(9rem,0.9fr)_7.5rem_4.5rem_9rem]";
@@ -615,21 +616,16 @@ function Select({ value, onChange, options, label, allLabel = "All", className =
   return (
     <label className={`block min-w-0 ${className}`}>
       <div className="mb-1.5 truncate text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <select
+      <ThemedSelect
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
-      >
-        {options.map((option) => {
-          const optionValue = typeof option === "object" ? option.value : option;
-          const optionLabel = typeof option === "object" ? option.label : option === "all" ? allLabel : option;
-          return (
-          <option key={String(optionValue)} value={optionValue} className="bg-zinc-950 text-white">
-            {optionLabel}
-          </option>
-        );
-        })}
-      </select>
+        onChange={onChange}
+        ariaLabel={label}
+        options={options.map((option) => ({
+          value: typeof option === "object" ? option.value : option,
+          label: typeof option === "object" ? option.label : option === "all" ? allLabel : option,
+        }))}
+        triggerClassName="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+      />
     </label>
   );
 }

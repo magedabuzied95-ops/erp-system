@@ -38,6 +38,7 @@ import {
   buildPurchaseDraftBody,
 } from "../services/purchaseDraftStore.js";
 import { accountingApi } from "../../accounting/services/accountingApi";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import {
   formatCurrency,
   generateCode,
@@ -4146,15 +4147,14 @@ function Select({ label, value, onChange, options, emptyLabel, placeholder = "" 
   return (
     <label className="block">
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm capitalize text-white outline-none">
-        {placeholder ? <option value="" className="bg-zinc-950 text-white">{placeholder}</option> : null}
-        {options.length === 0 ? <option value="" className="bg-zinc-950 text-white">{fallbackEmptyLabel}</option> : null}
-        {options.map((option) => (
-          <option key={String(option.value)} value={option.value} className="bg-zinc-950 text-white">
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        placeholder={placeholder || (options.length === 0 ? fallbackEmptyLabel : "")}
+        options={options.map((option) => ({ value: option.value, label: option.label }))}
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm capitalize text-white outline-none"
+      />
     </label>
   );
 }

@@ -18,6 +18,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
@@ -215,13 +216,13 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none">
-        {options.map((option) => (
-          <option key={String(option.id)} value={String(option.id)} className="bg-surface text-text">
-            {option.name}
-          </option>
-        ))}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        options={options.map((option) => ({ value: String(option.id), label: option.name }))}
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none"
+      />
     </label>
   );
 }

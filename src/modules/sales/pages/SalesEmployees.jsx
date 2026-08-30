@@ -25,6 +25,7 @@ import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { useVirtualRows } from "../../../shared/components/VirtualList";
 import { getProductsWithVariants } from "../../products/services/productsApi";
 import { formatCurrency } from "../../pos/lib/posUtils";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import "./SalesEmployees.m1.css";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -1734,11 +1735,13 @@ function Select({ label, value, onChange, options = [], isRtl = false }) {
   return (
     <label className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3">
       <span className={labelClass(isRtl)}>{label}</span>
-      <select dir={isRtl ? "rtl" : "ltr"} value={value} onChange={(e) => onChange(e.target.value)} className="mt-2 w-full bg-transparent text-start font-bold outline-none">
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        options={options}
+        ariaLabel={label}
+        triggerClassName="mt-2 h-auto w-full border-0 bg-transparent px-0 text-start font-bold outline-none"
+      />
     </label>
   );
 }

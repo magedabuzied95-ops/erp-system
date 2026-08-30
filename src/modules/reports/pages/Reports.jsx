@@ -50,6 +50,7 @@ import i18n from "../../../i18n/i18n";
 const tt = (key, options) => i18n.t(key, options);
 import LegacyReportNotice from "../components/LegacyReportNotice";
 import { exportReport } from "../lib/reportExport";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import "./Reports.m1.css";
 
 import {
@@ -570,9 +571,13 @@ function SelectFilter({ label, value, onChange, options }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-300/50">
-        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        options={options.map(([optionValue, optionLabel]) => ({ value: optionValue, label: optionLabel }))}
+        triggerClassName="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none transition focus:border-emerald-300/50"
+      />
     </label>
   );
 }

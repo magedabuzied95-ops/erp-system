@@ -37,6 +37,7 @@ import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
 import { formatCurrency } from "../lib/financeStore";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const EXPENSE_TYPES = [
   "electricity",
@@ -1016,9 +1017,7 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</span>
-      <select value={value ?? ""} onChange={(event) => onChange(event.target.value)} className={inputClass}>
-        {options.map((option) => <option key={option.value} value={option.value} className="bg-zinc-950 text-white">{option.label}</option>)}
-      </select>
+      <ThemedSelect value={value ?? ""} onChange={onChange} options={options} ariaLabel={label} triggerClassName={inputClass} />
     </label>
   );
 }

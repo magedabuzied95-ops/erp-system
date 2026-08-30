@@ -134,17 +134,19 @@ test("online mode is locked out wherever it could not settle", () => {
 test("the invoice-type dropdown sits in the toolbar beside the shift control", () => {
   // Maged asked for it here, next to Close Shift, twice. It must sit immediately before that
   // button — the shift control is the landmark he navigates by.
-  const control = posSource.match(/\{\/\* Invoice type, sitting with the shift control[\s\S]*?\/>/);
+  const control = posSource.match(/\{\/\* Invoice type, sitting with the shift control[\s\S]*?\n {10}\/>/);
   assert.ok(control, "the invoice-type control must exist in the toolbar");
   const markup = control[0];
-  assert.match(markup, /<PosInvoiceModeMenu/);
+  assert.match(markup, /<ThemedSelect/, "it must use the one shared dropdown, not a private one");
   assert.match(markup, /value=\{invoiceMode\}/);
   assert.match(markup, /onChange=\{setInvoiceMode\}/);
-  assert.match(markup, /blockedReason=\{onlineInvoiceBlockedReason \? t\(`pos\.onlineOrder\.blocked\./);
+  assert.match(markup, /options=\{invoiceModeOptions\}/);
+  // The blocked option keeps its place in the list, carrying the reason.
+  assert.match(posSource, /disabled: Boolean\(onlineInvoiceBlockedReason\),\s*\n\s*hint: onlineInvoiceBlockedReason \? t\(`pos\.onlineOrder\.blocked\./);
   // Adjacency, checked by reading what actually follows — a regex like /\/>\s*<button.../
   // passes happily when another element is spliced in, because that element supplies its own
   // "/>" for the pattern to latch onto. So: take the next element and insist it is the button.
-  const afterClose = posSource.slice(posSource.indexOf("<PosInvoiceModeMenu"));
+  const afterClose = posSource.slice(posSource.indexOf("{/* Invoice type, sitting with the shift control"));
   const afterSelfClose = afterClose.slice(afterClose.indexOf("/>") + 2);
   const nextTagAt = afterSelfClose.indexOf("<");
   assert.match(afterSelfClose.slice(0, nextTagAt), /^\s*$/, "only whitespace may separate them");
@@ -157,31 +159,66 @@ test("the invoice-type dropdown sits in the toolbar beside the shift control", (
   assert.doesNotMatch(cartSource, /onInvoiceModeChange/);
 });
 
-test("the invoice-type list is drawn, not delegated to the OS", () => {
-  // A native <select> was tried here and looked wrong: Windows paints the option list as a
-  // bare rectangle that ignores the POS theme, and <option> cannot be styled past its own
-  // colours. So the list is rendered by hand — and it has to portal, because the toolbar row
-  // is overflow-x-hidden inside an overflow-hidden shell and would clip an inline panel.
-  const menuSource = read("src/modules/pos/components/PosInvoiceModeMenu.jsx");
-  // Comments stripped first: the file explains what it replaced, and that prose must not
-  // read as the very markup being forbidden.
-  const menuCode = menuSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
-  assert.doesNotMatch(menuCode, /<select/, "the OS list is what this component exists to replace");
-  assert.doesNotMatch(menuCode, /<option/);
+test("the app draws its own option list instead of delegating to the OS", () => {
+  // A native <select> cannot be themed past the closed control: the OS paints the option list,
+  // so on this dark ERP it opens as a bare rectangle with no radius, spacing or tokens. One
+  // shared component draws it — and it must portal, because callers sit inside overflow-hidden
+  // shells (the POS toolbar, drawers, table cells) that would otherwise clip the panel.
+  const menuSource = read("src/shared/ui/ThemedSelect.jsx");
   assert.match(menuSource, /createPortal\(/);
   assert.match(menuSource, /document\.fullscreenElement \|\| document\.body/, "the till runs fullscreen; body-mounted panels hide behind it");
   assert.match(menuSource, /position: "fixed"/);
-  // Reposition on scroll and resize, or the panel drifts off its button.
+  // Reposition on scroll and resize, or the panel drifts off its trigger.
   assert.match(menuSource, /window\.addEventListener\("resize", onViewportChange\)/);
   assert.match(menuSource, /window\.addEventListener\("scroll", onViewportChange, true\)/);
-  // Dismissal: click-outside and Escape both have to work, or the panel traps the till.
+  // Dismissal and keyboard: without these the drawn list is a downgrade on a native one.
   assert.match(menuSource, /document\.addEventListener\("mousedown", onPointerDown\)/);
-  assert.match(menuSource, /if \(event\.key === "Escape"\)/);
-  // The blocked option stays listed with its reason instead of vanishing.
-  assert.match(menuSource, /if \(option\.blocked\) return;/);
-  assert.match(menuSource, /\{option\.blocked \? \(/);
+  assert.match(menuSource, /event\.key === "Escape"/);
+  assert.match(menuSource, /event\.key === "ArrowDown"/);
   assert.match(menuSource, /role="listbox"/);
-  assert.match(menuSource, /aria-expanded=\{open\}/);
+  assert.match(menuSource, /role="combobox"/);
+  assert.match(menuSource, /aria-activedescendant/);
+  // Touch keeps the OS wheel picker, which genuinely beats a drawn list on a phone.
+  assert.match(menuSource, /\(pointer: coarse\)/);
+  assert.match(menuSource, /if \(coarsePointer \|\| forceNative\)/);
+  // A disabled option keeps its place and its reason rather than vanishing.
+  assert.match(menuSource, /if \(!option \|\| option\.disabled\) return;/);
+  assert.match(menuSource, /\{option\.hint \? \(/);
+});
+
+test("the copy-pasted local Select wrappers all route through the shared dropdown", () => {
+  // Nineteen near-identical Select/SelectField components had grown across the app, each with
+  // its own native <select>. They keep their props — no call site changed — but the control
+  // underneath is now one component, so the next styling fix lands everywhere at once.
+  const migrated = [
+    "src/modules/accounting/pages/Expenses.jsx",
+    "src/modules/accounting/pages/Revenues.jsx",
+    "src/modules/accounting/pages/Treasury.jsx",
+    "src/modules/aiSupport/pages/AiAgentSettings.jsx",
+    "src/modules/attendance/components/AttendanceWorkspace.jsx",
+    "src/modules/coupons/pages/CouponsManager.jsx",
+    "src/modules/inventory/pages/InventoryCount.jsx",
+    "src/modules/inventory/pages/StockTransfers.jsx",
+    "src/modules/notifications/pages/NotificationsCenter.jsx",
+    "src/modules/orders/pages/OrdersDashboard.jsx",
+    "src/modules/permissions/pages/Users.jsx",
+    "src/modules/pos/components/PosOnlineOrderModal.jsx",
+    "src/modules/purchases/pages/PurchaseOrder.jsx",
+    "src/modules/purchases/pages/PurchasesDashboard.jsx",
+    "src/modules/purchases/pages/SuppliersDashboard.jsx",
+    "src/modules/reports/pages/Reports.jsx",
+    "src/modules/sales/pages/SalesEmployees.jsx",
+    "src/modules/shipping/pages/ShippingCenter.jsx",
+    "src/modules/smartWarehouse/pages/SmartWarehouse.jsx",
+  ];
+  for (const file of migrated) {
+    const source = read(file);
+    assert.match(source, /shared\/ui\/ThemedSelect/, `${file} must import the shared dropdown`);
+    assert.match(source, /<ThemedSelect/, `${file} must render it`);
+    // The wrapper's own <select> is gone; any left here is a wrapper that slipped back.
+    const wrapper = source.match(/function (?:Select|SelectField|SelectFilter|SelectInput|Picker)\([\s\S]*?\n\}/);
+    if (wrapper) assert.doesNotMatch(wrapper[0], /<select/, `${file} wrapper still renders a native select`);
+  }
 });
 
 test("the till collects nothing on an online order", () => {

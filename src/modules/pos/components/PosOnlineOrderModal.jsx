@@ -11,6 +11,7 @@ import {
   buildBostaPickerOptions,
   normalizeShippingQuote,
 } from "../../../shared/lib/shippingCheckout";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import { formatCurrency } from "../lib/posUtils";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -85,21 +86,17 @@ function Picker({ label, value, onChange, options, error = "", disabled = false,
         <span className="text-rose-300"> *</span>
       </span>
       <div className="relative">
-        <select
+        <ThemedSelect
           value={value}
           disabled={disabled || loading}
-          onChange={(event) => onChange(event.target.value)}
-          className={`h-11 w-full rounded-xl border bg-[var(--surface-soft)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)] disabled:opacity-50 ${
+          onChange={onChange}
+          ariaLabel={label}
+          placeholder={placeholder}
+          options={options.map((option) => ({ value: option.id || option.value, label: option.label }))}
+          triggerClassName={`h-11 w-full rounded-xl border bg-[var(--surface-soft)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)] disabled:opacity-50 ${
             error ? "border-rose-400/60" : "border-[var(--border)]"
           }`}
-        >
-          <option value="">{placeholder}</option>
-          {options.map((option) => (
-            <option key={option.id || option.value} value={option.id || option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        />
         {loading ? <Loader2 className="pointer-events-none absolute inset-y-0 end-8 my-auto h-4 w-4 animate-spin text-[var(--muted)]" /> : null}
       </div>
       {error ? <span className="mt-1 block text-[11px] font-bold text-rose-300">{error}</span> : null}

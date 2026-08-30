@@ -9,6 +9,7 @@ import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
 import { normalizeRole } from "../lib/rbacStore";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const normalizeRoleText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 const normalizeSearchText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -657,13 +658,13 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
-        {options.map((option) => (
-          <option key={option.id} value={String(option.id)} className="bg-zinc-950 text-white">
-            {option.name}
-          </option>
-        ))}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        ariaLabel={label}
+        options={options.map((option) => ({ value: String(option.id), label: option.name }))}
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+      />
     </label>
   );
 }

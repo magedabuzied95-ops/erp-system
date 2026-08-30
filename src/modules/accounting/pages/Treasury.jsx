@@ -10,6 +10,7 @@ import { accountingApi } from "../services/accountingApi";
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
@@ -311,11 +312,13 @@ export default function Treasury() {
 
 function Select({ value, onChange, accounts, placeholder, compact = false }) {
   return (
-    <select className={`${inputClass} ${compact ? "min-w-40" : ""}`} value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">{placeholder}</option>
-      {accounts.map((account) => (
-        <option key={account.id} value={account.id}>{accountLabel(account)}</option>
-      ))}
-    </select>
+    <ThemedSelect
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      ariaLabel={placeholder}
+      options={accounts.map((account) => ({ value: account.id, label: accountLabel(account) }))}
+      triggerClassName={`${inputClass} ${compact ? "min-w-40" : ""}`}
+    />
   );
 }

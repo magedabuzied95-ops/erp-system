@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
-  ChevronLeft,
   ClipboardList,
   Filter,
   Loader2,
@@ -49,6 +48,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 /** Module-scope translator for helpers defined outside a component. */
 const tt = (key, options) => i18n.t(key, options);
@@ -1979,20 +1979,13 @@ function SelectField({ label, value, onChange, options = [], badge = null, compa
         <span>{label}</span>
         {badge !== null ? <span className="inline-flex min-h-5 items-center justify-center rounded-full bg-surface-soft px-2 text-[10px] font-black text-text">{badge}</span> : null}
       </div>
-      <div className="relative">
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`w-full appearance-none rounded-[var(--radius-control)] border bg-surface-soft py-3 text-sm text-text outline-none ${compactAction ? "cursor-pointer border-emerald-400/25 px-4 pr-12 font-black shadow-sm" : "border-border px-4"}`}
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value} className="bg-surface text-text">
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <ChevronLeft className={`pointer-events-none absolute end-4 top-1/2 h-4 w-4 -translate-y-1/2 ${compactAction ? "text-emerald-200" : "text-text-muted"}`} />
-      </div>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        options={options}
+        ariaLabel={label}
+        triggerClassName={`w-full rounded-[var(--radius-control)] border bg-surface-soft py-3 text-sm text-text outline-none ${compactAction ? "cursor-pointer border-emerald-400/25 px-4 font-black shadow-sm" : "border-border px-4"}`}
+      />
     </label>
   );
 }

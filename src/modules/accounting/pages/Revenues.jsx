@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import AccountingShell from "../components/AccountingShell";
 import FinanceMetricCard from "../components/FinanceMetricCard";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import {
   buildCategoryBreakdown,
   formatCurrency,
@@ -168,13 +169,13 @@ function Select({ label, value, onChange, options }) {
   return (
     <label className="block">
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
-        {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <ThemedSelect
+        value={value}
+        onChange={onChange}
+        options={options}
+        ariaLabel={label}
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+      />
     </label>
   );
 }

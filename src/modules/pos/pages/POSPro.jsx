@@ -37,6 +37,7 @@ import {
   User,
   Warehouse,
   ReceiptText,
+  Truck,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -128,7 +129,7 @@ import {
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar from "../components/CartSidebar";
-import PosInvoiceModeMenu from "../components/PosInvoiceModeMenu";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 // Restock requests: the same panel + catalogue picker the AI Inbox uses, so the
 // feature evolves in one place. Lazy — it pulls the inbox picker bundle.
@@ -8002,6 +8003,18 @@ function POSPro() {
     return "";
   }, [editingOrder?.id, exchangeState?.active, posShiftNetworkUnavailable]);
   const isOnlineInvoiceMode = invoiceMode === "online" && !onlineInvoiceBlockedReason;
+  // The blocked option stays in the list carrying its reason rather than disappearing — an
+  // option that vanishes reads as a bug, not as an explanation.
+  const invoiceModeOptions = useMemo(() => [
+    { value: "counter", label: t("pos.onlineOrder.modeCounter"), icon: <ReceiptText className="h-4 w-4 shrink-0" /> },
+    {
+      value: "online",
+      label: t("pos.onlineOrder.modeOnline"),
+      icon: <Truck className="h-4 w-4 shrink-0" />,
+      disabled: Boolean(onlineInvoiceBlockedReason),
+      hint: onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : "",
+    },
+  ], [onlineInvoiceBlockedReason, t]);
 
   useEffect(() => {
     if (invoiceMode === "online" && onlineInvoiceBlockedReason) setInvoiceMode("counter");
@@ -8237,15 +8250,21 @@ function POSPro() {
             </button>
           ) : null}
           {/* Invoice type, sitting with the shift control because that is where the cashier
-              was told to look for it. Not a native <select>: Windows draws its option list as
-              a bare OS rectangle that ignores the POS theme, so the list is drawn by hand. */}
-          <PosInvoiceModeMenu
+              was told to look for it. Same ThemedSelect as every other dropdown in the app —
+              a native one would open the OS list, which ignores the POS theme entirely. */}
+          <ThemedSelect
             value={invoiceMode}
             onChange={setInvoiceMode}
-            label={t("pos.onlineOrder.modeLabel")}
-            counterLabel={t("pos.onlineOrder.modeCounter")}
-            onlineLabel={t("pos.onlineOrder.modeOnline")}
-            blockedReason={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : ""}
+            ariaLabel={t("pos.onlineOrder.modeLabel")}
+            options={invoiceModeOptions}
+            renderValue={(selected) => (
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">{selected?.icon}{selected?.label}</span>
+            )}
+            triggerClassName={`pos-toolbar-action pos-action-invoice-mode h-[var(--control-height-md)] w-auto shrink-0 rounded-full border px-3 text-xs font-black shadow-[0_0_18px_rgba(0,0,0,0.18)] ${
+              isOnlineInvoiceMode
+                ? "border-sky-300/45 bg-sky-400/15 text-sky-50 hover:bg-sky-400/25"
+                : "border-emerald-300/35 bg-emerald-400/10 text-emerald-50 hover:bg-emerald-400/20"
+            }`}
           />
           <button
             type="button"

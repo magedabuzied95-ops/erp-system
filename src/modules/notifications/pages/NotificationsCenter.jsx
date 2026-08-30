@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { NotificationCard, useNotifications } from "../../../shared/notifications/index.js";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import "./NotificationsCenter.m1.css";
 
 const categories = ["all", "sales", "orders", "stock", "inventory", "payments", "purchases", "staff_tasks", "security", "system"];
@@ -210,11 +211,12 @@ function NotificationsCenter() {
 function Select({ value, onChange, rows }) {
   const { t } = useTranslation();
   return (
-    <select value={value} onChange={(event) => onChange(event.target.value)} className="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm font-bold outline-none">
-      {rows.map((item) => (
-        <option key={item} value={item}>{labelKeys[item] ? t(labelKeys[item]) : item}</option>
-      ))}
-    </select>
+    <ThemedSelect
+      value={value}
+      onChange={onChange}
+      options={rows.map((item) => ({ value: item, label: labelKeys[item] ? t(labelKeys[item]) : item }))}
+      triggerClassName="notification-filter-control min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-3 py-2 text-sm font-bold outline-none"
+    />
   );
 }
 
