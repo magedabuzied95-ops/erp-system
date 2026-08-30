@@ -8643,6 +8643,15 @@ export default function AiInbox({ reviewerMode = false }) {
         return { ok: false, stale: true, superseded: true };
       }
       const friendlyError = err?.responseBody?.delivery_error || err?.responseBody?.message || err?.message || "فشل الإرسال";
+      // A REFUSAL is not a failed send. When the server answers `sent: false` and hands back no stored
+      // `failed_message`, it blocked the message before the provider was ever called — the 24h-window
+      // burst guard, a duplicate address link — so nothing reached the customer and no row exists.
+      // Painting a bubble for that mints a client-only ghost: its id is `sending-…`, which reconciliation
+      // reads as "still in flight" and keeps forever, and saveThread then persists it to IndexedDB. Six
+      // retries against a closed window once left six identical فشل bubbles on screen while the database
+      // held exactly one row. Drop the bubble and let the toast carry the reason.
+      // A transport error (no responseBody) proves nothing about what happened, so it keeps its bubble.
+      const refusedWithoutSending = err?.responseBody?.sent === false && !failedMessage;
       setToast({ tone: "rose", text: friendlyError });
       setError(friendlyError);
       patchConversation(conversationIdentifier, (conversation) => ({
@@ -8652,9 +8661,11 @@ export default function AiInbox({ reviewerMode = false }) {
               ...asArray(conversation.messages).filter((item) => item.id !== optimistic.id),
               failedMessage,
             ])
-          : asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: friendlyError } : item),
+          : refusedWithoutSending
+            ? asArray(conversation.messages).filter((item) => item.id !== optimistic.id)
+            : asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: friendlyError } : item),
       }));
-      return { ok: false, stale, error: friendlyError };
+      return { ok: false, stale, refused: refusedWithoutSending, error: friendlyError };
     } finally {
       sendingReplyRef.current = false;
       setReplySending(false);

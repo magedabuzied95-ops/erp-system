@@ -110,6 +110,13 @@ export const orderMessages = (messages = [], fallback = messages) => {
 // server id yet) and history older than the page window (the page simply does
 // not reach back that far). An empty server page reconciles nothing, so a
 // failed/blank fetch can never wipe a thread.
+//
+// The one exception to "keep every id-less bubble" is a bubble that already
+// FAILED. It is terminal — it will never be retried into a server id — so the
+// in-flight reasoning does not apply to it, and nothing else ever sweeps it: it
+// outlives the send inside IndexedDB and comes back every session, stacked
+// beside the real failed row the server did store. Inside the authoritative
+// window it faces the same server-truth test as any other message.
 export const reconcileWithServerPage = (cachedMessages = [], serverPage = [], identityKeysFn = null) => {
   const cached = Array.isArray(cachedMessages) ? cachedMessages : [];
   const incoming = Array.isArray(serverPage) ? serverPage : [];
@@ -125,7 +132,8 @@ export const reconcileWithServerPage = (cachedMessages = [], serverPage = [], id
   return cached.filter((message) => {
     const id = clean(message?.id);
     const hasServerId = Boolean(id) && !id.startsWith("sending-");
-    if (!hasServerId) return true;
+    const terminalClientOnly = !hasServerId && clean(message?.delivery_status) === "failed";
+    if (!hasServerId && !terminalClientOnly) return true;
     const messageTime = ts(message);
     if (messageTime && messageTime < windowStart) return true;
     return identityKeysFn(message).some((key) => serverKeys.has(key));

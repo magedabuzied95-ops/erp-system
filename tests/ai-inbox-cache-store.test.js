@@ -227,6 +227,34 @@ test("reconcileWithServerPage keeps optimistic bubbles and pre-window history", 
   assert.equal(out.length, 3);
 });
 
+// A refused send used to leave a `sending-…` bubble marked failed. It never gains a server id, so the
+// "keep every id-less bubble" rule made it immortal: it survived in IndexedDB and came back every
+// session next to the one real failed row the server stored — six identical فشل bubbles for one refusal.
+test("reconcileWithServerPage drops a failed client-only bubble but keeps one still in flight", async () => {
+  const { reconcileWithServerPage } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const cached = [
+    { id: 300, created_at: "2026-08-29T11:46:36Z", staff_message: "the real failed row", delivery_status: "failed" },
+    { id: "sending-1", created_at: "2026-08-29T11:46:36Z", staff_message: "ghost", delivery_status: "failed", client_request_id: "req-2" },
+    { id: "sending-2", created_at: "2026-08-29T11:46:36Z", staff_message: "ghost", delivery_status: "failed", client_request_id: "req-3" },
+    { id: "sending-3", created_at: "2026-08-29T11:46:37Z", staff_message: "still sending", delivery_status: "sending", client_request_id: "req-4" },
+  ];
+  const serverPage = [
+    { id: 299, created_at: "2026-08-29T11:40:00Z", customer_message: "hi" },
+    { id: 300, created_at: "2026-08-29T11:46:36Z", staff_message: "the real failed row", delivery_status: "failed" },
+  ];
+  const out = reconcileWithServerPage(cached, serverPage, identityKeys);
+  assert.deepEqual(out.map((m) => m.id), [300, "sending-3"]);
+});
+
+// The pre-window rule outranks it: the page simply does not reach back that far, so a failed bubble
+// older than the window is not evidence of anything and must not be swept.
+test("reconcileWithServerPage keeps a failed client-only bubble older than the page window", async () => {
+  const { reconcileWithServerPage } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
+  const cached = [{ id: "sending-9", created_at: "2026-08-01T00:00:00Z", delivery_status: "failed" }];
+  const serverPage = [{ id: 400, created_at: "2026-08-29T11:40:00Z", customer_message: "hi" }];
+  assert.deepEqual(reconcileWithServerPage(cached, serverPage, identityKeys), cached);
+});
+
 test("reconcileWithServerPage never wipes anything on an empty or unusable server page", async () => {
   const { reconcileWithServerPage } = await import("../src/modules/aiSupport/services/inboxCache/inboxCacheStore.js");
   const cached = [{ id: 1, created_at: "2026-08-18T01:00:00Z" }];
