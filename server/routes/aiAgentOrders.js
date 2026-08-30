@@ -6481,10 +6481,21 @@ const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
         expanded.push(card);
         continue;
       }
+      // Select the RAW price columns and let the canonical resolver decide — never a fresh
+      // COALESCE over them. The old `COALESCE(selling_price, price, regular_price) AS price`
+      // never reached `purchase_selling_price`, which for a large part of the catalogue is the
+      // ONLY normal price that exists (the purchase invoice sets it). Every colour card of such a
+      // product carded with no price at all: live on Instagram 2026-08-30, product 764 priced 850
+      // on each variant's purchase_selling_price, and the server's own
+      // `stage=product_cards_built { cardsWithMissingPrice: 4 }` said so. Precedence lives in
+      // src/shared/lib/currentSellingPrice.js (manual override → purchase_selling_price → legacy,
+      // variant before product) and normalizeProductCards reaches it through
+      // resolveCustomerDisplayPrice — but only if the row actually carries the columns.
       const variantsResult = await db.query(
         `SELECT id, color, size, stock,
-                COALESCE(NULLIF(selling_price,0), NULLIF(price,0), NULLIF(regular_price,0)) AS price,
-                sale_price, image_url, is_active
+                manual_price_override_active, manual_selling_price, purchase_selling_price,
+                selling_price, price, regular_price, sale_price, sale_price_enabled,
+                image_url, is_active
          FROM product_variants
          WHERE product_id = $1 AND COALESCE(is_active, TRUE) IS DISTINCT FROM FALSE AND deleted_at IS NULL`,
         [productId]

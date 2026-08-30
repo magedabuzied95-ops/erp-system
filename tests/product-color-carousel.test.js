@@ -160,3 +160,25 @@ test("more than ten colours are chunked, not dropped", () => {
   const adapter = fs.readFileSync(new URL("../server/services/aiChannelAdapterService.js", import.meta.url), "utf8");
   assert.match(adapter, /i \+= 10/, "the adapter chunks carousels at Evolution's 10-card limit");
 });
+
+test("the colour expansion reads the canonical price columns, never a hand-rolled COALESCE", () => {
+  // LIVE 2026-08-30: every colour card of product 764 arrived with NO price on Instagram, and the
+  // server logged `stage=product_cards_built { cardsWithMissingPrice: 4 }`. The 850 was there all
+  // along — in `purchase_selling_price`, which the expansion's own
+  // `COALESCE(NULLIF(selling_price,0), NULLIF(price,0), NULLIF(regular_price,0)) AS price`
+  // could never reach. That column is the ONLY normal price for 365 of 751 products in production,
+  // so half the catalogue carded priceless on WhatsApp and Messenger too. The canonical precedence
+  // lives in src/shared/lib/currentSellingPrice.js and normalizeProductCards reaches it through
+  // resolveCustomerDisplayPrice — but only if the variant row carries the columns.
+  const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
+  const fn = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  const query = fn.slice(fn.indexOf("FROM product_variants") - 600, fn.indexOf("FROM product_variants"));
+  for (const column of ["purchase_selling_price", "manual_selling_price", "manual_price_override_active"]) {
+    assert.ok(query.includes(column), `the variant row must carry ${column} for the resolver to see it`);
+  }
+  assert.ok(!/COALESCE\(NULLIF\(selling_price/.test(fn), "no fresh COALESCE over the price columns — the resolver decides");
+  // and the raw legacy columns still ride along as the resolver's last tier
+  for (const column of ["selling_price", "price", "regular_price", "sale_price"]) {
+    assert.ok(query.includes(column), `the legacy tier still needs ${column}`);
+  }
+});
