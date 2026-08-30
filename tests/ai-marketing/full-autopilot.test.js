@@ -161,6 +161,50 @@ test("brand keywords narrow a block to the named brands, within its other filter
   assert.equal(productMatchesThemeBlock({ product_type: "bags", name: "Chrisbella Hand & Crossbody Bag" }, anyBags), true);
 });
 
+test("the calendar keeps deciding after generation, not only during it", async () => {
+  const { queueItemMatchesThemeCalendar } = await import("../../server/services/aiMarketingCenterService.js");
+  const settings = {
+    story_selection_mode: "theme_calendar",
+    story_theme_calendar: normalizeThemeCalendar([
+      themeBlock({ key: "school-bags", days: [0, 1, 2, 3, 4, 5, 6], filters: { product_types: ["bags"], keywords: ["momolly"] }, end_date: "2026-09-10" }),
+      themeBlock({ key: "parked", days: [0, 1, 2, 3, 4, 5, 6], active: false }),
+    ]),
+  };
+  const item = (themeKey) => ({ metadata: { theme_key: themeKey } });
+  const day = new Date(2026, 8, 1);
+
+  // A row generated under the old, wider filter is refused once the block narrows.
+  assert.equal(
+    queueItemMatchesThemeCalendar({ settings, item: item("school-bags"), product: { product_type: "bags", name: "Chrisbella Hand & Crossbody" }, now: day }),
+    false
+  );
+  assert.equal(
+    queueItemMatchesThemeCalendar({ settings, item: item("school-bags"), product: { product_type: "bags", name: "Momolly Bag" }, now: day }),
+    true
+  );
+  // Past the block's end date nothing from it goes out, whatever the product is.
+  assert.equal(
+    queueItemMatchesThemeCalendar({ settings, item: item("school-bags"), product: { product_type: "bags", name: "Momolly Bag" }, now: new Date(2026, 8, 11) }),
+    false
+  );
+  // A switched-off or deleted block stops its queue immediately.
+  assert.equal(queueItemMatchesThemeCalendar({ settings, item: item("parked"), product: {}, now: day }), false);
+  assert.equal(queueItemMatchesThemeCalendar({ settings, item: item("deleted-block"), product: {}, now: day }), false);
+  // No opinion when it cannot know: other selection modes, untagged rows, no product row.
+  assert.equal(queueItemMatchesThemeCalendar({ settings: { story_selection_mode: "catalog_coverage" }, item: item("school-bags"), product: {}, now: day }), null);
+  assert.equal(queueItemMatchesThemeCalendar({ settings, item: { metadata: {} }, product: {}, now: day }), null);
+  assert.equal(queueItemMatchesThemeCalendar({ settings, item: item("school-bags"), product: null, now: day }), null);
+});
+
+test("the autopilot archives off-calendar rows instead of publishing or re-testing them", () => {
+  assert.match(autopilotSource, /queueItemMatchesThemeCalendar\(\{[\s\S]{0,160}settings: engineSettings/);
+  assert.match(autopilotSource, /if \(stillWanted === false\)/);
+  assert.match(autopilotSource, /archived_reason: "theme_calendar_no_longer_matches"/);
+  assert.match(autopilotSource, /SET status = 'archived'/);
+  // A settings read failure must not stop the queue.
+  assert.match(autopilotSource, /theme re-check unavailable/);
+});
+
 test("keyword filters survive normalization and are capped", () => {
   const rows = normalizeThemeCalendar([
     themeBlock({ key: "skechers", filters: { keywords: ["Skechers", "sketcher", "Skechers", ...Array.from({ length: 20 }, (_, i) => `word${i}`)] } }),

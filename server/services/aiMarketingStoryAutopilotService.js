@@ -6,7 +6,9 @@ import {
   ensureAiMarketingCenterSchema,
   getAiMarketingSettings,
   publishAiMarketingQueueItemNow,
+  queueItemMatchesThemeCalendar,
   themeDateKey,
+  themeMatchFieldsForProducts,
 } from "./aiMarketingCenterService.js";
 
 const AUTOPILOT_ADVISORY_LOCK = 74017211;
@@ -846,8 +848,54 @@ export const runStoryAutopilotForTenant = async (tenantId, { trigger = "schedule
     metadata: { slot: slotState.slot, batch_size: batchSize, candidates: candidates.length, platforms: config.platforms },
   });
 
+  // The theme calendar keeps deciding after generation: a queue row whose block
+  // was narrowed, switched off or has run past its end date must not still go
+  // out. Products are read once for the whole batch.
+  let engineSettings = null;
+  let themeProducts = new Map();
+  try {
+    engineSettings = await getAiMarketingSettings(tenantId);
+    if (engineSettings?.story_selection_mode === "theme_calendar") {
+      themeProducts = await themeMatchFieldsForProducts(tenantId, candidates.map((row) => row.product_id));
+    }
+  } catch (error) {
+    // A settings read failure must not stop publishing what is already approved.
+    console.warn("[story-autopilot] theme re-check unavailable", { tenant_id: tenantId, message: error?.message || String(error) });
+    engineSettings = null;
+  }
+
   for (const candidate of candidates) {
     if (summary.published.length >= batchSize) break;
+    if (engineSettings) {
+      const stillWanted = queueItemMatchesThemeCalendar({
+        settings: engineSettings,
+        item: candidate,
+        product: themeProducts.get(String(candidate.product_id)) || null,
+        now,
+      });
+      if (stillWanted === false) {
+        // Archive rather than skip: leaving it eligible means re-testing the same
+        // row on every tick for as long as its scheduled_at stays inside the
+        // catch-up window, and the operator never sees why it stopped.
+        await db.query(
+          `UPDATE ai_marketing_content_queue
+           SET status = 'archived', updated_at = CURRENT_TIMESTAMP,
+               metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb
+           WHERE id = $1::bigint AND tenant_id = $2::bigint`,
+          [candidate.id, tenantId, JSON.stringify({ archived_reason: "theme_calendar_no_longer_matches", archived_by_autopilot_at: now.toISOString() })]
+        );
+        summary.skipped.push({ queue_id: candidate.id, reason: "theme_calendar_no_longer_matches", title: candidate.title || "" });
+        await writeAutopilotLog({
+          tenantId,
+          queueId: candidate.id,
+          eventType: "archived_off_calendar",
+          status: "skipped",
+          message: `تم أرشفة "${cleanText(candidate.title)}" لأنه لم يعد ضمن تقويم المواضيع الحالي.`,
+          metadata: { theme_key: jsonObject(candidate.metadata, {}).theme_key || "" },
+        });
+        continue;
+      }
+    }
     if (config.skip_without_generated_asset && !hasGeneratedAsset(candidate)) {
       summary.skipped.push({ queue_id: candidate.id, reason: "missing_generated_asset" });
       continue;

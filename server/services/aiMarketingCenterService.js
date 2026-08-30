@@ -5461,6 +5461,48 @@ const buildThemeCalendarStories = async ({ tenantId, products, quota, runType, s
   return items;
 };
 
+/* ------------------------------------------------------------------ *
+ * Publish-time calendar check.
+ *
+ * The calendar decides which products go out — and it has to keep deciding
+ * AFTER generation, not only during it. A queue built last night under one
+ * filter would otherwise keep publishing for days after the owner narrows the
+ * block ("school bags: momolly & classic only"), because the rows were already
+ * stamped. This re-reads the item's own block and re-tests the product, so a
+ * filter edit takes effect on the very next publish tick.
+ * ------------------------------------------------------------------ */
+export const themeMatchFieldsForProducts = async (tenantId, productIds = []) => {
+  const ids = Array.from(new Set(productIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
+  if (!ids.length) return new Map();
+  const result = await db.query(
+    `
+    SELECT p.id, p.name, p.product_type, p.grade, p.style,
+           COALESCE(p.is_offer_story, FALSE) AS is_offer_story,
+           c.name AS category_name, b.name AS brand
+    FROM products p
+    LEFT JOIN categories c ON c.id = p.category_id
+    LEFT JOIN brands b ON b.id = p.brand_id
+    WHERE p.tenant_id = $1::bigint AND p.id = ANY($2::bigint[])
+    `,
+    [tenantId, ids]
+  );
+  return new Map(result.rows.map((row) => [String(row.id), row]));
+};
+
+// null = "no opinion" (not theme mode, or the item predates theme selection).
+// true/false = the calendar still wants / no longer wants this item today.
+export const queueItemMatchesThemeCalendar = ({ settings, item = {}, product = null, now = new Date() }) => {
+  if (settings?.story_selection_mode !== "theme_calendar") return null;
+  const metadata = normalizeJsonObject(item.metadata, {});
+  const themeKey = cleanText(metadata.theme_key);
+  if (!themeKey) return null;
+  const block = (settings.story_theme_calendar || []).find((row) => row.key === themeKey);
+  if (!block || block.active === false) return false;
+  if (!themeBlockActiveOnDate(block, now)) return false;
+  if (!product) return null;
+  return productMatchesThemeBlock(product, block) && themeAudienceMatches(product, block);
+};
+
 const buildGenerationPlan = async ({ tenantId, runType, settings, plan: sizing = null }) => {
   const products = await loadProducts(tenantId);
   const cooldownState = buildCooldownState(await loadCooldownRows(tenantId));
