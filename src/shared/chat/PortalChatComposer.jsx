@@ -14,7 +14,9 @@ const EMOJI = [
 ];
 
 // A synthetic change event so paste/drop reuse the caller's <input type=file> handler.
-const fileEvent = (file) => ({ target: { files: [file], value: "" } });
+const fileEvent = (files) => ({ target: { files, value: "" } });
+// Stable empty default: a fresh [] every render would re-create the object URLs.
+const NO_ATTACHMENTS = [];
 
 const readRecentEmoji = () => {
   try {
@@ -58,7 +60,9 @@ export default function PortalChatComposer({
   setBody,
   sending = false,
   attachment = null,
+  attachments = NO_ATTACHMENTS,
   setAttachment,
+  setAttachments,
   setAttachmentDuration,
   replyTo = null,
   setReplyTo,
@@ -85,13 +89,30 @@ export default function PortalChatComposer({
   const localInputRef = useRef(null);
   const textareaRef = inputRef || localInputRef;
   const hasText = Boolean(String(body || "").trim());
-  const canSend = !disabled && !sending && (hasText || Boolean(attachment));
+  // `attachment` (single) stays supported for callers that never queue more than one.
+  const queue = useMemo(
+    () => (Array.isArray(attachments) && attachments.length ? attachments : attachment ? [attachment] : NO_ATTACHMENTS),
+    [attachments, attachment]
+  );
+  const canSend = !disabled && !sending && (hasText || queue.length > 0);
   const finePointer = typeof window !== "undefined" && window.matchMedia?.("(hover: hover) and (pointer: fine)")?.matches;
 
-  const removeAttachment = () => {
+  const clearFileInput = () => {
+    if (fileInputRef?.current) fileInputRef.current.value = "";
+  };
+
+  const removeAttachmentAt = (index) => {
+    if (setAttachments) setAttachments((current) => (Array.isArray(current) ? current : []).filter((_, position) => position !== index));
+    if (queue.length <= 1) setAttachment?.(null);
+    setAttachmentDuration?.(0);
+    clearFileInput();
+  };
+
+  const removeAllAttachments = () => {
+    setAttachments?.([]);
     setAttachment?.(null);
     setAttachmentDuration?.(0);
-    if (fileInputRef?.current) fileInputRef.current.value = "";
+    clearFileInput();
   };
 
   // Auto-grow up to MAX_LINES, then scroll inside (WhatsApp's composer).
@@ -127,23 +148,22 @@ export default function PortalChatComposer({
     }
   };
 
-  const pickFile = useCallback((file) => {
-    if (!file || disabled) return;
-    chooseAttachment?.(fileEvent(file));
+  const pickFiles = useCallback((files) => {
+    if (!files?.length || disabled) return;
+    chooseAttachment?.(fileEvent(files));
   }, [chooseAttachment, disabled]);
 
   const onPaste = (event) => {
-    const file = [...(event.clipboardData?.files || [])][0];
-    if (!file) return;
+    const files = [...(event.clipboardData?.files || [])];
+    if (!files.length) return;
     event.preventDefault();
-    pickFile(file);
+    pickFiles(files);
   };
 
   const onDrop = (event) => {
     event.preventDefault();
     setDragging(false);
-    const file = [...(event.dataTransfer?.files || [])][0];
-    if (file) pickFile(file);
+    pickFiles([...(event.dataTransfer?.files || [])]);
   };
 
   const insertEmoji = (emoji) => {
@@ -161,13 +181,18 @@ export default function PortalChatComposer({
     });
   };
 
-  const attachmentPreview = useMemo(() => {
-    if (!attachment) return null;
-    const isImage = String(attachment.type || "").startsWith("image/");
-    const url = isImage ? URL.createObjectURL(attachment) : "";
-    return { isImage, url, name: attachment.name, size: formatPortalChatFileSize(attachment.size) };
-  }, [attachment]);
-  useEffect(() => () => { if (attachmentPreview?.url) URL.revokeObjectURL(attachmentPreview.url); }, [attachmentPreview]);
+  const previews = useMemo(() => queue.map((file, index) => {
+    const isImage = String(file.type || "").startsWith("image/");
+    return {
+      key: `${file.name}-${file.size}-${file.lastModified || index}`,
+      isImage,
+      url: isImage ? URL.createObjectURL(file) : "",
+      name: file.name,
+      size: formatPortalChatFileSize(file.size),
+    };
+  }), [queue]);
+  useEffect(() => () => { previews.forEach((item) => { if (item.url) URL.revokeObjectURL(item.url); }); }, [previews]);
+  const attachmentPreview = previews.length === 1 ? previews[0] : null;
 
   const iconButton = "flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full text-[var(--chat-muted)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--chat-text)] disabled:opacity-50";
 
@@ -213,7 +238,36 @@ export default function PortalChatComposer({
               </button>
             </div>
           ) : null}
-          {attachmentPreview ? (
+          {previews.length > 1 ? (
+            <div className="mb-1.5 rounded-[0.9rem] bg-[var(--chat-input)] p-1.5 text-[var(--chat-text)]">
+              <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                <span className="text-[12px] font-black">{t("employeePortal.chat.attachmentsSelected", { count: previews.length })}</span>
+                <button type="button" onClick={removeAllAttachments} className="rounded-full px-2 py-0.5 text-[11px] font-black text-[var(--danger)] transition hover:bg-[var(--surface-hover)]">
+                  {labels.removeAttachment || t("common.delete")}
+                </button>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {previews.map((item, index) => (
+                  <div key={item.key} className="relative shrink-0">
+                    {item.isImage ? (
+                      <img src={item.url} alt="" className="h-16 w-16 rounded-[0.7rem] object-cover" />
+                    ) : (
+                      <span className="grid h-16 w-16 place-items-center rounded-[0.7rem] bg-[var(--chat-chrome)] text-[var(--chat-muted)]"><Paperclip className="h-5 w-5" /></span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachmentAt(index)}
+                      className="absolute -top-1 -end-1 grid h-5 w-5 place-items-center rounded-full bg-[var(--chat-chrome)] text-[var(--chat-text)] shadow-md"
+                      aria-label={`${labels.removeAttachment || t("common.delete")} — ${item.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <span className="block px-1 text-[11px] font-semibold text-[var(--chat-muted)]">{labels.captionHint || t("employeePortal.chat.captionHint")}</span>
+            </div>
+          ) : attachmentPreview ? (
             <div className="mb-1.5 flex items-center gap-3 rounded-[0.9rem] bg-[var(--chat-input)] p-1.5 text-[var(--chat-text)]">
               {attachmentPreview.isImage ? (
                 <img src={attachmentPreview.url} alt="" className="h-16 w-16 shrink-0 rounded-[0.7rem] object-cover" />
@@ -225,7 +279,7 @@ export default function PortalChatComposer({
                 <span className="block text-[11px] font-bold text-[var(--chat-muted)]" dir="ltr">{attachmentPreview.size}</span>
                 <span className="block text-[11px] font-semibold text-[var(--chat-muted)]">{labels.captionHint || t("employeePortal.chat.captionHint")}</span>
               </span>
-              <button type="button" onClick={removeAttachment} className={iconButton} aria-label={labels.removeAttachment || t("common.delete")}>
+              <button type="button" onClick={() => removeAttachmentAt(0)} className={iconButton} aria-label={labels.removeAttachment || t("common.delete")}>
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -236,7 +290,7 @@ export default function PortalChatComposer({
             </div>
           ) : null}
           <div className="relative flex items-end gap-1">
-            <input ref={fileInputRef} type="file" className="hidden" accept={CHAT_ATTACHMENT_ACCEPT} onChange={chooseAttachment} />
+            <input ref={fileInputRef} type="file" multiple className="hidden" accept={CHAT_ATTACHMENT_ACCEPT} onChange={chooseAttachment} />
             {emojiOpen ? <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} label={labels.emoji || t("employeePortal.chat.emoji")} /> : null}
             <div className="flex min-h-[var(--control-height-md)] min-w-0 flex-1 items-end gap-0.5 rounded-[1.4rem] border border-[var(--chat-border)] bg-[var(--chat-input)] ps-1 pe-1">
               <button type="button" onClick={() => setEmojiOpen((open) => !open)} disabled={disabled} className={`${iconButton} mb-0.5 h-9 w-9`} aria-label={labels.emoji || t("employeePortal.chat.emoji")} aria-expanded={emojiOpen}>
@@ -263,7 +317,7 @@ export default function PortalChatComposer({
                 <Paperclip className="h-5 w-5" />
               </button>
             </div>
-            {hasText || attachment || !recordingState.supported ? (
+            {hasText || queue.length > 0 || !recordingState.supported ? (
               <button type="submit" disabled={!canSend} className="flex h-[var(--control-height-md)] w-[var(--control-height-md)] shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-contrast)] shadow-md transition active:scale-95 disabled:opacity-50" aria-label={labels.send || t("common.send")}>
                 {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 rtl:-scale-x-100" />}
               </button>

@@ -569,6 +569,8 @@
     "copy": "Copy",
     "loadOlder": "Load earlier messages",
     "captionHint": "Type a caption below, or send as is",
+    "attachmentsSelected": "{{count}} attachments ready to send",
+    "attachmentLimit": "Up to {{count}} attachments at a time",
     "emoji": "Emoji",
     "online": "Online",
     "lastSeenToday": "Last seen today at {{time}}",

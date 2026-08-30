@@ -58,7 +58,7 @@ import { expandLabelCopies, openBarcodePrintWindow } from "../../products/lib/ba
 import PortalChatComposer from "../../../shared/chat/PortalChatComposer";
 import PortalChatMessageList from "../../../shared/chat/PortalChatMessageList";
 import PortalChatContactInfo from "../../../shared/chat/PortalChatContactInfo";
-import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtils";
+import { collectPortalChatAttachments, MAX_PORTAL_CHAT_ATTACHMENTS } from "../../../shared/chat/portalChatUtils";
 import ChatRingOverlay, { ChatRingStatus } from "../../../shared/chat/ChatRingOverlay";
 import useChatRing from "../../../shared/chat/useChatRing";
 import i18n from "../../../i18n/i18n";
@@ -484,6 +484,7 @@ Object.assign(labels.ar, {
   imageAttachment: "صورة",
   fileAttachment: "ملف",
   unsupportedAttachment: "نوع الملف غير مدعوم.",
+  attachmentLimit: "الحد الأقصى {{count}} مرفقات في المرة الواحدة",
   management: "الإدارة",
   you: "أنت",
   employeeDashboard: "بوابة الموظف",
@@ -577,6 +578,7 @@ Object.assign(labels.en, {
   imageAttachment: "Image",
   fileAttachment: "File",
   unsupportedAttachment: "Unsupported file type.",
+  attachmentLimit: "Up to {{count}} attachments at a time",
   management: "Management",
   you: "You",
   employeeDashboard: "Employee Portal",
@@ -1607,7 +1609,7 @@ export default function EmployeePayrollPortal() {
   const chatRing = useChatRing({ subscribe: ringSubscribe, answer: ringAnswer, isIncoming: ringIsIncoming });
   const [ringSending, setRingSending] = useState(false);
   const [chatBody, setChatBody] = useState("");
-  const [chatAttachment, setChatAttachment] = useState(null);
+  const [chatAttachments, setChatAttachments] = useState([]);
   const [chatAttachmentDuration, setChatAttachmentDuration] = useState(0);
   const [chatThread, setChatThread] = useState(null);
   const [replyToChat, setReplyToChat] = useState(null);
@@ -2945,14 +2947,23 @@ export default function EmployeePayrollPortal() {
       }
       return;
     }
-    if ((!message && !chatAttachment) || chatSaving) return;
-    const draft = { text: message, attachment: chatAttachment, attachmentDuration: chatAttachmentDuration, replyTo: replyToChat };
+    if ((!message && !chatAttachments.length) || chatSaving) return;
+    // One message per file — the caption and the reply ride on the first one.
+    const drafts = chatAttachments.length
+      ? chatAttachments.map((file, index) => ({
+        text: index === 0 ? message : "",
+        attachment: file,
+        attachmentDuration: index === 0 ? chatAttachmentDuration : 0,
+        replyTo: index === 0 ? replyToChat : null,
+      }))
+      : [{ text: message, attachment: null, attachmentDuration: 0, replyTo: replyToChat }];
     setChatBody("");
-    setChatAttachment(null);
+    setChatAttachments([]);
     setChatAttachmentDuration(0);
     setReplyToChat(null);
     if (chatFileInputRef.current) chatFileInputRef.current.value = "";
-    void dispatchChatSend(draft);
+    // Stage every bubble now so the whole batch shows at once, then upload in order.
+    void runChatSends(drafts.map((draft) => stageChatSend(draft)));
   };
 
   /*
@@ -2960,7 +2971,9 @@ export default function EmployeePayrollPortal() {
    * once with a clock and a client_id; the server echoes the id so the
    * confirmed row replaces it in place; failure keeps it with a retry.
    */
-  const dispatchChatSend = async (draft, existingClientId = "") => {
+  // Staging is synchronous on purpose: a batch of files shows every bubble at
+  // once, then flushes one at a time so the thread keeps the picked order.
+  const stageChatSend = (draft, existingClientId = "") => {
     const clientId = existingClientId || `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     chatPendingSendsRef.current.set(clientId, draft);
     const attachmentType = draft.attachment
@@ -2983,8 +2996,10 @@ export default function EmployeePayrollPortal() {
       status: "pending",
       reactions: [],
     }]));
-    setChatSaving(true);
-    setChatError("");
+    return { draft, clientId };
+  };
+
+  const flushChatSend = async ({ draft, clientId }) => {
     try {
       const formData = new FormData();
       if (draft.text) formData.append("body", draft.text);
@@ -3001,32 +3016,37 @@ export default function EmployeePayrollPortal() {
     } catch (err) {
       setChatMessages((current) => current.map((item) => (item.client_id === clientId ? { ...item, status: "failed" } : item)));
       setChatError(err?.responseBody?.message || err?.message || ui("chatSendError"));
+    }
+  };
+
+  const runChatSends = async (staged) => {
+    setChatSaving(true);
+    setChatError("");
+    try {
+      for (const item of staged) await flushChatSend(item);
     } finally {
       setChatSaving(false);
     }
   };
+
+  const dispatchChatSend = (draft, existingClientId = "") =>
+    runChatSends([stageChatSend(draft, existingClientId)]);
 
   const retryChatSend = (message) => {
     const draft = chatPendingSendsRef.current.get(message?.client_id);
     if (draft) void dispatchChatSend(draft, message.client_id);
   };
 
+  // The picker is multi-select: append what we can send, one message per file.
   const chooseChatAttachment = (event) => {
-    const file = event.target.files?.[0] || null;
-    if (!file) {
-      setChatAttachment(null);
-      setChatAttachmentDuration(0);
-      return;
-    }
-    if (!allowedPortalChatAttachment(file) || file.size > 10 * 1024 * 1024) {
-      setChatError(ui("unsupportedAttachment"));
-      event.target.value = "";
-      setChatAttachment(null);
-      setChatAttachmentDuration(0);
-      return;
-    }
-    setChatError("");
-    setChatAttachment(file);
+    const picked = [...(event.target.files || [])];
+    event.target.value = "";
+    if (!picked.length) return;
+    const { attachments, rejected, overflow } = collectPortalChatAttachments(picked, chatAttachments);
+    if (rejected) setChatError(ui("unsupportedAttachment"));
+    else if (overflow) setChatError(ui("attachmentLimit").replace("{{count}}", String(MAX_PORTAL_CHAT_ATTACHMENTS)));
+    else setChatError("");
+    setChatAttachments(attachments);
     setChatAttachmentDuration(0);
   };
 
@@ -3155,7 +3175,7 @@ export default function EmployeePayrollPortal() {
       if (event.data?.size) recordingChunksRef.current.push(event.data);
     };
     mediaRecorderRef.current = recorder;
-    setChatAttachment(null);
+    setChatAttachments([]);
     setChatAttachmentDuration(0);
     setRecordingStream(stream);
     if (chatFileInputRef.current) chatFileInputRef.current.value = "";
@@ -3231,7 +3251,7 @@ export default function EmployeePayrollPortal() {
       const file = new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" });
       const draft = { text: "", attachment: file, attachmentDuration: recording.durationSeconds, replyTo: replyToChat };
       setChatBody("");
-      setChatAttachment(null);
+      setChatAttachments([]);
       setChatAttachmentDuration(0);
       setReplyToChat(null);
       if (chatFileInputRef.current) chatFileInputRef.current.value = "";
@@ -3403,7 +3423,7 @@ export default function EmployeePayrollPortal() {
 
   const beginEditChatMessage = (message) => {
     setReplyToChat(null);
-    setChatAttachment(null);
+    setChatAttachments([]);
     setEditingChatMessage(message);
     setChatBody(message.body || "");
     window.setTimeout(() => chatInputRef.current?.focus?.(), 30);
@@ -4873,8 +4893,8 @@ export default function EmployeePayrollPortal() {
               body={chatBody}
               setBody={setChatBody}
               sending={chatSaving}
-              attachment={chatAttachment}
-              setAttachment={setChatAttachment}
+              attachments={chatAttachments}
+              setAttachments={setChatAttachments}
               setAttachmentDuration={setChatAttachmentDuration}
               replyTo={replyToChat}
               setReplyTo={setReplyToChat}

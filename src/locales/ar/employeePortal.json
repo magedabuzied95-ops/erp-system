@@ -569,6 +569,8 @@
     "copy": "نسخ",
     "loadOlder": "تحميل الرسائل الأقدم",
     "captionHint": "اكتب تعليقًا بالأسفل أو أرسلها كما هي",
+    "attachmentsSelected": "{{count}} مرفقات جاهزة للإرسال",
+    "attachmentLimit": "الحد الأقصى {{count}} مرفقات في المرة الواحدة",
     "emoji": "إيموجي",
     "online": "متصل",
     "lastSeenToday": "آخر ظهور اليوم {{time}}",

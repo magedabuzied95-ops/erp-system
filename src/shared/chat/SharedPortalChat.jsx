@@ -9,7 +9,7 @@ import { resolveEmployeeProfileImageUrl } from "../lib/imageUrls";
 import PortalChatComposer from "./PortalChatComposer";
 import PortalChatMessageList from "./PortalChatMessageList";
 import PortalChatContactInfo from "./PortalChatContactInfo";
-import { allowedPortalChatAttachment, portalChatMessagePreview } from "./portalChatUtils";
+import { collectPortalChatAttachments, MAX_PORTAL_CHAT_ATTACHMENTS, portalChatMessagePreview } from "./portalChatUtils";
 import ChatRingOverlay, { ChatRingStatus } from "./ChatRingOverlay";
 import ChatThreadRow from "./ChatThreadRow";
 import ChatMediaViewer from "./ChatMediaViewer";
@@ -144,7 +144,7 @@ export default function SharedPortalChat({
   const [messagesByThread, setMessagesByThread] = useState({});
   const [draftsByThread, setDraftsByThread] = useState({});
   const [body, setBodyState] = useState("");
-  const [attachment, setAttachment] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const [attachmentDuration, setAttachmentDuration] = useState(0);
   const [replyTo, setReplyTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
@@ -774,29 +774,26 @@ export default function SharedPortalChat({
     setReplyTo(null);
     setEditingMessage(null);
     setMessageSearch("");
-    setAttachment(null);
+    setAttachments([]);
     setAttachmentDuration(0);
     setTypingLabel("");
     if (mobileFullScreen) setMobileConversationOpen(true);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  /*
+   * The picker is multi-select: every file becomes its own message, so this
+   * appends to the queue instead of replacing it, and says what it dropped.
+   */
   const chooseAttachment = (event) => {
-    const file = event.target.files?.[0] || null;
-    if (!file) {
-      setAttachment(null);
-      setAttachmentDuration(0);
-      return;
-    }
-    if (!allowedPortalChatAttachment(file) || file.size > 10 * 1024 * 1024) {
-      setError({ key: "employeePortal.chat.admin.errors.unsupportedFile", text: "" });
-      event.target.value = "";
-      setAttachment(null);
-      setAttachmentDuration(0);
-      return;
-    }
-    clearError();
-    setAttachment(file);
+    const picked = [...(event.target.files || [])];
+    event.target.value = "";
+    if (!picked.length) return;
+    const { attachments: next, rejected, overflow } = collectPortalChatAttachments(picked, attachments);
+    if (rejected) setError({ key: "employeePortal.chat.admin.errors.unsupportedFile", text: "" });
+    else if (overflow) setError({ key: "", text: t("employeePortal.chat.attachmentLimit", { count: MAX_PORTAL_CHAT_ATTACHMENTS }) });
+    else clearError();
+    setAttachments(next);
     setAttachmentDuration(0);
   };
 
@@ -819,14 +816,23 @@ export default function SharedPortalChat({
       }
       return;
     }
-    if ((!text && !attachment) || !activeThreadId || !apiAdapter?.sendMessage) return;
-    const draft = { text, attachment, attachmentDuration, replyTo };
+    if ((!text && !attachments.length) || !activeThreadId || !apiAdapter?.sendMessage) return;
+    // One message per file — the caption and the reply ride on the first one.
+    const drafts = attachments.length
+      ? attachments.map((file, index) => ({
+        text: index === 0 ? text : "",
+        attachment: file,
+        attachmentDuration: index === 0 ? attachmentDuration : 0,
+        replyTo: index === 0 ? replyTo : null,
+      }))
+      : [{ text, attachment: null, attachmentDuration: 0, replyTo }];
     setBody("");
-    setAttachment(null);
+    setAttachments([]);
     setAttachmentDuration(0);
     setReplyTo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
-    void dispatchSend(activeThreadId, draft);
+    // Stage every bubble now so the whole batch shows at once, then upload in order.
+    void runSends(activeThreadId, drafts.map((draft) => stageSend(activeThreadId, draft)));
   };
 
   /*
@@ -845,7 +851,9 @@ export default function SharedPortalChat({
     return formData;
   };
 
-  const dispatchSend = async (threadId, draft, existingClientId = "") => {
+  // Staging is synchronous on purpose: a batch of files shows every bubble at
+  // once, then flushes one at a time so the thread keeps the picked order.
+  const stageSend = (threadId, draft, existingClientId = "") => {
     const clientId = existingClientId || `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const fullDraft = { ...draft, clientId };
     pendingSendsRef.current.set(clientId, fullDraft);
@@ -873,8 +881,11 @@ export default function SharedPortalChat({
       ...current,
       [threadId]: mergeChatMessages(current[threadId] || [], [optimistic], threadRef.current),
     }));
-    setSending(true);
-    clearError();
+    return fullDraft;
+  };
+
+  const flushSend = async (threadId, fullDraft) => {
+    const clientId = fullDraft.clientId;
     try {
       const response = await apiAdapter.sendMessage(threadId, buildSendFormData(fullDraft));
       pendingSendsRef.current.delete(clientId);
@@ -894,10 +905,21 @@ export default function SharedPortalChat({
         [threadId]: (current[threadId] || []).map((item) => (item.client_id === clientId ? { ...item, status: "failed" } : item)),
       }));
       setError(failure(err, "employeePortal.chat.sendFailed"));
+    }
+  };
+
+  const runSends = async (threadId, stagedDrafts) => {
+    setSending(true);
+    clearError();
+    try {
+      for (const staged of stagedDrafts) await flushSend(threadId, staged);
     } finally {
       setSending(false);
     }
   };
+
+  const dispatchSend = (threadId, draft, existingClientId = "") =>
+    runSends(threadId, [stageSend(threadId, draft, existingClientId)]);
 
   const retrySend = (message) => {
     const draft = pendingSendsRef.current.get(message?.client_id);
@@ -907,7 +929,7 @@ export default function SharedPortalChat({
 
   const beginEditMessage = (message) => {
     setReplyTo(null);
-    setAttachment(null);
+    setAttachments([]);
     setEditingMessage(message);
     setBody(message.body || "");
     window.setTimeout(() => inputRef.current?.focus?.(), 30);
@@ -1031,7 +1053,7 @@ export default function SharedPortalChat({
       if (event.data?.size) recordingChunksRef.current.push(event.data);
     };
     mediaRecorderRef.current = recorder;
-    setAttachment(null);
+    setAttachments([]);
     setAttachmentDuration(0);
     setRecordingStream(stream);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1102,7 +1124,7 @@ export default function SharedPortalChat({
       const file = new File([recording.blob], `voice-${Date.now()}.webm`, { type: recording.mimeType || recording.blob.type || "audio/webm" });
       const draft = { text: "", attachment: file, attachmentDuration: recording.durationSeconds, replyTo };
       setBody("");
-      setAttachment(null);
+      setAttachments([]);
       setAttachmentDuration(0);
       setReplyTo(null);
       await dispatchSend(activeThreadId, draft);
@@ -1532,8 +1554,8 @@ export default function SharedPortalChat({
                 body={body}
                 setBody={setBody}
                 sending={sending}
-                attachment={attachment}
-                setAttachment={setAttachment}
+                attachments={attachments}
+                setAttachments={setAttachments}
                 setAttachmentDuration={setAttachmentDuration}
                 replyTo={replyTo}
                 setReplyTo={setReplyTo}

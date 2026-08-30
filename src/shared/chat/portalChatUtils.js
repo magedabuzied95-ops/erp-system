@@ -253,6 +253,36 @@ export const allowedPortalChatAttachment = (file) => {
   return ALLOWED_ATTACHMENT_TYPES.has(file.type);
 };
 
+export const MAX_PORTAL_CHAT_ATTACHMENTS = 10;
+export const MAX_PORTAL_CHAT_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+const sameFile = (a, b) => a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+
+/*
+ * A picker, a paste or a drop can hand over many files at once, and each one
+ * becomes its own message. Keep what we can send, append it to what is already
+ * queued, and report what was dropped so the caller can say why.
+ */
+export const collectPortalChatAttachments = (files, current = []) => {
+  const attachments = [...(Array.isArray(current) ? current : [])];
+  let rejected = 0;
+  let overflow = 0;
+  for (const file of [...(files || [])]) {
+    if (!file) continue;
+    if (!allowedPortalChatAttachment(file) || file.size > MAX_PORTAL_CHAT_ATTACHMENT_BYTES) {
+      rejected += 1;
+      continue;
+    }
+    if (attachments.some((item) => sameFile(item, file))) continue;
+    if (attachments.length >= MAX_PORTAL_CHAT_ATTACHMENTS) {
+      overflow += 1;
+      continue;
+    }
+    attachments.push(file);
+  }
+  return { attachments, rejected, overflow };
+};
+
 export const formatPortalChatFileSize = (value = 0) => {
   const bytes = Number(value || 0);
   if (!Number.isFinite(bytes) || bytes <= 0) return "";
