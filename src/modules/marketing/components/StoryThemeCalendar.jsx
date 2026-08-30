@@ -58,6 +58,52 @@ function TogglePill({ active, onClick, children, tone = "primary", disabled = fa
   );
 }
 
+// Free-text brand/name words ("momolly", "skechers"): the block only takes
+// products whose name or brand contains one of them. This is how "school bags
+// only" works when school and women's bags share the same product type.
+function KeywordEditor({ label, hint, values, onChange, disabled = false }) {
+  const [draft, setDraft] = useState("");
+  const list = arrayOf(values);
+  const add = () => {
+    const word = draft.trim();
+    if (!word) return;
+    if (!list.some((entry) => entry.toLowerCase() === word.toLowerCase())) onChange([...list, word]);
+    setDraft("");
+  };
+  return (
+    <div>
+      <div className="mb-2 text-xs font-black text-slate-400">{label}</div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {list.map((word) => (
+          <span key={word} className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-2.5 py-1.5 text-xs font-black text-primary">
+            {word}
+            <button type="button" disabled={disabled} onClick={() => onChange(list.filter((entry) => entry !== word))} className="text-primary/70 hover:text-primary" aria-label={`حذف ${word}`}>
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          className="h-9 w-36 rounded-lg border border-white/10 bg-black/25 px-2.5 text-xs font-black text-white outline-none focus:border-primary/50"
+          placeholder="اكتب ماركة…"
+          value={draft}
+          disabled={disabled}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+        />
+        <button type="button" disabled={disabled || !draft.trim()} onClick={add} className={`${pillClass} border border-white/10 bg-black/25 text-slate-300 hover:bg-white/10 disabled:opacity-50`}>
+          إضافة
+        </button>
+      </div>
+      {hint ? <p className="mt-1.5 text-[11px] font-semibold leading-5 text-slate-500">{hint}</p> : null}
+    </div>
+  );
+}
+
 function ChipPicker({ label, options, selected, onToggle, emptyHint }) {
   if (!options.length) return <p className="text-xs font-bold text-slate-500">{emptyHint}</p>;
   return (
@@ -370,6 +416,13 @@ export default function StoryThemeCalendar({ calendar = [], overview = null, onC
                         selected={block.filters?.grades}
                         onToggle={(value) => updateFilters(index, { grades: toggleInList(block.filters?.grades, value) })}
                         emptyHint="مفيش درجات متسجلة في تصنيفات المنتجات."
+                      />
+                      <KeywordEditor
+                        label="ماركات معينة (اختياري)"
+                        hint="فاضي = كل الماركات. لو كتبت momolly مثلًا، البلوك مش هياخد غير المنتجات اللي اسمها أو ماركتها فيها الكلمة دي."
+                        values={block.filters?.keywords}
+                        disabled={disabled}
+                        onChange={(keywords) => updateFilters(index, { keywords })}
                       />
                     </>
                   )}

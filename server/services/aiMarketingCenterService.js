@@ -626,6 +626,11 @@ const normalizeThemeFilters = (value = {}) => {
     grades: list("grades"),
     styles: list("styles"),
     categories: list("categories"),
+    // Brand/name words ("momolly", "skechers"): the block only takes products whose
+    // name/brand/style/category contains one of them. Classifications can't say
+    // "school bags only" when both school and women's bags share product_type=bags —
+    // the brand word can.
+    keywords: list("keywords").slice(0, 12),
     offers_only: value.offers_only === true,
     include_offers: value.include_offers === true,
   };
@@ -707,7 +712,8 @@ export const productMatchesThemeBlock = (product = {}, block = {}) => {
     themeFilterMatches(filters.product_types, product.product_type, product.category_name, product.category) &&
     themeFilterMatches(filters.grades, product.grade) &&
     themeFilterMatches(filters.styles, product.style) &&
-    themeFilterMatches(filters.categories, product.category_name, product.category)
+    themeFilterMatches(filters.categories, product.category_name, product.category) &&
+    themeFilterMatches(filters.keywords, product.name, product.brand, product.style, product.category_name)
   );
 };
 

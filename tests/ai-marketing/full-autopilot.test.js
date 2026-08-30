@@ -134,10 +134,39 @@ test("the offers push endpoint exists end to end", () => {
 });
 
 test("the editors expose the new controls", () => {
-  for (const marker of ["start_date", "end_date"]) {
+  for (const marker of ["start_date", "end_date", "keywords"]) {
     assert.ok(editorSource.includes(marker), `theme editor is missing ${marker}`);
   }
   for (const marker of ["auto_generate", "auto_generate_days_ahead"]) {
     assert.ok(modalSource.includes(marker), `autopilot modal is missing ${marker}`);
   }
+});
+
+test("brand keywords narrow a block to the named brands, within its other filters", async () => {
+  const { productMatchesThemeBlock } = await import("../../server/services/aiMarketingCenterService.js");
+  const schoolBags = themeBlock({
+    key: "school-bags",
+    filters: { product_types: ["bags"], grades: [], styles: [], categories: [], keywords: ["momolly", "classic"], offers_only: false, include_offers: false },
+  });
+  // The word can live in the NAME…
+  assert.equal(productMatchesThemeBlock({ product_type: "bags", name: "Momolly Bag 15-inch" }, schoolBags), true);
+  // …or in the joined brand column.
+  assert.equal(productMatchesThemeBlock({ product_type: "bags", name: "School backpack", brand: "Classic" }, schoolBags), true);
+  // A women's bag of the same product type stays out.
+  assert.equal(productMatchesThemeBlock({ product_type: "bags", name: "Chrisbella Hand & Crossbody Bag", brand: "Chrisbella" }, schoolBags), false);
+  // The type filter still applies: a "Classic" sneaker is not a school bag.
+  assert.equal(productMatchesThemeBlock({ product_type: "sneakers", name: "Adidas Classic" }, schoolBags), false);
+  // No keywords = the old behaviour, every bag qualifies.
+  const anyBags = themeBlock({ key: "bags", filters: { product_types: ["bags"], grades: [], styles: [], categories: [], keywords: [], offers_only: false, include_offers: false } });
+  assert.equal(productMatchesThemeBlock({ product_type: "bags", name: "Chrisbella Hand & Crossbody Bag" }, anyBags), true);
+});
+
+test("keyword filters survive normalization and are capped", () => {
+  const rows = normalizeThemeCalendar([
+    themeBlock({ key: "skechers", filters: { keywords: ["Skechers", "sketcher", "Skechers", ...Array.from({ length: 20 }, (_, i) => `word${i}`)] } }),
+  ]);
+  const keywords = rows[0].filters.keywords;
+  assert.ok(keywords.includes("Skechers"));
+  assert.ok(keywords.includes("sketcher"));
+  assert.ok(keywords.length <= 12, "keywords are capped so a block can't carry an unbounded list");
 });
