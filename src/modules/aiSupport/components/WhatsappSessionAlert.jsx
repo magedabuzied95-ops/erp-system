@@ -20,6 +20,8 @@ import { isWhatsappSessionDown } from "../services/whatsappSession";
 // hammering the gateway. Regaining visibility re-checks immediately anyway.
 const STATUS_POLL_MS = 180_000;
 const PAIRING_POLL_MS = 3_000;
+// WhatsApp rotates a pairing QR roughly every 20 seconds.
+const QR_REFRESH_MS = 20_000;
 const PAIRING_TIMEOUT_MS = 180_000;
 // Reading the gateway needs settings:view and pairing needs settings:edit, so a
 // staff account gets 403 here. That is not an error worth showing anyone — the
@@ -61,11 +63,33 @@ export function WhatsappPairingCard({ headers, onConnected, className = "" }) {
   const [phone, setPhone] = useState("");
   const pollRef = useRef(null);
   const mountedRef = useRef(true);
+  const pairingRef = useRef(null);
+  const onConnectedRef = useRef(onConnected);
+
+  useEffect(() => {
+    pairingRef.current = pairing;
+  }, [pairing]);
+
+  useEffect(() => {
+    onConnectedRef.current = onConnected;
+  }, [onConnected]);
 
   useEffect(() => () => {
     mountedRef.current = false;
     if (pollRef.current) window.clearInterval(pollRef.current);
   }, []);
+
+  const requestPairing = useCallback(
+    ({ restart = false } = {}) => {
+      const trimmedPhone = phone.trim();
+      return api.post(
+        "/whatsapp/instance/connect",
+        { ...(trimmedPhone ? { number: trimmedPhone } : {}), ...(restart ? { restart: true } : {}) },
+        { headers, ...SUPPRESSED }
+      );
+    },
+    [headers, phone]
+  );
 
   // The operator has no way to tell the gateway "I scanned it" — WhatsApp tells
   // Evolution, not the browser. So watch the connection state until it flips,
@@ -91,13 +115,10 @@ export function WhatsappPairingCard({ headers, onConnected, className = "" }) {
     }, PAIRING_POLL_MS);
   }, [headers, onConnected]);
 
-  const start = useCallback(async () => {
+  const start = useCallback(async ({ restart = false } = {}) => {
     setBusy(true);
     setError("");
-    const trimmedPhone = phone.trim();
-    const payload = await api
-      .post("/whatsapp/instance/connect", trimmedPhone ? { number: trimmedPhone } : {}, { headers, ...SUPPRESSED })
-      .catch((requestError) => ({ __error: requestError?.message || "" }));
+    const payload = await requestPairing({ restart }).catch((requestError) => ({ __error: requestError?.message || "" }));
     if (!mountedRef.current) return;
     setBusy(false);
 
@@ -116,7 +137,30 @@ export function WhatsappPairingCard({ headers, onConnected, className = "" }) {
     }
     setPairing(payload);
     watchUntilConnected();
-  }, [headers, onConnected, phone, t, watchUntilConnected]);
+  }, [onConnected, requestPairing, t, watchUntilConnected]);
+
+  // A WhatsApp QR is only valid for ~20 seconds, so a code left on screen is dead
+  // long before the operator has walked to the shop phone. Rotate it. And if the
+  // gateway hands back the SAME code — a wedged `connecting` session repeats its
+  // cached one forever — escalate to a restart, because that code will never work.
+  useEffect(() => {
+    if (connected || !pairing?.qr_image) return undefined;
+    const timer = window.setInterval(async () => {
+      let next = await requestPairing().catch(() => null);
+      if (next && next.qr_code && next.qr_code === pairingRef.current?.qr_code) {
+        next = await requestPairing({ restart: true }).catch(() => null);
+      }
+      if (!mountedRef.current || !next) return;
+      if (next.already_connected) {
+        setConnected(true);
+        setPairing(null);
+        if (typeof onConnectedRef.current === "function") onConnectedRef.current();
+        return;
+      }
+      if (next.qr_image || next.pairing_code) setPairing(next);
+    }, QR_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [connected, pairing?.qr_image, requestPairing]);
 
   if (connected) {
     return (
@@ -172,7 +216,9 @@ export function WhatsappPairingCard({ headers, onConnected, className = "" }) {
 
       <button
         type="button"
-        onClick={start}
+        // "New code" forces a restart: without it the gateway just repeats the
+        // cached code the operator has already failed to scan.
+        onClick={() => start({ restart: Boolean(pairing) })}
         disabled={busy}
         className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-[12px] font-black text-slate-50 disabled:opacity-60 dark:bg-slate-50 dark:text-slate-900"
       >

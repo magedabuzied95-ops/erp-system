@@ -181,6 +181,70 @@ test("a shop number asks for a pairing code, since a phone cannot scan its own s
   });
 });
 
+const stubEvolutionRoutes = (handler) => {
+  const calls = [];
+  globalThis.fetch = async (url, options) => {
+    const entry = { url: String(url), method: options?.method || "GET" };
+    calls.push(entry);
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      text: async () => JSON.stringify(handler(entry) || {}),
+    };
+  };
+  return calls;
+};
+
+// The failure this exists for: while a pending session is wedged in `connecting`,
+// Evolution repeats the SAME cached QR forever. Two calls 4 seconds apart returned
+// byte-identical images on 2026-08-30, and since a WhatsApp QR is only valid for
+// ~20 seconds, every scan of it silently did nothing.
+test("a forced new code restarts the wedged instance instead of repeating the cached one", async () => {
+  const { connectInstance } = await import("../server/services/whatsappGatewayService.js");
+
+  await withEvolutionEnv(async () => {
+    const calls = stubEvolutionRoutes((call) => {
+      if (call.url.includes("/instance/connectionState/")) return { instance: { state: "close" } };
+      if (call.url.includes("/instance/restart/")) return { instance: { state: "connecting" } };
+      return { base64: "FRESHQR", code: "2@fresh" };
+    });
+
+    const result = await connectInstance({ restart: true });
+    const restart = calls.find((call) => call.url.includes("/instance/restart/"));
+    assert.ok(restart, "the instance is restarted before a new code is asked for");
+    assert.equal(restart.method, "PUT");
+    assert.ok(calls.some((call) => call.url.includes("/instance/connect/")), "and a code is then requested");
+    assert.equal(result.qr_code, "2@fresh");
+  });
+});
+
+test("a live session is never restarted to hand out a code nobody needs", async () => {
+  const { connectInstance } = await import("../server/services/whatsappGatewayService.js");
+
+  await withEvolutionEnv(async () => {
+    const calls = stubEvolutionRoutes(() => ({ instance: { state: "open" } }));
+    const result = await connectInstance({ restart: true });
+
+    assert.equal(result.already_connected, true);
+    assert.equal(result.qr_image, "");
+    // Restarting a working session would drop WhatsApp to fix nothing.
+    assert.equal(calls.some((call) => call.url.includes("/instance/restart/")), false);
+    assert.equal(calls.some((call) => call.url.includes("/instance/connect/")), false);
+  });
+});
+
+test("the ordinary first request does not restart anything", async () => {
+  const { connectInstance } = await import("../server/services/whatsappGatewayService.js");
+
+  await withEvolutionEnv(async () => {
+    const calls = stubEvolutionRoutes(() => ({ base64: "QR", code: "2@first" }));
+    await connectInstance({});
+    assert.equal(calls.some((call) => call.url.includes("/instance/restart/")), false);
+    assert.equal(calls.length, 1);
+  });
+});
+
 test("both inbox surfaces raise the alert, not just one", () => {
   // /inbox and /admin/ai-inbox are separate implementations; a fix landing on
   // one and not the other is this codebase's most repeated defect.

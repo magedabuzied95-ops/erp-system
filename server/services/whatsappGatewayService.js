@@ -1024,18 +1024,66 @@ export const getStatus = async ({ instance = "" } = {}) => {
 // time. The key stays server-side; the operator only ever sees the QR.
 const EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS = 15000;
 
-export const connectInstance = async ({ instance = "", number = "" } = {}) => {
+export const restartInstance = async ({ instance = "" } = {}) => {
   const current = requireEvolutionConfig(instance);
+  const data = await evolutionFetch(`/instance/restart/${encodeURIComponent(current.instanceName)}`, {
+    method: "PUT",
+    timeoutMs: EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS,
+  });
+  return { instanceName: current.instanceName, state: text(data?.instance?.state || data?.state || "") };
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// Evolution needs a moment after a restart before it will mint pairing material.
+const EVOLUTION_RESTART_SETTLE_MS = 2500;
+
+export const connectInstance = async ({ instance = "", number = "", restart = false } = {}) => {
+  const current = requireEvolutionConfig(instance);
+
+  if (restart) {
+    // Why a restart is ever needed: while a pending session is wedged in
+    // `connecting`, Evolution keeps handing back the SAME cached QR forever —
+    // proven live on 2026-08-30, two calls 4 seconds apart returned byte-identical
+    // images. A WhatsApp QR rotates every ~20 seconds, so a frozen one is already
+    // expired when it reaches the phone and the scan silently does nothing, which
+    // is exactly what the operator hit. Restarting tears the wedged socket down so
+    // the next connect starts a fresh, rotating pairing cycle.
+    const status = await getStatus({ instance: current.instanceName }).catch(() => null);
+    // Never restart a live session: that would disconnect WhatsApp to fix nothing.
+    if (status?.connected) {
+      return {
+        instanceName: current.instanceName,
+        qr_image: "",
+        qr_code: "",
+        pairing_code: "",
+        state: status.state || "open",
+        already_connected: true,
+      };
+    }
+    await restartInstance({ instance: current.instanceName }).catch((error) => {
+      console.warn("[whatsapp:instance-restart-failed]", { instanceName: current.instanceName, message: error?.message || String(error) });
+    });
+    await sleep(EVOLUTION_RESTART_SETTLE_MS);
+  }
   // With a number Evolution answers with an 8-character pairing code instead of
   // (or alongside) a QR. That is the only route that works when the phone
   // holding the WhatsApp account is the same phone reading this screen — it
   // cannot scan its own display.
   const pairingNumber = normalizeEgyptPhone(number) || text(number).replace(/[^\d]/g, "");
   const query = pairingNumber ? `?number=${encodeURIComponent(pairingNumber)}` : "";
-  const data = await evolutionFetch(`/instance/connect/${encodeURIComponent(current.instanceName)}${query}`, {
-    method: "GET",
-    timeoutMs: EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS,
-  });
+  const path = `/instance/connect/${encodeURIComponent(current.instanceName)}${query}`;
+  const pairingMaterial = (payload) => {
+    const nested = payload?.qrcode || payload?.qrCode || {};
+    return text(payload?.base64 || nested?.base64) || text(payload?.code || nested?.code) || text(payload?.pairingCode || nested?.pairingCode);
+  };
+
+  let data = await evolutionFetch(path, { method: "GET", timeoutMs: EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS });
+  // A just-restarted instance can answer before it has a socket to pair with, and
+  // an empty box on screen is worse than a slower one. One retry, then give up.
+  if (restart && !pairingMaterial(data)) {
+    await sleep(EVOLUTION_RESTART_SETTLE_MS);
+    data = await evolutionFetch(path, { method: "GET", timeoutMs: EVOLUTION_INSTANCE_CONNECT_TIMEOUT_MS });
+  }
 
   // Evolution moves this payload between versions: a flat {base64, code,
   // pairingCode} on 2.x, nested under `qrcode` on others, and — when the

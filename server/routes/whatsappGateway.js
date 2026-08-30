@@ -60,6 +60,9 @@ router.post("/instance/connect", protect, permit("settings", "edit"), async (req
     const result = await connectInstance({
       instance: req.body?.instance || "",
       number: req.body?.number || "",
+      // "New code" has to mean a NEW code: a wedged instance repeats its cached,
+      // long-expired QR forever otherwise, and the scan does nothing.
+      restart: req.body?.restart === true,
     });
     console.info("[whatsapp:instance-connect]", {
       instanceName: result.instanceName,
