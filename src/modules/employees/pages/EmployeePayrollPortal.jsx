@@ -107,7 +107,6 @@ const labels = {
     closeLabel: "إغلاق",
     photoPreview: "معاينة الصورة",
     photoHint: "JPG أو PNG أو WebP — بحد أقصى 5MB",
-    salesOpportunitiesSubtitle: "موديلات قسم العروض — واللي باقي منها آخر قطعة عليها علامة.",
     salesOpportunitiesTitle: "فرص البيع اليوم",
     salesBoardSizeFilter: "المقاس",
     salesBoardAudienceFilter: "الجمهور",
@@ -206,7 +205,6 @@ const labels = {
     closeLabel: "Close",
     photoPreview: "Photo preview",
     photoHint: "JPG, PNG or WebP — 5MB max",
-    salesOpportunitiesSubtitle: "Offer-section models — the ones down to a last piece are flagged.",
     salesOpportunitiesTitle: "Today's sales opportunities",
     salesBoardSizeFilter: "Size",
     salesBoardAudienceFilter: "Audience",
@@ -3834,7 +3832,6 @@ export default function EmployeePayrollPortal() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="m1-section-title">{text.salesOpportunitiesTitle}</h2>
-                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">{text.salesOpportunitiesSubtitle}</p>
                   </div>
                   <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{text.today}</div>
