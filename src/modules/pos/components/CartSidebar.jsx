@@ -33,6 +33,7 @@ import {
   Smartphone,
   Star,
   Trash2,
+  Truck,
   User,
   UserPlus,
   Wallet,
@@ -389,6 +390,8 @@ function CartSidebar({
   // Online-order mode: the till collects nothing, so every payment control is replaced by a
   // cash-on-delivery statement and the collection checks stop applying.
   onlineMode = false,
+  onInvoiceModeChange,
+  onlineModeBlockedReason = "",
   checkoutLabel = "",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
@@ -658,6 +661,39 @@ function CartSidebar({
       />
 
       <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)] xl:min-h-[13rem]">
+        {/* The invoice type belongs where the cashier decides it — at the top of the cart,
+            not in the toolbar, where it read as a label and nobody found it. */}
+        {onInvoiceModeChange ? (
+          <div role="group" aria-label={posLabel("onlineOrder.modeLabel", "Invoice type")} className="mb-2 grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-black/30 p-1">
+            {[
+              { key: "counter", label: posLabel("onlineOrder.modeCounter", "Counter invoice"), icon: <ReceiptText className="h-4 w-4" /> },
+              { key: "online", label: posLabel("onlineOrder.modeOnline", "Online order"), icon: <Truck className="h-4 w-4" /> },
+            ].map((option) => {
+              const active = option.key === (onlineMode ? "online" : "counter");
+              const blocked = option.key === "online" && Boolean(onlineModeBlockedReason);
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  aria-pressed={active}
+                  disabled={blocked}
+                  title={blocked ? onlineModeBlockedReason : undefined}
+                  onClick={() => onInvoiceModeChange(option.key)}
+                  className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                    active
+                      ? option.key === "online"
+                        ? "bg-sky-400/20 text-sky-100 shadow-[0_0_0_1px_rgba(125,211,252,0.35)_inset]"
+                        : "bg-emerald-400/15 text-emerald-100 shadow-[0_0_0_1px_rgba(52,211,153,0.35)_inset]"
+                      : "text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200"
+                  }`}
+                >
+                  {option.icon}
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{posLabel("cart.invoice", "Invoice")}</div>

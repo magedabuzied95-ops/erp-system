@@ -37,7 +37,6 @@ import {
   User,
   Warehouse,
   ReceiptText,
-  Truck,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -8222,30 +8221,6 @@ function POSPro() {
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
-          {/* Invoice type. A counter invoice settles at the till; an online order takes a full
-              shipping address, is priced from the website and confirms over WhatsApp. */}
-          <label
-            title={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : t("pos.onlineOrder.modeLabel")}
-            className={`pos-toolbar-action pos-action-invoice-mode inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-black shadow-[0_0_18px_rgba(0,0,0,0.18)] transition ${
-              onlineInvoiceBlockedReason
-                ? "cursor-not-allowed border-white/10 bg-white/[0.04] text-zinc-500"
-                : isOnlineInvoiceMode
-                  ? "border-sky-300/40 bg-sky-400/15 text-sky-100"
-                  : "border-white/10 bg-white/[0.05] text-zinc-200"
-            }`}
-          >
-            {isOnlineInvoiceMode ? <Truck className="h-3.5 w-3.5" /> : <ReceiptText className="h-3.5 w-3.5" />}
-            <select
-              value={invoiceMode}
-              disabled={Boolean(onlineInvoiceBlockedReason)}
-              onChange={(event) => setInvoiceMode(event.target.value)}
-              aria-label={t("pos.onlineOrder.modeLabel")}
-              className="cursor-pointer border-0 bg-transparent pe-1 text-xs font-black text-inherit outline-none disabled:cursor-not-allowed"
-            >
-              <option value="counter" className="bg-zinc-900 text-zinc-100">{t("pos.onlineOrder.modeCounter")}</option>
-              <option value="online" className="bg-zinc-900 text-zinc-100">{t("pos.onlineOrder.modeOnline")}</option>
-            </select>
-          </label>
           {canManageSalePrices ? (
             <button
               type="button"
@@ -8689,6 +8664,8 @@ function POSPro() {
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
             onlineMode={isOnlineInvoiceMode}
+            onInvoiceModeChange={setInvoiceMode}
+            onlineModeBlockedReason={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : ""}
             checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}
@@ -8840,6 +8817,8 @@ function POSPro() {
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
             onlineMode={isOnlineInvoiceMode}
+            onInvoiceModeChange={setInvoiceMode}
+            onlineModeBlockedReason={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : ""}
             checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}

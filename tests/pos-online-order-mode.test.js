@@ -131,6 +131,21 @@ test("online mode is locked out wherever it could not settle", () => {
   }
 });
 
+test("the invoice-type switch sits in the cart, where the cashier decides it", () => {
+  // It started life as a <select> in the top toolbar and read as a label — the shop owner
+  // could not find it. It belongs above the cart, as two buttons that show which is active.
+  assert.match(cartSource, /role="group" aria-label=\{posLabel\("onlineOrder\.modeLabel"/);
+  assert.match(cartSource, /\{ key: "counter", label: posLabel\("onlineOrder\.modeCounter"/);
+  assert.match(cartSource, /\{ key: "online", label: posLabel\("onlineOrder\.modeOnline"/);
+  assert.match(cartSource, /onClick=\{\(\) => onInvoiceModeChange\(option\.key\)\}/);
+  assert.match(cartSource, /const active = option\.key === \(onlineMode \? "online" : "counter"\);/);
+  // Both cart instances — desktop column and mobile drawer — must be able to switch it.
+  assert.equal((posSource.match(/onInvoiceModeChange=\{setInvoiceMode\}/g) || []).length, 2);
+  // And the old toolbar control must not come back alongside it: two controls for one
+  // state is what made it ambiguous in the first place.
+  assert.doesNotMatch(posSource, /onChange=\{\(event\) => setInvoiceMode\(event\.target\.value\)\}/);
+});
+
 test("the till collects nothing on an online order", () => {
   assert.match(
     posSource,
