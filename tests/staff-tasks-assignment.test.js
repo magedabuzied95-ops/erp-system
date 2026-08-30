@@ -103,6 +103,55 @@ test("the weekly check-in assigner searches the day the instance is stamped with
   );
 });
 
+test("a branch-less routine materialises once per active branch", () => {
+  // A single branch-less instance was unreachable: every check-in assigner and
+  // the manager alert filter on branch_id, so nothing could ever see it.
+  const resolverBody = functionBody(tasksService, "const resolveTemplateBranches =");
+  assert.match(resolverBody, /if \(templateBranchId\) return \[templateBranchId\];/, "a pinned branch stays a single instance");
+  assert.match(
+    resolverBody,
+    /FROM branches/,
+    "a template with no branch must expand over the tenant's branches"
+  );
+  assert.match(resolverBody, /is_active IS DISTINCT FROM FALSE/, "closed branches must not receive routines");
+  assert.match(
+    resolverBody,
+    /if \(fixedEmployeeId\)/,
+    "a named employee pins the routine to their branch — fanning out would hand them the same task once per branch"
+  );
+
+  const generatorBody = functionBody(tasksService, "export const generateDueTaskInstancesFromTemplates =");
+  assert.match(generatorBody, /for \(const branchId of targetBranches\)/, "generation must loop over the resolved branches");
+  assert.match(generatorBody, /branch_id: branchId/, "each instance must carry the branch it was made for");
+  assert.match(
+    generatorBody,
+    /templateBranchId \? `\$\{template\.id\}:\$\{dedupeKey\}` : `\$\{template\.id\}:\$\{dedupeKey\}:b\$\{branchId\}`/,
+    "the fan-out key needs the branch or the first branch consumes the whole day; pinned templates keep the historical key"
+  );
+  assert.ok(
+    !/branch_id: template\.branch_id,/.test(generatorBody),
+    "the instance must take the resolved branch, not the template's possibly-null one"
+  );
+});
+
+test("the per-day dedupe index counts the branch", () => {
+  // Verified against Postgres: with the branch missing from the key, a fan-out
+  // over three branches inserted ONE row — ON CONFLICT DO NOTHING swallowed the
+  // other two and the fan-out silently collapsed to a single task.
+  assert.match(
+    tasksService,
+    /ON staff_task_assignments \(template_id, source_ref_date, COALESCE\(branch_id, 0\)\)/,
+    "the unique key must include the branch or per-branch instances are dropped on insert"
+  );
+  assert.ok(
+    !/CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_tasks_template_due_dedupe\b/.test(tasksService),
+    "the old branch-blind unique index must not be recreated"
+  );
+  const createAt = tasksService.indexOf("idx_staff_tasks_template_due_branch_dedupe");
+  const dropAt = tasksService.indexOf("DROP INDEX IF EXISTS idx_staff_tasks_template_due_dedupe");
+  assert.ok(dropAt > createAt, "create the wider index before dropping the narrower one — a failure here bricks boot");
+});
+
 test("the boot-time inventory sweep stands down when nobody is on shift", () => {
   const inventoryBody = functionBody(tasksService, "export const assignDailyInventoryCountTasks =");
   assert.match(

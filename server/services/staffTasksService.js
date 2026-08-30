@@ -450,11 +450,20 @@ const runStaffTasksSchemaDDL = async (clientOrPool = db) => {
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_staff_task_queue_status ON staff_task_notification_queue (status, next_attempt_at)`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_task_queue_dedupe ON staff_task_notification_queue (dedupe_key) WHERE dedupe_key IS NOT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS staff_task_assignments ADD COLUMN IF NOT EXISTS source_ref_date DATE NULL`);
+  // One instance per template per day *per branch*. The original index omitted
+  // the branch, so a tenant-wide routine fanning out across branches had every
+  // instance after the first swallowed by ON CONFLICT DO NOTHING — the fan-out
+  // silently produced exactly one task.
+  //
+  // Create the wider index before dropping the narrower one: adding a column to
+  // a unique key can only ever relax it, so this cannot collide on data the old
+  // index was already holding, and a failure here would brick boot.
   await clientOrPool.query(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_tasks_template_due_dedupe
-    ON staff_task_assignments (template_id, source_ref_date)
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_tasks_template_due_branch_dedupe
+    ON staff_task_assignments (template_id, source_ref_date, COALESCE(branch_id, 0))
     WHERE template_id IS NOT NULL AND source_ref_date IS NOT NULL AND status <> 'cancelled'
   `);
+  await clientOrPool.query(`DROP INDEX IF EXISTS idx_staff_tasks_template_due_dedupe`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_device_settings ADD COLUMN IF NOT EXISTS require_checkin_to_view_tasks BOOLEAN NOT NULL DEFAULT TRUE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_device_settings ADD COLUMN IF NOT EXISTS auto_redirect_after_checkin BOOLEAN NOT NULL DEFAULT TRUE`);
   await clientOrPool.query(`
@@ -1709,6 +1718,37 @@ const isTemplateDueOnDate = (template = {}, dueDate = dateKey()) => {
   return false;
 };
 
+// Which branches a template materialises into. A template pinned to a branch
+// makes one instance there; a branch-less one is a tenant-wide routine and
+// makes one per active branch. It used to make a single branch-less task that
+// no check-in assigner could ever reach — they all filter on branch_id.
+const resolveTemplateBranches = async (template = {}, fixedEmployeeId = null) => {
+  const templateBranchId = numberOrNull(template.branch_id);
+  if (templateBranchId) return [templateBranchId];
+  const tenantId = numberOrNull(template.tenant_id);
+  // A named employee pins the routine to wherever that employee works. Fanning
+  // it out would hand one person the same task once per branch.
+  if (fixedEmployeeId) {
+    const result = await db.query(
+      `SELECT branch_id FROM employees WHERE id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
+      [fixedEmployeeId, tenantId]
+    );
+    const branchId = numberOrNull(result.rows[0]?.branch_id);
+    return branchId ? [branchId] : [];
+  }
+  const result = await db.query(
+    `
+    SELECT id
+    FROM branches
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND is_active IS DISTINCT FROM FALSE
+    ORDER BY id ASC
+    `,
+    [tenantId]
+  );
+  return result.rows.map((row) => numberOrNull(row.id)).filter(Boolean);
+};
+
 export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, dueDate = dateKey(), templateId = null, actor = null, onlyAutoGenerate = false } = {}) => {
   await ensureStaffTasksSchema();
   const params = [tenantId, dueDate, numberOrNull(templateId), Boolean(onlyAutoGenerate)];
@@ -1745,17 +1785,6 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
     // instance per week; with pinned weekdays, one per pinned day.
     const dedupeKey = templateKind === "weekly" && !pinnedWeekdays.length ? weekKey : scheduleDate;
     const sourceRefType = templateKind === "daily" ? "daily_task_template" : templateKind === "weekly" ? "weekly_task_template" : "task_template";
-    const sourceRefId = `${template.id}:${dedupeKey}`;
-    // The generator runs on a timer now; skip cheaply before going through the
-    // full create path (and its logging) for an instance that already exists.
-    const existing = await db.query(
-      `SELECT 1 FROM staff_task_assignments WHERE template_id = $1::bigint AND source_ref_id = $2::text LIMIT 1`,
-      [template.id, sourceRefId]
-    );
-    if (existing.rows[0]) {
-      skipped.push({ template_id: template.id, reason: "exists" });
-      continue;
-    }
     const taskType = templateKind === "daily" ? (isOpeningDayTask ? "opening_day" : "daily") : templateKind === "weekly" ? "weekly" : template.task_type;
     const fixedEmployeeId = numberOrNull(template.fixed_employee_id ?? template.recurring_rule?.fixed_employee_id);
     // A fixed assignee wins over attendance-driven auto-assign: the manager
@@ -1763,6 +1792,12 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
     const autoAssignEnabled = Boolean(template.auto_assign_enabled) && !fixedEmployeeId;
     const dueTime = normalizeDueTime(template.recurring_rule?.due_time);
     const dueAt = dueTime ? zonedDateTimeToUtc(scheduleDate, dueTime)?.toISOString() || null : null;
+    const templateBranchId = numberOrNull(template.branch_id);
+    const targetBranches = await resolveTemplateBranches(template, fixedEmployeeId);
+    if (!targetBranches.length) {
+      skipped.push({ template_id: template.id, reason: "no_target_branch" });
+      continue;
+    }
     const metadata = {
       recurring_template: true,
       template_kind: templateKind,
@@ -1784,47 +1819,65 @@ export const generateDueTaskInstancesFromTemplates = async ({ tenantId = null, d
       waiting_reason: autoAssignEnabled ? "waiting_for_attendance_qr" : null,
       assignment_source: fixedEmployeeId ? "template_fixed_employee" : null,
       due_time: dueTime,
+      tenant_wide_template: !templateBranchId,
     };
-    const result = await createStaffTask({
-      tenantId: template.tenant_id,
-      template_id: template.id,
-      branch_id: template.branch_id,
-      current_assignee_id: fixedEmployeeId,
-      due_at: dueAt,
-      allow_unassigned: true,
-      // This IS the instance. Without it createStaffTask reads the
-      // recurring_rule in metadata, re-saves the template (clobbering its
-      // rule) and calls back into this generator — an infinite loop.
-      force_instance: true,
-      save_as_template: false,
-      title: template.title,
-      description: template.description,
-      title_ar: template.title_ar,
-      description_ar: template.description_ar,
-      task_type: taskType,
-      source_module: templateKind === "daily" || templateKind === "weekly" ? ATTENDANCE_TASK_SOURCE : "recurring_task_template",
-      source_ref_type: sourceRefType,
-      source_ref_id: sourceRefId,
-      assigned_date: scheduleDate,
-      priority: template.priority,
-      default_deadline_minutes: template.default_deadline_minutes,
-      auto_assigned: false,
-      auto_assign_mode: normalizeAutoAssignMode(template.auto_assign_mode || template.assignment_strategy),
-      metadata,
-    }, actor || {});
-    if (result.duplicate || !result.task) {
-      skipped.push({ template_id: template.id, reason: "duplicate" });
-      continue;
+    for (const branchId of targetBranches) {
+      // A branch-pinned template keeps its historical key, so an instance already
+      // generated today is still recognised. A fan-out needs the branch in the
+      // key or the first branch would consume the whole day for the rest.
+      const sourceRefId = templateBranchId ? `${template.id}:${dedupeKey}` : `${template.id}:${dedupeKey}:b${branchId}`;
+      // The generator runs on a timer; skip cheaply before going through the
+      // full create path (and its logging) for an instance that already exists.
+      const existing = await db.query(
+        `SELECT 1 FROM staff_task_assignments WHERE template_id = $1::bigint AND source_ref_id = $2::text LIMIT 1`,
+        [template.id, sourceRefId]
+      );
+      if (existing.rows[0]) {
+        skipped.push({ template_id: template.id, branch_id: branchId, reason: "exists" });
+        continue;
+      }
+      const result = await createStaffTask({
+        tenantId: template.tenant_id,
+        template_id: template.id,
+        branch_id: branchId,
+        current_assignee_id: fixedEmployeeId,
+        due_at: dueAt,
+        allow_unassigned: true,
+        // This IS the instance. Without it createStaffTask reads the
+        // recurring_rule in metadata, re-saves the template (clobbering its
+        // rule) and calls back into this generator — an infinite loop.
+        force_instance: true,
+        save_as_template: false,
+        title: template.title,
+        description: template.description,
+        title_ar: template.title_ar,
+        description_ar: template.description_ar,
+        task_type: taskType,
+        source_module: templateKind === "daily" || templateKind === "weekly" ? ATTENDANCE_TASK_SOURCE : "recurring_task_template",
+        source_ref_type: sourceRefType,
+        source_ref_id: sourceRefId,
+        assigned_date: scheduleDate,
+        priority: template.priority,
+        default_deadline_minutes: template.default_deadline_minutes,
+        auto_assigned: false,
+        auto_assign_mode: normalizeAutoAssignMode(template.auto_assign_mode || template.assignment_strategy),
+        metadata,
+      }, actor || {});
+      if (result.duplicate || !result.task) {
+        skipped.push({ template_id: template.id, branch_id: branchId, reason: "duplicate" });
+        continue;
+      }
+      console.log("[task-instance-generate]", {
+        template_id: template.id,
+        task_id: result.task.id,
+        due_date: scheduleDate,
+        branch_id: branchId,
+        tenant_wide_template: !templateBranchId,
+        assigned_employee_id: result.task.current_assignee_id || null,
+        assignment_state: metadata.assignment_state,
+      });
+      created.push(result.task);
     }
-    console.log("[task-instance-generate]", {
-      template_id: template.id,
-      task_id: result.task.id,
-      due_date: scheduleDate,
-      branch_id: template.branch_id,
-      assigned_employee_id: result.task.current_assignee_id || null,
-      assignment_state: metadata.assignment_state,
-    });
-    created.push(result.task);
   }
   return { created, skipped };
 };
