@@ -15,6 +15,10 @@
 import db from "../database/db.js";
 import { canonicalPhoneKey, canonicalPhoneSql } from "../utils/phoneSearch.js";
 import { emitToRooms } from "../utils/socket.js";
+// The util, not whatsappGatewayService: the session id has to be byte-identical to
+// the one the order confirmation writes, and this is the shared definition of it
+// without dragging the gateway's dependency tree into every order path.
+import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const statusKey = (value) => text(value).toLowerCase().replace(/[\s-]+/g, "_");
@@ -152,6 +156,43 @@ const resolveConversationSessionIds = async ({ tenantId, order }) => {
 };
 
 /*
+ * The customer ordered before they ever messaged.
+ *
+ * There is no thread to star yet, but there is about to be: an order cannot be
+ * placed without a mobile, and the confirmation goes out on WhatsApp moments later
+ * and upserts `whatsapp:<phone>` itself. Racing that is why a first-time buyer used
+ * to end up unstarred — the star landed a beat before the thread existed. So the
+ * thread is opened here instead, under the SAME key `normalizeWhatsappSessionId`
+ * gives the confirmation, which is the whole point: the confirmation's own upsert
+ * then lands on this row and fills in the message, rather than minting a second
+ * thread for the same customer.
+ *
+ * Only WhatsApp can be opened this way, because only a phone is a key we can derive
+ * from an order. A Messenger PSID is not on the row, and a LID is not a phone —
+ * normalizeWhatsappSessionId returns the `whatsapp:lid:` key space for those, which
+ * is refused here rather than guessed at.
+ */
+const openWhatsappThreadForOrder = async ({ tenantId, order }) => {
+  const safeTenantId = idOrNull(tenantId ?? order?.tenant_id);
+  if (!safeTenantId || !orderPhoneKey(order)) return "";
+  const sessionId = normalizeWhatsappSessionId(text(order.customer_phone || order.phone || ""));
+  if (!sessionId || sessionId.toLowerCase().startsWith("whatsapp:lid:")) return "";
+
+  // DO NOTHING, never DO UPDATE: resolution already found no thread, so a conflict
+  // here means one appeared in between — and an existing thread's channel, status and
+  // preview are none of this function's business.
+  await db.query(
+    `
+    INSERT INTO ai_support_sessions (tenant_id, session_id, source, status, channel, customer_name, ai_enabled)
+    VALUES ($1::bigint, $2::text, 'whatsapp', 'ai_active', 'whatsapp', $3::text, TRUE)
+    ON CONFLICT (tenant_id, session_id) DO NOTHING
+    `,
+    [safeTenantId, sessionId, text(order.customer_name)]
+  );
+  return sessionId;
+};
+
+/*
  * Another parcel of the same customer's still in the air?
  *
  * Bounded on purpose: tenant + recency keeps this on the tenant/created index, and a
@@ -207,7 +248,12 @@ export const favoriteConversationsForOrder = async ({ tenantId, order, source = 
   const orderId = idOrNull(order?.id);
   if (!safeTenantId || !orderId) return { changed: [], reason: "order_missing" };
   await ensureDeliveryFavoriteSchema();
-  const sessionIds = await resolveConversationSessionIds({ tenantId: safeTenantId, order });
+  const existing = await resolveConversationSessionIds({ tenantId: safeTenantId, order });
+  // A first-time buyer has no thread yet, only a phone. Opening it is what makes the
+  // rule hold for every delivery order rather than only for customers who happened to
+  // message first.
+  const openedSessionId = existing.length ? "" : await openWhatsappThreadForOrder({ tenantId: safeTenantId, order });
+  const sessionIds = existing.length ? existing : [openedSessionId].filter(Boolean);
   if (!sessionIds.length) return { changed: [], reason: "no_conversation" };
 
   const result = await db.query(
@@ -226,9 +272,15 @@ export const favoriteConversationsForOrder = async ({ tenantId, order, source = 
   const changed = result.rows.map((row) => text(row.session_id)).filter(Boolean);
   if (changed.length) {
     announce(safeTenantId, changed, "delivery_order_favorited");
-    console.info("[inbox-favorite:delivery-order]", { tenant_id: safeTenantId, order_id: orderId, sessions: changed.length, source });
+    console.info("[inbox-favorite:delivery-order]", {
+      tenant_id: safeTenantId,
+      order_id: orderId,
+      sessions: changed.length,
+      opened_thread: openedSessionId || null,
+      source,
+    });
   }
-  return { changed, reason: changed.length ? "" : "already_favorite" };
+  return { changed, opened: openedSessionId || "", reason: changed.length ? "" : "already_favorite" };
 };
 
 /*
