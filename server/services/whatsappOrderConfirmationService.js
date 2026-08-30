@@ -18,8 +18,6 @@ import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
 import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage } from "../utils/orderConfirmationMessage.js";
 
-const CONFIRM_WORDS = new Set(["1", "تأكيد", "تاكيد", "confirm", "yes", "تمام"]);
-const CANCEL_WORDS = new Set(["2", "إلغاء", "الغاء", "cancel", "no"]);
 const STOREFRONT_SOURCES = new Set(["storefront", "website", "web"]);
 const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_transfer", "shipping_confirmation", "transfer"]);
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
@@ -239,11 +237,60 @@ const runEnsureAiForwardingSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
 };
 
-const normalizedReply = (value = "") =>
-  text(value)
-    .toLowerCase()
-    .replace(/[!?.،。]/g, "")
+// An order may only be moved by a reply that cannot mean anything else. Egyptian Arabic carries
+// "مش", "لا", "تمام", "ماشي", "حاضر" and "اه" as ordinary conversational filler — "مش مشكلة" is how
+// you say "no problem", i.e. agreement — and the canonical intent signals behind the AI reply layer
+// match those words ANYWHERE inside a sentence. Reading them as button taps cancelled INV-681 three
+// seconds after the customer wrote "طيب مش مشكلة، انا ممكن الغى الاوردر واعمله وقت تانى": she was
+// thinking out loud about a later order, and this one was cancelled and its stock returned under
+// her. So a decision needs a tapped button, or a reply that is the action label and nothing else.
+// Everything else is just a sentence, and goes to the AI and to a human like any other sentence.
+const decisionReplyKey = (value = "") =>
+  normalizeArabicIntentPayload(value)
+    .normalizedForIntent
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
     .trim();
+
+const ORDER_DECISION_EXACT_REPLIES = new Map();
+for (const [decisionAction, labels] of Object.entries({
+  confirm: ["تأكيد", "تاكيد", "تأكيد الطلب", "تاكيد الطلب", "confirm", "confirm order"],
+  edit: ["تعديل", "تعديل الطلب", "edit", "edit order", "modify order"],
+  cancel: ["إلغاء", "الغاء", "إلغاء الطلب", "الغاء الطلب", "cancel", "cancel order"],
+})) {
+  for (const label of labels) {
+    const key = decisionReplyKey(label);
+    if (key) ORDER_DECISION_EXACT_REPLIES.set(key, decisionAction);
+  }
+}
+
+// A typed word decides only while we are actually waiting on this order. Without this, the reply
+// landed on whatever `loadConfirmationOrder` returned last — any storefront order on the phone,
+// any status, any age — so a sentence could decide an order nobody had asked the customer about.
+const ORDER_DECISION_PROMPT_WINDOW_HOURS = Number(process.env.ORDER_CONFIRMATION_DECISION_WINDOW_HOURS || 72);
+
+export const orderAwaitsDecision = (order = null, now = Date.now()) => {
+  if (!order) return false;
+  if (text(order.status).toLowerCase() === "pending_confirmation") return true;
+  const promptedRaw = order.whatsapp_confirmation_sent_at;
+  const promptedAt = promptedRaw instanceof Date ? promptedRaw.getTime() : Date.parse(text(promptedRaw));
+  if (!Number.isFinite(promptedAt)) return false;
+  const windowHours = Number.isFinite(ORDER_DECISION_PROMPT_WINDOW_HOURS) && ORDER_DECISION_PROMPT_WINDOW_HOURS > 0
+    ? ORDER_DECISION_PROMPT_WINDOW_HOURS
+    : 72;
+  return now - promptedAt <= windowHours * 60 * 60 * 1000;
+};
+
+export const resolveOrderDecision = ({ order = null, buttonAction = "", replyText = "", now = Date.now() } = {}) => {
+  if (!order) return "";
+  // A tapped button names both the action and the order, so it decides however late it lands —
+  // the caller answers the state the order is actually in rather than re-running the side effects.
+  const tapped = text(buttonAction).toLowerCase();
+  if (ORDER_CONFIRMATION_SINGLE_USE_ACTIONS.has(tapped)) return tapped;
+  const typed = ORDER_DECISION_EXACT_REPLIES.get(decisionReplyKey(replyText)) || "";
+  if (!typed) return "";
+  return orderAwaitsDecision(order, now) ? typed : "";
+};
 
 const sourceOf = (order = {}) => text(order.source || order.channel).toLowerCase();
 const isStorefrontPendingOrder = (order = {}) =>
@@ -1910,129 +1957,6 @@ const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = fa
   return { forwarded: true, conversation_id: conversationId, needs_followup: needsFollowup };
 };
 
-const processConfirmationReplyLegacy = async (message = {}) => {
-  const phone = normalizeEgyptPhone(message.phone || message.from || message.sender || "");
-  const originalBody = text(message.original_message || message.text || message.message_text || message.body);
-  const intentPayload = normalizeArabicIntentPayload(originalBody);
-  const body = text(message.normalized_for_intent || intentPayload.normalizedForIntent || message.text || message.message_text || message.body);
-  const reply = normalizedReply(body);
-  const replySignal = normalizedReply([originalBody, body, ...whatsappButtonSignalValues(message)].filter(Boolean).join(" "));
-  const compactReplySignal = replySignal.replace(/[\uFE0F\u20E3]/g, "").trim();
-  const productAlias = resolveProductAlias(originalBody || body);
-  console.log("[arabic-intent-signals]", {
-    channel: AI_AGENT_CHANNELS.WHATSAPP,
-    original: originalBody,
-    normalizedText: intentPayload.normalizedText,
-    normalizedForIntent: body,
-    canonicalSignals: intentPayload.canonicalSignals,
-  });
-  console.log("[product-alias]", {
-    channel: AI_AGENT_CHANNELS.WHATSAPP,
-    original: originalBody,
-    normalizedText: intentPayload.normalizedText,
-    canonicalProduct: productAlias.canonicalProduct,
-    matchedAlias: productAlias.matchedAlias,
-    confidence: productAlias.confidence,
-  });
-  const order = await findPendingOrderByPhone(phone);
-  const hasSignal = (...names) => names.some((name) => (intentPayload.canonicalSignals || []).includes(name));
-  const replyMatches = (haystack = "", ...needles) => {
-    const safeHaystack = text(haystack).toLowerCase();
-    return needles.some((needle) => safeHaystack.includes(text(needle).toLowerCase()));
-  };
-  const isConfirmShortcut = order && (
-    /^1(\b|$)/.test(compactReplySignal) ||
-    replyMatches(compactReplySignal, "confirm order", "confirm_order", "button confirm_order", "تأكيد الطلب")
-  );
-  const isPostponeShortcut = order && (
-    /^2(\b|$)/.test(compactReplySignal) ||
-    replyMatches(compactReplySignal, "postpone delivery", "postpone_delivery", "button postpone_delivery", "delay delivery", "تأجيل التسليم")
-  );
-  const isCancelShortcut = order && (
-    /^3(\b|$)/.test(compactReplySignal) ||
-    replyMatches(compactReplySignal, "cancel order", "cancel_order", "button cancel_order", "إلغاء الطلب")
-  );
-  if (isConfirmShortcut) {
-    const confirmed = await markOrderConfirmed(order.id);
-    return { action: "confirmed", order: confirmed };
-  }
-  if (isPostponeShortcut) {
-    const forwarded = await forwardToAiInbox({
-      message: {
-        ...message,
-        phone,
-        text: originalBody,
-        original_message: originalBody,
-        normalized_for_intent: body,
-        canonical_signals: intentPayload.canonicalSignals,
-        intent_tokens: intentPayload.intentTokens,
-      },
-      order,
-      needsFollowup: true,
-    });
-    return { action: "needs_followup", order, ...forwarded };
-  }
-  if (isCancelShortcut) {
-    const cancelled = await markOrderCancelled(order.id);
-    return { action: "cancelled", order: cancelled };
-  }
-  const isConfirmReply = order && (
-    CONFIRM_WORDS.has(reply) ||
-    hasSignal("yes", "confirm") ||
-    /^1(\b|$)/.test(replySignal) ||
-    replySignal.includes("confirm order") ||
-    replySignal.includes("تأكيد الطلب") ||
-    replySignal.includes("confirm_order") ||
-    replySignal.includes("button confirm_order")
-  );
-  const isPostponeReply = order && (
-    /^2(\b|$)/.test(replySignal) ||
-    replySignal.includes("postpone delivery") ||
-    replySignal.includes("delay delivery") ||
-    replySignal.includes("تأجيل التسليم") ||
-    replySignal.includes("postpone_delivery") ||
-    replySignal.includes("button postpone_delivery")
-  );
-  const isCancelReply = order && (
-    CANCEL_WORDS.has(reply) ||
-    hasSignal("no", "reject", "cancel") ||
-    /^3(\b|$)/.test(replySignal) ||
-    replySignal.includes("cancel order") ||
-    replySignal.includes("إلغاء الطلب") ||
-    replySignal.includes("cancel_order") ||
-    replySignal.includes("button cancel_order")
-  );
-  if (isConfirmReply) {
-    const confirmed = await markOrderConfirmed(order.id);
-    return { action: "confirmed", order: confirmed };
-  }
-  if (isPostponeReply) {
-    const forwarded = await forwardToAiInbox({
-      message: {
-        ...message,
-        phone,
-        text: originalBody,
-        original_message: originalBody,
-        normalized_for_intent: body,
-        canonical_signals: intentPayload.canonicalSignals,
-        intent_tokens: intentPayload.intentTokens,
-      },
-      order,
-      needsFollowup: true,
-    });
-    return { action: "needs_followup", order, ...forwarded };
-  }
-  if (isCancelReply) {
-    const cancelled = await markOrderCancelled(order.id);
-    return { action: "cancelled", order: cancelled };
-  }
-  if (message.inbox?.saved || message.inbox_saved) {
-    return { action: "already_saved_to_ai_inbox", order, forwarded: true, conversation_id: message.inbox?.session_id || message.conversation_id || message.external_conversation_id || "" };
-  }
-  const forwarded = await forwardToAiInbox({ message: { ...message, phone, text: originalBody, original_message: originalBody, normalized_for_intent: body, canonical_signals: intentPayload.canonicalSignals, intent_tokens: intentPayload.intentTokens }, order });
-  return { action: "forwarded_to_ai", order, ...forwarded };
-};
-
 export { applyConfirmationAction };
 
 export const processConfirmationReply = async (message = {}) => {
@@ -2049,9 +1973,6 @@ export const processConfirmationReply = async (message = {}) => {
   const originalBody = text(message.original_message || message.text || message.message_text || message.body);
   const intentPayload = normalizeArabicIntentPayload(originalBody);
   const body = text(message.normalized_for_intent || intentPayload.normalizedForIntent || message.text || message.message_text || message.body);
-  const reply = normalizedReply(body);
-  const replySignal = normalizedReply([originalBody, body, ...whatsappButtonSignalValues(message)].filter(Boolean).join(" "));
-  const compactReplySignal = replySignal.replace(/[\uFE0F\u20E3]/g, "").trim();
   const productAlias = resolveProductAlias(originalBody || body);
   console.log("[arabic-intent-signals]", {
     channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -2076,8 +1997,8 @@ export const processConfirmationReply = async (message = {}) => {
       message.button?.payload,
       message.button?.text,
       message.interactive?.button_reply?.title,
-      originalBody,
-      body,
+      // Button FIELDS only. The message body used to be scanned here too, which made any sentence
+      // that happened to contain "cancel_order" a tap on a real order.
     ].map((value) => text(value));
     for (const candidate of candidates) {
       const match = candidate.match(/(confirm_order|edit_order|cancel_order)(?::(\d+))?/i);
@@ -2086,31 +2007,39 @@ export const processConfirmationReply = async (message = {}) => {
     return null;
   })();
 
-  const replyIs = (...needles) => needles.some((needle) => replySignal.includes(text(needle).toLowerCase()));
-  const hasSignal = (...names) => names.some((name) => (intentPayload.canonicalSignals || []).includes(name));
   const order = await loadConfirmationOrder({
     orderId: actionFromButton?.orderId || "",
     phone,
   });
   const currentStatus = text(order?.status).toLowerCase();
 
-  const isConfirmReply = Boolean(order) && (
-    CONFIRM_WORDS.has(reply) ||
-    hasSignal("yes", "confirm") ||
-    /^1(\b|$)/.test(compactReplySignal) ||
-    replyIs("confirm order", "confirm_order", "button confirm_order", "تأكيد الطلب")
-  );
-  const isEditReply = Boolean(order) && (
-    /^2(\b|$)/.test(compactReplySignal) ||
-    replyIs("edit order", "edit_order", "button edit_order", "modify order", "تعديل الطلب")
-  );
-  const isCancelReply = Boolean(order) && (
-    CANCEL_WORDS.has(reply) ||
-    hasSignal("no", "reject", "cancel") ||
-    /^3(\b|$)/.test(compactReplySignal) ||
-    replyIs("cancel order", "cancel_order", "button cancel_order", "إلغاء الطلب")
-  );
-  const isCancelledReason = Boolean(order) && text(order.status).toLowerCase() === "cancelled_by_customer" && Boolean(originalBody) && !isConfirmReply && !isEditReply && !isCancelReply;
+  const decisionAction = resolveOrderDecision({
+    order,
+    buttonAction: actionFromButton?.action || "",
+    replyText: originalBody || body,
+  });
+  if (order && !decisionAction && (originalBody || body)) {
+    // The signals that used to decide here are still worth reading — they are how we tell a
+    // false positive from a real miss when a customer says something we did not act on.
+    console.info("[whatsapp:order-decision-declined]", {
+      orderId: order.id,
+      orderNumber: orderNumber(order),
+      currentStatus,
+      awaitsDecision: orderAwaitsDecision(order),
+      canonicalSignals: intentPayload.canonicalSignals,
+      phoneSuffix: phone.slice(-4),
+      textPreview: text(originalBody || body).replace(/\s+/g, " ").slice(0, 80),
+    });
+  }
+  // "Why did you cancel?" is a question with a shelf life. Unbounded, the newest-order fallback
+  // meant every later message from a customer whose last order was cancelled got filed as that
+  // order's cancellation reason — and `cancel_reason_saved` suppresses the AI reply, so they were
+  // answered by nobody, forever.
+  const isCancelledReason = Boolean(order)
+    && currentStatus === "cancelled_by_customer"
+    && Boolean(originalBody)
+    && !decisionAction
+    && orderAwaitsDecision(order);
 
   if (isCancelledReason) {
     const updated = await applyConfirmationAction({
@@ -2132,10 +2061,7 @@ export const processConfirmationReply = async (message = {}) => {
     return { action: "cancel_reason_saved", order: updated };
   }
 
-  let action = actionFromButton?.action || "";
-  if (!action && isConfirmReply) action = "confirm";
-  if (!action && isEditReply) action = "edit";
-  if (!action && isCancelReply) action = "cancel";
+  const action = decisionAction;
 
   // Re-tapping a button the order already reflects is a no-op, but silence reads as a broken
   // system. Acknowledge the state the order is actually in, and never re-run the side effects.
