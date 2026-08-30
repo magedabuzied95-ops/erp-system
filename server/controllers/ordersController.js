@@ -27,6 +27,7 @@ import {
   recordSalesCommissionForOrder,
 } from "../services/salesCommissionService.js";
 import { createDisplayRefillAlertsForOrder } from "../services/displayRefillAlertService.js";
+import { syncDeliveryOrderFavorite } from "../services/deliveryOrderFavoriteService.js";
 import {
   assignSequentialInvoiceNumber,
   buildDerivedInvoiceNumber,
@@ -2638,6 +2639,16 @@ const runPostOrderSideEffects = async ({
           payment_status: paymentStatus,
         },
         source: channel || "pos",
+      });
+    },
+    async () => {
+      // A till sale hands the goods over the counter, so this is a no-op for the
+      // usual POS invoice; it only stars a thread when the row carries an address
+      // or a shipment, which is what makes it a delivery.
+      await syncDeliveryOrderFavorite({
+        tenantId,
+        order: { ...(order || {}), id: orderId, tenant_id: tenantId },
+        source: `orders_create:${channel || "pos"}`,
       });
     },
     async () => {
@@ -6273,6 +6284,13 @@ export const editOrder = async (req, res) => {
           console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder.id, message: error?.message || String(error) });
         });
       }
+      // Unconditional: the edit form can move the order's own status to delivered
+      // (or the address onto a till sale) without the shipment status moving at all.
+      void syncDeliveryOrderFavorite({
+        tenantId: updatedOrder?.tenant_id || tenantId,
+        order: updatedOrder,
+        source: "orders_edit",
+      });
       return res.status(200).json({ success: true, message: "Order updated", order: orderResult.rows[0], items: updated?.items || [] });
     }
 
@@ -7151,6 +7169,11 @@ export const updateOrderShipment = async (req, res) => {
     sendShipmentNotificationForStatus(updatedOrder, nextStatus).catch((error) => {
       console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: nextStatus, message: error?.message || String(error) });
     });
+    void syncDeliveryOrderFavorite({
+      tenantId: updatedOrder?.tenant_id || tenantId,
+      order: updatedOrder,
+      source: `orders_shipment:${nextStatus}`,
+    });
     return res.json({
       success: true,
       order: updatedOrder,
@@ -7257,6 +7280,12 @@ export const cancelOrder = async (req, res) => {
     });
 
     await client.query("COMMIT");
+    // A cancelled parcel is not on its way either, so the star it earned goes back.
+    void syncDeliveryOrderFavorite({
+      tenantId: updateResult.rows[0]?.tenant_id || tenantId,
+      order: updateResult.rows[0],
+      source: "orders_cancel",
+    });
     return res.status(200).json({ success: true, message: "تم إلغاء الفاتورة وإرجاع المخزون", order: updateResult.rows[0] });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -7376,6 +7405,11 @@ export const deleteOrder = async (req, res) => {
     });
 
     await client.query("COMMIT");
+    void syncDeliveryOrderFavorite({
+      tenantId: updateResult.rows[0]?.tenant_id || tenantId,
+      order: updateResult.rows[0],
+      source: "orders_delete",
+    });
     return res.status(200).json({
       success: true,
       message: stockAlreadyRestored
@@ -7441,6 +7475,12 @@ export const archiveOrder = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    // An archived order is not on its way to anyone, so it stops holding a star.
+    void syncDeliveryOrderFavorite({
+      tenantId: updateResult.rows[0]?.tenant_id || tenantId,
+      order: updateResult.rows[0],
+      source: "orders_archive",
+    });
     return res.status(200).json({ success: true, message: "Order archived successfully.", order: updateResult.rows[0] });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});

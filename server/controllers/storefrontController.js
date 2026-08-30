@@ -6,6 +6,7 @@ import db from "../database/db.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushService.js";
+import { syncDeliveryOrderFavorite } from "../services/deliveryOrderFavoriteService.js";
 import {
   attachGroupedColorImages,
   attachVariantImages,
@@ -5717,6 +5718,13 @@ export const createWebsiteOrder = async (req, res) => {
       orderId: order?.id,
       message: error?.message || String(error),
     }));
+    // Website and POS-online orders both land here. `shipping_method` decides it:
+    // a store-pickup order never stars anything.
+    void syncDeliveryOrderFavorite({
+      tenantId,
+      order: { ...order, tenant_id: tenantId, customer_phone: order.customer_phone || customer?.phone || normalizePhone(checkout.primary_phone) },
+      source: req.posOnlineOrder ? "pos_online_order" : "storefront_checkout",
+    });
     if (customer?.id) {
       issueFirstOrderCoupons({ tenantId, customerId: customer.id, orderId: order.id }).catch((error) => {
         console.warn("[coupons] first-order auto-issue skipped", { orderId: order?.id, message: error?.message || String(error) });

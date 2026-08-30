@@ -170,3 +170,8 @@ mediamtx.yml
 # whole directory, so without this line the deploy ships routes importing a file
 # that does not exist and the backend dies at module load.
 !server/services/aiInboxPushService.js
+
+# Delivery orders drive the AI Inbox star (favourite on create, cleared on
+# delivery). server/services/* above ignores the whole directory, so without this
+# line the deploy ships controllers importing a file that does not exist.
+!server/services/deliveryOrderFavoriteService.js

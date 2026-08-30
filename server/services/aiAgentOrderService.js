@@ -4,6 +4,7 @@ import db from "../database/db.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
 import { sendManagerInvoiceCreatedPush } from "./managerPortalPushService.js";
+import { syncDeliveryOrderFavorite } from "./deliveryOrderFavoriteService.js";
 import {
   compactAliasText,
   expandSearchAliasTerms,
@@ -1584,6 +1585,10 @@ export const confirmAiOrder = async (payload = {}) => {
       order_id: order.id,
       message: error?.message || String(error),
     }));
+    // Confirm, not draft: a draft the seller abandons would otherwise leave a star
+    // nothing ever clears. The order carries its own conversation id, so this stars
+    // the exact thread it was raised from whatever channel that is.
+    void syncDeliveryOrderFavorite({ tenantId, order: confirmedOrder, source: "ai_order_confirmed" });
     console.log("[ai-agent:orders] confirmed", { tenantId, order_id: order.id, conversation_id: order.ai_agent_conversation_id });
     return { order: confirmedOrder, items: items.rows };
   } catch (error) {
@@ -1610,6 +1615,7 @@ export const updateAiOrderStatus = async ({ tenantId, orderId, status }) => {
     `,
     [tenantId, orderId, nextStatus]
   );
+  if (result.rows[0]) void syncDeliveryOrderFavorite({ tenantId, order: result.rows[0], source: `ai_order_status:${nextStatus}` });
   return result.rows[0] || null;
 };
 

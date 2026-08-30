@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
+import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
@@ -1198,6 +1199,7 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
   sendShipmentNotificationForStatus(updatedOrder, status).catch((error) => {
     console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status, message: error?.message || String(error) });
   });
+  void syncDeliveryOrderFavorite({ tenantId: updatedOrder?.tenant_id, order: updatedOrder, source: `bosta_refresh:${status}` });
   return { ...response, order: updatedOrder };
 };
 
@@ -1373,6 +1375,9 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     sendShipmentNotificationForStatus(updatedOrder, parsed.status).catch((error) => {
       console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: parsed.status, message: error?.message || String(error) });
     });
+    // Outside the transaction, like the notification above: the star is worth less
+    // than the callback, and the callback is what settles the COD money.
+    void syncDeliveryOrderFavorite({ tenantId: updatedOrder?.tenant_id, order: updatedOrder, source: `bosta_webhook:${parsed.status}` });
     return { success: true, recorded: true, applied: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updatedOrder };
   } catch (error) {
     await client.query("ROLLBACK");

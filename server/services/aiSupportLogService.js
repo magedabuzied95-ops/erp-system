@@ -848,6 +848,9 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
+      // Written by updateAiSupportConversationFavorite below, so it is ensured on the
+      // path that writes it rather than relying on another service's boot order.
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS auto_favorite_order_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
@@ -1460,6 +1463,10 @@ export const updateAiSupportConversationFavorite = async ({
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       channel = ${sessionChannelNoDowngradeSql("$5::text")},
       is_favorite = EXCLUDED.is_favorite,
+      -- A hand-placed star belongs to the human who placed it. Clearing the order id
+      -- here is what stops the delivery automation from ever taking it back: it only
+      -- clears stars that still name an order.
+      auto_favorite_order_id = NULL,
       updated_at = NOW()
     RETURNING *
     `,
@@ -1483,6 +1490,7 @@ export const updateAiSupportConversationFavorite = async ({
     `
     UPDATE ai_support_sessions
     SET is_favorite = $3::boolean,
+        auto_favorite_order_id = NULL,
         updated_at = NOW()
     WHERE tenant_id = $1::bigint
       AND session_id = ANY($2::text[])
