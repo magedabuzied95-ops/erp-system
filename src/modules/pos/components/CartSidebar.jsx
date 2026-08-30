@@ -386,6 +386,9 @@ function CartSidebar({
   paymobTerminalLoading = false,
   checkoutLoading,
   offlineSyncPendingCount = 0,
+  // Online-order mode: the till collects nothing, so every payment control is replaced by a
+  // cash-on-delivery statement and the collection checks stop applying.
+  onlineMode = false,
   checkoutLabel = "",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
@@ -480,7 +483,7 @@ function CartSidebar({
   const hasPaymentBreakdown = appliedCredit > 0 || methodTotal > 0;
   const partialCreditActive = normalizedPaymentMode === "split" && deferSplitRemainder && hasSelectedCustomer && totalPaid > 0.009 && remainingAmount > 0.009;
   const hasPartialSplitCollection = normalizedPaymentMode === "split" && hasSelectedCustomer && totalPaid > 0.009 && remainingAmount > 0.009;
-  const paymentMismatch = personalPaymentActive || creditSaleActive || partialCreditActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
+  const paymentMismatch = onlineMode || personalPaymentActive || creditSaleActive || partialCreditActive ? false : Math.abs(totalAmount - totalPaid) > 0.009;
   const selectedMethod = normalizedPaymentMode === "split"
     ? (["cash", "card", "wallet", "vodafone_cash"].includes(activeSplitMethod) ? activeSplitMethod : "cash")
     : normalizedPaymentMode === "instapay"
@@ -508,7 +511,9 @@ function CartSidebar({
   const activePaymentMethodCount = activeMethodCount + (appliedCredit > 0.009 ? 1 : 0);
   const showOrderSummary = personalPaymentActive || creditSaleActive || hasPaymentBreakdown || normalizedPaymentMode === "split";
   const hasAccountWarning = Number(paymentAccountStatus?.shortage_amount || 0) > 0 || paymentAccountStatus?.allow_negative_balance === true;
-  const shouldShowPaymentDetails = editActive
+  const shouldShowPaymentDetails = onlineMode
+    ? false
+    : editActive
     ? paymentDetailsOpen || activePaymentMethodCount > 1 || paymentMismatch
     : paymentDetailsOpen || personalPaymentActive || creditSaleActive || activePaymentMethodCount > 1 || (hasPaymentBreakdown && remainingAmount > 0.009) || (hasPaymentBreakdown && paymentMismatch) || hasAccountWarning;
   const clearMethod = (method) => {
@@ -956,6 +961,11 @@ function CartSidebar({
               invoiceNumber={editPaymentSummary.originalInvoiceNumber}
             />
           ) : null}
+          {onlineMode ? (
+          <div className="rounded-xl border border-sky-300/25 bg-sky-400/[0.08] p-2.5 text-[11px] font-black leading-relaxed text-sky-100">
+            {posLabel("onlineOrder.cartNotice", "Cash on delivery - nothing is collected at the till.")}
+          </div>
+          ) : (
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">
@@ -1036,6 +1046,7 @@ function CartSidebar({
               </div>
             ) : null}
           </div>
+          )}
 
           {shouldShowPaymentDetails ? (
           <div className="rounded-xl border border-white/10 bg-white/[0.04] p-2">
@@ -1080,7 +1091,7 @@ function CartSidebar({
             {posLabel("cart.offlinePending", "Invoices awaiting sync: {{count}}", { count: offlineSyncPendingCount })}
           </div>
         ) : null}
-        <div className="pos-checkout-actions sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
+        <div className={`pos-checkout-actions sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur ${onlineMode ? "" : "sm:grid-cols-3"}`}>
           <button
             type="button"
             onClick={() => onCheckout?.(partialCreditActive ? { partialCredit: true } : {})}
@@ -1096,6 +1107,10 @@ function CartSidebar({
           >
             {checkoutLoading ? posLabel("cart.savingInvoice", "Saving the invoice...") : `${checkoutLabel || posLabel("cart.createOrder", "Create order")} • ${formatCurrency(totalAmount)}`}
           </button>
+          {/* Credit and terminal are both ways of taking money now; an online order takes
+              none, so they are absent rather than disabled. */}
+          {onlineMode ? null : (
+          <>
           <button
             type="button"
             onClick={() => {
@@ -1125,6 +1140,8 @@ function CartSidebar({
             <Smartphone className="h-4 w-4" />
             {paymobTerminalLoading ? "Processing..." : "Paymob Terminal"}
           </button>
+          </>
+          )}
         </div>
 
       </div>

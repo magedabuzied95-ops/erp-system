@@ -17,6 +17,7 @@ import {
   sendPaymobTerminalPayment,
 } from "../controllers/posController.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { createPosOnlineOrder } from "../controllers/storefrontController.js";
 
 const router = express.Router();
 
@@ -38,5 +39,10 @@ router.get("/receipt-settings", protect, getPosReceiptRuntimeSettings);
 router.post("/payments/paymob-terminal", protect, sendPaymobTerminalPayment);
 router.get("/payments/paymob-terminal/status/:transactionId", protect, getPaymobTerminalPaymentStatus);
 router.post("/payments/paymob-terminal/:transactionId/manual-confirm", protect, manuallyConfirmPaymobTerminalPayment);
+
+// POS online-invoice mode. Deliberately the website checkout controller and not POST /orders:
+// the address, the server-side shipping quote, the pending_confirmation status and the
+// WhatsApp confirmation all live there, and a second implementation would drift from it.
+router.post("/online-order", protect, permit("orders", "create"), createPosOnlineOrder);
 
 export default router;

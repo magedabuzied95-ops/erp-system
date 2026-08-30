@@ -37,6 +37,7 @@ import {
   User,
   Warehouse,
   ReceiptText,
+  Truck,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -132,6 +133,7 @@ import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 // Restock requests: the same panel + catalogue picker the AI Inbox uses, so the
 // feature evolves in one place. Lazy — it pulls the inbox picker bundle.
 const PosRestockModal = lazy(() => import("../components/PosRestockModal"));
+const PosOnlineOrderModal = lazy(() => import("../components/PosOnlineOrderModal"));
 import SmartPosFilters from "../components/SmartPosFilters";
 import QuickPosFilters from "../components/QuickPosFilters";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
@@ -1874,6 +1876,11 @@ function POSPro() {
   const [paymobTerminalLoading, setPaymobTerminalLoading] = useState(false);
   const [quickExpenseOpen, setQuickExpenseOpen] = useState(false);
   const [restockModalOpen, setRestockModalOpen] = useState(false);
+  // Counter invoice (the till default) vs online order (the website flow). Deliberately not
+  // persisted: a mode left on from the previous shift would silently turn the next walk-in
+  // sale into a shipment.
+  const [invoiceMode, setInvoiceMode] = useState("counter");
+  const [onlineOrderOpen, setOnlineOrderOpen] = useState(false);
   const [quickExpense, setQuickExpense] = useState(quickExpenseDefaults);
   const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
   const isVariantModalOpen = Boolean(barcodeShopProduct);
@@ -1932,6 +1939,16 @@ function POSPro() {
   const activeSalesperson = useMemo(
     () => salesEmployees.find((employee) => String(employee.id || "") === String(selectedSalespersonId || "")) || null,
     [salesEmployees, selectedSalespersonId]
+  );
+  // Same resolution the counter checkout payload uses, hoisted so the online-order sheet can
+  // carry the seller through too — otherwise a shipped sale would earn nobody commission.
+  const onlineOrderSeller = useMemo(
+    () => ({
+      userId: activeSalesperson?.user_id || null,
+      employeeId: activeSalesperson?.employee_id || activeSalesperson?.id || null,
+      name: activeSalesperson?.pos_alias || activeSalesperson?.name || activeSalesperson?.full_name || "",
+    }),
+    [activeSalesperson]
   );
   const storeDisplayName = useMemo(
     () =>
@@ -7972,7 +7989,68 @@ function POSPro() {
   useEffect(() => {
     checkoutActionRef.current = handleCheckout;
   }, [handleCheckout]);
-  const handleCheckoutAction = useCallback((options = {}) => checkoutActionRef.current(options), []);
+
+  // An online order needs a live shipping quote and a WhatsApp send, so it cannot ride the
+  // offline queue the way a counter invoice can. Editing and exchanging both run through
+  // /orders, which this mode never touches — so each of those locks the mode out rather than
+  // producing an order the rest of the flow cannot settle.
+  const onlineInvoiceBlockedReason = useMemo(() => {
+    if (editingOrder?.id) return "editing";
+    if (exchangeState?.active) return "exchange";
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return "offline";
+    if (posShiftNetworkUnavailable) return "offline";
+    return "";
+  }, [editingOrder?.id, exchangeState?.active, posShiftNetworkUnavailable]);
+  const isOnlineInvoiceMode = invoiceMode === "online" && !onlineInvoiceBlockedReason;
+
+  useEffect(() => {
+    if (invoiceMode === "online" && onlineInvoiceBlockedReason) setInvoiceMode("counter");
+  }, [invoiceMode, onlineInvoiceBlockedReason]);
+
+  // The website checkout prices and totals the order itself; all it needs from the till is
+  // which variant and how many.
+  const onlineOrderItems = useMemo(
+    () =>
+      cart
+        .map((item) => ({
+          product_id: item.product_id || null,
+          variant_id: resolveCheckoutVariantId(item),
+          quantity: Math.max(1, Number(item.quantity || 0)),
+          product_name: item.product_name || item.name || "",
+        }))
+        .filter((item) => item.variant_id),
+    [cart]
+  );
+
+  const handleCheckoutAction = useCallback((options = {}) => {
+    // Online mode sends the same button to the address sheet instead. The counter checkout
+    // below never runs for it, so nothing is collected and no shift entry is written.
+    if (isOnlineInvoiceMode) {
+      setOnlineOrderOpen(true);
+      return null;
+    }
+    return checkoutActionRef.current(options);
+  }, [isOnlineInvoiceMode]);
+  // The order is already committed server-side by the time this runs — stock was decremented
+  // and the confirmation is on its way — so this only settles the till: empty the cart, drop
+  // the sold stock out of the on-screen catalog, and refresh it from the server.
+  const handleOnlineOrderCreated = useCallback(({ items: soldItems = [] } = {}) => {
+    setProducts((current) => applySoldItemsToCatalog(current, soldItems));
+    writePosSaleStats(cart);
+    setCart([]);
+    clearPosPersistedState();
+    setSelectedSalespersonId("");
+    setInvoiceDiscountType(defaultState.invoiceDiscountType);
+    setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+    setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
+    setInvoiceDiscount(0);
+    setServiceFee(0);
+    handleClearSelectedCustomer();
+    refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }).then(() => {
+      catalogFallbackActiveRef.current = false;
+    }).catch(() => {});
+  }, [cart, handleClearSelectedCustomer, saleModeSettings]);
+
   const handleCreditSaleCheckout = useCallback(() => {
     // A deferred sale must never inherit a previously selected collection
     // method or amount. The checkout payload also enforces zero collected.
@@ -8144,6 +8222,30 @@ function POSPro() {
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
+          {/* Invoice type. A counter invoice settles at the till; an online order takes a full
+              shipping address, is priced from the website and confirms over WhatsApp. */}
+          <label
+            title={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : t("pos.onlineOrder.modeLabel")}
+            className={`pos-toolbar-action pos-action-invoice-mode inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-black shadow-[0_0_18px_rgba(0,0,0,0.18)] transition ${
+              onlineInvoiceBlockedReason
+                ? "cursor-not-allowed border-white/10 bg-white/[0.04] text-zinc-500"
+                : isOnlineInvoiceMode
+                  ? "border-sky-300/40 bg-sky-400/15 text-sky-100"
+                  : "border-white/10 bg-white/[0.05] text-zinc-200"
+            }`}
+          >
+            {isOnlineInvoiceMode ? <Truck className="h-3.5 w-3.5" /> : <ReceiptText className="h-3.5 w-3.5" />}
+            <select
+              value={invoiceMode}
+              disabled={Boolean(onlineInvoiceBlockedReason)}
+              onChange={(event) => setInvoiceMode(event.target.value)}
+              aria-label={t("pos.onlineOrder.modeLabel")}
+              className="cursor-pointer border-0 bg-transparent pe-1 text-xs font-black text-inherit outline-none disabled:cursor-not-allowed"
+            >
+              <option value="counter" className="bg-zinc-900 text-zinc-100">{t("pos.onlineOrder.modeCounter")}</option>
+              <option value="online" className="bg-zinc-900 text-zinc-100">{t("pos.onlineOrder.modeOnline")}</option>
+            </select>
+          </label>
           {canManageSalePrices ? (
             <button
               type="button"
@@ -8586,7 +8688,8 @@ function POSPro() {
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
-            checkoutLabel={editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
+            onlineMode={isOnlineInvoiceMode}
+            checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
@@ -8736,7 +8839,8 @@ function POSPro() {
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
-            checkoutLabel={editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
+            onlineMode={isOnlineInvoiceMode}
+            checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}
             setMarketingAttribution={setMarketingAttribution}
@@ -9142,6 +9246,23 @@ function POSPro() {
         {restockModalOpen ? (
           <Suspense fallback={null}>
             <PosRestockModal open customers={customers} initialCustomer={customer} onClose={() => setRestockModalOpen(false)} />
+          </Suspense>
+        ) : null}
+
+        {onlineOrderOpen ? (
+          <Suspense fallback={null}>
+            <PosOnlineOrderModal
+              open
+              items={onlineOrderItems}
+              posSubtotal={cartTotals.total}
+              customer={customer}
+              branchId={activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || null}
+              sellerUserId={onlineOrderSeller.userId}
+              salesEmployeeId={onlineOrderSeller.employeeId}
+              sellerName={onlineOrderSeller.name}
+              onCreated={handleOnlineOrderCreated}
+              onClose={() => setOnlineOrderOpen(false)}
+            />
           </Suspense>
         ) : null}
 

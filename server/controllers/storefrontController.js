@@ -711,6 +711,36 @@ const tenantFromRequest = (req) => {
   return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : DEFAULT_TENANT_ID;
 };
 
+const positiveId = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+// A POS online order is a website order in every way that matters downstream — same status,
+// same WhatsApp confirmation, same shipping path — but it was raised by a named cashier at a
+// named branch, and the seller earns commission on it. Those four facts have nowhere else to
+// come from, so they are lifted off the authenticated session here.
+const buildPosStaffAttribution = (req, body = {}) => {
+  const user = req?.user || {};
+  const cashierId = positiveId(user.id);
+  const sellerUserId = positiveId(body.seller_user_id ?? body.sellerUserId);
+  const salesEmployeeId = positiveId(body.sales_employee_id ?? body.salesEmployeeId ?? body.seller_id ?? body.sellerId);
+  return {
+    origin_surface: "pos",
+    branch_id: positiveId(body.branch_id ?? body.branchId) || positiveId(user.branch_id),
+    cashier_user_id: cashierId,
+    cashier_id: cashierId,
+    cashier_name: toText(user.name || user.full_name || user.username),
+    created_by: cashierId,
+    seller_user_id: sellerUserId,
+    seller_name: toText(body.seller_name ?? body.sellerName),
+    sales_employee_id: salesEmployeeId,
+    salesperson_id: salesEmployeeId,
+    assigned_seller_id: salesEmployeeId,
+    seller_employee_id: salesEmployeeId,
+  };
+};
+
 const tableColumns = async (clientOrPool, tableName) => {
   if (storefrontTableColumnsCache.has(tableName)) return storefrontTableColumnsCache.get(tableName);
   const result = await clientOrPool.query(
@@ -940,6 +970,10 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
+  // An online order can also be raised at the till (POS online-invoice mode). It keeps
+  // source=website so the WhatsApp confirmation gate still fires, which leaves reporting no
+  // way to tell a real web order from one a cashier typed in without a separate marker.
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS origin_surface VARCHAR(30)`);
   await ensureWhatsappShippingSchema(clientOrPool);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS product_image TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS variant_image TEXT`);
@@ -5077,7 +5111,13 @@ export const createWebsiteOrder = async (req, res) => {
   const runCheckoutQuery = (queryClient, query, params = [], context = {}) =>
     queryWithContext(queryClient, query, params, { ...checkoutQueryContext, step: checkoutStep, ...context });
   try {
-    const tenantId = tenantFromRequest(req);
+    // The POS online-invoice mode reaches this controller through an authenticated route,
+    // so the till session — not a client-supplied header — decides which tenant it writes to.
+    const posOnlineOrder = Boolean(req?.posOnlineOrder);
+    const sessionTenantId = Number(req?.tenantId);
+    const tenantId = posOnlineOrder && Number.isFinite(sessionTenantId) && sessionTenantId > 0
+      ? sessionTenantId
+      : tenantFromRequest(req);
     await ensureStorefrontSchema(client);
     const checkoutRaw = parseJsonField(req.body?.checkout, req.body || {});
     const items = parseJsonField(req.body?.items, Array.isArray(req.body?.items) ? req.body.items : []);
@@ -5109,6 +5149,11 @@ export const createWebsiteOrder = async (req, res) => {
       shipping_provider: toText(checkoutRaw.shipping_provider || checkoutRaw.shipping_method),
       shipping_payment_method: toText(checkoutRaw.shipping_payment_method || req.body?.shipping_payment_method),
     };
+    // Branch, cashier and seller are unknowable to a public checkout, so they are only ever
+    // read off the authenticated till session — never off the body, which a shopper controls.
+    // The seller is the one exception: it is a choice the cashier makes on screen, so it
+    // arrives in the payload, bounded to numeric ids.
+    const staffAttribution = posOnlineOrder ? buildPosStaffAttribution(req, checkoutRaw) : null;
     receivedPayload = {
       tenant_id: tenantId,
       checkout: { ...checkout, email: checkout.email ? "[redacted]" : "" },
@@ -5532,6 +5577,9 @@ export const createWebsiteOrder = async (req, res) => {
       shipping_address_line: shippingAddressLine || checkout.detailed_address,
       shipping_status: "pending",
       shipment_status: "pending",
+      // Null for a real web order; insertReturning drops keys the table does not have, so a
+      // database that predates origin_surface still takes the insert.
+      ...(staffAttribution || {}),
     }, checkoutColumns.orders, { step: "create order" });
     order = await assignSequentialInvoiceNumber(client, order);
     order = attachPublicOrderNumber(order);
@@ -5814,6 +5862,14 @@ export const createWebsiteOrder = async (req, res) => {
   } finally {
     client.release();
   }
+};
+
+// The till raises a website order through this wrapper rather than POST /storefront/checkout:
+// the flag is what unlocks branch/cashier/seller attribution, and it can only be set behind
+// authentication — a shopper hitting the public checkout can never turn it on.
+export const createPosOnlineOrder = async (req, res) => {
+  req.posOnlineOrder = true;
+  return createWebsiteOrder(req, res);
 };
 
 const loadPublicOrder = async ({ tenantId, orderNumber: number, phone }) => {

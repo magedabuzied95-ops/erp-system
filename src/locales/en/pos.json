@@ -677,5 +677,78 @@
     "sendFailed": "Could not send the message",
     "testSound": "Test alert sound",
     "soundHint": "The alert rings even when the POS tab is in the background"
+  },
+  "onlineOrder": {
+    "modeLabel": "Invoice type",
+    "modeCounter": "Counter invoice",
+    "modeOnline": "Online order",
+    "blocked": {
+      "editing": "Not available while editing an invoice",
+      "exchange": "Not available in exchange mode",
+      "offline": "An online order needs an internet connection"
+    },
+    "checkoutLabel": "Shipping details",
+    "cartNotice": "Cash on delivery - nothing is collected at the till.",
+    "title": "Online order",
+    "subtitle": "The website flow: full address, shipping, and a WhatsApp confirmation",
+    "close": "Close",
+    "cancel": "Cancel",
+    "submit": "Create order and send confirmation",
+    "submitting": "Creating the order...",
+    "codNotice": "Cash on delivery. Nothing is collected at the till and the order stays out of the shift ledger.",
+    "sections": {
+      "customer": "Customer details",
+      "address": "Shipping address",
+      "summary": "Summary"
+    },
+    "fields": {
+      "fullName": "Full name",
+      "phone": "Mobile number",
+      "email": "Email",
+      "city": "City",
+      "cityPlaceholder": "Select a city",
+      "zone": "Zone",
+      "zonePlaceholder": "Select a zone",
+      "district": "District",
+      "districtPlaceholder": "Select a district",
+      "governorate": "Governorate",
+      "cityArea": "City / area",
+      "street": "Street",
+      "building": "Building number",
+      "floor": "Floor",
+      "apartment": "Apartment",
+      "detailedAddress": "Full address",
+      "landmark": "Landmark",
+      "deliveryNotes": "Notes for the courier"
+    },
+    "summary": {
+      "items": "Items",
+      "shipping": "Shipping",
+      "estimated": "Estimated total",
+      "repriceNotice": "Final prices are taken from the website prices when the order is saved."
+    },
+    "errors": {
+      "nameRequired": "Customer name is required",
+      "phoneRequired": "Mobile number is required",
+      "phoneInvalid": "Enter a valid Egyptian mobile number",
+      "cityRequired": "Select a city",
+      "zoneRequired": "Select a zone",
+      "districtRequired": "Select a district",
+      "streetRequired": "Street is required",
+      "buildingRequired": "Building number is required",
+      "governorateRequired": "Governorate is required",
+      "addressRequired": "Full address is required",
+      "addressTooShort": "The address is too short to ship to",
+      "emptyCart": "The cart is empty",
+      "failed": "Could not create the order"
+    },
+    "success": {
+      "title": "Order created",
+      "shipping": "Shipping",
+      "total": "Total due on delivery",
+      "repriced": "The total was priced from the website, so it differs from the till estimate",
+      "whatsapp": "The confirmation message is on its way to the customer on WhatsApp",
+      "done": "Done"
+    }
   }
 }

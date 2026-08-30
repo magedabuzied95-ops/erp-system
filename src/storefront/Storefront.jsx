@@ -18,6 +18,15 @@ import {
 import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
+import {
+  bostaCityPatch,
+  bostaDistrictPatch,
+  bostaZonePatch,
+  buildBostaPickerOptions,
+  matchBostaPickerOption,
+  normalizeCheckoutPickerText,
+  normalizeShippingQuote,
+} from "../shared/lib/shippingCheckout";
 import usePageTitle from "../shared/hooks/usePageTitle";
 import { safeSetSessionStorage } from "../utils/safeStorage";
 import { signalContentPainted } from "../shared/utils/contentPainted";
@@ -2185,104 +2194,6 @@ const uniqueCheckoutLocations = (locations, key, filter = () => true) => {
     return true;
   });
 };
-const normalizeCheckoutPickerText = (value = "") =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\u0625\u0623\u0622\u0627]/g, "\u0627")
-    .replace(/[\u0629]/g, "\u0647")
-    .replace(/[\u0649]/g, "\u064a")
-    .replace(/[\u064B-\u065F\u0670]/g, "")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-const buildBostaPickerOption = (item = {}, scope = "city", lang = "ar") => {
-  const nameAr = String(item.name_ar || item.governorate_name_ar || item.city_name_ar || item.area_name_ar || "").trim();
-  const nameEn = String(item.name_en || item.governorate_name_en || item.city_name_en || item.area_name_en || "").trim();
-  const label = normalizeLanguage(lang) === "ar" ? (nameAr || nameEn) : (nameEn || nameAr);
-  const secondary = [nameAr && nameAr !== label ? nameAr : "", nameEn && nameEn !== label ? nameEn : ""].filter(Boolean).join(" / ");
-  const id = String(item.id || item.value || item.districtId || item.zoneId || item.cityId || item.governorateId || "").trim();
-  const value = String(item.value || item.id || item.districtId || item.zoneId || item.cityId || item.governorateId || id || "").trim();
-  const districtId = String(item.districtId || item.district_id || item.provider_district_id || item.providerDistrictId || item.district || "").trim();
-  const name = label || id;
-  const searchText = normalizeCheckoutPickerText([
-    nameAr,
-    nameEn,
-    item.provider_city_id,
-    item.provider_zone_id,
-    item.provider_district_id,
-    item.code,
-    item.zone_code,
-    item.governorate_name_en,
-    item.governorate_name_ar,
-    item.name,
-    item.district,
-    item.district_name,
-    item.district_name_ar,
-    item.district_name_en,
-  ].filter(Boolean).join(" "));
-  return {
-    id,
-    value,
-    districtId,
-    name,
-    nameAr,
-    nameEn,
-    label: label || id,
-    secondary,
-    searchText,
-    scope,
-    raw: item,
-  };
-};
-const buildBostaPickerOptions = (items = [], scope = "city", lang = "ar") => items.map((item) => buildBostaPickerOption(item, scope, lang)).filter((option) => option.id || option.label);
-const matchBostaPickerOption = (options = [], source = {}) => {
-  const savedIds = [
-    source.shipping_district_id,
-    source.district_id,
-    source.bosta_district_id,
-    source.provider_district_id,
-    source.id,
-    source.value,
-  ].map((value) => String(value || "").trim()).filter(Boolean);
-  const savedNames = [
-    source.district,
-    source.district_name,
-    source.district_name_ar,
-    source.district_name_en,
-    source.area,
-    source.area_name,
-    source.area_name_ar,
-    source.area_name_en,
-    source.city_area,
-  ].map((value) => normalizeCheckoutPickerText(value)).filter(Boolean);
-  return options.find((option) => {
-    const optionIds = [
-      option.id,
-      option.value,
-      option.districtId,
-      option.raw?.district_id,
-      option.raw?.provider_district_id,
-      option.raw?.id,
-    ].map((value) => String(value || "").trim()).filter(Boolean);
-    if (savedIds.some((id) => optionIds.some((optionId) => String(optionId) === String(id)))) return true;
-    if (!savedNames.length) return false;
-    const optionNames = [
-      option.name,
-      option.nameAr,
-      option.nameEn,
-      option.label,
-      option.raw?.name,
-      option.raw?.name_ar,
-      option.raw?.name_en,
-      option.raw?.district,
-      option.raw?.district_name,
-      option.raw?.district_name_ar,
-      option.raw?.district_name_en,
-    ].map((value) => normalizeCheckoutPickerText(value)).filter(Boolean);
-    return savedNames.some((savedName) => optionNames.some((optionName) => optionName === savedName));
-  }) || null;
-};
 const DEFAULT_STOREFRONT_PAYMENT_SETTINGS = {
   instapay: {
     enabled: true,
@@ -2404,25 +2315,6 @@ const normalizeCheckoutPaymentMethod = (value) => {
   return "shipping_confirmation";
 };
 const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
-const normalizeShippingQuote = (quote = {}) => ({
-  loading: false,
-  price: Number.isFinite(Number(quote.price ?? quote.shipping_price)) ? Number(quote.price ?? quote.shipping_price) : 0,
-  cod_allowed: quote.cod_allowed !== false,
-  requires_shipping_proof: quote.requires_shipping_proof !== false,
-  estimated_delivery_text: String(quote.estimated_delivery_text || ""),
-  match_level: String(quote.match_level || ""),
-  provider: String(quote.provider || "manual"),
-  provider_id: String(quote.provider_id || quote.provider || "in_store_delivery"),
-  zone: quote.zone || null,
-  governorate_id: String(quote.governorate_id || quote.zone?.governorate_id || ""),
-  city_id: String(quote.city_id || quote.zone?.city_id || ""),
-  area_id: String(quote.area_id || quote.zone?.area_id || quote.zone?.district_id || ""),
-  district_id: String(quote.district_id || quote.zone?.district_id || quote.zone?.area_id || ""),
-  zone_id: String(quote.zone_id || quote.zone?.zone_id || ""),
-  free_shipping_threshold: Number.isFinite(Number(quote.free_shipping_threshold)) ? Number(quote.free_shipping_threshold) : 0,
-  original_price: Number.isFinite(Number(quote.original_price)) ? Number(quote.original_price) : 0,
-  free_shipping_applied: Boolean(quote.free_shipping_applied),
-});
 
 const CHECKOUT_ADDRESS_FIELDS = [
   "full_name",
@@ -7374,34 +7266,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       editedCheckoutFieldsRef.current.add("governorate");
       editedCheckoutFieldsRef.current.add("city_area");
     }
-    const selected = bostaLocations.cities.find((city) => {
-      const cityIds = [
-        city.id,
-        city.value,
-        city.city_id,
-        city.provider_city_id,
-        city.governorate_id,
-        city.provider_governorate_id,
-      ].map((item) => String(item || "").trim()).filter(Boolean);
-      return cityIds.some((item) => String(item) === String(value));
-    });
-    setForm((prev) => ({
-      ...prev,
-      governorate_id: selected?.provider_city_id || "",
-      governorate: selected?.name_ar || selected?.name_en || "",
-      city_id: selected?.provider_city_id || "",
-      city: selected?.name_ar || selected?.name_en || "",
-      city_area: selected?.name_ar || selected?.name_en || "",
-      shipping_city_id: selected?.id ? String(selected.id) : "",
-      zone_id: "",
-      zone: "",
-      shipping_zone_id: "",
-      area_id: "",
-      area: "",
-      district_id: "",
-      district: "",
-      shipping_district_id: "",
-    }));
+    setForm((prev) => ({ ...prev, ...bostaCityPatch(bostaLocations.cities, value) }));
     setErrors((prev) => ({ ...prev, governorate: "", city_area: "" }));
   }, [bostaLocations.cities]);
 
@@ -7409,28 +7274,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (options.markDirty !== false) {
       editedCheckoutFieldsRef.current.add("city_area");
     }
-    const selected = bostaLocations.zones.find((zone) => {
-      const zoneIds = [
-        zone.id,
-        zone.value,
-        zone.zoneId,
-        zone.provider_zone_id,
-        zone.provider_district_id,
-        zone.district_id,
-      ].map((item) => String(item || "").trim()).filter(Boolean);
-      return zoneIds.some((item) => String(item) === String(value));
-    });
-    setForm((prev) => ({
-      ...prev,
-      zone_id: selected?.provider_zone_id || "",
-      zone: selected?.name_ar || selected?.name_en || "",
-      shipping_zone_id: selected?.id ? String(selected.id) : "",
-      area_id: "",
-      area: "",
-      district_id: "",
-      district: "",
-      shipping_district_id: "",
-    }));
+    setForm((prev) => ({ ...prev, ...bostaZonePatch(bostaLocations.zones, value) }));
     setErrors((prev) => ({ ...prev, city_area: "" }));
   }, [bostaLocations.zones]);
 
@@ -7438,16 +7282,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     if (options.markDirty !== false) {
       editedCheckoutFieldsRef.current.add("city_area");
     }
-    const selected = matchBostaPickerOption(bostaDistrictOptions, { shipping_district_id: value, district_id: value, bosta_district_id: value });
-    setForm((prev) => ({
-      ...prev,
-      area_id: selected?.districtId || selected?.raw?.provider_district_id || selected?.raw?.district_id || selected?.id || "",
-      area: selected?.nameAr || selected?.nameEn || selected?.name || "",
-      district_id: selected?.districtId || selected?.raw?.provider_district_id || selected?.raw?.district_id || selected?.id || "",
-      district: selected?.nameAr || selected?.nameEn || selected?.name || "",
-      city_area: selected?.nameAr || selected?.nameEn || selected?.name || prev.city_area,
-      shipping_district_id: selected?.id ? String(selected.id) : String(value || ""),
-    }));
+    setForm((prev) => ({ ...prev, ...bostaDistrictPatch(bostaDistrictOptions, value, prev.city_area) }));
     setErrors((prev) => ({ ...prev, city_area: "" }));
   }, [bostaDistrictOptions]);
 
