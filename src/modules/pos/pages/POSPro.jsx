@@ -10,6 +10,7 @@ import {
   Camera,
   X,
   LogOut,
+  ChevronDown,
   ChevronRight,
   Loader2,
   MessageCircle,
@@ -37,6 +38,7 @@ import {
   User,
   Warehouse,
   ReceiptText,
+  Truck,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -8235,6 +8237,34 @@ function POSPro() {
               <span>{salePricesEnabled ? "ON" : "OFF"}</span>
             </button>
           ) : null}
+          {/* Invoice type, sitting with the shift control because that is where the cashier
+              was told to look for it. It first shipped here as a bare <select> and read as a
+              label — the border, the icon and the caret are what make it an obvious control. */}
+          <label
+            title={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : t("pos.onlineOrder.modeLabel")}
+            className={`pos-toolbar-action pos-action-invoice-mode relative inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-full border ps-3 pe-7 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition ${
+              isOnlineInvoiceMode
+                ? "border-sky-300/45 bg-sky-400/15 text-sky-50"
+                : "border-emerald-300/35 bg-emerald-400/10 text-emerald-50"
+            }`}
+          >
+            {isOnlineInvoiceMode ? <Truck className="h-4 w-4 shrink-0" /> : <ReceiptText className="h-4 w-4 shrink-0" />}
+            <select
+              value={invoiceMode}
+              onChange={(event) => setInvoiceMode(event.target.value)}
+              aria-label={t("pos.onlineOrder.modeLabel")}
+              className="cursor-pointer appearance-none border-0 bg-transparent text-xs font-black text-inherit outline-none"
+            >
+              <option value="counter" className="bg-zinc-900 text-zinc-100">{t("pos.onlineOrder.modeCounter")}</option>
+              {/* Left in the list while blocked, with the reason appended, so an editing or
+                  offline till says why instead of silently offering one choice. */}
+              <option value="online" disabled={Boolean(onlineInvoiceBlockedReason)} className="bg-zinc-900 text-zinc-100">
+                {t("pos.onlineOrder.modeOnline")}
+                {onlineInvoiceBlockedReason ? ` — ${t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`)}` : ""}
+              </option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute inset-y-0 end-2.5 my-auto h-3.5 w-3.5 opacity-70" />
+          </label>
           <button
             type="button"
             onClick={handleCloseShift}
@@ -8664,8 +8694,6 @@ function POSPro() {
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
             onlineMode={isOnlineInvoiceMode}
-            onInvoiceModeChange={setInvoiceMode}
-            onlineModeBlockedReason={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : ""}
             checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}
@@ -8817,8 +8845,6 @@ function POSPro() {
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
             onlineMode={isOnlineInvoiceMode}
-            onInvoiceModeChange={setInvoiceMode}
-            onlineModeBlockedReason={onlineInvoiceBlockedReason ? t(`pos.onlineOrder.blocked.${onlineInvoiceBlockedReason}`) : ""}
             checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}

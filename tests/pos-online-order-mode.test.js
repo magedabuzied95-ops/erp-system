@@ -131,22 +131,25 @@ test("online mode is locked out wherever it could not settle", () => {
   }
 });
 
-test("the invoice-type dropdown sits in the cart, where the cashier decides it", () => {
-  // It first shipped as a <select> in the top toolbar, where it read as a label and the shop
-  // owner could not find it at all. Same control, moved above the cart and given a field
-  // label, a caret and a coloured border so it reads as something you open.
-  assert.match(cartSource, /onChange=\{\(event\) => onInvoiceModeChange\(event\.target\.value\)\}/);
-  assert.match(cartSource, /value=\{onlineMode \? "online" : "counter"\}/);
-  assert.match(cartSource, /posLabel\("onlineOrder\.modeLabel", "Invoice type"\)/);
-  assert.match(cartSource, /<option value="counter"[\s\S]{0,120}posLabel\("onlineOrder\.modeCounter"/);
-  assert.match(cartSource, /<option value="online" disabled=\{Boolean\(onlineModeBlockedReason\)\}/);
-  // The caret is what tells a cashier this opens; without it the field is just a box.
-  assert.match(cartSource, /<ChevronDown className="pointer-events-none absolute inset-y-0 end-3/);
-  // Both cart instances — desktop column and mobile drawer — must be able to switch it.
-  assert.equal((posSource.match(/onInvoiceModeChange=\{setInvoiceMode\}/g) || []).length, 2);
-  // And the old toolbar control must not come back alongside it: two controls for one
-  // state is what made it ambiguous in the first place.
-  assert.doesNotMatch(posSource, /onChange=\{\(event\) => setInvoiceMode\(event\.target\.value\)\}/);
+test("the invoice-type dropdown sits in the toolbar beside the shift control", () => {
+  // Maged asked for it here, next to Close Shift. It shipped here once as a bare <select>
+  // and read as a label — he could not find it at all — so the border, the leading icon and
+  // the caret are load-bearing, not decoration. Losing them brings the original bug back.
+  const control = posSource.match(/\{\/\* Invoice type, sitting with the shift control[\s\S]*?<\/label>/);
+  assert.ok(control, "the invoice-type control must exist in the toolbar");
+  const markup = control[0];
+  assert.match(markup, /value=\{invoiceMode\}/);
+  assert.match(markup, /onChange=\{\(event\) => setInvoiceMode\(event\.target\.value\)\}/);
+  assert.match(markup, /aria-label=\{t\("pos\.onlineOrder\.modeLabel"\)\}/);
+  assert.match(markup, /<option value="counter"[\s\S]{0,120}pos\.onlineOrder\.modeCounter/);
+  assert.match(markup, /<option value="online" disabled=\{Boolean\(onlineInvoiceBlockedReason\)\}/);
+  assert.match(markup, /rounded-full border/, "a bare select reads as a label; keep the border");
+  assert.match(markup, /isOnlineInvoiceMode \? <Truck /, "the icon has to follow the mode");
+  assert.match(markup, /<ChevronDown className="pointer-events-none absolute/, "the caret is what says it opens");
+  // It must sit immediately before the shift button — that is the landmark he navigates by.
+  assert.match(posSource, /<\/label>\s*\n\s*<button\s*\n\s*type="button"\s*\n\s*onClick=\{handleCloseShift\}/);
+  // One control for one piece of state: the cart must not grow a second switch beside it.
+  assert.doesNotMatch(cartSource, /onInvoiceModeChange/);
 });
 
 test("the till collects nothing on an online order", () => {

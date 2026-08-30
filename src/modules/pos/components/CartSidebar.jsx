@@ -33,7 +33,6 @@ import {
   Smartphone,
   Star,
   Trash2,
-  Truck,
   User,
   UserPlus,
   Wallet,
@@ -390,8 +389,6 @@ function CartSidebar({
   // Online-order mode: the till collects nothing, so every payment control is replaced by a
   // cash-on-delivery statement and the collection checks stop applying.
   onlineMode = false,
-  onInvoiceModeChange,
-  onlineModeBlockedReason = "",
   checkoutLabel = "",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
@@ -661,39 +658,6 @@ function CartSidebar({
       />
 
       <div className="theme-card pos-cart-panel flex min-h-0 flex-1 flex-col overflow-hidden p-3 shadow-xl shadow-[var(--shadow)] xl:min-h-[13rem]">
-        {/* A dropdown, as asked for — but at the top of the cart rather than in the toolbar,
-            where the same control read as a label and went unfound. The border, the caret and
-            the field label are what make it read as something you can open. */}
-        {onInvoiceModeChange ? (
-          <label className="mb-2 block">
-            <span className="mb-1 block text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
-              {posLabel("onlineOrder.modeLabel", "Invoice type")}
-            </span>
-            <div className="relative">
-              <span className={`pointer-events-none absolute inset-y-0 start-3 flex items-center ${onlineMode ? "text-sky-200" : "text-emerald-200"}`}>
-                {onlineMode ? <Truck className="h-4 w-4" /> : <ReceiptText className="h-4 w-4" />}
-              </span>
-              <select
-                value={onlineMode ? "online" : "counter"}
-                onChange={(event) => onInvoiceModeChange(event.target.value)}
-                className={`h-11 w-full appearance-none rounded-xl border px-3 ps-9 pe-9 text-sm font-black outline-none transition ${
-                  onlineMode
-                    ? "border-sky-300/45 bg-sky-400/15 text-sky-50"
-                    : "border-emerald-300/35 bg-emerald-400/10 text-emerald-50"
-                }`}
-              >
-                <option value="counter" className="bg-zinc-900 text-zinc-100">{posLabel("onlineOrder.modeCounter", "Counter invoice")}</option>
-                {/* Kept selectable but inert while blocked, so the reason can be read rather
-                    than the option simply vanishing from the list. */}
-                <option value="online" disabled={Boolean(onlineModeBlockedReason)} className="bg-zinc-900 text-zinc-100">
-                  {posLabel("onlineOrder.modeOnline", "Online order")}
-                  {onlineModeBlockedReason ? ` — ${onlineModeBlockedReason}` : ""}
-                </option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute inset-y-0 end-3 my-auto h-4 w-4 text-zinc-400" />
-            </div>
-          </label>
-        ) : null}
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{posLabel("cart.invoice", "Invoice")}</div>
