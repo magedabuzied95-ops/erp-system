@@ -850,7 +850,10 @@
     --sf-purple-2: #d0a632;
     --sf-cream: #f3f3f1;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --mobile-bottom-nav-height: 62px;
+    /* 0: the storefront no longer renders a bottom nav. Everything that
+       reserved room for it — page padding, the buy bar, the chat launcher —
+       reads this one variable, so they all collapse together. */
+    --mobile-bottom-nav-height: 0px;
     --checkout-sticky-actions-height: 0px;
     --sf-floating-gap: 10px;
     --sf-mobile-buy-bar-bottom: calc(var(--mobile-bottom-nav-height, 64px) + var(--safe-bottom) + 1rem);
@@ -7651,5 +7654,16 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell .sf-search-viewall:disabled {
     opacity: 0.4;
+  }
+}
+
+/* "View all" sits under the grid, so it needs its own room and reads as the end
+   of the list rather than a label beside a heading. */
+@layer components {
+  .storefront-shell .sf-search-viewall--foot {
+    display: block;
+    width: 100%;
+    padding: 1rem 0 0.5rem;
+    text-align: center;
   }
 }

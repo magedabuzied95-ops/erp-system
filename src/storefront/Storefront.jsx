@@ -43,7 +43,6 @@ import {
   Footprints,
   Gem,
   Heart,
-  Home,
   ImagePlus,
   Loader2,
   Menu,
@@ -56,7 +55,6 @@ import {
   Mail,
   Headphones,
   CreditCard,
-  Grid2x2,
   PackageCheck,
   PackageSearch,
   Phone,
@@ -74,7 +72,6 @@ import {
   Truck,
   Upload,
   User,
-  UserRound,
   Users,
   X,
 } from "lucide-react";
@@ -118,19 +115,15 @@ import {
 import { buildHomeProductCard, useHomeReveal } from "./home/homeModel";
 import "./storefront-light.css";
 import {
-  isStorefrontCheckoutFlowPath,
   isStorefrontCheckoutPath,
   isStorefrontHomePath,
   isStorefrontOfferPath,
-  isStorefrontPath,
   isStorefrontProductPath,
   isStorefrontProductsPath,
   ROOT_PATHS,
-  normalizePathname,
   productPath,
   productsPath,
   resolveStorefrontPathname,
-  storefrontPath,
   storefrontPathFromLink,
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
@@ -4582,7 +4575,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   });
   // A signed-in customer must not be told to sign in; the phone is the only
   // identity the storefront keeps, so it stands in for a name.
-  // The inspiration grid loads the first time search is opened and never again.
+  // The inspiration grid loads only once search is opened.
   // The sheet is opt-in, so a shopper who never taps search never pays for it —
   // which is why this is a lazy fetch rather than the useProducts hook, whose
   // request would fire on every page of the storefront.
@@ -4591,7 +4584,6 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   const [searchInspirationOffset, setSearchInspirationOffset] = useState(0);
   const [searchInspirationHasMore, setSearchInspirationHasMore] = useState(false);
   const [searchInspirationLoading, setSearchInspirationLoading] = useState(false);
-  const searchInspirationRequestedRef = useRef(false);
 
   // "View all" grows the grid in place rather than navigating away, the way the
   // reference does it — leaving search to open a listing page throws away the
@@ -4600,10 +4592,10 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   // — page=2 comes back reporting page 1 with the same first product — while
   // offset genuinely moves the window. "skip" is ignored too. Verified against
   // the live API rather than assumed from the parameter names it accepts.
-  const loadInspirationBatch = useCallback((offset) => {
+  const loadInspirationBatch = useCallback((offset, audience) => {
     setSearchInspirationLoading(true);
     return cachedStorefrontGet(
-      buildStorefrontProductsRequestUrl({ limit: INSPIRATION_PAGE_SIZE, offset, in_stock: 1 }),
+      buildStorefrontProductsRequestUrl({ limit: INSPIRATION_PAGE_SIZE, offset, gender: audience || "", in_stock: 1 }),
       { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS }
     )
       .then((data) => {
@@ -4623,12 +4615,14 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       .finally(() => setSearchInspirationLoading(false));
   }, []);
 
+  // Refetches from the top whenever the audience tab changes, so the grid shows
+  // the audience that is selected rather than whatever loaded first. Repeat
+  // opens are free: cachedStorefrontGet answers the same URL from memory.
   useEffect(() => {
-    if ((!mobileSearchOpen && !searchOpen) || searchInspirationRequestedRef.current) return undefined;
-    searchInspirationRequestedRef.current = true;
-    loadInspirationBatch(0);
+    if (!mobileSearchOpen && !searchOpen) return undefined;
+    loadInspirationBatch(0, menuTab);
     return undefined;
-  }, [mobileSearchOpen, searchOpen, loadInspirationBatch]);
+  }, [mobileSearchOpen, searchOpen, menuTab, loadInspirationBatch]);
   const menuIsSignedIn = Boolean(String(customerAuth?.token || "").trim());
   const menuAccountTitle = menuIsSignedIn ? t("storefront.header.accountTitle") : t("storefront.header.signInTitle");
   const menuAccountSubtitle = menuIsSignedIn
@@ -5171,7 +5165,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               inspiration={searchInspiration}
               inspirationHasMore={searchInspirationHasMore}
               inspirationLoading={searchInspirationLoading}
-              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset)}
+              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset, menuTab)}
               audienceTabs={menuTabs}
               audienceTab={menuTab}
               onPickAudience={setMenuTab}
@@ -5217,7 +5211,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         inspiration={searchInspiration}
               inspirationHasMore={searchInspirationHasMore}
               inspirationLoading={searchInspirationLoading}
-              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset)}
+              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset, menuTab)}
         audienceTabs={menuTabs}
         audienceTab={menuTab}
         onPickAudience={setMenuTab}
@@ -5546,12 +5540,10 @@ function SearchQuickSections({
   loading,
   suggestions,
   imageSearch = null,
-  recentSearches = [],
   activeIndex,
   onPickTerm,
   onPickProduct,
   trendingSearches = [],
-  searchFallbackSections = {},
   inspiration = [],
   inspirationHasMore = false,
   inspirationLoading = false,
@@ -5707,16 +5699,6 @@ function SearchQuickSections({
             <div className="sf-search-section">
               <div className="sf-search-heading-row">
                 <span className="sf-search-heading">{t("storefront.search.inspirationTitle")}</span>
-                {inspirationHasMore ? (
-                  <button
-                    type="button"
-                    onClick={onLoadMoreInspiration}
-                    disabled={inspirationLoading}
-                    className="sf-search-viewall"
-                  >
-                    {inspirationLoading ? t("storefront.common.loading") : t("storefront.common.viewAll")}
-                  </button>
-                ) : null}
               </div>
               <div className="sf-search-grid">
                 {inspiration.map((product, index) => (
@@ -5738,6 +5720,18 @@ function SearchQuickSections({
                   </button>
                 ))}
               </div>
+              {/* Under the grid, not beside the heading — it is the end of the
+                  list, so it belongs where the list ends. */}
+              {inspirationHasMore ? (
+                <button
+                  type="button"
+                  onClick={onLoadMoreInspiration}
+                  disabled={inspirationLoading}
+                  className="sf-search-viewall sf-search-viewall--foot"
+                >
+                  {inspirationLoading ? t("storefront.common.loading") : t("storefront.common.viewAll")}
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -5745,38 +5739,6 @@ function SearchQuickSections({
     </div>
   );
 }
-
-function SearchChips({ title, items, onPick }) {
-  return (
-    <div>
-      <div className="mb-2 px-1 text-xs font-bold text-stone-500 dark:text-stone-400">{title}</div>
-      <div className="flex flex-wrap gap-2">
-        {[...new Set(items)].slice(0, 8).map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="sf-search-chip rounded-full border border-stone-200/80 bg-white/92 px-3.5 py-2 text-xs font-bold text-stone-700 shadow-[0_8px_18px_rgba(15,23,42,0.06)] transition hover:-translate-y-px hover:border-[var(--sf-purple)] hover:text-stone-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200 dark:shadow-[0_12px_24px_rgba(0,0,0,0.22)]">
-            {item}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SearchQuickCard({ title, items, onPick }) {
-  if (!items.length) return null;
-  return (
-    <div className="sf-search-quick-card rounded-[1.4rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-3.5 shadow-[0_18px_42px_rgba(0,0,0,0.28)]">
-      <div className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-white/55">{title}</div>
-      <div className="grid gap-1.5">
-        {items.map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="sf-search-quick-item rounded-[1rem] border border-white/[0.08] bg-[#101010] px-3 py-2 text-start text-xs font-bold text-white/82 transition hover:border-[#d0a632]/45 hover:bg-[#151515] hover:text-white">
-            {item}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function SearchResultRow({ product, active, onPickProduct }) {
   return (
     <button
@@ -9867,169 +9829,6 @@ function QuantityStepper({ quantity, onMinus, onPlus }) {
 }
 
 
-
-function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
-  const { i18n: storefrontI18n } = useTranslation();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
-  const path = location.pathname || "";
-  const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
-  const isRtl = currentLanguage === "ar";
-  const isDarkMode = themeMode === "dark";
-  const isCheckoutFlow = isStorefrontCheckoutFlowPath(path);
-  const isVisible = isStorefrontPath(path) && !isCheckoutFlow;
-  const saleHref = storefrontPath("/offers");
-  const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
-  const handleHomeClick = useCallback((event) => {
-    event.preventDefault();
-    if (!isStorefrontHomePath(path)) {
-      navigate(storefrontPath("/"));
-      requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
-      return;
-    }
-    scrollToTop();
-  }, [navigate, path, scrollToTop]);
-  const categoryLinks = [
-    { id: "men", label: isRtl ? "رجالي" : "Men", to: "/men", icon: Users },
-    { id: "women", label: isRtl ? "حريمي" : "Women", to: "/women", icon: Users },
-    { id: "kids", label: isRtl ? "أطفال" : "Kids", to: "/kids", icon: Baby },
-    { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/bags", icon: ShoppingBag },
-    { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/crocs", icon: Footprints },
-    { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/slippers", icon: SlidersHorizontal },
-  ];
-  const links = [
-    { id: "home", to: "/", label: isRtl ? "الرئيسية" : "Home", icon: Home },
-    { id: "categories", label: isRtl ? "الأقسام" : "Categories", icon: Grid2x2, action: "categories" },
-    { id: "sale", to: saleHref, label: isRtl ? "العروض" : "Offers", icon: Tag },
-    { id: "wishlist", to: "/wishlist", label: isRtl ? "المفضلة" : "Wishlist", icon: Heart },
-    { id: "account", to: "/account", label: isRtl ? "حسابي" : "Account", icon: UserRound },
-  ];
-  const isActive = (item) => {
-    if (item.id === "home") return isStorefrontHomePath(path);
-    if (item.id === "categories") return isStorefrontProductsPath(path) || categoriesOpen;
-    if (item.id === "sale") return isStorefrontOfferPath(path);
-    if (item.id === "wishlist") return normalizePathname(path) === "/wishlist";
-    if (item.id === "account") return normalizePathname(path) === "/account";
-    return false;
-  };
-
-  useEffect(() => {
-    if (!categoriesOpen || typeof document === "undefined") return undefined;
-    const { body } = document;
-    const previousOverflow = body.style.overflow;
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.overflow = previousOverflow;
-    };
-  }, [categoriesOpen]);
-
-  useEffect(() => {
-    if (categoriesOpen) setCategoriesOpen(false);
-  }, [location.pathname, location.search]);
-
-  if (!isVisible) return null;
-
-  const categoriesSheet = categoriesOpen && mobilePortalTarget ? createPortal(
-    <div className="sf-mobile-categories-sheet fixed inset-0 z-[120] md:hidden" data-theme={isDarkMode ? "dark" : "light"} dir={isRtl ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isRtl ? "الأقسام" : "Categories"}>
-      <button type="button" className="sf-mobile-categories-sheet__backdrop absolute inset-0" aria-label={isRtl ? "إغلاق الأقسام" : "Close categories"} onClick={() => setCategoriesOpen(false)} />
-      <div className="sf-mobile-categories-sheet__panel absolute inset-x-0 bottom-0 px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
-        <div className="sf-mobile-categories-sheet__header mx-auto flex max-w-[28rem] items-center justify-between gap-3">
-          <div>
-            <h3 className="sf-mobile-categories-sheet__title text-base font-black">{isRtl ? "تصفح الأقسام" : "Browse categories"}</h3>
-          </div>
-          <button type="button" onClick={() => setCategoriesOpen(false)} className="sf-mobile-categories-sheet__close grid h-10 w-10 place-items-center rounded-full transition active:scale-[0.98]">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="sf-mobile-categories-sheet__list mx-auto mt-3 grid max-w-[28rem] gap-2">
-          {categoryLinks.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.id}
-                to={item.to}
-                onClick={() => setCategoriesOpen(false)}
-                className="sf-mobile-categories-sheet__item flex items-center gap-3 rounded-[1rem] px-3 py-3.5 text-sm font-black transition active:scale-[0.99]"
-              >
-                <span className="sf-mobile-categories-sheet__icon grid h-9 w-9 shrink-0 place-items-center rounded-full">
-                  <Icon className="h-4.5 w-4.5" />
-                </span>
-                <span className="flex-1">{item.label}</span>
-                <ChevronLeft className="sf-mobile-categories-sheet__chevron h-4 w-4" />
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </div>,
-    mobilePortalTarget
-  ) : null;
-
-  return (
-    <>
-      {categoriesSheet}
-      <nav
-        dir={isRtl ? "rtl" : "ltr"}
-        className="sf-mobile-bottom-nav fixed left-1/2 z-[110] md:hidden"
-        style={{ bottom: "calc(8px + env(safe-area-inset-bottom))", width: "calc(100% - 24px)", maxWidth: "430px", transform: "translateX(-50%)" }}
-        data-theme={isDarkMode ? "dark" : "light"}
-        aria-label={sfText("storefront.nav.mobileNavigation")}
-      >
-        <div className="mx-auto">
-          <div className="sf-mobile-bottom-nav__surface flex items-center justify-evenly overflow-hidden rounded-[1.3rem] px-1">
-            {links.map((item) => {
-              const active = isActive(item);
-              const Icon = item.icon;
-              const baseClass = [
-                "sf-mobile-bottom-nav__item group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[0.95rem] px-0 text-[11px] leading-none transition duration-200 ease-out active:scale-[0.96]",
-                active ? "is-active" : "",
-              ].join(" ");
-              const content = (
-                <>
-                  <span className="sf-mobile-bottom-nav__icon grid h-6 w-6 place-items-center transition duration-200">
-                    <Icon className="sf-mobile-bottom-nav__svg h-[22px] w-[22px]" strokeWidth={1.9} aria-hidden="true" />
-                  </span>
-                  <span className="sf-mobile-bottom-nav__label w-full truncate text-center text-[11px] font-medium">{item.label}</span>
-                </>
-              );
-              if (item.action === "categories") {
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setCategoriesOpen(true)}
-                    aria-current={active ? "page" : undefined}
-                    aria-label={item.label}
-                    className={baseClass}
-                  >
-                    {content}
-                  </button>
-                );
-              }
-              return (
-                <Link
-                  key={item.id}
-                  to={item.to}
-                  aria-current={active ? "page" : undefined}
-                  aria-label={item.label}
-                  className={baseClass}
-                  onClick={item.id === "home" ? handleHomeClick : onHome}
-                >
-                  {content}
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </nav>
-    </>
-  );
-}
-
 function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
   if (dark) {
     return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)]" : "font-black text-white"}`}>{value}</span></div>;
@@ -10862,8 +10661,6 @@ function Storefront() {
       ),
     };
   }, [publicStoreSettings]);
-  const hideMobileBottomNav = isStorefrontCheckoutFlowPath(location.pathname || "");
-  const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !mobileMenuOpen;
   const isCheckoutPage = isStorefrontCheckoutPath(location.pathname || "");
   const isOfferStoryPage = isStorefrontOfferPath(location.pathname || "");
   const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage || isOfferStoryPage;
@@ -11086,9 +10883,11 @@ function Storefront() {
           <FaWhatsapp aria-hidden="true" />
         </a>
       ) : null}
-      {showMobileBottomNav && !isOfferStoryPage ? (
-        <MobileBottomNav cartCount={cartCount} quickActionLinks={quickActionLinks} publicStoreSettings={publicStoreSettings} themeMode={themeMode} />
-      ) : null}
+      {/* The bottom nav is gone: every destination it carried is now in the
+          header — menu, search, wishlist and bag — so it was a second navigation
+          competing with the first, and it covered a row of the page on every
+          screen. Its height variable is zeroed in the stylesheet so the padding
+          that reserved space for it collapses with it. */}
     </>
   );
 }

@@ -146,7 +146,7 @@ test("the search sheet is portalled out of the header", () => {
 test("the search empty state is trending pills and a grid, not stacked menus", () => {
   const emptyState = storefrontSource.slice(
     storefrontSource.indexOf("The empty state follows the reference"),
-    storefrontSource.indexOf("function SearchChips")
+    storefrontSource.indexOf("function SearchResultRow")
   );
   assert.ok(emptyState.length > 0, "the empty state must be findable");
   // Full class attributes, not bare names: each of these is a prefix of any
@@ -160,17 +160,39 @@ test("the search empty state is trending pills and a grid, not stacked menus", (
 
 test("the inspiration grid is fetched lazily, not on every page", () => {
   const effect = storefrontSource.slice(
-    storefrontSource.indexOf("The inspiration grid loads the first time"),
+    storefrontSource.indexOf("The inspiration grid loads only once search is opened"),
     storefrontSource.indexOf("const menuIsSignedIn")
   );
   assert.ok(effect.length > 0);
   // useProducts fires on mount, which would put a products request on every
   // page of the storefront for a panel most visitors never open.
   assert.doesNotMatch(effect, /useProducts\(/);
-  // The guard itself, not just a mention of the ref — the ref is also assigned
-  // inside the effect, so naming it proves nothing about the early return.
-  assert.match(effect, /\|\| searchInspirationRequestedRef\.current\) return/, "it must bail once it has run");
-  assert.match(effect, /mobileSearchOpen|searchOpen/, "and only once search is opened");
+  // Nothing loads until search is actually open. It reloads when the audience
+  // tab changes — that is deliberate, and free, because cachedStorefrontGet
+  // answers a repeated URL from memory.
+  assert.match(effect, /if \(!mobileSearchOpen && !searchOpen\) return/, "nothing loads until search is opened");
+  assert.match(effect, /menuTab/, "and it refetches when the audience tab changes");
+});
+
+test("the audience tab filters the grid", () => {
+  const effect = storefrontSource.slice(
+    storefrontSource.indexOf("The inspiration grid loads only once search is opened"),
+    storefrontSource.indexOf("const menuIsSignedIn")
+  );
+  // `gender` is the parameter this endpoint filters audiences on — verified
+  // against the live API: men 624, women 725, kids 496 of 1522.
+  assert.match(effect, /gender:/);
+  assert.match(effect, /loadInspirationBatch\(0, menuTab\)/, "changing tab restarts from the top");
+});
+
+test("the bottom nav is gone and its reserved space with it", () => {
+  // Every destination it carried is in the header now, so it was a second
+  // navigation competing with the first.
+  assert.doesNotMatch(storefrontSource, /<MobileBottomNav/);
+  assert.doesNotMatch(storefrontSource, /function MobileBottomNav/, "and the component itself, not just its usage");
+  // Page padding, the buy bar and the chat launcher all reserve room from this
+  // one variable; leaving it at 62px would leave a dead strip on every page.
+  assert.match(stylesheet, /--mobile-bottom-nav-height:\s*0px/);
 });
 
 test("the language control is a glyph that still names its language", () => {
@@ -188,7 +210,7 @@ test("the language control is a glyph that still names its language", () => {
 
 test("the inspiration grid pages with offset and grows in place", () => {
   const effect = storefrontSource.slice(
-    storefrontSource.indexOf("The inspiration grid loads the first time"),
+    storefrontSource.indexOf("The inspiration grid loads only once search is opened"),
     storefrontSource.indexOf("const menuIsSignedIn")
   );
   // The endpoint ACCEPTS `page` and ignores it — page=2 answers with page 1 and
@@ -209,7 +231,7 @@ test("the inspiration grid pages with offset and grows in place", () => {
   // site made "view all" fetch more and show none of it.
   const emptyState = storefrontSource.slice(
     storefrontSource.indexOf("The empty state follows the reference"),
-    storefrontSource.indexOf("function SearchChips")
+    storefrontSource.indexOf("function SearchResultRow")
   );
   assert.doesNotMatch(emptyState, /inspiration\.slice\(/);
   assert.match(emptyState, /onLoadMoreInspiration/, "view all loads more rather than navigating");
