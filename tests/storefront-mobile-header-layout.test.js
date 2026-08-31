@@ -185,3 +185,42 @@ test("the language control is a glyph that still names its language", () => {
   assert.match(languageButton, /<Languages\b/);
   assert.doesNotMatch(languageButton.slice(0, languageButton.indexOf("</button>")), /\{languageLabel\}\s*\n\s*<\/button>/);
 });
+
+test("the inspiration grid pages with offset and grows in place", () => {
+  const effect = storefrontSource.slice(
+    storefrontSource.indexOf("The inspiration grid loads the first time"),
+    storefrontSource.indexOf("const menuIsSignedIn")
+  );
+  // The endpoint ACCEPTS `page` and ignores it — page=2 answers with page 1 and
+  // the same first product — so paging by page silently appends duplicates or
+  // nothing at all. Only `offset` moves the window; `skip` is ignored too.
+  // The params object itself, not the prose around it: the comment above the
+  // fetch names `page` and `skip` to explain why neither is used, and matching
+  // loose words passes on `{ page: offset }` — which is the exact bug.
+  const params = effect.slice(
+    effect.indexOf("buildStorefrontProductsRequestUrl({"),
+    effect.indexOf("}", effect.indexOf("buildStorefrontProductsRequestUrl({"))
+  );
+  assert.match(params, /\boffset\b/);
+  assert.doesNotMatch(params, /\bpage\b/);
+  assert.doesNotMatch(params, /\bskip\b/);
+
+  // And the grid must render everything it has loaded; a slice at the render
+  // site made "view all" fetch more and show none of it.
+  const emptyState = storefrontSource.slice(
+    storefrontSource.indexOf("The empty state follows the reference"),
+    storefrontSource.indexOf("function SearchChips")
+  );
+  assert.doesNotMatch(emptyState, /inspiration\.slice\(/);
+  assert.match(emptyState, /onLoadMoreInspiration/, "view all loads more rather than navigating");
+  assert.doesNotMatch(emptyState, /<Link to="\/products"/, "it must not leave the sheet");
+});
+
+test("the inspiration tile matches OUR photography, not the reference's numbers", () => {
+  const rule = stylesheet.slice(stylesheet.indexOf(".storefront-shell .sf-search-tile {"));
+  // Our product shots are square (1254x1254). The reference sizes its tiles 5:7
+  // because its shots are portrait; copying that number left ~29% of every tile
+  // as empty letterbox bands above and below the shoe.
+  assert.match(rule.slice(0, 300), /aspect-ratio:\s*1\s*\/\s*1/);
+  assert.doesNotMatch(rule.slice(0, 300), /aspect-ratio:\s*5\s*\/\s*7/);
+});

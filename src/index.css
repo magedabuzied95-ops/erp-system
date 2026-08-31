@@ -7609,19 +7609,18 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     gap: 1px;
   }
 
-  /* 5:7, not square. Product shots are portrait and a square box crops the
-     shoe; the reference sizes its tiles 150x210. */
+  /* Square, because OUR product photography is square (1254x1254). The
+     reference sizes its tiles 5:7 and that works there because its shots are
+     portrait; copying the number rather than the intent left ~29% of every tile
+     as empty letterbox bands above and below the shoe. The intent is: whole
+     product, no crop, no dead space — which for a square photo is a square box. */
   .storefront-shell .sf-search-tile {
     position: relative;
-    aspect-ratio: 5 / 7;
+    aspect-ratio: 1 / 1;
     border: 0;
     padding: 0;
-    background: #f4f4f5;
+    background: #ffffff;
     overflow: hidden;
-  }
-
-  .storefront-shell.storefront-dark .sf-search-tile {
-    background: #16161a;
   }
 
   .storefront-shell .sf-search-tile > img {
@@ -7639,5 +7638,18 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .storefront-shell .sf-search-pill-row {
     min-width: 0;
     max-width: 100%;
+  }
+}
+
+/* "View all" is a button now, not a link — it grows the grid in place. */
+@layer components {
+  .storefront-shell .sf-search-viewall {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .storefront-shell .sf-search-viewall:disabled {
+    opacity: 0.4;
   }
 }

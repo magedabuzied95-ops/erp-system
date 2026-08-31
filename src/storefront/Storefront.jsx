@@ -4586,27 +4586,49 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   // The sheet is opt-in, so a shopper who never taps search never pays for it —
   // which is why this is a lazy fetch rather than the useProducts hook, whose
   // request would fire on every page of the storefront.
+  const INSPIRATION_PAGE_SIZE = 9;
   const [searchInspiration, setSearchInspiration] = useState([]);
+  const [searchInspirationOffset, setSearchInspirationOffset] = useState(0);
+  const [searchInspirationHasMore, setSearchInspirationHasMore] = useState(false);
+  const [searchInspirationLoading, setSearchInspirationLoading] = useState(false);
   const searchInspirationRequestedRef = useRef(false);
-  useEffect(() => {
-    if ((!mobileSearchOpen && !searchOpen) || searchInspirationRequestedRef.current) return undefined;
-    searchInspirationRequestedRef.current = true;
-    let cancelled = false;
-    cachedStorefrontGet(buildStorefrontProductsRequestUrl({ limit: 9, in_stock: 1 }), {
-      ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS,
-    })
+
+  // "View all" grows the grid in place rather than navigating away, the way the
+  // reference does it — leaving search to open a listing page throws away the
+  // query the shopper is in the middle of typing.
+  // "offset", not "page": this endpoint accepts a page parameter and ignores it
+  // — page=2 comes back reporting page 1 with the same first product — while
+  // offset genuinely moves the window. "skip" is ignored too. Verified against
+  // the live API rather than assumed from the parameter names it accepts.
+  const loadInspirationBatch = useCallback((offset) => {
+    setSearchInspirationLoading(true);
+    return cachedStorefrontGet(
+      buildStorefrontProductsRequestUrl({ limit: INSPIRATION_PAGE_SIZE, offset, in_stock: 1 }),
+      { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS }
+    )
       .then((data) => {
-        if (cancelled) return;
-        setSearchInspiration(extractStorefrontProductsFromResponse(data).slice(0, 9));
+        const products = extractStorefrontProductsFromResponse(data);
+        setSearchInspiration((current) => (offset <= 0 ? products : [...current, ...products]));
+        const reported = data?.hasMore ?? data?.has_more;
+        setSearchInspirationHasMore(
+          reported === undefined ? products.length >= INSPIRATION_PAGE_SIZE : Boolean(reported)
+        );
+        setSearchInspirationOffset(offset + products.length);
       })
       .catch(() => {
         // A grid of pictures is decoration around the search field; if it cannot
         // load, the field still works and the section simply does not render.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [mobileSearchOpen, searchOpen]);
+        setSearchInspirationHasMore(false);
+      })
+      .finally(() => setSearchInspirationLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if ((!mobileSearchOpen && !searchOpen) || searchInspirationRequestedRef.current) return undefined;
+    searchInspirationRequestedRef.current = true;
+    loadInspirationBatch(0);
+    return undefined;
+  }, [mobileSearchOpen, searchOpen, loadInspirationBatch]);
   const menuIsSignedIn = Boolean(String(customerAuth?.token || "").trim());
   const menuAccountTitle = menuIsSignedIn ? t("storefront.header.accountTitle") : t("storefront.header.signInTitle");
   const menuAccountSubtitle = menuIsSignedIn
@@ -5147,6 +5169,9 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
             {/* Same empty state as the phone sheet — one search system, not two. */}
             <PremiumSearch
               inspiration={searchInspiration}
+              inspirationHasMore={searchInspirationHasMore}
+              inspirationLoading={searchInspirationLoading}
+              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset)}
               audienceTabs={menuTabs}
               audienceTab={menuTab}
               onPickAudience={setMenuTab}
@@ -5190,6 +5215,9 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         <PremiumSearch
         mobileOnly
         inspiration={searchInspiration}
+              inspirationHasMore={searchInspirationHasMore}
+              inspirationLoading={searchInspirationLoading}
+              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset)}
         audienceTabs={menuTabs}
         audienceTab={menuTab}
         onPickAudience={setMenuTab}
@@ -5371,6 +5399,9 @@ function PremiumSearch({
   className = "",
   mobileOnly = false,
   inspiration = [],
+  inspirationHasMore = false,
+  inspirationLoading = false,
+  onLoadMoreInspiration = () => {},
   audienceTabs = [],
   audienceTab = "",
   onPickAudience = () => {},
@@ -5467,10 +5498,12 @@ function PremiumSearch({
         trendingSearches={trendingSearches}
         searchFallbackSections={searchFallbackSections}
         inspiration={inspiration}
+        inspirationHasMore={inspirationHasMore}
+        inspirationLoading={inspirationLoading}
+        onLoadMoreInspiration={onLoadMoreInspiration}
         audienceTabs={audienceTabs}
         audienceTab={audienceTab}
         onPickAudience={onPickAudience}
-        onCloseSheet={onClose}
         onShareImageOnWhatsApp={onShareImageOnWhatsApp}
         onRequestVisualSearchSupply={onRequestVisualSearchSupply}
         onClearImageSearch={onClearImageSearch}
@@ -5520,10 +5553,12 @@ function SearchQuickSections({
   trendingSearches = [],
   searchFallbackSections = {},
   inspiration = [],
+  inspirationHasMore = false,
+  inspirationLoading = false,
+  onLoadMoreInspiration = () => {},
   audienceTabs = [],
   audienceTab = "",
   onPickAudience = () => {},
-  onCloseSheet = () => {},
   onShareImageOnWhatsApp = () => {},
   onRequestVisualSearchSupply = () => {},
   onClearImageSearch = () => {},
@@ -5672,12 +5707,19 @@ function SearchQuickSections({
             <div className="sf-search-section">
               <div className="sf-search-heading-row">
                 <span className="sf-search-heading">{t("storefront.search.inspirationTitle")}</span>
-                <Link to="/products" onClick={onCloseSheet} className="sf-search-viewall">
-                  {t("storefront.common.viewAll")}
-                </Link>
+                {inspirationHasMore ? (
+                  <button
+                    type="button"
+                    onClick={onLoadMoreInspiration}
+                    disabled={inspirationLoading}
+                    className="sf-search-viewall"
+                  >
+                    {inspirationLoading ? t("storefront.common.loading") : t("storefront.common.viewAll")}
+                  </button>
+                ) : null}
               </div>
               <div className="sf-search-grid">
-                {inspiration.slice(0, 9).map((product, index) => (
+                {inspiration.map((product, index) => (
                   <button
                     // Colour cards share their parent product id, so the id alone
                     // collides; the position disambiguates a fixed, ordered list.
