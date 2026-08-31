@@ -7409,49 +7409,126 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 }
 
-/* The mobile search sheet is dark in BOTH themes (its background is a
-   hard-coded #050505 wash), so its ink has to stay light. Without this the
-   close control vanishes: `html[data-theme] .text-white` is an unlayered
-   !important that repaints every `text-white` as the app's --text, which the
-   ERP theme leaves on #1b1915 — a near-black X on a near-black button. Layered
-   so it can outrank that rule; unlayered !important cannot. */
+/* ============================================================================
+   SEARCH SHEET — a plain page, the way the reference does it
+   ----------------------------------------------------------------------------
+   Measured off levelshoes.com at 375px: the sheet is the page colour with no
+   scrim, the field is a bare line (transparent, `border: 0`, 16px) rather than
+   a bordered pill, and the panel around it has no card chrome of its own.
+   ========================================================================== */
 @layer components {
-  /* The sheet keeps a dark surface in BOTH themes. The light-theme rules for
-     `.sf-mobile-search-panel` were written when search lived inside the menu
-     drawer and sat on a light panel; out here they leave dark cards carrying
-     dark ink. Restoring the dark treatment inside the sheet is one rule set —
-     re-lighting every card, chip and label would be a dozen. */
+  .storefront-shell .sf-mobile-search-sheet {
+    background: #ffffff !important;
+    color: #161515 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding-inline: 0 !important;
+  }
+
+  .storefront-shell.storefront-dark .sf-mobile-search-sheet {
+    background: #0a0a0a !important;
+    color: #f5f5f4 !important;
+  }
+
+  /* The panel is the whole surface here, so its card chrome only costs width;
+     the reference runs its grid edge to edge. */
   .storefront-shell .sf-mobile-search-sheet .sf-mobile-search-panel {
-    background:
-      radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.05), transparent 60%),
-      linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
-    color: #f8fafc !important;
+    background: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding-inline: 0 !important;
+    color: inherit !important;
   }
 
-  /* Muted first, solid second: the opacity variants are the section labels and
-     have to stay quieter than the items under them. */
-  .storefront-shell .sf-mobile-search-sheet [class*="text-white/"] {
-    color: rgba(248, 250, 252, 0.68) !important;
-  }
-
+  /* `html[data-theme] .text-white` is an unlayered !important that repaints
+     every `text-white` as the app's --text. Inside this sheet the ink follows
+     the sheet, not the ERP palette — otherwise the close control is a near-black
+     glyph on a near-black button in one theme and invisible in the other. */
   .storefront-shell .sf-mobile-search-sheet .text-white,
+  .storefront-shell .sf-mobile-search-sheet [class*="text-white/"],
   .storefront-shell .sf-mobile-search-sheet .text-stone-50,
-  .storefront-shell .sf-mobile-search-sheet .text-stone-100 {
-    color: #f8fafc !important;
+  .storefront-shell .sf-mobile-search-sheet .text-stone-100,
+  .storefront-shell .sf-mobile-search-sheet .text-stone-950 {
+    color: inherit !important;
+  }
+
+  /* A bare line, not a pill: no border, no fill, no ring, 16px like theirs. */
+  .storefront-shell .sf-mobile-search-sheet .sf-search-input-shell {
+    background: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .storefront-shell .sf-mobile-search-sheet .sf-search-input-shell > .pointer-events-none.absolute.inset-0 {
+    display: none !important;
+  }
+
+  .storefront-shell .sf-mobile-search-sheet .sf-search-input {
+    height: 40px !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    color: inherit !important;
+  }
+
+  /* The voice and image controls stay — they are real features here, not
+     decoration — but as plain glyphs rather than filled chips. */
+  .storefront-shell .sf-mobile-search-sheet .sf-search-tool-button {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: inherit !important;
+    opacity: 0.55;
+  }
+}
+
+
+
+
+
+/* A flex/grid item defaults to `min-width: auto`, so the sideways-scrolling
+   pill row sized its parents to its own content and pushed the whole empty
+   state to 624px on a 375px screen. Clamping the chain is what keeps
+   `overflow-x` on the row from becoming overflow on the page. */
+@layer components {
+  .storefront-shell .sf-search-empty,
+  .storefront-shell .sf-search-empty > *,
+  .storefront-shell .sf-search-pill-row {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 
 /* ============================================================================
-   SEARCH SHEET — empty state, modelled on the reference
+   SEARCH SHEET — empty state, measured off the reference
    ----------------------------------------------------------------------------
-   Audience tabs, then what people are searching for as one scrollable row of
-   pills, then a grid of things to look at. Scoped to the sheet, which is a dark
-   surface in both themes.
+   levelshoes.com at 375px: headings 16px/600, "view all" 12px/600 in grey,
+   pills 13px in a 36px capsule with a hairline border, and a 3-column grid of
+   5:7 portrait tiles. Colours come from the sheet via `inherit`/`currentColor`
+   so the same rules serve both themes.
    ========================================================================== */
 @layer components {
+  /* The reference gives its text sections a 16px gutter and lets ONLY the grid
+     run to the edges, so the two cannot share a padding on the sheet. */
+  .storefront-shell .sf-search-tabs,
+  .storefront-shell .sf-search-section {
+    padding-inline: 1rem;
+  }
+
+  /* …and the grid steps back out of it, because the reference runs its tiles
+     to both edges while its headings sit in the gutter. */
+  .storefront-shell .sf-search-section .sf-search-grid {
+    margin-inline: -1rem;
+  }
+
   .storefront-shell .sf-search-tabs {
     display: flex;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid currentColor;
+    border-bottom-color: color-mix(in srgb, currentColor 14%, transparent);
   }
 
   .storefront-shell .sf-search-tab {
@@ -7461,22 +7538,23 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     border-bottom: 2.4px solid transparent;
     margin-bottom: -1px;
     background: transparent;
-    color: rgba(248, 250, 252, 0.72);
+    color: inherit;
+    opacity: 0.62;
     font-size: 15px;
     font-weight: 400;
     text-align: center;
   }
 
   .storefront-shell .sf-search-tab.is-active {
-    color: #f8fafc;
+    opacity: 1;
     font-weight: 600;
     border-bottom-color: currentColor;
   }
 
   .storefront-shell .sf-search-heading {
-    font-size: 13px;
-    font-weight: 700;
-    color: #f8fafc;
+    font-size: 16px;
+    font-weight: 600;
+    color: inherit;
   }
 
   .storefront-shell .sf-search-heading-row {
@@ -7489,8 +7567,9 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell .sf-search-viewall {
     font-size: 12px;
-    font-weight: 500;
-    color: rgba(248, 250, 252, 0.72);
+    font-weight: 600;
+    color: inherit;
+    opacity: 0.62;
     text-decoration: underline;
     text-underline-offset: 3px;
   }
@@ -7512,11 +7591,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   .storefront-shell .sf-search-pill {
     flex: 0 0 auto;
-    padding: 0.5rem 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    height: 36px;
+    padding: 0 12px;
+    border: 0.8px solid currentColor;
+    border-color: color-mix(in srgb, currentColor 22%, transparent);
     border-radius: 999px;
     background: transparent;
-    color: #f8fafc;
+    color: inherit;
     font-size: 13px;
     font-weight: 400;
     white-space: nowrap;
@@ -7525,50 +7606,34 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .storefront-shell .sf-search-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 2px;
+    gap: 1px;
   }
 
+  /* 5:7, not square. Product shots are portrait and a square box crops the
+     shoe; the reference sizes its tiles 150x210. */
   .storefront-shell .sf-search-tile {
     position: relative;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 5 / 7;
     border: 0;
     padding: 0;
     background: #f4f4f5;
     overflow: hidden;
   }
 
+  .storefront-shell.storefront-dark .sf-search-tile {
+    background: #16161a;
+  }
+
   .storefront-shell .sf-search-tile > img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
   }
-}
 
-/* Inside the sheet the panel is the whole surface, so its card chrome — the
-   rounded frame, the border and the side padding — only cost width. The
-   reference runs its grid edge to edge. */
-@layer components {
-  .storefront-shell .sf-mobile-search-sheet .sf-mobile-search-panel {
-    border-radius: 0 !important;
-    border: 0 !important;
-    padding-inline: 0 !important;
-    box-shadow: none !important;
-  }
-
-  .storefront-shell .sf-mobile-search-sheet .sf-search-tabs,
-  .storefront-shell .sf-mobile-search-sheet .sf-search-heading-row,
-  .storefront-shell .sf-mobile-search-sheet .sf-search-heading,
-  .storefront-shell .sf-mobile-search-sheet .sf-search-pill-row {
-    padding-inline: 0.25rem;
-  }
-}
-
-/* A flex/grid item defaults to `min-width: auto`, so the sideways-scrolling
-   pill row sized its parents to its own content and pushed the whole empty
-   state to 624px on a 375px screen. Clamping the chain is what keeps
-   `overflow-x` on the row from becoming overflow on the page. */
-@layer components {
+  /* A flex/grid item defaults to `min-width: auto`, so the sideways-scrolling
+     pill row sized its parents to its own content and pushed the whole empty
+     state to 624px on a 375px screen. */
   .storefront-shell .sf-search-empty,
   .storefront-shell .sf-search-empty > *,
   .storefront-shell .sf-search-pill-row {

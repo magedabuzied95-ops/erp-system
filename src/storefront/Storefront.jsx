@@ -5656,7 +5656,7 @@ function SearchQuickSections({
           ) : null}
 
           {trendingSearches.length ? (
-            <div>
+            <div className="sf-search-section">
               <div className="sf-search-heading">{t("storefront.search.trendingTitle")}</div>
               <div className="sf-search-pill-row">
                 {[...new Set(trendingSearches)].slice(0, 10).map((term) => (
@@ -5669,7 +5669,7 @@ function SearchQuickSections({
           ) : null}
 
           {inspiration.length ? (
-            <div>
+            <div className="sf-search-section">
               <div className="sf-search-heading-row">
                 <span className="sf-search-heading">{t("storefront.search.inspirationTitle")}</span>
                 <Link to="/products" onClick={onCloseSheet} className="sf-search-viewall">
