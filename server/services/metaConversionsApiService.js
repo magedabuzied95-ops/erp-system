@@ -6,6 +6,7 @@ import {
   normalizeMetaEgyptPhone,
   normalizeMetaText,
 } from "../../shared/metaEventMatching.js";
+import { metaEventContents, metaMoneyValue, metaValueFields } from "../../shared/metaEventValue.js";
 import { resolveTrustedClientIp } from "../utils/trustedClientIp.js";
 
 const GRAPH_API_VERSION = "v25.0";
@@ -13,17 +14,7 @@ const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 const DEFAULT_META_DATASET_ID = "2459469681170451";
 
 const text = (value = "") => String(value ?? "").trim();
-const normalizeNumericText = (value = "") =>
-  text(value)
-    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
-    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
-    .replace(/[,\u066C\s]/g, "")
-    .replace(/\u066B/g, ".")
-    .replace(/[^\d.-]/g, "");
-const numberValue = (value = 0) => {
-  const parsed = Number(typeof value === "number" ? value : normalizeNumericText(value));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-};
+const numberValue = metaMoneyValue;
 
 export const sha256MetaValue = (value = "") => {
   const normalized = text(value);
@@ -143,6 +134,7 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
   const metaEventId = text(event.event_id);
   const contentIds = Array.isArray(event.content_ids) ? event.content_ids.map(text).filter(Boolean) : [];
   const eventValue = numberValue(event.value);
+  const eventContents = metaEventContents(event.contents);
   if (!tokens.length || !pixelOrDatasetId || !eventName || !metaEventId || !contentIds.length) {
     return { sent: false, reason: "missing_config_or_content_ids" };
   }
@@ -165,10 +157,9 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
           content_type: "product",
           content_ids: contentIds,
           ...(text(event.content_name) ? { content_name: text(event.content_name) } : {}),
-          ...(Array.isArray(event.contents) && event.contents.length ? { contents: event.contents } : {}),
+          ...(eventContents.length ? { contents: eventContents } : {}),
           ...(numberValue(event.num_items) ? { num_items: Math.floor(numberValue(event.num_items)) } : {}),
-          currency: text(event.currency) || "EGP",
-          value: eventValue,
+          ...metaValueFields({ value: eventValue, currency: event.currency }),
         },
       },
     ],

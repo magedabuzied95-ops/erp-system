@@ -1,18 +1,16 @@
 import { normalizeMetaCustomer } from "../../../shared/metaEventMatching.js";
+import {
+  firstMetaMoneyValue,
+  metaEventContents,
+  metaMoneyValue,
+  metaQuantityValue,
+  metaValueFields,
+} from "../../../shared/metaEventValue.js";
+import { storefrontSellingPrice } from "../../shared/lib/storefrontPricing.js";
 
 const text = (value = "") => String(value ?? "").trim();
-const normalizeNumericText = (value = "") =>
-  text(value)
-    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
-    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
-    .replace(/[,\u066C\s]/g, "")
-    .replace(/\u066B/g, ".")
-    .replace(/[^\d.-]/g, "");
-const numberValue = (value = 0) => {
-  const parsed = Number(typeof value === "number" ? value : normalizeNumericText(value));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-};
-const quantityValue = (value = 1) => Math.max(1, Math.floor(Number(value || 1) || 1));
+const numberValue = metaMoneyValue;
+const quantityValue = metaQuantityValue;
 
 export const createMetaEventOnceGuard = () => {
   const seen = new Set();
@@ -32,21 +30,56 @@ export const metaCatalogContentId = (product = {}, variant = {}) => {
   return productId && variantId ? `${productId}-${variantId}` : productId;
 };
 
-export const metaCurrentSellingPrice = ({ product = {}, variant = {}, line = null, value = null } = {}) =>
-  numberValue(value ?? line?.price ?? line?.unit_price ?? line?.selling_price ?? variant.display_price ?? variant.final_price ?? variant.selling_price ?? variant.price ?? product.display_price ?? product.final_price ?? product.selling_price ?? product.price);
+/*
+ * The price the customer is looking at, and never a zero standing in for one.
+ *
+ * The caller passes the price it already displayed, but a lean catalogue
+ * projection can hand the page a row with no price field at all — the display
+ * then resolves to 0 and used to be forwarded to Meta as `value: 0`, which is
+ * exactly what Events Manager flags. So the walk takes the first candidate that
+ * is a real price instead of stopping at the first one that merely exists, and
+ * falls back to the canonical selling-price ladder the rest of the storefront
+ * prices against.
+ */
+export const metaCurrentSellingPrice = ({ product = {}, variant = {}, line = null, value = null } = {}) => {
+  const quoted = firstMetaMoneyValue(
+    value,
+    line?.price,
+    line?.unit_price,
+    line?.selling_price,
+    line?.current_selling_price,
+  );
+  if (quoted > 0) return quoted;
+  const lineTotal = firstMetaMoneyValue(line?.total_amount, line?.line_total, line?.total);
+  if (lineTotal > 0) return lineTotal / quantityValue(line?.quantity ?? line?.qty);
+  return firstMetaMoneyValue(
+    variant?.display_price,
+    variant?.final_price,
+    variant?.current_selling_price,
+    variant?.selling_price,
+    variant?.price,
+    product?.display_price,
+    product?.final_price,
+    storefrontSellingPrice(product || {}, variant || {}),
+    variant?.sale_price,
+    variant?.offer_price,
+    product?.sale_price,
+    product?.offer_price,
+  );
+};
 
 export const buildMetaEventPayload = ({ contentIds = [], contents = [], contentName = "", value = 0, numItems = 0, eventId = "", customer = {} } = {}) => {
   const ids = [...new Set((Array.isArray(contentIds) ? contentIds : []).map(text).filter(Boolean))];
   if (!ids.length) return null;
   const normalizedCustomer = normalizeMetaCustomer(customer);
+  const lines = metaEventContents(contents);
   return {
     content_type: "product",
     content_ids: ids,
     ...(text(contentName) ? { content_name: text(contentName) } : {}),
-    ...(Array.isArray(contents) && contents.length ? { contents } : {}),
+    ...(lines.length ? { contents: lines } : {}),
     ...(numberValue(numItems) ? { num_items: Math.floor(numberValue(numItems)) } : {}),
-    currency: "EGP",
-    value: numberValue(value),
+    ...metaValueFields({ value, currency: "EGP" }),
     event_id: text(eventId),
     ...(normalizedCustomer.email ? { email: normalizedCustomer.email } : {}),
     ...(normalizedCustomer.phone ? { phone: normalizedCustomer.phone } : {}),
@@ -70,7 +103,12 @@ export const metaLineContent = (item = {}) => {
   const variant = item.variant || item.selected_variant || item;
   const id = metaCatalogContentId(product, variant);
   if (!id) return null;
-  return { id, quantity: quantityValue(item.quantity || item.qty), item_price: metaCurrentSellingPrice({ product, variant, line: item }) };
+  const itemPrice = metaCurrentSellingPrice({ product, variant, line: item });
+  return {
+    id,
+    quantity: quantityValue(item.quantity || item.qty),
+    ...(itemPrice > 0 ? { item_price: itemPrice } : {}),
+  };
 };
 
 export const metaPurchaseValue = ({ value = 0, items = [] } = {}) => {
