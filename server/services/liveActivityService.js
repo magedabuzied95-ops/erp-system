@@ -32,8 +32,8 @@ export const ensureWebsiteSettingsSchema = async (clientOrPool = db) => {
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL UNIQUE,
       settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
     await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_website_settings_tenant ON website_settings (tenant_id)`);

@@ -34,8 +34,8 @@ const ensureManufacturersTable = async () => {
       country VARCHAR(100),
       notes TEXT,
       is_active BOOLEAN DEFAULT true,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -48,8 +48,8 @@ const ensureManufacturersTable = async () => {
       ADD COLUMN IF NOT EXISTS country VARCHAR(100),
       ADD COLUMN IF NOT EXISTS notes TEXT,
       ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
-      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   `);
 
 };

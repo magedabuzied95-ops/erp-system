@@ -262,8 +262,8 @@ https://share.google/1e0cM7JVmxyLTpWVe',
           public_reply_rotation_enabled BOOLEAN NOT NULL DEFAULT TRUE,
           public_reply_openers JSONB NOT NULL DEFAULT '[]'::jsonb,
           private_message_template TEXT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await client.query(`
@@ -286,8 +286,8 @@ https://share.google/1e0cM7JVmxyLTpWVe',
           ADD COLUMN IF NOT EXISTS public_reply_openers JSONB NOT NULL DEFAULT '[]'::jsonb,
           ADD COLUMN IF NOT EXISTS private_message_template TEXT NULL,
           ADD COLUMN IF NOT EXISTS greeting_private_message_template TEXT NULL,
-          ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       `);
     })().catch((error) => {
       schemaReadyPromise = null;

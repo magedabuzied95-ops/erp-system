@@ -299,7 +299,7 @@ const ensurePublicProductEditionSchema = async () => {
       id BIGSERIAL PRIMARY KEY,
       product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       audience VARCHAR(30) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(product_id, audience),
       CHECK (audience IN ('men', 'women', 'kids'))
     )
@@ -309,7 +309,7 @@ const ensurePublicProductEditionSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_name TEXT`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-  await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color_sort_order INTEGER NOT NULL DEFAULT 0`);
   await db.query(`
     UPDATE products

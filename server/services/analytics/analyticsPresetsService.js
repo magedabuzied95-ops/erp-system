@@ -63,8 +63,8 @@ export const ensurePresetSchema = () => {
           name        VARCHAR(80) NOT NULL,
           filters     JSONB       NOT NULL DEFAULT '{}'::jsonb,
           pinned      BOOLEAN     NOT NULL DEFAULT FALSE,
-          created_at  TIMESTAMP   NOT NULL DEFAULT NOW(),
-          updated_at  TIMESTAMP   NOT NULL DEFAULT NOW()
+          created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+          updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
         )
       `)
       .then(() =>

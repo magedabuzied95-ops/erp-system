@@ -75,7 +75,7 @@ export const ensureAuditLogTable = async (client, query = null) => {
       entity_type VARCHAR(120),
       entity_id BIGINT NULL,
       details JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
   await runQuery("ensure_audit_logs_ip_address", "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address INET");

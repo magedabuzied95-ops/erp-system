@@ -351,14 +351,14 @@ export const ensureAiShoeCoverSchema = async () => {
           status TEXT NOT NULL DEFAULT 'pending',
           attempt_count INTEGER NOT NULL DEFAULT 0,
           last_error TEXT NOT NULL DEFAULT '',
-          queued_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          started_at TIMESTAMP NULL,
-          generated_at TIMESTAMP NULL,
-          completed_at TIMESTAMP NULL,
-          next_retry_at TIMESTAMP NULL,
-          last_requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          queued_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          started_at TIMESTAMPTZ NULL,
+          generated_at TIMESTAMPTZ NULL,
+          completed_at TIMESTAMPTZ NULL,
+          next_retry_at TIMESTAMPTZ NULL,
+          last_requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS generated_by_ai BOOLEAN NOT NULL DEFAULT FALSE`);

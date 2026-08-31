@@ -79,7 +79,7 @@ const getTableColumns = async (clientOrPool, tableName) => {
 const ensureAccountingFoundationSchema = async (clientOrPool = db) => {
   await ensureAccountingSchema();
   const dbClient = queryable(clientOrPool);
-  await dbClient.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await dbClient.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await dbClient.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL`);
   await dbClient.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL`);
 };

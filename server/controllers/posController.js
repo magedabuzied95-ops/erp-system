@@ -270,8 +270,8 @@ const ensurePosExpenseSchema = async (clientOrPool = db) => {
       source VARCHAR(50) NOT NULL DEFAULT 'expenses',
       shift_id BIGINT NULL,
       created_by BIGINT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
@@ -284,13 +284,13 @@ const ensurePosExpenseSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS expense_date DATE NOT NULL DEFAULT CURRENT_DATE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS notes TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'draft'`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS paid_by BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'expenses'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS employee_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS created_by BIGINT NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_expenses_pos_shift ON expenses (tenant_id, source, shift_id)`);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_advances (
@@ -308,9 +308,9 @@ const ensurePosExpenseSchema = async (clientOrPool = db) => {
       payroll_reference VARCHAR(120),
       created_by BIGINT,
       deducted_by BIGINT,
-      deducted_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      deducted_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);

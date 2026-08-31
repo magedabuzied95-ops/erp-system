@@ -88,9 +88,9 @@ const ensureSalesOpportunitySchema = async (clientOrPool = db) => {
       size TEXT NOT NULL DEFAULT '',
       stock_snapshot INTEGER NOT NULL DEFAULT 0,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      expires_at TIMESTAMP NULL,
-      notification_sent_at TIMESTAMP NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NULL,
+      notification_sent_at TIMESTAMPTZ NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb
     )
   `);
@@ -105,8 +105,8 @@ const ensureSalesOpportunitySchema = async (clientOrPool = db) => {
   await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS size TEXT NOT NULL DEFAULT ''`);
   await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS stock_snapshot INTEGER NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-  await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS notification_sent_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS sales_opportunities ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS uq_sales_opportunities_active_scope

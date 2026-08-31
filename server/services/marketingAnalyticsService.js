@@ -181,7 +181,7 @@ const ensureAiMarketingPerformanceSchema = async () => {
       engagement_rate NUMERIC(10,4) NULL,
       performance_score INTEGER NOT NULL DEFAULT 0,
       raw_metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
-      synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      synced_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_perf_queue ON ai_marketing_performance_snapshots (tenant_id, queue_id, synced_at DESC)`);

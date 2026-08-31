@@ -408,8 +408,8 @@ const runEmployeePenaltiesSchemaDDL = async (clientOrPool = db) => {
       deduct_from_payroll BOOLEAN NOT NULL DEFAULT TRUE,
       status VARCHAR(40) NOT NULL DEFAULT 'pending',
       created_by BIGINT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_penalties ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
@@ -455,8 +455,8 @@ export const ensureEmployeeBonusesSchema = async (clientOrPool = db) => {
         notes TEXT,
         status VARCHAR(40) NOT NULL DEFAULT 'approved',
         created_by BIGINT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `).then(() => clientOrPool.query(
       `CREATE INDEX IF NOT EXISTS idx_employee_bonuses_employee_date ON employee_bonuses (employee_id, bonus_date)`
@@ -1547,8 +1547,8 @@ const runSalesCommissionSchemaDDL = async (clientOrPool = db) => {
       commission_type VARCHAR(20) NOT NULL DEFAULT 'percent',
       commission_value NUMERIC(12,2) NOT NULL DEFAULT 0,
       excluded_product_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -1565,7 +1565,7 @@ const runSalesCommissionSchemaDDL = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS sales_employees ADD COLUMN IF NOT EXISTS excluded_category_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS sales_employees ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS sales_employees ADD COLUMN IF NOT EXISTS employee_id BIGINT NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS sales_employees ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS sales_employees ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await addSalesEmployeeForeignKeys(clientOrPool);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_sales_employees_tenant_active ON sales_employees (tenant_id, is_active, name)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_sales_employees_branch_id ON sales_employees (branch_id)`);
@@ -1584,8 +1584,8 @@ const runSalesCommissionSchemaDDL = async (clientOrPool = db) => {
       excluded_product_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
       excluded_category_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
       migrated_sales_employee_id BIGINT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_sales_profiles ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
@@ -1681,7 +1681,7 @@ const runSalesCommissionSchemaDDL = async (clientOrPool = db) => {
       tenant_id BIGINT PRIMARY KEY,
       allow_sale_without_salesperson BOOLEAN NOT NULL DEFAULT TRUE,
       fixed_commission_mode VARCHAR(30) NOT NULL DEFAULT 'fixed_per_item',
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS sales_commission_settings ALTER COLUMN fixed_commission_mode SET DEFAULT 'fixed_per_item'`);
@@ -2351,9 +2351,9 @@ const ensureEmployeeAdvancesLedger = async () => {
         payroll_reference VARCHAR(120),
         created_by BIGINT,
         deducted_by BIGINT,
-        deducted_at TIMESTAMP NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        deducted_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await db.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -2744,30 +2744,30 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
           net_pay NUMERIC(12,2) NOT NULL DEFAULT 0,
           status VARCHAR(20) NOT NULL DEFAULT 'approved',
           payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment',
-          approved_at TIMESTAMP NULL,
+          approved_at TIMESTAMPTZ NULL,
           approved_by BIGINT NULL,
-          paid_at TIMESTAMP NULL,
+          paid_at TIMESTAMPTZ NULL,
           paid_by BIGINT NULL,
           payment_method VARCHAR(40) NULL,
           payment_account_id BIGINT NULL,
           approval_journal_entry_id BIGINT NULL,
           payment_journal_entry_id BIGINT NULL,
           snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-          finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          finalized_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'approved'`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment'`);
-      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ NULL`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_by BIGINT NULL`);
-      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ NULL`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_by BIGINT NULL`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NULL`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_account_id BIGINT NULL`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approval_journal_entry_id BIGINT NULL`);
       await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_journal_entry_id BIGINT NULL`);
-      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 
       const existingPayrollRun = await db.query(
         `

@@ -825,8 +825,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
       active BOOLEAN NOT NULL DEFAULT TRUE,
       daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id)
     )
   `);
@@ -846,8 +846,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
       ADD COLUMN IF NOT EXISTS daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
-      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_marketing_settings_tenant ON ai_marketing_settings (tenant_id)`);
 
@@ -878,21 +878,21 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       product_url TEXT NOT NULL DEFAULT '',
       design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
       status VARCHAR(30) NOT NULL DEFAULT 'generated',
-      scheduled_at TIMESTAMP NULL,
-      published_at TIMESTAMP NULL,
+      scheduled_at TIMESTAMPTZ NULL,
+      published_at TIMESTAMPTZ NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       publish_status VARCHAR(30) NOT NULL DEFAULT 'draft',
       platform_error_code TEXT NULL,
       platform_error_message TEXT NULL,
       publish_attempts INTEGER NOT NULL DEFAULT 0,
-      last_publish_attempt_at TIMESTAMP NULL,
+      last_publish_attempt_at TIMESTAMPTZ NULL,
       platform_post_id TEXT NULL,
       published_platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
       platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
       publish_error TEXT NULL,
       error_message TEXT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`
@@ -909,7 +909,7 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS platform_error_code TEXT NULL,
       ADD COLUMN IF NOT EXISTS platform_error_message TEXT NULL,
       ADD COLUMN IF NOT EXISTS publish_attempts INTEGER NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_publish_attempt_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS last_publish_attempt_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS platform_post_id TEXT NULL,
       ADD COLUMN IF NOT EXISTS published_platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
       ADD COLUMN IF NOT EXISTS platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -930,7 +930,7 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       action VARCHAR(60) NOT NULL,
       status VARCHAR(30) NOT NULL DEFAULT '',
       details JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_timeline_queue ON ai_marketing_content_timeline (tenant_id, queue_id, created_at DESC)`);
@@ -954,7 +954,7 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       engagement_rate NUMERIC(10,4) NULL,
       performance_score INTEGER NOT NULL DEFAULT 0,
       raw_metrics JSONB NOT NULL DEFAULT '{}'::jsonb,
-      synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      synced_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_perf_queue ON ai_marketing_performance_snapshots (tenant_id, queue_id, synced_at DESC)`);
@@ -969,9 +969,9 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       engagement_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
       timezone TEXT NOT NULL DEFAULT '',
       source TEXT NOT NULL DEFAULT 'fallback',
-      last_synced_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      last_synced_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`
@@ -982,9 +982,9 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       ADD COLUMN IF NOT EXISTS engagement_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
       ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT '',
       ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'fallback',
-      ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP NULL,
-      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_insights_synced ON ai_marketing_insights_cache (last_synced_at DESC)`);
 
@@ -1000,8 +1000,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       generated_posts INTEGER NOT NULL DEFAULT 0,
       failed_count INTEGER NOT NULL DEFAULT 0,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      finished_at TIMESTAMP NULL
+      started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TIMESTAMPTZ NULL
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_runs_tenant_started ON ai_marketing_generation_runs (tenant_id, started_at DESC)`);
@@ -1010,8 +1010,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
       cycle_number INTEGER NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
-      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      completed_at TIMESTAMP NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMPTZ NULL,
       PRIMARY KEY (tenant_id, cycle_number)
     )
   `);
@@ -1024,8 +1024,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       queue_id BIGINT NULL REFERENCES ai_marketing_content_queue(id) ON DELETE SET NULL,
       lane VARCHAR(40) NOT NULL DEFAULT 'other',
       product_signature TEXT NOT NULL DEFAULT '',
-      generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      published_at TIMESTAMP NULL,
+      generated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      published_at TIMESTAMPTZ NULL,
       PRIMARY KEY (tenant_id, cycle_number, product_id)
     )
   `);
@@ -1041,8 +1041,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       theme_key VARCHAR(80) NOT NULL,
       cycle_number INTEGER NOT NULL,
       status VARCHAR(20) NOT NULL DEFAULT 'active',
-      started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      completed_at TIMESTAMP NULL,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMPTZ NULL,
       PRIMARY KEY (tenant_id, theme_key, cycle_number)
     )
   `);
@@ -1057,8 +1057,8 @@ const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
       product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       queue_id BIGINT NULL REFERENCES ai_marketing_content_queue(id) ON DELETE SET NULL,
       product_signature TEXT NOT NULL DEFAULT '',
-      generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      published_at TIMESTAMP NULL,
+      generated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      published_at TIMESTAMPTZ NULL,
       PRIMARY KEY (tenant_id, theme_key, cycle_number, product_id)
     )
   `);

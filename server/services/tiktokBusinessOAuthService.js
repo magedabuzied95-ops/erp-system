@@ -104,22 +104,22 @@ export const ensureTikTokBusinessSchema = async (client = db) => {
       avatar_url TEXT NOT NULL DEFAULT '',
       access_token_encrypted TEXT NOT NULL DEFAULT '',
       refresh_token_encrypted TEXT NOT NULL DEFAULT '',
-      access_token_expires_at TIMESTAMP NULL,
-      refresh_token_expires_at TIMESTAMP NULL,
+      access_token_expires_at TIMESTAMPTZ NULL,
+      refresh_token_expires_at TIMESTAMPTZ NULL,
       granted_scopes TEXT NOT NULL DEFAULT '',
       capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
       status TEXT NOT NULL DEFAULT 'not_connected',
       last_error TEXT NOT NULL DEFAULT '',
-      last_sync_at TIMESTAMP NULL,
-      last_refresh_at TIMESTAMP NULL,
+      last_sync_at TIMESTAMPTZ NULL,
+      last_refresh_at TIMESTAMPTZ NULL,
       refresh_lock_token TEXT NOT NULL DEFAULT '',
-      refresh_lock_at TIMESTAMP NULL,
+      refresh_lock_at TIMESTAMPTZ NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       connected_by_user_id BIGINT NULL,
-      connected_at TIMESTAMP NULL,
-      disconnected_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      connected_at TIMESTAMPTZ NULL,
+      disconnected_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id)
     )
   `);
@@ -137,9 +137,9 @@ export const ensureTikTokBusinessSchema = async (client = db) => {
       redirect_kind TEXT NOT NULL DEFAULT 'tt_user',
       status TEXT NOT NULL DEFAULT 'pending',
       error_message TEXT NOT NULL DEFAULT '',
-      expires_at TIMESTAMP NOT NULL,
-      consumed_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NOT NULL,
+      consumed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (state_token)
     )
   `);
@@ -160,8 +160,8 @@ export const ensureTikTokBusinessSchema = async (client = db) => {
       status TEXT NOT NULL DEFAULT 'pending',
       attempts INTEGER NOT NULL DEFAULT 0,
       last_error TEXT NOT NULL DEFAULT '',
-      received_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      processed_at TIMESTAMP NULL,
+      received_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      processed_at TIMESTAMPTZ NULL,
       UNIQUE (event_key)
     )
   `);
@@ -189,9 +189,9 @@ export const ensureTikTokBusinessSchema = async (client = db) => {
       is_own_reply BOOLEAN NOT NULL DEFAULT FALSE,
       idempotency_key TEXT NOT NULL,
       provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      comment_created_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      comment_created_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, idempotency_key)
     )
   `);
@@ -213,12 +213,12 @@ export const ensureTikTokBusinessSchema = async (client = db) => {
       resource_key TEXT NOT NULL DEFAULT '',
       cursor TEXT NOT NULL DEFAULT '',
       has_more BOOLEAN NOT NULL DEFAULT FALSE,
-      last_synced_at TIMESTAMP NULL,
+      last_synced_at TIMESTAMPTZ NULL,
       last_error TEXT NOT NULL DEFAULT '',
       consecutive_failures INTEGER NOT NULL DEFAULT 0,
-      next_attempt_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      next_attempt_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, resource, resource_key)
     )
   `);
@@ -239,8 +239,8 @@ export const ensureTikTokBusinessSchema = async (client = db) => {
       error_code TEXT NOT NULL DEFAULT '',
       error_message TEXT NOT NULL DEFAULT '',
       created_by_user_id BIGINT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, request_key)
     )
   `);

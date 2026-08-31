@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS warehouse_sections (
   barcode VARCHAR(160),
   color VARCHAR(40) DEFAULT '#2563eb',
   notes TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS inventory_counts (
@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS inventory_counts (
   count_type VARCHAR(50) NOT NULL DEFAULT 'quick_scan',
   status VARCHAR(50) NOT NULL DEFAULT 'draft',
   created_by BIGINT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  completed_at TIMESTAMP NULL
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMPTZ NULL
 );
 
 CREATE TABLE IF NOT EXISTS inventory_count_items (
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS inventory_count_items (
   difference_quantity INTEGER NOT NULL DEFAULT 0,
   reason TEXT NOT NULL DEFAULT '',
   notes TEXT,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS master_qr_models (
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS master_qr_models (
   tenant_id BIGINT NULL,
   product_id BIGINT NOT NULL,
   qr_value TEXT NOT NULL,
-  generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS section_id BIGINT;
@@ -56,7 +56,7 @@ ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS before_qty INTEGER NOT 
 ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS after_qty INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE warehouse_inventory ADD COLUMN IF NOT EXISTS branch_id BIGINT;
 ALTER TABLE warehouse_inventory ADD COLUMN IF NOT EXISTS section_id BIGINT;
-ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_warehouse_sections_scope_code
   ON warehouse_sections (COALESCE(tenant_id, 0), COALESCE(warehouse_id, 0), code);

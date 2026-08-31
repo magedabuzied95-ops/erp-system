@@ -20,7 +20,7 @@ export const ensureUsersLoginSchema = async () => {
     exists: before.rows.length > 0,
     definition: before.rows[0] || null,
   });
-  await db.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ NULL`);
   await db.query(`ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS account_expires_at TIMESTAMPTZ NULL`);
   const after = await db.query(
     `

@@ -266,10 +266,10 @@ export const ensureShippingSchema = async (client = db) => {
       api_base_url TEXT,
       api_key_encrypted TEXT,
       api_key TEXT,
-      last_locations_sync_at TIMESTAMP NULL,
+      last_locations_sync_at TIMESTAMPTZ NULL,
       last_locations_sync_counts JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`
@@ -283,8 +283,8 @@ export const ensureShippingSchema = async (client = db) => {
       pickup_available BOOLEAN NOT NULL DEFAULT TRUE,
       dropoff_available BOOLEAN NOT NULL DEFAULT TRUE,
       raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(provider_id, provider_city_id)
     )
   `);
@@ -299,8 +299,8 @@ export const ensureShippingSchema = async (client = db) => {
       pickup_available BOOLEAN NOT NULL DEFAULT TRUE,
       dropoff_available BOOLEAN NOT NULL DEFAULT TRUE,
       raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(provider_id, provider_zone_id)
     )
   `);
@@ -316,8 +316,8 @@ export const ensureShippingSchema = async (client = db) => {
       pickup_available BOOLEAN NOT NULL DEFAULT TRUE,
       dropoff_available BOOLEAN NOT NULL DEFAULT TRUE,
       raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(provider_id, provider_district_id)
     )
   `);
@@ -335,8 +335,8 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_tracking_number VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_delivery_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_label_url TEXT`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS tracking_url TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
@@ -352,7 +352,7 @@ export const ensureShippingSchema = async (client = db) => {
       status VARCHAR(80) NOT NULL,
       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       event_key TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS order_id BIGINT`);
@@ -360,7 +360,7 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
   await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS event_key TEXT`);
-  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS shipping_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_shipping_events_provider_event_key ON shipping_events(provider, event_key) WHERE event_key IS NOT NULL AND event_key <> ''`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_shipping_events_order_id ON shipping_events(order_id, created_at DESC)`);
   shippingSchemaEnsured = true;

@@ -1230,7 +1230,7 @@ const recordAttendanceAuditLog = async (req, { action, entityType = "attendance"
         details JSONB NOT NULL DEFAULT '{}'::jsonb,
         ip_address INET,
         user_agent TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await db.query(

@@ -9,13 +9,13 @@ CREATE TABLE IF NOT EXISTS coupon_campaigns (
   max_discount_amount NUMERIC(12,2),
   usage_limit_per_coupon INTEGER NOT NULL DEFAULT 1,
   total_coupons INTEGER NOT NULL DEFAULT 0,
-  starts_at TIMESTAMP NULL,
-  expires_at TIMESTAMP NULL,
+  starts_at TIMESTAMPTZ NULL,
+  expires_at TIMESTAMPTZ NULL,
   channel VARCHAR(20) NOT NULL DEFAULT 'all' CHECK (channel IN ('offline', 'website', 'pos', 'all')),
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by BIGINT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS coupons (
@@ -29,11 +29,11 @@ CREATE TABLE IF NOT EXISTS coupons (
   assigned_customer_id BIGINT NULL,
   used_by_customer_id BIGINT NULL,
   used_order_id BIGINT NULL,
-  used_at TIMESTAMP NULL,
-  expires_at TIMESTAMP NULL,
+  used_at TIMESTAMPTZ NULL,
+  expires_at TIMESTAMPTZ NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS coupon_redemptions (
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS coupon_redemptions (
   order_total NUMERIC(12,2) NOT NULL DEFAULT 0,
   discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
   final_total NUMERIC(12,2) NOT NULL DEFAULT 0,
-  used_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  used_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT NULL;
@@ -74,26 +74,26 @@ ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS budget_cap NUMER
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS first_order_only BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE IF EXISTS coupon_campaigns DROP CONSTRAINT IF EXISTS coupon_campaigns_discount_type_check;
 ALTER TABLE IF EXISTS coupon_campaigns ADD CONSTRAINT coupon_campaigns_discount_type_check CHECK (discount_type IN ('percentage', 'fixed', 'free_shipping'));
-ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMP NULL;
+ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMPTZ NULL;
 ALTER TABLE IF EXISTS coupon_redemptions ADD COLUMN IF NOT EXISTS reversal_reason VARCHAR(80);
 CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_customer ON coupon_redemptions (campaign_id, customer_id);
 
 -- Phase 3: shared codes + customer assignment
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS code_mode VARCHAR(10) NOT NULL DEFAULT 'unique';
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS shared_code VARCHAR(80);
-ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP NULL;
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ NULL;
 CREATE INDEX IF NOT EXISTS idx_coupons_assigned_customer ON coupons (assigned_customer_id);
 
 -- Phase 3.1: auto-issue a coupon after a customer's first order
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS auto_issue_on_first_order BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Phase 3.2: track the send, so an assigned-but-unsent coupon can be surfaced
-ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP NULL;
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_at TIMESTAMPTZ NULL;
 ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS sent_by BIGINT NULL;
 CREATE INDEX IF NOT EXISTS idx_coupons_pending_send ON coupons (campaign_id) WHERE assigned_customer_id IS NOT NULL AND sent_at IS NULL;
 
 -- Phase 3.3: expiry reminder for a coupon that was sent but never used
-ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP NULL;
+ALTER TABLE IF EXISTS coupons ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMPTZ NULL;
 
 -- Phase 4: the coupon printed at the foot of a till receipt
 ALTER TABLE IF EXISTS coupon_campaigns ADD COLUMN IF NOT EXISTS print_on_receipt BOOLEAN NOT NULL DEFAULT FALSE;

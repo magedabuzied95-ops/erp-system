@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   details JSONB NOT NULL DEFAULT '{}'::jsonb,
   ip_address INET,
   user_agent TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS staff_task_templates (
@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS staff_task_templates (
   source_module VARCHAR(80) NOT NULL DEFAULT 'operations',
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT staff_task_templates_priority_check CHECK (priority IN ('low','medium','high','critical'))
 );
 
@@ -66,19 +66,19 @@ CREATE TABLE IF NOT EXISTS staff_task_assignments (
   status VARCHAR(40) NOT NULL DEFAULT 'pending',
   priority VARCHAR(20) NOT NULL DEFAULT 'medium',
   assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  assigned_at TIMESTAMP NULL,
+  assigned_at TIMESTAMPTZ NULL,
   assignment_source VARCHAR(80) NULL,
   assignment_event_id BIGINT NULL REFERENCES attendance_events(id) ON DELETE SET NULL,
   auto_assign_mode VARCHAR(80) NULL,
-  due_at TIMESTAMP NULL,
-  started_at TIMESTAMP NULL,
-  completed_at TIMESTAMP NULL,
+  due_at TIMESTAMPTZ NULL,
+  started_at TIMESTAMPTZ NULL,
+  completed_at TIMESTAMPTZ NULL,
   completed_by BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
   auto_assigned BOOLEAN NOT NULL DEFAULT FALSE,
   reassignment_count INTEGER NOT NULL DEFAULT 0,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT staff_task_assignments_status_check CHECK (status IN ('pending','in_progress','manager_review','completed','cancelled','overdue','reassigned')),
   CONSTRAINT staff_task_assignments_priority_check CHECK (priority IN ('low','medium','high','critical'))
 );
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS staff_task_history (
   to_employee_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
   note TEXT NOT NULL DEFAULT '',
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS staff_task_comments (
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS staff_task_comments (
   actor_employee_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
   comment TEXT NOT NULL,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS staff_task_email_logs (
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS staff_task_email_logs (
   email_type VARCHAR(80) NOT NULL,
   sent_to TEXT NOT NULL DEFAULT '',
   subject TEXT NOT NULL DEFAULT '',
-  sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   dedupe_key TEXT NOT NULL,
   status VARCHAR(30) NOT NULL DEFAULT 'pending',
   error_message TEXT NULL,
@@ -139,10 +139,10 @@ CREATE TABLE IF NOT EXISTS staff_task_notification_queue (
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
   status VARCHAR(30) NOT NULL DEFAULT 'pending',
   attempts INTEGER NOT NULL DEFAULT 0,
-  next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_error TEXT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 ALTER TABLE IF EXISTS staff_task_notification_queue ADD COLUMN IF NOT EXISTS dedupe_key TEXT NULL;

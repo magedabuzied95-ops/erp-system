@@ -257,10 +257,10 @@ export const ensureAiProductImageVisualIndexSchema = async (clientOrPool = db) =
           visual_json JSONB NOT NULL DEFAULT '{}'::jsonb,
           image_embedding JSONB NULL,
           embedding_model TEXT NOT NULL DEFAULT '',
-          embedding_updated_at TIMESTAMP NULL,
+          embedding_updated_at TIMESTAMPTZ NULL,
           source TEXT NOT NULL DEFAULT 'erp',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_product_image_visual_index_tenant ON ai_product_image_visual_index (tenant_id, product_id, variant_id)`);
@@ -277,7 +277,7 @@ export const ensureAiProductImageVisualIndexSchema = async (clientOrPool = db) =
       await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS visual_attributes JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS image_embedding JSONB NULL`);
       await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_model TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMPTZ NULL`);
     })().catch((error) => {
       schemaReadyPromise = null;
       throw error;
@@ -405,7 +405,7 @@ const loadProductImageRows = async (clientOrPool = db, { tenantId = null, produc
       image_url TEXT NOT NULL DEFAULT '',
       sort_order INTEGER NOT NULL DEFAULT 0,
       is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   const pviResult = await clientOrPool.query(

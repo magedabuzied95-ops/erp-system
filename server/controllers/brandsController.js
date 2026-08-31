@@ -45,8 +45,8 @@ const ensureBrandsTableNow = async (executor = db) => {
       image_url TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
       status VARCHAR(50) NOT NULL DEFAULT 'active',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -58,8 +58,8 @@ const ensureBrandsTableNow = async (executor = db) => {
       ADD COLUMN IF NOT EXISTS image_url TEXT,
       ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active',
-      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   `);
 
   await executor.query(`

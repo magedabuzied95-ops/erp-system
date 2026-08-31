@@ -316,7 +316,7 @@ const ensureColumns = async (client) => {
   await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS reference_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS description TEXT`);
   await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS created_by BIGINT`);
-  await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS notes TEXT`);
   await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS is_generated BOOLEAN NOT NULL DEFAULT FALSE`);
   await client.query(`ALTER TABLE IF EXISTS journal_entries ADD COLUMN IF NOT EXISTS entry_type VARCHAR(100)`);
@@ -324,7 +324,7 @@ const ensureColumns = async (client) => {
 
   await client.query(`ALTER TABLE IF EXISTS journal_entry_lines ADD COLUMN IF NOT EXISTS branch_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS journal_entry_lines ADD COLUMN IF NOT EXISTS notes TEXT`);
-  await client.query(`ALTER TABLE IF EXISTS journal_entry_lines ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS journal_entry_lines ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 
   await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
@@ -332,7 +332,7 @@ const ensureColumns = async (client) => {
   await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS type VARCHAR(50)`);
   await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS parent_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-  await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS accounts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 };
 
 const ensureAccountingAuditSchema = async () => {
@@ -349,7 +349,7 @@ const ensureAccountingAuditSchema = async () => {
           before_data JSONB NULL,
           after_data JSONB NULL,
           metadata JSONB NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_accounting_audit_logs_tenant_created ON accounting_audit_logs (tenant_id, created_at DESC)`);
@@ -379,7 +379,7 @@ export const ensureAccountingSchema = async () => {
             type VARCHAR(50) NOT NULL,
             parent_id BIGINT NULL REFERENCES accounts(id) ON DELETE SET NULL,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (tenant_id, code)
           )
         `);
@@ -396,8 +396,8 @@ export const ensureAccountingSchema = async () => {
             notes TEXT,
             entry_date DATE NOT NULL DEFAULT CURRENT_DATE,
             created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (tenant_id, entry_number)
           )
         `);
@@ -412,7 +412,7 @@ export const ensureAccountingSchema = async () => {
             credit NUMERIC(12,2) NOT NULL DEFAULT 0,
             branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
             notes TEXT,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
 
@@ -443,8 +443,8 @@ export const ensureAccountingSchema = async () => {
             unit_cost NUMERIC(12,2) NOT NULL,
             reason TEXT NOT NULL DEFAULT '',
             created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (tenant_id, order_item_id)
           )
         `);
@@ -462,7 +462,7 @@ export const ensureAccountingSchema = async () => {
             before_data JSONB NULL,
             after_data JSONB NULL,
             metadata JSONB NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_accounting_audit_logs_tenant_created ON accounting_audit_logs (tenant_id, created_at DESC)`);
@@ -476,8 +476,8 @@ export const ensureAccountingSchema = async () => {
             financial_account_id BIGINT NULL,
             opened_by BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
             closed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-            opened_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            closed_at TIMESTAMP NULL,
+            opened_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            closed_at TIMESTAMPTZ NULL,
             opening_cash NUMERIC(12,2) NOT NULL DEFAULT 0,
             expected_cash NUMERIC(12,2) NOT NULL DEFAULT 0,
             actual_cash NUMERIC(12,2) NULL,
@@ -512,7 +512,7 @@ export const ensureAccountingSchema = async () => {
             source_type VARCHAR(100) NULL,
             source_id BIGINT NULL,
             amount NUMERIC(12,2) NOT NULL DEFAULT 0,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL
           )
         `);
@@ -532,8 +532,8 @@ export const ensureAccountingSchema = async () => {
             allow_negative_balance BOOLEAN NOT NULL DEFAULT FALSE,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             notes TEXT NOT NULL DEFAULT '',
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`ALTER TABLE IF EXISTS financial_accounts ADD COLUMN IF NOT EXISTS allow_negative_balance BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -549,7 +549,7 @@ export const ensureAccountingSchema = async () => {
             amount NUMERIC(12,2) NOT NULL,
             notes TEXT NOT NULL DEFAULT '',
             created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_financial_account_transfers_tenant_created ON financial_account_transfers (tenant_id, created_at DESC)`);
@@ -566,7 +566,7 @@ export const ensureAccountingSchema = async () => {
             balance_after NUMERIC(12,2) NOT NULL,
             notes TEXT NOT NULL DEFAULT '',
             created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_financial_account_entries_account ON financial_account_entries (tenant_id, financial_account_id, created_at DESC)`);
@@ -581,8 +581,8 @@ export const ensureAccountingSchema = async () => {
             financial_account_id BIGINT NOT NULL REFERENCES financial_accounts(id) ON DELETE RESTRICT,
             is_default BOOLEAN NOT NULL DEFAULT FALSE,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`
@@ -610,13 +610,13 @@ export const ensureAccountingSchema = async () => {
             currency VARCHAR(10) NOT NULL DEFAULT 'EGP',
             allow_negative_balance BOOLEAN NOT NULL DEFAULT FALSE,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`ALTER TABLE IF EXISTS money_accounts ADD COLUMN IF NOT EXISTS financial_account_id BIGINT NULL REFERENCES financial_accounts(id) ON DELETE SET NULL`);
         await client.query(`ALTER TABLE IF EXISTS money_accounts ADD COLUMN IF NOT EXISTS provider VARCHAR(120) NULL`);
-        await client.query(`ALTER TABLE IF EXISTS money_accounts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+        await client.query(`ALTER TABLE IF EXISTS money_accounts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
         await client.query(`ALTER TABLE IF EXISTS money_accounts ADD COLUMN IF NOT EXISTS allow_negative_balance BOOLEAN NOT NULL DEFAULT FALSE`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_money_accounts_tenant_type ON money_accounts (tenant_id, type, is_active)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_money_accounts_branch ON money_accounts (tenant_id, branch_id)`);
@@ -644,7 +644,7 @@ export const ensureAccountingSchema = async () => {
             balance_after NUMERIC(12,2) NOT NULL DEFAULT 0,
             reversal_of BIGINT NULL REFERENCES money_transactions(id) ON DELETE RESTRICT,
             metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await client.query(`ALTER TABLE IF EXISTS money_transactions ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);

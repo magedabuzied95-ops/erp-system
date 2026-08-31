@@ -80,15 +80,15 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
       phone VARCHAR(50),
       email VARCHAR(255),
       password_hash TEXT,
-      password_changed_at TIMESTAMP NULL,
+      password_changed_at TIMESTAMPTZ NULL,
       password_reset_token_hash TEXT,
-      password_reset_token_expires_at TIMESTAMP NULL,
-      password_reset_requested_at TIMESTAMP NULL,
-      email_verified_at TIMESTAMP NULL,
+      password_reset_token_expires_at TIMESTAMPTZ NULL,
+      password_reset_requested_at TIMESTAMPTZ NULL,
+      email_verified_at TIMESTAMPTZ NULL,
       address TEXT,
       status VARCHAR(50) NOT NULL DEFAULT 'active',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       loyalty_points NUMERIC(12,2) NOT NULL DEFAULT 0,
       loyalty_tier VARCHAR(50) NOT NULL DEFAULT 'Bronze',
       wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -102,25 +102,25 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT ''`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS phone VARCHAR(50)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_hash TEXT`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active'`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_points NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_tier VARCHAR(50) NOT NULL DEFAULT 'Bronze'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_spent NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_orders INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS registration_source VARCHAR(80) NOT NULL DEFAULT ''`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS first_visit_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS last_visit_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS storefront_last_seen_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS first_visit_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS last_visit_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS storefront_last_seen_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_storefront_customer BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_customers_storefront_phone ON customers (tenant_id, phone)`);
 
@@ -135,10 +135,10 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
       addresses JSONB NOT NULL DEFAULT '[]'::jsonb,
       user_agent TEXT NOT NULL DEFAULT '',
       ip_address TEXT NOT NULL DEFAULT '',
-      last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      expires_at TIMESTAMP NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_storefront_customer_sessions_customer ON storefront_customer_sessions (tenant_id, customer_id, updated_at DESC)`);
@@ -150,7 +150,7 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
       customer_id BIGINT NULL REFERENCES customers(id) ON DELETE SET NULL,
       event_type VARCHAR(80) NOT NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_storefront_customer_events_tenant_type ON storefront_customer_events (tenant_id, event_type, created_at DESC)`);

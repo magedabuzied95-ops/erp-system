@@ -15,7 +15,7 @@ let schemaReady = false;
 
 const ensurePresenceSchema = async () => {
   if (schemaReady) return;
-  await db.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS chat_last_seen_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS chat_last_seen_at TIMESTAMPTZ NULL`);
   schemaReady = true;
 };
 

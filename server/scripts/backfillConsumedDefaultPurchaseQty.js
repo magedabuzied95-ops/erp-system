@@ -268,7 +268,7 @@ const ensureAuditTable = async (client) => {
       target_id BIGINT NOT NULL,
       old_default_purchase_qty NUMERIC NOT NULL,
       new_default_purchase_qty NUMERIC NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`

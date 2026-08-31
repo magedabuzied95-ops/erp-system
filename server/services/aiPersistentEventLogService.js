@@ -42,8 +42,8 @@ export const ensureAIPersistentEventLogSchema = async () => {
           message TEXT NOT NULL DEFAULT '',
           error JSONB NULL,
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_event_logs_tenant_created ON ai_event_logs (tenant_id, created_at DESC)`);

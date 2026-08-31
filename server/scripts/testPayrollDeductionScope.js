@@ -20,8 +20,8 @@ const run = async () => {
         notes TEXT,
         expense_id BIGINT NULL,
         payroll_reference VARCHAR(120),
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       ) ON COMMIT DROP
     `);
 

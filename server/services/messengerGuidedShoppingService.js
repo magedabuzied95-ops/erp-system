@@ -193,9 +193,9 @@ const ensureSessionSchema = async () => {
         conversation_id TEXT NOT NULL,
         step VARCHAR(40) NOT NULL DEFAULT 'gender',
         selections JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        expires_at TIMESTAMP NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 minutes'),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '30 minutes'),
         PRIMARY KEY (tenant_id, conversation_id)
       )
     `).catch((error) => {

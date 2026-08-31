@@ -13,8 +13,8 @@ const statements = [
     slug VARCHAR(120) NOT NULL UNIQUE,
     status VARCHAR(50) NOT NULL DEFAULT 'active',
     plan VARCHAR(50) NOT NULL DEFAULT 'trial',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -40,8 +40,8 @@ const statements = [
     qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
     attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
     attendance_public_code VARCHAR(32) UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS attendance_qr_token TEXT;`,
@@ -93,10 +93,10 @@ const statements = [
     manager_portal_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     user_id BIGINT NULL,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
-    deleted_at TIMESTAMP NULL,
+    deleted_at TIMESTAMPTZ NULL,
     deleted_by_user_id BIGINT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, employee_code)
   );
   `,
@@ -113,8 +113,8 @@ const statements = [
     allowed_late_minutes INTEGER NOT NULL DEFAULT 0,
     overtime_after_minutes INTEGER NOT NULL DEFAULT 0,
     working_days JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -159,7 +159,7 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS employees
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL;
   `,
   `
   ALTER TABLE IF EXISTS employees
@@ -283,10 +283,10 @@ const statements = [
     shift_id BIGINT NULL REFERENCES employee_shifts(id) ON DELETE SET NULL,
     branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
     attendance_date DATE NOT NULL,
-    check_in TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    check_out TIMESTAMP NULL,
-    check_in_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    check_out_at TIMESTAMP NULL,
+    check_in TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    check_out TIMESTAMPTZ NULL,
+    check_in_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    check_out_at TIMESTAMPTZ NULL,
     check_in_latitude NUMERIC NULL,
     check_in_longitude NUMERIC NULL,
     check_in_gps_distance_meters NUMERIC NULL,
@@ -307,8 +307,8 @@ const statements = [
     device_key TEXT,
     user_agent TEXT,
     ip_address TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, employee_id, attendance_date)
   );
   `,
@@ -320,7 +320,7 @@ const statements = [
     branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
     attendance_log_id BIGINT NULL REFERENCES attendance_logs(id) ON DELETE SET NULL,
     action_type VARCHAR(30) NOT NULL,
-    action_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    action_timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     user_agent TEXT,
     ip_address TEXT,
     latitude NUMERIC NULL,
@@ -330,7 +330,7 @@ const statements = [
     device_fingerprint TEXT,
     device_key TEXT,
     source VARCHAR(50) NOT NULL DEFAULT 'branch_qr',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -345,11 +345,11 @@ const statements = [
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
     requested_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
     approved_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    approved_at TIMESTAMP NULL,
+    approved_at TIMESTAMPTZ NULL,
     payroll_applied BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -364,8 +364,8 @@ const statements = [
     user_agent TEXT,
     ip_address TEXT,
     first_attendance_log_id BIGINT NULL REFERENCES attendance_logs(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, branch_id, business_date, device_key)
   );
   `,
@@ -375,7 +375,7 @@ const statements = [
     new_device_policy VARCHAR(20) NOT NULL DEFAULT 'pending',
     attendance_require_device_approval BOOLEAN NOT NULL DEFAULT FALSE,
     require_device_approval BOOLEAN NOT NULL DEFAULT FALSE,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -388,16 +388,16 @@ const statements = [
     user_agent TEXT,
     ip_address TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'approved',
-    first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    approved_at TIMESTAMP NULL,
+    first_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMPTZ NULL,
     approved_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    rejected_at TIMESTAMP NULL,
+    rejected_at TIMESTAMPTZ NULL,
     rejected_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    reset_at TIMESTAMP NULL,
+    reset_at TIMESTAMPTZ NULL,
     reset_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, device_token)
   );
   `,
@@ -413,7 +413,7 @@ const statements = [
     details JSONB NOT NULL DEFAULT '{}'::jsonb,
     user_agent TEXT,
     ip_address TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -422,7 +422,7 @@ const statements = [
     tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     holiday_date DATE NOT NULL,
     name VARCHAR(255),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -436,8 +436,8 @@ const statements = [
     end_date DATE NULL,
     notes TEXT,
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -451,17 +451,17 @@ const statements = [
     end_date DATE NULL,
     notes TEXT,
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
-    ADD COLUMN IF NOT EXISTS check_in_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS check_in_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
-    ADD COLUMN IF NOT EXISTS check_out_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS check_out_at TIMESTAMPTZ NULL;
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
@@ -551,7 +551,7 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
-    ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ NULL;
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
@@ -559,11 +559,11 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
-    ADD COLUMN IF NOT EXISTS resolved_shift_start_time TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS resolved_shift_start_time TIMESTAMPTZ NULL;
   `,
   `
   ALTER TABLE IF EXISTS attendance_logs
-    ADD COLUMN IF NOT EXISTS resolved_shift_end_time TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS resolved_shift_end_time TIMESTAMPTZ NULL;
   `,
   `
   DO $$
@@ -575,7 +575,7 @@ const statements = [
         AND data_type = 'time without time zone'
     ) THEN
       ALTER TABLE attendance_logs
-        ALTER COLUMN resolved_shift_start_time TYPE TIMESTAMP
+        ALTER COLUMN resolved_shift_start_time TYPE TIMESTAMPTZ
         USING (CURRENT_DATE + resolved_shift_start_time);
     END IF;
     IF EXISTS (
@@ -585,7 +585,7 @@ const statements = [
         AND data_type = 'time without time zone'
     ) THEN
       ALTER TABLE attendance_logs
-        ALTER COLUMN resolved_shift_end_time TYPE TIMESTAMP
+        ALTER COLUMN resolved_shift_end_time TYPE TIMESTAMPTZ
         USING (CURRENT_DATE + resolved_shift_end_time);
     END IF;
   END $$;
@@ -628,7 +628,7 @@ const statements = [
   `,
   `
   ALTER TABLE IF EXISTS cashbox
-    ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ NULL;
   `,
   `
   CREATE TABLE IF NOT EXISTS shift_opening_assignments (
@@ -641,11 +641,11 @@ const statements = [
     cash_drawer_shift_id BIGINT NULL,
     employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     assigned_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     source VARCHAR(50) NOT NULL DEFAULT 'attendance_checkout',
     override_reason TEXT,
     note TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -685,8 +685,8 @@ const statements = [
     is_eligible BOOLEAN NOT NULL DEFAULT TRUE,
     reason TEXT,
     updated_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, employee_id, branch_id)
   );
   `,
@@ -706,8 +706,8 @@ const statements = [
     source_assignment_id BIGINT NULL REFERENCES shift_opening_assignments(id) ON DELETE SET NULL,
     status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
     created_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -717,7 +717,7 @@ const statements = [
     grace_minutes INTEGER NOT NULL DEFAULT 10,
     monthly_paid_leave_days INTEGER NOT NULL DEFAULT 3,
     forbidden_leave_weekdays JSONB NOT NULL DEFAULT '[4,5,6]'::jsonb,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `

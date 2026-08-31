@@ -26,11 +26,11 @@ const logEvent = (event, payload = {}) => {
 
 const ensureCustomerEmailAuthSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_hash TEXT`);
-  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NULL`);
   await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT`);
-  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMP NULL`);
-  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMP NULL`);
-  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMPTZ NULL`);
+  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ NULL`);
+  await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL`);
   await db.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS ux_customers_tenant_email_lower
     ON customers (tenant_id, LOWER(email))

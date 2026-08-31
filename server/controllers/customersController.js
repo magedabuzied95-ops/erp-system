@@ -332,19 +332,19 @@ const ensureCustomerSchema = async () => {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT`);
   }
   if (!columns.columns?.includes("password_changed_at")) {
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NULL`);
   }
   if (!columns.columns?.includes("password_reset_token_hash")) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT`);
   }
   if (!columns.columns?.includes("password_reset_token_expires_at")) {
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMP NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMPTZ NULL`);
   }
   if (!columns.columns?.includes("password_reset_requested_at")) {
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMP NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ NULL`);
   }
   if (!columns.columns?.includes("email_verified_at")) {
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL`);
   }
   if (!columns.addressColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`);
@@ -356,10 +356,10 @@ const ensureCustomerSchema = async () => {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_source VARCHAR(40)`);
   }
   if (!columns.avatarUpdatedAtColumn) {
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_updated_at TIMESTAMP NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_updated_at TIMESTAMPTZ NULL`);
   }
   if (!columns.createdAtColumn) {
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   }
   if (!columns.customerSourceColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_source VARCHAR(80)`);
@@ -387,7 +387,7 @@ const ensureCustomerSchema = async () => {
 
   if (!columns.linkedEmployeeIdColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS linked_employee_id BIGINT NULL`);
-    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS linked_employee_linked_at TIMESTAMP NULL`);
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS linked_employee_linked_at TIMESTAMPTZ NULL`);
   }
   if (!columns.purchasePreferencesColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS purchase_preferences JSONB NOT NULL DEFAULT '{}'::jsonb`);
@@ -422,7 +422,7 @@ const ensureCustomerImportSchema = async (clientOrPool = pool) => {
       total_rows INTEGER NOT NULL DEFAULT 0,
       total_points_imported NUMERIC(12,2) NOT NULL DEFAULT 0,
       points_mode VARCHAR(20) NOT NULL DEFAULT 'replace',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customer_import_audit_logs ADD COLUMN IF NOT EXISTS points_mode VARCHAR(20) NOT NULL DEFAULT 'replace'`);

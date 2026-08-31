@@ -13,8 +13,8 @@ export const ensureProductColorArticleCodeSchema = async (client = db) => {
       color_name VARCHAR(255) NOT NULL DEFAULT '',
       color_article_code TEXT NULL,
       article_codes TEXT[] NOT NULL DEFAULT '{}',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`ALTER TABLE product_color_groups ADD COLUMN IF NOT EXISTS color_group_key VARCHAR(160) NOT NULL DEFAULT ''`);

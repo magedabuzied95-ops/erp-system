@@ -130,7 +130,7 @@ const runSchemaSetup = async (clientOrPool = db) => {
       channel TEXT NOT NULL DEFAULT 'web_chat',
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       dedupe_key TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE ai_sales_journey_events ADD COLUMN IF NOT EXISTS customer_id TEXT NOT NULL DEFAULT ''`);

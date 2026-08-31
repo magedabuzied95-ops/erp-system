@@ -14,8 +14,8 @@ export const ensureWalletSchema = async (client) => {
       balance NUMERIC(12,2) NOT NULL DEFAULT 0,
       total_cashback_earned NUMERIC(12,2) NOT NULL DEFAULT 0,
       total_redeemed NUMERIC(12,2) NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, customer_id)
     )
   `);
@@ -36,7 +36,7 @@ export const ensureWalletSchema = async (client) => {
       notes TEXT,
       description TEXT,
       created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 

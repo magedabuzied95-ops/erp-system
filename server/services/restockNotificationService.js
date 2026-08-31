@@ -69,17 +69,17 @@ export const ensureRestockNotificationSchema = async (client = db) => {
         approved_text TEXT NULL,
         provider_message_id TEXT NULL,
         idempotency_key TEXT NOT NULL,
-        drafted_at TIMESTAMP NULL,
-        approved_at TIMESTAMP NULL,
+        drafted_at TIMESTAMPTZ NULL,
+        approved_at TIMESTAMPTZ NULL,
         approved_by BIGINT NULL,
-        rejected_at TIMESTAMP NULL,
+        rejected_at TIMESTAMPTZ NULL,
         rejected_by BIGINT NULL,
         rejection_reason TEXT NULL,
-        sent_at TIMESTAMP NULL,
-        failed_at TIMESTAMP NULL,
+        sent_at TIMESTAMPTZ NULL,
+        failed_at TIMESTAMPTZ NULL,
         failure_reason TEXT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     // One notification per (intent, restock event) — replay never creates a second.

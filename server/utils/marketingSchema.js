@@ -52,8 +52,8 @@ const statements = [
     start_date DATE NULL,
     end_date DATE NULL,
     budget NUMERIC(12,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, name)
   );
   `,
@@ -67,8 +67,8 @@ const statements = [
     caption_template TEXT NOT NULL DEFAULT '',
     hashtags TEXT NOT NULL DEFAULT '',
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, name)
   );
   `,
@@ -90,21 +90,21 @@ const statements = [
     first_comment_status VARCHAR(30) NULL,
     first_comment_error TEXT NULL,
     first_comment_external_id TEXT NULL,
-    first_comment_published_at TIMESTAMP NULL,
+    first_comment_published_at TIMESTAMPTZ NULL,
     hashtags TEXT NOT NULL DEFAULT '',
     image_url TEXT NOT NULL DEFAULT '',
     media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
     channel VARCHAR(30) NOT NULL DEFAULT 'facebook',
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
-    scheduled_at TIMESTAMP NULL,
-    published_at TIMESTAMP NULL,
+    scheduled_at TIMESTAMPTZ NULL,
+    published_at TIMESTAMPTZ NULL,
     external_post_id VARCHAR(255) NULL,
     platform_post_id TEXT NULL,
     platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
     story_status VARCHAR(30) NOT NULL DEFAULT 'draft',
     story_type VARCHAR(30) NOT NULL DEFAULT 'story',
-    story_scheduled_at TIMESTAMP NULL,
-    story_published_at TIMESTAMP NULL,
+    story_scheduled_at TIMESTAMPTZ NULL,
+    story_published_at TIMESTAMPTZ NULL,
     story_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
     story_asset_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
     story_error_message TEXT NULL,
@@ -113,8 +113,8 @@ const statements = [
     tracking_link TEXT NULL,
     tracking_source TEXT NULL,
     tracking_kind VARCHAR(30) NOT NULL DEFAULT 'post',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -124,7 +124,7 @@ const statements = [
     ADD COLUMN IF NOT EXISTS first_comment_status VARCHAR(30) NULL,
     ADD COLUMN IF NOT EXISTS first_comment_error TEXT NULL,
     ADD COLUMN IF NOT EXISTS first_comment_external_id TEXT NULL,
-    ADD COLUMN IF NOT EXISTS first_comment_published_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS first_comment_published_at TIMESTAMPTZ NULL;
   `,
   `
   ALTER TABLE IF EXISTS marketing_posts
@@ -138,8 +138,8 @@ const statements = [
   ALTER TABLE IF EXISTS marketing_posts
     ADD COLUMN IF NOT EXISTS story_status VARCHAR(30) NOT NULL DEFAULT 'draft',
     ADD COLUMN IF NOT EXISTS story_type VARCHAR(30) NOT NULL DEFAULT 'story',
-    ADD COLUMN IF NOT EXISTS story_scheduled_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS story_published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS story_scheduled_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS story_published_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS story_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS story_asset_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS story_error_message TEXT NULL,
@@ -176,21 +176,21 @@ const statements = [
     first_comment_status VARCHAR(30) NULL,
     first_comment_error TEXT NULL,
     first_comment_external_id TEXT NULL,
-    first_comment_published_at TIMESTAMP NULL,
+    first_comment_published_at TIMESTAMPTZ NULL,
     media_url TEXT NOT NULL DEFAULT '',
     media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
     media_type VARCHAR(20) NOT NULL DEFAULT 'image',
     platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
     publish_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
-    scheduled_at TIMESTAMP NULL,
-    published_at TIMESTAMP NULL,
+    scheduled_at TIMESTAMPTZ NULL,
+    published_at TIMESTAMPTZ NULL,
     platform_post_id TEXT NULL,
     external_post_id TEXT NULL,
     platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
     error_message TEXT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   `,
   `
@@ -202,12 +202,12 @@ const statements = [
     ADD COLUMN IF NOT EXISTS first_comment_status VARCHAR(30) NULL,
     ADD COLUMN IF NOT EXISTS first_comment_error TEXT NULL,
     ADD COLUMN IF NOT EXISTS first_comment_external_id TEXT NULL,
-    ADD COLUMN IF NOT EXISTS first_comment_published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_published_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS publish_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
-    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS platform_post_id TEXT NULL,
     ADD COLUMN IF NOT EXISTS external_post_id TEXT NULL,
     ADD COLUMN IF NOT EXISTS platform_publish_results JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -232,16 +232,16 @@ const statements = [
     hashtags TEXT NOT NULL DEFAULT '',
     media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
-    scheduled_at TIMESTAMP NULL,
-    published_at TIMESTAMP NULL,
-    rejected_at TIMESTAMP NULL,
+    scheduled_at TIMESTAMPTZ NULL,
+    published_at TIMESTAMPTZ NULL,
+    rejected_at TIMESTAMPTZ NULL,
     error_message TEXT NULL,
     created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
     approved_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
     rejected_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
     ai_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -257,16 +257,16 @@ const statements = [
     ADD COLUMN IF NOT EXISTS hashtags TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS media_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
-    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS error_message TEXT NULL,
     ADD COLUMN IF NOT EXISTS created_by BIGINT NULL,
     ADD COLUMN IF NOT EXISTS approved_by BIGINT NULL,
     ADD COLUMN IF NOT EXISTS rejected_by BIGINT NULL,
     ADD COLUMN IF NOT EXISTS ai_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_content_drafts_tenant_status
@@ -294,11 +294,11 @@ const statements = [
     auto_publish_window_end TIME NOT NULL DEFAULT '22:00',
     max_auto_posts_per_day INTEGER NOT NULL DEFAULT 2,
     auto_publish_failed_count INTEGER NOT NULL DEFAULT 0,
-    last_auto_publish_at TIMESTAMP NULL,
-    last_generated_at TIMESTAMP NULL,
-    next_run_at TIMESTAMP NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_auto_publish_at TIMESTAMPTZ NULL,
+    last_generated_at TIMESTAMPTZ NULL,
+    next_run_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id)
   );
   `,
@@ -318,11 +318,11 @@ const statements = [
     ADD COLUMN IF NOT EXISTS auto_publish_window_end TIME NOT NULL DEFAULT '22:00',
     ADD COLUMN IF NOT EXISTS max_auto_posts_per_day INTEGER NOT NULL DEFAULT 2,
     ADD COLUMN IF NOT EXISTS auto_publish_failed_count INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS last_auto_publish_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS last_generated_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS last_auto_publish_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS last_generated_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS next_run_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_automation_settings_tenant
@@ -343,7 +343,7 @@ const statements = [
     product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
     platform VARCHAR(30) NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -356,7 +356,7 @@ const statements = [
     ADD COLUMN IF NOT EXISTS product_id BIGINT NULL,
     ADD COLUMN IF NOT EXISTS platform VARCHAR(30) NULL,
     ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_automation_logs_tenant_created
@@ -383,8 +383,8 @@ const statements = [
     active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id)
   );
   `,
@@ -400,8 +400,8 @@ const statements = [
     ADD COLUMN IF NOT EXISTS active_strategies JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS daily_content_quotas JSONB NOT NULL DEFAULT '[]'::jsonb,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_marketing_settings_tenant
@@ -431,12 +431,12 @@ const statements = [
     product_url TEXT NOT NULL DEFAULT '',
     design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     status VARCHAR(30) NOT NULL DEFAULT 'generated',
-    scheduled_at TIMESTAMP NULL,
-    published_at TIMESTAMP NULL,
+    scheduled_at TIMESTAMPTZ NULL,
+    published_at TIMESTAMPTZ NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     error_message TEXT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -462,12 +462,12 @@ const statements = [
     ADD COLUMN IF NOT EXISTS product_url TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS design_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'generated',
-    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS error_message TEXT NULL,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_ai_marketing_queue_tenant_status
@@ -489,8 +489,8 @@ const statements = [
     generated_posts INTEGER NOT NULL DEFAULT 0,
     failed_count INTEGER NOT NULL DEFAULT 0,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    finished_at TIMESTAMP NULL
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMPTZ NULL
   );
   `,
   `
@@ -504,8 +504,8 @@ const statements = [
     ADD COLUMN IF NOT EXISTS generated_posts INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS failed_count INTEGER NOT NULL DEFAULT 0,
     ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    ADD COLUMN IF NOT EXISTS started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS finished_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ NULL;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_ai_marketing_runs_tenant_started
@@ -525,8 +525,8 @@ const statements = [
     preferred_cta TEXT NOT NULL DEFAULT '',
     hashtag_style TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id)
   );
   `,
@@ -542,8 +542,8 @@ const statements = [
     ADD COLUMN IF NOT EXISTS preferred_cta TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS hashtag_style TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_marketing_brand_identity_tenant
@@ -565,10 +565,10 @@ const statements = [
     stories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     status VARCHAR(30) NOT NULL DEFAULT 'draft',
     generated_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    scheduled_at TIMESTAMP NULL,
-    published_at TIMESTAMP NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    scheduled_at TIMESTAMPTZ NULL,
+    published_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -585,10 +585,10 @@ const statements = [
     ADD COLUMN IF NOT EXISTS stories_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',
     ADD COLUMN IF NOT EXISTS generated_by BIGINT NULL,
-    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS published_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_story_campaigns_tenant_status
@@ -610,7 +610,7 @@ const statements = [
     filenames_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     status VARCHAR(30) NOT NULL DEFAULT 'completed',
     created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -623,7 +623,7 @@ const statements = [
     ADD COLUMN IF NOT EXISTS filenames_json JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'completed',
     ADD COLUMN IF NOT EXISTS created_by BIGINT NULL,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_story_exports_campaign
@@ -648,9 +648,9 @@ const statements = [
     suggested_cta_goal VARCHAR(60) NOT NULL DEFAULT 'Website',
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
     generated_campaign_id BIGINT NULL REFERENCES marketing_story_campaigns(id) ON DELETE SET NULL,
-    dismissed_at TIMESTAMP NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    dismissed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -670,9 +670,9 @@ const statements = [
     ADD COLUMN IF NOT EXISTS suggested_cta_goal VARCHAR(60) NOT NULL DEFAULT 'Website',
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'pending',
     ADD COLUMN IF NOT EXISTS generated_campaign_id BIGINT NULL,
-    ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS dismissed_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_story_triggers_tenant_status
@@ -696,7 +696,7 @@ const statements = [
     impressions INTEGER NULL,
     saves INTEGER NULL,
     clicks INTEGER NULL,
-    synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    synced_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (post_id, platform)
   );
   `,
@@ -711,7 +711,7 @@ const statements = [
     ADD COLUMN IF NOT EXISTS impressions INTEGER NULL,
     ADD COLUMN IF NOT EXISTS saves INTEGER NULL,
     ADD COLUMN IF NOT EXISTS clicks INTEGER NULL,
-    ADD COLUMN IF NOT EXISTS synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_post_analytics_platform_synced
@@ -740,7 +740,7 @@ const statements = [
     user_agent TEXT NULL,
     ip_address TEXT NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -788,15 +788,15 @@ const statements = [
     access_token_encrypted TEXT NULL,
     long_lived_user_token TEXT NULL,
     page_access_token TEXT NULL,
-    token_expires_at TIMESTAMP NULL,
+    token_expires_at TIMESTAMPTZ NULL,
     token_status VARCHAR(30) NOT NULL DEFAULT 'missing',
-    token_last_validated_at TIMESTAMP NULL,
-    last_auto_refresh_at TIMESTAMP NULL,
-    next_refresh_check_at TIMESTAMP NULL,
+    token_last_validated_at TIMESTAMPTZ NULL,
+    last_auto_refresh_at TIMESTAMPTZ NULL,
+    next_refresh_check_at TIMESTAMPTZ NULL,
     token_error_message TEXT NULL,
     is_connected BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -811,11 +811,11 @@ const statements = [
   ALTER TABLE IF EXISTS marketing_settings
     ADD COLUMN IF NOT EXISTS long_lived_user_token TEXT NULL,
     ADD COLUMN IF NOT EXISTS page_access_token TEXT NULL,
-    ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS token_status VARCHAR(30) NOT NULL DEFAULT 'missing',
-    ADD COLUMN IF NOT EXISTS token_last_validated_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS last_auto_refresh_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS next_refresh_check_at TIMESTAMP NULL,
+    ADD COLUMN IF NOT EXISTS token_last_validated_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS last_auto_refresh_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS next_refresh_check_at TIMESTAMPTZ NULL,
     ADD COLUMN IF NOT EXISTS token_error_message TEXT NULL;
   `,
   `
@@ -831,9 +831,9 @@ const statements = [
     match_mode VARCHAR(30) NOT NULL DEFAULT 'any',
     response_message TEXT NOT NULL DEFAULT '',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    last_checked_at TIMESTAMP NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    last_checked_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -846,7 +846,7 @@ const statements = [
     ADD COLUMN IF NOT EXISTS match_mode VARCHAR(30) NOT NULL DEFAULT 'any',
     ADD COLUMN IF NOT EXISTS response_message TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMP NULL;
+    ADD COLUMN IF NOT EXISTS last_checked_at TIMESTAMPTZ NULL;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_comment_dm_rules_tenant_active
@@ -868,8 +868,8 @@ const statements = [
     status VARCHAR(30) NOT NULL DEFAULT 'pending',
     error_message TEXT NULL,
     meta_response JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, platform, platform_comment_id)
   );
   `,
@@ -887,7 +887,7 @@ const statements = [
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'pending',
     ADD COLUMN IF NOT EXISTS error_message TEXT NULL,
     ADD COLUMN IF NOT EXISTS meta_response JSONB NOT NULL DEFAULT '{}'::jsonb,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_comment_dm_logs_tenant_created
@@ -908,8 +908,8 @@ const statements = [
     like_comment BOOLEAN NOT NULL DEFAULT TRUE,
     reply_publicly BOOLEAN NOT NULL DEFAULT TRUE,
     send_private_reply BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -926,8 +926,8 @@ const statements = [
     ADD COLUMN IF NOT EXISTS like_comment BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS reply_publicly BOOLEAN NOT NULL DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS send_private_reply BOOLEAN NOT NULL DEFAULT TRUE,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
   `,
   `
   CREATE INDEX IF NOT EXISTS idx_marketing_auto_reply_rules_business_enabled
@@ -946,7 +946,7 @@ const statements = [
     media_id TEXT NULL,
     product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -976,8 +976,8 @@ const statements = [
     automation_actions JSONB NOT NULL DEFAULT '{}'::jsonb,
     error_message TEXT NULL,
     raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processed_at TIMESTAMPTZ NULL,
     UNIQUE (platform, comment_id)
   );
   `,
@@ -1001,7 +1001,7 @@ const statements = [
     business_id BIGINT NULL REFERENCES tenants(id) ON DELETE SET NULL,
     object VARCHAR(40) NOT NULL DEFAULT '',
     entries_count INT NOT NULL DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -1050,8 +1050,8 @@ const statements = [
     matched_keyword TEXT NULL,
     lead_score VARCHAR(20) NOT NULL DEFAULT 'low',
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (business_id, platform, user_platform_id)
   );
   `,

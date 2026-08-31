@@ -49,9 +49,9 @@ const runNotificationsSchemaEnsure = async (clientOrPool = db) => {
       entity_id VARCHAR(160) NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       is_read BOOLEAN NOT NULL DEFAULT FALSE,
-      read_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      read_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       CONSTRAINT notifications_priority_check CHECK (priority IN ('low', 'medium', 'high', 'critical'))
     )
   `);

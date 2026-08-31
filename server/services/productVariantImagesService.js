@@ -220,7 +220,7 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
         sort_order INTEGER NOT NULL DEFAULT 0,
         is_primary BOOLEAN NOT NULL DEFAULT FALSE,
         generated_by_ai BOOLEAN NOT NULL DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE`);

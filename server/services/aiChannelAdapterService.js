@@ -227,10 +227,10 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
         last_message TEXT NOT NULL DEFAULT '',
         customer_profile_id BIGINT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          last_message_at TIMESTAMP NULL,
-          read_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_message_at TIMESTAMPTZ NULL,
+          read_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, channel, external_conversation_id)
         )
       `);
@@ -241,7 +241,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
       await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS lead_status TEXT NOT NULL DEFAULT 'new'`);
-      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_customer ON ai_channel_conversations (tenant_id, channel, external_customer_id)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_tenant_lead_status ON ai_channel_conversations (tenant_id, lead_status, updated_at DESC)`);
       await clientOrPool.query(`
@@ -249,8 +249,8 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
           tenant_id BIGINT NOT NULL,
           channel TEXT NOT NULL,
           settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (tenant_id, channel)
         )
       `);
@@ -266,7 +266,7 @@ export const ensureAiChannelAdapterSchema = async (clientOrPool = db) => {
           status TEXT NOT NULL DEFAULT '',
           error TEXT NOT NULL DEFAULT '',
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_event_logs_tenant_channel_created ON ai_channel_event_logs (tenant_id, channel, created_at DESC)`);

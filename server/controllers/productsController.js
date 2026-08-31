@@ -624,8 +624,8 @@ export const ensureProductSchema = async () => {
             name VARCHAR(255) NOT NULL DEFAULT '',
             parent_id BIGINT,
             status VARCHAR(50) NOT NULL DEFAULT 'active',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
           )
         `);
         await client.query(`
@@ -638,8 +638,8 @@ export const ensureProductSchema = async () => {
             image_url TEXT,
             sort_order INTEGER NOT NULL DEFAULT 0,
             status VARCHAR(50) NOT NULL DEFAULT 'active',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
           )
         `);
         await client.query(`
@@ -648,8 +648,8 @@ export const ensureProductSchema = async () => {
             tenant_id BIGINT,
             name VARCHAR(255) NOT NULL DEFAULT '',
             status VARCHAR(50) NOT NULL DEFAULT 'active',
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
           )
         `);
         await client.query(`
@@ -665,8 +665,8 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS image_url TEXT,
             ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active',
-            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW(),
-            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
         `);
         await client.query(`
           UPDATE brands
@@ -708,8 +708,8 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS sale_reason VARCHAR(40) DEFAULT '',
-            ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMP NULL,
-            ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMPTZ NULL,
+            ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMPTZ NULL,
             ADD COLUMN IF NOT EXISTS use_custom_compare_price BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS custom_compare_price NUMERIC(12,2) NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -744,7 +744,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS thumbnail_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS thermal_image_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS thermal_image_status TEXT NOT NULL DEFAULT 'pending',
-            ADD COLUMN IF NOT EXISTS thermal_image_generated_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS thermal_image_generated_at TIMESTAMPTZ NULL,
             ADD COLUMN IF NOT EXISTS thermal_image_error TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb,
             ADD COLUMN IF NOT EXISTS variation_mode VARCHAR(30) NOT NULL DEFAULT 'full_variations',
@@ -823,7 +823,7 @@ export const ensureProductSchema = async () => {
             id BIGSERIAL PRIMARY KEY,
             product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
             audience VARCHAR(30) NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(product_id, audience),
             CHECK (audience IN ('men', 'women', 'kids'))
           )
@@ -897,7 +897,7 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS thumbnail_url TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS thermal_image_url TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS thermal_image_status TEXT NOT NULL DEFAULT 'pending',
-      ADD COLUMN IF NOT EXISTS thermal_image_generated_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS thermal_image_generated_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS thermal_image_error TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -909,8 +909,8 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS sale_reason VARCHAR(40) DEFAULT '',
-      ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMP NULL,
-      ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS purchase_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS last_purchase_cost NUMERIC(12,2) NULL,
@@ -919,7 +919,7 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS default_purchase_qty INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS low_stock_alert INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
       ADD COLUMN IF NOT EXISTS supplier_id BIGINT,
       ADD COLUMN IF NOT EXISTS warehouse_id BIGINT,

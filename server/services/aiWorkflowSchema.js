@@ -27,8 +27,8 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         version INTEGER NOT NULL DEFAULT 1,
         created_by BIGINT NULL,
         updated_by BIGINT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflows_tenant ON ai_workflows (tenant_id, enabled)`);
@@ -46,10 +46,10 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         error TEXT NULL,
         idempotency_key TEXT NULL,
         started_by BIGINT NULL,
-        started_at TIMESTAMP NULL,
-        finished_at TIMESTAMP NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        started_at TIMESTAMPTZ NULL,
+        finished_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflow_runs_tenant ON ai_workflow_runs (tenant_id, workflow_id, created_at DESC)`);
@@ -70,9 +70,9 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         output JSONB NOT NULL DEFAULT '{}'::jsonb,
         error TEXT NULL,
         duration_ms INTEGER NULL,
-        started_at TIMESTAMP NULL,
-        finished_at TIMESTAMP NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        started_at TIMESTAMPTZ NULL,
+        finished_at TIMESTAMPTZ NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflow_run_steps_run ON ai_workflow_run_steps (tenant_id, run_id, seq)`);
@@ -90,12 +90,12 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         request_context JSONB NOT NULL DEFAULT '{}'::jsonb,
         status TEXT NOT NULL DEFAULT 'pending',
         requested_by BIGINT NULL,
-        requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         decided_by BIGINT NULL,
-        decided_at TIMESTAMP NULL,
+        decided_at TIMESTAMPTZ NULL,
         decision_note TEXT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflow_approvals_pending ON ai_workflow_approvals (tenant_id, status, created_at DESC)`);
@@ -103,7 +103,7 @@ export const ensureAiWorkflowSchema = async (client = db) => {
 
     // ---- Phase 4: event-driven automation (additive) ----
     // Soft-delete / archive (never hard-delete workflows or their run history).
-    await client.query(`ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP NULL`);
+    await client.query(`ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL`);
     await client.query(`ALTER TABLE ai_workflows ADD COLUMN IF NOT EXISTS archived_by BIGINT NULL`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_workflows_active ON ai_workflows (tenant_id, trigger_type) WHERE archived_at IS NULL AND enabled = TRUE`);
     // Run observability: which event caused an automatic run (idempotency_key already exists).
@@ -114,8 +114,8 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         tenant_id BIGINT PRIMARY KEY,
         automation_enabled BOOLEAN NOT NULL DEFAULT FALSE,
         updated_by BIGINT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -133,12 +133,12 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         workflow_id BIGINT NOT NULL,
         tool_id TEXT NOT NULL,
         granted_by BIGINT NULL,
-        granted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        granted_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         revoked_by BIGINT NULL,
-        revoked_at TIMESTAMP NULL,
+        revoked_at TIMESTAMPTZ NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     // At most one ACTIVE grant per (workflow, tool). Revoked rows stay for history.
@@ -155,7 +155,7 @@ export const ensureAiWorkflowSchema = async (client = db) => {
         tool_id TEXT NULL,
         idempotency_key TEXT NOT NULL,
         result_ref TEXT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_workflow_write_ops_key ON ai_workflow_write_ops (tenant_id, idempotency_key)`);

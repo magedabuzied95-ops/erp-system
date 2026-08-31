@@ -85,7 +85,7 @@ const ensureQaSchema = async (client) => {
   await client.query("ALTER TABLE IF EXISTS order_items ADD COLUMN IF NOT EXISTS returned_quantity INTEGER NOT NULL DEFAULT 0");
   await client.query("ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)");
   await client.query("ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(12,2) NOT NULL DEFAULT 0");
-  await client.query("ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_restored_at TIMESTAMP NULL");
+  await client.query("ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_restored_at TIMESTAMPTZ NULL");
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS qa_accounting_inventory_reports (
@@ -94,7 +94,7 @@ const ensureQaSchema = async (client) => {
       source VARCHAR(80) NOT NULL DEFAULT '${QA_SOURCE}',
       status VARCHAR(20) NOT NULL,
       report JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 };

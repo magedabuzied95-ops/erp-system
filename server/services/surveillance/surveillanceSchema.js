@@ -88,13 +88,13 @@ const createTables = async (client) => {
       serial_hash VARCHAR(64) NOT NULL DEFAULT '',
       channel_count INTEGER NOT NULL DEFAULT 0,
       status VARCHAR(24) NOT NULL DEFAULT 'unknown',
-      last_seen_at TIMESTAMP NULL,
+      last_seen_at TIMESTAMPTZ NULL,
       last_error_code VARCHAR(80) NOT NULL DEFAULT '',
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       updated_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   // ON DELETE RESTRICT on branch_id is intentional. Cascading would silently
@@ -123,9 +123,9 @@ const createTables = async (client) => {
       username VARCHAR(64) NOT NULL DEFAULT '',
       password_encrypted TEXT NOT NULL DEFAULT '',
       auth_method VARCHAR(24) NOT NULL DEFAULT 'digest',
-      rotated_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      rotated_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   // The column is named `password_encrypted`, never `password`. A plaintext
@@ -141,10 +141,10 @@ const createTables = async (client) => {
       capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
       probe_status VARCHAR(24) NOT NULL DEFAULT 'never',
       probe_error VARCHAR(120) NOT NULL DEFAULT '',
-      probed_at TIMESTAMP NULL,
+      probed_at TIMESTAMPTZ NULL,
       firmware_at_probe VARCHAR(120) NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   // Default '{}' is safe because normalizeCapabilitySet() reads a missing key
@@ -167,9 +167,9 @@ const createTables = async (client) => {
       main_codec VARCHAR(24) NOT NULL DEFAULT '',
       sub_codec VARCHAR(24) NOT NULL DEFAULT '',
       status VARCHAR(24) NOT NULL DEFAULT 'unknown',
-      last_seen_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      last_seen_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(
@@ -204,8 +204,8 @@ const createTables = async (client) => {
       layout VARCHAR(4) NOT NULL DEFAULT '4',
       slots JSONB NOT NULL DEFAULT '[]'::jsonb,
       is_default BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(
@@ -234,7 +234,7 @@ const createTables = async (client) => {
       error_code VARCHAR(80) NOT NULL DEFAULT '',
       ip_address INET NULL,
       user_agent TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   // No foreign keys on device_id / channel_id, and this is deliberate. An audit
@@ -259,7 +259,7 @@ const createTables = async (client) => {
       tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
       user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(
@@ -279,7 +279,7 @@ const createTables = async (client) => {
       transport_type VARCHAR(40) NOT NULL DEFAULT 'direct',
       note VARCHAR(200) NOT NULL DEFAULT '',
       created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(

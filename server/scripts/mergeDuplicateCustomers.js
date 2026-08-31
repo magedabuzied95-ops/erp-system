@@ -274,7 +274,7 @@ const ensureArchiveTable = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS customer_merge_archive (
       id BIGSERIAL PRIMARY KEY,
-      merged_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      merged_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       tenant_id BIGINT NULL,
       keeper_id BIGINT NOT NULL,
       merged_customer_id BIGINT NOT NULL,

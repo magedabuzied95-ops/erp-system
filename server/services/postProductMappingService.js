@@ -1003,8 +1003,8 @@ const ensurePostProductMappingSchema = async () => {
       product_id BIGINT NOT NULL,
       priority INTEGER NOT NULL DEFAULT 1,
       is_primary BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, platform, platform_post_id, product_id)
     )
   `);
@@ -1012,7 +1012,7 @@ const ensurePostProductMappingSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS platform_post_id TEXT`);
   await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 1`);
   await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS is_primary BOOLEAN NOT NULL DEFAULT TRUE`);
-  await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS business_id BIGINT`);
   await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS post_id TEXT`);
   await db.query(`ALTER TABLE IF EXISTS marketing_post_product_links ADD COLUMN IF NOT EXISTS media_id TEXT`);

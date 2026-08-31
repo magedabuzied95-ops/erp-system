@@ -152,8 +152,8 @@ export const ensureAiInboxLeadActionsSchema = async (clientOrPool = db) => {
       status TEXT NOT NULL DEFAULT 'open',
       notes TEXT NOT NULL DEFAULT '',
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`ALTER TABLE IF EXISTS ai_lead_opportunities ADD COLUMN IF NOT EXISTS profile_id BIGINT NOT NULL DEFAULT 0`);
@@ -164,7 +164,7 @@ export const ensureAiInboxLeadActionsSchema = async (clientOrPool = db) => {
   await client.query(`ALTER TABLE IF EXISTS ai_lead_opportunities ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open'`);
   await client.query(`ALTER TABLE IF EXISTS ai_lead_opportunities ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT ''`);
   await client.query(`ALTER TABLE IF EXISTS ai_lead_opportunities ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
-  await client.query(`ALTER TABLE IF EXISTS ai_lead_opportunities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS ai_lead_opportunities ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS uq_ai_lead_opportunities_scope
     ON ai_lead_opportunities (tenant_id, profile_id, conversation_id, source_key)

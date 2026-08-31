@@ -62,10 +62,10 @@ export const ensurePortalPushSchema = async (clientOrPool = db) => {
       auth TEXT NOT NULL DEFAULT '',
       user_agent TEXT NOT NULL DEFAULT '',
       portal_url TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      revoked_at TIMESTAMP NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      revoked_at TIMESTAMPTZ NULL,
       UNIQUE (portal_type, endpoint)
     )
   `);

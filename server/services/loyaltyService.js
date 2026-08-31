@@ -29,9 +29,9 @@ export const ensureLoyaltySchema = async (client) => {
           available_points NUMERIC(12,2) NOT NULL DEFAULT 0,
           lifetime_points NUMERIC(12,2) NOT NULL DEFAULT 0,
           lifetime_spent NUMERIC(12,2) NOT NULL DEFAULT 0,
-          last_order_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_order_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, customer_id)
         )
       `);
@@ -42,10 +42,10 @@ export const ensureLoyaltySchema = async (client) => {
       await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_tier VARCHAR(50) NOT NULL DEFAULT 'Bronze'`);
       await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_spent NUMERIC(12,2) NOT NULL DEFAULT 0`);
       await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_orders INTEGER NOT NULL DEFAULT 0`);
-      await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMP NULL`);
+      await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMPTZ NULL`);
       await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0`);
       await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active'`);
-      await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 
       await client.query(`
         CREATE TABLE IF NOT EXISTS customer_loyalty_history (
@@ -57,7 +57,7 @@ export const ensureLoyaltySchema = async (client) => {
           points_change NUMERIC(12,2) NOT NULL DEFAULT 0,
           balance_after NUMERIC(12,2) NOT NULL DEFAULT 0,
           reason TEXT NOT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
@@ -80,7 +80,7 @@ export const ensureLoyaltySchema = async (client) => {
           amount_value NUMERIC(12,2) NOT NULL DEFAULT 0,
           description TEXT,
           created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
 

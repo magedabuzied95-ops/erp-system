@@ -42,7 +42,7 @@ export const ensureRestockRecoverySchema = async (client = db) => {
         reason TEXT NULL,
         workflow_id BIGINT NULL,
         run_id BIGINT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     // Business-level dedup: at most one recovery row per (event, request). Replaying the same

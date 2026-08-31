@@ -81,21 +81,21 @@ export const ensureTikTokIntegrationSchema = async (client = db) => {
           avatar_url TEXT NOT NULL DEFAULT '',
           access_token_encrypted TEXT NOT NULL DEFAULT '',
           refresh_token_encrypted TEXT NOT NULL DEFAULT '',
-          access_token_expires_at TIMESTAMP NULL,
-          refresh_token_expires_at TIMESTAMP NULL,
+          access_token_expires_at TIMESTAMPTZ NULL,
+          refresh_token_expires_at TIMESTAMPTZ NULL,
           granted_scopes TEXT NOT NULL DEFAULT '',
           capabilities JSONB NOT NULL DEFAULT '{}'::jsonb,
           status TEXT NOT NULL DEFAULT 'not_connected',
           last_error TEXT NOT NULL DEFAULT '',
-          last_sync_at TIMESTAMP NULL,
-          last_refresh_at TIMESTAMP NULL,
+          last_sync_at TIMESTAMPTZ NULL,
+          last_refresh_at TIMESTAMPTZ NULL,
           refresh_lock_token TEXT NOT NULL DEFAULT '',
-          refresh_lock_at TIMESTAMP NULL,
+          refresh_lock_at TIMESTAMPTZ NULL,
           connected_by_user_id BIGINT NULL,
-          connected_at TIMESTAMP NULL,
-          disconnected_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          connected_at TIMESTAMPTZ NULL,
+          disconnected_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id)
         )
       `);
@@ -110,10 +110,10 @@ export const ensureTikTokIntegrationSchema = async (client = db) => {
           requested_scopes TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL DEFAULT 'started',
           error_message TEXT NOT NULL DEFAULT '',
-          expires_at TIMESTAMP NOT NULL,
-          consumed_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          expires_at TIMESTAMPTZ NOT NULL,
+          consumed_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_tiktok_oauth_states_tenant_created ON tiktok_oauth_states (tenant_id, created_at DESC)`);

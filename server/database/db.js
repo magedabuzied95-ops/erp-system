@@ -15,6 +15,46 @@ const DB_SLOW_QUERY_MS = Number(process.env.PG_SLOW_QUERY_MS) || 750;
 let runtimeSchemaWarningLogged = false;
 const dbRequestContext = new AsyncLocalStorage();
 
+/*
+ * The calendar the shop books against.
+ *
+ * Every timestamp column is a `timestamptz` — an absolute instant — so this zone decides only how
+ * the database *reads* them: `NOW()`, `CURRENT_DATE`, `created_at::date` and every range
+ * comparison resolve against the Cairo calendar. That is the whole reason a sale rung up at 01:30
+ * lands on the day the cashier thinks it did, instead of on the day before.
+ *
+ * Set here as well as on the database (`ALTER DATABASE … SET timezone`) so the requirement travels
+ * with the code: a restore onto a fresh server, or a connection pooler that resets session state,
+ * cannot quietly put the reports back on UTC midnight.
+ *
+ * A zone name, never a fixed offset — Egypt keeps +02 in winter and +03 in summer.
+ */
+const DB_SESSION_TIMEZONE = String(process.env.PGTIMEZONE || "Africa/Cairo").trim();
+
+/*
+ * PGOPTIONS is appended to rather than replaced: the deployment sets it for its own reasons and
+ * overwriting it here would drop whatever it carried.
+ */
+const pgOptions = [process.env.PGOPTIONS || "-c client_encoding=UTF8", `-c timezone=${DB_SESSION_TIMEZONE}`]
+  .filter(Boolean)
+  .join(" ");
+
+/*
+ * The process clock, on the other hand, must stay UTC.
+ *
+ * `timestamptz` values are immune to it, but a plain `date` column is not: node-postgres parses
+ * `date` at LOCAL midnight, so with the process on Africa/Cairo a `2026-08-31` attendance day
+ * serialises as `2026-08-30T21:00:00Z` and every date-only field in the API reads a day early.
+ * Cairo belongs on the database session, never on the container clock.
+ */
+if (process.env.TZ && !/^(UTC|Etc\/UTC|GMT)$/i.test(String(process.env.TZ).trim())) {
+  console.warn("[db] process TZ is not UTC — date-only columns will be read a day early", {
+    TZ: process.env.TZ,
+    expected: "UTC",
+    note: "Cairo belongs on the database session (PGTIMEZONE), not on the process clock.",
+  });
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || undefined,
   user: process.env.PGUSER || "postgres",
@@ -28,7 +68,7 @@ const pool = new Pool({
   query_timeout: DB_QUERY_TIMEOUT_MS,
   statement_timeout: DB_QUERY_TIMEOUT_MS,
   idleTimeoutMillis: DB_IDLE_TIMEOUT_MS,
-  options: process.env.PGOPTIONS || "-c client_encoding=UTF8",
+  options: pgOptions,
   ssl: process.env.PGSSLMODE === "require" ? { rejectUnauthorized: false } : undefined,
 });
 

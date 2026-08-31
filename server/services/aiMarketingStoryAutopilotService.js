@@ -200,7 +200,7 @@ const applyStoryAutopilotSchema = async () => {
       status VARCHAR(30) NOT NULL DEFAULT 'info',
       message TEXT NOT NULL DEFAULT '',
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await db.query(

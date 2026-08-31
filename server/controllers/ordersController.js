@@ -475,10 +475,10 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'open'`);
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS opened_by BIGINT`);
-  await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS shift_summary TEXT`);
-  await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS cashbox ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   if (tenantId !== null && tenantId !== undefined) {
     await client.query(`UPDATE cashbox SET tenant_id = $1 WHERE tenant_id IS NULL`, [tenantId]);
   }
@@ -513,9 +513,9 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_screenshot TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_reference TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS transfer_proof_status VARCHAR(50)`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_by INTEGER NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_discount_type VARCHAR(20)`);
@@ -545,17 +545,17 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_token TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS invoice_public_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS created_by BIGINT`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancelled_by BIGINT NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS deleted_by BIGINT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS delete_reason TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_restored_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_reverted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_restored_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS stock_reverted_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS inventory_rollback_done BOOLEAN NOT NULL DEFAULT FALSE`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS returned_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS returned_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN DEFAULT false`);
   await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT false`);
   await client.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS completed_orders INTEGER DEFAULT 0`);
@@ -573,8 +573,8 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       exchange_difference NUMERIC(12,2) NOT NULL DEFAULT 0,
       metadata JSONB NULL,
       created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`
@@ -609,8 +609,8 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       quantity INTEGER NOT NULL DEFAULT 1,
       reason TEXT,
       status VARCHAR(30) NOT NULL DEFAULT 'pending',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (return_item_id)
     )
   `);
@@ -678,7 +678,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_tracking_number VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_delivery_id VARCHAR(160)`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_label_url TEXT`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_status VARCHAR(80) NOT NULL DEFAULT 'pending'`);
@@ -691,7 +691,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS allow_open_package BOOLEAN NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_source TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_platform TEXT NULL`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS marketing_post_id TEXT NULL`);
@@ -748,7 +748,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       tenant_id BIGINT NULL,
       order_id BIGINT NOT NULL,
       user_id BIGINT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -763,7 +763,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       new_total NUMERIC(12,2) NOT NULL DEFAULT 0,
       user_id BIGINT NULL,
       reason TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -775,7 +775,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       entity VARCHAR(120) NOT NULL,
       entity_id BIGINT NULL,
       details JSONB NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -805,8 +805,8 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       priority INTEGER NOT NULL DEFAULT 0,
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
       created_by BIGINT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -824,8 +824,8 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       commission_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
       refund_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
       status VARCHAR(50) NOT NULL DEFAULT 'recorded',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, order_id)
     )
   `);
@@ -848,7 +848,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       branch_id BIGINT,
       shift_id BIGINT,
       created_by BIGINT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -909,28 +909,28 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`CREATE INDEX IF NOT EXISTS idx_commission_rules_tenant_id ON commission_rules (tenant_id, is_active, scope_type)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_sales_tenant_id ON employee_sales (tenant_id, sales_employee_id, cashier_id, created_at DESC)`);
   await client.query(`CREATE INDEX IF NOT EXISTS idx_employee_commissions_tenant_id ON employee_commissions (tenant_id, employee_id, created_at DESC)`);
-  await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''`);
   await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS image TEXT DEFAULT ''`);
   await client.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb`);
-  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT ''`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS image TEXT DEFAULT ''`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sku VARCHAR(120)`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS barcode VARCHAR(120)`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color VARCHAR(100)`);
   await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS size VARCHAR(100)`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipment_created_sent_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipped_sent_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_out_for_delivery_sent_at TIMESTAMP NULL`);
-  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivered_sent_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipment_created_sent_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipped_sent_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_out_for_delivery_sent_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivered_sent_at TIMESTAMPTZ NULL`);
   await client.query(`
     CREATE TABLE IF NOT EXISTS product_variant_images (
       id BIGSERIAL PRIMARY KEY,
@@ -941,7 +941,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
       image_url TEXT NOT NULL DEFAULT '',
       is_primary BOOLEAN NOT NULL DEFAULT FALSE,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await client.query(`ALTER TABLE IF EXISTS product_variant_images ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);

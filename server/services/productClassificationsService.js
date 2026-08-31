@@ -43,8 +43,8 @@ const ensureProductClassificationSchemaNow = async () => {
         name_en VARCHAR(255) NOT NULL DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`
@@ -58,13 +58,13 @@ const ensureProductClassificationSchemaNow = async () => {
         color VARCHAR(80) DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(group_id, value)
       )
     `);
-    await client.query(`ALTER TABLE product_classification_groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
-    await client.query(`ALTER TABLE product_classification_options ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+    await client.query(`ALTER TABLE product_classification_groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE product_classification_options ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS bag_type TEXT`);
     await client.query(`
       INSERT INTO product_classification_groups (key, name_ar, name_en, sort_order, is_active, deleted_at)

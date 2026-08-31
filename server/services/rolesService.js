@@ -520,8 +520,8 @@ export const ensureRolesSchema = async (client) => {
       slug VARCHAR(120),
       description TEXT,
       is_system BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, name)
     )
   `);
@@ -532,7 +532,7 @@ export const ensureRolesSchema = async (client) => {
       module VARCHAR(100) NOT NULL,
       action VARCHAR(50) NOT NULL,
       description TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (module, action)
     )
   `);
@@ -549,8 +549,8 @@ export const ensureRolesSchema = async (client) => {
   await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS description TEXT`);
   await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE`);
-  await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-  await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE permissions ADD COLUMN IF NOT EXISTS description TEXT`);
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_permissions_module_action_unique ON permissions (module, action)`);
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_role_permissions_unique ON role_permissions (role_id, permission_id)`);

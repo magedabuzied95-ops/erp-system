@@ -77,9 +77,9 @@ export const ensureBarcodePrintQueueSchema = async (clientOrPool = db) => {
           label_count INTEGER NOT NULL DEFAULT 0,
           variant_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
           error_message TEXT NOT NULL DEFAULT '',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          printed_at TIMESTAMP NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          printed_at TIMESTAMPTZ NULL,
           printed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL
         )
       `);

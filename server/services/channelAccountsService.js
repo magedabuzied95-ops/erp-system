@@ -38,8 +38,8 @@ export const ensureChannelAccountsSchema = async () => {
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
           is_default BOOLEAN NOT NULL DEFAULT FALSE,
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, platform, external_account_id)
         )
       `);

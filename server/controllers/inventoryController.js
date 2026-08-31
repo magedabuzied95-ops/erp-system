@@ -633,7 +633,7 @@ const ensureInventoryAlertProductColumns = async () => {
   await db.query(`
     ALTER TABLE IF EXISTS product_variants
       ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL
   `);
   await db.query(`
     UPDATE products

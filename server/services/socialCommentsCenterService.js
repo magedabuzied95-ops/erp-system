@@ -263,8 +263,8 @@ const ensureSocialCommentsCenterSchema = async () => {
           generic_reply_enabled BOOLEAN NOT NULL DEFAULT TRUE,
           generic_template TEXT NOT NULL DEFAULT '',
           mode VARCHAR(40) NOT NULL DEFAULT 'manual_approval',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`
@@ -278,8 +278,8 @@ const ensureSocialCommentsCenterSchema = async () => {
           reply_enabled BOOLEAN NOT NULL DEFAULT TRUE,
           template TEXT NOT NULL DEFAULT '',
           mode VARCHAR(40) NOT NULL DEFAULT 'manual_approval',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, platform, post_id)
         )
       `);
@@ -294,8 +294,8 @@ const ensureSocialCommentsCenterSchema = async () => {
           enabled BOOLEAN NOT NULL DEFAULT FALSE,
           settings JSONB NOT NULL DEFAULT '{}'::jsonb,
           message_templates JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, post_id, platform)
         )
       `);
@@ -313,9 +313,9 @@ const ensureSocialCommentsCenterSchema = async () => {
           mode TEXT NOT NULL DEFAULT 'manual_approval',
           decision_reason TEXT NOT NULL DEFAULT '',
           error_message TEXT NOT NULL DEFAULT '',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          sent_at TIMESTAMP NULL,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          sent_at TIMESTAMPTZ NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, platform, comment_id)
         )
       `);
@@ -331,8 +331,8 @@ const ensureSocialCommentsCenterSchema = async () => {
           permalink_post_id TEXT NULL,
           product_id BIGINT NOT NULL,
           is_primary BOOLEAN NOT NULL DEFAULT TRUE,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (business_id, platform, post_link_key, product_id)
         )
       `);

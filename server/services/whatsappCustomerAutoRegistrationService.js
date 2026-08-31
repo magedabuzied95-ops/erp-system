@@ -11,7 +11,7 @@ const ensureCustomerAvatarSchema = async () => {
     avatarSchemaPromise = (async () => {
       await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
       await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_source VARCHAR(40)`);
-      await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_updated_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS avatar_updated_at TIMESTAMPTZ NULL`);
     })().catch((error) => {
       avatarSchemaPromise = null;
       throw error;

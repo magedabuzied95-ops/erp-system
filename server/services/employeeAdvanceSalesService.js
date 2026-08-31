@@ -51,7 +51,7 @@ export const ensureEmployeeAdvanceSalesSchema = async () => {
   if (!schemaPromise) {
     schemaPromise = (async () => {
       await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS linked_employee_id BIGINT NULL`);
-      await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS linked_employee_linked_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS linked_employee_linked_at TIMESTAMPTZ NULL`);
       await db.query(`
         CREATE INDEX IF NOT EXISTS idx_customers_linked_employee
         ON customers (tenant_id, linked_employee_id)

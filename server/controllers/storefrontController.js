@@ -800,8 +800,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_reason VARCHAR(40) DEFAULT ''`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS use_custom_compare_price BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS custom_compare_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS products ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
@@ -830,8 +830,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_start_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_end_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`UPDATE product_variants SET regular_price = price WHERE COALESCE(regular_price, 0) = 0 AND COALESCE(price, 0) > 0`);
   await clientOrPool.query(`UPDATE product_variants SET selling_price = price WHERE COALESCE(selling_price, 0) = 0 AND COALESCE(price, 0) > 0`);
@@ -840,7 +840,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
       id BIGSERIAL PRIMARY KEY,
       product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       audience VARCHAR(30) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(product_id, audience),
       CHECK (audience IN ('men', 'women', 'kids'))
     )
@@ -868,21 +868,21 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS recently_viewed_products ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS inventory_movements ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_hash TEXT`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_points NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_tier VARCHAR(50) NOT NULL DEFAULT 'Bronze'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_spent NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_orders INTEGER NOT NULL DEFAULT 0`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS registration_source VARCHAR(80) NOT NULL DEFAULT ''`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS first_visit_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS last_visit_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS storefront_last_seen_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS first_visit_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS last_visit_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS storefront_last_seen_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_storefront_customer BOOLEAN NOT NULL DEFAULT FALSE`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN DEFAULT false`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT false`);
@@ -895,19 +895,19 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
       customer_id BIGINT NULL,
       customer_phone VARCHAR(80) NOT NULL,
       cart JSONB NOT NULL DEFAULT '[]'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS customer_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(80) NOT NULL DEFAULT ''`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS cart JSONB NOT NULL DEFAULT '[]'::jsonb`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_storefront_customer_carts_tenant_phone ON storefront_customer_carts (tenant_id, customer_phone)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_storefront_customer_carts_updated_at ON storefront_customer_carts (updated_at DESC)`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_storefront_customer_carts_tenant_phone_unique ON storefront_customer_carts (tenant_id, customer_phone)`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'pos'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_type VARCHAR(50) NOT NULL DEFAULT 'walk_in'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(80)`);
@@ -930,12 +930,12 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_screenshot TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_reference TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS transfer_proof_status VARCHAR(50)`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_code VARCHAR(80)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS coupon_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_payment_verified_by INTEGER NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_trust_counted_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS remaining_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_order_number VARCHAR(40)`);
@@ -955,7 +955,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_tracking_number VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_provider_delivery_id VARCHAR(160)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_label_url TEXT`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_last_synced_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipping_raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_status VARCHAR(80)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_id VARCHAR(160)`);
@@ -964,13 +964,13 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS courier_notes TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shipment_timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS expected_delivery_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS last_shipping_sync_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS expected_delivery_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMPTZ NULL`);
   // An online order can also be raised at the till (POS online-invoice mode). It keeps
   // source=website so the WhatsApp confirmation gate still fires, which leaves reporting no
   // way to tell a real web order from one a cashier typed in without a separate marker.
@@ -990,7 +990,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
       product_id BIGINT NOT NULL,
       notify_price_drop BOOLEAN NOT NULL DEFAULT TRUE,
       notify_back_in_stock BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, phone, product_id)
     )
   `);
@@ -1002,7 +1002,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
       session_id TEXT,
       phone VARCHAR(80),
       product_id BIGINT NOT NULL,
-      viewed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      viewed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`
@@ -1015,8 +1015,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
       title TEXT NOT NULL,
       body TEXT NOT NULL DEFAULT '',
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      read_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      read_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_source_created ON orders (source, created_at DESC)`);

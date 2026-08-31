@@ -234,8 +234,8 @@ export const ensureSocialPostIdentityAliasSchema = async () => {
           alias_key TEXT NOT NULL,
           alias_value TEXT NOT NULL,
           source TEXT NOT NULL DEFAULT '',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, platform, alias_key, alias_value)
         )
       `);

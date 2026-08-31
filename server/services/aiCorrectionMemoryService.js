@@ -58,8 +58,8 @@ export const ensureCorrectionMemorySchema = async (clientOrPool = db) => {
           product_id BIGINT NULL,
           channel TEXT NOT NULL DEFAULT 'web_chat',
           created_by BIGINT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb
         )
       `);
@@ -73,8 +73,8 @@ export const ensureCorrectionMemorySchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS created_by BIGINT NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
       // Phase 11.2 — intent/use-case key for normalized STYLE retrieval (backfilled from metadata.detected_intent).
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_reply_corrections ADD COLUMN IF NOT EXISTS intent TEXT NOT NULL DEFAULT ''`);

@@ -152,9 +152,9 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
           image_url TEXT NULL,
           status VARCHAR(40) NOT NULL DEFAULT 'pending',
           is_read BOOLEAN NOT NULL DEFAULT FALSE,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NULL,
-          resolved_at TIMESTAMP NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NULL,
+          resolved_at TIMESTAMPTZ NULL,
           resolved_by_employee_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL,
           CONSTRAINT employee_display_refill_alerts_status_check CHECK (status IN ('pending', 'resolved'))
         )
@@ -175,9 +175,9 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS image_url TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'pending'`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT FALSE`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS employee_display_refill_alerts ADD COLUMN IF NOT EXISTS resolved_by_employee_id BIGINT NULL`);
       await clientOrPool.query(`
         UPDATE employee_display_refill_alerts a
@@ -203,7 +203,7 @@ export const ensureDisplayRefillAlertSchema = async (clientOrPool = db) => {
         CREATE TABLE IF NOT EXISTS employee_display_refill_alert_reads (
           alert_id BIGINT NOT NULL REFERENCES employee_display_refill_alerts(id) ON DELETE CASCADE,
           employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-          read_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          read_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (alert_id, employee_id)
         )
       `);

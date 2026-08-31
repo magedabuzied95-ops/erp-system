@@ -2542,7 +2542,7 @@ const runEnsureMessengerProfileStorage = async () => {
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS messenger_name TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
-  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMPTZ NULL`);
   await repairMessengerStoredNames();
 };
 
@@ -6080,9 +6080,9 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
           instagram_username TEXT NOT NULL DEFAULT '',
           instagram_access_token_encrypted TEXT NOT NULL DEFAULT '',
           instagram_app_secret_encrypted TEXT NOT NULL DEFAULT '',
-          instagram_token_expires_at TIMESTAMP NULL,
+          instagram_token_expires_at TIMESTAMPTZ NULL,
           instagram_token_status TEXT NOT NULL DEFAULT 'missing',
-          instagram_token_last_validated_at TIMESTAMP NULL,
+          instagram_token_last_validated_at TIMESTAMPTZ NULL,
           instagram_webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE,
           app_id TEXT NOT NULL DEFAULT '',
           app_secret_encrypted TEXT NOT NULL DEFAULT '',
@@ -6097,17 +6097,17 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
           facebook_publishing_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           instagram_publishing_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           capability_status JSONB NOT NULL DEFAULT '{}'::jsonb,
-          token_expires_at TIMESTAMP NULL,
-          last_sync_at TIMESTAMP NULL,
-          last_webhook_at TIMESTAMP NULL,
-          last_meta_poll_at TIMESTAMP NULL,
-          last_meta_poll_success_at TIMESTAMP NULL,
-          last_meta_poll_error_at TIMESTAMP NULL,
-          meta_poll_backoff_until TIMESTAMP NULL,
+          token_expires_at TIMESTAMPTZ NULL,
+          last_sync_at TIMESTAMPTZ NULL,
+          last_webhook_at TIMESTAMPTZ NULL,
+          last_meta_poll_at TIMESTAMPTZ NULL,
+          last_meta_poll_success_at TIMESTAMPTZ NULL,
+          last_meta_poll_error_at TIMESTAMPTZ NULL,
+          meta_poll_backoff_until TIMESTAMPTZ NULL,
           meta_poll_error_count INTEGER NULL,
           status TEXT NOT NULL DEFAULT 'not_connected',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, facebook_page_id)
         )
       `);
@@ -6115,9 +6115,9 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_username TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_access_token_encrypted TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_app_secret_encrypted TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_expires_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_expires_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_status TEXT NOT NULL DEFAULT 'missing'`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_last_validated_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_token_last_validated_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_webhook_subscribed BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS webhook_verified BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS subscribed_apps_verified BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -6126,12 +6126,12 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS facebook_publishing_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS instagram_publishing_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS capability_status JSONB NOT NULL DEFAULT '{}'::jsonb`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_webhook_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_success_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_error_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS meta_poll_backoff_until TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_webhook_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_success_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS last_meta_poll_error_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS meta_poll_backoff_until TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS meta_integration_configs ADD COLUMN IF NOT EXISTS meta_poll_error_count INTEGER NULL`);
       await clientOrPool.query(`UPDATE meta_integration_configs SET facebook_page_name = page_name WHERE facebook_page_name = '' AND page_name <> ''`);
       await clientOrPool.query(`UPDATE meta_integration_configs SET instagram_dm_enabled = instagram_enabled WHERE instagram_dm_enabled = FALSE AND instagram_enabled = TRUE`);
@@ -6179,9 +6179,9 @@ export const ensureMetaIntegrationSchema = async (clientOrPool = db) => {
           selected_page_id TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL DEFAULT 'started',
           error_message TEXT NOT NULL DEFAULT '',
-          expires_at TIMESTAMP NOT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          expires_at TIMESTAMPTZ NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_meta_oauth_states_tenant_user_created ON meta_oauth_states (tenant_id, user_id, created_at DESC)`);
@@ -11544,7 +11544,7 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
       repair_key TEXT PRIMARY KEY,
       repaired_rows_count INTEGER NOT NULL DEFAULT 0,
       result JSONB NOT NULL DEFAULT '{}'::jsonb,
-      completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      completed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 

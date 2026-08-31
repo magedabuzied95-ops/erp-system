@@ -113,8 +113,8 @@ export const ensureShiftResolutionSchema = async (clientOrPool) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_shifts ADD COLUMN IF NOT EXISTS check_in_window_start TIME NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_shifts ADD COLUMN IF NOT EXISTS check_in_window_end TIME NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_logs ADD COLUMN IF NOT EXISTS selected_shift_id BIGINT NULL REFERENCES employee_shifts(id) ON DELETE SET NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_logs ADD COLUMN IF NOT EXISTS resolved_shift_start_time TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_logs ADD COLUMN IF NOT EXISTS resolved_shift_end_time TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_logs ADD COLUMN IF NOT EXISTS resolved_shift_start_time TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS attendance_logs ADD COLUMN IF NOT EXISTS resolved_shift_end_time TIMESTAMPTZ NULL`);
   await clientOrPool.query(`
     DO $$
     BEGIN
@@ -125,7 +125,7 @@ export const ensureShiftResolutionSchema = async (clientOrPool) => {
           AND data_type = 'time without time zone'
       ) THEN
         ALTER TABLE attendance_logs
-          ALTER COLUMN resolved_shift_start_time TYPE TIMESTAMP
+          ALTER COLUMN resolved_shift_start_time TYPE TIMESTAMPTZ
           USING (CURRENT_DATE + resolved_shift_start_time);
       END IF;
       IF EXISTS (
@@ -135,7 +135,7 @@ export const ensureShiftResolutionSchema = async (clientOrPool) => {
           AND data_type = 'time without time zone'
       ) THEN
         ALTER TABLE attendance_logs
-          ALTER COLUMN resolved_shift_end_time TYPE TIMESTAMP
+          ALTER COLUMN resolved_shift_end_time TYPE TIMESTAMPTZ
           USING (CURRENT_DATE + resolved_shift_end_time);
       END IF;
     END $$;

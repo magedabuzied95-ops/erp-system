@@ -174,10 +174,10 @@ const runSchema = async (client) => {
       reason TEXT,
       notes TEXT,
       note TEXT,
-      undone_at TIMESTAMP NULL,
+      undone_at TIMESTAMPTZ NULL,
       undone_by BIGINT NULL,
       created_by BIGINT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -204,10 +204,10 @@ const runSchema = async (client) => {
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS reason TEXT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS notes TEXT`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS note TEXT`);
-  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS undone_at TIMESTAMP NULL`);
+  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS undone_at TIMESTAMPTZ NULL`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS undone_by BIGINT NULL`);
   await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS created_by BIGINT`);
-  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`
     DO $$
     DECLARE

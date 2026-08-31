@@ -325,11 +325,11 @@ export const ensureAiConversationMemorySchema = async (clientOrPool = db) => {
           lead_quality_score INTEGER NOT NULL DEFAULT 0,
           engagement_score INTEGER NOT NULL DEFAULT 0,
           intent_score INTEGER NOT NULL DEFAULT 0,
-          lead_capture_prompted_at TIMESTAMP NULL,
-          lead_captured_at TIMESTAMP NULL,
-          last_interaction_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          lead_capture_prompted_at TIMESTAMPTZ NULL,
+          lead_captured_at TIMESTAMPTZ NULL,
+          last_interaction_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, session_id)
         )
       `);
@@ -338,14 +338,14 @@ export const ensureAiConversationMemorySchema = async (clientOrPool = db) => {
 
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active'`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_preferences JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_last_intent TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_last_seen_products JSONB NOT NULL DEFAULT '[]'::jsonb`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_lead_quality_score INTEGER NOT NULL DEFAULT 0`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_engagement_score INTEGER NOT NULL DEFAULT 0`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_intent_score INTEGER NOT NULL DEFAULT 0`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_last_interaction_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS ai_last_interaction_at TIMESTAMPTZ NULL`);
     })().catch((error) => {
       schemaReadyPromise = null;
       throw error;

@@ -245,10 +245,10 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS branch_id BIGINT,
       ADD COLUMN IF NOT EXISTS purchase_number VARCHAR(100) NOT NULL DEFAULT 'PO-PENDING',
       ADD COLUMN IF NOT EXISTS legacy_purchase_number VARCHAR(100),
-      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS deleted_by BIGINT NULL,
       ADD COLUMN IF NOT EXISTS delete_reason TEXT,
-      ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS reversed_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS reversed_by BIGINT NULL,
       ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'draft',
       ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) NOT NULL DEFAULT 'unpaid',
@@ -256,7 +256,7 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS client_request_id VARCHAR(120),
       ADD COLUMN IF NOT EXISTS purchase_save_id VARCHAR(120),
       ADD COLUMN IF NOT EXISTS stock_applied BOOLEAN NOT NULL DEFAULT FALSE,
-      ADD COLUMN IF NOT EXISTS stock_applied_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS stock_applied_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -265,7 +265,7 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS supplier_paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS notes TEXT,
       ADD COLUMN IF NOT EXISTS created_by BIGINT,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
   await client.query("ALTER TABLE IF EXISTS purchases ALTER COLUMN purchase_number SET DEFAULT 'PO-PENDING'");
   await client.query(`
@@ -327,11 +327,11 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_purchase_pricing_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS last_purchase_pricing_at TIMESTAMPTZ NULL,
       ADD COLUMN IF NOT EXISTS article_code TEXT,
       ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS default_purchase_qty INTEGER NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
   await client.query(`
     CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower
@@ -352,8 +352,8 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS last_purchase_pricing_at TIMESTAMP NULL,
-      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ADD COLUMN IF NOT EXISTS last_purchase_pricing_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
   await ensurePurchaseItemCostSchema(client);
   await client.query("ALTER TABLE IF EXISTS purchase_items DROP CONSTRAINT IF EXISTS purchase_items_variant_id_fkey");

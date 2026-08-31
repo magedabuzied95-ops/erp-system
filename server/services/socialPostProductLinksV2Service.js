@@ -156,8 +156,8 @@ const ensureSchemaOnce = async () => {
       permalink_post_id TEXT NULL,
       product_id BIGINT NOT NULL,
       is_primary BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_social_post_product_links_v2_unique ON social_post_product_links_v2 (business_id, platform, post_link_key, product_id)`);

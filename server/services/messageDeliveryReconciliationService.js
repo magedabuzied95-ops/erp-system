@@ -107,15 +107,15 @@ export const ensureMessageDeliverySchema = async (client = db) => {
         status TEXT NOT NULL,
         previous_status TEXT NULL,
         new_status TEXT NULL,
-        occurred_at TIMESTAMP NULL,
-        received_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        occurred_at TIMESTAMPTZ NULL,
+        received_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         matched BOOLEAN NOT NULL DEFAULT FALSE,
         matched_message_id BIGINT NULL,
         notification_id BIGINT NULL,
         reason TEXT NULL,
         dedup_key TEXT NOT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_message_delivery_events_dedup ON message_delivery_events (tenant_id, dedup_key)`);
@@ -124,12 +124,12 @@ export const ensureMessageDeliverySchema = async (client = db) => {
     // Additive delivery projection on restock notifications (source of truth stays the event ledger +
     // ai_support_messages; these fields are the notification's monotonic view for the operator UI).
     await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS delivery_status TEXT NULL`);
-    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP NULL`);
-    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
-    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS provider_failed_at TIMESTAMP NULL`);
+    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ NULL`);
+    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
+    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS provider_failed_at TIMESTAMPTZ NULL`);
     await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS provider_failure_code TEXT NULL`);
     await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS provider_failure_reason TEXT NULL`);
-    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS last_provider_event_at TIMESTAMP NULL`);
+    await client.query(`ALTER TABLE restock_notifications ADD COLUMN IF NOT EXISTS last_provider_event_at TIMESTAMPTZ NULL`);
   })().catch((e) => { schemaReady = null; throw e; });
   return schemaReady;
 };

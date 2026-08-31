@@ -181,8 +181,8 @@ const ensureSchema = async (clientOrPool = db) => {
       state_reason TEXT NOT NULL DEFAULT '',
       confidence NUMERIC(5,4) NOT NULL DEFAULT 0,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, conversation_id)
     )
   `);
@@ -193,7 +193,7 @@ const ensureSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE ai_sales_conversation_states ADD COLUMN IF NOT EXISTS state_reason TEXT NOT NULL DEFAULT ''`);
   await clientOrPool.query(`ALTER TABLE ai_sales_conversation_states ADD COLUMN IF NOT EXISTS confidence NUMERIC(5,4) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE ai_sales_conversation_states ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
-  await clientOrPool.query(`ALTER TABLE ai_sales_conversation_states ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE ai_sales_conversation_states ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 };
 
 export const upsertSalesConversationState = async ({ tenantId, conversation = {}, state = null, metadata = {}, clientOrPool = db } = {}) => {

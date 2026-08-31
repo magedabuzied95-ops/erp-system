@@ -470,22 +470,22 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
       title VARCHAR(255) NOT NULL DEFAULT 'جرد جديد',
       status VARCHAR(30) NOT NULL DEFAULT 'draft',
       notes TEXT NOT NULL DEFAULT '',
-      opened_at TIMESTAMP NULL,
-      completed_at TIMESTAMP NULL,
-      cancelled_at TIMESTAMP NULL,
+      opened_at TIMESTAMPTZ NULL,
+      completed_at TIMESTAMPTZ NULL,
+      cancelled_at TIMESTAMPTZ NULL,
       created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       opened_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       completed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       cancelled_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
       submitted_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-      submitted_at TIMESTAMP NULL,
+      submitted_at TIMESTAMPTZ NULL,
       approved_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-      approved_at TIMESTAMP NULL,
+      approved_at TIMESTAMPTZ NULL,
       rejected_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-      rejected_at TIMESTAMP NULL,
+      rejected_at TIMESTAMPTZ NULL,
       rejection_reason TEXT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -495,22 +495,22 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   await ensureColumn(client, "inventory_count_sessions", "title VARCHAR(255) NOT NULL DEFAULT 'جرد جديد'");
   await ensureColumn(client, "inventory_count_sessions", "status VARCHAR(30) NOT NULL DEFAULT 'draft'");
   await ensureColumn(client, "inventory_count_sessions", "notes TEXT NOT NULL DEFAULT ''");
-  await ensureColumn(client, "inventory_count_sessions", "opened_at TIMESTAMP NULL");
-  await ensureColumn(client, "inventory_count_sessions", "completed_at TIMESTAMP NULL");
-  await ensureColumn(client, "inventory_count_sessions", "cancelled_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "opened_at TIMESTAMPTZ NULL");
+  await ensureColumn(client, "inventory_count_sessions", "completed_at TIMESTAMPTZ NULL");
+  await ensureColumn(client, "inventory_count_sessions", "cancelled_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_sessions", "created_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "opened_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "completed_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "cancelled_by BIGINT NULL");
   await ensureColumn(client, "inventory_count_sessions", "submitted_by BIGINT NULL");
-  await ensureColumn(client, "inventory_count_sessions", "submitted_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "submitted_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_sessions", "approved_by BIGINT NULL");
-  await ensureColumn(client, "inventory_count_sessions", "approved_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "approved_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_sessions", "rejected_by BIGINT NULL");
-  await ensureColumn(client, "inventory_count_sessions", "rejected_at TIMESTAMP NULL");
+  await ensureColumn(client, "inventory_count_sessions", "rejected_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_sessions", "rejection_reason TEXT NULL");
-  await ensureColumn(client, "inventory_count_sessions", "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
-  await ensureColumn(client, "inventory_count_sessions", "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  await ensureColumn(client, "inventory_count_sessions", "created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  await ensureColumn(client, "inventory_count_sessions", "updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS inventory_count_items (
@@ -528,8 +528,8 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
       difference_qty INTEGER NOT NULL DEFAULT 0,
       reason TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -546,8 +546,8 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   await ensureColumn(client, "inventory_count_items", "difference_qty INTEGER NOT NULL DEFAULT 0");
   await ensureColumn(client, "inventory_count_items", "reason TEXT NOT NULL DEFAULT ''");
   await ensureColumn(client, "inventory_count_items", "notes TEXT NOT NULL DEFAULT ''");
-  await ensureColumn(client, "inventory_count_items", "created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
-  await ensureColumn(client, "inventory_count_items", "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  await ensureColumn(client, "inventory_count_items", "created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
+  await ensureColumn(client, "inventory_count_items", "updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
 
   await client.query(`
     DO $$

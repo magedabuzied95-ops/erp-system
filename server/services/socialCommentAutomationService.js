@@ -7109,9 +7109,9 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
           duplicate_reason TEXT NOT NULL DEFAULT '',
           config_found BOOLEAN NOT NULL DEFAULT FALSE,
           config_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-          processed_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          processed_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, platform, comment_id)
         )
       `);
@@ -7153,8 +7153,8 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
           product_link TEXT NOT NULL DEFAULT '',
           checkout_link TEXT NOT NULL DEFAULT '',
           guidance_mode TEXT NOT NULL DEFAULT 'website_checkout',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS matched_config_key TEXT NOT NULL DEFAULT ''`);

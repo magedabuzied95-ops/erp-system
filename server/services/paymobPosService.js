@@ -331,8 +331,8 @@ export const ensurePaymentTransactionsSchema = async (clientOrPool) => {
       response_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
       error_message TEXT,
       created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS provider_order_id TEXT`);
@@ -342,7 +342,7 @@ export const ensurePaymentTransactionsSchema = async (clientOrPool) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS error_message TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS transaction_reference TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS confirmed_amount_cents BIGINT NOT NULL DEFAULT 0`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS confirmation_source TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS payment_transactions ADD COLUMN IF NOT EXISTS confirmed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_payment_transactions_order ON payment_transactions (tenant_id, order_id, created_at DESC)`);
@@ -357,7 +357,7 @@ export const ensurePaymentTransactionsSchema = async (clientOrPool) => {
       event_type VARCHAR(80) NOT NULL DEFAULT 'payment_status',
       status VARCHAR(50),
       payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_transaction_events_provider_event ON payment_transaction_events (provider, provider_event_id) WHERE provider_event_id IS NOT NULL AND provider_event_id <> ''`);

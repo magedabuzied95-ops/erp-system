@@ -45,9 +45,9 @@ export const ensureAiReplyTraceSchema = async () => {
       trace JSONB NOT NULL DEFAULT '{}'::jsonb,
       status TEXT NOT NULL DEFAULT 'running',
       error JSONB NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      finished_at TIMESTAMP NULL
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TIMESTAMPTZ NULL
     )
   `);
   await db.query(`

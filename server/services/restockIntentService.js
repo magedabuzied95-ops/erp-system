@@ -40,11 +40,11 @@ export const ensureRestockIntentSchema = async (client = db) => {
         source_reference TEXT NULL,
         last_restock_event_id TEXT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        customer_notified_at TIMESTAMP NULL,  -- set ONLY by a future confirmed customer-contact; NEVER by an internal follow-up
-        fulfilled_at TIMESTAMP NULL,
-        cancelled_at TIMESTAMP NULL
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        customer_notified_at TIMESTAMPTZ NULL,  -- set ONLY by a future confirmed customer-contact; NEVER by an internal follow-up
+        fulfilled_at TIMESTAMPTZ NULL,
+        cancelled_at TIMESTAMPTZ NULL
       )
     `);
     // One ACTIVE intent per (tenant, phone, product, variant). Repeated "Notify me" reuses it.

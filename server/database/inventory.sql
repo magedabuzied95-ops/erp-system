@@ -3,8 +3,8 @@ CREATE TABLE inventory (
     variant_id INTEGER UNIQUE NOT NULL,
     quantity INTEGER DEFAULT 0,
     reserved_qty INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS inventory_movements (
@@ -30,10 +30,10 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
     reason TEXT,
     notes TEXT,
     note TEXT,
-    undone_at TIMESTAMP NULL,
+    undone_at TIMESTAMPTZ NULL,
     undone_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_product_id ON inventory_movements (product_id);

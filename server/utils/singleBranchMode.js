@@ -156,8 +156,8 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
       slug VARCHAR(120) NOT NULL UNIQUE,
       status VARCHAR(50) NOT NULL DEFAULT 'active',
       plan VARCHAR(50) NOT NULL DEFAULT 'trial',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `,
     "create_tenants_table"
@@ -201,8 +201,8 @@ const ensureSingleBranchModeNow = async (clientOrPool = db) => {
       qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
       attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
       attendance_public_code VARCHAR(32) UNIQUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `,
     "create_branches_table"

@@ -672,11 +672,11 @@ const candidateFromRow = (row = {}, breakdown = {}) => ({
 export const ensureAiVisualSearchProSchema = async (clientOrPool = db) => {
   await ensureAiProductImageVisualIndexSchema(clientOrPool);
   await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS aliases TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`);
-  await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS last_indexed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS last_indexed_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding JSONB NULL`);
   await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS image_embedding JSONB NULL`);
   await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_model TEXT NOT NULL DEFAULT ''`);
-  await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE ai_product_image_visual_index ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`
     UPDATE ai_product_image_visual_index
     SET aliases = CASE WHEN COALESCE(array_length(aliases, 1), 0) = 0 THEN text_aliases ELSE aliases END,

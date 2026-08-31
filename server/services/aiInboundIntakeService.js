@@ -47,7 +47,7 @@ export const ensureInboundIntakeSchema = async (client = db) => {
         confidence NUMERIC NULL,
         reason TEXT NULL,
         duration_ms INT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_ai_inbound_intake_log_tenant ON ai_inbound_intake_log (tenant_id, created_at DESC)`);

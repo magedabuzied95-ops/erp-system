@@ -13,7 +13,7 @@ const addAdminUser = async () => {
         email VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       )
     `);
     

@@ -113,12 +113,12 @@ export const ensureTikTokWebhookSchema = async (client = db) => {
           processing_status TEXT NOT NULL DEFAULT 'pending',
           retry_count INTEGER NOT NULL DEFAULT 0,
           last_error TEXT NOT NULL DEFAULT '',
-          next_attempt_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          locked_at TIMESTAMP NULL,
-          received_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          processed_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          locked_at TIMESTAMPTZ NULL,
+          received_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          processed_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await client.query(`

@@ -299,14 +299,14 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       status VARCHAR(40) NOT NULL DEFAULT 'pending',
       admin_note TEXT,
       reviewed_by BIGINT NULL,
-      reviewed_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      reviewed_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS admin_note TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_by BIGINT NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_requests ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NOT NULL DEFAULT 'cash'`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_status ON employee_portal_requests (tenant_id, employee_id, status, created_at DESC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_requests_employee_created ON employee_portal_requests (tenant_id, employee_id, created_at DESC, id DESC)`);
@@ -317,16 +317,16 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
       branch_id BIGINT NULL,
       status VARCHAR(40) NOT NULL DEFAULT 'open',
-      last_message_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      last_message_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS status VARCHAR(40) NOT NULL DEFAULT 'open'`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_threads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_chat_threads_employee ON employee_chat_threads (employee_id)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_threads_tenant_last ON employee_chat_threads (tenant_id, last_message_at DESC NULLS LAST, updated_at DESC)`);
   /*
@@ -346,8 +346,8 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       sender_user_id BIGINT NULL,
       body TEXT NOT NULL DEFAULT '',
       attachment_url TEXT NULL,
-      read_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      read_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_employee_id BIGINT NULL`);
@@ -359,30 +359,30 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_mime TEXT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS attachment_duration_seconds DOUBLE PRECISION NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS reply_to_message_id BIGINT NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(160) NULL`);
   // Ring ("نداء"): an attention call that carries no audio; answered state lives on the row.
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS message_kind VARCHAR(20) NOT NULL DEFAULT 'text'`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS ring_answered_by VARCHAR(160) NULL`);
   // P1: optimistic send + delivery ladder. client_id makes a retried send idempotent;
   // delivered_at is stamped when the other side's device receives the message.
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS chat_last_seen_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS chat_last_seen_at TIMESTAMPTZ NULL`);
   // Management-side conversation preferences (pin / mute / archive). One row per
   // thread: the management list is shared by the tenant's managers.
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_chat_thread_prefs (
       thread_id BIGINT PRIMARY KEY REFERENCES employee_chat_threads(id) ON DELETE CASCADE,
-      pinned_at TIMESTAMP NULL,
-      muted_until TIMESTAMP NULL,
-      archived_at TIMESTAMP NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      pinned_at TIMESTAMPTZ NULL,
+      muted_until TIMESTAMPTZ NULL,
+      archived_at TIMESTAMPTZ NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS client_id VARCHAR(64) NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_chat_messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_chat_messages_client_id ON employee_chat_messages (thread_id, client_id) WHERE client_id IS NOT NULL`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_thread_created ON employee_chat_messages (thread_id, created_at ASC, id ASC)`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_chat_messages_unread ON employee_chat_messages (thread_id, sender_type, read_at) WHERE read_at IS NULL`);
@@ -392,7 +392,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       actor_type VARCHAR(20) NOT NULL CHECK (actor_type IN ('employee', 'admin')),
       actor_id BIGINT NOT NULL,
       emoji VARCHAR(16) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (message_id, actor_type, actor_id)
     )
   `);
@@ -403,7 +403,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
     CREATE TABLE IF NOT EXISTS employee_chat_message_stars (
       message_id BIGINT NOT NULL REFERENCES employee_chat_messages(id) ON DELETE CASCADE,
       actor_type VARCHAR(20) NOT NULL CHECK (actor_type IN ('employee', 'admin')),
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (message_id, actor_type)
     )
   `);
@@ -418,14 +418,14 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       user_agent TEXT,
       portal_url TEXT NOT NULL DEFAULT '',
       is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS portal_url TEXT NOT NULL DEFAULT ''`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_subscriptions_employee ON employee_push_subscriptions (employee_id, is_active, last_seen_at DESC)`);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_push_delivery_logs (
@@ -438,7 +438,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       status_code INTEGER NOT NULL DEFAULT 0,
       error_message TEXT NOT NULL DEFAULT '',
       endpoint_host TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_delivery_employee ON employee_push_delivery_logs (employee_id, created_at DESC)`);
@@ -455,11 +455,11 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       body TEXT NOT NULL DEFAULT '',
       action_url TEXT NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      read_at TIMESTAMP NULL,
+      read_at TIMESTAMPTZ NULL,
       dedupe_key TEXT NULL,
-      cancelled_at TIMESTAMP NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      cancelled_at TIMESTAMPTZ NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL`);
@@ -468,10 +468,10 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS action_url TEXT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
-  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_order_type
     ON employee_portal_notifications (tenant_id, employee_id, order_id, type)
@@ -514,9 +514,9 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       payroll_reference VARCHAR(120),
       created_by BIGINT,
       deducted_by BIGINT,
-      deducted_at TIMESTAMP NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      deducted_at TIMESTAMPTZ NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_advances ADD COLUMN IF NOT EXISTS employee_portal_request_id BIGINT NULL`);
@@ -544,7 +544,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       gps_distance_meters NUMERIC NULL,
       gps_verification_result VARCHAR(40),
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_audit_employee ON employee_portal_audit_logs (tenant_id, employee_id, created_at DESC)`);
@@ -562,7 +562,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       points_per_attendance_day INTEGER NOT NULL DEFAULT 5,
       points_per_1000_sales INTEGER NOT NULL DEFAULT 2,
       points_per_badge INTEGER NOT NULL DEFAULT 50,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`
@@ -574,7 +574,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       source_type VARCHAR(80) NOT NULL,
       source_ref VARCHAR(160) NULL,
       description TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_reward_points_source ON employee_reward_points (tenant_id, employee_id, source_type, source_ref) WHERE source_ref IS NOT NULL`);
@@ -588,7 +588,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       badge_label VARCHAR(160) NOT NULL,
       period VARCHAR(7) NOT NULL,
       points INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_badge_awards_unique ON employee_badge_awards (tenant_id, employee_id, badge_code, period)`);
@@ -602,7 +602,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       status VARCHAR(40) NOT NULL DEFAULT 'granted',
       admin_note TEXT,
       created_by BIGINT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_admin_rewards_employee ON employee_admin_rewards (tenant_id, employee_id, created_at DESC)`);
@@ -615,7 +615,7 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       monthly_sales_target NUMERIC(12,2) NOT NULL DEFAULT 0,
       attendance_target_days INTEGER NOT NULL DEFAULT 26,
       branch_kpi_target NUMERIC(12,2) NOT NULL DEFAULT 0,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, employee_id, period)
     )
   `);
@@ -773,30 +773,30 @@ const getLatestPayrollRun = async ({ tenantId, employeeId }) => {
       net_pay NUMERIC(12,2) NOT NULL DEFAULT 0,
       status VARCHAR(20) NOT NULL DEFAULT 'approved',
       payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment',
-      approved_at TIMESTAMP NULL,
+      approved_at TIMESTAMPTZ NULL,
       approved_by BIGINT NULL,
-      paid_at TIMESTAMP NULL,
+      paid_at TIMESTAMPTZ NULL,
       paid_by BIGINT NULL,
       payment_method VARCHAR(40) NULL,
       payment_account_id BIGINT NULL,
       approval_journal_entry_id BIGINT NULL,
       payment_journal_entry_id BIGINT NULL,
       snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
-      finalized_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      finalized_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'approved'`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) NOT NULL DEFAULT 'pending_payment'`);
-  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ NULL`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approved_by BIGINT NULL`);
-  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ NULL`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS paid_by BIGINT NULL`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_method VARCHAR(40) NULL`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_account_id BIGINT NULL`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS approval_journal_entry_id BIGINT NULL`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS payment_journal_entry_id BIGINT NULL`);
-  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS penalties_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await db.query(`ALTER TABLE IF EXISTS employee_payroll_runs ADD COLUMN IF NOT EXISTS attendance_deduction_total NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_employee_payroll_runs_employee_period ON employee_payroll_runs (tenant_id, employee_id, payroll_period DESC, finalized_at DESC, id DESC)`);
@@ -1204,7 +1204,7 @@ const recordHrAuditLog = async ({ tenantId = null, userId = null, action, entity
         details JSONB NOT NULL DEFAULT '{}'::jsonb,
         ip_address INET,
         user_agent TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await db.query(

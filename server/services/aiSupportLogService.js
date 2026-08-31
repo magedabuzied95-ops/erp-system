@@ -783,12 +783,12 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
         last_message TEXT NOT NULL DEFAULT '',
           assigned_user_id BIGINT NULL,
           assigned_user_name TEXT NOT NULL DEFAULT '',
-          takeover_started_at TIMESTAMP NULL,
-          returned_to_ai_at TIMESTAMP NULL,
-          closed_at TIMESTAMP NULL,
-          read_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          takeover_started_at TIMESTAMPTZ NULL,
+          returned_to_ai_at TIMESTAMPTZ NULL,
+          closed_at TIMESTAMPTZ NULL,
+          read_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, session_id)
         )
       `);
@@ -840,7 +840,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           requested_colors JSONB NOT NULL DEFAULT '[]'::jsonb,
           clicked_product_id BIGINT NULL,
           added_to_cart_after_chat BOOLEAN NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
@@ -857,10 +857,10 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_name TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS takeover_started_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS takeover_started_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_ai_reply_draft JSONB NOT NULL DEFAULT '{}'::jsonb`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
@@ -872,8 +872,8 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS ai_response_time_ms INTEGER`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS escalation_reason TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_escalation_keyword TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_ai_reply_draft_updated_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS escalated_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_ai_reply_draft_updated_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS message_text TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'web_chat'`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
@@ -931,8 +931,8 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_status TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_error TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
-      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS original_message_text TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`
         UPDATE ai_support_messages
@@ -1109,8 +1109,8 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           ai_reply_id BIGINT NULL,
           outbound_meta_message_id TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL DEFAULT 'claimed',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
@@ -1126,7 +1126,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_channel_conversations ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`UPDATE ai_support_messages SET message_text = customer_message WHERE COALESCE(message_text, '') = ''`);
 
@@ -1138,8 +1138,8 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           mapped_product_id BIGINT NULL,
           usage_count INTEGER NOT NULL DEFAULT 0,
           confidence NUMERIC(5,4) NOT NULL DEFAULT 0,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, alias)
         )
       `);

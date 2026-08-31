@@ -88,10 +88,10 @@ export const ensureTikTokPublishSchema = async (client = db) => {
           post_options JSONB NOT NULL DEFAULT '{}'::jsonb,
           external_post_id TEXT NOT NULL DEFAULT '',
           fail_reason TEXT NOT NULL DEFAULT '',
-          last_status_checked_at TIMESTAMP NULL,
+          last_status_checked_at TIMESTAMPTZ NULL,
           created_by_user_id BIGINT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, idempotency_key)
         )
       `);
@@ -103,7 +103,7 @@ export const ensureTikTokPublishSchema = async (client = db) => {
       await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS fail_kind TEXT NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS fail_log_id TEXT NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS upstream_status INTEGER NULL`);
-      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS last_failed_at TIMESTAMP NULL`);
+      await client.query(`ALTER TABLE IF EXISTS tiktok_publish_jobs ADD COLUMN IF NOT EXISTS last_failed_at TIMESTAMPTZ NULL`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_tiktok_publish_jobs_publish_id ON tiktok_publish_jobs (publish_id) WHERE publish_id <> ''`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_tiktok_publish_jobs_open ON tiktok_publish_jobs (tenant_id, status, created_at DESC)`);
       return true;

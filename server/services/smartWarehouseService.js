@@ -31,7 +31,7 @@ export const ensureSmartWarehouseSchema = async () => {
             barcode VARCHAR(160),
             color VARCHAR(40) DEFAULT '#2563eb',
             notes TEXT,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
 
@@ -45,8 +45,8 @@ export const ensureSmartWarehouseSchema = async () => {
             count_type VARCHAR(50) NOT NULL DEFAULT 'quick_scan',
             status VARCHAR(50) NOT NULL DEFAULT 'draft',
             created_by BIGINT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP NULL
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMPTZ NULL
           )
         `);
 
@@ -69,7 +69,7 @@ export const ensureSmartWarehouseSchema = async () => {
             tenant_id BIGINT NULL,
             product_id BIGINT NOT NULL,
             qr_value TEXT NOT NULL,
-            generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            generated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
 
@@ -86,10 +86,10 @@ export const ensureSmartWarehouseSchema = async () => {
         await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS difference_quantity INTEGER NOT NULL DEFAULT 0`);
         await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT ''`);
         await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS notes TEXT`);
-        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+        await client.query(`ALTER TABLE inventory_count_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
         await client.query(`ALTER TABLE warehouse_inventory ADD COLUMN IF NOT EXISTS branch_id BIGINT`);
         await client.query(`ALTER TABLE warehouse_inventory ADD COLUMN IF NOT EXISTS section_id BIGINT`);
-        await client.query(`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+        await client.query(`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
 
         await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_warehouse_sections_scope_code ON warehouse_sections (COALESCE(tenant_id, 0), COALESCE(warehouse_id, 0), code)`);
         await client.query(`CREATE INDEX IF NOT EXISTS idx_warehouse_sections_branch_id ON warehouse_sections (branch_id)`);

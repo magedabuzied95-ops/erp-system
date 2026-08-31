@@ -33,8 +33,8 @@ const statements = [
     qr_token TEXT UNIQUE DEFAULT gen_random_uuid()::text,
     attendance_qr_token TEXT UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
     attendance_public_code VARCHAR(32) UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `ALTER TABLE IF EXISTS branches ADD COLUMN IF NOT EXISTS phone VARCHAR(50);`,

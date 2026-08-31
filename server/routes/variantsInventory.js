@@ -13,7 +13,7 @@ export const ensureVariantsInventorySchema = async (clientOrPool = pool) => {
   if (!variantsInventorySchemaPromise) {
     variantsInventorySchemaPromise = (async () => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_active_deleted ON product_variants (tenant_id, is_active, deleted_at, id DESC)`);
     })()
       .then(() => {

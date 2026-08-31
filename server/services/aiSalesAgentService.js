@@ -512,8 +512,8 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
         CREATE TABLE IF NOT EXISTS ai_agent_settings (
           tenant_id BIGINT PRIMARY KEY,
           settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS visual_attachments JSONB NOT NULL DEFAULT '[]'::jsonb`);
@@ -524,10 +524,10 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_name TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS takeover_started_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS takeover_started_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS returned_to_ai_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS staff_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_messages ADD COLUMN IF NOT EXISTS sender_type VARCHAR(40) NOT NULL DEFAULT 'customer'`);
@@ -600,10 +600,10 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           conversation_summary TEXT NOT NULL DEFAULT '',
           customer_sentiment TEXT NOT NULL DEFAULT 'neutral',
           memory_score INTEGER NOT NULL DEFAULT 0,
-          last_profile_sync_at TIMESTAMP NULL,
-          last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_profile_sync_at TIMESTAMPTZ NULL,
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, phone)
         )
       `);
@@ -617,8 +617,8 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           memory_key TEXT NOT NULL DEFAULT '',
           memory_value JSONB NOT NULL DEFAULT '{}'::jsonb,
           score INTEGER NOT NULL DEFAULT 0,
-          last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`
@@ -643,7 +643,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           resolution_status TEXT DEFAULT 'open',
           ai_response_time_ms INTEGER,
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`
@@ -655,20 +655,20 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
           source_channel TEXT NOT NULL DEFAULT 'web_chat',
           trigger_type TEXT NOT NULL,
           status TEXT NOT NULL DEFAULT 'pending',
-          scheduled_at TIMESTAMP NOT NULL,
-          last_sent_at TIMESTAMP NULL,
-          cooldown_until TIMESTAMP NULL,
+          scheduled_at TIMESTAMPTZ NOT NULL,
+          last_sent_at TIMESTAMPTZ NULL,
+          cooldown_until TIMESTAMPTZ NULL,
           payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS manual_message TEXT NOT NULL DEFAULT ''`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS sent_internal_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS manual_ready_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS sent_internal_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS manual_ready_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS stopped_reason TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_followup_tasks ADD COLUMN IF NOT EXISTS action_by BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_interactions ADD COLUMN IF NOT EXISTS detected_intent TEXT NOT NULL DEFAULT ''`);
@@ -689,7 +689,7 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS messenger_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_external_customer_id ON ai_customer_profiles (tenant_id, external_customer_id)`);
       await clientOrPool.query(`UPDATE ai_customer_interactions SET detected_intent = intent_type WHERE COALESCE(detected_intent, '') = '' AND COALESCE(intent_type, '') <> ''`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_customer_profiles_tenant_seen ON ai_customer_profiles (tenant_id, last_seen_at DESC)`);
@@ -724,10 +724,10 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
         lead_status TEXT NOT NULL DEFAULT 'new',
         customer_profile_id BIGINT NULL,
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          last_message_at TIMESTAMP NULL,
-          read_at TIMESTAMP NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_message_at TIMESTAMPTZ NULL,
+          read_at TIMESTAMPTZ NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE (tenant_id, channel, external_conversation_id)
       )
     `);
@@ -739,8 +739,8 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS lead_status TEXT NOT NULL DEFAULT 'new'`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
-    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP NULL`);
-    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMPTZ NULL`);
+    await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL`);
     await clientOrPool.query(`ALTER TABLE ai_channel_conversations ADD COLUMN IF NOT EXISTS manually_unread BOOLEAN NOT NULL DEFAULT FALSE`);
     await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_tenant_lead_status ON ai_channel_conversations (tenant_id, lead_status, updated_at DESC)`);
     await clientOrPool.query(`
@@ -755,7 +755,7 @@ export const ensureAiInboxSchema = async (clientOrPool = db) => {
         status TEXT NOT NULL DEFAULT '',
         error TEXT NOT NULL DEFAULT '',
         metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await clientOrPool.query(`ALTER TABLE ai_channel_event_logs ADD COLUMN IF NOT EXISTS conversation_id TEXT NOT NULL DEFAULT ''`);
@@ -5273,11 +5273,11 @@ const ensureAiSalesCloserSchema = async () => {
       variant_id BIGINT NULL,
       quantity INTEGER NOT NULL DEFAULT 1,
       status TEXT NOT NULL DEFAULT 'active',
-      expires_at TIMESTAMP NOT NULL,
-      released_at TIMESTAMP NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      released_at TIMESTAMPTZ NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_stock_reservations_tenant_status ON ai_stock_reservations (tenant_id, status, expires_at)`);

@@ -24,8 +24,8 @@ const ensurePushNotificationSchema = () => {
           user_agent TEXT NULL,
           portal_url TEXT NOT NULL DEFAULT '',
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`
@@ -41,16 +41,16 @@ const ensurePushNotificationSchema = () => {
           body TEXT NOT NULL DEFAULT '',
           action_url TEXT NULL,
           metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-          read_at TIMESTAMP NULL,
+          read_at TIMESTAMPTZ NULL,
           dedupe_key TEXT NULL,
-          cancelled_at TIMESTAMP NULL,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          cancelled_at TIMESTAMPTZ NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT NULL`);
-      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
-      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ NULL`);
+      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
       await db.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_dedupe_key
         ON employee_portal_notifications (tenant_id, employee_id, dedupe_key)
@@ -67,7 +67,7 @@ const ensurePushNotificationSchema = () => {
           status_code INTEGER NOT NULL DEFAULT 0,
           error_message TEXT NOT NULL DEFAULT '',
           endpoint_host TEXT NOT NULL DEFAULT '',
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_delivery_employee ON employee_push_delivery_logs (employee_id, created_at DESC)`);

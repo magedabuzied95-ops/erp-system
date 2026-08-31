@@ -34,8 +34,8 @@ export const ensureInvoiceTemplateSchema = async (clientOrPool = db) => {
             scope_branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
             config JSONB NOT NULL DEFAULT '{}'::jsonb,
             created_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
           )
         `);
         await clientOrPool.query(`

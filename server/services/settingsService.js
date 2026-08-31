@@ -29,8 +29,8 @@ export const ensureSystemSettingsSchema = async (client = db) => {
           is_secret BOOLEAN NOT NULL DEFAULT FALSE,
           is_public BOOLEAN NOT NULL DEFAULT FALSE,
           updated_by BIGINT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
       await clientQuery(client, "CREATE INDEX IF NOT EXISTS idx_system_settings_category ON system_settings(category)");
