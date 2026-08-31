@@ -1,4 +1,4 @@
-import { API_ORIGIN } from "../constants/app";
+import { API_ORIGIN } from "../constants/app.js";
 
 const STOREFRONT_IMAGE_PRESETS = {
   thumbnail: {
@@ -20,6 +20,31 @@ const STOREFRONT_IMAGE_PRESETS = {
 };
 
 const LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS = [96, 240, 480, 960];
+
+/*
+ * Card-fit derivatives (`variants/<stem>-fit{480,960}.webp`, written by
+ * productImageVariantService) hold the product trimmed to its own bounding box and centred on a
+ * 0.92:1 canvas. The plain `-wN` variants keep whatever framing the photographer used, so the
+ * grid inherits their drift — measured at up to 14% off the vertical centre, with the product
+ * filling anywhere from 43% to 75% of its frame. Only the grid asks for these; the hero and the
+ * thumbnails still want the photo exactly as shot.
+ *
+ * If a card-fit file is somehow absent the card's own `onError` strips the srcset and re-requests
+ * the original, so a gap in the backfill degrades to today's behaviour rather than a broken tile.
+ */
+const CARD_FIT_VARIANT_WIDTHS = [480, 960];
+const CARD_FIT_PRESETS = new Set(["grid"]);
+
+const getCardFitVariantUrl = (value, width) => {
+  const url = String(value || "").trim();
+  const targetWidth = normalizeWidth(width);
+  if (!url || !targetWidth || !isLocalProductImageUrl(url)) return url;
+  const match = url.match(localProductUploadPattern);
+  const baseName = (match?.[2] || "").replace(/\.[^.?#]+$/, "");
+  const variantPath = `/uploads/products/variants/${baseName}-fit${targetWidth}.webp`;
+  const origin = getBackendAssetOrigin(url);
+  return origin ? `${origin}${variantPath}` : variantPath;
+};
 
 const cloudinaryUploadPattern = /^https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/(.+)$/i;
 const localProductUploadPattern = /(^|\/)uploads\/products\/(?!variants\/)([^?#]+)$/i;
@@ -92,9 +117,11 @@ export const buildCloudinaryResponsiveImageUrl = (value, width) => {
   );
 };
 
-export const buildStorefrontImageSrcSet = (value, widths = []) => {
+export const buildStorefrontImageSrcSet = (value, widths = [], preset = "") => {
   const url = String(value || "").trim();
-  const requestedWidths = isLocalProductImageUrl(url) ? LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS : widths;
+  const local = isLocalProductImageUrl(url);
+  const cardFit = local && CARD_FIT_PRESETS.has(String(preset || ""));
+  const requestedWidths = cardFit ? CARD_FIT_VARIANT_WIDTHS : local ? LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS : widths;
   const unique = uniqueWidths(requestedWidths);
   if (!url || !unique.length) return "";
   if (isCloudinaryImageUrl(url)) {
@@ -102,9 +129,10 @@ export const buildStorefrontImageSrcSet = (value, widths = []) => {
       .map((width) => `${buildCloudinaryResponsiveImageUrl(url, width)} ${width}w`)
       .join(", ");
   }
-  if (isLocalProductImageUrl(url)) {
+  if (local) {
+    const build = cardFit ? getCardFitVariantUrl : getLocalProductVariantUrl;
     return unique
-      .map((width) => `${getLocalProductVariantUrl(url, width)} ${width}w`)
+      .map((width) => `${build(url, width)} ${width}w`)
       .join(", ");
   }
   return "";
@@ -116,7 +144,7 @@ export const getStorefrontImageWidths = (preset = "grid") => STOREFRONT_IMAGE_PR
 
 export const getStorefrontResponsiveImageProps = (value, preset = "grid") => {
   const originalSrc = String(value || "").trim();
-  const srcSet = buildStorefrontImageSrcSet(value, getStorefrontImageWidths(preset));
+  const srcSet = buildStorefrontImageSrcSet(value, getStorefrontImageWidths(preset), preset);
   const sizes = getStorefrontImageSizes(preset);
   return {
     srcSet: srcSet || undefined,

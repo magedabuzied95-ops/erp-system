@@ -4,7 +4,7 @@ import path from "node:path";
 import { readFile, rename, unlink } from "node:fs/promises";
 
 import upload from "../config/multer.js";
-import { ensureLocalProductImageVariants, isLocalProductImageUrl } from "../services/productImageVariantService.js";
+import { ensureCardFitImages, ensureLocalProductImageVariants, isLocalProductImageUrl } from "../services/productImageVariantService.js";
 import { cloudinaryUploadsEnabled } from "../utils/cloudinaryUploads.js";
 import { detectImageFormat, getImageFormatDetails } from "../utils/imageUploadValidation.js";
 
@@ -136,6 +136,13 @@ router.post(
           console.warn("[product-image-variants] generation failed", {
             file: req.file.path,
             message: variantError?.message || String(variantError),
+          });
+        });
+        // The storefront grid reads these; without one the card falls back to the raw framing.
+        void ensureCardFitImages(req.file.path).catch((cardFitError) => {
+          console.warn("[product-image-card-fit] generation failed", {
+            file: req.file.path,
+            message: cardFitError?.message || String(cardFitError),
           });
         });
       }
