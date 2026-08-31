@@ -2160,10 +2160,15 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
+    /* Flat #000, not a gradient. On a 28px strip a left-to-right ramp from
+       #050505 to #111111 does not read as depth — it reads as one end of the bar
+       being lighter than the other, which is what it was reported as. The
+       reference uses plain black here for the same reason. Mobile only: this
+       whole block is inside the max-width query. */
     .storefront-shell .sf-header-announcement {
-      background: linear-gradient(90deg, #050505 0%, #0a0a0a 55%, #111111 100%) !important;
+      background: #000000 !important;
       color: #f8fafc !important;
-      box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04) !important;
+      box-shadow: none !important;
     }
 
     .storefront-shell .sf-header-announcement,
@@ -2694,7 +2699,10 @@
      and a black bar -- and indigo is not in the M1 palette. Same near-black
      surface as the header in either theme; only one strip, one colour. */
   .storefront-shell:not(.storefront-dark) .sf-header-announcement {
-    background: #0a0a0a !important;
+    /* Plain black in both themes. This one is layered AND important, so it is
+       what actually decides the light theme — the unlayered rule further down
+       cannot outrank it. */
+    background: #000000 !important;
     color: rgba(248, 250, 252, 0.82) !important;
     border-color: rgba(255, 255, 255, 0.07) !important;
     box-shadow: none !important;
@@ -2848,7 +2856,11 @@
      both themes, so the light theme used to open the page with white-to-indigo,
      then near-black, then the page -- three surfaces in the first 100px. */
   .storefront-shell:not(.storefront-dark) .sf-announcement-row {
-    background: #0a0a0a !important;
+    /* The strip carries BOTH `.sf-announcement-row` and `.sf-header-announcement`,
+       and this selector ties on specificity with the one above while sitting
+       later in the file — so this is the declaration that actually paints the
+       light theme. Black here too, or the two disagree. */
+    background: #000000 !important;
     color: rgba(248, 250, 252, 0.82) !important;
     box-shadow: none;
   }
@@ -4966,7 +4978,10 @@ html[data-theme] .bg-zinc-950\/70 {
 
 .storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-announcement {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
-  background: #0a0a0a !important;
+  /* Plain black, matching the dark theme's mobile rule. This selector carries
+     more specificity than that one, so it decides the light theme at every
+     width — hence the change here rather than another mobile-only override. */
+  background: #000000 !important;
   color: rgba(248, 250, 252, 0.82) !important;
   box-shadow: none !important;
 }
@@ -7050,5 +7065,138 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   html[data-portal-touch] :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea),
   .portal-chat-root :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
     font-size: max(16px, 1em);
+  }
+}
+
+/* ============================================================================
+   MOBILE TOPBAR — one line, five slots
+   ----------------------------------------------------------------------------
+   Deliberately NOT reusing .sf-mobile-header-button: that class is styled in
+   two places at once (a layered block under `.storefront-shell` and an
+   unlayered light-theme block), and for `!important` the layered one wins, so
+   an override here would have had to fight both. New names match nothing else,
+   so plain declarations are enough — see [[css-important-layer-inversion]].
+   The shell itself keeps its old class, which is where the white/black canvas
+   already comes from in each theme.
+   ========================================================================== */
+@media (max-width: 767px) {
+  .storefront-shell .sf-header-v2 .sf-announcement-row,
+  .storefront-shell .sf-header-v2 .sf-mobile-header-shell {
+    font-family: "Noto Kufi Arabic", "Cairo", "Segoe UI", sans-serif;
+  }
+
+  /* One promise at a time, stacked in place and cross-faded, so the bar never
+     changes height and the words are read where they land. */
+  .storefront-shell .sf-announcement-solo-line {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 1rem;
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-align: center;
+    /* The reference sets this line at full white, not the 82% the old ticker
+       used — at 12px on black, 82% is the difference between reading it and
+       squinting at it. */
+    color: #ffffff;
+    /* Everything travels DOWNWARD, the way the reference's `spinDown` does: the
+       next promise drops in from above while the spent one falls out of the
+       bottom. Parked lines are the ones that are neither — they carry no
+       transition so they snap back above the bar instead of sailing up through
+       it on their way to the queue. */
+    transform: translateY(-100%);
+    opacity: 0;
+    transition: none;
+    pointer-events: none;
+  }
+
+  .storefront-shell .sf-announcement-solo-line.is-active,
+  .storefront-shell .sf-announcement-solo-line.is-leaving {
+    transition: transform 500ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 320ms ease;
+  }
+
+  .storefront-shell .sf-announcement-solo-line.is-active {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  .storefront-shell .sf-announcement-solo-line.is-leaving {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .storefront-shell .sf-announcement-solo-line,
+    .storefront-shell .sf-announcement-solo-line.is-active,
+    .storefront-shell .sf-announcement-solo-line.is-leaving {
+      transform: none;
+      transition: opacity 200ms ease;
+    }
+  }
+
+  /* 44px keeps the tap target honest while the glyph reads at 22px; with 8px of
+     shell padding that puts the outermost icon's centre 30px from the edge,
+     which is where the reference sits it. */
+  .storefront-shell .sf-topbar-button {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    box-shadow: none;
+    /* NOT "inherit": the mobile header bar is dark in BOTH themes (see the
+       gradient note on .sf-luxury-header), while the light theme sets dark ink
+       on the shell for the text that used to live here. Inheriting that painted
+       dark glyphs onto a black bar. */
+    color: #f8fafc;
+    transition: opacity 200ms ease, transform 200ms ease;
+  }
+
+  .storefront-shell .sf-topbar-button > svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .storefront-shell .sf-topbar-button:active {
+    transform: scale(0.94);
+  }
+
+  .storefront-shell .sf-topbar-button:hover,
+  .storefront-shell .sf-topbar-button:focus-visible {
+    background: transparent;
+    opacity: 0.6;
+  }
+
+  /* The badge belongs to the glyph, not to a chip that no longer exists — and it
+     has to sit on the glyph's INNER corner, the one facing the middle of the
+     screen. The base rule pins it to `left`, which for the outermost icon in a
+     right-to-left header is the screen edge: the count then crowds the very edge
+     of the display and reads as a second, half-cut icon. `inset-inline-start`
+     turns it around in both directions, so it lands on the icon's corner whether
+     the cluster sits on the left (RTL) or the right (LTR). */
+  .storefront-shell .sf-topbar-button .sf-action-badge {
+    top: 1px;
+    left: auto;
+    right: auto;
+    inset-inline-start: 1px;
+    inset-inline-end: auto;
+    min-width: 15px;
+    height: 15px;
+    border: 0;
+    padding-inline: 3px;
+    border-radius: 999px;
+    background: #d4af37;
+    color: #090d18;
+    font-size: 9px;
+    font-weight: 800;
+    box-shadow: none;
   }
 }

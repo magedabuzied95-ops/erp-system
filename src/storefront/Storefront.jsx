@@ -4425,7 +4425,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle = () => {}, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {}, quickActionLinks = {} }) {
+function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTheme, onThemeToggle = () => {}, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {}, quickActionLinks = {} }) {
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
@@ -4497,7 +4497,9 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
 
   const renderHeaderLogo = ({ mobile = false } = {}) => {
     const frameClassName = mobile
-      ? "sf-header-wordmark relative inline-flex h-[60px] w-[58px] shrink-0 items-center justify-center overflow-hidden bg-transparent transition"
+      // Sized to sit INSIDE the 52px row rather than push it open — the mark is
+      // the tallest thing on the line, so the row height follows it.
+      ? "sf-header-wordmark relative inline-flex h-[46px] w-[48px] shrink-0 items-center justify-center overflow-hidden bg-transparent transition"
       : "sf-header-wordmark relative inline-flex h-[72px] w-[82px] shrink-0 items-center justify-center overflow-hidden bg-transparent transition group-hover:scale-[1.02]";
     const imageSize = mobile ? 160 : 240;
 
@@ -4547,6 +4549,25 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
     t("storefront.header.announcements.premium"),
     t("storefront.header.announcements.todayDeals"),
   ];
+  // Mobile shows ONE promise at a time, centred, and swaps it on a timer. The
+  // desktop marquee is untouched: on a phone a line sliding past is something
+  // the eye has to chase, and the bar is 28px tall — there is room for one
+  // sentence read in place, not for a queue moving through it.
+  // Both indexes travel together in one state object so the updater stays pure:
+  // the line being replaced has to keep rendering until it has finished moving
+  // out, and only the swap itself knows which one that is.
+  const [announcementSlide, setAnnouncementSlide] = useState({ current: 0, previous: -1 });
+  const announcementCount = announcementItems.length;
+  useEffect(() => {
+    if (announcementCount < 2) return undefined;
+    const timer = setInterval(() => {
+      setAnnouncementSlide((slide) => ({
+        current: (slide.current + 1) % announcementCount,
+        previous: slide.current,
+      }));
+    }, 4200);
+    return () => clearInterval(timer);
+  }, [announcementCount]);
   const headerCategoryItems = [
     { label: t("storefront.nav.men"), to: "/men" },
     { label: t("storefront.nav.women"), to: "/women" },
@@ -4902,7 +4923,29 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
       className={headerShellClassName}
     >
       <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
-        <div className="relative mx-auto h-8 w-full max-w-7xl overflow-hidden md:h-10">
+        <div className="sf-announcement-solo relative mx-auto h-7 w-full max-w-7xl overflow-hidden md:hidden">
+          {announcementItems.map((announcement, index) => (
+            // Deliberately a div, not a span: `.sf-header-announcement span` is
+            // an !important rule inside @layer components, and an unlayered
+            // !important cannot outrank a layered one — so as a span this line
+            // could never set its own colour. See [[css-important-layer-inversion]].
+            <div
+              // Index key on purpose: this is a fixed list of promises, not data —
+              // it never reorders, and two promises can legitimately read the same.
+              key={index}
+              dir="auto"
+              aria-hidden={index !== announcementSlide.current}
+              className={[
+                "sf-announcement-solo-line",
+                index === announcementSlide.current ? "is-active" : "",
+                index === announcementSlide.previous ? "is-leaving" : "",
+              ].filter(Boolean).join(" ")}
+            >
+              {announcement}
+            </div>
+          ))}
+        </div>
+        <div className="relative mx-auto hidden h-8 w-full max-w-7xl overflow-hidden md:block md:h-10">
           <div className="sf-announcement-track sf-announcement-track-ltr absolute inset-y-0 left-0 items-center">
             {[0, 1].map((copyIndex) => (
               <span key={copyIndex} className="inline-flex shrink-0 items-center gap-10 pe-10">
@@ -4926,20 +4969,21 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
           to hold -- the toggle is still in the menu drawer, one tap away, and
           search was the control buried there instead. */}
       <div className="sf-mobile-header-shell md:hidden" dir={mobileMenuIsRtl ? "rtl" : "ltr"}>
-        <div className="px-3 pb-2 pt-[calc(0.4rem+env(safe-area-inset-top))]">
-          <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-            <button
-              className="sf-mobile-header-button grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.94]"
-              onClick={() => setMobileMenuOpen((value) => !value)}
-              aria-label={t("storefront.header.menu")}
-              type="button"
-            >
-              {menuOpen ? <X className="h-[22px] w-[22px]" /> : <Menu className="h-[22px] w-[22px]" />}
-            </button>
-            <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
-              {renderHeaderLogo({ mobile: true })}
-            </Link>
-            <div className="flex items-center gap-0.5">
+        {/* Five slots on one 52px line: menu and search hold the start edge,
+            wishlist and bag the end edge, and the logo sits dead centre between
+            them. No chips, no pills — the icon is the button, so nothing
+            competes with the logo. */}
+        <div className="px-2 pt-[env(safe-area-inset-top)]">
+          <div className="sf-topbar-row grid h-[52px] grid-cols-[auto_minmax(0,1fr)_auto] items-center">
+            <div className="flex items-center">
+              <button
+                className="sf-topbar-button"
+                onClick={() => setMobileMenuOpen((value) => !value)}
+                aria-label={t("storefront.header.menu")}
+                type="button"
+              >
+                {menuOpen ? <X strokeWidth={1.25} /> : <Menu strokeWidth={1.25} />}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -4947,14 +4991,23 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onThemeToggle 
                   setSearchOpen(true);
                   setMobileSearchOpen(true);
                 }}
-                className="sf-mobile-header-button grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.94]"
+                className="sf-topbar-button"
                 aria-label={t("storefront.header.search")}
               >
-                <Search className="h-[22px] w-[22px]" />
+                <Search strokeWidth={1.25} />
               </button>
-              <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-11 w-11 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.94]" aria-label={t("storefront.cart.title")} type="button">
-                <ShoppingCart className="h-[22px] w-[22px]" />
-                {cartCount ? <span key={cartCount} className="sf-action-badge sf-mobile-cart-badge sf-cart-count-pop">{cartCount}</span> : null}
+            </div>
+            <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
+              {renderHeaderLogo({ mobile: true })}
+            </Link>
+            <div className="flex items-center">
+              <Link to="/wishlist" className="sf-topbar-button" aria-label={t("storefront.header.wishlist")}>
+                <Heart strokeWidth={1.25} />
+                {wishlistCount ? <span className="sf-action-badge">{wishlistCount}</span> : null}
+              </Link>
+              <button onClick={onCart} className="sf-topbar-button sf-cart-action" aria-label={t("storefront.cart.title")} type="button">
+                <ShoppingBag strokeWidth={1.25} />
+                {cartCount ? <span key={cartCount} className="sf-action-badge sf-cart-count-pop">{cartCount}</span> : null}
               </button>
             </div>
           </div>
