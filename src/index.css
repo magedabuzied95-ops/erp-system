@@ -7200,3 +7200,41 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     box-shadow: none;
   }
 }
+
+/* ============================================================================
+   LIGHT THEME — the top strip follows the page, not the header below it
+   ----------------------------------------------------------------------------
+   In the dark theme the whole top block is black. In the light theme the strip
+   is WHITE while the row beneath it stays deliberately dark, so the two do not
+   agree on purpose: the strip belongs to the page, the row is the brand's.
+
+   Re-opening @layer components rather than editing the four rules that already
+   paint this element. They tie on specificity and are resolved by source order,
+   so the LAST one in the layer is the only place a change lands reliably — and
+   a layered !important is also the only thing that can outrank the unlayered
+   !important further up. Editing any one of the four in place looks like it
+   works and then does nothing; that is how this took four attempts.
+
+   The dot separator inherits `currentColor`, so the ink rule carries it too.
+   ========================================================================== */
+@layer components {
+  .storefront-shell:not(.storefront-dark) .sf-announcement-row,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement {
+    background: #ffffff !important;
+    background-image: none !important;
+    border-bottom-color: rgba(28, 25, 23, 0.08) !important;
+    box-shadow: none !important;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-announcement-row,
+  .storefront-shell:not(.storefront-dark) .sf-announcement-row span,
+  .storefront-shell:not(.storefront-dark) .sf-announcement-row .sf-announcement-solo-line,
+  .storefront-shell:not(.storefront-dark) .sf-announcement-track,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement span,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100,
+  .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100\/95 {
+    color: #25231f !important;
+    opacity: 1 !important;
+  }
+}
