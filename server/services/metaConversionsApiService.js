@@ -7,6 +7,12 @@ import {
   normalizeMetaText,
 } from "../../shared/metaEventMatching.js";
 import { metaEventContents, metaMoneyValue, metaValueFields } from "../../shared/metaEventValue.js";
+import {
+  isMetaPurchaseEligible,
+  metaCatalogContentId,
+  metaOrderReference,
+  metaPurchaseEventId,
+} from "../../shared/metaPurchaseEvent.js";
 import { resolveTrustedClientIp } from "../utils/trustedClientIp.js";
 
 const GRAPH_API_VERSION = "v25.0";
@@ -184,4 +190,69 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
     lastError = error;
   }
   throw lastError || new Error("Meta Conversions API request failed");
+};
+
+/*
+ * The sale, reported by the shop itself.
+ *
+ * The browser also reports it, but only if the browser is still there: a
+ * customer who closes the tab on the payment page — or loses the connection on
+ * the way back from it — leaves an order in the database that Meta never hears
+ * about, so the campaign that produced it gets no credit and optimisation is
+ * trained on a false negative. This fires from the order pipeline instead, the
+ * moment the order is committed.
+ *
+ * It carries the SAME event_id as the browser's Purchase, so when both arrive
+ * Meta collapses them into one conversion rather than counting the sale twice.
+ * `fbp`/`fbc` cannot be read from the request — the storefront and the API are
+ * different origins, so those cookies never travel here — so the checkout call
+ * forwards them and they are passed through.
+ */
+export const sendStorefrontPurchaseEvent = async ({
+  req,
+  order = {},
+  items = [],
+  value = 0,
+  checkout = {},
+  customer = {},
+  identity = {},
+  tenantId = 1,
+} = {}) => {
+  if (!metaOrderReference(order)) return { sent: false, reason: "missing_order_reference" };
+  if (!isMetaPurchaseEligible(order)) return { sent: false, reason: "order_not_eligible" };
+
+  const contents = metaEventContents(
+    (Array.isArray(items) ? items : []).map((item) => ({
+      id: metaCatalogContentId(item || {}, item || {}),
+      quantity: item?.quantity,
+      item_price: item?.price ?? item?.unit_price ?? item?.selling_price,
+    }))
+  );
+  if (!contents.length) return { sent: false, reason: "missing_content_ids" };
+
+  const nameParts = text(checkout.full_name || checkout.customer_name || customer.name).split(/\s+/).filter(Boolean);
+
+  return sendStorefrontMetaEvent({
+    req,
+    tenantId,
+    event: {
+      event_name: "Purchase",
+      event_id: metaPurchaseEventId(order),
+      content_ids: contents.map((line) => line.id),
+      contents,
+      num_items: contents.reduce((total, line) => total + Number(line.quantity || 0), 0),
+      value: numberValue(value) || numberValue(order.total_amount ?? order.total),
+      currency: "EGP",
+      email: checkout.email || customer.email || order.customer_email,
+      phone: checkout.primary_phone || customer.phone || order.customer_phone,
+      first_name: nameParts[0] || "",
+      last_name: nameParts.slice(1).join(" "),
+      city: checkout.city_area || checkout.city,
+      state: checkout.governorate,
+      external_id: order.customer_id || customer.id || identity.external_id,
+      fbp: identity.fbp,
+      fbc: identity.fbc,
+      event_source_url: identity.source_url,
+    },
+  });
 };

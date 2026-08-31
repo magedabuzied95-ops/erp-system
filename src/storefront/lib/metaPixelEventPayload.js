@@ -6,6 +6,12 @@ import {
   metaQuantityValue,
   metaValueFields,
 } from "../../../shared/metaEventValue.js";
+import {
+  isMetaPurchaseEligible,
+  metaCatalogContentId,
+  metaOrderReference,
+  metaPurchaseEventId,
+} from "../../../shared/metaPurchaseEvent.js";
 import { storefrontSellingPrice } from "../../shared/lib/storefrontPricing.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -20,14 +26,6 @@ export const createMetaEventOnceGuard = () => {
     seen.add(normalized);
     return true;
   };
-};
-
-export const metaCatalogContentId = (product = {}, variant = {}) => {
-  const sku = text(variant.sku || variant.SKU || variant.variant_sku || product.sku || product.variant_sku);
-  if (sku) return sku;
-  const productId = text(product.product_id || product.productId || product.id);
-  const variantId = text(variant.variant_id || variant.variantId || variant.id);
-  return productId && variantId ? `${productId}-${variantId}` : productId;
 };
 
 /*
@@ -92,10 +90,12 @@ export const buildMetaEventPayload = ({ contentIds = [], contents = [], contentN
   };
 };
 
-export const isMetaPurchaseEligible = (order = {}) => !["cancelled", "canceled", "failed", "payment_failed"].includes(text(order.status || order.payment_status).toLowerCase());
-export const purchaseEventId = (order = {}) => `m1_purchase_order_${text(order.id || order.order_id || order.invoice_number || order.order_number)}`;
+// The server sends the same Purchase with the same id, so both sides read these
+// from shared/metaPurchaseEvent.js rather than each keeping its own copy.
+export { isMetaPurchaseEligible, metaCatalogContentId };
+export const purchaseEventId = metaPurchaseEventId;
 export const canTrackMetaPurchase = (order = {}, sentOrderIds = new Set()) => {
-  const orderId = text(order.id || order.order_id || order.invoice_number || order.order_number);
+  const orderId = metaOrderReference(order);
   return Boolean(orderId && isMetaPurchaseEligible(order) && !sentOrderIds.has(orderId));
 };
 export const metaLineContent = (item = {}) => {

@@ -59,6 +59,7 @@ import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from 
 import { createPaymentIntention, isPaymobOnlineReady, paymobOnlineConfig } from "../services/paymobOnlineService.js";
 import { ensurePaymentTransactionsSchema } from "../services/paymobPosService.js";
 import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
+import { sendStorefrontPurchaseEvent } from "../services/metaConversionsApiService.js";
 
 export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
@@ -5122,6 +5123,7 @@ export const createWebsiteOrder = async (req, res) => {
     await ensureStorefrontSchema(client);
     const checkoutRaw = parseJsonField(req.body?.checkout, req.body || {});
     const items = parseJsonField(req.body?.items, Array.isArray(req.body?.items) ? req.body.items : []);
+    const metaBrowserIdentity = parseJsonField(req.body?.meta_identity, {}) || {};
     const checkout = {
       ...checkoutRaw,
       full_name: toText(checkoutRaw.full_name || checkoutRaw.customer_name || checkoutRaw.name),
@@ -5729,6 +5731,27 @@ export const createWebsiteOrder = async (req, res) => {
       issueFirstOrderCoupons({ tenantId, customerId: customer.id, orderId: order.id }).catch((error) => {
         console.warn("[coupons] first-order auto-issue skipped", { orderId: order?.id, message: error?.message || String(error) });
       });
+    }
+    // Meta learns about the sale from the shop, not only from the browser. The
+    // browser reports it too, but only while it is still there: a customer who
+    // closes the tab on the payment page leaves a real order that the campaign
+    // would otherwise get no credit for. Both carry the same event_id, so Meta
+    // collapses them into one conversion. A till-raised online order is not a
+    // website conversion and never reports one.
+    if (!posOnlineOrder) {
+      sendStorefrontPurchaseEvent({
+        req,
+        tenantId,
+        order,
+        items: normalizedItems,
+        value: total,
+        checkout,
+        customer,
+        identity: metaBrowserIdentity,
+      }).catch((error) => console.warn("[meta-capi] purchase event skipped", {
+        orderId: order?.id,
+        message: error?.message || String(error),
+      }));
     }
     sendOrderConfirmation({ ...order, items: normalizedItems }).catch((error) => {
       console.warn("[whatsapp:order-confirmation-send-skipped]", {

@@ -141,6 +141,7 @@ import {
   trackMetaPurchase,
 } from "./lib/metaPixelEvents";
 import { initMetaPixel } from "../shared/lib/metaPixel";
+import { captureMetaBrowserIdentity } from "../shared/lib/metaBrowserAttribution";
 import {
   trackGa4AddToCart,
   trackGa4BeginCheckout,
@@ -7877,6 +7878,16 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         coupon: couponCodeToSend,
         payment_type: paymentMethod,
       });
+      // The Meta cookies are set on the storefront origin, so they never reach
+      // the API host on their own. The checkout carries them so the sale the
+      // server reports can be tied to the ad click that produced it.
+      const metaIdentity = captureMetaBrowserIdentity();
+      const metaIdentityPayload = {
+        fbp: metaIdentity.fbp || "",
+        fbc: metaIdentity.fbc || "",
+        external_id: metaIdentity.externalId || "",
+        source_url: typeof window !== "undefined" ? window.location.href : "",
+      };
       const requestBody = shippingPaymentFile
         ? (() => {
             const formData = new FormData();
@@ -7884,6 +7895,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             formData.append("items", JSON.stringify(pricedCart));
             formData.append("delivery_fee", String(deliveryFee));
             formData.append("discount", "0");
+            formData.append("meta_identity", JSON.stringify(metaIdentityPayload));
             if (paymentMode !== "cod") formData.append("shipping_payment_screenshot", shippingPaymentFile);
             return formData;
           })()
@@ -7892,6 +7904,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             items: pricedCart,
             delivery_fee: deliveryFee,
             discount: 0,
+            meta_identity: metaIdentityPayload,
       };
       const data = await api.post("/storefront/checkout", requestBody);
       const successPayload = {
