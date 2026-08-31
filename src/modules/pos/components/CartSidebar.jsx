@@ -47,6 +47,7 @@ import { resolveBrandImageUrl, resolveProductImageUrl } from "../../../shared/li
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import { normalizeInvoicePaymentBreakdown } from "../../../shared/utils/invoicePaymentBreakdown";
+import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const QRCodeSVG = lazy(() => import("qrcode.react").then((module) => ({ default: module.QRCodeSVG })));
 import { getBarcodeSvg } from "../../products/lib/barcodeLabels";
@@ -477,6 +478,11 @@ function CartSidebar({
   };
   const methodTotal = methodAmounts.cash + methodAmounts.card + methodAmounts.wallet + methodAmounts.vodafone_cash;
   const personalSettlementTypeValue = String(personalSettlementType || "").trim().toUpperCase();
+  const personalSettlementOptions = [
+    { value: "GIFT", label: posLabel("personal.giftOrExpense", "Gift / expense") },
+    { value: "EMPLOYEE_ADVANCE", label: posLabel("personal.advance", "Employee advance") },
+    { value: "OWNER_USE", label: posLabel("personal.ownerPersonalUse", "Owner personal use") },
+  ];
   const creditSaleActive = normalizedPaymentMode === "credit_sale";
   const totalPaid = personalPaymentActive || creditSaleActive ? 0 : appliedCredit + methodTotal;
   const remainingAmount = personalPaymentActive || creditSaleActive ? totalAmount : Math.max(0, totalAmount - totalPaid);
@@ -1022,16 +1028,17 @@ function CartSidebar({
                 </div>
                 <label className="block">
                   <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("personal.type", "Personal operation type")}</div>
-                  <select
+                  {/* The type is required to save the invoice, so a list the cashier cannot read
+                      is a dead end. A native <select> draws its list with the OS, which ignores
+                      this dark panel entirely and opened as a blank grey rectangle. */}
+                  <ThemedSelect
                     value={personalSettlementTypeValue}
-                    onChange={(event) => setPersonalSettlementType?.(event.target.value)}
-                    className="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm font-semibold text-white outline-none focus:border-amber-300/50"
-                  >
-                    <option value="">{posLabel("personal.selectType", "Select the type")}</option>
-                    <option value="GIFT">{posLabel("personal.giftOrExpense", "Gift / expense")}</option>
-                    <option value="EMPLOYEE_ADVANCE">{posLabel("personal.advance", "Employee advance")}</option>
-                    <option value="OWNER_USE">{posLabel("personal.ownerPersonalUse", "Owner personal use")}</option>
-                  </select>
+                    onChange={(next) => setPersonalSettlementType?.(next)}
+                    options={personalSettlementOptions}
+                    placeholder={posLabel("personal.selectType", "Select the type")}
+                    ariaLabel={posLabel("personal.type", "Personal operation type")}
+                    triggerClassName="h-[var(--control-height-lg)] w-full rounded-2xl border border-white/10 bg-black/70 px-4 text-sm font-semibold text-white focus:border-amber-300/50"
+                  />
                 </label>
                 <label className="mt-3 block">
                   <div className="mb-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.note", "Note")}</div>
