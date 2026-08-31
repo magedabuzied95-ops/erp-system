@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { normalizeEgyptPhone, sendTextMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 import { getSetting } from "./settingsService.js";
@@ -25,10 +26,10 @@ let schemaReadyPromise = null;
 export const ensureWhatsappShippingSchema = async (clientOrPool = db) => {
   if (!schemaReadyPromise || clientOrPool !== db) {
     const run = async () => {
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipment_created_sent_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipped_sent_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_out_for_delivery_sent_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivered_sent_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipment_created_sent_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipped_sent_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_out_for_delivery_sent_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivered_sent_at TIMESTAMPTZ NULL`);
     };
     if (clientOrPool !== db) return run();
     schemaReadyPromise = run().catch((error) => {
@@ -141,6 +142,41 @@ const sendShippingNotification = async (order = {}, type) => {
     // leave the body empty, so a one-line message keeps its text and takes a fixed header instead.
     const deliveredHeadline = deliveredRemainder ? deliveredFirstLine.trim() : "تم التسليم";
     const deliveredBody = deliveredRemainder || String(message).trim();
+
+    /*
+     * Shipment notifications go through the outbound queue too.
+     *
+     * They are transactional — the customer is waiting on this parcel — so they carry the long
+     * expiry and the generous retry budget, unlike the receipt and the review ask. The claim
+     * above already happened, so the queue's idempotency key is the second of two guards rather
+     * than the only one.
+     */
+    const queued = await queueWhatsappAutomation({
+      tenantId: claimed.tenant_id || order?.tenant_id || 0,
+      automationType: type,
+      customerId: claimed?.customer_id || null,
+      orderId: claimed.id,
+      invoiceNumber: invoiceNumber(claimed),
+      recipientPhone: phone,
+      send: reviewUrl
+        ? { kind: "cta_url", title: deliveredHeadline, footer: "M1 Store", displayText: "⭐ قيّمنا على جوجل", url: reviewUrl, fallbackText: message }
+        : { kind: "text" },
+      values: await shipmentTemplateValues(claimed),
+      fallbackBody: reviewUrl ? deliveredBody : message,
+      onSent: {
+        transcript: {
+          session_id: `whatsapp:${phone}`,
+          source: `whatsapp_${type}`,
+          customer_name: claimed?.customer_name || "",
+          message,
+        },
+      },
+      directSend: null,
+    });
+    if (queued.queued || queued.duplicate) {
+      console.info(`${config.log}-queued`, { orderId: claimed.id, queueId: queued.id || null, duplicate: Boolean(queued.duplicate) });
+      return { sent: false, queued: true, duplicate: Boolean(queued.duplicate), queueId: queued.id || null, order: claimed };
+    }
 
     let result;
     if (reviewUrl) {

@@ -3,6 +3,12 @@ import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
 import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
 import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.js";
 import { ABANDONED_CART_DEFAULTS } from "./abandonedCartDefaults.js";
+import {
+  WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS,
+  WHATSAPP_MESSAGE_VARIANT_DEFAULTS,
+  WHATSAPP_QUEUE_CATEGORY_DEFAULTS,
+  WHATSAPP_QUEUE_DEFAULTS,
+} from "./whatsappQueueDefaults.js";
 
 const label = (en, ar) => ({ en, ar });
 
@@ -140,6 +146,14 @@ const definitions = [
   ["orders.shipment_notifications", "shipping", "json", SHIPMENT_NOTIFICATION_DEFAULTS, "Shipment WhatsApp notifications", "رسائل الشحن على واتساب", "Per-status message templates and on/off switches. Edited from the gear in the Shipping Center.", "قوالب رسائل الشحن وتشغيلها أو إيقافها لكل حالة. تُعدَّل من ترس الإعدادات في مركز الشحن.", { usedBy: ["Shipping", "WhatsApp"] }],
   ["marketing.abandoned_cart_reminder", "ai_channels", "json", ABANDONED_CART_DEFAULTS, "Abandoned cart WhatsApp reminder", "تذكير السلة المتروكة على واتساب", "One carousel per abandonment: the saved cart's products as cards with a complete-order button. enabled / delay_minutes / max_cards / body / button_text.", "رسالة واحدة لكل سلة متروكة: منتجات السلة ككروت مع زر أكمل الطلب. التشغيل، مدة الانتظار بالدقائق، عدد الكروت، نص الرسالة ونص الزر.", { usedBy: ["Marketing", "WhatsApp"] }],
   ["orders.whatsapp_order_confirmation_template", "orders", "textarea", "تم استلام طلبك رقم {{order_number}}.", "WhatsApp order confirmation template", "رسالة تأكيد الطلب واتساب", "Template for order confirmation messages.", "قالب رسالة تأكيد الطلب."],
+
+  // The WhatsApp outbound queue. Nothing here is a number this code claims WhatsApp considers
+  // safe — every one of them is the operator's decision, which is exactly why they are settings
+  // and not constants in the worker.
+  ["whatsapp.queue", "ai_channels", "json", WHATSAPP_QUEUE_DEFAULTS, "WhatsApp outbound queue", "طابور رسائل واتساب", "Paces every automated WhatsApp message instead of posting it straight at the gateway. enabled / messages_per_minute / min_delay_seconds / max_delay_seconds / batch_size, plus the circuit breaker: offline_pause_minutes, pending_pause_threshold, failure_pause_threshold, failure_window_minutes. Off = the previous direct-send behaviour, unchanged.", "ينظّم إرسال كل رسائل واتساب التلقائية بدلاً من إرسالها مباشرة للجهاز. التشغيل، عدد الرسائل في الدقيقة، أقل وأكبر تأخير، حجم الدفعة، بالإضافة لقاطع الأمان: مدة الانقطاع، حد الرسائل المتراكمة، حد الأخطاء ومدة نافذتها. الإيقاف يعيد السلوك القديم كما هو.", { usedBy: ["WhatsApp", "Orders", "Marketing"] }],
+  ["whatsapp.queue_categories", "ai_channels", "json", WHATSAPP_QUEUE_CATEGORY_DEFAULTS, "WhatsApp queue category rules", "قواعد فئات طابور واتساب", "Separate expiry, retry and rate rules for transactional messages (order confirmation, status, invoice) and engagement messages (thank you, Google review, offers). expiry_minutes / max_retries / retry_backoff_seconds / messages_per_minute (0 = use the global rate).", "قواعد منفصلة للصلاحية وإعادة المحاولة والمعدل بين الرسائل المعاملاتية (تأكيد الطلب، حالة الطلب، الفاتورة) ورسائل التفاعل (الشكر، تقييم جوجل، العروض). مدة الصلاحية، أقصى إعادة محاولة، مدة الانتظار، وعدد الرسائل في الدقيقة (0 = المعدل العام).", { usedBy: ["WhatsApp"] }],
+  ["whatsapp.automation_expiry", "ai_channels", "json", WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS, "WhatsApp message expiry per type", "صلاحية كل نوع رسالة واتساب", "How long each automation may sit unsent before it is dropped instead of delivered late, in minutes. 0 means use the category rule. This is what stops a day-old thank-you or review ask from being sent after the session comes back.", "المدة التي تُسمح فيها كل رسالة بالانتظار قبل أن تُلغى بدل إرسالها متأخرة، بالدقائق. القيمة 0 تعني استخدام قاعدة الفئة. هذه هي القاعدة التي تمنع إرسال رسالة شكر أو طلب تقييم عمرها يوم كامل بعد رجوع الاتصال.", { usedBy: ["WhatsApp"] }],
+  ["whatsapp.message_variants", "ai_channels", "json", WHATSAPP_MESSAGE_VARIANT_DEFAULTS, "WhatsApp message variants", "صيغ رسائل واتساب", "More than one wording per automation, used round robin: customer 1 gets A, customer 2 gets B, customer 3 gets C, customer 4 gets A. Every variant supports the same placeholders. Empty = the automation's own message goes out exactly as it does today.", "أكثر من صيغة لكل رسالة تلقائية، تُستخدم بالتناوب: العميل الأول A والثاني B والثالث C والرابع A. كل صيغة تدعم نفس المتغيرات. الفراغ يعني إرسال رسالة النظام الأصلية كما هي.", { usedBy: ["WhatsApp", "Marketing"] }],
   ["orders.bosta_api_base_url", "shipping", "url", "https://app.bosta.co/api/v2", "Bosta API base URL", "Bosta API base URL", "Base URL for Bosta API requests.", "Base URL for Bosta API requests.", { usedBy: ["Shipping"] }],
   ["orders.bosta_api_key", "shipping", "secret", "", "Bosta API key", "مفتاح بوسطة", "Secret key for Bosta shipping.", "مفتاح سري لتكامل بوسطة.", { isSecret: true, usedBy: ["Shipping"] }],
   ["orders.bosta_webhook_secret", "shipping", "secret", "", "Bosta webhook secret", "مفتاح ويبهوك بوسطة", "Shared secret Bosta signs status callbacks with.", "المفتاح الذي توقّع به بوسطة تحديثات حالة الشحنة.", { isSecret: true, usedBy: ["Shipping"] }],

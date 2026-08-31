@@ -1783,7 +1783,8 @@
       "on": "On",
       "off": "Off",
       "advancedMode": "Advanced mode",
-      "guidedMode": "Guided mode"
+      "guidedMode": "Guided mode",
+      "refreshed": "Refreshed"
     },
     "state": {
       "connected": "Connected",
@@ -1795,7 +1796,8 @@
       "overview": "Overview",
       "meta": "Facebook & Instagram",
       "whatsapp": "WhatsApp",
-      "tiktok": "TikTok"
+      "tiktok": "TikTok",
+      "queue": "WhatsApp queue"
     },
     "overview": {
       "title": "Connection overview",
@@ -2015,6 +2017,71 @@
     },
     "tiktok": {
       "scopeNote": "Publishing and comments are two separate connections: publishing via the TikTok Publishing card, comments via the TikTok Business card (they appear in the Social Comments Center). Direct messages are still awaiting the TikTok Business Messaging permission."
+    },
+    "queue": {
+      "title": "Outbound queue",
+      "subtitle": "Every automated WhatsApp message is paced through this queue instead of being posted straight at the gateway.",
+      "unavailable": "The queue dashboard could not be loaded.",
+      "actionFailed": "The action could not be completed",
+      "reviewTitle": "Messages are waiting for review",
+      "reviewSummary": "There are {{pending}} pending messages, {{stale}} of them are older than the configured expiry period.",
+      "resumeAndExpire": "Expire the old ones and resume",
+      "cancelAll": "Cancel everything pending",
+      "backlog": "Waiting now",
+      "lastHour": "Sent in the last hour",
+      "last24h": "Sent in the last 24 hours",
+      "oldestPending": "Oldest pending message",
+      "lastDrain": "Last drain",
+      "lastDisconnect": "Last disconnect",
+      "lastReconnect": "Last reconnect",
+      "ratePerMinute": "Messages per minute",
+      "batchSize": "Batch size",
+      "delayRange": "Delay between messages",
+      "pauseThreshold": "Backlog pause threshold",
+      "settingsHint": "All of these are editable in Settings › AI & Marketing. They are starting points, not numbers WhatsApp publishes.",
+      "actionsTitle": "Queue actions",
+      "actionsSubtitle": "Pause, resume, clear or retry. Every one of these decides what customers do or do not receive.",
+      "pause": "Pause queue",
+      "resume": "Resume queue",
+      "expireStale": "Expire stale messages",
+      "retryFailed": "Retry failed",
+      "cancelPending": "Cancel pending",
+      "drainNow": "Send a batch now",
+      "paused": "Queue paused",
+      "resumed": "Queue resumed — {{expired}} stale messages expired",
+      "expired": "{{expired}} stale messages expired",
+      "retried": "{{retried}} messages re-armed for another attempt",
+      "cancelled": "{{cancelled}} pending messages cancelled",
+      "drained": "Drain finished",
+      "testTitle": "Send a single test message",
+      "testSubtitle": "Goes out immediately, bypassing the queue — the point is to prove the session works.",
+      "testPhone": "Phone",
+      "testMessage": "Message",
+      "sendTest": "Send test message",
+      "ageMinutes": "{{count}} min ago",
+      "ageHours": "{{count}} h ago",
+      "ageDays": "{{count}} d ago",
+      "state": {
+        "running": "Running",
+        "paused": "Paused",
+        "paused_for_review": "Paused for review"
+      },
+      "status": {
+        "pending": "Pending",
+        "scheduled": "Scheduled",
+        "sending": "Sending",
+        "sent": "Sent",
+        "failed": "Failed",
+        "expired": "Expired",
+        "cancelled": "Cancelled"
+      },
+      "reason": {
+        "manual": "Paused by an administrator.",
+        "long_offline": "The WhatsApp session was offline long enough that the backlog needs a human decision before anything is sent.",
+        "backlog_threshold": "The number of waiting messages passed the configured safety threshold.",
+        "failure_threshold": "Too many sends failed in a short window."
+      },
+      "thresholdOff": "Off"
     }
   }
 }

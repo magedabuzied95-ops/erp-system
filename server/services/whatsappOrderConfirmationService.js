@@ -11,6 +11,7 @@ import { adjustVariantStock } from "./inventoryService.js";
 import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, INVOICE_RECEIPT_GREETING, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
@@ -120,11 +121,11 @@ let schemaReadyPromise = null;
 export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) => {
   if (!schemaReadyPromise || clientOrPool !== db) {
     const run = async () => {
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMP NULL`);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmation_sent_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_confirmed_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_cancelled_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_payment_review_sent_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_invoice_sent_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS timeline JSONB NOT NULL DEFAULT '[]'::jsonb`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_orders_whatsapp_confirmation_phone ON orders (customer_phone, created_at DESC)`);
@@ -137,16 +138,16 @@ export const ensureWhatsappOrderConfirmationSchema = async (clientOrPool = db) =
           action VARCHAR(20) NOT NULL DEFAULT 'entry',
           code VARCHAR(16) NOT NULL UNIQUE,
           code_hash TEXT NOT NULL UNIQUE,
-          expires_at TIMESTAMP NOT NULL,
-          used_at TIMESTAMP NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          used_at TIMESTAMPTZ NULL,
           used_action TEXT NULL,
           used_order_status TEXT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           UNIQUE (tenant_id, order_id, action)
         )
       `);
-      await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_at TIMESTAMP NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_action TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS order_confirmation_codes ADD COLUMN IF NOT EXISTS used_order_status TEXT NULL`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_order_confirmation_codes_lookup ON order_confirmation_codes (tenant_id, order_id, action, expires_at DESC)`);
@@ -186,8 +187,8 @@ const runEnsureAiForwardingSchema = async () => {
       customer_avatar_url TEXT NOT NULL DEFAULT '',
       last_message TEXT NOT NULL DEFAULT '',
       status VARCHAR(40) NOT NULL DEFAULT 'ai_active',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, session_id)
     )
   `);
@@ -211,7 +212,7 @@ const runEnsureAiForwardingSchema = async () => {
       channel TEXT NOT NULL DEFAULT 'web_chat',
       customer_name TEXT NOT NULL DEFAULT '',
       last_message TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await db.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'web_chat'`);
@@ -1151,6 +1152,73 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
     // same review button as the delivery message. A CTA cannot be mixed with reply buttons, so it
     // is the whole message; if the button will not render the receipt still goes as plain text —
     // losing a review ask is nothing, losing the customer's invoice is not.
+
+    /*
+     * The receipt goes through the outbound queue.
+     *
+     * This is the message from the incident: thank-you, invoice link, review ask — one per sale.
+     * During the ~24h outage every one of them was accepted by Evolution over HTTP while its
+     * WhatsApp socket was dead, then flushed at once on reconnect. Queued, it is paced, it
+     * expires if its moment has passed, and its idempotency key means one invoice can never
+     * produce two receipts however many times this function is called.
+     *
+     * A manual resend is a human asking for this receipt right now with the outcome on their
+     * screen, so it stays on the direct path below.
+     */
+    if (!isManualResend) {
+      const queued = await queueWhatsappAutomation({
+        tenantId: messageTenantId,
+        automationType: "invoice_receipt",
+        customerId: current?.customer_id || null,
+        orderId: current.id,
+        invoiceNumber,
+        recipientPhone: phone,
+        send: {
+          kind: "cta_url",
+          title: INVOICE_RECEIPT_GREETING,
+          footer: "M1 Store",
+          displayText: "⭐ قيّمنا على جوجل",
+          url: getGoogleReviewUrl(),
+          fallbackText: message,
+        },
+        values: {
+          customer_name: current?.customer_name || "",
+          invoice_number: invoiceNumber,
+          invoice_url: invoiceUrl,
+          order_number: orderNumber(current),
+          google_review_url: getGoogleReviewUrl(),
+          total: current?.total_amount ?? current?.total ?? "",
+        },
+        fallbackBody: buildInvoiceReceiptWhatsappMessage({ invoiceNumber, invoiceUrl, withGreeting: false }),
+        onSent: {
+          order_column: "whatsapp_invoice_sent_at",
+          transcript: {
+            session_id: `whatsapp:${phone}`,
+            source: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
+            customer_name: current?.customer_name || "",
+            message,
+          },
+        },
+        directSend: null,
+      });
+      if (queued.queued || queued.duplicate) {
+        console.info(logTags.check, {
+          ...checkPayload,
+          queued: true,
+          queue_id: queued.id || null,
+          duplicate: Boolean(queued.duplicate),
+        });
+        return {
+          sent: false,
+          queued: true,
+          duplicate: Boolean(queued.duplicate),
+          queueId: queued.id || null,
+          order: current,
+          invoiceUrl,
+        };
+      }
+    }
+
     let result;
     try {
       result = await sendCtaUrlMessage({

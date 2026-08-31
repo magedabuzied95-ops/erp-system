@@ -684,6 +684,8 @@ const { default: invoiceTemplateRoutes, publicInvoiceTemplateRouter } = await im
 const { ensureInvoiceTemplateSchema } = await import("./services/invoiceTemplateService.js");
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
 const { default: whatsappDebugRoutes } = await import("./routes/whatsappDebug.js");
+const { default: whatsappQueueRoutes } = await import("./routes/whatsappQueue.js");
+const { startWhatsappQueueWorker } = await import("./services/whatsappQueue/worker.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
 const { ensureOrdersSchema, ensurePosCheckoutSchema } = await import("./controllers/ordersController.js");
 const { ensureAccountingSchema } = await import("./services/accountingService.js");
@@ -1968,6 +1970,8 @@ app.use("/api/roles", rolesRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/invoice-templates", invoiceTemplateRoutes);
+// Mounted before the gateway router so /api/whatsapp/queue/* is not swallowed by it.
+app.use("/api/whatsapp/queue", whatsappQueueRoutes);
 app.use("/api/whatsapp", whatsappGatewayRoutes);
 app.use("/api/debug/whatsapp", whatsappDebugRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);
@@ -2397,6 +2401,15 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, 5 * 60 * 1000);
       backgroundIntervals.add(abandonedCartInterval);
+      /*
+       * The WhatsApp outbound queue worker. It is what stands between a reconnecting session and
+       * the day's backlog: it drains at the configured rate, never while the session is down, and
+       * not at all once the circuit breaker has latched. No-op while whatsapp.queue.enabled is
+       * false, in which case every automation keeps its original direct-send path.
+       */
+      const whatsappQueueTimer = startWhatsappQueueWorker({ tenantId: 0 });
+      if (whatsappQueueTimer) backgroundIntervals.add(whatsappQueueTimer);
+      console.log("[server] whatsapp queue worker started");
       console.log("[server] abandoned cart reminder scheduler started");
       console.log("[server] workflow automation scheduler started");
       console.log("[server] staff task schedulers started");

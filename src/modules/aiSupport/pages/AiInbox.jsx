@@ -146,7 +146,7 @@ import {
 // Loaded on demand: the integrations center pulls in the whole Meta/marketing
 // API surface, which the inbox itself never touches.
 const IntegrationsCenter = lazy(() => import("../components/integrations/IntegrationsCenter.jsx"));
-const INTEGRATION_TAB_KEYS = new Set(["overview", "meta", "whatsapp", "tiktok"]);
+const INTEGRATION_TAB_KEYS = new Set(["overview", "meta", "whatsapp", "queue", "tiktok"]);
 
 const money = (value) => formatCurrency(value);
 // A brand-new Messenger conversation can land with customer_name set to the customer's

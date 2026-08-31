@@ -7,6 +7,7 @@ import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/wha
 import { emitToRooms } from "../utils/socket.js";
 import { ABANDONED_CART_DEFAULTS } from "../../shared/abandonedCartDefaults.js";
 import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
+import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 
 /*
  * The abandoned-cart reminder. A signed-in storefront customer's cart is saved server-side per
@@ -41,7 +42,7 @@ let schemaReady = null;
 const ensureAbandonedCartSchema = () => {
   if (!schemaReady) {
     schemaReady = db
-      .query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP NULL`)
+      .query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ NULL`)
       .catch((error) => {
         schemaReady = null; // a failed ensure must not become a cached rejection
         throw error;
@@ -212,6 +213,47 @@ export const runAbandonedCartReminderTick = async () => {
     // and a duplicate marketing nudge is worse than a missed one.
     const claimed = await claimCart(row).catch(() => "");
     if (!claimed) continue;
+
+    /*
+     * Engagement, so it goes through the outbound queue: paced, and dropped rather than delivered
+     * if it sat past its expiry while the WhatsApp session was down. The inbox cards are resolved
+     * here and carried on the queue row, so the worker records the same product-card message this
+     * loop used to record inline.
+     */
+    const queued = await queueWhatsappAutomation({
+      tenantId: row.tenant_id || 0,
+      automationType: "abandoned_cart",
+      // The cart row is keyed by phone, not by customer — the reminder never needed a customer id
+      // and the idempotency suffix below carries the identity that matters here.
+      customerId: null,
+      recipientPhone: row.customer_phone,
+      send: { kind: "carousel", cards, fallbackText },
+      values: { store_name: "M1 Store" },
+      fallbackBody: body,
+      // One reminder per claim: a second tick on the same claim lands on the same key.
+      idempotencySuffix: `cart:${row.id}:${claimed}`,
+      onSent: {
+        product_card_transcript: {
+          session_id: normalizeWhatsappSessionId(row.customer_phone),
+          product_cards: buildAbandonedCartInboxCards(items, config),
+          client_request_id: `abandoned_cart:${row.id}:${claimed}`,
+          source: "abandoned_cart_reminder",
+          source_path: "abandoned_cart_automation",
+          insert_source: "abandoned_cart_automation",
+          resolved_phone: normalizeWhatsappPhone(row.customer_phone),
+        },
+      },
+      directSend: null,
+    }).catch((error) => {
+      console.warn("[abandoned-cart] queue unavailable, sending directly", { cart_id: row.id, message: error?.message || String(error) });
+      return { queued: false, duplicate: false };
+    });
+    if (queued.queued || queued.duplicate) {
+      sent += queued.queued ? 1 : 0;
+      console.info("[abandoned-cart] reminder queued", { cart_id: row.id, queue_id: queued.id || null, duplicate: Boolean(queued.duplicate) });
+      continue;
+    }
+
     try {
       const sendResult = await sendCartCarouselMessage({ phone: row.customer_phone, body, cards, fallbackText });
       sent += 1;
