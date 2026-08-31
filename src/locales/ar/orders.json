@@ -8,7 +8,14 @@
   "header": {
     "title": "الطلبات",
     "summary": "{{orders}} طلب • {{paid}} مدفوع • {{pending}} معلق • {{revenue}} إيرادات",
-    "newReturn": "+ مرتجع"
+    "newReturn": "+ مرتجع",
+    "loading": "جارٍ تحميل الطلبات…",
+    "showing": "معروض {{shown}} من {{total}} طلب",
+    "updated": "آخر تحديث {{time}}",
+    "refresh": "تحديث",
+    "export": "تصدير",
+    "exportHint": "يصدّر المحدد، أو كل الطلبات المطابقة للفلاتر لو مفيش محدد",
+    "newOrder": "طلب جديد"
   },
   "workspaces": {
     "table": "عرض الجدول",
@@ -84,7 +91,23 @@
     "search": "البحث",
     "orderStatus": "حالة الطلب",
     "paymentStatus": "حالة الدفع",
-    "date": "التاريخ"
+    "date": "التاريخ",
+    "clearSearch": "مسح البحث",
+    "activeLabel": "الفلاتر المفعّلة",
+    "noneActive": "مفيش فلاتر مفعّلة",
+    "remove": "إزالة",
+    "clearAll": "مسح الكل",
+    "matching": "{{shown}} من {{total}} طلب مطابق",
+    "dateRange": {
+      "all": "كل الفترات",
+      "yesterday": "أمس",
+      "last7": "آخر 7 أيام",
+      "last30": "آخر 30 يوم",
+      "thisMonth": "هذا الشهر",
+      "from": "من تاريخ",
+      "to": "إلى تاريخ",
+      "custom": "مخصص"
+    }
   },
   "bulk": {
     "markConfirmed": "تعيين كمؤكد",
@@ -101,7 +124,8 @@
     "cancelRequiresBackend": "إلغاء المحدد يحتاج تأكيد آمن من الخادم لاسترجاع المخزون.",
     "selectPhoneFirst": "اختر طلبا يحتوي على هاتف العميل أولا.",
     "printPreparing": "جارٍ تجهيز الطباعة...",
-    "whatsappMessage": "تحديث الطلب {{order}}: {{status}}"
+    "whatsappMessage": "تحديث الطلب {{order}}: {{status}}",
+    "selectHint": "اختر طلبات لتفعيل الإجراءات"
   },
   "table": {
     "invoice": "الفاتورة",

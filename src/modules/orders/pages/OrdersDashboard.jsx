@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import i18n from "../../../i18n/i18n";
@@ -8,9 +8,9 @@ import i18n from "../../../i18n/i18n";
 import {
   AlertTriangle,
   Banknote,
+  CalendarRange,
   CheckCircle2,
   Clock3,
-  ClipboardList,
   Copy,
   CreditCard,
   DollarSign,
@@ -23,9 +23,12 @@ import {
   PackageOpen,
   Pencil,
   Phone,
+  Plus,
   Printer,
+  RefreshCw,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   SplitSquareHorizontal,
   Trash2,
   Truck,
@@ -62,18 +65,13 @@ import {
   resolveProductImageUrl,
   resolveShippingProofImageUrl,
 } from "../../../shared/lib/imageUrls";
+import { instantToWallClock } from "../../../shared/lib/appTimezone";
 import { normalizeOrderLifecycleStatus } from "../../../../shared/orderStatus.js";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
 const ORDERS_DEBUG = String(import.meta.env.VITE_ERP_PERF_DEBUG || "").trim().toLowerCase() === "true";
 const SOURCE_FILTERS = ["all", "pos", "website", "whatsapp", "instagram", "manual"];
-const WORKSPACES = [
-  { key: "table", labelKey: "orders.workspaces.table", icon: ClipboardList },
-  { key: "verification", labelKey: "orders.workspaces.verification", icon: CreditCard },
-  { key: "fulfillment", labelKey: "orders.workspaces.fulfillment", icon: Truck },
-  { key: "returns", labelKey: "orders.workspaces.returns", icon: RotateCcw },
-];
 
 const SOURCE_LABELS = {
   pos: "orders.sources.pos",
@@ -309,6 +307,79 @@ const getDateInputValue = (date = new Date()) => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+/**
+ * Which calendar day an order belongs to, read on the SHOP's clock.
+ *
+ * `created_at` is an instant; slicing its ISO string takes the UTC day, so an
+ * order placed at 01:00 Cairo counted as yesterday and "today" quietly lost the
+ * first three hours of trading. `instantToWallClock` re-reads the same instant
+ * in the tenant's configured zone, which is the day the operator means.
+ */
+const orderDayKey = (order = {}) => {
+  const raw = order.created_at;
+  if (!raw) return "";
+  const wall = instantToWallClock(raw);
+  return wall ? wall.slice(0, 10) : String(raw).slice(0, 10);
+};
+
+/* Cached to the minute: every preset resolves through this, and the filter bar
+   re-renders on each keystroke in the search box — otherwise a dozen
+   Intl.DateTimeFormat instances were built per character typed. */
+let shopTodayCache = { minute: -1, value: "" };
+const shopToday = () => {
+  const minute = Math.floor(Date.now() / 60000);
+  if (shopTodayCache.minute !== minute) {
+    shopTodayCache = { minute, value: instantToWallClock(new Date().toISOString()).slice(0, 10) || getDateInputValue() };
+  }
+  return shopTodayCache.value;
+};
+
+/** Day arithmetic on a YYYY-MM-DD key, done in UTC so no local DST shift creeps in. */
+const shiftDayKey = (dayKey, days) => {
+  const date = new Date(`${dayKey}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return dayKey;
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+};
+
+const matchesDateRange = (order = {}, from = "", to = "") => {
+  if (!from && !to) return true;
+  const day = orderDayKey(order);
+  if (!day) return false;
+  if (from && day < from) return false;
+  if (to && day > to) return false;
+  return true;
+};
+
+/**
+ * The date filter used to be a single exact day, which made every common
+ * question ("this week", "this month") impossible to ask. Presets resolve to a
+ * from/to pair; the two date inputs stay available for anything else.
+ */
+const DATE_PRESETS = [
+  { key: "today", labelKey: "orders.filters.today", resolve: () => ({ from: shopToday(), to: shopToday() }) },
+  { key: "yesterday", labelKey: "orders.filters.dateRange.yesterday", resolve: () => ({ from: shiftDayKey(shopToday(), -1), to: shiftDayKey(shopToday(), -1) }) },
+  { key: "last7", labelKey: "orders.filters.dateRange.last7", resolve: () => ({ from: shiftDayKey(shopToday(), -6), to: shopToday() }) },
+  { key: "last30", labelKey: "orders.filters.dateRange.last30", resolve: () => ({ from: shiftDayKey(shopToday(), -29), to: shopToday() }) },
+  { key: "thisMonth", labelKey: "orders.filters.dateRange.thisMonth", resolve: () => ({ from: `${shopToday().slice(0, 7)}-01`, to: shopToday() }) },
+];
+
+const activeDatePresetKey = (from = "", to = "") => {
+  if (!from && !to) return "all";
+  return DATE_PRESETS.find((preset) => {
+    const range = preset.resolve();
+    return range.from === from && range.to === to;
+  })?.key || "custom";
+};
+
+const formatCount = (value) => Number(value || 0).toLocaleString("en-US");
+
+const shortClock = (value, language) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(isArabicLanguage(language) ? "ar-EG" : "en-US", { hour: "2-digit", minute: "2-digit" }).format(date);
 };
 
 const getAttributionLabel = (order = {}) => {
@@ -638,7 +709,10 @@ function OrdersDashboard() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [channelFilter, setChannelFilter] = useState(() => searchParams.get("channel") || "all");
-  const [dateFilter, setDateFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -666,6 +740,7 @@ function OrdersDashboard() {
         total: order.total ?? order.total_amount ?? order.total_price,
       }));
       setOrders(enriched.length ? enriched : mockOrders());
+      setLastUpdated(new Date());
     } catch (err) {
       console.log(err);
       setOrders(mockOrders());
@@ -732,10 +807,78 @@ function OrdersDashboard() {
       const matchesPayment = matchesPaymentFilter(order, paymentFilter);
       const orderSource = getOrderSource(order);
       const matchesChannel = channelFilter === "all" || orderSource === channelFilter;
-      const matchesDate = !dateFilter || String(order.created_at || "").slice(0, 10) === dateFilter;
-      return matchesSearch && matchesStatus && matchesPayment && matchesChannel && matchesDate;
+      const matchesBranch = branchFilter === "all" || text(order.branch) === branchFilter;
+      const matchesDate = matchesDateRange(order, dateFrom, dateTo);
+      return matchesSearch && matchesStatus && matchesPayment && matchesChannel && matchesBranch && matchesDate;
     });
-  }, [workspaceSource, search, statusFilter, paymentFilter, channelFilter, dateFilter]);
+  }, [workspaceSource, search, statusFilter, paymentFilter, channelFilter, branchFilter, dateFrom, dateTo]);
+
+  const branchOptions = useMemo(
+    () => ["all", ...uniqueValues(orders.map((order) => text(order.branch))).sort((a, b) => a.localeCompare(b, "ar"))],
+    [orders]
+  );
+
+  /* Counts are read off the workspace source, not the filtered list: the point
+     of a count on a filter option is to say how many rows it WOULD return. */
+  const statusCounts = useMemo(() => {
+    const counts = { all: workspaceSource.length };
+    for (const option of STATUS_FILTER_OPTIONS) {
+      if (option === "all") continue;
+      counts[option] = workspaceSource.filter((order) => matchesStatusFilter(order, option)).length;
+    }
+    return counts;
+  }, [workspaceSource]);
+
+  const paymentCounts = useMemo(() => {
+    const counts = { all: workspaceSource.length };
+    for (const option of PAYMENT_FILTER_OPTIONS) {
+      if (option === "all") continue;
+      counts[option] = workspaceSource.filter((order) => matchesPaymentFilter(order, option)).length;
+    }
+    return counts;
+  }, [workspaceSource]);
+
+  const sourceCounts = useMemo(() => {
+    const counts = { all: workspaceSource.length };
+    for (const order of workspaceSource) {
+      const key = getOrderSource(order);
+      if (key) counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  }, [workspaceSource]);
+
+  const resetFilters = useCallback(() => {
+    setSearch("");
+    setStatusFilter("all");
+    setPaymentFilter("all");
+    setChannelFilter("all");
+    setBranchFilter("all");
+    setDateFrom("");
+    setDateTo("");
+    setPage(1);
+  }, []);
+
+  /* One list drives both the removable tokens and the "any filter on?" test, so
+     a filter can never be applied without a visible way to take it off again. */
+  const activeFilters = useMemo(() => {
+    const chips = [];
+    if (search.trim()) chips.push({ key: "search", label: t("orders.filters.search"), value: search.trim(), clear: () => setSearch("") });
+    if (statusFilter !== "all") chips.push({ key: "status", label: t("orders.filters.orderStatus"), value: STATUS_FILTER_LABELS[statusFilter] || statusFilter, clear: () => setStatusFilter("all") });
+    if (paymentFilter !== "all") chips.push({ key: "payment", label: t("orders.filters.paymentStatus"), value: PAYMENT_FILTER_LABELS[paymentFilter] || paymentFilter, clear: () => setPaymentFilter("all") });
+    if (channelFilter !== "all") chips.push({ key: "channel", label: t("orders.filters.source"), value: SOURCE_LABELS[channelFilter] ? t(SOURCE_LABELS[channelFilter]) : channelFilter, clear: () => setChannelFilter("all") });
+    if (branchFilter !== "all") chips.push({ key: "branch", label: t("orders.filters.branch"), value: branchFilter, clear: () => setBranchFilter("all") });
+    if (dateFrom || dateTo) {
+      const presetKey = activeDatePresetKey(dateFrom, dateTo);
+      const preset = DATE_PRESETS.find((item) => item.key === presetKey);
+      chips.push({
+        key: "date",
+        label: t("orders.filters.date"),
+        value: preset ? t(preset.labelKey) : [dateFrom || "…", dateTo || "…"].join(" – "),
+        clear: () => { setDateFrom(""); setDateTo(""); },
+      });
+    }
+    return chips;
+  }, [t, search, statusFilter, paymentFilter, channelFilter, branchFilter, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -996,9 +1139,6 @@ function OrdersDashboard() {
     window.open(`https://wa.me/${String(phone).replace(/\D/g, "")}?text=${message}`, "_blank", "noreferrer");
   };
 
-  const activeWorkspace = WORKSPACES.find((item) => item.key === workspace) || WORKSPACES[0];
-  const ActiveWorkspaceIcon = activeWorkspace.icon;
-
   return (
     <OrdersShell header={null}>
       <div className="m1-orders-page">
@@ -1009,12 +1149,30 @@ function OrdersDashboard() {
         </div>
       ) : null}
 
+      {/* The eyebrow used to name the active workspace. With one workspace left it
+          said "table view" forever, so the line now carries what actually changes:
+          how much of the list survived the filters, and how fresh it is. */}
       <header className="m1-orders-header">
-        <div className="m1-page-eyebrow">
-          <ActiveWorkspaceIcon className="h-3.5 w-3.5" />
-          {t(activeWorkspace.labelKey)}
+        <div className="min-w-0">
+          <h1 className="m1-page-title">{t("orders.dashboard.operationsWorkspace")}</h1>
+          <p className="m1-page-meta">
+            {loading
+              ? t("orders.header.loading")
+              : t("orders.header.showing", { shown: formatCount(filteredOrders.length), total: formatCount(orders.length) })}
+            {lastUpdated && !loading ? ` · ${t("orders.header.updated", { time: shortClock(lastUpdated, i18n.language) })}` : ""}
+          </p>
         </div>
-        <h1 className="m1-page-title">{t("orders.dashboard.operationsWorkspace")}</h1>
+        <div className="m1-orders-header-actions">
+          <HeaderButton onClick={() => { void loadOrders(); }} disabled={loading} icon={<RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />} label={t("orders.header.refresh")} />
+          <HeaderButton onClick={exportSelected} disabled={!filteredOrders.length} icon={<Download className="h-4 w-4" />} label={t("orders.header.export")} title={t("orders.header.exportHint")} />
+          <Link
+            to="/create-order"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-transparent bg-primary px-3 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
+          >
+            <Plus className="h-4 w-4" />
+            {t("orders.header.newOrder")}
+          </Link>
+        </div>
       </header>
 
       <div className={`grid min-w-0 gap-3 ${selectedOrder && workspace === "table" ? "xl:grid-cols-[minmax(0,1fr)_22rem]" : ""}`}>
@@ -1029,8 +1187,19 @@ function OrdersDashboard() {
             setPaymentFilter={(value) => updateFilter(setPaymentFilter, value)}
             channelFilter={channelFilter}
             setChannelFilter={(value) => updateFilter(setChannelFilter, value)}
-            dateFilter={dateFilter}
-            setDateFilter={(value) => updateFilter(setDateFilter, value)}
+            branchFilter={branchFilter}
+            setBranchFilter={(value) => updateFilter(setBranchFilter, value)}
+            branchOptions={branchOptions}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            setDateRange={(from, to) => { setDateFrom(from); setDateTo(to); setPage(1); }}
+            statusCounts={statusCounts}
+            paymentCounts={paymentCounts}
+            sourceCounts={sourceCounts}
+            activeFilters={activeFilters}
+            onResetFilters={resetFilters}
+            resultCount={filteredOrders.length}
+            totalCount={workspaceSource.length}
             actions={(
               <BulkActions
                 t={t}
@@ -1130,17 +1299,44 @@ function OrdersDashboard() {
   );
 }
 
+/**
+ * These stay on screen with nothing selected — that placement was a deliberate
+ * decision and the guard test pins it. What changed is that they now read as
+ * one toolbar that is dormant until rows are picked, instead of six loose
+ * greyed-out buttons that looked broken.
+ */
 function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, onWhatsapp }) {
+  const hasSelection = selectedCount > 0;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="rounded-full border border-border bg-surface-soft px-3 py-1.5 text-xs font-black text-text">{t("orders.bulk.selectedCount", { count: selectedCount })}</span>
-      <ActionButton disabled={!selectedCount} onClick={onConfirm} icon={<CheckCircle2 className="h-3.5 w-3.5" />} label={t("orders.bulk.confirm")} />
-      <ActionButton disabled={!selectedCount} onClick={onShip} icon={<Truck className="h-3.5 w-3.5" />} label={t("orders.bulk.ship")} />
-      <ActionButton disabled={!selectedCount} onClick={onPrint} icon={<Printer className="h-3.5 w-3.5" />} label={t("orders.bulk.print")} />
-      <ActionButton disabled={!selectedCount} onClick={onExport} icon={<Download className="h-3.5 w-3.5" />} label={t("orders.bulk.export")} />
-      <ActionButton disabled={!selectedCount} onClick={onWhatsapp} icon={<MessageCircle className="h-3.5 w-3.5" />} label={t("orders.bulk.whatsapp")} />
+    <div className="m1-orders-selection" data-active={hasSelection ? "true" : "false"}>
+      {/* The count stays on --text, not on the brand gold: gold on --primary-soft
+          measures 3.44 in the light theme. The tinted bar already says "active";
+          the number has to stay readable. */}
+      <span className={`inline-flex items-center gap-1.5 px-2 text-xs font-black ${hasSelection ? "text-text" : "text-text-muted"}`}>
+        {hasSelection ? t("orders.bulk.selectedCount", { count: selectedCount }) : t("orders.bulk.selectHint")}
+      </span>
+      <ActionButton disabled={!hasSelection} onClick={onConfirm} icon={<CheckCircle2 className="h-3.5 w-3.5" />} label={t("orders.bulk.confirm")} />
+      <ActionButton disabled={!hasSelection} onClick={onShip} icon={<Truck className="h-3.5 w-3.5" />} label={t("orders.bulk.ship")} />
+      <ActionButton disabled={!hasSelection} onClick={onPrint} icon={<Printer className="h-3.5 w-3.5" />} label={t("orders.bulk.print")} />
+      <ActionButton disabled={!hasSelection} onClick={onExport} icon={<Download className="h-3.5 w-3.5" />} label={t("orders.bulk.export")} />
+      <ActionButton disabled={!hasSelection} onClick={onWhatsapp} icon={<MessageCircle className="h-3.5 w-3.5" />} label={t("orders.bulk.whatsapp")} />
       <ActionButton disabled title={t("orders.bulk.cancelRequiresBackend")} icon={<RotateCcw className="h-3.5 w-3.5" />} label={t("orders.bulk.cancel")} tone="rose" />
     </div>
+  );
+}
+
+function HeaderButton({ onClick, disabled = false, icon, label, title = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title || label}
+      className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-bold text-text transition hover:border-border-strong hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -1164,39 +1360,175 @@ function ActionButton({ disabled, onClick, icon, label, tone = "zinc", title }) 
   );
 }
 
+/**
+ * The filter block is one recessed group of three bands:
+ *
+ *   1. the controls          — search, then the four dimensions, all one height
+ *   2. the date range        — presets first, explicit from/to after, then the
+ *                              selection actions on the far end of the same row
+ *   3. what is applied       — a removable token per active filter, the live
+ *                              match count, and one way to clear everything
+ *
+ * Band 3 is the part that was missing: filters could be applied from five
+ * places and there was nothing on screen that said which were on.
+ */
 function Filters(props) {
   const {
-    t, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter, channelFilter, setChannelFilter, dateFilter, setDateFilter, actions,
+    t, search, setSearch, statusFilter, setStatusFilter, paymentFilter, setPaymentFilter,
+    channelFilter, setChannelFilter, branchFilter, setBranchFilter, branchOptions = [],
+    dateFrom, dateTo, setDateRange, statusCounts = {}, paymentCounts = {}, sourceCounts = {},
+    activeFilters = [], onResetFilters, resultCount = 0, totalCount = 0, actions,
   } = props;
 
+  const searchRef = useRef(null);
+  const activePreset = activeDatePresetKey(dateFrom, dateTo);
+  const [showCustomRange, setShowCustomRange] = useState(activePreset === "custom");
+  const customRangeOpen = showCustomRange || activePreset === "custom";
+  const applyPreset = (preset) => {
+    setShowCustomRange(false);
+    if (activePreset === preset.key) {
+      setDateRange("", "");
+      return;
+    }
+    const range = preset.resolve();
+    setDateRange(range.from, range.to);
+  };
+
+  // "/" anywhere on the page jumps to the search box, Escape clears it — the
+  // two shortcuts an operator working a list all day actually reaches for.
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const tag = String(event.target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || event.target?.isContentEditable) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
-    <>
-      <div className="m1-orders-filters grid gap-3 xl:grid-cols-[minmax(20rem,2.3fr)_repeat(4,minmax(9rem,1fr))]">
-        <label className="block">
+    <div className="m1-orders-filters flex flex-col">
+      {/* Flex rather than a fixed column count: the branch control only exists on
+          multi-branch tenants, and a five-column grid left a hole on the rest. */}
+      <div className="m1-orders-filters-band flex flex-wrap items-end gap-3">
+        <label className="block min-w-[15rem] flex-[3_1_18rem]">
           <div className="mb-1.5 text-[11px] font-bold text-text-muted">{t("orders.filters.search")}</div>
           <div className="relative">
             <Search className="pointer-events-none absolute start-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <input
+              ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape" && search) { e.preventDefault(); setSearch(""); } }}
               placeholder={t("orders.searchPlaceholder")}
-              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-2.5 pe-3 ps-10 text-sm font-medium text-text outline-none placeholder:text-text-muted focus:border-primary/40"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface py-2.5 pe-10 ps-10 text-sm font-medium text-text outline-none placeholder:text-text-muted focus:border-primary/40"
             />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label={t("orders.filters.clearSearch")}
+                title={t("orders.filters.clearSearch")}
+                className="absolute end-2 top-1/2 grid h-6 w-6 min-h-0 -translate-y-1/2 place-items-center rounded-full border-0 bg-transparent p-0 text-text-muted transition hover:bg-surface-hover hover:text-text"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
           </div>
         </label>
-        <Select value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label={t("orders.filters.orderStatus")} allLabel={t("orders.filters.all")} labels={STATUS_FILTER_LABELS} />
-        <Select value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label={t("orders.filters.paymentStatus")} allLabel={t("orders.filters.all")} labels={PAYMENT_FILTER_LABELS} />
-        <Select value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} t={t} />
-        <label className="block">
-          <div className="mb-1.5 text-[11px] font-bold text-text-muted">{t("orders.filters.date")}</div>
-          <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2.5 text-sm text-text outline-none" />
-        </label>
+        <Select className="flex-[1_1_8rem]" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} label={t("orders.filters.orderStatus")} allLabel={t("orders.filters.all")} labels={STATUS_FILTER_LABELS} counts={statusCounts} />
+        <Select className="flex-[1_1_8rem]" value={paymentFilter} onChange={setPaymentFilter} options={PAYMENT_FILTER_OPTIONS} label={t("orders.filters.paymentStatus")} allLabel={t("orders.filters.all")} labels={PAYMENT_FILTER_LABELS} counts={paymentCounts} />
+        <Select className="flex-[1_1_8rem]" value={channelFilter} onChange={setChannelFilter} options={SOURCE_FILTERS} label={t("orders.filters.source")} allLabel={t("orders.filters.all")} labels={SOURCE_LABELS} counts={sourceCounts} t={t} />
+        {branchOptions.length > 2 ? (
+          <Select className="flex-[1_1_8rem]" value={branchFilter} onChange={setBranchFilter} options={branchOptions} label={t("orders.filters.branch")} allLabel={t("orders.filters.all")} />
+        ) : null}
       </div>
-      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-        <QuickFilterButton active={dateFilter === getDateInputValue()} onClick={() => setDateFilter(dateFilter === getDateInputValue() ? "" : getDateInputValue())} label={t("orders.filters.today")} />
+
+      <div className="m1-orders-filters-band mt-2.5 flex flex-wrap items-center gap-2 justify-between">
+        <div className="m1-orders-daterange flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1.5 pe-1 text-[11px] font-bold uppercase tracking-[0.04em] text-text-muted">
+            <CalendarRange className="h-3.5 w-3.5" />
+            {t("orders.filters.date")}
+          </span>
+          <QuickFilterButton active={activePreset === "all"} onClick={() => setDateRange("", "")} label={t("orders.filters.dateRange.all")} />
+          <QuickFilterButton active={activePreset === "today"} onClick={() => applyPreset(DATE_PRESETS[0])} label={t("orders.filters.today")} />
+          {DATE_PRESETS.slice(1).map((preset) => (
+            <QuickFilterButton key={preset.key} active={activePreset === preset.key} onClick={() => applyPreset(preset)} label={t(preset.labelKey)} />
+          ))}
+          {/* Two raw date inputs sat here permanently and out-weighed the presets
+              that answer the question 95% of the time. They open on request.
+              This one is a disclosure, not a sixth preset, so it never takes the
+              filled state — otherwise two chips look selected at once. */}
+          <button
+            type="button"
+            aria-expanded={customRangeOpen}
+            onClick={() => setShowCustomRange((open) => !open)}
+            className={`min-h-[var(--control-height-sm)] rounded-[var(--radius-control)] border px-2.5 text-xs font-bold transition ${
+              activePreset === "custom"
+                ? "border-primary/30 bg-primary/15 text-primary"
+                : customRangeOpen
+                  ? "border-border-strong bg-surface text-text"
+                  : "border-border bg-surface-soft text-text-muted hover:bg-surface-hover"
+            }`}
+          >
+            {t("orders.filters.dateRange.custom")}
+          </button>
+          {customRangeOpen ? (
+            <>
+              <span className="mx-1 hidden h-5 w-px bg-border sm:block" aria-hidden="true" />
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                aria-label={t("orders.filters.dateRange.from")}
+                onChange={(e) => setDateRange(e.target.value, dateTo)}
+                className="rounded-[var(--radius-control)] border border-border bg-surface text-xs text-text outline-none"
+              />
+              <span className="text-xs font-bold text-text-muted" aria-hidden="true">–</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                aria-label={t("orders.filters.dateRange.to")}
+                onChange={(e) => setDateRange(dateFrom, e.target.value)}
+                className="rounded-[var(--radius-control)] border border-border bg-surface text-xs text-text outline-none"
+              />
+            </>
+          ) : null}
+        </div>
         {actions}
       </div>
-    </>
+
+      <div className="m1-orders-filters-band flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.04em] text-text-muted">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {activeFilters.length ? t("orders.filters.activeLabel") : t("orders.filters.noneActive")}
+        </span>
+        {activeFilters.map((chip) => (
+          <span key={chip.key} className="m1-orders-chip">
+            <span>{chip.label}</span>
+            {chip.value}
+            <button type="button" onClick={chip.clear} aria-label={`${t("orders.filters.remove")} ${chip.label}`} title={`${t("orders.filters.remove")} ${chip.label}`}>
+              <X />
+            </button>
+          </span>
+        ))}
+        {activeFilters.length ? (
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="min-h-[var(--control-height-sm)] rounded-[var(--radius-control)] border border-border bg-surface px-2.5 text-xs font-bold text-text-muted transition hover:bg-surface-hover hover:text-text"
+          >
+            {t("orders.filters.clearAll")}
+          </button>
+        ) : null}
+        <span className="ms-auto text-xs font-bold text-text-muted">
+          {t("orders.filters.matching", { shown: formatCount(resultCount), total: formatCount(totalCount) })}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -1940,9 +2272,14 @@ function QuickFilterButton({ active, onClick, label }) {
   );
 }
 
-function Select({ value, onChange, options, label, allLabel = "All", labels = {}, t }) {
+/**
+ * `counts` is optional and appends how many rows each option would return. A
+ * filter list that does not say "0" up front is a list that sends the operator
+ * looking for orders that are not there.
+ */
+function Select({ value, onChange, options, label, allLabel = "All", labels = {}, counts, className = "", t }) {
   return (
-    <label className="block">
+    <label className={`block ${className}`}>
       <div className="mb-1.5 text-[10px] uppercase tracking-[0.16em] text-text-muted">{label}</div>
       <ThemedSelect
         value={value}
@@ -1950,9 +2287,11 @@ function Select({ value, onChange, options, label, allLabel = "All", labels = {}
         ariaLabel={label}
         options={options.map((option) => {
           const display = labels[option] && t ? t(labels[option]) : labels[option] || option;
-          return { value: option, label: option === "all" ? allLabel : display };
+          const base = option === "all" ? allLabel : display;
+          const count = counts ? counts[option] : undefined;
+          return { value: option, label: Number.isFinite(count) ? `${base} · ${formatCount(count)}` : base };
         })}
-        triggerClassName="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm text-text outline-none"
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none"
       />
     </label>
   );

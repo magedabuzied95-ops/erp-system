@@ -8,7 +8,14 @@
   "header": {
     "title": "Orders",
     "summary": "{{orders}} orders • {{paid}} paid • {{pending}} pending • {{revenue}} revenue",
-    "newReturn": "+ Return"
+    "newReturn": "+ Return",
+    "loading": "Loading orders…",
+    "showing": "Showing {{shown}} of {{total}} orders",
+    "updated": "Updated {{time}}",
+    "refresh": "Refresh",
+    "export": "Export",
+    "exportHint": "Exports the selection, or every order matching the filters when nothing is selected",
+    "newOrder": "New order"
   },
   "workspaces": {
     "table": "Table View",
@@ -84,7 +91,23 @@
     "search": "Search",
     "orderStatus": "Order status",
     "paymentStatus": "Payment status",
-    "date": "Date"
+    "date": "Date",
+    "clearSearch": "Clear search",
+    "activeLabel": "Active filters",
+    "noneActive": "No filters applied",
+    "remove": "Remove",
+    "clearAll": "Clear all",
+    "matching": "{{shown}} of {{total}} orders match",
+    "dateRange": {
+      "all": "Any date",
+      "yesterday": "Yesterday",
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
+      "thisMonth": "This month",
+      "from": "From date",
+      "to": "To date",
+      "custom": "Custom"
+    }
   },
   "bulk": {
     "markConfirmed": "Mark confirmed",
@@ -101,7 +124,8 @@
     "cancelRequiresBackend": "Cancel selected requires rollback-safe backend confirmation.",
     "selectPhoneFirst": "Select an order with a customer phone first.",
     "printPreparing": "Preparing invoices...",
-    "whatsappMessage": "Order update for {{order}}: {{status}}"
+    "whatsappMessage": "Order update for {{order}}: {{status}}",
+    "selectHint": "Select orders to enable actions"
   },
   "table": {
     "invoice": "Invoice",
