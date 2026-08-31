@@ -35,13 +35,14 @@ const LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS = [96, 240, 480, 960];
 const CARD_FIT_VARIANT_WIDTHS = [480, 960];
 const CARD_FIT_PRESETS = new Set(["grid"]);
 /*
- * OFF until the backfill has written the files. Vercel deploys the moment main moves, while the
- * files only appear when `APPLY=1 node server/scripts/generateCardFitImages.js` has run on the
- * box — so shipping this on means every card in the grid requests a 404 and limps through its
- * onError fallback until the backfill finishes. Flip to true in the same push that follows a
- * completed backfill.
+ * ON since the 2026-09-01 backfill: all 3,188 product images on the box have their pair, zero
+ * failures, and the derived URLs were HTTP-checked against production for both the flat and the
+ * `cloudinary/` sub-path. Turn this OFF again before adding a new image host or moving the
+ * uploads root — Vercel deploys the moment main moves, while the files only appear once
+ * `APPLY=1 node server/scripts/generateCardFitImages.js` has run, and shipping it on in between
+ * means every card in the grid requests a 404 and limps through its onError fallback.
  */
-export const CARD_FIT_ENABLED = false;
+export const CARD_FIT_ENABLED = true;
 
 const getCardFitVariantUrl = (value, width) => {
   const url = String(value || "").trim();
