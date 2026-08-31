@@ -34,6 +34,14 @@ const LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS = [96, 240, 480, 960];
  */
 const CARD_FIT_VARIANT_WIDTHS = [480, 960];
 const CARD_FIT_PRESETS = new Set(["grid"]);
+/*
+ * OFF until the backfill has written the files. Vercel deploys the moment main moves, while the
+ * files only appear when `APPLY=1 node server/scripts/generateCardFitImages.js` has run on the
+ * box — so shipping this on means every card in the grid requests a 404 and limps through its
+ * onError fallback until the backfill finishes. Flip to true in the same push that follows a
+ * completed backfill.
+ */
+export const CARD_FIT_ENABLED = false;
 
 const getCardFitVariantUrl = (value, width) => {
   const url = String(value || "").trim();
@@ -117,10 +125,12 @@ export const buildCloudinaryResponsiveImageUrl = (value, width) => {
   );
 };
 
-export const buildStorefrontImageSrcSet = (value, widths = [], preset = "") => {
+export const buildStorefrontImageSrcSet = (value, widths = [], preset = "", options = {}) => {
   const url = String(value || "").trim();
   const local = isLocalProductImageUrl(url);
-  const cardFit = local && CARD_FIT_PRESETS.has(String(preset || ""));
+  // Enabled once the backfill has written the files on the server; see generateCardFitImages.js.
+  const cardFitAllowed = options.cardFit === undefined ? CARD_FIT_ENABLED : Boolean(options.cardFit);
+  const cardFit = cardFitAllowed && local && CARD_FIT_PRESETS.has(String(preset || ""));
   const requestedWidths = cardFit ? CARD_FIT_VARIANT_WIDTHS : local ? LOCAL_PRODUCT_IMAGE_VARIANT_WIDTHS : widths;
   const unique = uniqueWidths(requestedWidths);
   if (!url || !unique.length) return "";
@@ -142,9 +152,9 @@ export const getStorefrontImageSizes = (preset = "grid") => STOREFRONT_IMAGE_PRE
 
 export const getStorefrontImageWidths = (preset = "grid") => STOREFRONT_IMAGE_PRESETS[preset]?.widths || [];
 
-export const getStorefrontResponsiveImageProps = (value, preset = "grid") => {
+export const getStorefrontResponsiveImageProps = (value, preset = "grid", options = {}) => {
   const originalSrc = String(value || "").trim();
-  const srcSet = buildStorefrontImageSrcSet(value, getStorefrontImageWidths(preset), preset);
+  const srcSet = buildStorefrontImageSrcSet(value, getStorefrontImageWidths(preset), preset, options);
   const sizes = getStorefrontImageSizes(preset);
   return {
     srcSet: srcSet || undefined,

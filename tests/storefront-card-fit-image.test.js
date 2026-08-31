@@ -5,7 +5,11 @@ import path from "node:path";
 import sharp from "sharp";
 
 import { ensureCardFitImages, getCardFitImageFileName, getCardFitImagePublicUrl } from "../server/services/productImageVariantService.js";
-import { getStorefrontResponsiveImageProps } from "../src/shared/lib/storefrontImage.js";
+import { CARD_FIT_ENABLED, getStorefrontResponsiveImageProps } from "../src/shared/lib/storefrontImage.js";
+
+// The grid only asks for card-fit files once the backfill has written them, so every test that
+// checks the URLs opts in explicitly. The last test pins the shipped default.
+const on = { cardFit: true };
 
 const uploadsDir = path.resolve(process.cwd(), "uploads", "products");
 const variantsDir = path.join(uploadsDir, "variants");
@@ -131,7 +135,7 @@ test("the file the generator writes is the file the storefront asks for", async 
   // storefront keeps that sub-path when it derives the variant URL. Writing them flat would 404
   // the majority of the grid, so the two sides are pinned to each other here.
   for (const stored of ["/uploads/products/flat-product.webp", "/uploads/products/cloudinary/nested-product.webp"]) {
-    const requested = getStorefrontResponsiveImageProps(stored, "grid").srcSet.split(", ").map((entry) => entry.split(" ")[0]);
+    const requested = getStorefrontResponsiveImageProps(stored, "grid", on).srcSet.split(", ").map((entry) => entry.split(" ")[0]);
     for (const width of [480, 960]) {
       const generated = getCardFitImagePublicUrl(stored, width);
       assert.ok(
@@ -160,14 +164,14 @@ test("the file the generator writes is the file the storefront asks for", async 
 test("only the grid preset asks for card-fit images", () => {
   const url = "/uploads/products/some-product.webp";
 
-  const grid = getStorefrontResponsiveImageProps(url, "grid").srcSet;
+  const grid = getStorefrontResponsiveImageProps(url, "grid", on).srcSet;
   assert.match(grid, /-fit480\.webp 480w/);
   assert.match(grid, /-fit960\.webp 960w/);
   assert.doesNotMatch(grid, /-w\d+\.webp/);
 
   // The detail hero and the thumbnails want the photo exactly as it was shot.
   for (const preset of ["hero", "thumbnail", "small"]) {
-    const srcSet = getStorefrontResponsiveImageProps(url, preset).srcSet;
+    const srcSet = getStorefrontResponsiveImageProps(url, preset, on).srcSet;
     assert.doesNotMatch(srcSet, /-fit\d+\.webp/, `${preset} must keep the original framing`);
     assert.match(srcSet, /-w960\.webp 960w/);
   }
@@ -175,7 +179,19 @@ test("only the grid preset asks for card-fit images", () => {
 
 test("card-fit leaves non-local images alone", () => {
   const cloudinary = "https://res.cloudinary.com/demo/image/upload/shoe.jpg";
-  const srcSet = getStorefrontResponsiveImageProps(cloudinary, "grid").srcSet;
+  const srcSet = getStorefrontResponsiveImageProps(cloudinary, "grid", on).srcSet;
   assert.doesNotMatch(srcSet, /-fit\d+\.webp/);
   assert.match(srcSet, /c_limit,f_auto,q_auto,w_\d+/);
+});
+
+test("the card-fit switch decides what the grid actually ships", () => {
+  const url = "/uploads/products/some-product.webp";
+  const shipped = getStorefrontResponsiveImageProps(url, "grid").srcSet;
+  if (CARD_FIT_ENABLED) {
+    // Only legitimate once generateCardFitImages.js has run over the catalogue on the server.
+    assert.match(shipped, /-fitd+.webp/);
+  } else {
+    assert.doesNotMatch(shipped, /-fitd+.webp/, "with the switch off the grid must keep asking for -wN");
+    assert.match(shipped, /-w960.webp 960w/);
+  }
 });
