@@ -189,9 +189,9 @@ test("the card-fit switch decides what the grid actually ships", () => {
   const shipped = getStorefrontResponsiveImageProps(url, "grid").srcSet;
   if (CARD_FIT_ENABLED) {
     // Only legitimate once generateCardFitImages.js has run over the catalogue on the server.
-    assert.match(shipped, /-fitd+.webp/);
+    assert.match(shipped, /-fit\d+\.webp/);
   } else {
-    assert.doesNotMatch(shipped, /-fitd+.webp/, "with the switch off the grid must keep asking for -wN");
-    assert.match(shipped, /-w960.webp 960w/);
+    assert.doesNotMatch(shipped, /-fit\d+\.webp/, "with the switch off the grid must keep asking for -wN");
+    assert.match(shipped, /-w960\.webp 960w/);
   }
 });
