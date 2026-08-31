@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { addLegacyColorFallbacks, auditLegacyColorCoverage } from "./scripts/legacy-color-fallbacks.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname);
@@ -57,6 +58,34 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      // Tailwind v4 targets Chrome 111+ / Safari 16.4+ and writes its palette in
+      // oklch(), its arbitrary-colour opacity modifiers in oklab(), and ours in
+      // color-mix(). On an older phone engine every one of those declarations is
+      // dropped and the element paints nothing — measured across the built
+      // bundle: 798 properties left with no value at all. This runs last, on the
+      // finished stylesheets, so it also covers what Tailwind generates.
+      {
+        name: "legacy-color-fallbacks",
+        apply: "build",
+        enforce: "post",
+        generateBundle(_options, bundle) {
+          let rescued = 0;
+          for (const asset of Object.values(bundle)) {
+            if (asset.type !== "asset" || !asset.fileName.endsWith(".css")) continue;
+            const before = String(asset.source);
+            const after = addLegacyColorFallbacks(before);
+            rescued += auditLegacyColorCoverage(before).unrescued.length;
+            asset.source = after;
+            const left = auditLegacyColorCoverage(after).unrescued.length;
+            if (left > 0) {
+              // Never fail the build for this, but never let it rot silently
+              // either — a new colour syntax would show up here first.
+              this.warn(`${asset.fileName}: ${left} declaration(s) still paint nothing on a pre-2023 engine`);
+            }
+          }
+          if (rescued > 0) this.info?.(`legacy-color-fallbacks: rescued ${rescued} declarations`);
+        },
+      },
     ],
     server: {
       host: devServerHost,
