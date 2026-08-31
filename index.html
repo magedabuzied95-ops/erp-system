@@ -28,6 +28,21 @@
       href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
     />
     <meta name="theme-color" content="#eae7e0" />
+    <!-- ===================================================================
+         COLOUR SCHEME: tell the browser we own the dark theme
+         -------------------------------------------------------------------
+         Chrome on Android ("Darken websites"), Samsung Internet's dark mode
+         and the in-app browsers built on them re-colour any page they judge to
+         have no dark theme of its own, and they judge it from this meta plus
+         the root `color-scheme` — nothing else. Without this tag the app read
+         as a light-only site: on a phone in dark mode the browser inverted the
+         light theme itself (backgrounds flipped, gradients and images left
+         alone) and darkened the dark theme a second time.
+         The script below then narrows this to `only light` / `only dark` for
+         whichever theme is actually painting. That must stay a declaration
+         made before first paint — the decision is taken once, at page load.
+         ================================================================== -->
+    <meta name="color-scheme" content="light dark" />
     <meta name="application-name" content="M1 Store" />
     <meta name="description" content="M1 Store للأحذية والشنط والكروكس والسليبر للرجال والنساء والأطفال." />
     <meta property="og:type" content="website" />
@@ -64,7 +79,12 @@
           root.dataset.theme = theme;
           root.dataset.themeSource = isStorefrontHost ? "storefront" : "erp";
           root.classList.toggle("dark", dark);
-          root.style.colorScheme = theme;
+          // `only` is load-bearing, not decoration: a bare `light` is not an
+          // opt-out from Chrome's Auto Dark Theme, so the light UI was being
+          // repainted by the browser on every phone with "darken websites" on.
+          // Keep this in step with rootColorSchemeFor() in
+          // src/theme/documentColorScheme.js, which owns it after React mounts.
+          root.style.colorScheme = dark ? "only dark" : "only light";
           // Anti-FOUC seeds. These MUST track src/theme/themes.js: they paint
           // before React mounts, and ThemeProvider then rewrites the same custom
           // properties with the real theme.
@@ -109,7 +129,10 @@
             }
           }
           var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute("content", dark ? "#131211" : "#eae7e0");
+          // The storefront's header is near-black in both of its themes, so the
+          // toolbar must not flash the ERP canvas before React corrects it.
+          var topColor = isStorefrontHost ? "#050505" : dark ? "#131211" : "#eae7e0";
+          if (meta) meta.setAttribute("content", topColor);
         } catch (error) {
           document.documentElement.style.background = "var(--bg, #eae7e0)";
         }
@@ -118,6 +141,12 @@
     <style>
       html,body,#root{min-height:100%;background:var(--bg,#eae7e0);color:var(--text,#1b1915)}
       body{margin:0}
+      /* Only reachable when the seed script above did not run (JS off, or it
+         threw): --bg/--text are then unset and the literal fallbacks decide the
+         canvas. Without this a phone in dark mode gets a white flash. */
+      @media (prefers-color-scheme: dark) {
+        html,body,#root{background:var(--bg,#131211);color:var(--text,#f3f1ec)}
+      }
     </style>
     <script>
       // ===================================================================

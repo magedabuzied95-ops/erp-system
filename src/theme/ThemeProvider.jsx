@@ -13,6 +13,7 @@ import {
   setStoredTheme,
 } from "./themeStore";
 import { clearStoredAppearance, getStoredAppearance, setStoredAppearance } from "./appearanceStore";
+import { setAppColorScheme } from "./documentColorScheme";
 import {
   APPEARANCE_MANAGED_TOKENS,
   DEFAULT_APPEARANCE,
@@ -64,7 +65,6 @@ const applyThemeVariables = (theme, accentId, density, appearance) => {
   root.dataset.appearance = normalizeAppearance(appearance).preset;
   root.classList.add("theme-app");
   root.classList.toggle("dark", theme.mode === "dark");
-  root.style.colorScheme = theme.mode || "dark";
   if (body) {
     body.classList.add("theme-app");
     body.classList.toggle("dark", theme.mode === "dark");
@@ -77,11 +77,12 @@ const applyThemeVariables = (theme, accentId, density, appearance) => {
     body.style.color = "var(--text)";
   }
 
-  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  // Both the root `color-scheme` and the theme-color meta go through the one
+  // owner. Writing them here directly used to clobber whatever the storefront
+  // had set, because this provider is the outermost one and React flushes its
+  // effect last. See src/theme/documentColorScheme.js.
   const themeColor = theme.mode === "light" ? variables.bg || "#f7f4ee" : variables.bg || "#050816";
-  if (themeColorMeta) {
-    themeColorMeta.setAttribute("content", themeColor);
-  }
+  setAppColorScheme(theme.mode, themeColor);
 };
 
 export function ThemeProvider({ children }) {

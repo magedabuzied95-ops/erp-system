@@ -102,6 +102,7 @@ import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGu
 import { animateFlyToCart } from "./lib/flyToCart";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
+import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../theme/documentColorScheme";
 import { splitProductDisplayName } from "./lib/productDisplayName";
 import {
   HomeCategoryRail,
@@ -10183,7 +10184,6 @@ function Storefront() {
       rootTheme: root.getAttribute("data-theme"),
       bodyTheme: body.getAttribute("data-theme"),
       bodyStorefrontDark: body.classList.contains("storefront-dark"),
-      colorScheme: root.style.colorScheme,
     };
     body.classList.add("storefront-shell");
 
@@ -10198,7 +10198,10 @@ function Storefront() {
       else root.setAttribute("data-theme", previous.rootTheme);
       if (previous.bodyTheme === null) body.removeAttribute("data-theme");
       else body.setAttribute("data-theme", previous.bodyTheme);
-      root.style.colorScheme = previous.colorScheme;
+      // Hand the root colour-scheme back to the ERP theme rather than restoring
+      // the string we captured: that snapshot was taken before ThemeProvider's
+      // own effect had run, so replaying it here reinstated a stale value.
+      releaseStorefrontColorScheme();
     };
   }, []);
 
@@ -10212,7 +10215,11 @@ function Storefront() {
     body.classList.toggle("storefront-dark", dark);
     root.setAttribute("data-theme", themeMode);
     body.setAttribute("data-theme", themeMode);
-    root.style.colorScheme = themeMode;
+    // The storefront header is deliberately dark in BOTH themes (see the
+    // gradient on `.storefront-shell:not(.storefront-dark) .sf-luxury-header`),
+    // and theme-color paints the browser toolbar sitting right on top of it —
+    // so the light theme does NOT hand over its cream canvas here.
+    setStorefrontColorScheme(themeMode, dark ? "#050505" : "#111111");
   }, [themeMode]);
 
   useEffect(() => {
