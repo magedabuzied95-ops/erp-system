@@ -50,6 +50,7 @@ import {
   MessageCircle,
   Mic,
   Minus,
+  Languages,
   Moon,
   MapPin,
   Mail,
@@ -4581,6 +4582,31 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   });
   // A signed-in customer must not be told to sign in; the phone is the only
   // identity the storefront keeps, so it stands in for a name.
+  // The inspiration grid loads the first time search is opened and never again.
+  // The sheet is opt-in, so a shopper who never taps search never pays for it —
+  // which is why this is a lazy fetch rather than the useProducts hook, whose
+  // request would fire on every page of the storefront.
+  const [searchInspiration, setSearchInspiration] = useState([]);
+  const searchInspirationRequestedRef = useRef(false);
+  useEffect(() => {
+    if ((!mobileSearchOpen && !searchOpen) || searchInspirationRequestedRef.current) return undefined;
+    searchInspirationRequestedRef.current = true;
+    let cancelled = false;
+    cachedStorefrontGet(buildStorefrontProductsRequestUrl({ limit: 9, in_stock: 1 }), {
+      ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setSearchInspiration(extractStorefrontProductsFromResponse(data).slice(0, 9));
+      })
+      .catch(() => {
+        // A grid of pictures is decoration around the search field; if it cannot
+        // load, the field still works and the section simply does not render.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mobileSearchOpen, searchOpen]);
   const menuIsSignedIn = Boolean(String(customerAuth?.token || "").trim());
   const menuAccountTitle = menuIsSignedIn ? t("storefront.header.accountTitle") : t("storefront.header.signInTitle");
   const menuAccountSubtitle = menuIsSignedIn
@@ -5118,7 +5144,12 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         </div>
         {searchOpen ? (
           <div className="absolute left-4 right-4 top-full z-50 hidden md:block">
+            {/* Same empty state as the phone sheet — one search system, not two. */}
             <PremiumSearch
+              inspiration={searchInspiration}
+              audienceTabs={menuTabs}
+              audienceTab={menuTab}
+              onPickAudience={setMenuTab}
               value={search}
               onChange={handleSearchChange}
               onSubmit={submit}
@@ -5158,6 +5189,10 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       {mobileSearchOpen && mobilePortalTarget ? createPortal(
         <PremiumSearch
         mobileOnly
+        inspiration={searchInspiration}
+        audienceTabs={menuTabs}
+        audienceTab={menuTab}
+        onPickAudience={setMenuTab}
         mobileOpen={mobileSearchOpen}
         setMobileOpen={setMobileSearchOpen}
         value={search}
@@ -5213,8 +5248,14 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                 asked for them. Close keeps the far side to itself. */}
             <div className="sf-menu-toolbar">
               <div className="flex items-center gap-2">
-                <button type="button" onClick={switchLanguage} className="sf-menu-chip">
-                  {languageLabel}
+                <button
+                  type="button"
+                  onClick={switchLanguage}
+                  className="sf-menu-chip sf-menu-chip--icon"
+                  aria-label={languageLabel}
+                  title={languageLabel}
+                >
+                  <Languages strokeWidth={1.25} />
                 </button>
                 <button
                   type="button"
@@ -5329,6 +5370,10 @@ function PremiumSearch({
   onClearImageSearch = () => {},
   className = "",
   mobileOnly = false,
+  inspiration = [],
+  audienceTabs = [],
+  audienceTab = "",
+  onPickAudience = () => {},
 }) {
   const { t } = useTranslation();
   const inputRef = useRef(null);
@@ -5421,6 +5466,11 @@ function PremiumSearch({
         onPickProduct={onPickProduct}
         trendingSearches={trendingSearches}
         searchFallbackSections={searchFallbackSections}
+        inspiration={inspiration}
+        audienceTabs={audienceTabs}
+        audienceTab={audienceTab}
+        onPickAudience={onPickAudience}
+        onCloseSheet={onClose}
         onShareImageOnWhatsApp={onShareImageOnWhatsApp}
         onRequestVisualSearchSupply={onRequestVisualSearchSupply}
         onClearImageSearch={onClearImageSearch}
@@ -5469,6 +5519,11 @@ function SearchQuickSections({
   onPickProduct,
   trendingSearches = [],
   searchFallbackSections = {},
+  inspiration = [],
+  audienceTabs = [],
+  audienceTab = "",
+  onPickAudience = () => {},
+  onCloseSheet = () => {},
   onShareImageOnWhatsApp = () => {},
   onRequestVisualSearchSupply = () => {},
   onClearImageSearch = () => {},
@@ -5577,14 +5632,73 @@ function SearchQuickSections({
         </div>
       ) : null}
 
+      {/* The empty state follows the reference: what people are searching for,
+          as one scrollable row of pills, then a grid of things to look at. The
+          three stacked cards of categories / brands / styles that used to live
+          here asked the shopper to read a menu before they had typed anything. */}
       {!query && !hasImageSearch ? (
-        <>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <SearchQuickCard title={t("storefront.search.categories")} items={searchFallbackSections.categories || []} onPick={onPickTerm} />
-            <SearchQuickCard title={t("storefront.search.brands")} items={searchFallbackSections.brands || []} onPick={onPickTerm} />
-            <SearchQuickCard title={t("storefront.search.styles")} items={searchFallbackSections.styles || []} onPick={onPickTerm} />
-          </div>
-        </>
+        <div className="sf-search-empty grid gap-6">
+          {audienceTabs.length ? (
+            <div className="sf-search-tabs" role="tablist">
+              {audienceTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={audienceTab === tab.id}
+                  onClick={() => onPickAudience(tab.id)}
+                  className={`sf-search-tab${audienceTab === tab.id ? " is-active" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {trendingSearches.length ? (
+            <div>
+              <div className="sf-search-heading">{t("storefront.search.trendingTitle")}</div>
+              <div className="sf-search-pill-row">
+                {[...new Set(trendingSearches)].slice(0, 10).map((term) => (
+                  <button key={term} type="button" onClick={() => onPickTerm(term)} className="sf-search-pill">
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {inspiration.length ? (
+            <div>
+              <div className="sf-search-heading-row">
+                <span className="sf-search-heading">{t("storefront.search.inspirationTitle")}</span>
+                <Link to="/products" onClick={onCloseSheet} className="sf-search-viewall">
+                  {t("storefront.common.viewAll")}
+                </Link>
+              </div>
+              <div className="sf-search-grid">
+                {inspiration.slice(0, 9).map((product, index) => (
+                  <button
+                    // Colour cards share their parent product id, so the id alone
+                    // collides; the position disambiguates a fixed, ordered list.
+                    key={product.card_id || `${product.id || product.slug || "tile"}-${index}`}
+                    type="button"
+                    onClick={() => onPickProduct(product)}
+                    className="sf-search-tile"
+                    aria-label={product.name || ""}
+                  >
+                    <img
+                      src={imageFor(displayImageForProduct(product))}
+                      alt={product.name || ""}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

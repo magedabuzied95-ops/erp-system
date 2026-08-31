@@ -140,3 +140,48 @@ test("the search sheet is portalled out of the header", () => {
   assert.match(sheet, /createPortal\(/);
   assert.match(sheet, /mobilePortalTarget/);
 });
+
+// --- the search empty state ----------------------------------------------
+
+test("the search empty state is trending pills and a grid, not stacked menus", () => {
+  const emptyState = storefrontSource.slice(
+    storefrontSource.indexOf("The empty state follows the reference"),
+    storefrontSource.indexOf("function SearchChips")
+  );
+  assert.ok(emptyState.length > 0, "the empty state must be findable");
+  // Full class attributes, not bare names: each of these is a prefix of any
+  // renamed variant, so a substring match still passes on markup that is gone.
+  assert.match(emptyState, /className="sf-search-pill-row"/);
+  assert.match(emptyState, /className="sf-search-grid"/);
+  assert.match(emptyState, /sf-search-tab\$\{/);
+  // The three stacked cards asked the shopper to read a menu before typing.
+  assert.doesNotMatch(emptyState, /<SearchQuickCard/);
+});
+
+test("the inspiration grid is fetched lazily, not on every page", () => {
+  const effect = storefrontSource.slice(
+    storefrontSource.indexOf("The inspiration grid loads the first time"),
+    storefrontSource.indexOf("const menuIsSignedIn")
+  );
+  assert.ok(effect.length > 0);
+  // useProducts fires on mount, which would put a products request on every
+  // page of the storefront for a panel most visitors never open.
+  assert.doesNotMatch(effect, /useProducts\(/);
+  // The guard itself, not just a mention of the ref — the ref is also assigned
+  // inside the effect, so naming it proves nothing about the early return.
+  assert.match(effect, /\|\| searchInspirationRequestedRef\.current\) return/, "it must bail once it has run");
+  assert.match(effect, /mobileSearchOpen|searchOpen/, "and only once search is opened");
+});
+
+test("the language control is a glyph that still names its language", () => {
+  const toolbarBlock = menuPanel.slice(
+    menuPanel.indexOf('className="sf-menu-toolbar"'),
+    menuPanel.indexOf('className="sf-menu-account"')
+  );
+  const languageButton = toolbarBlock.slice(toolbarBlock.indexOf("switchLanguage"));
+  // An icon with no accessible name tells a screen reader nothing, and the
+  // word it replaced was the only thing saying which language it switches to.
+  assert.match(languageButton, /aria-label=\{languageLabel\}/);
+  assert.match(languageButton, /<Languages\b/);
+  assert.doesNotMatch(languageButton.slice(0, languageButton.indexOf("</button>")), /\{languageLabel\}\s*\n\s*<\/button>/);
+});
