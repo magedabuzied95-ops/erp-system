@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 
+import { collectAncestorZIndexes, resolveMenuZIndex } from "./selectMenuLayer";
+
 const MENU_GAP = 6;
 const VIEWPORT_MARGIN = 8;
 const MENU_MAX_HEIGHT = 320;
@@ -22,7 +24,9 @@ const MENU_MAX_HEIGHT = 320;
  * The drawn list portals into `document.fullscreenElement || document.body` and positions itself
  * fixed from the trigger's rect, because callers sit inside `overflow-hidden` shells (the POS
  * toolbar, table cells, drawers) that would otherwise clip it — and the POS runs fullscreen,
- * where a body-mounted panel hides behind the fullscreen element.
+ * where a body-mounted panel hides behind the fullscreen element. Leaving the caller's DOM
+ * position behind costs the menu the caller's layer too, so it re-derives its z-index from the
+ * trigger's ancestors on every open — see `selectMenuLayer.js`.
  */
 
 const usePointerIsCoarse = () => {
@@ -86,7 +90,8 @@ export default function ThemedSelect({
   );
 
   const measure = useCallback(() => {
-    const rect = triggerRef.current?.getBoundingClientRect();
+    const trigger = triggerRef.current;
+    const rect = trigger?.getBoundingClientRect();
     if (!rect) return;
     const width = rect.width;
     const below = window.innerHeight - rect.bottom - MENU_GAP - VIEWPORT_MARGIN;
@@ -99,6 +104,9 @@ export default function ThemedSelect({
       left: Math.max(VIEWPORT_MARGIN, Math.min(rect.left, window.innerWidth - width - VIEWPORT_MARGIN)),
       width,
       maxHeight: Math.max(120, Math.min(MENU_MAX_HEIGHT, dropUp ? above : below)),
+      // Measured on open rather than at mount: the same select is opened both on a bare page and
+      // inside a dialog that did not exist when it rendered.
+      zIndex: resolveMenuZIndex(collectAncestorZIndexes(trigger, (node) => window.getComputedStyle(node).zIndex)),
     });
   }, []);
 
@@ -253,8 +261,9 @@ export default function ThemedSelect({
                 left: position.left,
                 width: position.width,
                 maxHeight: position.maxHeight,
+                zIndex: position.zIndex,
               }}
-              className={`z-[90] overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[0_24px_60px_rgba(0,0,0,0.45)] ${menuClassName}`.trim()}
+              className={`overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-[0_24px_60px_rgba(0,0,0,0.45)] ${menuClassName}`.trim()}
             >
               {items.length === 0 ? (
                 <div className="px-3 py-2 text-xs font-bold text-[var(--muted)]">{placeholder}</div>
