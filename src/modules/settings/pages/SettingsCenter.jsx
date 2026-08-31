@@ -240,6 +240,7 @@ const sectionMap = {
     ["Discounts", ["pos.allow_discount", "pos.max_discount_percent", "pos.manager_approval_discount_percent"]],
     ["Receipt", ["pos.print_receipt_automatically", "pos.receipt_template"]],
     ["Cart", ["pos.allow_returns", "pos.barcode_scanner_behavior", "pos.hold_cart_timeout_minutes"]],
+    ["Shifts", ["pos.shift_visibility_grace_hours"]],
   ],
   ai_channels: [
     ["OpenAI Credentials", ["ai_channels.openai_agent_api_key", "ai_channels.openai_thermal_api_key"]],

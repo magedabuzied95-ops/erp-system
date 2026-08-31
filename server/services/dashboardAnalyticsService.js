@@ -105,7 +105,9 @@ const tenantClause = (alias, tenantId, params) => {
   return ` AND ${alias}.tenant_id = $${params.length}`;
 };
 
-const personalOrderClause = (alias = "o") => ` AND COALESCE(${alias}.is_personal_transaction, FALSE) = FALSE`;
+// Exported because the manager portal's day card filters sales the same way, and one
+// definition of "not the shop's own money" is the only way the two can agree.
+export const personalOrderClause = (alias = "o") => ` AND COALESCE(${alias}.is_personal_transaction, FALSE) = FALSE`;
 
 const emptyRows = [];
 const LOW_STOCK_ALERT_MAX = 2;

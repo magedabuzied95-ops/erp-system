@@ -1,8 +1,9 @@
 import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights } from "./dashboardAnalyticsService.js";
+import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
+import { getSetting } from "./settingsService.js";
 import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
 import { getStaffTaskDashboard, createStaffTask, updateStaffTaskStatus, addStaffTaskComment, updateStaffTaskDetails, deleteStaffTask, listStaffTaskTemplates, saveStaffTaskTemplate, setStaffTaskTemplateActive, deleteStaffTaskTemplate, getStaffTaskTemplateCompliance, generateDueTaskInstancesFromTemplates } from "./staffTasksService.js";
 import {
@@ -1902,6 +1903,34 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   };
 };
 
+// How long a drawer keeps its takings on this card after it is closed. A shop that trades
+// past midnight has a day that ends when the till is counted, not when the calendar turns:
+// CURRENT_DATE alone empties an open drawer's tape at 00:00 while the drawer figure below
+// it — computed by shift_id, with no date bound — still reads the whole night. The two must
+// agree, so a live drawer's sales are pinned to the card for its whole life, and for this
+// long after it closes, before the calendar day takes over again.
+const DEFAULT_SHIFT_GRACE_HOURS = 3;
+const MAX_SHIFT_GRACE_HOURS = 24;
+
+// Clamped rather than trusted: the value reaches SQL as an interval, and a shop that types
+// 999 into the box would pin every drawer it has ever opened to the card.
+const resolveShiftGraceHours = async () => {
+  const stored = await getSetting("pos.shift_visibility_grace_hours", DEFAULT_SHIFT_GRACE_HOURS).catch(() => DEFAULT_SHIFT_GRACE_HOURS);
+  const hours = Number(stored);
+  if (!Number.isFinite(hours)) return DEFAULT_SHIFT_GRACE_HOURS;
+  return Math.min(Math.max(hours, 0), MAX_SHIFT_GRACE_HOURS);
+};
+
+// A drawer is "live" while it is open, and for the grace period after it is closed. An open
+// drawer is live however long it has been running — the grace only governs closed ones.
+const isLiveShiftRow = (row = {}, graceHours = DEFAULT_SHIFT_GRACE_HOURS) => {
+  if (lower(clean(row.status)) === "open") return true;
+  if (!row.closed_at) return false;
+  const closedAt = new Date(row.closed_at).getTime();
+  if (!Number.isFinite(closedAt)) return false;
+  return Date.now() - closedAt <= graceHours * 3_600_000;
+};
+
 // The day, read the way the shop is organised: one list of branches, each opening onto the
 // drawers under it, and picking a drawer narrows the whole card to that till — its invoices,
 // then its money at the bottom. The dashboard KPIs answer "the whole tenant today"; this
@@ -1914,6 +1943,8 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
   const requestedBranchId = lower(clean(query.branch_id)) === "all" ? null : numberOrNull(query.branch_id);
   const branchId = forcedBranchId || requestedBranchId;
   const shiftId = lower(clean(query.shift_id)) === "all" ? null : numberOrNull(query.shift_id);
+
+  const graceHours = await resolveShiftGraceHours();
 
   const [hasShifts, hasExpenses, hasBranches, hasCashEvents, hasReturns] = await Promise.all([
     tableExists("cash_drawer_shifts"),
@@ -1941,8 +1972,10 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     : [];
 
   // Every drawer the manager may see, for the list itself — NOT narrowed by the current pick,
-  // for the same reason the branch list is not. A shift opened before midnight UTC and still
-  // open belongs to today's drawer: the money in it has not been counted yet.
+  // for the same reason the branch list is not. A shift opened before midnight and still open
+  // belongs to today's drawer: the money in it has not been counted yet. A shift closed just
+  // before midnight is held for the grace period too, or a cashier who closes at 23:50 loses
+  // the whole night off the manager's screen ten minutes later.
   const shiftRows = hasShifts
     ? await safeQuery(
         `
@@ -1958,14 +1991,24 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         LEFT JOIN users u ON u.id = s.opened_by
         WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint)
           AND ($2::bigint IS NULL OR s.branch_id = $2::bigint)
-          AND (LOWER(COALESCE(s.status, '')) = 'open' OR s.opened_at >= CURRENT_DATE OR s.closed_at >= CURRENT_DATE)
+          AND (
+            LOWER(COALESCE(s.status, '')) = 'open'
+            OR s.opened_at >= CURRENT_DATE
+            OR s.closed_at >= CURRENT_DATE
+            OR s.closed_at >= NOW() - ($3::float8 * INTERVAL '1 hour')
+          )
         ORDER BY s.opened_at DESC
         LIMIT 60
         `,
-        [tenantId, forcedBranchId],
+        [tenantId, forcedBranchId, graceHours],
         []
       )
     : [];
+
+  // The window the figures below cover: the calendar day, PLUS everything rung on a drawer
+  // that is still live. Without the second half, CURRENT_DATE deletes an open shift's night
+  // at 00:00 — the tape goes empty while the drawer under it still reports the cash.
+  const liveShiftIds = shiftRows.filter((row) => isLiveShiftRow(row, graceHours)).map((row) => Number(row.id)).filter(Boolean);
 
   // What the figures below cover: one drawer if picked, else every drawer in the picked
   // branch, else everything visible.
@@ -1978,7 +2021,7 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
 
   // Picking a drawer scopes by shift_id ALONE — a sale rung on another till in the same branch
   // is not this drawer's money, however much the branch matches.
-  const orderParams = [tenantId];
+  const orderParams = [tenantId, liveShiftIds];
   let orderScopeClause = "";
   if (shiftId) {
     orderParams.push(shiftId);
@@ -2002,7 +2045,7 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
       COALESCE(o.card_amount, 0) AS card_amount,
       COALESCE(o.wallet_payment_amount, 0) AS wallet_payment_amount
     FROM orders o
-    WHERE o.created_at >= CURRENT_DATE
+    WHERE (o.created_at >= CURRENT_DATE OR o.shift_id = ANY($2::bigint[]))
       AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
       ${personalOrderClause("o")}
@@ -2014,7 +2057,7 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     []
   );
 
-  const expenseParams = [tenantId];
+  const expenseParams = [tenantId, liveShiftIds];
   let expenseScopeClause = "";
   if (shiftId) {
     expenseParams.push(shiftId);
@@ -2045,7 +2088,7 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         FROM expenses e
         ${hasBranches ? "LEFT JOIN branches b ON b.id = e.branch_id" : ""}
         LEFT JOIN users u ON u.id = e.created_by
-        WHERE COALESCE(e.created_at, e.expense_date::timestamp) >= CURRENT_DATE
+        WHERE (COALESCE(e.created_at, e.expense_date::timestamp) >= CURRENT_DATE OR e.shift_id = ANY($2::bigint[]))
           AND ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
           AND LOWER(COALESCE(e.status, '')) NOT IN ('rejected', 'cancelled', 'canceled', 'void')
           ${expenseScopeClause}
