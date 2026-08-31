@@ -5233,7 +5233,12 @@ body.sf-mobile-search-scroll-lock {
 .storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/80,
 .storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/75,
 .storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/70,
-.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/60 {
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/60,
+/* Every remaining opacity in one selector. The list above stopped at /60, so
+   the section headings — which are `text-white/55` — stayed white on a white
+   panel and simply did not exist in the light theme. Naming each step is how
+   that happened; the next one added would go missing the same way. */
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel [class*="text-white/"] {
   color: #1c1917 !important;
 }
 
@@ -7236,5 +7241,202 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   .storefront-shell:not(.storefront-dark) .sf-header-announcement .text-stone-100\/95 {
     color: #25231f !important;
     opacity: 1 !important;
+  }
+}
+
+/* ============================================================================
+   MOBILE MENU PANEL — a plain rectangle, modelled on the reference
+   ----------------------------------------------------------------------------
+   Deliberately NOT `.sf-mobile-menu-drawer`: that class carries two layered
+   !important blocks that paint a violet-tinted gradient, an inset highlight and
+   a drop shadow. The reference is a flat white rectangle, 300px of a 375px
+   screen, radius 0, no shadow — so the panel takes a name none of those rules
+   can reach rather than trying to out-!important them.
+
+   Sizes are measured off levelshoes.com at 375px: account title 13px/600 over a
+   12px/400 subtitle, tabs 16px with the active one at 600 and a 2.4px rule under
+   it, and Noto Kufi Arabic throughout.
+   ========================================================================== */
+@layer components {
+  .sf-menu-panel {
+    font-family: "Noto Kufi Arabic", "Cairo", "Segoe UI", sans-serif;
+  }
+
+  /* Matching the legacy drawer's specificity exactly, and sitting later in the
+     same layer, is what makes these win — the rules being replaced are
+     `!important` inside @layer components too, so neither a weaker selector nor
+     an unlayered override can reach them. */
+  .storefront-shell:not(.storefront-dark) .sf-menu-panel {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #161515 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .storefront-shell.storefront-dark .sf-menu-panel {
+    background: #0a0a0a !important;
+    background-image: none !important;
+    color: #f5f5f4 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .sf-menu-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: calc(0.5rem + env(safe-area-inset-top)) 1rem 0.5rem;
+  }
+
+  .sf-menu-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding-inline: 0.75rem;
+    border: 1px solid rgba(22, 21, 21, 0.14);
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    transition: opacity 180ms ease;
+  }
+
+  .sf-menu-chip--icon {
+    padding-inline: 0;
+    width: 2.25rem;
+  }
+
+  .sf-menu-chip > svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .sf-menu-chip:active {
+    opacity: 0.6;
+  }
+
+  .storefront-dark .sf-menu-chip {
+    border-color: rgba(255, 255, 255, 0.16);
+  }
+
+  /* The account row and the tab strip are the two fixed things at the top; the
+     list below them scrolls on its own. */
+  .sf-menu-account {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem 0.875rem;
+    border-bottom: 8px solid rgba(22, 21, 21, 0.05);
+    color: inherit;
+  }
+
+  .storefront-dark .sf-menu-account {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+
+  .sf-menu-account-icon {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+  }
+
+  .sf-menu-account-copy {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .sf-menu-account-title {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .sf-menu-account-sub {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.2;
+    opacity: 0.72;
+  }
+
+  .sf-menu-chevron {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    opacity: 0.55;
+  }
+
+  .sf-menu-tabs {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding-inline: 1.25rem;
+    border-bottom: 1px solid rgba(22, 21, 21, 0.08);
+  }
+
+  .storefront-dark .sf-menu-tabs {
+    border-bottom-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .sf-menu-tab {
+    flex: 1 1 0;
+    padding: 0.875rem 0.25rem;
+    border: 0;
+    /* The active rule is a border on the tab itself, 2.4px, sitting on top of
+       the strip's own hairline — same as the reference. */
+    border-bottom: 2.4px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    color: inherit;
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .sf-menu-tab.is-active {
+    font-weight: 600;
+    border-bottom-color: currentColor;
+  }
+}
+
+/* The mobile search sheet is dark in BOTH themes (its background is a
+   hard-coded #050505 wash), so its ink has to stay light. Without this the
+   close control vanishes: `html[data-theme] .text-white` is an unlayered
+   !important that repaints every `text-white` as the app's --text, which the
+   ERP theme leaves on #1b1915 — a near-black X on a near-black button. Layered
+   so it can outrank that rule; unlayered !important cannot. */
+@layer components {
+  /* The sheet keeps a dark surface in BOTH themes. The light-theme rules for
+     `.sf-mobile-search-panel` were written when search lived inside the menu
+     drawer and sat on a light panel; out here they leave dark cards carrying
+     dark ink. Restoring the dark treatment inside the sheet is one rule set —
+     re-lighting every card, chip and label would be a dozen. */
+  .storefront-shell .sf-mobile-search-sheet .sf-mobile-search-panel {
+    background:
+      radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.05), transparent 60%),
+      linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
+    color: #f8fafc !important;
+  }
+
+  /* Muted first, solid second: the opacity variants are the section labels and
+     have to stay quieter than the items under them. */
+  .storefront-shell .sf-mobile-search-sheet [class*="text-white/"] {
+    color: rgba(248, 250, 252, 0.68) !important;
+  }
+
+  .storefront-shell .sf-mobile-search-sheet .text-white,
+  .storefront-shell .sf-mobile-search-sheet .text-stone-50,
+  .storefront-shell .sf-mobile-search-sheet .text-stone-100 {
+    color: #f8fafc !important;
   }
 }

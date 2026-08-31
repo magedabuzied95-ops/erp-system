@@ -268,7 +268,11 @@
       "premium": "Mirror Premium products",
       "todayDeals": "Today deals"
     },
-    "search": "Search"
+    "search": "Search",
+    "signInTitle": "Sign in or create an account",
+    "signInSubtitle": "For a shopping experience made for you",
+    "accountTitle": "My account",
+    "accountSubtitle": "Your orders and details in one place"
   },
   "nav": {
     "home": "Home",

@@ -4425,7 +4425,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTheme, onThemeToggle = () => {}, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {}, quickActionLinks = {} }) {
+function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAddToCart, effectiveTheme, onThemeToggle = () => {}, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", brandSettingsLoading = false, mobileMenuOpen = false, setMobileMenuOpen = () => {}, quickActionLinks = {} }) {
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
@@ -4568,6 +4568,24 @@ function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTh
     }, 4200);
     return () => clearInterval(timer);
   }, [announcementCount]);
+  // The drawer's audience tabs. They only carry selection today — the lists
+  // under them are unchanged until the owner says what belongs in each.
+  const menuTabs = [
+    { id: "men", label: t("storefront.nav.men"), to: "/men" },
+    { id: "women", label: t("storefront.nav.women"), to: "/women" },
+    { id: "kids", label: t("storefront.nav.kids"), to: "/kids" },
+  ];
+  const [menuTab, setMenuTab] = useState(() => {
+    const path = String(location?.pathname || "").toLowerCase();
+    return menuTabs.find((tab) => path.startsWith(tab.to))?.id || "men";
+  });
+  // A signed-in customer must not be told to sign in; the phone is the only
+  // identity the storefront keeps, so it stands in for a name.
+  const menuIsSignedIn = Boolean(String(customerAuth?.token || "").trim());
+  const menuAccountTitle = menuIsSignedIn ? t("storefront.header.accountTitle") : t("storefront.header.signInTitle");
+  const menuAccountSubtitle = menuIsSignedIn
+    ? String(customerAuth?.phone || "").trim() || t("storefront.header.accountSubtitle")
+    : t("storefront.header.signInSubtitle");
   const headerCategoryItems = [
     { label: t("storefront.nav.men"), to: "/men" },
     { label: t("storefront.nav.women"), to: "/women" },
@@ -4594,9 +4612,11 @@ function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTh
     themeIsDark ? "" : "border-b border-black/5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]",
   ].join(" ");
   const mobileMenuIsRtl = currentLanguage === "ar";
-  const mobileMenuSideClass = mobileMenuIsRtl
-    ? "right-0 rounded-l-[1.75rem] border-l shadow-[-24px_0_64px_rgba(28,25,23,0.18)] dark:shadow-[-26px_0_70px_rgba(0,0,0,0.48)]"
-    : "left-0 rounded-r-[1.75rem] border-r shadow-[24px_0_64px_rgba(28,25,23,0.18)] dark:shadow-[26px_0_70px_rgba(0,0,0,0.48)]";
+  // Which edge the panel hangs off, and nothing else. The rounded corner, the
+  // border and the drop shadow used to live here as utilities — and a utility
+  // outranks the panel's own rule, so they survived every attempt to flatten it
+  // from CSS. The reference is a plain rectangle; this is where that is decided.
+  const mobileMenuSideClass = mobileMenuIsRtl ? "right-0" : "left-0";
   const menuOpen = Boolean(mobileMenuOpen);
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const mobileMenuScrollRef = useRef(0);
@@ -4987,7 +5007,10 @@ function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTh
               <button
                 type="button"
                 onClick={() => {
-                  setMobileMenuOpen(true);
+                  // Search has its own full-screen surface now. It used to live
+                  // inside the menu drawer, so this had to open the menu first —
+                  // which put a search field and its suggestion cards in the
+                  // middle of what is meant to be a plain list.
                   setSearchOpen(true);
                   setMobileSearchOpen(true);
                 }}
@@ -5125,6 +5148,47 @@ function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTh
           </div>
         ) : null}
       </div>
+      {/* Mobile search is its own full-screen sheet, opened straight from the
+          header icon. It used to be a field inside the menu drawer, which is
+          why the menu carried a search box and its suggestion cards.
+          Portalled to <body> for the same reason the drawer is: the header
+          carries `backdrop-blur`, and a backdrop-filter makes its box the
+          containing block for any `position: fixed` descendant — so the sheet
+          covered the header strip only and left the page showing through. */}
+      {mobileSearchOpen && mobilePortalTarget ? createPortal(
+        <PremiumSearch
+        mobileOnly
+        mobileOpen={mobileSearchOpen}
+        setMobileOpen={setMobileSearchOpen}
+        value={search}
+        onChange={handleSearchChange}
+        onSubmit={submit}
+        onOpen={() => {
+          setSearchOpen(true);
+          setMobileSearchOpen(true);
+        }}
+        onClose={closeSearch}
+        open={searchOpen}
+        placeholder={searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}
+        suggestions={suggestions}
+        loading={searchLoading}
+        visualSearch={visualSearch}
+        recentSearches={recentSearches}
+        activeIndex={activeSearchIndex}
+        setActiveIndex={setActiveSearchIndex}
+        onPickTerm={pickSearchTerm}
+        onPickProduct={pickProduct}
+        onQuickAdd={handleQuickSearchAdd}
+        onVoice={handleVoiceSearch}
+        onImage={handleImageSearch}
+        imageSearchOpen={imageSearchOpen}
+        imageSearch={visualSearch}
+        onShareImageOnWhatsApp={shareVisualSearchImage}
+        onRequestVisualSearchSupply={requestVisualSearchSupply}
+        onClearImageSearch={clearVisualSearch}
+        />,
+        mobilePortalTarget
+      ) : null}
       {menuOpen && mobilePortalTarget ? createPortal(
         <div
           className="fixed inset-0 z-[160] md:hidden"
@@ -5139,83 +5203,68 @@ function Header({ cartCount, wishlistCount = 0, onCart, onAddToCart, effectiveTh
             aria-label={t("storefront.common.close")}
             onClick={closeMobileMenu}
           />
-          <aside data-theme={effectiveTheme} className={`sf-mobile-menu-drawer fixed inset-y-0 z-[161] flex h-full w-[min(23rem,92vw)] flex-col overflow-hidden border-stone-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#faf9f6_58%,#f2efe8_100%)] text-stone-950 dark:border-white/10 dark:bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] dark:text-white ${mobileMenuSideClass}`}>
-            <div className="border-b border-stone-200/80 px-4 pb-3 pt-4 dark:border-white/10">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onThemeToggle}
-                    className="sf-mobile-menu-toolbar-button grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/8 dark:text-white dark:shadow-none dark:hover:bg-white/12"
-                    aria-label={themeToggleLabel}
-                    title={themeToggleLabel}
-                  >
-                    {themeIsDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={switchLanguage}
-                    className="sf-mobile-menu-toolbar-button inline-flex h-9 items-center justify-center rounded-full border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/8 dark:text-white dark:shadow-none dark:hover:bg-white/12"
-                  >
-                    {languageLabel}
-                  </button>
-                </div>
+          {/* BOTH classes on purpose. `sf-mobile-menu-drawer` is what the light
+              theme uses to strip the hard-coded dark gradients off everything
+              inside the drawer — drop it and the lists below turn into black
+              blocks on a white panel. `sf-menu-panel` only restyles the panel's
+              own chrome. */}
+          <aside data-theme={effectiveTheme} className={`sf-mobile-menu-drawer sf-menu-panel fixed inset-y-0 z-[161] flex h-full w-[min(20rem,80vw)] flex-col overflow-hidden ${mobileMenuSideClass}`}>
+            {/* Language and theme sit ABOVE the account row, where the owner
+                asked for them. Close keeps the far side to itself. */}
+            <div className="sf-menu-toolbar">
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={switchLanguage} className="sf-menu-chip">
+                  {languageLabel}
+                </button>
                 <button
                   type="button"
-                  onClick={closeMobileMenu}
-                  className="sf-mobile-menu-toolbar-button grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/8 dark:text-white dark:shadow-none dark:hover:bg-white/12"
-                  aria-label={t("storefront.common.close")}
+                  onClick={onThemeToggle}
+                  className="sf-menu-chip sf-menu-chip--icon"
+                  aria-label={themeToggleLabel}
+                  title={themeToggleLabel}
                 >
-                  <X className="h-5 w-5" />
+                  {themeIsDark ? <Sun strokeWidth={1.25} /> : <Moon strokeWidth={1.25} />}
                 </button>
               </div>
-              <div className="mt-3">
-                <p className="sf-mobile-menu-eyebrow text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a7108] dark:text-[#f3d77a]/70">{t("storefront.header.menu")}</p>
-                <h2 className="sf-mobile-menu-title mt-1 text-xl font-black text-stone-950 dark:text-white">{t("storefront.header.quickLinks")}</h2>
-              </div>
+              <button
+                type="button"
+                onClick={closeMobileMenu}
+                className="sf-menu-chip sf-menu-chip--icon"
+                aria-label={t("storefront.common.close")}
+              >
+                <X strokeWidth={1.25} />
+              </button>
+            </div>
+            <Link to="/account" onClick={closeMobileMenu} className="sf-menu-account">
+              <User className="sf-menu-account-icon" strokeWidth={1.25} />
+              <span className="sf-menu-account-copy">
+                <span className="sf-menu-account-title">{menuAccountTitle}</span>
+                <span className="sf-menu-account-sub">{menuAccountSubtitle}</span>
+              </span>
+              {mobileMenuIsRtl ? (
+                <ChevronLeft className="sf-menu-chevron" strokeWidth={1.25} />
+              ) : (
+                <ChevronRight className="sf-menu-chevron" strokeWidth={1.25} />
+              )}
+            </Link>
+            {/* Selection only for now: the lists below are unchanged until the
+                owner says what each audience should show. */}
+            <div className="sf-menu-tabs" role="tablist" aria-label={t("storefront.header.menu")}>
+              {menuTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={menuTab === tab.id}
+                  onClick={() => setMenuTab(tab.id)}
+                  className={`sf-menu-tab${menuTab === tab.id ? " is-active" : ""}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
               <div className="grid gap-4">
-                <PremiumSearch
-                  value={search}
-                  onChange={handleSearchChange}
-                  onSubmit={(event) => {
-                    submit(event);
-                    closeMobileMenu();
-                  }}
-                  onOpen={() => {
-                    setSearchOpen(true);
-                    setMobileSearchOpen(true);
-                  }}
-                  onClose={closeSearch}
-                  open={searchOpen}
-                  mobileOpen={menuOpen}
-                  setMobileOpen={setMobileSearchOpen}
-                  placeholder={searchPlaceholders[placeholderIndex] || searchPlaceholders[0]}
-                  suggestions={suggestions}
-                  loading={searchLoading}
-                  visualSearch={visualSearch}
-                  recentSearches={recentSearches}
-                  activeIndex={activeSearchIndex}
-                  setActiveIndex={setActiveSearchIndex}
-                  onPickTerm={(term) => {
-                    pickSearchTerm(term);
-                    closeMobileMenu();
-                  }}
-                  onPickProduct={(product, options) => {
-                    pickProduct(product, options);
-                    closeMobileMenu();
-                  }}
-                  onQuickAdd={handleQuickSearchAdd}
-                  onVoice={handleVoiceSearch}
-                  onImage={handleImageSearch}
-                  imageSearchOpen={imageSearchOpen}
-                  imageSearch={visualSearch}
-                  onShareImageOnWhatsApp={shareVisualSearchImage}
-                  onRequestVisualSearchSupply={requestVisualSearchSupply}
-                  onClearImageSearch={clearVisualSearch}
-                  drawerMode
-                />
                 {[
                   { label: t("storefront.nav.sizeGuide"), to: "/size-guide" },
                   { label: t("storefront.nav.returns"), to: "/returns" },
@@ -5280,7 +5329,6 @@ function PremiumSearch({
   onClearImageSearch = () => {},
   className = "",
   mobileOnly = false,
-  drawerMode = false,
 }) {
   const { t } = useTranslation();
   const inputRef = useRef(null);
@@ -5380,21 +5428,10 @@ function PremiumSearch({
     </div>
   );
 
-  if (drawerMode) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="min-w-0 flex-none">{searchInput}</div>
-        <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(0.25rem+env(safe-area-inset-bottom))]">
-          {resultsPanel}
-        </div>
-      </div>
-    );
-  }
-
   if (mobileOnly) {
     if (!mobileOpen) return null;
     return (
-      <div className="fixed inset-0 z-[100] bg-[#050505]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden" dir="rtl">
+      <div className="sf-mobile-search-sheet fixed inset-0 z-[100] bg-[#050505]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden">
         <div className="mx-auto flex h-full max-w-xl flex-col">
           <div className="sticky top-0 z-10 flex items-center gap-2 pb-4">
             <div className="min-w-0 flex-1">{searchInput}</div>
@@ -10858,6 +10895,7 @@ function Storefront() {
         <Header
           cartCount={cartCount}
           wishlistCount={wishlistCount}
+          customerAuth={customerAuth}
           onCart={() => navigate("/cart")}
           effectiveTheme={themeMode}
           onThemeToggle={() => setThemeMode((current) => current === "dark" ? "light" : "dark")}

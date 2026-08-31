@@ -70,3 +70,73 @@ test("the announcement line can set its own colour", () => {
   assert.match(announcement, /<div\s/, "rendered as a div, not a span");
   assert.doesNotMatch(announcement, /<span[\s>]/);
 });
+
+// --- the menu panel -------------------------------------------------------
+
+const menuPanel = (() => {
+  const from = storefrontSource.indexOf("sf-mobile-menu-drawer sf-menu-panel");
+  const to = storefrontSource.indexOf("mobilePortalTarget\n      ) : null}", from);
+  return storefrontSource.slice(from, to > from ? to : from + 6000);
+})();
+
+test("the menu panel keeps both classes", () => {
+  assert.ok(menuPanel.length > 0, "the panel must be findable");
+  // `sf-mobile-menu-drawer` is what the light theme uses to strip the
+  // hard-coded dark gradients off everything inside; dropping it turns the
+  // lists into black blocks on a white panel. `sf-menu-panel` restyles only the
+  // panel's own chrome.
+  assert.match(menuPanel, /sf-mobile-menu-drawer sf-menu-panel/);
+});
+
+test("the panel is a rectangle — no rounded corner, border or shadow", () => {
+  // These lived as utilities on the element, and a utility outranks the panel's
+  // own rule, so flattening it from CSS alone silently does nothing.
+  const sideClass = storefrontSource.slice(
+    storefrontSource.indexOf("const mobileMenuSideClass"),
+    storefrontSource.indexOf("const menuOpen")
+  );
+  assert.doesNotMatch(sideClass, /rounded-/);
+  assert.doesNotMatch(sideClass, /shadow-\[/);
+  assert.doesNotMatch(sideClass, /border-[lr]\b/);
+});
+
+test("language and theme sit above the account row", () => {
+  // Matching the full class attribute, not a substring: `sf-menu-toolbar` is a
+  // prefix of any renamed variant, so indexOf on the bare name still finds a
+  // toolbar that no longer exists.
+  const toolbar = menuPanel.indexOf('className="sf-menu-toolbar"');
+  const account = menuPanel.indexOf('className="sf-menu-account"');
+  const tabs = menuPanel.indexOf('className="sf-menu-tabs"');
+  assert.ok(toolbar > 0 && account > toolbar, "the toolbar comes first");
+  assert.ok(tabs > account, "the audience tabs come after the account row");
+  const toolbarBlock = menuPanel.slice(toolbar, account);
+  assert.match(toolbarBlock, /switchLanguage/);
+  assert.match(toolbarBlock, /onThemeToggle/);
+});
+
+test("search is not inside the menu — it has its own sheet", () => {
+  // The search field and its suggestion cards were removed from the drawer on
+  // the owner's instruction. The header's search button must therefore open the
+  // sheet directly instead of opening the menu to reach a field inside it.
+  assert.doesNotMatch(menuPanel, /<PremiumSearch/);
+  assert.doesNotMatch(storefrontSource, /drawerMode/, "the drawer search mode is gone for good");
+  assert.match(storefrontSource, /sf-mobile-search-sheet/);
+
+  const searchButton = storefrontSource.slice(
+    storefrontSource.indexOf('aria-label={t("storefront.header.search")}') - 900,
+    storefrontSource.indexOf('aria-label={t("storefront.header.search")}')
+  );
+  assert.doesNotMatch(searchButton, /setMobileMenuOpen\(true\)/, "the search icon must not open the menu");
+});
+
+test("the search sheet is portalled out of the header", () => {
+  // The header carries `backdrop-blur`, and a backdrop-filter makes its box the
+  // containing block for `position: fixed` descendants — so an inline sheet
+  // covered the header strip only and left the page showing through.
+  const sheet = storefrontSource.slice(
+    storefrontSource.indexOf("Mobile search is its own full-screen sheet"),
+    storefrontSource.indexOf("{menuOpen && mobilePortalTarget")
+  );
+  assert.match(sheet, /createPortal\(/);
+  assert.match(sheet, /mobilePortalTarget/);
+});

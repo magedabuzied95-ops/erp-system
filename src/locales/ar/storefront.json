@@ -63,7 +63,11 @@
       "premium": "منتجات Mirror Premium",
       "todayDeals": "خصومات اليوم"
     },
-    "search": "بحث"
+    "search": "بحث",
+    "signInTitle": "سجّل الدخول أو أنشئ حساب",
+    "signInSubtitle": "علشان تجربة تسوق مخصوصة ليك",
+    "accountTitle": "حسابي",
+    "accountSubtitle": "طلباتك وبياناتك في مكان واحد"
   },
   "nav": {
     "home": "الصفحة الرئيسية",
