@@ -1959,24 +1959,41 @@ const resolveDayWindow = async ({ from, to, startHour }) => {
     };
   }
 
-  const rows = await safeQuery(
-    `
-    SELECT day_start AS window_start, day_start + INTERVAL '1 day' AS window_end
-    FROM (
-      SELECT date_trunc('day', NOW() - make_interval(hours => $1::int)) + make_interval(hours => $1::int) AS day_start
-    ) t
-    `,
-    [startHour],
-    []
-  );
-  const row = rows[0];
+  // NOT safeQuery. safeQuery swallows the error and returns [], and the fallback below is a
+  // rolling 24 hours — which is last night plus today, i.e. indistinguishable from the very
+  // bug this card was fixed for. A silent degrade here would read as "the fix did not work",
+  // so the failure is logged and declared in the payload instead of being hidden.
+  let row = null;
+  let degraded = false;
+  try {
+    const result = await db.query(
+      `
+      SELECT day_start AS window_start, day_start + INTERVAL '1 day' AS window_end
+      FROM (
+        SELECT date_trunc('day', NOW() - make_interval(hours => $1::int)) + make_interval(hours => $1::int) AS day_start
+      ) t
+      `,
+      [startHour]
+    );
+    row = result.rows[0] || null;
+  } catch (error) {
+    degraded = true;
+    console.error("[manager-portal] business-day window query failed — the day card is falling back to a rolling 24 hours", {
+      message: error?.message || String(error),
+      code: error?.code || "",
+      startHour,
+    });
+  }
   if (row?.window_start && row?.window_end) {
     return { windowStart: new Date(row.window_start), windowEnd: new Date(row.window_end), isCustom: false };
   }
-  // Only reachable if the database is unavailable, in which case every query below returns
-  // its fallback anyway. A last-24-hours window keeps the shape valid.
   const now = new Date();
-  return { windowStart: new Date(now.getTime() - 86_400_000), windowEnd: now, isCustom: false };
+  return {
+    windowStart: new Date(now.getTime() - 86_400_000),
+    windowEnd: now,
+    isCustom: false,
+    degraded: degraded || true,
+  };
 };
 
 // The day, read the way the shop is organised: one list of branches, each opening onto the
@@ -1993,7 +2010,7 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
   const shiftId = lower(clean(query.shift_id)) === "all" ? null : numberOrNull(query.shift_id);
 
   const startHour = await resolveBusinessDayStartHour();
-  const { windowStart, windowEnd, isCustom } = await resolveDayWindow({
+  const { windowStart, windowEnd, isCustom, degraded: windowDegraded } = await resolveDayWindow({
     from: query.from,
     to: query.to,
     startHour,
@@ -2263,6 +2280,9 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
       to: windowEnd.toISOString(),
       business_day_start_hour: startHour,
       is_custom: isCustom,
+      // True only when the business-day query failed and the card fell back to a rolling
+      // 24 hours. Declared so "yesterday is still showing" is answerable from the payload.
+      degraded: Boolean(windowDegraded),
       // A picked drawer overrides the window: its tape is its whole life, so the totals below
       // reconcile with its cash figure.
       scoped_to_shift: Boolean(shiftId),
