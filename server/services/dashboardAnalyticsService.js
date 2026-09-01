@@ -14,7 +14,17 @@ const logPerf = (message, payload = {}) => {
   console.log(message, payload);
 };
 
-const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "" } = {}) => {
+/*
+ * `windowStart`/`windowEnd` are an OPT-IN instant window, and they win over `range`.
+ *
+ * A shop that trades past midnight does not have a day that ends at 00:00 — the manager
+ * portal reads 04:00 → 04:00 — but every other caller here means the calendar day and must
+ * keep meaning it, or day-over-day reporting silently changes underneath. So the boundary is
+ * passed in by the one surface that wants it rather than being changed for everybody. Note
+ * this is instant-precise, where `custom` is only date-precise and could not express 04:00.
+ */
+const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "", windowStart = null, windowEnd = null } = {}) => {
+  if (windowStart && windowEnd) return { instants: true, windowStart, windowEnd };
   if (range === "yesterday") return { sql: "CURRENT_DATE - INTERVAL '1 day'", endSql: "CURRENT_DATE" };
   if (range === "7d") return { sql: "CURRENT_DATE - INTERVAL '6 days'", endSql: "CURRENT_DATE + INTERVAL '1 day'" };
   if (range === "month") return { sql: "date_trunc('month', NOW())", endSql: "NOW()" };
@@ -24,6 +34,13 @@ const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "" } = {}) 
 
 const dateClause = (alias, filters, params, column = "created_at") => {
   const range = resolveDateRange(filters);
+  if (range.instants) {
+    params.push(range.windowStart);
+    const from = `$${params.length}`;
+    params.push(range.windowEnd);
+    const to = `$${params.length}`;
+    return ` AND ${alias}.${column} >= ${from} AND ${alias}.${column} < ${to}`;
+  }
   if (range.custom) {
     params.push(range.dateFrom);
     const from = `$${params.length}`;
@@ -168,6 +185,20 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
   const ordersBranch = branchClause("o", filters, params);
   const yesterdayParams = [];
   const yesterdayTenant = tenantClause("o", tenantId, yesterdayParams);
+  // "Yesterday" has to mean the day before whatever "today" means, or the comparison arrow on
+  // the manager portal measures a 04:00 day against a midnight one and reads as a swing that
+  // never happened. With no window given this is the calendar day, exactly as before.
+  const windowStart = filters?.windowStart || null;
+  const windowEnd = filters?.windowEnd || null;
+  let yesterdayFrom = yesterdaySql;
+  let yesterdayTo = daySql;
+  if (windowStart && windowEnd) {
+    const spanMs = new Date(windowEnd).getTime() - new Date(windowStart).getTime();
+    yesterdayParams.push(new Date(new Date(windowStart).getTime() - spanMs));
+    yesterdayFrom = `$${yesterdayParams.length}`;
+    yesterdayParams.push(new Date(windowStart));
+    yesterdayTo = `$${yesterdayParams.length}`;
+  }
   const productParams = [];
   const productTenant = tenantClause("p", tenantId, productParams);
   const variantParams = [];
@@ -220,8 +251,8 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             COUNT(*)::int AS orders,
             COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)), 0) AS aov
           FROM orders o
-          WHERE o.created_at >= ${yesterdaySql}
-            AND o.created_at < ${daySql}
+          WHERE o.created_at >= ${yesterdayFrom}
+            AND o.created_at < ${yesterdayTo}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${personalOrderClause("o")}
             ${yesterdayTenant}
@@ -297,7 +328,13 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           "overview.activePos"
         )
       : [{}],
-    getRecentInvoices({ tenantId, limit: filters.range === "today" ? 500 : 6, todayOnly: filters.range === "today" }),
+    getRecentInvoices({
+      tenantId,
+      limit: filters.range === "today" ? 500 : 6,
+      todayOnly: filters.range === "today",
+      windowStart,
+      windowEnd,
+    }),
     tableExists("order_items") && tableExists("orders")
       ? safeQuery(
           `
@@ -927,16 +964,25 @@ export const getAiInsights = async ({ tenantId = null } = {}) => {
   return insights;
 };
 
-export const getRecentInvoices = async ({ tenantId = null, limit = 8, todayOnly = false } = {}) => {
+export const getRecentInvoices = async ({ tenantId = null, limit = 8, todayOnly = false, windowStart = null, windowEnd = null } = {}) => {
   if (!(await tableExists("orders"))) return [];
   const params = [Number(limit) || 8];
   const ordersTenant = tenantClause("o", tenantId, params);
+  // The same opt-in window as the totals above it. The list and the figure have to agree —
+  // a manager who adds up the invoices must land on the number printed over them.
+  let todayClause = todayOnly ? ` AND o.created_at >= ${daySql}` : "";
+  if (todayOnly && windowStart && windowEnd) {
+    params.push(new Date(windowStart));
+    const from = `$${params.length}`;
+    params.push(new Date(windowEnd));
+    todayClause = ` AND o.created_at >= ${from} AND o.created_at < $${params.length}`;
+  }
   return safeQuery(
     `
     SELECT o.id, o.invoice_number, o.customer_name, COALESCE(o.total_amount, o.total, 0) AS total, o.payment_status, o.created_at
     FROM orders o
     WHERE 1=1 ${ordersTenant}
-      ${todayOnly ? `AND o.created_at >= ${daySql}` : ""}
+      ${todayClause}
       ${personalOrderClause("o")}
     ORDER BY o.created_at DESC
     LIMIT $1

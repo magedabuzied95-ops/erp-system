@@ -784,11 +784,122 @@ export const getManagerPortalInvoiceDetailsBatch = async ({ manager = {}, invoic
   return detailByOrder;
 };
 
+/* ======================================================
+   THE SHOP'S DAY, NOT THE CALENDAR'S
+
+   A shop that trades past midnight does not have a day that ends at 00:00. Bounding this
+   card by CURRENT_DATE cut the open drawer's evening off the tape the moment the calendar
+   turned, while the drawer figure beside it — computed by shift_id, with no date bound —
+   went on reporting the whole night. So the day here runs from one business-day start to
+   the next: 04:00 → 04:00 by default, which puts a whole trading night inside one window
+   and makes the midnight problem structurally impossible rather than patched around.
+
+   The manager can also name the window outright: ?from=<instant>&to=<instant>.
+====================================================== */
+
+const DEFAULT_BUSINESS_DAY_START_HOUR = 4;
+// A manager asking for a decade of invoices would time the request out and truncate against
+// the row cap anyway. Wide enough for any real question, bounded enough to stay answerable.
+const MAX_WINDOW_DAYS = 92;
+
+const resolveBusinessDayStartHour = async () => {
+  const stored = await getSetting("pos.business_day_start_hour", DEFAULT_BUSINESS_DAY_START_HOUR)
+    .catch(() => DEFAULT_BUSINESS_DAY_START_HOUR);
+  const hour = Number(stored);
+  if (!Number.isFinite(hour)) return DEFAULT_BUSINESS_DAY_START_HOUR;
+  return Math.min(Math.max(Math.trunc(hour), 0), 23);
+};
+
+const parseInstant = (value) => {
+  const raw = clean(value);
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+};
+
+/*
+ * The default window is resolved in SQL, never in JS: the server process runs on UTC by
+ * contract ([[app-timezone-entry-vs-storage]]) while the database session reads on Cairo, so
+ * "the business day containing now" is only correct when the database answers it. `+ INTERVAL
+ * '1 day'` rather than 24 hours so the window still starts at 04:00 across a DST change.
+ */
+const resolveDayWindow = async ({ from, to, startHour }) => {
+  const requestedFrom = parseInstant(from);
+  const requestedTo = parseInstant(to);
+
+  if (requestedFrom || requestedTo) {
+    const windowStart = requestedFrom || new Date(requestedTo.getTime() - 86_400_000);
+    const windowEnd = requestedTo && requestedTo > windowStart
+      ? requestedTo
+      : new Date(windowStart.getTime() + 86_400_000);
+    const maxEnd = new Date(windowStart.getTime() + MAX_WINDOW_DAYS * 86_400_000);
+    return {
+      windowStart,
+      windowEnd: windowEnd > maxEnd ? maxEnd : windowEnd,
+      isCustom: true,
+    };
+  }
+
+  // NOT safeQuery. safeQuery swallows the error and returns [], and the fallback below is a
+  // rolling 24 hours — which is last night plus today, i.e. indistinguishable from the very
+  // bug this card was fixed for. A silent degrade here would read as "the fix did not work",
+  // so the failure is logged and declared in the payload instead of being hidden.
+  let row = null;
+  let degraded = false;
+  try {
+    const result = await db.query(
+      `
+      SELECT day_start AS window_start, day_start + INTERVAL '1 day' AS window_end
+      FROM (
+        SELECT date_trunc('day', NOW() - make_interval(hours => $1::int)) + make_interval(hours => $1::int) AS day_start
+      ) t
+      `,
+      [startHour]
+    );
+    row = result.rows[0] || null;
+  } catch (error) {
+    degraded = true;
+    console.error("[manager-portal] business-day window query failed — the day card is falling back to a rolling 24 hours", {
+      message: error?.message || String(error),
+      code: error?.code || "",
+      startHour,
+    });
+  }
+  if (row?.window_start && row?.window_end) {
+    return { windowStart: new Date(row.window_start), windowEnd: new Date(row.window_end), isCustom: false };
+  }
+  const now = new Date();
+  return {
+    windowStart: new Date(now.getTime() - 86_400_000),
+    windowEnd: now,
+    isCustom: false,
+    degraded: degraded || true,
+  };
+};
+
+/*
+ * Every "today" this portal says about MONEY means the shop's day, not the calendar's.
+ *
+ * The day card was moved first and the home was deliberately left behind, which turned out to
+ * be the wrong call: at 21:00 the two cards differ by exactly the 00:00–04:00 slice, and that
+ * slice is last night's shift. A manager reading "فواتير اليوم" saw sales he had already
+ * closed the night on. So the boundary is shared now.
+ *
+ * Attendance and inventory-count "today" are NOT included: an attendance day is its own
+ * concept with its own timezone setting, and a stock count is not a trading night.
+ */
+const resolveManagerPortalDay = async () => {
+  const startHour = await resolveBusinessDayStartHour();
+  const { windowStart, windowEnd } = await resolveDayWindow({ startHour });
+  return { startHour, windowStart, windowEnd };
+};
+
 export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, profitToken = "" } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
+  const { windowStart, windowEnd } = await resolveManagerPortalDay();
   const [overview, staffDashboard, lowStock, aiInsights, refillAlerts, paymentBreakdown, leads, attendanceRows] = await Promise.all([
-    getDashboardOverview({ tenantId, filters: { ...filters, branchId: branchId || filters.branchId || null, range: "today" } }),
+    getDashboardOverview({ tenantId, filters: { ...filters, branchId: branchId || filters.branchId || null, range: "today", windowStart, windowEnd } }),
     getStaffTaskDashboard({ tenantId, branchId }),
     getLowStock({ tenantId, limit: 12 }),
     getAiInsights({ tenantId }),
@@ -815,6 +926,9 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
       const params = [];
       const tenantClause = tenantId ? (params.push(tenantId), ` AND o.tenant_id = $${params.length}`) : "";
       const branchClause = branchId ? (params.push(branchId), ` AND o.branch_id = $${params.length}`) : "";
+      // The tender split sits under the same total on the same card, so it reads the same day.
+      params.push(windowStart, windowEnd);
+      const dayClause = ` AND o.created_at >= $${params.length - 1} AND o.created_at < $${params.length}`;
       // Distribute each included sale's real payment allocations (orders.payment_breakdown)
       // across its actual payment methods. A split payment (دفع مقسم) is never treated as a
       // payment method: every allocation is aggregated into its real method. Orders without
@@ -830,8 +944,8 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
           ${hasCardAmount ? "COALESCE(o.card_amount, 0)" : "0"} AS card_amount,
           ${hasWalletAmount ? "COALESCE(o.wallet_payment_amount, 0)" : "0"} AS wallet_payment_amount
         FROM orders o
-        WHERE o.created_at >= date_trunc('day', NOW())
-          AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+        WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+          ${dayClause}
           ${tenantClause}
           ${branchClause}
         `,
@@ -920,6 +1034,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
 export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
+  const { windowStart: staffDayFrom, windowEnd: staffDayTo } = await resolveManagerPortalDay();
   const [taskDashboard, salesRows, attendanceRows, advanceRows, pendingPortalRequests, photoRows] = await Promise.all([
     getStaffTaskDashboard({ tenantId, branchId }),
     tableExists("orders").then(async (ordersExist) => {
@@ -929,7 +1044,10 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
       const params = [tenantId];
       const tenantClause = `($1::bigint IS NULL OR o.tenant_id = $1::bigint)`;
       const branchClause = branchId ? (params.push(branchId), ` AND o.branch_id = $${params.length}`) : "";
-      const todayClause = `AND o.created_at >= date_trunc('day', NOW())`;
+      // "باع النهاردة كام" is the same day the home totals use, or a seller's number
+      // disagrees with the branch number printed one tab away.
+      params.push(staffDayFrom, staffDayTo);
+      const todayClause = `AND o.created_at >= $${params.length - 1} AND o.created_at < $${params.length}`;
       return safeQuery(
         `
         SELECT
@@ -1093,9 +1211,27 @@ export const getManagerPortalTasks = async ({ manager = {} } = {}) => {
 export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } = {}) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
+  const { windowStart: salesDayFrom, windowEnd: salesDayTo } = await resolveManagerPortalDay();
+  const salesDaySpanMs = salesDayTo.getTime() - salesDayFrom.getTime();
   const monthFilters = { branchId, range: "month" };
-  const todayFilters = { branchId, range: "today" };
-  const yesterdayFilters = { branchId, range: "yesterday" };
+  // Today and yesterday are the shop's nights here too, so the profit figures agree with the
+  // sales figures printed beside them.
+  const todayFilters = { branchId, range: "today", windowStart: salesDayFrom, windowEnd: salesDayTo };
+  const yesterdayFilters = {
+    branchId,
+    range: "yesterday",
+    windowStart: new Date(salesDayFrom.getTime() - salesDaySpanMs),
+    windowEnd: salesDayFrom,
+  };
+  // The comparison row is one scan over both nights, so it binds three boundaries: the start
+  // of the previous night, the start of this one, and the end of this one.
+  const salesComparisonParams = branchId ? [tenantId, branchId] : [tenantId];
+  salesComparisonParams.push(salesDayFrom);
+  const salesToday = `$${salesComparisonParams.length}`;
+  salesComparisonParams.push(new Date(salesDayFrom.getTime() - salesDaySpanMs));
+  const salesYesterday = `$${salesComparisonParams.length}`;
+  salesComparisonParams.push(salesDayTo);
+  const salesTomorrow = `$${salesComparisonParams.length}`;
   const hasOrders = await tableExists("orders");
   const hasOrderItems = await tableExists("order_items");
   const hasProducts = await tableExists("products");
@@ -1127,20 +1263,20 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
       ? safeQuery(
           `
           SELECT
-            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day' THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
-            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day')::int AS today_orders,
-            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE AND o.created_at < CURRENT_DATE + INTERVAL '1 day'), 0) AS today_aov,
-            COALESCE(SUM(CASE WHEN o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
-            COUNT(*) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE)::int AS yesterday_orders,
-            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= CURRENT_DATE - INTERVAL '1 day' AND o.created_at < CURRENT_DATE), 0) AS yesterday_aov
+            COALESCE(SUM(CASE WHEN o.created_at >= ${salesToday} THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS today_sales,
+            COUNT(*) FILTER (WHERE o.created_at >= ${salesToday})::int AS today_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at >= ${salesToday}), 0) AS today_aov,
+            COALESCE(SUM(CASE WHEN o.created_at < ${salesToday} THEN COALESCE(o.total_amount, o.total, 0) ELSE 0 END), 0) AS yesterday_sales,
+            COUNT(*) FILTER (WHERE o.created_at < ${salesToday})::int AS yesterday_orders,
+            COALESCE(AVG(NULLIF(COALESCE(o.total_amount, o.total, 0), 0)) FILTER (WHERE o.created_at < ${salesToday}), 0) AS yesterday_aov
           FROM orders o
           WHERE LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${branchId ? "AND o.branch_id = $2::bigint" : ""}
             AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
-            AND o.created_at >= CURRENT_DATE - INTERVAL '1 day'
-            AND o.created_at < CURRENT_DATE + INTERVAL '1 day'
+            AND o.created_at >= ${salesYesterday}
+            AND o.created_at < ${salesTomorrow}
           `,
-          branchId ? [tenantId, branchId] : [tenantId],
+          salesComparisonParams,
           [],
         )
       : [],
@@ -1329,17 +1465,30 @@ export const getManagerPortalSales = async ({ manager = {}, profitToken = "" } =
    shift took (or gave back) the difference, and how much.
 ====================================================== */
 
+/*
+ * Operations are merged into the SAME home feed as the invoices, at their own timestamps, so
+ * they have to share the invoices' day. An edit at 01:00 that showed while the 01:00 sale it
+ * edited did not would be worse than either boundary on its own.
+ *
+ * The hour is inlined rather than bound because these three queries build their clauses as
+ * text; it is safe to inline because resolveBusinessDayStartHour clamps it to 0-23.
+ */
+const businessDayStartSql = (startHour = DEFAULT_BUSINESS_DAY_START_HOUR) => {
+  const hours = Math.min(Math.max(Math.trunc(Number(startHour) || 0), 0), 23);
+  return `(date_trunc('day', NOW() - INTERVAL '${hours} hours') + INTERVAL '${hours} hours')`;
+};
+
 const OPERATION_RANGES = {
-  today: "CREATED_AT >= CURRENT_DATE",
-  yesterday: "CREATED_AT >= CURRENT_DATE - INTERVAL '1 day'",
-  week: "CREATED_AT >= CURRENT_DATE - INTERVAL '7 days'",
-  month: "CREATED_AT >= CURRENT_DATE - INTERVAL '30 days'",
+  today: "CREATED_AT >= DAY_START",
+  yesterday: "CREATED_AT >= DAY_START - INTERVAL '1 day'",
+  week: "CREATED_AT >= DAY_START - INTERVAL '7 days'",
+  month: "CREATED_AT >= DAY_START - INTERVAL '30 days'",
   all: "TRUE",
 };
 
-const operationRangeClause = (range = "month", column = "a.created_at") => {
+const operationRangeClause = (range = "month", column = "a.created_at", startHour = DEFAULT_BUSINESS_DAY_START_HOUR) => {
   const key = lower(range) || "month";
-  const template = OPERATION_RANGES[key] || OPERATION_RANGES.month;
+  const template = (OPERATION_RANGES[key] || OPERATION_RANGES.month).replaceAll("DAY_START", businessDayStartSql(startHour));
   return template.replaceAll("CREATED_AT", column);
 };
 
@@ -1497,6 +1646,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const range = lower(query.range || "month") || "month";
+  const operationsStartHour = await resolveBusinessDayStartHour();
   const limit = Math.min(Math.max(Number(query.limit) || 60, 1), 200);
   const kindFilter = lower(query.kind || "all") || "all";
 
@@ -1583,7 +1733,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
         ${bindLateral(accountJoinTemplate, "order_edit", "a.id")}
         WHERE ($1::bigint IS NULL OR a.tenant_id = $1::bigint OR a.tenant_id IS NULL)
           ${branchClause}
-          AND ${operationRangeClause(range, "a.created_at")}
+          AND ${operationRangeClause(range, "a.created_at", operationsStartHour)}
         ORDER BY a.created_at DESC
         LIMIT ${limit}
         `,
@@ -1616,7 +1766,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
         ${bindLateral(accountJoinTemplate, "return", "r.id")}
         WHERE ($1::bigint IS NULL OR r.tenant_id = $1::bigint OR r.tenant_id IS NULL)
           ${branchClause}
-          AND ${operationRangeClause(range, "r.created_at")}
+          AND ${operationRangeClause(range, "r.created_at", operationsStartHour)}
         ORDER BY r.created_at DESC
         LIMIT ${limit}
         `,
@@ -1676,7 +1826,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
         WHERE COALESCE(o.exchange_mode, FALSE) = TRUE
           AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
           ${branchClause}
-          AND ${operationRangeClause(range, "o.created_at")}
+          AND ${operationRangeClause(range, "o.created_at", operationsStartHour)}
         ORDER BY o.created_at DESC
         LIMIT ${limit}
         `,
@@ -1903,98 +2053,6 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   };
 };
 
-/* ======================================================
-   THE SHOP'S DAY, NOT THE CALENDAR'S
-
-   A shop that trades past midnight does not have a day that ends at 00:00. Bounding this
-   card by CURRENT_DATE cut the open drawer's evening off the tape the moment the calendar
-   turned, while the drawer figure beside it — computed by shift_id, with no date bound —
-   went on reporting the whole night. So the day here runs from one business-day start to
-   the next: 04:00 → 04:00 by default, which puts a whole trading night inside one window
-   and makes the midnight problem structurally impossible rather than patched around.
-
-   The manager can also name the window outright: ?from=<instant>&to=<instant>.
-====================================================== */
-
-const DEFAULT_BUSINESS_DAY_START_HOUR = 4;
-// A manager asking for a decade of invoices would time the request out and truncate against
-// the row cap anyway. Wide enough for any real question, bounded enough to stay answerable.
-const MAX_WINDOW_DAYS = 92;
-
-const resolveBusinessDayStartHour = async () => {
-  const stored = await getSetting("pos.business_day_start_hour", DEFAULT_BUSINESS_DAY_START_HOUR)
-    .catch(() => DEFAULT_BUSINESS_DAY_START_HOUR);
-  const hour = Number(stored);
-  if (!Number.isFinite(hour)) return DEFAULT_BUSINESS_DAY_START_HOUR;
-  return Math.min(Math.max(Math.trunc(hour), 0), 23);
-};
-
-const parseInstant = (value) => {
-  const raw = clean(value);
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  return Number.isFinite(parsed.getTime()) ? parsed : null;
-};
-
-/*
- * The default window is resolved in SQL, never in JS: the server process runs on UTC by
- * contract ([[app-timezone-entry-vs-storage]]) while the database session reads on Cairo, so
- * "the business day containing now" is only correct when the database answers it. `+ INTERVAL
- * '1 day'` rather than 24 hours so the window still starts at 04:00 across a DST change.
- */
-const resolveDayWindow = async ({ from, to, startHour }) => {
-  const requestedFrom = parseInstant(from);
-  const requestedTo = parseInstant(to);
-
-  if (requestedFrom || requestedTo) {
-    const windowStart = requestedFrom || new Date(requestedTo.getTime() - 86_400_000);
-    const windowEnd = requestedTo && requestedTo > windowStart
-      ? requestedTo
-      : new Date(windowStart.getTime() + 86_400_000);
-    const maxEnd = new Date(windowStart.getTime() + MAX_WINDOW_DAYS * 86_400_000);
-    return {
-      windowStart,
-      windowEnd: windowEnd > maxEnd ? maxEnd : windowEnd,
-      isCustom: true,
-    };
-  }
-
-  // NOT safeQuery. safeQuery swallows the error and returns [], and the fallback below is a
-  // rolling 24 hours — which is last night plus today, i.e. indistinguishable from the very
-  // bug this card was fixed for. A silent degrade here would read as "the fix did not work",
-  // so the failure is logged and declared in the payload instead of being hidden.
-  let row = null;
-  let degraded = false;
-  try {
-    const result = await db.query(
-      `
-      SELECT day_start AS window_start, day_start + INTERVAL '1 day' AS window_end
-      FROM (
-        SELECT date_trunc('day', NOW() - make_interval(hours => $1::int)) + make_interval(hours => $1::int) AS day_start
-      ) t
-      `,
-      [startHour]
-    );
-    row = result.rows[0] || null;
-  } catch (error) {
-    degraded = true;
-    console.error("[manager-portal] business-day window query failed — the day card is falling back to a rolling 24 hours", {
-      message: error?.message || String(error),
-      code: error?.code || "",
-      startHour,
-    });
-  }
-  if (row?.window_start && row?.window_end) {
-    return { windowStart: new Date(row.window_start), windowEnd: new Date(row.window_end), isCustom: false };
-  }
-  const now = new Date();
-  return {
-    windowStart: new Date(now.getTime() - 86_400_000),
-    windowEnd: now,
-    isCustom: false,
-    degraded: degraded || true,
-  };
-};
 
 // The day, read the way the shop is organised: one list of branches, each opening onto the
 // drawers under it, and picking a drawer narrows the whole card to that till — its invoices,
