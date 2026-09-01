@@ -4,6 +4,12 @@ import i18n from "../../../i18n/i18n";
 import { managerPortalApi } from "../services/managerPortalApi";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
+import {
+  ATTENDANCE_TZ,
+  describeManualShift,
+  isOvernightRow,
+  toDateKey,
+} from "../lib/attendanceShift";
 
 const tt = (key, options) => i18n.t(key, options);
 const formatNumber = (value) => new Intl.NumberFormat("ar-EG").format(Number(value || 0));
@@ -20,11 +26,14 @@ const formatDate = (value) => {
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
   return new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "short", year: "numeric" }).format(date);
 };
+// Pinned to the attendance timezone, like the edit form's `toClockInput`: read
+// on a phone left on another zone, an unpinned clock disagreed with the value
+// the same row put in the editor.
 const formatClock = (value) => {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("ar-EG", { hour: "2-digit", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("ar-EG", { timeZone: ATTENDANCE_TZ, hour: "2-digit", minute: "2-digit" }).format(date);
 };
 const formatMinutes = (minutes) => {
   const m = Math.max(0, Math.round(Number(minutes || 0)));
@@ -33,14 +42,6 @@ const formatMinutes = (minutes) => {
   const r = m % 60;
   return h ? `${h} س ${r ? `${r} د` : ""}`.trim() : `${r} د`;
 };
-const ATTENDANCE_TZ = "Africa/Cairo";
-const toDateKey = (value) => {
-  if (!value) return "";
-  const str = String(value);
-  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
-};
 const toClockInput = (value) => {
   if (!value) return "";
   const date = new Date(value);
@@ -48,12 +49,6 @@ const toClockInput = (value) => {
   const parts = new Intl.DateTimeFormat("en-GB", { timeZone: ATTENDANCE_TZ, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
   const get = (type) => parts.find((part) => part.type === type)?.value || "00";
   return `${get("hour")}:${get("minute")}`;
-};
-const nextDateKey = (dateKey) => {
-  const [y, m, day] = String(dateKey || "").split("-").map(Number);
-  if (!y || !m || !day) return dateKey;
-  const next = new Date(Date.UTC(y, m - 1, day + 1));
-  return next.toISOString().slice(0, 10);
 };
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: ATTENDANCE_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const monthLabel = (month) => {
@@ -170,15 +165,25 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const openAttendanceEditor = (row = null) => {
     setAttNotice("");
     setAttForm(row
-      ? { date: toDateKey(row.date), check_in: toClockInput(row.check_in), check_out: toClockInput(row.check_out), reason: "" }
-      : { date: isCurrentMonth ? todayKey() : `${month}-01`, check_in: "", check_out: "", reason: "" });
+      ? { date: toDateKey(row.date), check_in: toClockInput(row.check_in), check_out: toClockInput(row.check_out), reason: "", confirm_long: false }
+      : { date: isCurrentMonth ? todayKey() : `${month}-01`, check_in: "", check_out: "", reason: "", confirm_long: false });
   };
+
+  // What the correction adds up to, recomputed as the manager types, so the
+  // day's length and the check-out's calendar day are on screen before saving.
+  const attShift = useMemo(
+    () => describeManualShift({ date: attForm?.date, checkIn: attForm?.check_in, checkOut: attForm?.check_out }),
+    [attForm?.date, attForm?.check_in, attForm?.check_out]
+  );
 
   const submitAttendance = async (event) => {
     event.preventDefault();
     if (!attForm) return;
     if (!attForm.check_in) { setAttNotice(tt("managerPortal.employeeDetails.checkInRequired")); return; }
     if (!String(attForm.reason || "").trim()) { setAttNotice(tt("managerPortal.employeeDetails.attendanceReasonRequired")); return; }
+    // A 12-hour picker turns one mis-tapped ص/م into a day twice its real
+    // length, and the derived next-day check-out makes the result look valid.
+    if (attShift?.isLong && !attForm.confirm_long) { setAttNotice(tt("managerPortal.employeeDetails.longShiftBlocked")); return; }
     try {
       setAttSaving(true);
       setAttNotice("");
@@ -187,8 +192,9 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
         check_in_time: attForm.check_in,
         check_out_time: attForm.check_out || "",
         // A night shift checks out after midnight: a check-out clock that is not
-        // after the check-in clock belongs to the next calendar day.
-        check_out_date: attForm.check_out && attForm.check_out <= attForm.check_in ? nextDateKey(attForm.date) : attForm.date,
+        // after the check-in clock belongs to the next calendar day. The sheet
+        // shows that date, and the length it implies, before this is sent.
+        check_out_date: attShift?.checkOutDate || attForm.date,
         correction_scope: attForm.check_out ? "both" : "check_in",
         reason: attForm.reason.trim(),
       });
@@ -355,6 +361,26 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                         </div>
                       </div>
                       <div className="mt-1 text-[10px] font-bold text-slate-400">{tt("managerPortal.employeeDetails.checkOutOptional")}</div>
+                      {attShift ? (
+                        <div className={`mt-2 rounded-xl border px-3 py-2 text-[11px] font-black ${attShift.isLong ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-white text-slate-600"}`}>
+                          <div>
+                            {tt("managerPortal.employeeDetails.shiftLength")}: {formatMinutes(attShift.minutes)}
+                            {attShift.spansMidnight ? ` · ${tt("managerPortal.employeeDetails.checkOutNextDay")} (${formatDay(attShift.checkOutDate)})` : ""}
+                          </div>
+                          {attShift.isLong ? <div className="mt-1 font-bold">{tt("managerPortal.employeeDetails.longShiftWarning")}</div> : null}
+                          {attShift.isLong ? (
+                            <label className="mt-2 flex items-center gap-2 font-bold">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(attForm.confirm_long)}
+                                onChange={(e) => setAttForm((f) => ({ ...f, confirm_long: e.target.checked }))}
+                                className="h-4 w-4 rounded border-rose-300"
+                              />
+                              <span>{tt("managerPortal.employeeDetails.longShiftConfirm")}</span>
+                            </label>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <input type="text" value={attForm.reason} onChange={(e) => setAttForm((f) => ({ ...f, reason: e.target.value }))} placeholder={tt("managerPortal.employeeDetails.attendanceReason")} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-950" />
                       {attNotice ? <div className="mt-2 text-xs font-bold text-rose-700">{attNotice}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -391,7 +417,14 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                             <tr key={String(row.date)}>
                               <td className="px-2 py-2 whitespace-nowrap">{formatDay(row.date)}</td>
                               <td className="px-2 py-2 tabular-nums">{formatClock(row.check_in)}</td>
-                              <td className="px-2 py-2 tabular-nums">{formatClock(row.check_out)}</td>
+                              <td className="px-2 py-2 tabular-nums whitespace-nowrap">
+                                {formatClock(row.check_out)}
+                                {isOvernightRow(row.check_in, row.check_out) ? (
+                                  <sup className="ms-0.5 text-[9px] font-black text-amber-600" title={tt("managerPortal.employeeDetails.checkOutNextDay")}>
+                                    {tt("managerPortal.employeeDetails.nextDayShort")}
+                                  </sup>
+                                ) : null}
+                              </td>
                               <td className="px-2 py-2 tabular-nums">{formatNumber(row.work_hours)}</td>
                               <td className={`px-2 py-2 tabular-nums ${row.late_minutes > 0 ? "text-rose-700" : "text-slate-400"}`}>{formatMinutes(row.late_minutes)}</td>
                               <td className={`px-2 py-2 tabular-nums ${row.overtime_minutes > 0 ? "text-emerald-700" : "text-slate-400"}`}>{formatMinutes(row.overtime_minutes)}</td>

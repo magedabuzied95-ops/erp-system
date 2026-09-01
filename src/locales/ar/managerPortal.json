@@ -705,7 +705,13 @@
     "attendanceSaved": "تم حفظ الحضور",
     "attendanceSaveError": "تعذر حفظ الحضور",
     "cancel": "إلغاء",
-    "corrected": "معدّل يدويًا"
+    "corrected": "معدّل يدويًا",
+    "shiftLength": "مدة اليوم",
+    "checkOutNextDay": "انصراف اليوم التالي",
+    "nextDayShort": "+١",
+    "longShiftWarning": "مدة غير معتادة — راجع ص/م قبل الحفظ",
+    "longShiftConfirm": "أؤكد أن الوردية بهذا الطول فعلاً",
+    "longShiftBlocked": "أكّد الوردية الطويلة قبل الحفظ"
   },
   "weekdays": {
     "0": "الأحد",

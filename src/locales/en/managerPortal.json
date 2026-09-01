@@ -705,7 +705,13 @@
     "attendanceSaved": "Attendance saved",
     "attendanceSaveError": "Could not save attendance",
     "cancel": "Cancel",
-    "corrected": "Manually corrected"
+    "corrected": "Manually corrected",
+    "shiftLength": "Day length",
+    "checkOutNextDay": "Check-out next day",
+    "nextDayShort": "+1",
+    "longShiftWarning": "Unusual length — check AM/PM before saving",
+    "longShiftConfirm": "I confirm the shift really was this long",
+    "longShiftBlocked": "Confirm the long shift before saving"
   },
   "weekdays": {
     "0": "Sun",
