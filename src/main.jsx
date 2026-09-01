@@ -9,6 +9,7 @@ import "./theme/reference.css";
 import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?m1PreviewApi=2";
 import { installChunkLoadRecovery, installStylesheetRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
 import { installDayFirstDateInputs } from "./shared/utils/dateInputLocale";
+import { installNumericZeroSelect } from "./shared/utils/numericInputZero";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -73,6 +74,7 @@ clearStaleApiOverrides();
 installChunkLoadRecovery();
 installStylesheetRecovery();
 installDayFirstDateInputs();
+installNumericZeroSelect();
 
 
 if (import.meta.env.DEV) {

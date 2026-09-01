@@ -1307,7 +1307,8 @@ function InvoiceDiscountModal({
             min="0"
             max={normalizedType === "percentage" ? 100 : safeSubtotal}
             step="0.01"
-            value={draftValue || 0}
+            placeholder="0"
+            value={draftValue || ""}
             onChange={(event) => {
               const nextValue = Math.max(0, Number(event.target.value || 0));
               setDraftValue(normalizedType === "percentage" ? Math.min(100, nextValue) : Math.min(safeSubtotal, nextValue));
@@ -2921,7 +2922,8 @@ function SplitPaymentSheet({
                   min="0"
                   max={maxValue}
                   step="0.01"
-                  value={methodAmounts[method.key] || 0}
+                  placeholder="0"
+                  value={methodAmounts[method.key] || ""}
                   onChange={(event) => onSetMethodAmount(method.key, event.target.value)}
                   className="h-[var(--control-height-lg)] min-w-0 rounded-xl border border-white/10 bg-black/40 px-3 text-right text-base font-black text-white outline-none transition focus:border-emerald-300/50"
                 />
