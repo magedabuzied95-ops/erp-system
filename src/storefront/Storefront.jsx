@@ -2800,6 +2800,54 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
   );
 }
 
+// The clip is trimmed and re-encoded to 7s / 640x338 / no audio — 236 KB down
+// from the 1.66 MB source. Trimming the file is what makes it small: capping
+// the loop in JS was tried first, on the theory that a progressive MP4 is
+// fetched in ranges and restarting early would leave the tail undownloaded.
+// Measured, and it does not — the browser buffered all 24.6s either way.
+function StorefrontHeroVideo() {
+  const videoRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
+  // A browser pauses a playing video once its tab is hidden, and does not
+  // resume it on the way back — so leaving the site and returning would leave
+  // the hero frozen on whatever frame it stopped at. Nudge it back.
+  useEffect(() => {
+    const resume = () => {
+      const video = videoRef.current;
+      if (!video || document.visibilityState !== "visible" || !video.paused) return;
+      const attempt = video.play();
+      if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+    };
+  }, []);
+
+  return (
+    <div className="sf-hero-video" aria-hidden="true">
+      <video
+        ref={videoRef}
+        className={`sf-hero-video__media${ready ? " is-ready" : ""}`}
+        src="/media/hero-walk.mp4"
+        // No poster file: the frame's own average colour is the backdrop, which
+        // costs nothing to download and is already painted before the first
+        // frame arrives.
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        tabIndex={-1}
+        onCanPlay={() => setReady(true)}
+      />
+    </div>
+  );
+}
+
 function PremiumHomePage(props) {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
@@ -2985,6 +3033,7 @@ function PremiumHomePage(props) {
       className="m1h sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
       data-theme={themeTokens.resolvedMode}
     >
+      <StorefrontHeroVideo />
       <HomeHero
         isRtl={isRtl}
         loading={loading}

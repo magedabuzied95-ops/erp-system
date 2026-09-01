@@ -7667,3 +7667,50 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     text-align: center;
   }
 }
+
+/* ============================================================================
+   HERO VIDEO — the first thing on the storefront home
+   ----------------------------------------------------------------------------
+   Full-bleed, muted, looping, no controls: it is scenery, not a player, which
+   is why it is aria-hidden and out of the tab order.
+
+   The backdrop is the clip's own average colour (#aea28e, sampled from a
+   frame), so the block is painted the instant it lays out and the video fades
+   in over it. That is a poster image's job done with zero bytes.
+   ========================================================================== */
+@layer components {
+  .storefront-shell .sf-hero-video {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 11;
+    max-height: 62vh;
+    overflow: hidden;
+    background: #aea28e;
+  }
+
+  @media (min-width: 768px) {
+    .storefront-shell .sf-hero-video {
+      aspect-ratio: 21 / 9;
+      max-height: 70vh;
+    }
+  }
+
+  .storefront-shell .sf-hero-video__media {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    opacity: 0;
+    transition: opacity 500ms ease;
+  }
+
+  .storefront-shell .sf-hero-video__media.is-ready {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .storefront-shell .sf-hero-video__media {
+      transition: none;
+    }
+  }
+}
