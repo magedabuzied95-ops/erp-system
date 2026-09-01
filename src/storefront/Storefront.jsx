@@ -2800,30 +2800,60 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
   );
 }
 
-// The clip is trimmed and re-encoded to 7s / 640x338 / no audio — 236 KB down
-// from the 1.66 MB source. Trimming the file is what makes it small: capping
-// the loop in JS was tried first, on the theory that a progressive MP4 is
-// fetched in ranges and restarting early would leave the tail undownloaded.
-// Measured, and it does not — the browser buffered all 24.6s either way.
+// The clip is trimmed and re-encoded to 7s / 1366x720 / no audio — 1.24 MB
+// down from the 8.75 MB source, and less than half of what levelshoes.com
+// ships for the same slot (2.79 MB). It was 640 wide once: sharp in a still at
+// 1:1, mush on a phone, because a 375px-wide box on a 3x screen paints 1125
+// device pixels. Match the device pixels, not the CSS box.
+//
+// Trimming the file is what makes it small: capping the loop in JS was tried
+// first, on the theory that a progressive MP4 is fetched in ranges and
+// restarting early would leave the tail undownloaded. Measured, and it does
+// not — the browser buffered the whole clip either way.
 function StorefrontHeroVideo() {
   const videoRef = useRef(null);
   const [ready, setReady] = useState(false);
 
-  // A browser pauses a playing video once its tab is hidden, and does not
-  // resume it on the way back — so leaving the site and returning would leave
-  // the hero frozen on whatever frame it stopped at. Nudge it back.
   useEffect(() => {
-    const resume = () => {
-      const video = videoRef.current;
-      if (!video || document.visibilityState !== "visible" || !video.paused) return;
-      const attempt = video.play();
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    // React assigns `muted` as a property, and a browser deciding whether a
+    // video may autoplay reads the attribute. Without this the clip is treated
+    // as audible, autoplay is refused, and iOS paints its own play button over
+    // the middle of the hero — which is exactly what a background video must
+    // never look like.
+    video.muted = true;
+    video.setAttribute("muted", "");
+
+    let released = false;
+    const play = () => {
+      if (released || !videoRef.current || videoRef.current.paused === false) return;
+      const attempt = videoRef.current.play();
       if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
     };
+
+    // Low Power Mode and data-saver refuse autoplay outright. Nothing brings
+    // those back except a user gesture, so borrow the first one that lands
+    // anywhere on the page — the visitor never knows they started it.
+    const playOnGesture = () => play();
+    // A browser also pauses a playing video once its tab is hidden and does not
+    // resume it on the way back, which would leave the hero frozen mid-stride.
+    const resume = () => {
+      if (document.visibilityState === "visible") play();
+    };
+
+    play();
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("pageshow", resume);
+    document.addEventListener("pointerdown", playOnGesture, { passive: true });
+    document.addEventListener("touchstart", playOnGesture, { passive: true });
     return () => {
+      released = true;
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("pageshow", resume);
+      document.removeEventListener("pointerdown", playOnGesture);
+      document.removeEventListener("touchstart", playOnGesture);
     };
   }, []);
 
@@ -2840,7 +2870,10 @@ function StorefrontHeroVideo() {
         muted
         loop
         playsInline
-        preload="metadata"
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        preload="auto"
         tabIndex={-1}
         onCanPlay={() => setReady(true)}
       />

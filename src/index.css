@@ -7674,7 +7674,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
    Full-bleed, muted, looping, no controls: it is scenery, not a player, which
    is why it is aria-hidden and out of the tab order.
 
-   The backdrop is the clip's own average colour (#aea28e, sampled from a
+   The backdrop is the clip's own average colour (#a69b89, sampled from a
    frame), so the block is painted the instant it lays out and the video fades
    in over it. That is a poster image's job done with zero bytes.
    ========================================================================== */
@@ -7685,7 +7685,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     aspect-ratio: 16 / 11;
     max-height: 62vh;
     overflow: hidden;
-    background: #aea28e;
+    background: #a69b89;
   }
 
   @media (min-width: 768px) {
@@ -7712,5 +7712,24 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     .storefront-shell .sf-hero-video__media {
       transition: none;
     }
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   The hero is scenery, not a player. iOS paints its own centred play button
+   over any video it declined to autoplay, and Chrome will offer controls on a
+   long-press, so both are refused outright and taps pass through to the page.
+   -------------------------------------------------------------------------- */
+@layer components {
+  .storefront-shell .sf-hero-video__media {
+    pointer-events: none;
+  }
+
+  .storefront-shell .sf-hero-video__media::-webkit-media-controls,
+  .storefront-shell .sf-hero-video__media::-webkit-media-controls-panel,
+  .storefront-shell .sf-hero-video__media::-webkit-media-controls-start-playback-button {
+    display: none !important;
+    -webkit-appearance: none;
+    appearance: none;
   }
 }
