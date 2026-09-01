@@ -59,6 +59,7 @@ import toast from "react-hot-toast";
 const SharedPortalChat = lazy(() => import("../../../shared/chat/SharedPortalChat"));
 import { chatCacheScope } from "../../../shared/chat/chatCache";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { formatInAppTimezone, instantToWallClock, wallClockToInstant } from "../../../shared/lib/appTimezone";
 import { resolveProductImageUrl, resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import { SOCKET_URL } from "../../../shared/constants/app";
 import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtimeFeedbackAudio } from "../../../services/realtimeFeedbackService";
@@ -179,6 +180,19 @@ const formatDateTime = (value) => {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+};
+/*
+ * The day window is read on the SHOP's clock, not the device's. It has to be: the pickers next
+ * to it convert what the manager types against the shop's zone, so a label rendered in the
+ * phone's zone would state a window an hour or three away from the one the query actually used.
+ */
+const formatShopDateTime = (value) => {
+  if (!value) return "-";
+  return formatInAppTimezone(
+    value,
+    { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" },
+    portalLocale()
+  ) || "-";
 };
 const formatShortDay = (value) => {
   if (!value) return "-";
@@ -961,6 +975,11 @@ export default function ManagerPortal() {
   const [daySummaryLoading, setDaySummaryLoading] = useState(false);
   const [daySelection, setDaySelection] = useState({ branchId: "all", shiftId: "all" });
   const [expandedDayBranches, setExpandedDayBranches] = useState({});
+  // Wall-clock strings, exactly as the datetime-local inputs hold them. Empty means "the
+  // business day the shop is in right now", which only the server can resolve — the browser
+  // may be on another clock entirely.
+  const [dayRange, setDayRange] = useState({ from: "", to: "" });
+  const [dayRangeOpen, setDayRangeOpen] = useState(false);
   const [expensesOpen, setExpensesOpen] = useState(false);
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [operationsRange, setOperationsRange] = useState("month");
@@ -1299,6 +1318,14 @@ export default function ManagerPortal() {
   };
   const dayBranches = Array.isArray(daySummary?.branches) ? daySummary.branches : [];
   const dayInvoices = Array.isArray(daySummary?.invoices) ? daySummary.invoices : [];
+  // The window the SERVER actually used, not the one the inputs happen to hold — a clamped or
+  // defaulted range must read back as what was applied, or the card states a window it did
+  // not use. The pickers seed from it too, so opening them shows the real 4am-to-4am day.
+  const dayWindow = daySummary?.window || null;
+  const dayRangeIsCustom = Boolean(dayWindow?.is_custom);
+  const dayRangeFromValue = dayRange.from || instantToWallClock(dayWindow?.from);
+  const dayRangeToValue = dayRange.to || instantToWallClock(dayWindow?.to);
+  const clearDayRange = () => setDayRange({ from: "", to: "" });
   // A branch opens when it is picked, so choosing a branch already shows the drawers inside it
   // — the manager never has to hunt for a second control to get down to a till.
   const isDayBranchOpen = (branchId) => (
@@ -1702,8 +1729,18 @@ export default function ManagerPortal() {
     if (!token || loading || activeTab !== "today") return;
     let cancelled = false;
     setDaySummaryLoading(true);
+    // The inputs hand back a wall clock with no zone. Sending it raw is the bug that cost a
+    // coupon campaign an evening, so it is converted against the SHOP's zone, not the
+    // browser's — a manager checking last night's till from another country still gets the
+    // shop's 4am, and a laptop with a wrong clock cannot skew the window.
+    const rangeParams = {};
+    const fromInstant = wallClockToInstant(dayRange.from);
+    const toInstant = wallClockToInstant(dayRange.to);
+    if (fromInstant) rangeParams.from = fromInstant;
+    if (toInstant) rangeParams.to = toInstant;
+
     managerPortalApi
-      .daySummary(token, { branch_id: daySelection.branchId, shift_id: daySelection.shiftId })
+      .daySummary(token, { branch_id: daySelection.branchId, shift_id: daySelection.shiftId, ...rangeParams })
       .then((response) => {
         if (cancelled) return;
         setDaySummary(normalizeManagerPortalPayload("daySummary", response?.daySummary || null));
@@ -1715,7 +1752,7 @@ export default function ManagerPortal() {
         if (!cancelled) setDaySummaryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [token, loading, activeTab, daySelection.branchId, daySelection.shiftId]);
+  }, [token, loading, activeTab, daySelection.branchId, daySelection.shiftId, dayRange.from, dayRange.to]);
 
   const markNotificationRead = async (id) => {
     const previous = notifications;
@@ -2784,6 +2821,71 @@ export default function ManagerPortal() {
                   compact
                   bodyClassName="space-y-3"
                 >
+                  {/* The window, stated rather than assumed. The shop's day runs 04:00 → 04:00,
+                      so a night that trades past midnight stays whole; the manager can also name
+                      any window outright. A picked drawer overrides both — its tape is its whole
+                      life, because the cash figure at the bottom is computed over the whole shift. */}
+                  <div className="rounded-[var(--radius-card)] border border-slate-200 bg-slate-50 px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
+                    <button
+                      type="button"
+                      onClick={() => setDayRangeOpen((open) => !open)}
+                      className="flex w-full items-center justify-between gap-2 text-right"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                          {tt("managerPortal.dayAccounts.window")}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs font-bold text-slate-700 dark:text-slate-200">
+                          {daySummary?.window?.scoped_to_shift
+                            ? tt("managerPortal.dayAccounts.windowWholeShift")
+                            : dayWindow
+                              ? `${formatShopDateTime(dayWindow.from)} ← ${formatShopDateTime(dayWindow.to)}`
+                              : "—"}
+                        </span>
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-2">
+                        {dayRangeIsCustom ? (
+                          <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-700 dark:text-amber-200">
+                            {tt("managerPortal.dayAccounts.windowCustom")}
+                          </span>
+                        ) : null}
+                        <ChevronDown className={`h-4 w-4 text-slate-500 transition ${dayRangeOpen ? "rotate-180" : ""}`} />
+                      </span>
+                    </button>
+
+                    {dayRangeOpen ? (
+                      <div className="mt-2 space-y-2 border-t border-slate-200 pt-2 dark:border-white/10">
+                        <label className="block">
+                          <span className="mb-1 block text-[10px] font-black text-slate-500">{tt("managerPortal.dayAccounts.windowFrom")}</span>
+                          <input
+                            type="datetime-local"
+                            value={dayRangeFromValue}
+                            onChange={(event) => setDayRange((current) => ({ ...current, from: event.target.value }))}
+                            className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[10px] font-black text-slate-500">{tt("managerPortal.dayAccounts.windowTo")}</span>
+                          <input
+                            type="datetime-local"
+                            value={dayRangeToValue}
+                            onChange={(event) => setDayRange((current) => ({ ...current, to: event.target.value }))}
+                            className="w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-2 py-1.5 text-xs font-bold text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100"
+                          />
+                        </label>
+                        {dayRangeIsCustom || dayRange.from || dayRange.to ? (
+                          <button
+                            type="button"
+                            onClick={clearDayRange}
+                            className="w-full rounded-[var(--radius-control)] border border-slate-300 bg-white px-2 py-1.5 text-[11px] font-black text-slate-600 dark:border-white/15 dark:bg-white/[0.04] dark:text-slate-200"
+                          >
+                            {tt("managerPortal.dayAccounts.windowReset")}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+
                   {/* ONE list: every branch, and the drawers under it, in the same column.
                       Picking a branch opens it, so getting from "all branches" down to a single
                       till is two taps in one place instead of two separate controls. */}

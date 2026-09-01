@@ -738,6 +738,12 @@
     "drawerLabel": "درج",
     "invoicesTitle": "الفواتير",
     "noInvoices": "مفيش فواتير في النطاق ده",
-    "totalsTitle": "الإجماليات"
+    "totalsTitle": "الإجماليات",
+    "window": "الفترة المعروضة",
+    "windowCustom": "فترة مخصصة",
+    "windowFrom": "من",
+    "windowTo": "إلى",
+    "windowReset": "رجّع ليوم المحل",
+    "windowWholeShift": "الوردية كاملة، من فتحها لحد قفلها"
   }
 }

@@ -1903,32 +1903,80 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   };
 };
 
-// How long a drawer keeps its takings on this card after it is closed. A shop that trades
-// past midnight has a day that ends when the till is counted, not when the calendar turns:
-// CURRENT_DATE alone empties an open drawer's tape at 00:00 while the drawer figure below
-// it — computed by shift_id, with no date bound — still reads the whole night. The two must
-// agree, so a live drawer's sales are pinned to the card for its whole life, and for this
-// long after it closes, before the calendar day takes over again.
-const DEFAULT_SHIFT_GRACE_HOURS = 3;
-const MAX_SHIFT_GRACE_HOURS = 24;
+/* ======================================================
+   THE SHOP'S DAY, NOT THE CALENDAR'S
 
-// Clamped rather than trusted: the value reaches SQL as an interval, and a shop that types
-// 999 into the box would pin every drawer it has ever opened to the card.
-const resolveShiftGraceHours = async () => {
-  const stored = await getSetting("pos.shift_visibility_grace_hours", DEFAULT_SHIFT_GRACE_HOURS).catch(() => DEFAULT_SHIFT_GRACE_HOURS);
-  const hours = Number(stored);
-  if (!Number.isFinite(hours)) return DEFAULT_SHIFT_GRACE_HOURS;
-  return Math.min(Math.max(hours, 0), MAX_SHIFT_GRACE_HOURS);
+   A shop that trades past midnight does not have a day that ends at 00:00. Bounding this
+   card by CURRENT_DATE cut the open drawer's evening off the tape the moment the calendar
+   turned, while the drawer figure beside it — computed by shift_id, with no date bound —
+   went on reporting the whole night. So the day here runs from one business-day start to
+   the next: 04:00 → 04:00 by default, which puts a whole trading night inside one window
+   and makes the midnight problem structurally impossible rather than patched around.
+
+   The manager can also name the window outright: ?from=<instant>&to=<instant>.
+====================================================== */
+
+const DEFAULT_BUSINESS_DAY_START_HOUR = 4;
+// A manager asking for a decade of invoices would time the request out and truncate against
+// the row cap anyway. Wide enough for any real question, bounded enough to stay answerable.
+const MAX_WINDOW_DAYS = 92;
+
+const resolveBusinessDayStartHour = async () => {
+  const stored = await getSetting("pos.business_day_start_hour", DEFAULT_BUSINESS_DAY_START_HOUR)
+    .catch(() => DEFAULT_BUSINESS_DAY_START_HOUR);
+  const hour = Number(stored);
+  if (!Number.isFinite(hour)) return DEFAULT_BUSINESS_DAY_START_HOUR;
+  return Math.min(Math.max(Math.trunc(hour), 0), 23);
 };
 
-// A drawer is "live" while it is open, and for the grace period after it is closed. An open
-// drawer is live however long it has been running — the grace only governs closed ones.
-const isLiveShiftRow = (row = {}, graceHours = DEFAULT_SHIFT_GRACE_HOURS) => {
-  if (lower(clean(row.status)) === "open") return true;
-  if (!row.closed_at) return false;
-  const closedAt = new Date(row.closed_at).getTime();
-  if (!Number.isFinite(closedAt)) return false;
-  return Date.now() - closedAt <= graceHours * 3_600_000;
+const parseInstant = (value) => {
+  const raw = clean(value);
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+};
+
+/*
+ * The default window is resolved in SQL, never in JS: the server process runs on UTC by
+ * contract ([[app-timezone-entry-vs-storage]]) while the database session reads on Cairo, so
+ * "the business day containing now" is only correct when the database answers it. `+ INTERVAL
+ * '1 day'` rather than 24 hours so the window still starts at 04:00 across a DST change.
+ */
+const resolveDayWindow = async ({ from, to, startHour }) => {
+  const requestedFrom = parseInstant(from);
+  const requestedTo = parseInstant(to);
+
+  if (requestedFrom || requestedTo) {
+    const windowStart = requestedFrom || new Date(requestedTo.getTime() - 86_400_000);
+    const windowEnd = requestedTo && requestedTo > windowStart
+      ? requestedTo
+      : new Date(windowStart.getTime() + 86_400_000);
+    const maxEnd = new Date(windowStart.getTime() + MAX_WINDOW_DAYS * 86_400_000);
+    return {
+      windowStart,
+      windowEnd: windowEnd > maxEnd ? maxEnd : windowEnd,
+      isCustom: true,
+    };
+  }
+
+  const rows = await safeQuery(
+    `
+    SELECT day_start AS window_start, day_start + INTERVAL '1 day' AS window_end
+    FROM (
+      SELECT date_trunc('day', NOW() - make_interval(hours => $1::int)) + make_interval(hours => $1::int) AS day_start
+    ) t
+    `,
+    [startHour],
+    []
+  );
+  const row = rows[0];
+  if (row?.window_start && row?.window_end) {
+    return { windowStart: new Date(row.window_start), windowEnd: new Date(row.window_end), isCustom: false };
+  }
+  // Only reachable if the database is unavailable, in which case every query below returns
+  // its fallback anyway. A last-24-hours window keeps the shape valid.
+  const now = new Date();
+  return { windowStart: new Date(now.getTime() - 86_400_000), windowEnd: now, isCustom: false };
 };
 
 // The day, read the way the shop is organised: one list of branches, each opening onto the
@@ -1944,7 +1992,12 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
   const branchId = forcedBranchId || requestedBranchId;
   const shiftId = lower(clean(query.shift_id)) === "all" ? null : numberOrNull(query.shift_id);
 
-  const graceHours = await resolveShiftGraceHours();
+  const startHour = await resolveBusinessDayStartHour();
+  const { windowStart, windowEnd, isCustom } = await resolveDayWindow({
+    from: query.from,
+    to: query.to,
+    startHour,
+  });
 
   const [hasShifts, hasExpenses, hasBranches, hasCashEvents, hasReturns] = await Promise.all([
     tableExists("cash_drawer_shifts"),
@@ -1972,10 +2025,9 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     : [];
 
   // Every drawer the manager may see, for the list itself — NOT narrowed by the current pick,
-  // for the same reason the branch list is not. A shift opened before midnight and still open
-  // belongs to today's drawer: the money in it has not been counted yet. A shift closed just
-  // before midnight is held for the grace period too, or a cashier who closes at 23:50 loses
-  // the whole night off the manager's screen ten minutes later.
+  // for the same reason the branch list is not. A drawer belongs to the window if it OVERLAPS
+  // it, not if it opened inside it: a shift opened at 20:00 and still running at 02:00 is one
+  // trading night, and the 04:00 boundary keeps it whole.
   const shiftRows = hasShifts
     ? await safeQuery(
         `
@@ -1991,24 +2043,15 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         LEFT JOIN users u ON u.id = s.opened_by
         WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint)
           AND ($2::bigint IS NULL OR s.branch_id = $2::bigint)
-          AND (
-            LOWER(COALESCE(s.status, '')) = 'open'
-            OR s.opened_at >= CURRENT_DATE
-            OR s.closed_at >= CURRENT_DATE
-            OR s.closed_at >= NOW() - ($3::float8 * INTERVAL '1 hour')
-          )
+          AND s.opened_at < $4
+          AND (s.closed_at IS NULL OR s.closed_at >= $3)
         ORDER BY s.opened_at DESC
         LIMIT 60
         `,
-        [tenantId, forcedBranchId, graceHours],
+        [tenantId, forcedBranchId, windowStart, windowEnd],
         []
       )
     : [];
-
-  // The window the figures below cover: the calendar day, PLUS everything rung on a drawer
-  // that is still live. Without the second half, CURRENT_DATE deletes an open shift's night
-  // at 00:00 — the tape goes empty while the drawer under it still reports the cash.
-  const liveShiftIds = shiftRows.filter((row) => isLiveShiftRow(row, graceHours)).map((row) => Number(row.id)).filter(Boolean);
 
   // What the figures below cover: one drawer if picked, else every drawer in the picked
   // branch, else everything visible.
@@ -2020,15 +2063,23 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
   const scopedShiftIds = scopedShifts.map((row) => Number(row.id)).filter(Boolean);
 
   // Picking a drawer scopes by shift_id ALONE — a sale rung on another till in the same branch
-  // is not this drawer's money, however much the branch matches.
-  const orderParams = [tenantId, liveShiftIds];
+  // is not this drawer's money, however much the branch matches. It also drops the time bound:
+  // a picked drawer IS the window, and it has to be, because the drawer figure at the bottom
+  // is computed over the whole shift. Windowing the tape but not the total is how the two came
+  // to disagree in the first place.
+  const orderParams = [tenantId];
   let orderScopeClause = "";
+  let orderWindowClause = "";
   if (shiftId) {
     orderParams.push(shiftId);
     orderScopeClause = ` AND o.shift_id = $${orderParams.length}`;
-  } else if (branchId) {
-    orderParams.push(branchId);
-    orderScopeClause = ` AND o.branch_id = $${orderParams.length}`;
+  } else {
+    orderParams.push(windowStart, windowEnd);
+    orderWindowClause = ` AND o.created_at >= $${orderParams.length - 1} AND o.created_at < $${orderParams.length}`;
+    if (branchId) {
+      orderParams.push(branchId);
+      orderScopeClause = ` AND o.branch_id = $${orderParams.length}`;
+    }
   }
   const orderRows = await safeQuery(
     `
@@ -2045,10 +2096,10 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
       COALESCE(o.card_amount, 0) AS card_amount,
       COALESCE(o.wallet_payment_amount, 0) AS wallet_payment_amount
     FROM orders o
-    WHERE (o.created_at >= CURRENT_DATE OR o.shift_id = ANY($2::bigint[]))
-      AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+    WHERE ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
       ${personalOrderClause("o")}
+      ${orderWindowClause}
       ${orderScopeClause}
     ORDER BY o.created_at DESC
     LIMIT 300
@@ -2057,14 +2108,20 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     []
   );
 
-  const expenseParams = [tenantId, liveShiftIds];
+  const expenseParams = [tenantId];
   let expenseScopeClause = "";
+  let expenseWindowClause = "";
   if (shiftId) {
     expenseParams.push(shiftId);
     expenseScopeClause = ` AND e.shift_id = $${expenseParams.length}`;
-  } else if (branchId) {
-    expenseParams.push(branchId);
-    expenseScopeClause = ` AND e.branch_id = $${expenseParams.length}`;
+  } else {
+    expenseParams.push(windowStart, windowEnd);
+    expenseWindowClause = ` AND COALESCE(e.created_at, e.expense_date::timestamptz) >= $${expenseParams.length - 1}`
+      + ` AND COALESCE(e.created_at, e.expense_date::timestamptz) < $${expenseParams.length}`;
+    if (branchId) {
+      expenseParams.push(branchId);
+      expenseScopeClause = ` AND e.branch_id = $${expenseParams.length}`;
+    }
   }
   const expenseRows = hasExpenses
     ? await safeQuery(
@@ -2088,9 +2145,9 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
         FROM expenses e
         ${hasBranches ? "LEFT JOIN branches b ON b.id = e.branch_id" : ""}
         LEFT JOIN users u ON u.id = e.created_by
-        WHERE (COALESCE(e.created_at, e.expense_date::timestamp) >= CURRENT_DATE OR e.shift_id = ANY($2::bigint[]))
-          AND ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
+        WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
           AND LOWER(COALESCE(e.status, '')) NOT IN ('rejected', 'cancelled', 'canceled', 'void')
+          ${expenseWindowClause}
           ${expenseScopeClause}
         ORDER BY e.created_at DESC
         LIMIT 200
@@ -2198,6 +2255,18 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
 
   return {
     generated_at: new Date().toISOString(),
+    // The window the figures actually cover, echoed back so the card can state it rather than
+    // leave the manager guessing, and so the pickers seed from the server's answer instead of
+    // recomputing "the business day" in a browser on a different clock.
+    window: {
+      from: windowStart.toISOString(),
+      to: windowEnd.toISOString(),
+      business_day_start_hour: startHour,
+      is_custom: isCustom,
+      // A picked drawer overrides the window: its tape is its whole life, so the totals below
+      // reconcile with its cash figure.
+      scoped_to_shift: Boolean(shiftId),
+    },
     selection: {
       branch_id: branchId,
       shift_id: shiftId,

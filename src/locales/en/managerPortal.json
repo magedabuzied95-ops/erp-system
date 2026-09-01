@@ -738,6 +738,12 @@
     "drawerLabel": "Drawer",
     "invoicesTitle": "Invoices",
     "noInvoices": "No invoices in this scope",
-    "totalsTitle": "Totals"
+    "totalsTitle": "Totals",
+    "window": "Showing",
+    "windowCustom": "Custom range",
+    "windowFrom": "From",
+    "windowTo": "To",
+    "windowReset": "Back to the shop's day",
+    "windowWholeShift": "The whole shift, open to close"
   }
 }
