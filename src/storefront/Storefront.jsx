@@ -2800,11 +2800,18 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
   );
 }
 
-// The clip is trimmed and re-encoded to 7s / 1366x720 / no audio — 1.24 MB
-// down from the 8.75 MB source, and less than half of what levelshoes.com
-// ships for the same slot (2.79 MB). It was 640 wide once: sharp in a still at
-// 1:1, mush on a phone, because a 375px-wide box on a 3x screen paints 1125
-// device pixels. Match the device pixels, not the CSS box.
+// The clip is trimmed and re-encoded to 12s / 1366x720 / no audio — 1.88 MB
+// down from the 8.75 MB source, and still under what levelshoes.com ships for
+// the same slot (2.79 MB). It was 640 wide once: sharp in a still at 1:1, mush
+// on a phone, because a 375px-wide box on a 3x screen paints 1125 device
+// pixels. Match the device pixels, not the CSS box.
+//
+// The loop cuts rather than dissolves. The footage is one continuous pull-back
+// from tarmac to open sand, so no 12s window ends anywhere near where it
+// began; crossfading the join — at 1s and again at 0.4s — put two very
+// different framings on screen at once and read as a double exposure, which is
+// worse than a cut. The window starts at 0 because that is where the shoes are
+// closest to camera.
 //
 // Trimming the file is what makes it small: capping the loop in JS was tried
 // first, on the theory that a progressive MP4 is fetched in ranges and

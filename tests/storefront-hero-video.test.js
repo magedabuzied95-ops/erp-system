@@ -22,16 +22,33 @@ const heroVideoComponent = (() => {
 })();
 
 // levelshoes.com — the reference for this slot — ships 2.79 MB for its mobile
-// hero. Ours is 1.24 MB. The ceiling sits between the two: comfortably under
-// what the reference spends, with room for a re-encode, and low enough to
-// catch an untranscoded master being dropped in.
-const HERO_VIDEO_BYTE_BUDGET = 2 * 1024 * 1024;
+// hero. Ours is 1.88 MB. The ceiling sits between the two: under what the
+// reference spends, with room for a re-encode, and low enough to catch an
+// untranscoded master (8.75 MB) being dropped in.
+const HERO_VIDEO_BYTE_BUDGET = 2.5 * 1024 * 1024;
 
 test("the hero video stays inside its byte budget", () => {
   const bytes = statSync(heroVideoPath).size;
   assert.ok(
     bytes <= HERO_VIDEO_BYTE_BUDGET,
     `public/media/hero-walk.mp4 is ${bytes} bytes, over the ${HERO_VIDEO_BYTE_BUDGET} budget`
+  );
+});
+
+// The owner asked for 12 seconds. Longer costs roughly 165 KB a second, so a
+// re-encode that quietly restores the full 24.6s master would blow the budget
+// above as well — this names the intent rather than leaving it to arithmetic.
+test("the hero video runs for 12 seconds", () => {
+  const bytes = readFileSync(heroVideoPath);
+  const mvhd = bytes.indexOf(Buffer.from("mvhd", "latin1"));
+  assert.notEqual(mvhd, -1, "hero-walk.mp4 has no movie header");
+  assert.equal(bytes.readUInt8(mvhd + 4), 0, "mvhd is not the 32-bit version this reader handles");
+  const timescale = bytes.readUInt32BE(mvhd + 16);
+  const duration = bytes.readUInt32BE(mvhd + 20);
+  const seconds = duration / timescale;
+  assert.ok(
+    Math.abs(seconds - 12) < 0.5,
+    `hero-walk.mp4 runs ${seconds.toFixed(2)}s, not the 12s asked for`
   );
 });
 
