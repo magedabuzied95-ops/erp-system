@@ -238,8 +238,6 @@
     "manufacturerTitle": "New manufacturer",
     "brandNameLabel": "Brand name",
     "manufacturerNameLabel": "Manufacturer name",
-    "brandHint": "It is added and selected right away. Logo and sort order live on the brands page.",
-    "manufacturerHint": "It is added and selected right away. Phone, address and notes live on the manufacturers page.",
     "nameRequired": "Name is required",
     "save": "Add",
     "saving": "Adding...",
