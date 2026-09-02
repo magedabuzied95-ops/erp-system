@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { QuickCreateEntityDialog } from "./QuickCreateEntityDialog";
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
 import { isSchoolBagType, SCHOOL_BAG_SIZE_OPTIONS } from "../lib/schoolBagSizes";
@@ -41,6 +42,7 @@ function ProductForm({
   purchasePiecesPerSize = "",
   purchaseCartonColors = [],
   onBrandChange,
+  onBrandCreated,
   onUnitChange,
   onVariationModeChange,
   onAudiencesChange,
@@ -65,6 +67,9 @@ function ProductForm({
   const brandWrapRef = useRef(null);
   const [brandOpen, setBrandOpen] = useState(false);
   const [brandQuery, setBrandQuery] = useState(() => brand || "");
+  /* null keeps the quick-add dialog closed; a string opens it with that name
+     prefilled, so "no brand matched what I typed" turns into one click. */
+  const [brandDraftName, setBrandDraftName] = useState(null);
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const filteredBrands = useMemo(() => {
     const query = String(brandQuery || "").trim();
@@ -113,14 +118,28 @@ function ProductForm({
         <div className="grid grid-cols-1 gap-4">
           <div className="relative" ref={brandWrapRef}>
             <label className="text-sm font-semibold text-text-muted">{t("products.form.brand")} *</label>
-            <button
-              type="button"
-              onClick={() => setBrandOpen((current) => !current)}
-              className="mt-2 flex h-[var(--control-height-lg)] w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-left text-text outline-none transition hover:border-border-strong focus:border-emerald-400/50"
-            >
-              <span className={brand ? "truncate" : "text-text-muted"}>{brand || t("products.form.searchBrand")}</span>
-              <ChevronDown size={16} className="shrink-0 text-text-muted" />
-            </button>
+            <div className="mt-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setBrandOpen((current) => !current)}
+                className="flex h-[var(--control-height-lg)] min-w-0 flex-1 items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-left text-text outline-none transition hover:border-border-strong focus:border-emerald-400/50"
+              >
+                <span className={brand ? "truncate" : "text-text-muted"}>{brand || t("products.form.searchBrand")}</span>
+                <ChevronDown size={16} className="shrink-0 text-text-muted" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBrandOpen(false);
+                  setBrandDraftName("");
+                }}
+                title={t("products.quickCreate.addBrand", "إضافة علامة تجارية")}
+                aria-label={t("products.quickCreate.addBrand", "إضافة علامة تجارية")}
+                className="inline-flex h-[var(--control-height-lg)] w-[var(--control-height-lg)] shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 text-primary transition hover:border-primary/50 hover:bg-primary/20"
+              >
+                <Plus size={18} strokeWidth={2.5} />
+              </button>
+            </div>
 
             {brandOpen ? (
               <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl">
@@ -158,7 +177,43 @@ function ProductForm({
                     <div className="px-3 py-4 text-sm text-text-muted">{t("products.form.noBrands")}</div>
                   )}
                 </div>
+                <div className="border-t border-border p-1">
+                  <button
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      setBrandDraftName(String(brandQuery || "").trim());
+                      setBrandOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-[var(--radius-control)] px-3 py-2 text-sm font-black text-primary transition hover:bg-primary/10"
+                  >
+                    <Plus size={15} strokeWidth={2.5} />
+                    <span className="truncate">
+                      {String(brandQuery || "").trim()
+                        ? t("products.quickCreate.addNamed", {
+                            name: String(brandQuery).trim(),
+                            defaultValue: "إضافة «{{name}}»",
+                          })
+                        : t("products.quickCreate.addBrand", "إضافة علامة تجارية")}
+                    </span>
+                  </button>
+                </div>
               </div>
+            ) : null}
+
+            {brandDraftName !== null ? (
+              <QuickCreateEntityDialog
+                entity="brand"
+                initialName={brandDraftName}
+                existing={brands}
+                onClose={() => setBrandDraftName(null)}
+                onCreated={(record) => {
+                  onBrandCreated?.(record);
+                  onBrandChange?.(record.name, record);
+                  setBrandQuery(record.name);
+                  setBrandOpen(false);
+                }}
+              />
             ) : null}
           </div>
 

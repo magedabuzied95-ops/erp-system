@@ -230,6 +230,28 @@
     "selectBagType": "اختر نوع الشنطة",
     "setOriginalPrice": "إضافة سعر قبل الخصم"
   },
+  "quickCreate": {
+    "addBrand": "إضافة علامة تجارية",
+    "addManufacturer": "إضافة مصنّع",
+    "addNamed": "إضافة «{{name}}»",
+    "brandTitle": "علامة تجارية جديدة",
+    "manufacturerTitle": "مصنّع جديد",
+    "brandNameLabel": "اسم العلامة التجارية",
+    "manufacturerNameLabel": "اسم المصنّع",
+    "brandHint": "هتتضاف وتتحدد على طول. اللوجو والترتيب من صفحة العلامات التجارية.",
+    "manufacturerHint": "هيتضاف ويتحدد على طول. التليفون والعنوان والملاحظات من صفحة المصانع.",
+    "nameRequired": "الاسم مطلوب",
+    "save": "إضافة",
+    "saving": "جارٍ الإضافة...",
+    "cancel": "إلغاء",
+    "brandCreated": "تمت إضافة العلامة التجارية",
+    "manufacturerCreated": "تمت إضافة المصنّع",
+    "brandExists": "العلامة التجارية موجودة بالفعل، وتم اختيارها",
+    "manufacturerExists": "المصنّع موجود بالفعل، وتم اختياره",
+    "brandFailed": "تعذر إضافة العلامة التجارية",
+    "manufacturerFailed": "تعذر إضافة المصنّع",
+    "noRecord": "لم يرجع الخادم السجل الجديد"
+  },
   "variantMessages": {
     "loadFailed": "فشل تحميل الخيارات",
     "selectInputs": "اختر المنتج والألوان والمقاسات أولًا",

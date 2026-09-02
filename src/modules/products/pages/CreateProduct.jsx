@@ -979,6 +979,27 @@ function CreateProduct() {
   const hasRowContent = (row) =>
     Boolean([row?.size, row?.sku, row?.barcode, row?.price].some((value) => String(value || "").trim()));
 
+  /* A brand or a factory created from inside the form is merged into the list
+     the pickers read, so the new record is selectable without a reload - and it
+     goes first, because it is the one just asked for. */
+  const handleBrandCreated = (record) => {
+    const normalized = normalizeBrandRows([record])[0];
+    if (!normalized) return;
+    setBrands((current) => [
+      normalized,
+      ...current.filter((item) => String(item.id) !== String(normalized.id)),
+    ]);
+  };
+
+  const handleManufacturerCreated = (record) => {
+    const normalized = normalizeManufacturerRows([record])[0];
+    if (!normalized) return;
+    setManufacturers((current) => [
+      normalized,
+      ...current.filter((item) => String(item.id) !== String(normalized.id)),
+    ]);
+  };
+
   const normalizeManufacturerId = (value) => {
     const next = String(value || "").trim();
     return next ? next : "";
@@ -2794,6 +2815,7 @@ function CreateProduct() {
                   setBrand(nextBrand);
                   setBrandId(selected?.id ? String(selected.id) : "");
                 }}
+                onBrandCreated={handleBrandCreated}
                 onUnitChange={setUnit}
                 onVariationModeChange={setVariationMode}
                 onGenderChange={setGender}
@@ -3555,6 +3577,7 @@ function CreateProduct() {
                     <ManufacturerSelect
                       value={defaultManufacturerId}
                       onChange={applyDefaultManufacturer}
+                      onCreated={handleManufacturerCreated}
                       manufacturers={manufacturers}
                       placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                     />
@@ -3938,6 +3961,7 @@ function CreateProduct() {
                                   <ManufacturerSelect
                                     value={normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id)}
                                     onChange={(value) => updateColorGroup(group.id, "manufacturer_ids", value)}
+                                    onCreated={handleManufacturerCreated}
                                     manufacturers={manufacturers}
                                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                                     isMulti

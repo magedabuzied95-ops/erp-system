@@ -1828,6 +1828,28 @@ function ProductEdit() {
     product_type: product.product_type,
   });
 
+  /* A brand or a factory created from inside the form is merged into the list
+     the pickers read, so the new record is selectable without a reload - and it
+     goes first, because it is the one just asked for. */
+  const handleBrandCreated = (record) => {
+    const id = String(record?.id ?? record?.brand_id ?? "").trim();
+    const name = String(record?.name || "").trim();
+    if (!id || !name) return;
+    setBrands((current) => [
+      { ...record, id, name },
+      ...current.filter((item) => String(item.id) !== id),
+    ]);
+  };
+
+  const handleManufacturerCreated = (record) => {
+    const normalized = normalizeManufacturerRows([record])[0];
+    if (!normalized) return;
+    setManufacturers((current) => [
+      normalized,
+      ...current.filter((item) => String(item.id) !== String(normalized.id)),
+    ]);
+  };
+
   const getManufacturerName = (manufacturerId) =>
     getManufacturerRecord(manufacturers, manufacturerId)?.name ||
     getManufacturerRecord(manufacturers, manufacturerId)?.manufacturer_name ||
@@ -3975,6 +3997,7 @@ function ProductEdit() {
               useCustomComparePrice={product.use_custom_compare_price}
               customComparePrice={product.custom_compare_price}
               onBrandChange={setBrand}
+              onBrandCreated={handleBrandCreated}
               onUnitChange={setUnit}
               onVariationModeChange={(value) => updateProductField("variation_mode", value)}
               onGenderChange={(value) => updateProductField("gender", value)}
@@ -4374,6 +4397,7 @@ function ProductEdit() {
                   <ManufacturerSelect
                     value={defaultManufacturerId}
                     onChange={applyDefaultManufacturer}
+                    onCreated={handleManufacturerCreated}
                     manufacturers={manufacturers}
                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                   />
@@ -4795,6 +4819,7 @@ function ProductEdit() {
                             <ManufacturerSelect
                               value={normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id)}
                               onChange={(value) => updateColorGroup(group.id, "manufacturer_ids", value)}
+                              onCreated={handleManufacturerCreated}
                               manufacturers={manufacturers}
                               placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                               isMulti

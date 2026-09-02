@@ -230,6 +230,28 @@
     "selectBagType": "Select bag type",
     "setOriginalPrice": "Add a price before discount"
   },
+  "quickCreate": {
+    "addBrand": "Add brand",
+    "addManufacturer": "Add manufacturer",
+    "addNamed": "Add “{{name}}”",
+    "brandTitle": "New brand",
+    "manufacturerTitle": "New manufacturer",
+    "brandNameLabel": "Brand name",
+    "manufacturerNameLabel": "Manufacturer name",
+    "brandHint": "It is added and selected right away. Logo and sort order live on the brands page.",
+    "manufacturerHint": "It is added and selected right away. Phone, address and notes live on the manufacturers page.",
+    "nameRequired": "Name is required",
+    "save": "Add",
+    "saving": "Adding...",
+    "cancel": "Cancel",
+    "brandCreated": "Brand added",
+    "manufacturerCreated": "Manufacturer added",
+    "brandExists": "That brand already exists, so it was selected",
+    "manufacturerExists": "That manufacturer already exists, so it was selected",
+    "brandFailed": "Could not add the brand",
+    "manufacturerFailed": "Could not add the manufacturer",
+    "noRecord": "The server did not return the new record"
+  },
   "variantMessages": {
     "loadFailed": "Failed to load variants",
     "selectInputs": "Select a product, colors, and sizes first",

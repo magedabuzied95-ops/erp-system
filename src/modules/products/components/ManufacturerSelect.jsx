@@ -1,6 +1,9 @@
+import { useState } from "react";
+
 import Select from "react-select";
 import { useTranslation } from "react-i18next";
 
+import QuickCreateEntityButton from "./QuickCreateEntityDialog";
 import { createM1SelectTypographyStyles } from "../../../shared/ui/selectTypography";
 
 const getManufacturerId = (manufacturer = {}) =>
@@ -15,9 +18,20 @@ const getManufacturerName = (manufacturer = {}) =>
       getManufacturerId(manufacturer)
   ).trim();
 
-export default function ManufacturerSelect({ manufacturers = [], value = "", onChange, placeholder, isMulti = false }) {
+export default function ManufacturerSelect({
+  manufacturers = [],
+  value = "",
+  onChange,
+  onCreated,
+  placeholder,
+  isMulti = false,
+}) {
   const { i18n } = useTranslation();
   const isRtl = String(i18n.resolvedLanguage || i18n.language || "").toLowerCase().startsWith("ar");
+  /* Only "input-change" is recorded: react-select also fires this handler with
+     "" on blur and menu-close, which would wipe the name the moment the user
+     reaches for the + button. */
+  const [typedName, setTypedName] = useState("");
   const typographyStyles = createM1SelectTypographyStyles({ isRtl });
   const options = manufacturers
     .map((manufacturer) => ({
@@ -32,13 +46,35 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
     ? options.filter((option) => selectedValues.has(option.value))
     : options.find((option) => option.value === String(value || "")) || null;
 
-  return (
+  /* A factory added from here is added because it is wanted here, so the new
+     record is selected too - appended for the multi (per-colour) control, and
+     set outright for the single one. */
+  const handleCreated = (record) => {
+    onCreated?.(record);
+    setTypedName("");
+    const id = String(record?.id || "").trim();
+    if (!id) return;
+
+    if (isMulti) {
+      const next = [...selectedValues].filter(Boolean);
+      if (!next.includes(id)) next.push(id);
+      onChange?.(next);
+      return;
+    }
+
+    onChange?.(id);
+  };
+
+  const select = (
     <Select
       value={selectedOption}
       options={options}
       onChange={(option) => onChange?.(
         isMulti ? (Array.isArray(option) ? option.map((item) => item.value) : []) : option?.value || ""
       )}
+      onInputChange={(nextValue, meta) => {
+        if (meta?.action === "input-change") setTypedName(nextValue);
+      }}
       placeholder={placeholder}
       noOptionsMessage={() => "لا توجد مصانع متاحة"}
       isClearable
@@ -109,5 +145,19 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
         noOptionsMessage: (base) => ({ ...typographyStyles.noOptionsMessage(base), color: "var(--muted)" }),
       }}
     />
+  );
+
+  if (!onCreated) return select;
+
+  return (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">{select}</div>
+      <QuickCreateEntityButton
+        entity="manufacturer"
+        existing={manufacturers}
+        initialName={typedName}
+        onCreated={handleCreated}
+      />
+    </div>
   );
 }
