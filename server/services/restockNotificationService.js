@@ -299,6 +299,11 @@ export const rejectNotification = async (tenantId, id, { userId, reason = "" } =
 // Default deps.sender is the audited canonical WhatsApp sender, lazy-imported only when actually sending.
 const defaultSender = async ({ channel, recipientId, text, tenantId, conversationId, imageUrl = "" }) => {
   if (channel === "whatsapp") {
+    // A person approved this and is watching for the result, so it stays synchronous rather than
+    // going through the outbound queue. What it must not do is hand the message to a dead socket,
+    // where it would sit in Evolution's buffer unseen until the session returns.
+    const { assertWhatsappReachable } = await import("./whatsappQueue/connectionGate.js");
+    await assertWhatsappReachable({ tenantId: tenantId || 0, purpose: "a restock notification" });
     const { sendTextMessage, sendImageMessage } = await import("./whatsappGatewayService.js");
     // The colour photo carries the text as its caption — one message, not two.
     // If the provider refuses the media, the text still goes out on its own so a

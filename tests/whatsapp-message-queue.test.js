@@ -370,3 +370,124 @@ test("message age is reported in the unit that reads naturally", () => {
   assert.match(relativeAge("2026-08-30T06:00:00Z", t, now), /ageHours:6/);
   assert.match(relativeAge("2026-08-27T12:00:00Z", t, now), /ageDays:3/);
 });
+
+/* ---- the September gap: the automations that were still bypassing the queue ---- */
+
+const couponsService = read("../server/services/couponsService.js");
+const restockService = read("../server/services/restockNotificationService.js");
+const connectionGate = read("../server/services/whatsappQueue/connectionGate.js");
+
+test("order confirmation and payment review go through the queue too", () => {
+  const confirmation = invoiceService.slice(
+    invoiceService.indexOf("export const sendOrderConfirmation"),
+    invoiceService.indexOf("export const sendPaymentReviewNotification")
+  );
+  assert.match(confirmation, /automationType: "order_confirmation"/);
+  assert.match(confirmation, /kind: "order_confirmation_buttons"/, "the reply buttons survive the move");
+  assert.match(confirmation, /order_column: "whatsapp_confirmation_sent_at"/);
+  assert.ok(
+    confirmation.indexOf("queueWhatsappAutomation(") < confirmation.indexOf("sendOrderConfirmationInteractiveMessage({"),
+    "the queue is in front of the gateway"
+  );
+
+  const review = invoiceService.slice(invoiceService.indexOf("export const sendPaymentReviewNotification"));
+  assert.match(review, /automationType: "payment_review"/);
+  assert.match(review, /order_column: "whatsapp_payment_review_sent_at"/);
+});
+
+test("both are transactional, so they get the long expiry and the full retry budget", () => {
+  // A customer is waiting on these; arriving late still beats never arriving.
+  assert.equal(whatsappAutomationCategory("order_confirmation"), "transactional");
+  assert.equal(whatsappAutomationCategory("payment_review"), "transactional");
+});
+
+test("every column an automation stamps is on the worker's allowlist", () => {
+  // A column missing here is refused at send time and the once-only guard silently never sets,
+  // which would let the same message go out again on the next trigger.
+  for (const column of [
+    "whatsapp_invoice_sent_at",
+    "whatsapp_confirmation_sent_at",
+    "whatsapp_payment_review_sent_at",
+    "whatsapp_shipment_created_sent_at",
+    "whatsapp_delivered_sent_at",
+  ]) {
+    assert.match(worker, new RegExp(`"${column}"`), `${column} is allowlisted`);
+  }
+  // Whatever a caller asks to stamp must be one of those, not whatever the payload says.
+  assert.match(worker, /if \(!SENT_AT_COLUMNS\.has\(column\)\)/);
+});
+
+test("the sends that stay synchronous refuse to hand a message to a dead socket", () => {
+  /*
+   * A coupon hand-off and an approved restock notification report their result to the person who
+   * triggered them, so queueing them would replace a real answer with "we will try later". What
+   * they must not do is POST into a closed socket, where the message vanishes into Evolution's own
+   * buffer — unseen, unpaceable, and delivered days later in a burst.
+   */
+  assert.match(couponsService, /assertWhatsappReachable\(/, "coupons ask first");
+  assert.match(restockService, /assertWhatsappReachable\(/, "restock notifications ask first");
+  for (const [name, source, sendCall] of [
+    ["coupons", couponsService, "const result = await sendTextMessage({ phone, message: text });"],
+    ["restock", restockService, "const { sendTextMessage, sendImageMessage } = await import"],
+  ]) {
+    assert.ok(
+      source.indexOf("assertWhatsappReachable(") < source.indexOf(sendCall),
+      `${name} checks before it sends, not after`
+    );
+  }
+});
+
+test("the gate is a guard, not an authority: silence means carry on", () => {
+  // A gate that failed closed would stop every coupon on a database hiccup, which is a worse
+  // outage than the one it is guarding against.
+  assert.match(connectionGate, /if \(!state\.known \|\| state\.connected !== false\) return state/);
+  assert.match(connectionGate, /reason: "lookup_failed"/, "a failed lookup reads as unknown, not as offline");
+  assert.match(connectionGate, /reason: "observation_stale"/, "and so does a stale one");
+  assert.match(connectionGate, /OBSERVATION_MAX_AGE_MS/, "an old reading is not evidence");
+});
+
+test("a dead session is announced on its own, not only through the backlog", async () => {
+  const { alertIfOfflineTooLong } = await import("../server/services/whatsappQueue/worker.js");
+  const longAgo = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+
+  // Every one of these must return false WITHOUT touching the database.
+  assert.equal(
+    await alertIfOfflineTooLong({ thresholdMinutes: 0, runtime: { last_disconnected_at: longAgo } }),
+    false,
+    "0 disables the alert — the operator's call"
+  );
+  assert.equal(
+    await alertIfOfflineTooLong({ thresholdMinutes: 20, runtime: { last_disconnected_at: longAgo, offline_alerted_at: new Date().toISOString() } }),
+    false,
+    "once per outage, not once per tick"
+  );
+  assert.equal(
+    await alertIfOfflineTooLong({ thresholdMinutes: 20, runtime: {} }),
+    false,
+    "no recorded drop yet — one tick is not an outage"
+  );
+  assert.equal(
+    await alertIfOfflineTooLong({ thresholdMinutes: 20, runtime: { last_disconnected_at: new Date(Date.now() - 60_000).toISOString() } }),
+    false,
+    "a one-minute blip is not worth waking anyone for"
+  );
+});
+
+test("the alert watches the clock, because the backlog is a broken smoke alarm", () => {
+  const fn = worker.slice(worker.indexOf("export const alertIfOfflineTooLong"), worker.indexOf("export const clearOfflineAlert"));
+  // The September outage: 3 days down, pending never passed 16, nothing fired.
+  assert.doesNotMatch(fn, /pendingCount\s*[<>]=?/, "the decision must not depend on how much is waiting");
+  assert.match(fn, /offlineMinutes < threshold/, "it depends on how long the channel has been dead");
+  assert.match(fn, /offline_alerted_at = NOW\(\)/, "and latches so it fires once");
+  // The latch must be cleared on reconnect or the next outage passes in silence.
+  assert.match(worker, /if \(runtime\?\.offline_alerted_at\) await clearOfflineAlert\(tenantId\)/);
+  assert.match(worker, /offline_alerted_at = NULL/);
+});
+
+test("the offline alert threshold is a setting, with a default that is not zero", () => {
+  assert.equal(typeof WHATSAPP_QUEUE_DEFAULTS.offline_alert_minutes, "number");
+  assert.ok(WHATSAPP_QUEUE_DEFAULTS.offline_alert_minutes > 0, "it ships armed");
+  assert.equal(normalizeWhatsappQueueConfig({ offline_alert_minutes: 0 }).offline_alert_minutes, 0, "0 stays 0 — that is how it is switched off");
+  assert.equal(normalizeWhatsappQueueConfig({ offline_alert_minutes: -5 }).offline_alert_minutes, 0);
+  assert.equal(normalizeWhatsappQueueConfig(undefined).offline_alert_minutes, WHATSAPP_QUEUE_DEFAULTS.offline_alert_minutes);
+});

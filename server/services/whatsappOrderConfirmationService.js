@@ -820,6 +820,62 @@ export const sendOrderConfirmation = async (order = {}) => {
         has_confirm_url: Boolean(confirmUrl),
       });
     }
+    /*
+     * Transactional, so it goes through the outbound queue with the long expiry and the full retry
+     * budget — the customer is waiting on this one and arriving late still beats never arriving.
+     *
+     * It used to POST straight at Evolution, which is how 101 confirmations were fired into a dead
+     * socket over three days in September with nothing recorded and nothing recoverable. Queued,
+     * they are visible, paced, and cancellable.
+     */
+    const queued = await queueWhatsappAutomation({
+      tenantId: messageTenantId,
+      automationType: "order_confirmation",
+      customerId: current?.customer_id || null,
+      orderId: current.id,
+      invoiceNumber: text(current?.invoice_number),
+      recipientPhone: phone,
+      send: {
+        kind: "order_confirmation_buttons",
+        title: "تأكيد الطلب",
+        footer: "M1 Store",
+        // The links-and-actions form: what the customer needs when no button renders.
+        fallbackText: buildOrderConfirmationLinksMessage({
+          order: current,
+          customerName: current.customer_name,
+          publicUrl: confirmUrl,
+          withLink: true,
+          withActions: true,
+        }),
+      },
+      values: {
+        customer_name: text(current?.customer_name),
+        order_number: orderRef,
+        invoice_number: text(current?.invoice_number),
+        total: current?.total_amount ?? current?.total ?? "",
+      },
+      fallbackBody: message,
+      onSent: {
+        order_column: "whatsapp_confirmation_sent_at",
+        transcript: {
+          session_id: `whatsapp:${phone}`,
+          source: "whatsapp_order_confirmation",
+          customer_name: text(current?.customer_name),
+          message,
+        },
+      },
+      directSend: null,
+    });
+    if (queued.queued || queued.duplicate) {
+      console.info("[whatsapp:order-confirmation-queued]", {
+        order_id: current.id,
+        order_number: orderRef,
+        queue_id: queued.id || null,
+        duplicate: Boolean(queued.duplicate),
+      });
+      return { sent: false, queued: true, duplicate: Boolean(queued.duplicate), queueId: queued.id || null, order: current };
+    }
+
     // Buttons render since Evolution 2.4.0 (see docs/decisions/whatsapp-interactive-buttons-evolution.md).
     // The message body keeps the secure link, so a client that fails to render the buttons still has a path.
     try {
@@ -971,8 +1027,41 @@ export const sendPaymentReviewNotification = async (order = {}) => {
   try {
     const items = Array.isArray(order.items) && order.items.length ? order.items : await loadOrderItems(current.id);
     const message = buildPaymentReviewMessage(current, items);
-    const result = await sendTextMessage({ phone, message });
     const messageTenantId = tenantIdForMessage(current, current);
+
+    // Transactional: the customer is waiting to be told their transfer is being checked.
+    const queued = await queueWhatsappAutomation({
+      tenantId: messageTenantId,
+      automationType: "payment_review",
+      customerId: current?.customer_id || null,
+      orderId: current.id,
+      invoiceNumber: text(current?.invoice_number),
+      recipientPhone: phone,
+      send: { kind: "text" },
+      values: {
+        customer_name: text(current?.customer_name),
+        order_number: orderNumber(current),
+        invoice_number: text(current?.invoice_number),
+        total: current?.total_amount ?? current?.total ?? "",
+      },
+      fallbackBody: message,
+      onSent: {
+        order_column: "whatsapp_payment_review_sent_at",
+        transcript: {
+          session_id: `whatsapp:${phone}`,
+          source: "whatsapp_payment_review",
+          customer_name: text(current?.customer_name),
+          message,
+        },
+      },
+      directSend: null,
+    });
+    if (queued.queued || queued.duplicate) {
+      console.info("[whatsapp:payment-review-queued]", { ...checkPayload, queue_id: queued.id || null, duplicate: Boolean(queued.duplicate) });
+      return { sent: false, queued: true, duplicate: Boolean(queued.duplicate), queueId: queued.id || null, order: current };
+    }
+
+    const result = await sendTextMessage({ phone, message });
     await db.query(
       `
       UPDATE orders

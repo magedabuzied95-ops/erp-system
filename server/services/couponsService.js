@@ -1002,6 +1002,11 @@ export const assignCouponToCustomer = async ({ tenantId = null, campaignId, cust
  * Throws WHATSAPP_SEND_FAILED when the provider does not accept it; returns the provider id.
  */
 const deliverCouponMessage = async ({ tenantId = null, phone, text, source = "coupon_assignment" } = {}) => {
+  // Ask before handing it over: a POST into a dead socket does not fail, it disappears into
+  // Evolution's own buffer and comes back out in a burst days later. Throwing here reaches the
+  // caller, which already knows how to report a coupon that did not go out.
+  const { assertWhatsappReachable } = await import("./whatsappQueue/connectionGate.js");
+  await assertWhatsappReachable({ tenantId: tenantId || 0, purpose: "a coupon message" });
   const { sendTextMessage } = await import("./whatsappGatewayService.js");
   const result = await sendTextMessage({ phone, message: text });
   const providerMessageId = result?.result?.key?.id || result?.message_id || result?.key?.id || null;

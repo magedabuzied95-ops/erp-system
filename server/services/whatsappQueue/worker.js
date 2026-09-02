@@ -54,6 +54,7 @@ const SENT_AT_COLUMNS = new Set([
   "whatsapp_out_for_delivery_sent_at",
   "whatsapp_delivered_sent_at",
   "whatsapp_confirmation_sent_at",
+  "whatsapp_payment_review_sent_at",
 ]);
 
 const WORKER_ID = `wa-queue-${process.pid}`;
@@ -109,6 +110,31 @@ export const performSend = async (row, gateway) => {
       cards: Array.isArray(send.cards) ? send.cards : [],
       fallbackText: text(send.fallbackText) || body,
     });
+  }
+
+  if (kind === "order_confirmation_buttons") {
+    /*
+     * The confirmation prompt carries ✅/✏️/❌ reply buttons, and Evolution tracks the sent message
+     * so a button press can be tied back to this order. If the buttons will not render the order
+     * still has to be confirmable, so the fallback is the same links text the direct path used —
+     * losing the buttons costs a tap, losing the message costs the order.
+     */
+    try {
+      return await gateway.sendOrderConfirmationInteractiveMessage({
+        phone,
+        title: text(send.title) || "تأكيد الطلب",
+        text: body,
+        footer: text(send.footer) || "M1 Store",
+        orderId: row.order_id,
+      });
+    } catch (buttonsError) {
+      logLifecycle("buttons-unavailable", {
+        id: row.id,
+        order_id: row.order_id,
+        error: buttonsError?.message || String(buttonsError),
+      });
+      return gateway.sendTextMessage({ phone, message: text(send.fallbackText) || body, instance });
+    }
   }
 
   return gateway.sendTextMessage({ phone, message: body, instance });
@@ -271,6 +297,80 @@ const raiseAdminAlert = async ({ tenantId, reason, details }) => {
   }
 };
 
+/*
+ * Say out loud that the channel is dead.
+ *
+ * The circuit breaker cannot do this job: it judges an outage at the moment of RECONNECT, and an
+ * outage nobody recovers from never reaches that moment. Nor can the backlog threshold, because
+ * expiry drains the queue as fast as an outage fills it — in September the session was down for
+ * three days, the pending count never passed sixteen, and not one alert fired. The shop found out
+ * because a person noticed the invoices had stopped arriving.
+ *
+ * So this watches the clock instead of the queue, and fires once per outage: `offline_alerted_at`
+ * is the latch, cleared when the session comes back so the next outage is announced too.
+ *
+ * Returns true only when it actually raised one.
+ */
+export const alertIfOfflineTooLong = async ({
+  tenantId = 0,
+  runtime = null,
+  thresholdMinutes = 0,
+  connectionState = "",
+  pendingCount = 0,
+} = {}) => {
+  const threshold = number(thresholdMinutes, 0);
+  if (threshold <= 0) return false;
+  if (runtime?.offline_alerted_at) return false;
+
+  const downSince = runtime?.last_disconnected_at ? new Date(runtime.last_disconnected_at).getTime() : 0;
+  // No recorded drop yet — this tick is the first observation, and one tick is not an outage.
+  if (!downSince) return false;
+  const offlineMinutes = (Date.now() - downSince) / 60000;
+  if (offlineMinutes < threshold) return false;
+
+  const hours = Math.floor(offlineMinutes / 60);
+  const minutes = Math.round(offlineMinutes % 60);
+  const howLong = hours > 0 ? `${hours} ساعة و${minutes} دقيقة` : `${minutes} دقيقة`;
+
+  try {
+    const { createSystemNotification } = await import("../notificationsService.js");
+    await createSystemNotification("whatsapp_gateway_offline", {
+      tenant_id: number(tenantId, 0) || null,
+      title: "واتساب مفصول",
+      message: `جلسة واتساب مقفولة من ${howLong}. مفيش أي رسالة بتخرج — لا فواتير ولا تأكيد طلبات. تحتاج إعادة ربط بمسح QR من مركز التكاملات.`,
+      action_url: "/ai-support/integrations?integrations=queue",
+      priority: "critical",
+      category: "ai",
+    });
+  } catch (error) {
+    // Failing to raise the alert must not stop us latching it — otherwise a broken notifications
+    // table would make every tick retry forever.
+    console.warn("[wa-queue] offline alert could not be raised", { message: error?.message || String(error) });
+  }
+
+  await db.query(
+    `UPDATE whatsapp_queue_runtime SET offline_alerted_at = NOW(), updated_at = NOW() WHERE tenant_id = $1`,
+    [number(tenantId, 0)]
+  );
+  console.warn("[wa-queue] gateway offline past the alert threshold", {
+    tenant_id: number(tenantId, 0),
+    offline_minutes: Math.round(offlineMinutes),
+    threshold_minutes: threshold,
+    connection_state: connectionState,
+    pending: pendingCount,
+  });
+  logLifecycle("gateway-offline-alert", { offline_minutes: Math.round(offlineMinutes), pending: pendingCount });
+  return true;
+};
+
+export const clearOfflineAlert = async (tenantId = 0) => {
+  await db.query(
+    `UPDATE whatsapp_queue_runtime SET offline_alerted_at = NULL, updated_at = NOW() WHERE tenant_id = $1`,
+    [number(tenantId, 0)]
+  );
+  logLifecycle("gateway-offline-alert-cleared", { tenant_id: number(tenantId, 0) });
+};
+
 export const pauseForReview = async ({ tenantId = 0, reason = "", details = {} } = {}) => {
   const runtime = await queueRuntimeRow(tenantId);
   if (text(runtime?.state) === "paused_for_review") return runtime;
@@ -322,8 +422,26 @@ export const runWhatsappQueueTick = async ({ tenantId = 0, gateway = null } = {}
     }
 
     if (!connected) {
-      return { skipped: true, reason: "gateway_offline", expired: expired.expired, pending: pendingCount, connected: false, state: connectionState };
+      const alerted = await alertIfOfflineTooLong({
+        tenantId,
+        runtime,
+        thresholdMinutes: settings.queue.offline_alert_minutes,
+        connectionState,
+        pendingCount,
+      });
+      return {
+        skipped: true,
+        reason: "gateway_offline",
+        expired: expired.expired,
+        pending: pendingCount,
+        connected: false,
+        state: connectionState,
+        ...(alerted ? { offline_alert_raised: true } : {}),
+      };
     }
+
+    // Back up: re-arm the alarm so the NEXT outage is announced too.
+    if (runtime?.offline_alerted_at) await clearOfflineAlert(tenantId);
 
     const outageMinutes = previousDisconnectedAt
       ? Math.max(0, (Date.now() - new Date(previousDisconnectedAt).getTime()) / 60000)

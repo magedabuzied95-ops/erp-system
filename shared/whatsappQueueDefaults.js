@@ -109,6 +109,19 @@ export const WHATSAPP_QUEUE_DEFAULTS = Object.freeze({
   failure_pause_threshold: 10,
   failure_window_minutes: 15,
 
+  /*
+   * How long the session may be down before an admin is told, independent of how much is waiting.
+   *
+   * This exists because the backlog alone is a terrible smoke alarm. In September the session was
+   * dead for three days and nothing fired: expiry kept draining the queue as fast as it filled, so
+   * the pending count never came near pending_pause_threshold, and the circuit breaker only judges
+   * an outage at the moment of reconnect — which never came. The shop found out because a person
+   * noticed the invoices had stopped. A dead channel is worth saying out loud on its own.
+   *
+   * 0 disables it.
+   */
+  offline_alert_minutes: 20,
+
   /* How long a claimed row may sit in `sending` before another worker may reclaim it. */
   claim_timeout_minutes: 10,
 });
@@ -172,6 +185,7 @@ export const normalizeWhatsappQueueConfig = (raw) => {
     pending_pause_threshold: clampNumber(source.pending_pause_threshold, WHATSAPP_QUEUE_DEFAULTS.pending_pause_threshold, 0, 100000),
     failure_pause_threshold: clampNumber(source.failure_pause_threshold, WHATSAPP_QUEUE_DEFAULTS.failure_pause_threshold, 0, 100000),
     failure_window_minutes: clampNumber(source.failure_window_minutes, WHATSAPP_QUEUE_DEFAULTS.failure_window_minutes, 1, 10080),
+    offline_alert_minutes: clampNumber(source.offline_alert_minutes, WHATSAPP_QUEUE_DEFAULTS.offline_alert_minutes, 0, 10080),
     claim_timeout_minutes: clampNumber(source.claim_timeout_minutes, WHATSAPP_QUEUE_DEFAULTS.claim_timeout_minutes, 1, 1440),
   };
 };

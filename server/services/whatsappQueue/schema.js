@@ -73,11 +73,19 @@ const run = async (clientOrPool) => {
       last_connected_at TIMESTAMPTZ NULL,
       last_disconnected_at TIMESTAMPTZ NULL,
       last_drain_at TIMESTAMPTZ NULL,
+      offline_alerted_at TIMESTAMPTZ NULL,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       CONSTRAINT whatsapp_queue_runtime_state_check
         CHECK (state IN ('running','paused','paused_for_review'))
     )
   `);
+
+  /*
+   * For installs that already have the table: CREATE TABLE IF NOT EXISTS is a no-op on them, so a
+   * column added after the first deploy needs its own ALTER or the alert below never has anywhere
+   * to record that it fired.
+   */
+  await clientOrPool.query(`ALTER TABLE IF EXISTS whatsapp_queue_runtime ADD COLUMN IF NOT EXISTS offline_alerted_at TIMESTAMPTZ NULL`);
 
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS whatsapp_variant_rotation (

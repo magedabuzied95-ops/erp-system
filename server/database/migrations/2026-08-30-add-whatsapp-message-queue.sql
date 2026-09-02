@@ -96,10 +96,14 @@ CREATE TABLE IF NOT EXISTS whatsapp_queue_runtime (
   last_connected_at TIMESTAMPTZ NULL,
   last_disconnected_at TIMESTAMPTZ NULL,
   last_drain_at TIMESTAMPTZ NULL,
+  offline_alerted_at TIMESTAMPTZ NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT whatsapp_queue_runtime_state_check
     CHECK (state IN ('running','paused','paused_for_review'))
 );
+
+-- Added after the first deploy, so installs that already have the table need the ALTER too.
+ALTER TABLE IF EXISTS whatsapp_queue_runtime ADD COLUMN IF NOT EXISTS offline_alerted_at TIMESTAMPTZ NULL;
 
 -- Round-robin position per automation type. A counter in the database rather than in memory,
 -- so a restart does not reset every customer back to variant A.
