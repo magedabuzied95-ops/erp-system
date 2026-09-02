@@ -442,7 +442,7 @@ function CreateProduct() {
 
   const categories = useMemo(() => seedCategories(), []);
   const [brands, setBrands] = useState([]);
-  const units = useMemo(() => seedUnits(), []);
+  const [units, setUnits] = useState(() => seedUnits());
   const [manufacturers, setManufacturers] = useState([]);
 
   const [name, setName] = useState("");
@@ -998,6 +998,13 @@ function CreateProduct() {
       normalized,
       ...current.filter((item) => String(item.id) !== String(normalized.id)),
     ]);
+  };
+
+  /* Units already sit in localStorage; the dialog wrote them there, so this
+     only has to bring the in-memory list back in step. */
+  const handleUnitCreated = (record) => {
+    if (!record?.id) return;
+    setUnits((current) => [...current.filter((item) => String(item.id) !== String(record.id)), record]);
   };
 
   const normalizeManufacturerId = (value) => {
@@ -2817,6 +2824,7 @@ function CreateProduct() {
                 }}
                 onBrandCreated={handleBrandCreated}
                 onUnitChange={setUnit}
+                onUnitCreated={handleUnitCreated}
                 onVariationModeChange={setVariationMode}
                 onGenderChange={setGender}
                 onAudiencesChange={(next) => {

@@ -999,7 +999,7 @@ function ProductEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const categories = useMemo(() => seedCategories(), []);
-  const units = useMemo(() => seedUnits(), []);
+  const [units, setUnits] = useState(() => seedUnits());
   const pendingColorUploadsRef = useRef(new Map());
   const colorImageUrlsRef = useRef(new Map());
   const initialProductPricingRef = useRef(buildProductPricingSnapshot(emptyProduct));
@@ -1848,6 +1848,13 @@ function ProductEdit() {
       normalized,
       ...current.filter((item) => String(item.id) !== String(normalized.id)),
     ]);
+  };
+
+  /* Units already sit in localStorage; the dialog wrote them there, so this
+     only has to bring the in-memory list back in step. */
+  const handleUnitCreated = (record) => {
+    if (!record?.id) return;
+    setUnits((current) => [...current.filter((item) => String(item.id) !== String(record.id)), record]);
   };
 
   const getManufacturerName = (manufacturerId) =>
@@ -3999,6 +4006,7 @@ function ProductEdit() {
               onBrandChange={setBrand}
               onBrandCreated={handleBrandCreated}
               onUnitChange={setUnit}
+                onUnitCreated={handleUnitCreated}
               onVariationModeChange={(value) => updateProductField("variation_mode", value)}
               onGenderChange={(value) => updateProductField("gender", value)}
               onAudiencesChange={(next) => {

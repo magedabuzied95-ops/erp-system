@@ -3,12 +3,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { QuickCreateEntityDialog } from "./QuickCreateEntityDialog";
+import QuickCreateEntityButton, { QuickCreateEntityDialog } from "./QuickCreateEntityDialog";
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
 import { isSchoolBagType, SCHOOL_BAG_SIZE_OPTIONS } from "../lib/schoolBagSizes";
 import { keyboardLayoutIncludes } from "../../../../shared/keyboardLayoutSearch";
 import { getSizeGroup, resolveSizeGroups, SIZE_GROUP_KEYS } from "../../../../server/utils/sizeGroups.js";
+
+/* The pickers in this form are all control-height-lg, so the + beside them has
+   to be too - the dialog's own default is sized for the shorter md controls. */
+const QUICK_ADD_LG_CLASS =
+  "inline-flex h-[var(--control-height-lg,44px)] w-[var(--control-height-lg,44px)] shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 text-primary transition hover:border-primary/50 hover:bg-primary/20";
 
 const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "men", label: "رجالي" },
@@ -44,6 +49,7 @@ function ProductForm({
   onBrandChange,
   onBrandCreated,
   onUnitChange,
+  onUnitCreated,
   onVariationModeChange,
   onAudiencesChange,
   onProductTypeChange,
@@ -70,7 +76,11 @@ function ProductForm({
   /* null keeps the quick-add dialog closed; a string opens it with that name
      prefilled, so "no brand matched what I typed" turns into one click. */
   const [brandDraftName, setBrandDraftName] = useState(null);
-  const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
+  const { groups: classificationGroups, refresh: refreshClassifications } = useProductClassifications({ includeInactive: false });
+  /* A new option is written against its group, so the picker needs the group's
+     id - not the field key the form works in. */
+  const classificationGroupFor = (groupKey) =>
+    classificationGroups.find((group) => String(group?.key || "") === groupKey) || null;
   const filteredBrands = useMemo(() => {
     const query = String(brandQuery || "").trim();
     if (!query) return brands;
@@ -135,7 +145,7 @@ function ProductForm({
                 }}
                 title={t("products.quickCreate.addBrand", "إضافة علامة تجارية")}
                 aria-label={t("products.quickCreate.addBrand", "إضافة علامة تجارية")}
-                className="inline-flex h-[var(--control-height-lg)] w-[var(--control-height-lg)] shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 text-primary transition hover:border-primary/50 hover:bg-primary/20"
+                className={QUICK_ADD_LG_CLASS}
               >
                 <Plus size={18} strokeWidth={2.5} />
               </button>
@@ -227,6 +237,17 @@ function ProductForm({
               label: item.symbol ? `${item.name} (${item.symbol})` : item.name,
               id: item.id || item.unit_id || item.unitId,
             }))}
+            action={
+              <QuickCreateEntityButton
+                entity="unit"
+                existing={units}
+                className={QUICK_ADD_LG_CLASS}
+                onCreated={(record) => {
+                  onUnitCreated?.(record);
+                  onUnitChange?.(String(record.id));
+                }}
+              />
+            }
           />
         </div>
       </section>
@@ -322,6 +343,19 @@ function ProductForm({
               onChange={onBagTypeChange}
               options={classificationOptions.bagType}
               placeholder={t("products.form.selectBagType", "اختر نوع الشنطة")}
+              action={
+                <QuickCreateEntityButton
+                  entity="classification"
+                  groupId={classificationGroupFor("bag_type")?.id || ""}
+                  groupLabel={t("products.form.bagType", "نوع الشنطة")}
+                  existing={classificationOptions.bagType}
+                  className={QUICK_ADD_LG_CLASS}
+                  onCreated={(record) => {
+                    onBagTypeChange?.(record.value);
+                    refreshClassifications();
+                  }}
+                />
+              }
             />
           ) : null}
 
@@ -343,6 +377,19 @@ function ProductForm({
             onChange={onGradeChange}
             options={classificationOptions.grade}
             placeholder={t("products.form.selectGrade", "اختر الدرجة")}
+            action={
+              <QuickCreateEntityButton
+                entity="classification"
+                groupId={classificationGroupFor("grade")?.id || ""}
+                groupLabel={t("products.form.grade")}
+                existing={classificationOptions.grade}
+                className={QUICK_ADD_LG_CLASS}
+                onCreated={(record) => {
+                  onGradeChange?.(record.value);
+                  refreshClassifications();
+                }}
+              />
+            }
           />
 
           <label className="flex items-start gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 md:col-span-2">
@@ -600,25 +647,28 @@ function normalizeAudiences(...sources) {
   return PRODUCT_AUDIENCE_OPTIONS.map((option) => option.value).filter((value) => seen.has(value));
 }
 
-function SmartClassificationSelect({ label, value, onChange, options = [], placeholder }) {
+function SmartClassificationSelect({ label, value, onChange, options = [], placeholder, action = null }) {
   const normalizedValue = String(value || "").trim();
   const hasSelectedOption = !normalizedValue || options.some((item) => String(item.value || "") === normalizedValue);
 
   return (
     <div>
       <label className="text-sm font-semibold text-text-muted">{label}</label>
-      <select
-        value={hasSelectedOption ? normalizedValue : ""}
-        onChange={(event) => onChange?.(event.target.value)}
-        className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none transition hover:border-border-strong focus:border-emerald-400/50"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+      <div className="mt-2 flex items-center gap-2">
+        <select
+          value={hasSelectedOption ? normalizedValue : ""}
+          onChange={(event) => onChange?.(event.target.value)}
+          className="h-[var(--control-height-lg)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none transition hover:border-border-strong focus:border-emerald-400/50"
+        >
+          <option value="">{placeholder}</option>
+          {options.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+        {action}
+      </div>
       {!hasSelectedOption ? (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-amber-300/15 bg-amber-400/8 px-3 py-2 text-xs text-amber-100">
           <span className="min-w-0 truncate">قيمة غير متاحة: {normalizedValue}</span>
@@ -657,26 +707,29 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
   );
 }
 
-function FormSelect({ label, value, onChange, options = [], placeholder, tabIndex }) {
+function FormSelect({ label, value, onChange, options = [], placeholder, tabIndex, action = null }) {
   const normalizedValue = String(value || "").trim();
   const hasSelectedOption = !normalizedValue || options.some((item) => String(item.value || "") === normalizedValue);
 
   return (
     <div>
       <label className="text-sm font-semibold text-text-muted">{label}</label>
-      <select
-        value={hasSelectedOption ? normalizedValue : ""}
-        onChange={(event) => onChange?.(event.target.value)}
-        tabIndex={tabIndex}
-        className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none transition hover:border-border-strong focus:border-emerald-400/50"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((item) => (
-          <option key={item.id || item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </select>
+      <div className="mt-2 flex items-center gap-2">
+        <select
+          value={hasSelectedOption ? normalizedValue : ""}
+          onChange={(event) => onChange?.(event.target.value)}
+          tabIndex={tabIndex}
+          className="h-[var(--control-height-lg)] min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-text outline-none transition hover:border-border-strong focus:border-emerald-400/50"
+        >
+          <option value="">{placeholder}</option>
+          {options.map((item) => (
+            <option key={item.id || item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+        {action}
+      </div>
     </div>
   );
 }
