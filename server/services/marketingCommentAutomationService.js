@@ -7,6 +7,8 @@ import {
   buildSocialCommentSizeQuickReplies,
   normalizeSocialCommentProductContext,
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
+  stripCardPointersFromText,
+  swapSizeButtonsCtaForPlainAsk,
 } from "./socialCommentPrivateReplyService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { tidyGreetingText } from "../utils/greetingText.js";
@@ -56,6 +58,8 @@ const pickFirstText = (...values) => {
 };
 
 const INITIAL_PRODUCT_SEND_DEDUPE_WINDOW_MS = 60 * 1000;
+// Messenger rejects a generic template carrying more than 10 elements.
+const MESSENGER_CAROUSEL_MAX_ELEMENTS = 10;
 const recentInitialProductSends = new Map();
 
 const cleanupInitialProductSendCache = (now = Date.now()) => {
@@ -476,7 +480,183 @@ const enrichCommenterIdentityFromPrivateReply = async ({
   return { recipientId: safeRecipientId, name: profileName };
 };
 
-const buildSocialCommentMessengerProductCardPayload = ({
+// Messenger caps a generic-template title and subtitle at 80 characters each, and it truncates
+// mid-word without warning. Everything below is fitted, never sliced blind.
+const MESSENGER_TEMPLATE_FIELD_LIMIT = 80;
+
+const fitMessengerField = (value = "") => {
+  const normalized = trimString(value);
+  if (normalized.length <= MESSENGER_TEMPLATE_FIELD_LIMIT) return normalized;
+  return `${normalized.slice(0, MESSENGER_TEMPLATE_FIELD_LIMIT - 1).trimEnd()}…`;
+};
+
+const sortSocialCommentSizes = (values = []) =>
+  (Array.isArray(values) ? values : [])
+    .map((value) => trimString(value))
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .sort((left, right) => {
+      const leftNumber = Number.parseFloat(left);
+      const rightNumber = Number.parseFloat(right);
+      const leftIsNumber = Number.isFinite(leftNumber);
+      const rightIsNumber = Number.isFinite(rightNumber);
+      if (leftIsNumber && rightIsNumber) return leftNumber - rightNumber;
+      if (leftIsNumber) return -1;
+      if (rightIsNumber) return 1;
+      return left.localeCompare(right, "ar", { numeric: true, sensitivity: "base" });
+    });
+
+// Drops whole sizes off the end until the line fits, so a card never shows "40 | 41 | 4".
+const buildSizesSubtitle = (sizes = [], prefix = "المقاسات: ", limit = MESSENGER_TEMPLATE_FIELD_LIMIT) => {
+  const sorted = sortSocialCommentSizes(sizes);
+  if (!sorted.length) return "";
+  const kept = [];
+  for (const size of sorted) {
+    const candidate = `${prefix}${[...kept, size].join(" | ")}`;
+    if (candidate.length > limit) break;
+    kept.push(size);
+  }
+  if (!kept.length) return "";
+  const line = `${prefix}${kept.join(" | ")}`;
+  return kept.length === sorted.length ? line : `${line} …`.slice(0, limit);
+};
+
+// Colour first when there is one: it is the only thing that differs between carousel cards, so
+// it must survive the fit even when the product name does not.
+const buildSocialCommentCardTitle = ({ productName = "", colorLabel = "", price = "" } = {}) => {
+  const safeName = trimString(productName);
+  const safeColor = trimString(colorLabel);
+  const safePrice = trimString(price);
+  const priceChunk = safePrice ? `${safePrice} جنيه` : "";
+  const full = [safeName, safeColor, priceChunk].filter(Boolean).join(" — ");
+  if (full.length <= MESSENGER_TEMPLATE_FIELD_LIMIT) return full || trimString(safeName) || "Product";
+  const withoutName = [safeColor, priceChunk].filter(Boolean).join(" — ");
+  if (withoutName && withoutName.length <= MESSENGER_TEMPLATE_FIELD_LIMIT) return withoutName;
+  return fitMessengerField(withoutName || full || safeName || "Product");
+};
+
+const buildSocialCommentMessengerElement = ({
+  title = "",
+  subtitle = "",
+  imageUrl = "",
+  productUrl = "",
+} = {}) => ({
+  title: fitMessengerField(title) || "Product",
+  image_url: trimString(imageUrl),
+  ...(trimString(subtitle) ? { subtitle: fitMessengerField(subtitle) } : {}),
+  buttons: trimString(productUrl)
+    ? [
+        {
+          type: "web_url",
+          url: trimString(productUrl),
+          title: "عرض المنتج",
+        },
+      ]
+    : [],
+});
+
+// One card per in-stock colour, each with its own photo, its own sizes and a link that opens the
+// storefront on that exact colour. Messenger renders these as a horizontal swipe.
+export const buildSocialCommentMessengerCarouselPayload = ({
+  commentId = "",
+  colorCards = [],
+  productName = "",
+  productPrice = "",
+} = {}) => {
+  const elements = (Array.isArray(colorCards) ? colorCards : [])
+    .map((card) => {
+      const imageUrl = trimString(card?.imageUrl || card?.image_url || "");
+      if (!imageUrl) return null;
+      return buildSocialCommentMessengerElement({
+        title: buildSocialCommentCardTitle({
+          productName: trimString(card?.productName || productName),
+          colorLabel: trimString(card?.colorLabel || card?.color || ""),
+          price: productPrice,
+        }),
+        subtitle: buildSizesSubtitle(card?.sizes || []),
+        imageUrl,
+        productUrl: trimString(card?.productLink || card?.product_link || ""),
+      });
+    })
+    .filter(Boolean)
+    .slice(0, MESSENGER_CAROUSEL_MAX_ELEMENTS);
+  if (elements.length < 2) return null;
+  return {
+    recipient: { comment_id: trimString(commentId) },
+    message: {
+      attachment: {
+        type: "template",
+        payload: { template_type: "generic", elements },
+      },
+    },
+  };
+};
+
+// When every visual send fails, the text is all the customer gets — and the copy deliberately
+// leaves the price, the sizes and the link to the cards. Put them back rather than send a message
+// that points at cards which never arrived. Returns the text untouched when nothing is missing.
+export const restoreProductFactsToText = ({
+  message = "",
+  productName = "",
+  productLink = "",
+  priceUsed = "",
+  availableSizes = [],
+} = {}) => {
+  const base = String(message || "");
+  const sizes = (Array.isArray(availableSizes) ? availableSizes : []).map(trimString).filter(Boolean);
+  const recoveryLines = [
+    productName,
+    trimString(priceUsed) ? `السعر: ${trimString(priceUsed)} جنيه` : "",
+    sizes.length ? `المقاسات المتاحة: ${sizes.join(" | ")}` : "",
+    productLink,
+  ].map((line) => trimString(line)).filter(Boolean);
+  if (!recoveryLines.length || recoveryLines.every((line) => base.includes(line))) {
+    return { text: base, recoveredLines: 0 };
+  }
+  return { text: `${base}\n\n${recoveryLines.join("\n")}`.slice(0, 2000), recoveredLines: recoveryLines.length };
+};
+
+// Instagram allows exactly ONE private reply per comment — Meta: "Only one message can be sent to
+// the Instagram user who commented" — and nothing more until the customer answers. Facebook gets a
+// card, then a photo, then the text; Instagram has to spend its single message on what the customer
+// commented for: the product pictures. The colour carousel when the product earns one, the single
+// product card otherwise, null when there is no photo to show (the text goes out as before).
+export const buildSocialCommentInstagramPrivateReplyPayload = ({
+  commentId = "",
+  normalizedContext = {},
+  productName = "",
+} = {}) => {
+  const safeName = trimString(productName || normalizedContext?.productName || "");
+  const colorCards = Array.isArray(normalizedContext?.colorCards) ? normalizedContext.colorCards : [];
+  if (normalizedContext?.carouselEligible && colorCards.length) {
+    const carousel = buildSocialCommentMessengerCarouselPayload({
+      commentId,
+      colorCards,
+      productName: safeName,
+      productPrice: normalizedContext?.priceUsed,
+    });
+    if (carousel) {
+      return { mode: "color_carousel", elements: carousel.message.attachment.payload.elements.length, payload: carousel };
+    }
+  }
+  const productImageUrl = trimString(normalizedContext?.productImageUrl || "");
+  if (!productImageUrl || !safeName) return null;
+  return {
+    mode: "product_card",
+    elements: 1,
+    payload: buildSocialCommentMessengerProductCardPayload({
+      commentId,
+      productName: safeName,
+      productImageUrl,
+      productUrl: trimString(normalizedContext?.productLink || ""),
+      productPrice: normalizedContext?.priceUsed,
+      productOriginalPrice: normalizedContext?.salePriceUsed ? normalizedContext?.regularPriceUsed : "",
+      availableSizes: normalizedContext?.availableSizes,
+    }),
+  };
+};
+
+export const buildSocialCommentMessengerProductCardPayload = ({
   commentId = "",
   productName = "",
   productImageUrl = "",
@@ -485,36 +665,20 @@ const buildSocialCommentMessengerProductCardPayload = ({
   productOriginalPrice = "",
   availableSizes = [],
 } = {}) => {
-  const subtitleSizes = Array.isArray(availableSizes)
-    ? availableSizes
-      .map((value) => trimString(value))
-      .filter(Boolean)
-      .filter((value, index, array) => array.indexOf(value) === index)
-      .sort((left, right) => {
-        const leftNumber = Number.parseFloat(left);
-        const rightNumber = Number.parseFloat(right);
-        const leftIsNumber = Number.isFinite(leftNumber);
-        const rightIsNumber = Number.isFinite(rightNumber);
-        if (leftIsNumber && rightIsNumber) return leftNumber - rightNumber;
-        if (leftIsNumber) return -1;
-        if (rightIsNumber) return 1;
-        return left.localeCompare(right, "ar", { numeric: true, sensitivity: "base" });
-      })
-      .slice(0, 8)
-    : [];
   const formattedPrice = trimString(productPrice);
   const formattedOriginalPrice = trimString(productOriginalPrice);
-  const subtitle = formattedPrice
+  const sizesLine = buildSizesSubtitle(availableSizes);
+  const priceLine = formattedPrice
     ? [
         `السعر: ${formattedPrice} جنيه`,
         formattedOriginalPrice && formattedOriginalPrice !== formattedPrice ? `بدلاً من ${formattedOriginalPrice} جنيه` : "",
-        "",
-        `المقاسات:`,
-        subtitleSizes.length ? subtitleSizes.join(" | ") : "غير متاحة",
-      ].filter((line, index, array) => line !== "" || index === 0 || array[index - 1] !== "").join("\n").slice(0, 80)
-    : subtitleSizes.length
-      ? `المقاسات:\n${subtitleSizes.join(" | ")}`.slice(0, 80)
-      : undefined;
+      ].filter(Boolean).join(" ")
+    : "";
+  // Price and sizes both matter; when they cannot share the 80 characters the price wins and the
+  // full size list still reaches the customer as size buttons under the text message.
+  const subtitle = [priceLine, sizesLine].filter(Boolean).join("\n").length <= MESSENGER_TEMPLATE_FIELD_LIMIT
+    ? [priceLine, sizesLine].filter(Boolean).join("\n")
+    : (priceLine || sizesLine);
   return {
     recipient: { comment_id: trimString(commentId) },
     message: {
@@ -523,20 +687,12 @@ const buildSocialCommentMessengerProductCardPayload = ({
         payload: {
           template_type: "generic",
           elements: [
-            {
-              title: trimString(productName || "Product").slice(0, 80),
-              image_url: trimString(productImageUrl),
+            buildSocialCommentMessengerElement({
+              title: trimString(productName) || "Product",
               subtitle,
-              buttons: trimString(productUrl)
-                ? [
-                    {
-                      type: "web_url",
-                      url: trimString(productUrl),
-                      title: "عرض المنتج",
-                    },
-                  ]
-                : [],
-            },
+              imageUrl: productImageUrl,
+              productUrl,
+            }),
           ],
         },
       },
@@ -1219,7 +1375,74 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       const target = new URL(finalUrlWithoutToken);
       target.searchParams.set("access_token", accessToken);
       let productVisualDelivered = false;
-      if (productImageUrl && productName && !selectedMessage.includes(productImageUrl)) {
+      // ── Colour carousel ────────────────────────────────────────────────────────────────────
+      // When the product has two or more in-stock colours that each own a photo, the customer
+      // gets ONE swipeable set of cards instead of a single photo of whichever colour happens to
+      // be the product's main image. Any failure falls straight through to that single card
+      // below: the carousel is an upgrade, never a new way to lose the message.
+      const carouselCards = Array.isArray(normalizedProductContext.colorCards)
+        ? normalizedProductContext.colorCards
+        : [];
+      if (normalizedProductContext.carouselEligible && carouselCards.length) {
+        const carouselPayload = buildSocialCommentMessengerCarouselPayload({
+          commentId: graphCommentId,
+          colorCards: carouselCards,
+          productName,
+          productPrice: normalizedProductContext.priceUsed,
+        });
+        if (carouselPayload) {
+          const sentCount = carouselPayload.message.attachment.payload.elements.length;
+          if (sentCount < carouselCards.length) {
+            console.warn("SOCIAL_COMMENT_COLOR_CAROUSEL_TRUNCATED", {
+              comment_id: graphCommentId,
+              product_id: normalizedProductContext.productId,
+              colors_available: carouselCards.length,
+              colors_sent: sentCount,
+              dropped_colors: carouselCards.slice(sentCount).map((card) => trimString(card?.colorLabel || card?.color || "")),
+            });
+          }
+          const carouselResponse = await fetch(target.toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(carouselPayload),
+          });
+          const carouselResponsePayload = await parseMetaResponse(carouselResponse);
+          if (carouselResponse.ok) {
+            productVisualDelivered = true;
+            upsertInitialProductSendState(initialSendKey, {
+              card_sent: true,
+              card_sent_at: Date.now(),
+              status: "card_sent",
+              completed: false,
+            });
+            console.log("SOCIAL_COMMENT_COLOR_CAROUSEL_SENT", {
+              comment_id: graphCommentId,
+              post_id: trimString(options?.postId || ""),
+              product_id: normalizedProductContext.productId,
+              product_name: productName,
+              colors: carouselCards.slice(0, sentCount).map((card) => trimString(card?.colorLabel || card?.color || "")),
+              elements: sentCount,
+            });
+            console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_CARD_SENT", {
+              callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+              conversation_id: normalizedConversationId,
+              comment_id: graphCommentId,
+              product_id: normalizedProductContext.productId,
+              product_name: productName,
+              delivery_mode: "color_carousel",
+            });
+          } else {
+            console.warn("SOCIAL_COMMENT_COLOR_CAROUSEL_FALLBACK", {
+              comment_id: graphCommentId,
+              post_id: trimString(options?.postId || ""),
+              product_id: normalizedProductContext.productId,
+              elements: sentCount,
+              message: getMetaErrorMessage(carouselResponsePayload),
+            });
+          }
+        }
+      }
+      if (!productVisualDelivered && productImageUrl && productName && !selectedMessage.includes(productImageUrl)) {
         const productCardResponse = await fetch(target.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1285,6 +1508,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         });
         const imagePayload = await parseMetaResponse(imageResponse);
         if (imageResponse.ok) {
+          productVisualDelivered = true;
           upsertInitialProductSendState(initialSendKey, {
             card_sent: true,
             card_sent_at: Date.now(),
@@ -1315,6 +1539,28 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           });
         }
       }
+      // Every visual failed, so the text is all the customer gets — and the copy deliberately
+      // leaves the price, the sizes and the link to the cards. Put them back rather than send a
+      // message that points at cards which never arrived.
+      if (!productVisualDelivered && hasProductContext) {
+        const recovered = restoreProductFactsToText({
+          message: stripCardPointersFromText(selectedMessage, { keepSizeButtons: quickReplies.length > 0 }),
+          productName,
+          productLink,
+          priceUsed: normalizedProductContext.priceUsed,
+          availableSizes: normalizedProductContext.availableSizes,
+        });
+        if (recovered.text !== selectedMessage) {
+          requestBody.message.text = recovered.text;
+          console.warn("SOCIAL_COMMENT_PRODUCT_VISUAL_MISSING_TEXT_RECOVERY", {
+            platform: normalizedPlatform,
+            comment_id: graphCommentId,
+            post_id: trimString(options?.postId || ""),
+            product_id: normalizedProductContext.productId,
+            recovered_lines: recovered.recoveredLines,
+          });
+        }
+      }
       let response = await fetch(target.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1340,7 +1586,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           body: JSON.stringify({
             recipient: requestBody.recipient,
             message: {
-              text: selectedMessage,
+              text: swapSizeButtonsCtaForPlainAsk(requestBody.message.text || selectedMessage),
             },
           }),
         });
@@ -1548,6 +1794,130 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       throw error;
     }
   }
+  // ── Instagram: the ONE private reply a comment allows carries the pictures ──────────────────
+  // Facebook above sends a card, a photo and a text in turn. Instagram allows a single private
+  // reply per comment and nothing more until the customer answers, so on Instagram that one
+  // message is the colour carousel (or the product card), posted through the Page's /messages
+  // endpoint with the comment as recipient — the same shape Messenger already proves. Any refusal
+  // falls through to the text below, with the price, sizes and link put back into it: the visual
+  // is an upgrade, never a new way to lose the reply.
+  let instagramTextMessage = selectedMessage;
+  if (normalizedPlatform === "instagram" && hasProductContext) {
+    const instagramProductName = trimString(normalizedProductContext.productName || "");
+    const instagramVisual = buildSocialCommentInstagramPrivateReplyPayload({
+      commentId: graphCommentId,
+      normalizedContext: normalizedProductContext,
+      productName: instagramProductName,
+    });
+    const instagramPageId = trimString(settings?.page_id || settings?.facebook_page_id || capabilityDebug?.pageId || "");
+    const instagramAccessToken = tokenStatus?.accessToken || getPublishingAccessToken(settings);
+    let instagramVisualDelivered = false;
+    if (instagramVisual && instagramPageId && instagramAccessToken) {
+      const visualTarget = new URL(`${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(instagramPageId)}/messages`);
+      visualTarget.searchParams.set("access_token", instagramAccessToken);
+      try {
+        const visualResponse = await fetch(visualTarget.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(instagramVisual.payload),
+        });
+        const visualPayload = await parseMetaResponse(visualResponse);
+        if (visualResponse.ok) {
+          instagramVisualDelivered = true;
+          console.log("SOCIAL_COMMENT_INSTAGRAM_VISUAL_REPLY_SENT", {
+            comment_id: graphCommentId,
+            post_id: trimString(options?.postId || ""),
+            product_id: normalizedProductContext.productId,
+            product_name: instagramProductName,
+            delivery_mode: instagramVisual.mode,
+            elements: instagramVisual.elements,
+            colors: instagramVisual.mode === "color_carousel"
+              ? (normalizedProductContext.colorCards || []).slice(0, instagramVisual.elements).map((card) => trimString(card?.colorLabel || card?.color || ""))
+              : [],
+          });
+          console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_CARD_SENT", {
+            callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+            platform: normalizedPlatform,
+            conversation_id: normalizedConversationId,
+            comment_id: graphCommentId,
+            product_id: normalizedProductContext.productId,
+            product_name: instagramProductName,
+            delivery_mode: instagramVisual.mode,
+          });
+          await enrichCommenterIdentityFromPrivateReply({
+            tenantId: businessId,
+            platform: normalizedPlatform,
+            commentId: graphCommentId,
+            recipientId: visualPayload?.recipient_id || "",
+            accessToken: instagramAccessToken,
+          }).catch(() => null);
+          console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SENT", {
+            comment_id: graphCommentId,
+            page_id: instagramPageId,
+            platform: normalizedPlatform,
+            delivery_mode: instagramVisual.mode,
+          });
+          console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_DONE", {
+            platform: trimString(platform || ""),
+            comment_id: trimString(commentId || ""),
+            business_id: Number(businessId || 0) || null,
+            timeout_ms: null,
+            retry_count: Number(options?.retryCount || 0) || 0,
+            send_ms: Date.now() - sendStartedAt,
+            has_product_context: hasProductContext,
+            selected_source: selectedSource,
+            delivery_mode: instagramVisual.mode,
+          });
+          return visualPayload;
+        }
+        console.warn("SOCIAL_COMMENT_INSTAGRAM_VISUAL_REPLY_FALLBACK", {
+          comment_id: graphCommentId,
+          post_id: trimString(options?.postId || ""),
+          product_id: normalizedProductContext.productId,
+          delivery_mode: instagramVisual.mode,
+          elements: instagramVisual.elements,
+          status: visualResponse.status,
+          message: getMetaErrorMessage(visualPayload),
+        });
+      } catch (visualError) {
+        console.warn("SOCIAL_COMMENT_INSTAGRAM_VISUAL_REPLY_FALLBACK", {
+          comment_id: graphCommentId,
+          post_id: trimString(options?.postId || ""),
+          product_id: normalizedProductContext.productId,
+          delivery_mode: instagramVisual.mode,
+          elements: instagramVisual.elements,
+          message: visualError?.message || "",
+        });
+      }
+    } else if (instagramVisual) {
+      console.warn("SOCIAL_COMMENT_INSTAGRAM_VISUAL_REPLY_SKIPPED", {
+        comment_id: graphCommentId,
+        product_id: normalizedProductContext.productId,
+        reason: !instagramPageId ? "missing_page_id" : "missing_access_token",
+      });
+    }
+    if (!instagramVisualDelivered) {
+      // The text is all that goes out, and Instagram private replies carry no quick replies, so
+      // the card and button pointers come out and the facts they stood for go back in.
+      const recovered = restoreProductFactsToText({
+        message: stripCardPointersFromText(selectedMessage),
+        productName: instagramProductName,
+        productLink: trimString(normalizedProductContext.productLink || ""),
+        priceUsed: normalizedProductContext.priceUsed,
+        availableSizes: normalizedProductContext.availableSizes,
+      });
+      if (recovered.text !== selectedMessage) {
+        instagramTextMessage = recovered.text;
+        console.warn("SOCIAL_COMMENT_PRODUCT_VISUAL_MISSING_TEXT_RECOVERY", {
+          platform: normalizedPlatform,
+          comment_id: graphCommentId,
+          post_id: trimString(options?.postId || ""),
+          product_id: normalizedProductContext.productId,
+          recovered_lines: recovered.recoveredLines,
+        });
+      }
+    }
+  }
   const endpoint = `/${encodeURIComponent(graphCommentId)}/private_replies`;
   const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
   debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_REQUEST", {
@@ -1578,7 +1948,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       endpoint,
       label: "private reply",
       contentType: "application/x-www-form-urlencoded",
-      body: new URLSearchParams({ message: selectedMessage }),
+      body: new URLSearchParams({ message: instagramTextMessage }),
       bodyShape: "minimal_text_only",
       graphVersion: GRAPH_API_VERSION,
       tokenDelivery: "query",

@@ -92,8 +92,11 @@ const normalizeSocialCommentColorPart = (value = "") => {
 export const normalizeSocialCommentColorDisplay = (value = "") => {
   const raw = text(value);
   if (!raw) return "";
+  // "and" and "و" only separate colours when they stand alone as words. Matching them anywhere
+  // tore real colour names apart: "Burgandy" became "Burg / y" and "أسود وأبيض" became
+  // "أس / د / أبيض". Punctuation separators need no such guard.
   const parts = raw
-    .split(/\s*(?:&|\/|\+|and|و)\s*/i)
+    .split(/\s*[&/+]\s*|\s+(?:and|و)\s+/i)
     .map((part) => normalizeSocialCommentColorPart(part))
     .filter(Boolean);
   if (parts.length > 1) return parts.join(" / ");
@@ -212,6 +215,115 @@ const loadAvailableVariantRows = async ({ tenantId = null, productId = null } = 
   return Array.isArray(result.rows) ? result.rows : [];
 };
 
+// One row per in-stock COLOUR, with the best photo we have for it: a gallery image tied to the
+// exact variant first, then one tied to the colour name, then the colour's own variant image.
+// A colour with no photo of its own is not a carousel card — three identical photos labelled
+// three different colours is worse than the single product card it replaces.
+const loadColorCardRows = async ({ tenantId = null, productId = null } = {}) => {
+  const safeProductId = Number(productId || 0);
+  if (!Number.isFinite(safeProductId) || safeProductId <= 0) return [];
+  const safeTenantId = Number(tenantId || 0);
+  const result = await db.query(
+    `
+    SELECT
+      LOWER(TRIM(COALESCE(pv.color, ''))) AS color_key,
+      MIN(TRIM(COALESCE(pv.color, ''))) AS color_label,
+      MIN(COALESCE(pv.color_sort_order, 0)) AS color_sort_order,
+      COALESCE(MAX(NULLIF(TRIM(COALESCE(pvi.image_url, '')), '')), '') AS gallery_image_url,
+      COALESCE(MAX(NULLIF(TRIM(COALESCE(pv.image_url, '')), '')), '') AS variant_image_url
+    FROM product_variants pv
+    LEFT JOIN LATERAL (
+      SELECT i.image_url
+      FROM product_variant_images i
+      WHERE i.product_id = pv.product_id
+        AND COALESCE(i.image_url, '') <> ''
+        AND (
+          i.variant_id = pv.id
+          OR LOWER(TRIM(COALESCE(i.color_name, ''))) = LOWER(TRIM(COALESCE(pv.color, '')))
+        )
+      ORDER BY
+        CASE WHEN i.variant_id = pv.id THEN 0 ELSE 1 END,
+        CASE WHEN i.is_primary THEN 0 ELSE 1 END,
+        i.sort_order ASC,
+        i.id ASC
+      LIMIT 1
+    ) pvi ON TRUE
+    WHERE pv.product_id = $1
+      AND ($2::bigint <= 0 OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
+      AND COALESCE(pv.stock, 0) > 0
+      AND TRIM(COALESCE(pv.color, '')) <> ''
+    GROUP BY 1
+    ORDER BY MIN(COALESCE(pv.color_sort_order, 0)) ASC, MIN(pv.id) ASC
+    `,
+    [safeProductId, safeTenantId]
+  );
+  return Array.isArray(result.rows) ? result.rows : [];
+};
+
+const colorGroupKey = (value = "") => text(value).toLowerCase();
+
+// The storefront product page preselects a colour from ?color=, so every card lands the customer
+// on the colour they tapped. Size is deliberately left out: they pick that from the DM buttons.
+const buildColorProductLink = (baseLink = "", color = "") => {
+  const normalizedBase = text(baseLink);
+  const normalizedColor = text(color);
+  if (!normalizedBase || !normalizedColor) return normalizedBase;
+  try {
+    const url = new URL(normalizedBase);
+    url.searchParams.set("color", normalizedColor);
+    return url.toString();
+  } catch {
+    return normalizedBase;
+  }
+};
+
+export const buildSocialCommentColorCards = ({
+  variantRows = [],
+  colorRows = [],
+  productName = "",
+  productLink = "",
+} = {}) => {
+  const sizesByColor = new Map();
+  for (const variant of asArray(variantRows)) {
+    const key = colorGroupKey(variant?.color || "");
+    if (!key) continue;
+    const size = variantSizeLabel(variant);
+    if (!size) continue;
+    if (!sizesByColor.has(key)) sizesByColor.set(key, []);
+    const sizes = sizesByColor.get(key);
+    if (!sizes.includes(size)) sizes.push(size);
+  }
+  return asArray(colorRows)
+    .map((row) => {
+      const colorKey = colorGroupKey(row?.color_key || row?.color_label || "");
+      const colorValue = text(row?.color_label || row?.color_key || "");
+      const imageUrl = ensureAbsoluteSocialAssetUrl(
+        text(row?.gallery_image_url || "") || text(row?.variant_image_url || "")
+      );
+      if (!colorKey || !imageUrl) return null;
+      return {
+        colorKey,
+        color: colorValue,
+        colorLabel: normalizeSocialCommentColorDisplay(colorValue) || colorValue,
+        productName: text(productName),
+        imageUrl,
+        productLink: buildColorProductLink(productLink, colorValue),
+        sizes: sortSocialCommentAvailableSizes(sizesByColor.get(colorKey) || []),
+      };
+    })
+    .filter(Boolean)
+    .filter((card, index, cards) => cards.findIndex((item) => item.colorKey === card.colorKey) === index);
+};
+
+// A carousel earns its place only when it shows something a single card cannot: two or more
+// colours, each with its OWN photo. Otherwise the proven single-card path stays.
+export const socialCommentCarouselEligible = (colorCards = []) => {
+  const cards = asArray(colorCards);
+  if (cards.length < 2) return false;
+  const distinctImages = new Set(cards.map((card) => text(card.imageUrl)).filter(Boolean));
+  return distinctImages.size >= 2;
+};
+
 export const normalizeSocialCommentProductContext = async ({ tenantId = null, productContext = {} } = {}) => {
   const primaryProduct = productContext?.primary_product || {};
   const productId = Number(productContext?.product_id || primaryProduct?.product_id || primaryProduct?.id || 0) || null;
@@ -277,6 +389,27 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     variants: availableVariantRows,
     callsite: "socialCommentPrivateReplyService.normalizeSocialCommentProductContext",
   });
+  // Only worth a query when more than one colour is actually in stock — a single-colour product
+  // can never produce a carousel, and this runs on every inbound comment.
+  const distinctStockedColors = new Set(
+    availableVariantRows.map((variant) => colorGroupKey(variant?.color || "")).filter(Boolean)
+  );
+  const colorRows = productId && distinctStockedColors.size >= 2
+    ? await loadColorCardRows({ tenantId, productId }).catch((error) => {
+        console.warn("SOCIAL_COMMENT_COLOR_CARDS_LOAD_FAILED", {
+          product_id: productId,
+          message: text(error?.message),
+        });
+        return [];
+      })
+    : [];
+  const colorCards = buildSocialCommentColorCards({
+    variantRows: availableVariantRows,
+    colorRows,
+    productName,
+    productLink,
+  });
+  const carouselEligible = socialCommentCarouselEligible(colorCards);
   return {
     hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
     productId,
@@ -285,6 +418,8 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     availableSizesLabel: availableSizes.length ? availableSizes.join(" | ") : DEFAULT_SIZE_FALLBACK,
     availableVariantsCount: availableVariantRows.length,
     availableVariantRows,
+    colorCards,
+    carouselEligible,
     productLink,
     productImageUrl,
     priceUsed: priceResolution.priceUsed,
@@ -293,40 +428,56 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
   };
 };
 
+// The DM no longer repeats the price, the size list or the link: the cards sent just before it
+// already carry all three, and reading them twice is how a short reply turns into a wall of text.
+// The text's only job is to say what to do with the cards and the buttons.
+const CAROUSEL_BROWSE_LINE = "عشان تشوف الألوان والمقاسات المتاحة من كل لون دوس يمين وشمال على الكروت،";
+const SINGLE_CARD_BROWSE_LINE = "عشان تشوف المقاسات المتاحة بصّ على الكارت فوق،";
+const PICK_SIZE_LINE = "واختار مقاسك من الأزرار تحت 👇";
+
+// Messenger sometimes refuses a message that carries quick replies, and the sender then retries
+// with plain text. Pointing at buttons that were dropped on the retry reads as a broken message,
+// so the ask becomes a plain question instead.
+export const swapSizeButtonsCtaForPlainAsk = (message = "") => {
+  const normalized = String(message || "");
+  if (!normalized.includes(PICK_SIZE_LINE)) return normalized;
+  return normalized.split(PICK_SIZE_LINE).join(DEFAULT_SIZE_FALLBACK);
+};
+
+// The card lines only make sense when a card actually arrived. When the text is all that goes
+// out — Instagram refused the visual, or every Messenger visual failed — "look at the card above"
+// points at nothing, so those lines come out. The size-button line stays only when the buttons
+// really ride on this message (Messenger quick replies); otherwise it becomes a plain question.
+export const stripCardPointersFromText = (message = "", { keepSizeButtons = false } = {}) => {
+  const base = keepSizeButtons ? String(message || "") : swapSizeButtonsCtaForPlainAsk(message);
+  return base
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      return trimmed !== CAROUSEL_BROWSE_LINE && trimmed !== SINGLE_CARD_BROWSE_LINE;
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 const buildProductReplySections = ({ customerName = "", normalizedContext = {} } = {}) => {
-  const sections = [
+  // No sizes means no size buttons underneath — pointing at buttons that were never attached
+  // reads as a broken message, so the ask becomes a plain question instead.
+  const hasSizes = Array.isArray(normalizedContext.availableSizes)
+    ? normalizedContext.availableSizes.length > 0
+    : Boolean(normalizedContext.availableSizesLabel) && normalizedContext.availableSizesLabel !== DEFAULT_SIZE_FALLBACK;
+  return [
     text(customerName) ? `أهلاً بحضرتك يا ${text(customerName)} ✨` : "أهلاً بحضرتك ✨",
     "",
-    normalizedContext.productName || "المنتج",
+    normalizedContext.carouselEligible ? CAROUSEL_BROWSE_LINE : SINGLE_CARD_BROWSE_LINE,
+    hasSizes ? PICK_SIZE_LINE : DEFAULT_SIZE_FALLBACK,
+    "",
+    "متاح شحن لجميع المحافظات",
+    "متاح الدفع عند الاستلام ❤️",
+    "",
+    "لو محتاج مساعدة في اختيار المقاس أو عندك أي استفسار، إحنا معاك في أي وقت ❤️",
   ];
-  if (hasUsablePriceValue(normalizedContext.priceUsed)) {
-    sections.push(
-      "",
-      "السعر:",
-      `${normalizePriceText(normalizedContext.priceUsed)} جنيه`
-    );
-  }
-  sections.push(
-    "",
-    "المقاسات المتاحة:",
-    normalizedContext.availableSizesLabel || DEFAULT_SIZE_FALLBACK,
-    "",
-    "━━━━━━━━━━━━",
-    "",
-    "اختر مقاسك من الأزرار بالأسفل.",
-    "",
-    "شحن لجميع المحافظات",
-    "الدفع عند الاستلام متاح",
-    "",
-    "️ عرض المنتج:",
-    "",
-    normalizedContext.productLink,
-    "",
-    "━━━━━━━━━━━━",
-    "",
-    "لو محتاج أي مساعدة في اختيار المقاس أو عندك أي استفسار، إحنا معاك في أي وقت ❤️"
-  );
-  return sections;
 };
 
 export const buildPolishedSocialCommentProductReply = ({
@@ -338,8 +489,10 @@ export const buildPolishedSocialCommentProductReply = ({
     : {
         productName: text(productContext?.product_name || "") || "المنتج",
         priceUsed: normalizePriceText(productContext?.selling_price || productContext?.sale_price || productContext?.price || ""),
+        availableSizes: sortSocialCommentAvailableSizes(productContext?.available_sizes || []),
         availableSizesLabel: sortSocialCommentAvailableSizes(productContext?.available_sizes || []).join(" | ") || DEFAULT_SIZE_FALLBACK,
         productLink: ensureAbsoluteSocialProductLink(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || ""),
+        carouselEligible: Boolean(productContext?.carousel_eligible),
       };
   return buildProductReplySections({ customerName, normalizedContext }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
@@ -779,8 +932,10 @@ export const buildSocialCommentPrivateReplyMessage = async ({
         __normalized_private_reply_context: true,
         productName: normalizedContext.productName,
         priceUsed: normalizedContext.priceUsed,
+        availableSizes: normalizedContext.availableSizes,
         availableSizesLabel: normalizedContext.availableSizesLabel,
         productLink: normalizedContext.productLink,
+        carouselEligible: normalizedContext.carouselEligible,
       },
     });
     selectedSource = "polished_product_renderer";
@@ -884,8 +1039,10 @@ export const sanitizeUnifiedSocialCommentPrivateReplyMessage = ({
         __normalized_private_reply_context: true,
         productName: normalizedContext.productName,
         priceUsed: normalizedContext.priceUsed,
+        availableSizes: normalizedContext.availableSizes,
         availableSizesLabel: normalizedContext.availableSizesLabel,
         productLink: normalizedContext.productLink,
+        carouselEligible: normalizedContext.carouselEligible,
       },
     });
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_BAD_MESSAGE_SHAPE", {
