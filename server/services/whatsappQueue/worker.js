@@ -271,7 +271,17 @@ export const evaluateCircuitBreaker = ({
   recentFailures = 0,
 } = {}) => {
   const offlineLimit = number(config.offline_pause_minutes, 0);
-  if (offlineLimit > 0 && justReconnected && outageMinutes >= offlineLimit) return "long_offline";
+  /*
+   * A long outage only latches the queue when there is actually a backlog behind it.
+   *
+   * The point of paused_for_review is to put a decision in front of a human: hundreds of stale
+   * messages are about to go out — do you want them to? With nothing waiting there is no decision,
+   * and pausing does no good at all. It cost four invoices on 3 September: the session came back at
+   * 00:42 after 54 hours down, the queue was empty because everything old had already been expired
+   * or cancelled, and the breaker latched anyway. Four orders arrived overnight, were queued behind
+   * a pause nobody knew about, and expired unsent.
+   */
+  if (offlineLimit > 0 && justReconnected && outageMinutes >= offlineLimit && pendingCount > 0) return "long_offline";
   const pendingLimit = number(config.pending_pause_threshold, 0);
   if (pendingLimit > 0 && pendingCount > pendingLimit) return "backlog_threshold";
   const failureLimit = number(config.failure_pause_threshold, 0);

@@ -484,6 +484,27 @@ test("the alert watches the clock, because the backlog is a broken smoke alarm",
   assert.match(worker, /offline_alerted_at = NULL/);
 });
 
+test("a long outage with nothing waiting does not latch the queue", async () => {
+  const { evaluateCircuitBreaker } = await import("../server/services/whatsappQueue/worker.js");
+  const config = { offline_pause_minutes: 30, pending_pause_threshold: 50, failure_pause_threshold: 10 };
+
+  /*
+   * paused_for_review exists to put a decision in front of a human: hundreds of stale messages are
+   * about to go out — do you want them to? With an empty queue there is no decision to make, and
+   * latching only blocks the orders that arrive next. That cost four invoices on 3 September.
+   */
+  assert.equal(
+    evaluateCircuitBreaker({ config, outageMinutes: 3275, justReconnected: true, pendingCount: 0 }),
+    "",
+    "54 hours down but nothing queued — there is nothing to review"
+  );
+  assert.equal(
+    evaluateCircuitBreaker({ config, outageMinutes: 3275, justReconnected: true, pendingCount: 1 }),
+    "long_offline",
+    "one waiting message is still a decision worth putting to a human"
+  );
+});
+
 test("the offline alert threshold is a setting, with a default that is not zero", () => {
   assert.equal(typeof WHATSAPP_QUEUE_DEFAULTS.offline_alert_minutes, "number");
   assert.ok(WHATSAPP_QUEUE_DEFAULTS.offline_alert_minutes > 0, "it ships armed");
