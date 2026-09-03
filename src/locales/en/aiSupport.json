@@ -256,6 +256,31 @@
       "subtitle": "Visibility tools for the live AI Inbox console.",
       "showLogs": "Show live AI logs",
       "showMemory": "Show conversation memory debug"
+    },
+    "variants": {
+      "menuTitle": "Invoice message settings",
+      "close": "Close",
+      "title": "WhatsApp message wordings",
+      "subtitle": "Several wordings of the same message, sent in rotation: the first customer gets A, the second B, the third C, then back to A. The invoice receipt ships with five ready wordings you can edit.",
+      "typeLabel": "Message",
+      "activeCount": "{{count}} wordings active",
+      "restoreDefaults": "Restore defaults",
+      "add": "Add wording",
+      "save": "Save wordings",
+      "saved": "Wordings saved. Upcoming messages will rotate through them.",
+      "loadError": "Could not load the message wordings",
+      "saveError": "Could not save the message wordings",
+      "loading": "Loading wordings...",
+      "empty": "No wordings for this message, so it goes out with the system's fixed text. Add one or restore the defaults.",
+      "help": "The title is the bold header above the message, the body sits below it. Available placeholders:",
+      "labelPlaceholder": "Wording {{n}} name",
+      "titlePlaceholder": "Title (e.g. 🙏 Thank you for your trust)",
+      "bodyPlaceholder": "Message body... put the invoice link placeholder on its own line",
+      "on": "On",
+      "off": "Off",
+      "remove": "Remove wording",
+      "preview": "Preview",
+      "previewEmpty": "Type the message body to see the preview"
     }
   },
   "console": {

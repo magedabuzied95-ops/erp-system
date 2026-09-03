@@ -156,14 +156,59 @@ export const WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS = Object.freeze({
 });
 
 /*
- * Message variants. Empty by default — deliberately: with no variants configured the automation's
- * own message goes out byte-for-byte as it does today, so switching the queue on changes pacing
- * and nothing else. Adding variants is an explicit act by the operator.
+ * Message variants.
  *
- * Shape: { [automation_type]: [{ id, label, enabled, body }] }
- * Selection is round robin over the enabled variants, per automation type.
+ * Shape: { [automation_type]: [{ id, label, enabled, title, body }] }
+ * Selection is round robin over the enabled variants, per automation type. `title` is optional:
+ * for a button message it becomes the bold header (the greeting), for a plain text it opens the
+ * message. Both title and body take the same placeholders.
+ *
+ * Most types ship with no variants, so their automation's own message goes out byte-for-byte as
+ * it does today. The invoice receipt is the exception, and on purpose: it is the one message that
+ * goes to every single customer after every single sale, and it used to be the same text, same
+ * header, every time. A shop that sends one wording a thousand times a week reads as a machine.
+ * These five say the same thing five ways, and the operator can replace them from Settings; an
+ * explicit empty list there turns them off and restores the fixed text.
  */
-export const WHATSAPP_MESSAGE_VARIANT_DEFAULTS = Object.freeze({});
+export const WHATSAPP_MESSAGE_VARIANT_DEFAULTS = Object.freeze({
+  invoice_receipt: Object.freeze([
+    {
+      id: "receipt-a",
+      label: "شكراً لثقتكم",
+      enabled: true,
+      title: "🙏 شكراً لثقتكم بنا",
+      body: "🧾 عرض الفاتورة:\n{{invoice_url}}\n\nإذا احتجت أي مساعدة أو استفسار نحن في خدمتك دائمًا 💙\n\nنتمنى لك تجربة ممتعة 🌹",
+    },
+    {
+      id: "receipt-b",
+      label: "سعداء بزيارتك",
+      enabled: true,
+      title: "💙 سعداء بزيارتك لنا",
+      body: "تقدر تشوف فاتورتك من هنا 🧾\n{{invoice_url}}\n\nلو عندك أي سؤال، فريقنا موجود في أي وقت ✨\n\nنتمنى تستمتع بمشترياتك 🛍️",
+    },
+    {
+      id: "receipt-c",
+      label: "شكراً على اختيارك",
+      enabled: true,
+      title: "🌟 شكراً على اختيارك لنا",
+      body: "فاتورتك جاهزة على الرابط ده 👇\n{{invoice_url}}\n\nأي استفسار أو مساعدة، كلمنا على طول 💬\n\nيومك سعيد 🌹",
+    },
+    {
+      id: "receipt-d",
+      label: "تمت عملية الشراء",
+      enabled: true,
+      title: "🛍️ تمت عملية الشراء بنجاح",
+      body: "رابط الفاتورة الخاصة بك 🧾\n{{invoice_url}}\n\nاحتفظ بها لأي مراجعة أو استبدال لاحقاً ✅\n\nشكراً لثقتك، ونتمنى نشوفك قريباً 💙",
+    },
+    {
+      id: "receipt-e",
+      label: "نشكرك على تعاملك",
+      enabled: true,
+      title: "🙏 نشكرك على تعاملك معنا",
+      body: "دي فاتورتك 🧾\n{{invoice_url}}\n\nلو احتجت أي حاجة إحنا معاك دايماً 💙\n\nبالهنا 🌟",
+    },
+  ]),
+});
 
 export const clampNumber = (value, fallback, min, max) => {
   const parsed = Number(value);
@@ -223,7 +268,11 @@ export const normalizeWhatsappMessageVariants = (raw) => {
   const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const out = {};
   for (const type of Object.keys(WHATSAPP_AUTOMATION_TYPES)) {
-    const list = Array.isArray(source[type]) ? source[type] : [];
+    // A type the operator has never touched gets the built-in list. A type they have saved —
+    // even as an empty list — is theirs: an explicit [] is how the built-ins are switched off.
+    const list = Array.isArray(source[type])
+      ? source[type]
+      : (source[type] === undefined ? (WHATSAPP_MESSAGE_VARIANT_DEFAULTS[type] || []) : []);
     const seen = new Set();
     const variants = [];
     list.forEach((entry, index) => {
@@ -239,6 +288,7 @@ export const normalizeWhatsappMessageVariants = (raw) => {
         id,
         label: String(record.label ?? "").trim() || `Variant ${variants.length + 1}`,
         enabled: record.enabled !== false,
+        title: String(record.title ?? "").trim(),
         body,
       });
     });

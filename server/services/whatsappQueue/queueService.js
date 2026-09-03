@@ -159,13 +159,32 @@ export const enqueueWhatsappMessage = async ({
   const rules = rulesForAutomation(type, resolved);
   const category = whatsappAutomationCategory(type);
 
-  const { variantId, body } = await resolveMessageBody({
+  const { variantId, title: variantTitle, body: variantBody } = await resolveMessageBody({
     tenantId,
     automationType: type,
     variants: resolved.variants,
     values,
     fallbackBody,
   });
+  const kind = text(send?.kind) || "text";
+  const sendPayload = { ...send, kind };
+  let body = variantBody;
+  if (variantId) {
+    /*
+     * A variant is the whole message, header included. On a button message the title is the
+     * bold header, so the variant's greeting replaces the one the automation passed; on a plain
+     * text there is no header and the greeting opens the body. And the plain-text fallback — what
+     * the customer gets when the button will not render — must say what the variant says, not
+     * what the automation would have said without one.
+     */
+    if (text(variantTitle)) {
+      if (kind === "text") body = `${text(variantTitle)}\n\n${body}`;
+      else sendPayload.title = text(variantTitle);
+    }
+    sendPayload.fallbackText = kind === "text"
+      ? body
+      : [text(sendPayload.title), body].filter(Boolean).join("\n\n");
+  }
   if (!text(body)) throw new Error("WHATSAPP_QUEUE_EMPTY_BODY");
 
   const idempotencyKey = buildIdempotencyKey({
@@ -178,7 +197,7 @@ export const enqueueWhatsappMessage = async ({
   });
 
   const payload = {
-    send: { kind: text(send?.kind) || "text", ...send },
+    send: sendPayload,
     on_sent: onSent || null,
     values: values || {},
   };

@@ -348,9 +348,10 @@ if (!ready) {
   test("with no variants configured the automation's own message goes out unchanged", async () => {
     await resetQueue();
     await configureQueue();
+    // thank_you ships with no built-in wordings; the receipt does, and is covered below.
     const result = await queue.enqueueWhatsappMessage({
       tenantId: TENANT,
-      automationType: "invoice_receipt",
+      automationType: "thank_you",
       orderId: 6001,
       recipientPhone: "201000006001",
       send: { kind: "text" },
@@ -359,6 +360,51 @@ if (!ready) {
     assert.equal(result.variantId, null, "no variant is chosen");
     const row = await db.query(`SELECT rendered_body FROM whatsapp_message_queue WHERE order_id = 6001`);
     assert.equal(row.rows[0].rendered_body, "🙏 شكراً لثقتكم بنا\n\n🧾 عرض الفاتورة:\nhttps://example.com/i/1");
+  });
+
+  test("the receipt rotates its built-in wordings, header and fallback included, with nothing configured", async () => {
+    await resetQueue();
+    await configureQueue();
+    const seen = [];
+    for (let i = 0; i < 3; i += 1) {
+      const result = await queue.enqueueWhatsappMessage({
+        tenantId: TENANT,
+        automationType: "invoice_receipt",
+        orderId: 6100 + i,
+        invoiceNumber: `INV-61${i}`,
+        recipientPhone: `20100000610${i}`,
+        send: { kind: "cta_url", title: "🙏 شكراً لثقتكم بنا", displayText: "⭐", url: "https://g.page/r/x", fallbackText: "ثابت" },
+        values: { invoice_number: `INV-61${i}`, invoice_url: `https://example.com/i/61${i}` },
+        fallbackBody: "ثابت",
+      });
+      const row = await db.query(`SELECT message_variant_id, rendered_body, payload FROM whatsapp_message_queue WHERE order_id = $1`, [6100 + i]);
+      const { payload, rendered_body: body } = row.rows[0];
+      assert.ok(result.variantId, "a built-in wording is chosen");
+      assert.match(body, new RegExp(`example\\.com/i/61${i}`), "the body carries this order's invoice link");
+      assert.ok(payload.send.title.trim(), "the header is never blank");
+      assert.ok(payload.send.fallbackText.startsWith(payload.send.title), "the plain-text fallback opens with the same header");
+      assert.ok(payload.send.fallbackText.endsWith(body), "and ends with the same body");
+      seen.push({ id: result.variantId, title: payload.send.title, body });
+    }
+    assert.equal(new Set(seen.map((item) => item.id)).size, 3, "three sales, three different wordings");
+    assert.equal(new Set(seen.map((item) => item.title)).size, 3, "three different headers, not one greeting three times");
+  });
+
+  test("an explicit empty list in settings restores the fixed receipt text", async () => {
+    await resetQueue();
+    await configureQueue({}, { variants: { invoice_receipt: [] } });
+    const result = await queue.enqueueWhatsappMessage({
+      tenantId: TENANT,
+      automationType: "invoice_receipt",
+      orderId: 6200,
+      recipientPhone: "201000006200",
+      send: { kind: "cta_url", title: "🙏 شكراً لثقتكم بنا", fallbackText: "ثابت" },
+      fallbackBody: "ثابت",
+    });
+    assert.equal(result.variantId, null);
+    const row = await db.query(`SELECT rendered_body, payload FROM whatsapp_message_queue WHERE order_id = 6200`);
+    assert.equal(row.rows[0].rendered_body, "ثابت");
+    assert.equal(row.rows[0].payload.send.title, "🙏 شكراً لثقتكم بنا", "the automation's own header stands");
   });
 
   test("a retry re-sends the same row — same id, same variant, same text, no duplicate", async () => {

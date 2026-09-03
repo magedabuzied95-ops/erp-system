@@ -62,16 +62,19 @@ export const resolveMessageBody = async ({
 } = {}) => {
   const list = Array.isArray(variants?.[automationType]) ? variants[automationType] : [];
   const usable = list.filter((variant) => variant?.enabled !== false && String(variant?.body || "").trim());
-  if (!usable.length) return { variantId: null, body: String(fallbackBody ?? ""), rotationPosition: null };
+  if (!usable.length) return { variantId: null, title: "", body: String(fallbackBody ?? ""), rotationPosition: null };
 
   await ensureWhatsappQueueSchema();
   const position = await nextRotationPosition({ tenantId, automationType, client });
   const variant = pickVariant(usable, position);
-  if (!variant) return { variantId: null, body: String(fallbackBody ?? ""), rotationPosition: position };
+  if (!variant) return { variantId: null, title: "", body: String(fallbackBody ?? ""), rotationPosition: position };
 
   const body = renderWhatsappTemplate(variant.body, values);
   // A variant that renders to nothing — every line dropped for a missing value — must not be
   // sent as an empty message. The automation's own text is the safety net.
-  if (!body.trim()) return { variantId: null, body: String(fallbackBody ?? ""), rotationPosition: position };
-  return { variantId: variant.id, body, rotationPosition: position };
+  if (!body.trim()) return { variantId: null, title: "", body: String(fallbackBody ?? ""), rotationPosition: position };
+  // The title is the variant's greeting. Rendered like the body, and an empty result simply means
+  // "keep the header the automation already passed" — a variant never blanks a button header.
+  const title = renderWhatsappTemplate(String(variant.title || ""), values);
+  return { variantId: variant.id, title, body, rotationPosition: position };
 };

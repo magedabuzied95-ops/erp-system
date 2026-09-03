@@ -149,6 +149,7 @@ export const runOnSent = async (row, sendResult) => {
   const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
   const onSent = payload.on_sent && typeof payload.on_sent === "object" ? payload.on_sent : null;
   if (!onSent) return;
+  const send = payload.send && typeof payload.send === "object" ? payload.send : {};
 
   const column = text(onSent.order_column);
   if (column && row.order_id) {
@@ -217,11 +218,12 @@ export const runOnSent = async (row, sendResult) => {
   /*
    * What the transcript shows must be what the customer received. A CTA send splits the message
    * across title/body/button, so the caller supplies the single-string version it wants logged —
-   * but the moment a variant is in play that stored string is stale, and the variant body IS the
-   * message. rendered_body wins whenever a variant was chosen.
+   * but the moment a variant is in play that stored string is stale, and the variant IS the
+   * message. The queue rewrote send.fallbackText to the variant's full text (header and body) when
+   * it chose one, so that string wins whenever a variant was chosen.
    */
   const transcriptMessage = row.message_variant_id
-    ? text(row.rendered_body)
+    ? (text(send.fallbackText) || text(row.rendered_body))
     : (text(transcript.message) || text(row.rendered_body));
   const saved = await appendWhatsappOutboundSupportReply({
     tenantId,

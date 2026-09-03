@@ -13,6 +13,7 @@ import fs from "node:fs";
 import {
   WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS,
   WHATSAPP_AUTOMATION_TYPES,
+  WHATSAPP_MESSAGE_VARIANT_DEFAULTS,
   WHATSAPP_QUEUE_CATEGORY_DEFAULTS,
   WHATSAPP_QUEUE_DEFAULTS,
   WHATSAPP_QUEUE_STATUSES,
@@ -195,10 +196,48 @@ test("an empty variant body is dropped rather than sent as a blank message", () 
   assert.equal(normalized.invoice_receipt[0].id, "b");
 });
 
-test("no variants configured is the shipping default, so nothing changes until someone opts in", () => {
-  assert.deepEqual(normalizeWhatsappMessageVariants(undefined), {});
+test("the invoice receipt ships with several wordings; every other type stays on its own text", () => {
+  const normalized = normalizeWhatsappMessageVariants(undefined);
+  assert.deepEqual(Object.keys(normalized), ["invoice_receipt"], "only the receipt has built-ins");
+  assert.ok(normalized.invoice_receipt.length >= 3, "enough wordings that a customer does not see the same one twice in a row of sales");
   const definition = getSettingDefinition("whatsapp.message_variants");
-  assert.deepEqual(definition.defaultValue, {});
+  assert.deepEqual(definition.defaultValue, WHATSAPP_MESSAGE_VARIANT_DEFAULTS, "the settings screen renders the same built-ins the queue reads");
+});
+
+test("every built-in receipt wording carries the invoice link, a distinct header and no stray placeholder", () => {
+  const values = { invoice_number: "INV-1", invoice_url: "https://m1store-egy.com/invoice/INV-1", google_review_url: "https://g.page/r/x" };
+  const titles = new Set();
+  const bodies = new Set();
+  for (const variant of normalizeWhatsappMessageVariants(undefined).invoice_receipt) {
+    const title = renderWhatsappTemplate(variant.title, values);
+    const body = renderWhatsappTemplate(variant.body, values);
+    assert.ok(title.trim(), variant.id + " has a header - a CTA header cannot be blank");
+    assert.match(body, /m1store-egy\.com\/invoice\/INV-1/, variant.id + " links the invoice");
+    assert.doesNotMatch(title + body, /\{\{|\}\}|\{[a-z_]+\}/, variant.id + " leaves no placeholder unfilled");
+    assert.doesNotMatch(body, /g\.page/, variant.id + " does not repeat the review link the button already carries");
+    titles.add(title);
+    bodies.add(body);
+  }
+  const count = normalizeWhatsappMessageVariants(undefined).invoice_receipt.length;
+  assert.equal(titles.size, count, "every wording opens differently");
+  assert.equal(bodies.size, count, "every wording reads differently");
+});
+
+test("an explicit empty list switches the built-ins off; an absent key keeps them", () => {
+  assert.equal(normalizeWhatsappMessageVariants({ invoice_receipt: [] }).invoice_receipt, undefined, "[] is the operator's decision");
+  assert.ok(normalizeWhatsappMessageVariants({ thank_you: [{ body: "x" }] }).invoice_receipt?.length, "saving another type leaves the receipt's built-ins in place");
+  // A stored list replaces the built-ins wholesale rather than merging with them.
+  const stored = normalizeWhatsappMessageVariants({ invoice_receipt: [{ id: "mine", title: "أهلاً", body: "نص" }] });
+  assert.deepEqual(stored.invoice_receipt.map((variant) => variant.id), ["mine"]);
+  assert.equal(stored.invoice_receipt[0].title, "أهلاً", "the header is part of the wording and survives normalisation");
+});
+
+test("a chosen variant rewrites the button header and the plain-text fallback, not just the body", () => {
+  // The header used to stay INVOICE_RECEIPT_GREETING whatever variant was picked, and the fallback
+  // stayed the fixed text - so the "varied" receipt still opened identically every time.
+  assert.ok(queueService.includes("sendPayload.title = text(variantTitle)"), "the variant's title becomes the CTA header");
+  assert.ok(queueService.includes("sendPayload.fallbackText ="), "the plain-text fallback follows the variant");
+  assert.ok(worker.includes("text(send.fallbackText) || text(row.rendered_body)"), "the transcript shows header and body, as the customer saw them");
 });
 
 test("category rules survive a partial or corrupt stored value", () => {

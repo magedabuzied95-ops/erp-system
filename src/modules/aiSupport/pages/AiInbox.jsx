@@ -41,6 +41,7 @@ import {
   Pencil,
   PlayCircle,
   Plug,
+  Receipt,
   Plus,
   Star,
   RefreshCw,
@@ -114,6 +115,7 @@ import "./AiInboxDesktop.css";
 import "./AiInboxOrderComposer.m1.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
+import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
@@ -2016,6 +2018,7 @@ function InboxChannelSidebar({
   onSelectSocialPlatform,
   onOpenQuickReplies,
   onOpenCommentsSettings,
+  onOpenInvoiceMessages,
   onOpenIntegrations,
   configActive = false,
 }) {
@@ -2110,7 +2113,7 @@ function InboxChannelSidebar({
           </button>
         ))}
       </div>
-      {onOpenQuickReplies || onOpenCommentsSettings || onOpenIntegrations ? (
+      {onOpenQuickReplies || onOpenCommentsSettings || onOpenInvoiceMessages || onOpenIntegrations ? (
         <div className="mt-2 border-t border-[#d7c9a6] pt-2 dark:border-white/10">
           <button
             type="button"
@@ -2140,6 +2143,7 @@ function InboxChannelSidebar({
                 {[
                   { key: "quick_replies", label: t("aiSupport.quickReplies.title"), icon: Zap, onSelect: onOpenQuickReplies },
                   { key: "comments", label: t("aiSupport.commentsSettings.title"), icon: MessageSquareText, onSelect: onOpenCommentsSettings },
+                  { key: "invoice_messages", label: t("aiSupport.aiSettings.variants.menuTitle"), icon: Receipt, onSelect: onOpenInvoiceMessages },
                   { key: "integrations", label: t("aiSupport.integrations.title"), icon: Plug, onSelect: onOpenIntegrations },
                 ].filter((item) => item.onSelect).map((item) => (
                   <button
@@ -5523,6 +5527,7 @@ export default function AiInbox({ reviewerMode = false }) {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
   const [commentsSettingsOpen, setCommentsSettingsOpen] = useState(false);
+  const [invoiceMessagesOpen, setInvoiceMessagesOpen] = useState(false);
   // `?integrations=<tab>` is how OAuth callbacks (TikTok today) get the user
   // back to the connection they just approved instead of a bare inbox.
   const integrationsDeepLinkTab = clean(searchParams.get("integrations")).toLowerCase();
@@ -9856,6 +9861,14 @@ export default function AiInbox({ reviewerMode = false }) {
     />
   );
 
+  const renderInvoiceMessagesModal = () => (
+    <WhatsappMessageVariantsModal
+      open={invoiceMessagesOpen}
+      onClose={() => setInvoiceMessagesOpen(false)}
+      initialType="invoice_receipt"
+    />
+  );
+
   const renderIntegrationsCenter = () => (
     integrationsOpen ? (
       <Suspense fallback={null}>
@@ -9996,6 +10009,7 @@ export default function AiInbox({ reviewerMode = false }) {
             onReorder={quickRepliesStore.reorderReplies}
           />
           {renderCommentsSettingsModal()}
+          {renderInvoiceMessagesModal()}
           {renderIntegrationsCenter()}
           <InboxChannelSidebar
             channels={[]}
@@ -10018,8 +10032,9 @@ export default function AiInbox({ reviewerMode = false }) {
             onSelectSocialComments={() => setInboxSection("social_comments")}
             onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
             onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
+            onOpenInvoiceMessages={() => setInvoiceMessagesOpen(true)}
             onOpenIntegrations={() => openIntegrations()}
-            configActive={quickRepliesConfigOpen || commentsSettingsOpen || integrationsOpen}
+            configActive={quickRepliesConfigOpen || commentsSettingsOpen || invoiceMessagesOpen || integrationsOpen}
           />
           <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
@@ -10118,6 +10133,7 @@ export default function AiInbox({ reviewerMode = false }) {
           onReorder={quickRepliesStore.reorderReplies}
         />
         {renderCommentsSettingsModal()}
+          {renderInvoiceMessagesModal()}
         {renderIntegrationsCenter()}
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
@@ -10215,8 +10231,9 @@ export default function AiInbox({ reviewerMode = false }) {
               socialCommentsActive={false}
               onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
               onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
+              onOpenInvoiceMessages={() => setInvoiceMessagesOpen(true)}
               onOpenIntegrations={() => openIntegrations()}
-              configActive={quickRepliesConfigOpen || commentsSettingsOpen || integrationsOpen}
+              configActive={quickRepliesConfigOpen || commentsSettingsOpen || invoiceMessagesOpen || integrationsOpen}
               onSelectSocialComments={() => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));
