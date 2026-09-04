@@ -500,7 +500,8 @@
   }
 }
 
-.m1h-cat__img {
+.m1h-cat__img,
+.m1h-cat__video {
   position: absolute;
   inset: 0;
   height: 100%;
@@ -510,9 +511,22 @@
 }
 
 @media (hover: hover) {
-  .m1h-cat:hover .m1h-cat__img {
+  .m1h-cat:hover .m1h-cat__img,
+  .m1h-cat:hover .m1h-cat__video {
     transform: scale(1.045);
   }
+}
+
+/* The clip sits over the poster but stays invisible until its first frame
+   actually plays, so a slow or refused load never shows a black box. */
+.m1h-cat__video {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 500ms ease, transform 400ms var(--m1h-ease);
+}
+
+.m1h-cat__video.is-playing {
+  opacity: 1;
 }
 
 .m1h-cat__scrim {

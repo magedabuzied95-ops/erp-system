@@ -2677,12 +2677,11 @@ const homeProductWithImage = (product = {}) => {
 
 
 
-// Category tiles for the homepage rail. Same destinations the previous grid
-// used; the Pexels stock clips that used to autoplay behind them are gone --
-// six looping stock videos read as a template rather than as M1's own
-// merchandising, and they cost a video decode each on the phones most of this
-// traffic uses. Where M1 has its own poster the poster wins; otherwise the tile
-// borrows a real photo from a product that actually matches the filter.
+// Category tiles for the homepage rail. Three of them play a short looping
+// clip (free-to-use Pexels stock) behind the label -- the owner asked for the
+// motion back after a cart fix silently dropped it. The poster is a frame of
+// the same clip, so the tile paints instantly and the video simply takes over
+// once it can play; where a clip fails or motion is off, the poster stays.
 const HOME_CATEGORY_TILES = [
   {
     id: "men",
@@ -2690,6 +2689,8 @@ const HOME_CATEGORY_TILES = [
     titleEn: "Men",
     href: "/men?product_type=sneakers",
     poster: "/storefront/category-posters/men.webp",
+    // Pexels video 33294342, SD rendition (~1 MB).
+    video: "https://videos.pexels.com/video-files/33294342/14180878_640_360_24fps.mp4",
     test: (product) => isExclusiveCategoryAudience(product, "men") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
   },
   {
@@ -2698,6 +2699,8 @@ const HOME_CATEGORY_TILES = [
     titleEn: "Women",
     href: "/women?product_type=sneakers",
     poster: "/storefront/category-posters/women.webp",
+    // Pexels video 7877138, SD rendition (~0.7 MB).
+    video: "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4",
     test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
   },
   {
@@ -2706,6 +2709,8 @@ const HOME_CATEGORY_TILES = [
     titleEn: "Kids",
     href: "/kids?product_type=sneakers",
     poster: "/storefront/category-posters/kids.webp",
+    // Pexels video 8456205, SD rendition (~0.6 MB).
+    video: "https://videos.pexels.com/video-files/8456205/8456205-sd_640_360_25fps.mp4",
     test: (product) => productAudienceValues(product).includes("kids") && resolveProductTypeKey(product.product_type || product.productType) === "sneakers",
   },
 ];
@@ -2993,6 +2998,7 @@ function PremiumHomePage(props) {
         href: tile.href,
         title: isRtl ? tile.titleAr : tile.titleEn,
         image: image ? imageFor(image) : "",
+        video: tile.video || "",
       };
     }).filter((tile) => tile.image),
     [homepageProductsWithImages, isRtl]

@@ -279,6 +279,125 @@ export function HomeProductGrid(props) {
    Categories
    ========================================================================== */
 
+/**
+ * A category tile's picture: the poster paints first, and when the tile has a
+ * clip the clip is fetched only once the tile is near the viewport, then plays
+ * muted on a loop over the poster. Phones in Low Power Mode or data-saver
+ * refuse autoplay outright, so the first tap anywhere on the page is borrowed
+ * to start it, the same trick the hero video uses. If the clip fails to load,
+ * or the visitor prefers reduced motion, the poster simply stays.
+ */
+function HomeCategoryMedia({ image = "", video = "", eager = false, onImageError }) {
+  const videoRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+  const [wanted, setWanted] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+    setWanted(false);
+    setPlaying(false);
+  }, [video]);
+
+  // Decide whether to fetch the clip at all, and only once it is close.
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !video || failed || typeof window === "undefined") return undefined;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return undefined;
+    if (window.navigator?.connection?.saveData) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setWanted(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) return;
+        setWanted(true);
+        observer.disconnect();
+      },
+      { threshold: 0.1, rootMargin: "160px 0px" }
+    );
+    observer.observe(element);
+    // A tab that is open but not being painted (a background pane, a WebView
+    // waiting to be shown) never runs the observer. If the tile is anyway
+    // within two screens of the top after a moment, fetch the clip regardless.
+    const fallback = window.setTimeout(() => {
+      const top = element.getBoundingClientRect().top;
+      const viewport = window.innerHeight || document.documentElement.clientHeight || 800;
+      if (top < viewport * 2) setWanted(true);
+    }, 2500);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(fallback);
+    };
+  }, [video, failed]);
+
+  // Keep it playing: on load, after a tab switch, and after the first gesture
+  // when the browser refused the silent autoplay.
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !wanted || failed) return undefined;
+    let released = false;
+    const play = () => {
+      if (released || !element || element.paused === false) return;
+      const attempt = element.play();
+      if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
+    };
+    const resume = () => {
+      if (document.visibilityState === "visible") play();
+    };
+    play();
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    document.addEventListener("pointerdown", play, { passive: true });
+    document.addEventListener("touchstart", play, { passive: true });
+    return () => {
+      released = true;
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+      document.removeEventListener("pointerdown", play);
+      document.removeEventListener("touchstart", play);
+      element.pause();
+    };
+  }, [wanted, failed]);
+
+  return (
+    <>
+      {image ? (
+        <img
+          src={image}
+          alt=""
+          className="m1h-cat__img"
+          onError={onImageError}
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          width="480"
+          height="640"
+        />
+      ) : null}
+      {video && !failed ? (
+        <video
+          ref={videoRef}
+          className={`m1h-cat__video${playing ? " is-playing" : ""}`}
+          src={wanted ? video : undefined}
+          muted
+          loop
+          playsInline
+          autoPlay
+          controls={false}
+          disablePictureInPicture
+          disableRemotePlayback
+          preload="none"
+          tabIndex={-1}
+          aria-hidden="true"
+          onPlaying={() => setPlaying(true)}
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+    </>
+  );
+}
+
 export function HomeCategoryRail({ title, cards = [], links = [], loading = false, onImageError }) {
   const visible = cards.filter(Boolean);
   if (!visible.length && !loading) return null;
@@ -291,18 +410,7 @@ export function HomeCategoryRail({ title, cards = [], links = [], loading = fals
           {(loading && !visible.length ? Array.from({ length: 3 }) : visible).map((card, index) =>
             card ? (
               <Link key={card.id} to={card.href} className="m1h-cat">
-                {card.image ? (
-                  <img
-                    src={card.image}
-                    alt=""
-                    className="m1h-cat__img"
-                    onError={onImageError}
-                    loading={index < 2 ? "eager" : "lazy"}
-                    decoding="async"
-                    width="480"
-                    height="640"
-                  />
-                ) : null}
+                <HomeCategoryMedia image={card.image} video={card.video} eager={index < 2} onImageError={onImageError} />
                 <span className="m1h-cat__scrim" />
                 <span className="m1h-cat__label">{card.title}</span>
               </Link>
