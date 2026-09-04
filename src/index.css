@@ -2065,6 +2065,70 @@
     animation-play-state: paused;
   }
 
+  /* The language switch on the announcement strip: globe, code, chevron, pinned
+     to the top-right corner of the site. Unlayered !important colour rules
+     further down paint every `span` inside the strip at 82% white; this one is
+     the control the eye is meant to find, so it stays at full white on the
+     strip's own black, and the desktop marquee slides under it. */
+  .sf-announcement-lang {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding-inline: 0.85rem 0.75rem;
+    background: #000000;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 160ms ease, opacity 160ms ease;
+  }
+
+  .sf-announcement-lang::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    right: 100%;
+    width: 1.75rem;
+    background: linear-gradient(to left, #000000, rgba(0, 0, 0, 0));
+    pointer-events: none;
+  }
+
+  .sf-announcement-lang svg:first-child {
+    width: 15px;
+    height: 15px;
+  }
+
+  .sf-announcement-lang svg:last-child {
+    width: 12px;
+    height: 12px;
+    opacity: 0.85;
+  }
+
+  .sf-announcement-lang:hover {
+    color: #d4af37;
+  }
+
+  /* Every svg and span on the strip is painted by the theme rules below (gold
+     icons in the dark theme, 82% white text in the light one). The switch is
+     one control, not a ticker item: icon and code follow the button colour. */
+  .storefront-shell .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-lang :is(span, svg) {
+    color: currentColor !important;
+    opacity: 1 !important;
+  }
+
+  .sf-announcement-lang:focus-visible {
+    outline: 1px solid rgba(255, 255, 255, 0.6);
+    outline-offset: -3px;
+  }
+
   .sf-nav-link::after {
     content: "";
     position: absolute;
@@ -7101,7 +7165,9 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-inline: 1rem;
+    /* Symmetric so the sentence stays centred on the bar; the end value is what
+       keeps it clear of the language switch pinned to the right corner. */
+    padding-inline: 4.25rem;
     font-size: 12px;
     line-height: 14px;
     font-weight: 400;

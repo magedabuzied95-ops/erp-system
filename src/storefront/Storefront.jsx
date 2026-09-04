@@ -36,8 +36,10 @@ import {
   Baby,
   Briefcase,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Globe,
   Crown,
   Clock3,
   Footprints,
@@ -5073,7 +5075,25 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className={headerShellClassName}
     >
-      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
+      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement relative overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
+        {/* The language switch lives at the top-right corner of the site, on the
+            announcement strip, where the owner asked for it: a globe, the current
+            code and a chevron. It is pinned to the physical right in BOTH
+            languages -- "top right" was the instruction, not "top end". It sits
+            outside the two ticker containers so their overflow clipping never
+            touches it, and above them so the marquee slides underneath. */}
+        <button
+          type="button"
+          onClick={switchLanguage}
+          className="sf-announcement-lang"
+          aria-label={languageLabel}
+          title={languageLabel}
+          dir="ltr"
+        >
+          <Globe strokeWidth={1.5} aria-hidden="true" />
+          <span>{currentLanguage.toUpperCase()}</span>
+          <ChevronDown strokeWidth={1.75} aria-hidden="true" />
+        </button>
         <div className="sf-announcement-solo relative mx-auto h-7 w-full max-w-7xl overflow-hidden md:hidden">
           {announcementItems.map((announcement, index) => (
             // Deliberately a div, not a span: `.sf-header-announcement span` is
@@ -5186,8 +5206,8 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
             })}
           </div>
           <div className="hidden items-center gap-2 lg:flex">
-            <button type="button" onClick={switchLanguage} className="rounded-full px-2.5 py-1 text-white/80 transition hover:bg-white/10 hover:text-white">{languageLabel}</button>
-            <span className="h-3 w-px bg-white/15" />
+            {/* Language used to sit here too; it moved to the announcement strip
+                above, so this row keeps only the currency. */}
             <button type="button" className="rounded-full px-2.5 py-1 text-white/80 transition hover:bg-white/10 hover:text-white">{getCurrency().code}</button>
           </div>
         </div>
