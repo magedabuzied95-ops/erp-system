@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone, shiftDateKey, todayInAppTimezone } from "../../../shared/lib/appTimezone.js";
 /*
  * Conversation helpers shared by the two AI Inbox surfaces.
  *
@@ -175,20 +176,19 @@ export const isFromMeMessage = (message = {}) =>
   message?.fromMe === true ||
   message?.is_from_me === true;
 
+// Days are the store's days: a message at 01:00 Cairo belongs to "اليوم" on every device.
 export const transcriptDayKey = (value) => {
   const date = new Date(value || 0);
-  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
+  return Number.isFinite(date.getTime()) && date.getTime() > 0 ? dateKeyInAppTimezone(date) : "";
 };
 
 export const transcriptDayLabel = (value) => {
   const date = new Date(value || 0);
   if (!Number.isFinite(date.getTime()) || date.getTime() <= 0) return "";
   const key = transcriptDayKey(value);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-  if (key === transcriptDayKey(today)) return "اليوم";
-  if (key === transcriptDayKey(yesterday)) return "أمس";
+  const today = todayInAppTimezone();
+  if (key === today) return "اليوم";
+  if (key === shiftDateKey(today, -1)) return "أمس";
   try {
     return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { day: "numeric", month: "long", year: "numeric" }).format(date);
   } catch {

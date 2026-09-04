@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, RefreshCw, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +10,7 @@ const dateLabel = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
-  return date.toISOString().slice(0, 10);
+  return dateKeyInAppTimezone(date);
 };
 
 const money = (value) => {

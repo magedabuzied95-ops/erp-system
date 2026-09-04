@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
@@ -6429,7 +6430,7 @@ export default function AiInbox({ reviewerMode = false }) {
       const post = normalizeSocialCommentPost(item);
       const captionKey = normalizedCaption(post.caption);
       const parsedTime = Date.parse(post.displayPostTime || post.lastActivity || "");
-      const dayKey = Number.isFinite(parsedTime) ? new Date(parsedTime).toISOString().slice(0, 10) : "unknown";
+      const dayKey = Number.isFinite(parsedTime) ? dateKeyInAppTimezone(parsedTime) : "unknown";
       const fallbackKey = `${post.platform}:${post.postId || post.id}`;
       let groupKey = captionKey ? `${dayKey}:${captionKey}` : fallbackKey;
       let current = mergeBuckets.get(groupKey);

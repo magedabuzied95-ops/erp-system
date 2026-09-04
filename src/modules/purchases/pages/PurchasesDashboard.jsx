@@ -1,3 +1,4 @@
+import { todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
@@ -246,7 +247,7 @@ function PurchasesDashboard() {
   const currentPage = Math.min(page, totalPages);
   const visiblePurchases = filteredPurchases.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const purchaseKpis = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayInAppTimezone();
     return filteredPurchases.reduce(
       (summary, purchase) => {
         const status = normalizeStatusValue(purchase.status);

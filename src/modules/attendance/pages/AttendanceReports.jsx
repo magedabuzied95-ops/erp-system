@@ -1,14 +1,12 @@
+import { monthBoundsInAppTimezone, todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarClock, Download, Filter, RefreshCcw, Table2, TimerReset } from "lucide-react";
 
 import { getAttendanceReports } from "../attendanceApi";
 
-const today = new Date().toISOString().slice(0, 10);
-const monthStart = new Date();
-monthStart.setDate(1);
-
-const defaultFrom = monthStart.toISOString().slice(0, 10);
+const today = todayInAppTimezone();
+const defaultFrom = monthBoundsInAppTimezone(today).start;
 
 const safeDate = (value) => {
   if (!value) return null;

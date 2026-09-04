@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone, monthBoundsInAppTimezone, zonedParts } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -44,24 +45,16 @@ import {
 } from "../attendanceApi";
 
 const pad2 = (value) => String(value).padStart(2, "0");
-// The calendar day has to be the viewer's own, not the UTC one: an overnight
-// shift is corrected in the small hours, exactly when the two disagree.
-const localDateValue = (value) => {
-  const date = value ? new Date(value) : new Date();
-  if (!Number.isFinite(date.getTime())) return "";
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-};
+// The calendar day has to be the store's own, not the device's and not UTC: an
+// overnight shift is corrected in the small hours, exactly when they disagree.
+const localDateValue = (value) => dateKeyInAppTimezone(value ? new Date(value) : new Date());
 const todayValue = () => localDateValue();
 const nextDayValue = (value) => {
   const date = new Date(`${value || todayValue()}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + 1);
   return date.toISOString().slice(0, 10);
 };
-const monthStartValue = () => {
-  const date = new Date();
-  date.setDate(1);
-  return localDateValue(date);
-};
+const monthStartValue = () => monthBoundsInAppTimezone(todayValue()).start;
 const formatDayFirstDate = (value) => {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
@@ -124,12 +117,12 @@ const manualAttendanceForm = (employeeId = "", attendanceDate = todayValue()) =>
 // so opening a saved record shows what is actually recorded instead of a blank
 // form that silently overwrites it.
 const twelveHourParts = (value, fallbackPeriod) => {
-  const date = safeDate(value);
-  if (!date) return { hour: "", minute: "00", period: fallbackPeriod };
-  const hours24 = date.getHours();
+  const parts = zonedParts(safeDate(value));
+  if (!parts) return { hour: "", minute: "00", period: fallbackPeriod };
+  const hours24 = parts.hour;
   return {
     hour: String(hours24 % 12 === 0 ? 12 : hours24 % 12),
-    minute: pad2(date.getMinutes()),
+    minute: pad2(parts.minute),
     period: hours24 >= 12 ? "PM" : "AM",
   };
 };

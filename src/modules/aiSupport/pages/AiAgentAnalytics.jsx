@@ -1,3 +1,4 @@
+import { shiftDateKey, todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -32,12 +33,8 @@ const seconds = (value) => {
   return `${Math.round(sec / 60)}m`;
 };
 
-const todayInput = () => new Date().toISOString().slice(0, 10);
-const daysAgoInput = (days) => {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date.toISOString().slice(0, 10);
-};
+const todayInput = () => todayInAppTimezone();
+const daysAgoInput = (days) => shiftDateKey(todayInAppTimezone(), -days);
 
 const tenantIdFrom = (tenantApi) => {
   const currentTenant = tenantApi?.currentTenant || getCurrentTenant?.() || {};

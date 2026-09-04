@@ -62,14 +62,19 @@ test("the pool pins the database session to Cairo", () => {
   assert.match(db, /\[process\.env\.PGOPTIONS \|\| "-c client_encoding=UTF8", `-c timezone=/, "appended, not replaced");
 });
 
-test("the process clock is guarded, because date columns are not instants", () => {
+test("the process clock follows the session zone, and date columns are protected from it", () => {
   /*
-   * node-postgres parses a bare `date` at LOCAL midnight. With the process on Africa/Cairo,
-   * attendance_date 2026-08-31 serialises as 2026-08-30T21:00:00Z and every date-only field in
-   * the API reads a day early. Cairo belongs on the database session, never on the container.
+   * node-postgres parses a bare `date` at LOCAL midnight. With the process on Africa/Cairo and
+   * the default parser, attendance_date 2026-08-31 would serialise as 2026-08-30T21:00:00Z and
+   * every date-only field in the API would read a day early. So the process may only move to
+   * Cairo together with the parser that pins `date` to UTC midnight — both live in
+   * bootstrapTimezone.js, and db.js imports it before pg.
    */
-  assert.match(db, /if \(process\.env\.TZ && !\/\^\(UTC\|Etc\\\/UTC\|GMT\)\$\/i\.test/, "a non-UTC process clock is called out at boot");
-  assert.match(db, /date-only columns will be read a day early/);
+  assert.match(db.split("\n")[0], /import "\.\.\/utils\/bootstrapTimezone\.js";/, "the bootstrap runs before the pool exists");
+  assert.match(db, /processClockMatchesAppTimeZone\(DB_SESSION_TIMEZONE\)/, "a process clock that disagrees with the session is called out at boot");
+  const bootstrap = read("server/utils/bootstrapTimezone.js");
+  assert.match(bootstrap, /setTypeParser\(DATE_OID, parseDateColumnAtUtcMidnight\)/);
+  assert.match(bootstrap, /applyProcessTimeZone\(getAppTimeZone\(\)\)/);
 });
 
 test("the migration refuses to run against a database that is not UTC", () => {

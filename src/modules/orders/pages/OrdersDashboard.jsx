@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { dateKeyInAppTimezone, zonedParts } from "../../../shared/lib/appTimezone";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -302,12 +303,8 @@ const isDelayedPending = (order = {}) => {
   return ageHours >= 36 && ["pending", "awaiting_verification"].includes(statusOf(order));
 };
 
-const getDateInputValue = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+// The store's calendar day, not the device's: the two disagree around midnight.
+const getDateInputValue = (date = new Date()) => dateKeyInAppTimezone(date);
 
 /**
  * Which calendar day an order belongs to, read on the SHOP's clock.
@@ -407,9 +404,9 @@ const isArabicLanguage = (language = "") => String(language || "").toLowerCase()
 const localizedCopy = (language, ar, en) => (isArabicLanguage(language) ? ar : en);
 const formatNumericOrderDate = (value) => {
   if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-  return `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  const parts = zonedParts(value);
+  if (!parts) return String(value);
+  return `${parts.day}/${parts.month}/${parts.year}`;
 };
 const isShippingPartialDisplayStatus = (value = "") =>
   ["partially_paid_shipping", "shipping_paid", "partial_shipping"].includes(lower(value));

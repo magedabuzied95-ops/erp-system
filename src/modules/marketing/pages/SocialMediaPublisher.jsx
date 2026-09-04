@@ -1,4 +1,5 @@
-﻿import { createPortal } from "react-dom";
+import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
+import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeDollarSign,
@@ -254,7 +255,7 @@ const buildPostCountsByDay = (posts = []) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
     return {
-      key: date.toISOString().slice(0, 10),
+      key: dateKeyInAppTimezone(date),
       label: formatChartDayLabel(date),
       published: 0,
       scheduled: 0,
@@ -266,9 +267,7 @@ const buildPostCountsByDay = (posts = []) => {
   posts.forEach((post) => {
     const timestamp = getPostTimestamp(post);
     if (!timestamp) return;
-    const date = new Date(timestamp);
-    date.setHours(0, 0, 0, 0);
-    const key = date.toISOString().slice(0, 10);
+    const key = dateKeyInAppTimezone(timestamp);
     const bucket = map.get(key);
     if (!bucket) return;
     const status = String(post.status || "draft").toLowerCase();

@@ -1,3 +1,4 @@
+import { todayInAppTimeZone } from "../utils/appTimezone.js";
 import process from "node:process";
 import net from "node:net";
 import tls from "node:tls";
@@ -363,7 +364,7 @@ export const sendLoginTaskDigestIfNeeded = async (userId, employeeId, tenantId) 
 
   if (!tasksResult.rows.length) return { skipped: true, reason: "no_tasks" };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInAppTimeZone();
   const dedupeKey = `staff_task_login_digest:${employeeId}:${today}`;
   const duplicate = await db.query(
     `

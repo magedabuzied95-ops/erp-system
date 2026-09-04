@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getAppTimezone } from "../../../shared/lib/appTimezone";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
@@ -763,9 +764,11 @@ const safeNow = () => {
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
 const EMPLOYEE_PORTAL_PWA_VERSION = "20260802-android-startup-1";
 
+// The store's zone, never the phone's: an employee whose handset roamed or was never set saw a
+// check-in time hours away from the one on the branch wall.
 const browserTimeZone = () => {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Cairo";
+    return getAppTimezone() || "Africa/Cairo";
   } catch {
     return "Africa/Cairo";
   }

@@ -1,3 +1,4 @@
+import { todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -77,7 +78,7 @@ const resolveOrderItemUnitPrice = (item = {}) => {
 
 const getOrderPhone = (order = {}) => text(order.customer_phone || order.phone || order.customer?.phone || "");
 const getOrderCode = (order = {}) => text(order.invoice_number || order.public_order_number || order.display_order_number || `#${order.id}`);
-const getDateInputValue = () => new Date().toISOString().slice(0, 10);
+const getDateInputValue = () => todayInAppTimezone();
 const normalizeRefundMethod = (value = "cash") => {
   const key = lower(value);
   if (["cash", "vodafone_cash", "instapay"].includes(key)) return key;

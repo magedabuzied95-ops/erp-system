@@ -1,3 +1,4 @@
+import { shiftDateKey, toDateKey, todayInAppTimeZone } from "../utils/appTimezone.js";
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { paidOrderClauses } from "./analytics/accountingCanon.js";
@@ -9,12 +10,14 @@ const COLUMN_CACHE = new Map();
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 200;
 
-const nowIsoDate = () => new Date().toISOString().slice(0, 10);
+// "Today" is the shop's day, not the process's: between midnight and 03:00 Cairo the two differ,
+// and a preset of "today" built on UTC showed yesterday's sales until breakfast.
+const nowIsoDate = () => todayInAppTimeZone();
 
 const toDate = (value) => {
   if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  const key = toDateKey(value);
+  return key || null;
 };
 
 const toNumber = (value) => {
@@ -29,23 +32,20 @@ export const getReportTenantId = (req) => (isSuperAdminUser(req.user) ? null : g
 
 export const parseReportFilters = (query = {}) => {
   const preset = String(query.preset || query.range || "month").toLowerCase();
-  const today = new Date();
+  const today = nowIsoDate();
   let startDate = toDate(query.startDate || query.from);
   let endDate = toDate(query.endDate || query.to);
 
   if (!startDate || !endDate) {
-    const start = new Date(today);
     if (preset === "today") {
-      startDate = nowIsoDate();
-      endDate = nowIsoDate();
+      startDate = today;
+      endDate = today;
     } else if (preset === "week") {
-      start.setDate(today.getDate() - 6);
-      startDate = start.toISOString().slice(0, 10);
-      endDate = nowIsoDate();
+      startDate = shiftDateKey(today, -6);
+      endDate = today;
     } else {
-      start.setDate(today.getDate() - 29);
-      startDate = start.toISOString().slice(0, 10);
-      endDate = nowIsoDate();
+      startDate = shiftDateKey(today, -29);
+      endDate = today;
     }
   }
 
@@ -184,18 +184,19 @@ const insight = ({ title, description, severity = "info", category = "General", 
 });
 
 const getPreviousPeriodFilters = (filters = {}) => {
-  const start = new Date(filters.startDate);
-  const end = new Date(filters.endDate);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return filters;
-  const days = Math.max(Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1, 1);
-  const previousEnd = new Date(start);
-  previousEnd.setDate(previousEnd.getDate() - 1);
-  const previousStart = new Date(previousEnd);
-  previousStart.setDate(previousStart.getDate() - days + 1);
+  // Day keys only: local-midnight Date arithmetic run through toISOString() lands a day early on
+  // any process east of Greenwich, which this one now is.
+  const startKey = toDateKey(filters.startDate);
+  const endKey = toDateKey(filters.endDate);
+  if (!startKey || !endKey) return filters;
+  const start = new Date(`${startKey}T00:00:00Z`);
+  const end = new Date(`${endKey}T00:00:00Z`);
+  const days = Math.max(Math.round((end.getTime() - start.getTime()) / 86400000) + 1, 1);
+  const previousEnd = shiftDateKey(startKey, -1);
   return {
     ...filters,
-    startDate: previousStart.toISOString().slice(0, 10),
-    endDate: previousEnd.toISOString().slice(0, 10),
+    startDate: shiftDateKey(previousEnd, -days + 1),
+    endDate: previousEnd,
   };
 };
 

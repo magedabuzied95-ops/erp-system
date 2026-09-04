@@ -1,3 +1,4 @@
+import { zonedParts } from "../shared/lib/appTimezone";
 import React, { memo } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -232,7 +233,7 @@ const getDashboardCopy = (isArabic) => ({
 });
 
 const getGreeting = (copy) => {
-  const hour = new Date().getHours();
+  const hour = zonedParts(new Date()).hour;
   if (hour < 12) return copy.greeting.morning;
   if (hour < 18) return copy.greeting.afternoon;
   return copy.greeting.evening;

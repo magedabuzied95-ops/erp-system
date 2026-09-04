@@ -1,3 +1,4 @@
+import { shiftDateKey, todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AlertTriangle, CheckCircle2, Clock3, Download, Edit3, Filter, ImagePlus, Loader2, Plus, RefreshCw, RotateCcw, ScanBarcode, ShieldCheck, Smartphone, Trash2, UserCheck, Warehouse, XCircle } from "lucide-react";
@@ -41,12 +42,8 @@ import { uploadProductImage, resolveUploadedImageUrl } from "../../products/serv
 import { resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
 
-const todayValue = () => new Date().toISOString().slice(0, 10);
-const rangeStartValue = () => {
-  const d = new Date();
-  d.setDate(d.getDate() - 6);
-  return d.toISOString().slice(0, 10);
-};
+const todayValue = () => todayInAppTimezone();
+const rangeStartValue = () => shiftDateKey(todayInAppTimezone(), -6);
 const safeArray = (value) => (Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : []);
 const safeDate = (value) => {
   if (!value) return null;

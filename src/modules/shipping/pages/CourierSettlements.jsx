@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -12,10 +13,7 @@ import { api } from "../../../shared/api/api";
 const PROVIDER = "bosta";
 const fmtMoney = (value) => `${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
 const fmtDate = (value) => (value ? new Date(value).toLocaleString() : "-");
-const toDateInput = (date = new Date()) => {
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-};
+const toDateInput = (date = new Date()) => dateKeyInAppTimezone(date);
 const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100;
 
 const cardClass = "rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4";

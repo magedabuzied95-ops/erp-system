@@ -1,3 +1,4 @@
+import { todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { Children, isValidElement, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -96,7 +97,7 @@ const pdfUrlFromBase64 = (base64) => {
 const downloadPdf = (url) => {
   const link = document.createElement("a");
   link.href = url;
-  link.download = `bosta-labels-${new Date().toISOString().slice(0, 10)}.pdf`;
+  link.download = `bosta-labels-${todayInAppTimezone()}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();

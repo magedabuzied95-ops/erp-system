@@ -1,3 +1,4 @@
+import { shiftDateKey, todayInAppTimeZone } from "../utils/appTimezone.js";
 import db from "../database/db.js";
 import crypto from "node:crypto";
 import React from "react";
@@ -1706,7 +1707,7 @@ export const createEmployee = async (req, res) => {
         missing_hours_deduction_enabled !== false,
         late_deduction_enabled !== false,
         early_leave_deduction_enabled !== false,
-        hire_date || new Date().toISOString().slice(0, 10),
+        hire_date || todayInAppTimeZone(),
         status || "active",
         can_open_branch !== false,
         Boolean(manager_portal_enabled),
@@ -1818,7 +1819,7 @@ export const updateEmployee = async (req, res) => {
         missing_hours_deduction_enabled !== false,
         late_deduction_enabled !== false,
         early_leave_deduction_enabled !== false,
-        hire_date || new Date().toISOString().slice(0, 10),
+        hire_date || todayInAppTimeZone(),
         status || "active",
         can_open_branch !== false,
         Boolean(manager_portal_enabled),
@@ -2680,7 +2681,7 @@ export const getDailyReport = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const date = req.query.date || todayInAppTimeZone();
     const branchId = req.query.branchId || req.query.branch_id || null;
     const params = [tenantId, date];
     const branchClause = branchId ? ` AND COALESCE(al.branch_id, e.branch_id) = $3` : "";
@@ -2794,8 +2795,8 @@ export const getEmployeeReport = async (req, res) => {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
     const { id } = req.params;
-    const startDate = req.query.startDate || new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
-    const endDate = req.query.endDate || new Date().toISOString().slice(0, 10);
+    const startDate = req.query.startDate || shiftDateKey(todayInAppTimeZone(), -29);
+    const endDate = req.query.endDate || todayInAppTimeZone();
 
     const employeeResult = await db.query(
       `
@@ -2882,8 +2883,8 @@ export const getBranchReport = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
-    const startDate = req.query.startDate || new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
-    const endDate = req.query.endDate || new Date().toISOString().slice(0, 10);
+    const startDate = req.query.startDate || shiftDateKey(todayInAppTimeZone(), -29);
+    const endDate = req.query.endDate || todayInAppTimeZone();
     const branchId = req.query.branchId || req.query.branch_id || null;
 
     const params = [tenantId, startDate, endDate];
@@ -3069,7 +3070,7 @@ export const getAttendanceToday = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
-    const date = req.query.date || new Date().toISOString().slice(0, 10);
+    const date = req.query.date || todayInAppTimeZone();
     const branchId = req.query.branchId || req.query.branch_id || null;
     const employeeId = req.query.employeeId || req.query.employee_id || null;
 
@@ -3175,8 +3176,8 @@ export const getAttendanceReports = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
-    const from = req.query.from || req.query.startDate || new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
-    const to = req.query.to || req.query.endDate || new Date().toISOString().slice(0, 10);
+    const from = req.query.from || req.query.startDate || shiftDateKey(todayInAppTimeZone(), -29);
+    const to = req.query.to || req.query.endDate || todayInAppTimeZone();
     const branchId = req.query.branchId || req.query.branch_id || null;
     const employeeId = req.query.employeeId || req.query.employee_id || null;
 

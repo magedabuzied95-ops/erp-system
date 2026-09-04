@@ -1,4 +1,5 @@
-﻿import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { shiftDateKey, todayInAppTimezone } from "../../../shared/lib/appTimezone";
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1647,7 +1648,7 @@ const readPosSaleStats = () => {
 
 const writePosSaleStats = (cart) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayInAppTimezone();
     const current = readPosSaleStats();
     const next = {
       date: current.date === today ? current.date : today,
@@ -5790,9 +5791,7 @@ function POSPro() {
     setActualDrawerAmount(String(expectedCash));
     setShiftCloseNotes("");
     setShiftVarianceReason("");
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setNextOpeningWorkDate(tomorrow.toISOString().slice(0, 10));
+    setNextOpeningWorkDate(shiftDateKey(todayInAppTimezone(), 1));
     setNextOpeningEmployeeId("");
     setNextOpeningException(false);
     setNextOpeningExceptionReason("");

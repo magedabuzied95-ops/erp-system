@@ -1,3 +1,4 @@
+import { nowAsAppWallClock } from "../../../shared/lib/appTimezone";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -98,7 +99,7 @@ const shiftDate = (baseDate, days) => {
 };
 
 const getPresetRange = (preset) => {
-  const today = new Date();
+  const today = nowAsAppWallClock();
   const endDate = formatDate(today);
 
   switch (preset) {

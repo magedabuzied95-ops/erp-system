@@ -1,3 +1,4 @@
+import { todayInAppTimeZone } from "../utils/appTimezone.js";
 import express from "express";
 import fs from "fs";
 import path from "path";
@@ -710,7 +711,7 @@ const readExpensePayload = (body = {}) => {
     warehouse_id: optionalId(body.warehouse_id || body.warehouseId),
     employee_id: optionalId(body.employee_id || body.employeeId),
     supplier_id: optionalId(body.supplier_id || body.supplierId),
-    expense_date: body.expense_date || body.date || new Date().toISOString().slice(0, 10),
+    expense_date: body.expense_date || body.date || todayInAppTimeZone(),
     deduction_month: resolveDeductionMonth(body),
     notes: clean(body.notes || body.note),
     attachment_url: clean(body.attachment_url || body.attachmentUrl || body.attachment),
@@ -1473,7 +1474,7 @@ router.post("/recurring", protect, permit("expenses", "create"), async (req, res
       optionalId(req.body?.employee_id || req.body?.employeeId),
       optionalId(req.body?.financial_account_id || req.body?.financialAccountId),
       pick(req.body?.frequency, RECURRING_FREQUENCIES, "monthly"),
-      req.body?.next_due_date || req.body?.nextDueDate || new Date().toISOString().slice(0, 10),
+      req.body?.next_due_date || req.body?.nextDueDate || todayInAppTimeZone(),
       Boolean(req.body?.auto_create || req.body?.autoCreate),
       req.body?.is_active !== false,
       clean(req.body?.notes),
@@ -1494,7 +1495,7 @@ router.put("/recurring/:id", protect, permit("expenses", "edit"), async (req, re
     clean(req.body?.payment_method || req.body?.paymentMethod || "cash"),
     optionalId(req.body?.branch_id || req.body?.branchId),
     pick(req.body?.frequency, RECURRING_FREQUENCIES, "monthly"),
-    req.body?.next_due_date || req.body?.nextDueDate || new Date().toISOString().slice(0, 10),
+    req.body?.next_due_date || req.body?.nextDueDate || todayInAppTimeZone(),
     Boolean(req.body?.auto_create || req.body?.autoCreate),
     req.body?.is_active !== false,
     clean(req.body?.notes),

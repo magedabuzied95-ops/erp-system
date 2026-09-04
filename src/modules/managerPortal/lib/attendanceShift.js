@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone.js";
 /**
  * The shape of one manually corrected attendance day, as the sheet is about to
  * save it.
@@ -33,8 +34,8 @@ export const toDateKey = (value) => {
   if (!value) return "";
   const str = String(value);
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "" : date.toISOString().slice(0, 10);
+  // An instant is keyed on the store's calendar, not UTC's: 01:00 Cairo is still the same day.
+  return dateKeyInAppTimezone(value);
 };
 
 export const nextDateKey = (dateKey) => {

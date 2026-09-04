@@ -1,4 +1,5 @@
-﻿import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { dateKeyInAppTimezone, monthBoundsInAppTimezone, todayInAppTimezone } from "../../../shared/lib/appTimezone";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { AlertTriangle, Banknote, CalendarDays, Calculator, CheckCircle2, ChevronDown, Clock, Coins, ExternalLink, Gavel, Gift, Loader2, Plus, RefreshCw, Save, Search, ShieldCheck, TrendingUp, WalletCards, X } from "lucide-react";
@@ -28,10 +29,12 @@ import { formatCurrency } from "../../pos/lib/posUtils";
 import ThemedSelect from "../../../shared/ui/ThemedSelect";
 import "./SalesEmployees.m1.css";
 
-const today = new Date().toISOString().slice(0, 10);
-const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
-const previousMonthStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().slice(0, 10);
-const previousMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().slice(0, 10);
+const today = todayInAppTimezone();
+// Month edges on the store's calendar. Local-midnight Dates run through toISOString() gave the
+// LAST day of the previous month on any device east of Greenwich — which every Cairo device is.
+const monthStart = monthBoundsInAppTimezone(today).start;
+const previousMonthStart = monthBoundsInAppTimezone(today, -1).start;
+const previousMonthEnd = monthBoundsInAppTimezone(today, -1).end;
 
 const emptyForm = {
   id: null,
@@ -70,7 +73,7 @@ const dateLabel = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
-  return date.toISOString().slice(0, 10);
+  return dateKeyInAppTimezone(date);
 };
 const normalizeCommissionMode = (employee = {}) => {
   if (employee.commission_mode) return employee.commission_mode;

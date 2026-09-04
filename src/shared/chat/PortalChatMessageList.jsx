@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone, shiftDateKey, todayInAppTimezone } from "../lib/appTimezone";
 import { AlertCircle, ArrowDownCircle, Check, CheckCheck, ChevronDown, Clock3, Copy, Forward, Loader2, MessageCircle, Pencil, Reply, RotateCcw, Star, StarOff, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -86,20 +87,16 @@ const bodyDirection = (body = "") => {
   return "rtl";
 };
 
-const messageDayKey = (value) => {
-  const date = new Date(value || 0);
-  return Number.isFinite(date.getTime()) ? `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` : "";
-};
+// Days are the store's days: a message at 01:00 Cairo belongs to "today" on every device.
+const messageDayKey = (value) => dateKeyInAppTimezone(new Date(value || 0));
 
 const messageDayLabel = (value, labels = {}, language = "ar") => {
   const date = new Date(value || 0);
   if (!Number.isFinite(date.getTime())) return "";
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  const today = todayInAppTimezone();
   const key = messageDayKey(date);
-  if (key === messageDayKey(today)) return labels.today;
-  if (key === messageDayKey(yesterday)) return labels.yesterday;
+  if (key === today) return labels.today;
+  if (key === shiftDateKey(today, -1)) return labels.yesterday;
   const locale = String(language || "").toLowerCase().startsWith("ar") ? "ar-EG-u-nu-latn" : "en-GB";
   return new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(date);
 };

@@ -1,3 +1,4 @@
+import { todayInAppTimeZone } from "../utils/appTimezone.js";
 import db from "../database/db.js";
 import { createEmployeePortalNotification } from "./employeePayrollPortalService.js";
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
@@ -563,7 +564,7 @@ export const createEmployeeBonus = async ({ tenantId = null, employeeId, userId 
     [
       tenantId ?? employee.tenant_id ?? null,
       normalizedEmployeeId,
-      normalizeDateInput(data.bonus_date || data.bonusDate || data.date) || new Date().toISOString().slice(0, 10),
+      normalizeDateInput(data.bonus_date || data.bonusDate || data.date) || todayInAppTimeZone(),
       amount,
       reason,
       String(data.notes || "").trim(),
@@ -654,7 +655,7 @@ export const createEmployeePenalty = async ({ tenantId = null, employeeId, userI
     [
       tenantId ?? employee.tenant_id ?? null,
       normalizedEmployeeId,
-      normalizeDateInput(data.penalty_date || data.penaltyDate || data.date) || new Date().toISOString().slice(0, 10),
+      normalizeDateInput(data.penalty_date || data.penaltyDate || data.date) || todayInAppTimeZone(),
       normalizeDateInput(data.payroll_period_start || data.payrollPeriodStart),
       normalizeDateInput(data.payroll_period_end || data.payrollPeriodEnd),
       amount,

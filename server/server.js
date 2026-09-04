@@ -1,3 +1,4 @@
+import "./utils/bootstrapTimezone.js";
 import { createRequire } from "node:module";
 import express from "express";
 

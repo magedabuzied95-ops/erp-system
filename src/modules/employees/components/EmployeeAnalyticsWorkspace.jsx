@@ -1,3 +1,4 @@
+import { nowAsAppWallClock } from "../../../shared/lib/appTimezone";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -57,7 +58,7 @@ const shiftDate = (baseDate, days) => {
 };
 
 const getPresetRange = (preset) => {
-  const today = new Date();
+  const today = nowAsAppWallClock();
   const endDate = formatDate(today);
 
   switch (preset) {

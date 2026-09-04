@@ -1,4 +1,5 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { todayInAppTimezone } from "../../../shared/lib/appTimezone";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, CalendarDays, Download, FileText, Filter, Mail, MapPin, Pencil, Phone, PlusCircle, Search, Sparkles, Trash2, UploadCloud, UserRound, UsersRound, Wallet, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
@@ -17,7 +18,7 @@ const tt = (key, options) => i18n.t(key, options);
 
 const DEFAULT_CUSTOMERS_PAGE_SIZE = 25;
 const CUSTOMER_PAGE_SIZE_OPTIONS = [10, 25, 50, 100, 200, 500, 1000, "all"];
-const todayInputValue = () => new Date().toISOString().slice(0, 10);
+const todayInputValue = () => todayInAppTimezone();
 
 const inputClass =
   "h-12 w-full rounded-[var(--radius-card)] border border-border bg-surface px-4 text-sm font-semibold text-text outline-none transition placeholder:text-text-muted focus:border-emerald-400/50 focus:bg-surface";

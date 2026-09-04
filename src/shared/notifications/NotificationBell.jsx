@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone, shiftDateKey, todayInAppTimezone } from "../lib/appTimezone";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -98,13 +99,12 @@ export const relativeTime = (value) => {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(time));
 };
 
+// Grouped on the store's calendar, so "today" is the same day on every device.
 const dayGroup = (value) => {
-  const date = new Date(value || Date.now());
-  const today = new Date();
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-  if (startOfDate === startOfToday) return "today";
-  if (startOfDate === startOfToday - 86400000) return "yesterday";
+  const key = dateKeyInAppTimezone(new Date(value || Date.now()));
+  const today = todayInAppTimezone();
+  if (key === today) return "today";
+  if (key === shiftDateKey(today, -1)) return "yesterday";
   return "older";
 };
 

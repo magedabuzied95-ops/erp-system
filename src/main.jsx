@@ -10,6 +10,7 @@ import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?
 import { installChunkLoadRecovery, installStylesheetRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
 import { installDayFirstDateInputs } from "./shared/utils/dateInputLocale";
 import { installNumericZeroSelect } from "./shared/utils/numericInputZero";
+import { installAppTimezoneDefaults } from "./shared/lib/appTimezone";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -73,6 +74,8 @@ const clearStaleApiOverrides = () => {
 clearStaleApiOverrides();
 installChunkLoadRecovery();
 installStylesheetRecovery();
+// Before the first render: every clock on screen reads the store's zone, not the device's.
+installAppTimezoneDefaults();
 installDayFirstDateInputs();
 installNumericZeroSelect();
 

@@ -1,3 +1,4 @@
+import { dateKeyInAppTimeZone } from "../utils/appTimezone.js";
 // Employee credit sales -> employee advances (سلف الموظفين).
 // ---------------------------------------------------------------------------
 // Rule, in one sentence: when a customer that is linked to an employee takes a
@@ -181,7 +182,7 @@ const insertBackingExpense = async (client, { tenantId, order, employee, amount 
       employee.id,
       order.branch_id || employee.branch_id || null,
       order.id,
-      order.created_at ? new Date(order.created_at).toISOString().slice(0, 10) : null,
+      order.created_at ? dateKeyInAppTimeZone(order.created_at) : null,
       buildAdvanceNotes({ order, employee }),
     ]
   );

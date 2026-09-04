@@ -1,3 +1,4 @@
+import { nowAsAppWallClock } from "../../../shared/lib/appTimezone.js";
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -12,7 +13,7 @@ const pad = (value) => String(value).padStart(2, "0");
 export const toIso = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
 const today = () => {
-  const now = new Date();
+  const now = nowAsAppWallClock();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 };
 const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);

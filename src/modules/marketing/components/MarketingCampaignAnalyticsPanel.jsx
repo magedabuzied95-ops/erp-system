@@ -1,3 +1,4 @@
+import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Eye, RefreshCcw, Repeat2, Share2, Trash2, CalendarDays, BarChart3, Filter, Sparkles, Copy, ImageIcon, Play } from "lucide-react";
 import toast from "react-hot-toast";
@@ -124,7 +125,7 @@ const buildPostCountsByDay = (posts = []) => {
   for (let offset = 29; offset >= 0; offset -= 1) {
     const date = new Date(now);
     date.setDate(now.getDate() - offset);
-    const key = date.toISOString().slice(0, 10);
+    const key = dateKeyInAppTimezone(date);
     dayMap.set(key, {
       key,
       label: new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date),
@@ -134,7 +135,7 @@ const buildPostCountsByDay = (posts = []) => {
   posts.forEach((post) => {
     const timestamp = getTimestamp(post);
     if (!timestamp) return;
-    const key = new Date(timestamp).toISOString().slice(0, 10);
+    const key = dateKeyInAppTimezone(timestamp);
     if (dayMap.has(key)) {
       dayMap.get(key).total += 1;
     }

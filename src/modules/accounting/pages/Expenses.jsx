@@ -1,3 +1,4 @@
+import { todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -80,7 +81,7 @@ const blankExpense = {
   warehouse_id: "",
   employee_id: "",
   supplier_id: "",
-  expense_date: new Date().toISOString().slice(0, 10),
+  expense_date: todayInAppTimezone(),
   notes: "",
   attachment_name: "",
   attachment_url: "",
@@ -105,7 +106,7 @@ const blankRecurring = {
   payment_method: "cash",
   branch_id: "",
   frequency: "monthly",
-  next_due_date: new Date().toISOString().slice(0, 10),
+  next_due_date: todayInAppTimezone(),
   auto_create: false,
   is_active: true,
   notes: "",
@@ -646,7 +647,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
       warehouse_id: expense.warehouse_id || "",
       employee_id: expense.employee_id || "",
       supplier_id: expense.supplier_id || "",
-      expense_date: String(expense.expense_date || "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+      expense_date: String(expense.expense_date || "").slice(0, 10) || todayInAppTimezone(),
       notes: expense.notes || expense.note || "",
       attachment_name: expense.attachment_name || "",
       attachment_url: expense.attachment_url || "",

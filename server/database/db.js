@@ -1,6 +1,8 @@
+import "../utils/bootstrapTimezone.js";
 import pkg from "pg";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getPerfContext } from "../utils/perfDebug.js";
+import { getAppTimeZone, processClockMatchesAppTimeZone } from "../utils/appTimezone.js";
 
 const { Pool } = pkg;
 
@@ -40,18 +42,20 @@ const pgOptions = [process.env.PGOPTIONS || "-c client_encoding=UTF8", `-c timez
   .join(" ");
 
 /*
- * The process clock, on the other hand, must stay UTC.
+ * The process clock runs on the same zone (see `../utils/bootstrapTimezone.js`, imported above).
  *
- * `timestamptz` values are immune to it, but a plain `date` column is not: node-postgres parses
- * `date` at LOCAL midnight, so with the process on Africa/Cairo a `2026-08-31` attendance day
- * serialises as `2026-08-30T21:00:00Z` and every date-only field in the API reads a day early.
- * Cairo belongs on the database session, never on the container clock.
+ * `timestamptz` values are immune to the process clock, and a plain `date` column is protected by
+ * the parser that module installs: node-postgres would otherwise read `2026-08-31` at LOCAL
+ * midnight, which on a Cairo process is `2026-08-30T21:00:00Z` — a day early everywhere. With that
+ * parser pinned to UTC midnight, the database session, the process clock and the shop's calendar
+ * are the same zone, and nothing in the API depends on which of the three answered.
  */
-if (process.env.TZ && !/^(UTC|Etc\/UTC|GMT)$/i.test(String(process.env.TZ).trim())) {
-  console.warn("[db] process TZ is not UTC — date-only columns will be read a day early", {
+if (!processClockMatchesAppTimeZone(DB_SESSION_TIMEZONE)) {
+  console.warn("[db] process clock does not match the database session zone", {
     TZ: process.env.TZ,
-    expected: "UTC",
-    note: "Cairo belongs on the database session (PGTIMEZONE), not on the process clock.",
+    session: DB_SESSION_TIMEZONE,
+    process: getAppTimeZone(),
+    note: "Set PGTIMEZONE and APP_TIMEZONE to the same zone name, or leave both unset for Africa/Cairo.",
   });
 }
 
