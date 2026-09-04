@@ -5076,16 +5076,27 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       className={headerShellClassName}
     >
       <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement relative overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
-        {/* The language switch lives at the top-right corner of the site, on the
-            announcement strip, where the owner asked for it: a globe, the current
-            code and a chevron. It is pinned to the physical right in BOTH
-            languages -- "top right" was the instruction, not "top end". It sits
-            outside the two ticker containers so their overflow clipping never
-            touches it, and above them so the marquee slides underneath. */}
+        {/* The two corner controls of the site live on the announcement strip,
+            where the owner asked for them: the language switch (globe, current
+            code, chevron) in the top-RIGHT corner and the theme toggle in the
+            top-LEFT one. Both are pinned to physical sides in BOTH languages --
+            "right" and "the other side" were the instructions, not "end" and
+            "start". They sit outside the two ticker containers so their overflow
+            clipping never touches them, and above them so the marquee slides
+            underneath. */}
+        <button
+          type="button"
+          onClick={onThemeToggle}
+          className="sf-announcement-corner sf-announcement-theme"
+          aria-label={themeToggleLabel}
+          title={themeToggleLabel}
+        >
+          {themeIsDark ? <Sun strokeWidth={1.5} aria-hidden="true" /> : <Moon strokeWidth={1.5} aria-hidden="true" />}
+        </button>
         <button
           type="button"
           onClick={switchLanguage}
-          className="sf-announcement-lang"
+          className="sf-announcement-corner sf-announcement-lang"
           aria-label={languageLabel}
           title={languageLabel}
           dir="ltr"

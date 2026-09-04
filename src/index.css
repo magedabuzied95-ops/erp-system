@@ -2065,21 +2065,25 @@
     animation-play-state: paused;
   }
 
-  /* The language switch on the announcement strip: globe, code, chevron, pinned
-     to the top-right corner of the site. Unlayered !important colour rules
-     further down paint every `span` inside the strip at 82% white; this one is
-     the control the eye is meant to find, so it stays at full white on the
-     strip's own black, and the desktop marquee slides under it. */
-  .sf-announcement-lang {
+  /* The strip's two corner controls: the language switch (globe, code, chevron)
+     pinned to the top-right corner of the site and the theme toggle pinned to
+     the top-left. Colours are set per theme here, in the same layer as the
+     strip's own paint, because the strip is black in the dark theme and white
+     in the light one (see the "ANNOUNCEMENT STRIP" block near the end of the
+     file) -- a hard-coded black button on a white strip was the first
+     version, and it looked like a patch. The pseudo-element is a short fade in
+     the strip's own colour so the desktop marquee slides under the control
+     instead of being cut off at its edge. Unlayered !important colour rules
+     paint every `span` and `svg` inside the strip; the last rule of this
+     block hands those back to the button's own colour. */
+  .sf-announcement-corner {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
     z-index: 2;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    padding-inline: 0.85rem 0.75rem;
     background: #000000;
     color: #ffffff;
     font-size: 12px;
@@ -2091,35 +2095,73 @@
     transition: color 160ms ease, opacity 160ms ease;
   }
 
-  .sf-announcement-lang::before {
+  .sf-announcement-corner::before {
     content: "";
     position: absolute;
     inset-block: 0;
-    right: 100%;
     width: 1.75rem;
-    background: linear-gradient(to left, #000000, rgba(0, 0, 0, 0));
     pointer-events: none;
   }
 
-  .sf-announcement-lang svg:first-child {
+  .sf-announcement-lang {
+    right: 0;
+    padding-inline: 0.85rem 0.75rem;
+  }
+
+  .sf-announcement-lang::before {
+    right: 100%;
+    background: linear-gradient(to left, #000000, rgba(0, 0, 0, 0));
+  }
+
+  .sf-announcement-theme {
+    left: 0;
+    padding-inline: 0.75rem;
+  }
+
+  .sf-announcement-theme::before {
+    left: 100%;
+    background: linear-gradient(to right, #000000, rgba(0, 0, 0, 0));
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-announcement-corner {
+    background: #ffffff;
+    color: #25231f;
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-announcement-lang::before {
+    background: linear-gradient(to left, #ffffff, rgba(255, 255, 255, 0));
+  }
+
+  .storefront-shell:not(.storefront-dark) .sf-announcement-theme::before {
+    background: linear-gradient(to right, #ffffff, rgba(255, 255, 255, 0));
+  }
+
+  .sf-announcement-lang > svg:first-child,
+  .sf-announcement-theme > svg {
     width: 15px;
     height: 15px;
   }
 
-  .sf-announcement-lang svg:last-child {
+  .sf-announcement-lang > svg:last-child {
     width: 12px;
     height: 12px;
     opacity: 0.85;
   }
 
-  .sf-announcement-lang:hover {
+  .sf-announcement-corner:hover {
     color: #d4af37;
   }
 
-  /* Every svg and span on the strip is painted by the theme rules below (gold
-     icons in the dark theme, 82% white text in the light one). The switch is
-     one control, not a ticker item: icon and code follow the button colour. */
-  .storefront-shell .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-lang :is(span, svg) {
+  .storefront-shell:not(.storefront-dark) .sf-announcement-corner:hover {
+    color: #b4860b;
+  }
+
+  .sf-announcement-corner:focus-visible {
+    outline: 1px solid currentColor;
+    outline-offset: -3px;
+  }
+
+  .storefront-shell .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-corner :is(span, svg) {
     color: currentColor !important;
     opacity: 1 !important;
   }
