@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
+import { nextMonth as nextPayrollMonth } from "../utils/advanceDeductionMonth.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
@@ -2695,6 +2696,47 @@ const monthRange = (month = "") => {
   };
 };
 
+const cairoToday = () =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
+// The stored payroll run for one employee-month, or null when that month is still open.
+// `employee_payroll_runs` is created lazily by the first approval, so the existence check is
+// deliberately uncached: the cached `tableExists` would keep answering "no" for the rest of
+// the process after the very approval that created it.
+const loadEmployeePayrollRun = async ({ tenantId, employeeId, month }) => {
+  const table = await safeQuery("SELECT to_regclass('public.employee_payroll_runs') AS regclass", [], []);
+  if (!table[0]?.regclass) return null;
+  const rows = await safeQuery(
+    `
+    SELECT id, payroll_period, status, payment_status, base_salary, commissions, bonuses, manual_deductions,
+           advance_deductions, penalties_total, attendance_deduction_total, total_deductions, net_pay,
+           approved_at, approved_by, paid_at, payment_method, snapshot, finalized_at
+    FROM employee_payroll_runs
+    WHERE employee_id = $1::bigint
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      AND payroll_period = $3
+      AND LOWER(COALESCE(status, 'approved')) <> 'cancelled'
+    ORDER BY finalized_at DESC, id DESC
+    LIMIT 1
+    `,
+    [employeeId, tenantId, month],
+    []
+  );
+  return rows[0] || null;
+};
+
+const describePayrollRun = (run) => (!run ? null : {
+  id: run.id,
+  period: run.payroll_period,
+  status: run.status || "approved",
+  payment_status: run.payment_status || "pending_payment",
+  net_pay: Number(run.net_pay || 0),
+  advance_deductions: Number(run.advance_deductions || 0),
+  approved_at: run.approved_at || run.finalized_at || null,
+  paid_at: run.paid_at || null,
+  payment_method: run.payment_method || null,
+});
+
 const loadScopedEmployee = async ({ manager = {}, employeeId }) => {
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
@@ -2735,8 +2777,12 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
   const salesCommission = await import("./salesCommissionService.js");
   // A month still in progress must not count its remaining days as absence:
   // cap the payroll window at today so the preview reflects what has happened.
-  const todayIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const todayIso = cairoToday();
   const previewEnd = range.end > todayIso ? todayIso : range.end;
+  // An approved month is frozen: its figures come from the stored run and the live preview is
+  // skipped — otherwise an advance taken after the approval would quietly change a salary the
+  // manager already signed off.
+  const payrollRun = await loadEmployeePayrollRun({ tenantId, employeeId: employee.id, month: range.month });
 
   const ordersReady = async () => (await tableExists("orders")) && (await columnExists("orders", "sales_employee_id"));
   const orderParams = [tenantId, employee.id, range.start, range.end];
@@ -2784,11 +2830,13 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       [employee.id, tenantId, range.start, range.end],
       []
     ),
-    salesCommission.getPayrollPreview({ tenantId, employeeId: employee.id, filters: { month: range.month, startDate: range.start, endDate: previewEnd } })
-      .catch((error) => {
-        console.warn("[manager-portal] payroll preview skipped", error?.message || error);
-        return null;
-      }),
+    payrollRun
+      ? Promise.resolve(null)
+      : salesCommission.getPayrollPreview({ tenantId, employeeId: employee.id, filters: { month: range.month, startDate: range.start, endDate: previewEnd } })
+        .catch((error) => {
+          console.warn("[manager-portal] payroll preview skipped", error?.message || error);
+          return null;
+        }),
   ]);
 
   const toHours = (minutes) => Number((Number(minutes || 0) / 60).toFixed(2));
@@ -2831,7 +2879,22 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
   const monthBonuses = bonusRows.filter((row) => inMonth({ ...row, bonus_date: row.bonus_date ? new Date(row.bonus_date).toISOString() : "" }, "bonus_date"));
   const sum = (rows, key = "amount") => Number(rows.reduce((s, r) => s + Number(r[key] || 0), 0).toFixed(2));
 
-  const snapshot = payrollPreview?.payroll || payrollPreview?.snapshot || payrollPreview || {};
+  // A stored run's own columns win over its snapshot: older runs were written with an empty
+  // snapshot, and the columns are what the approval journal was posted from.
+  const snapshot = payrollRun
+    ? {
+      ...jsonObject(payrollRun.snapshot),
+      base_salary: payrollRun.base_salary,
+      commissions: payrollRun.commissions,
+      bonuses: payrollRun.bonuses,
+      advance_deductions: payrollRun.advance_deductions,
+      penalties_total: payrollRun.penalties_total,
+      attendance_deduction_total: payrollRun.attendance_deduction_total,
+      deductions: payrollRun.total_deductions,
+      net_pay: payrollRun.net_pay,
+    }
+    : (payrollPreview?.payroll || payrollPreview?.snapshot || payrollPreview || {});
+  const approvalBlockers = payrollRun ? [] : (Array.isArray(payrollPreview?.approval_blockers) ? payrollPreview.approval_blockers : []);
   return {
     month: range.month,
     period: { start: range.start, end: range.end },
@@ -2863,6 +2926,19 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       net_pay: snapshot.net_pay === undefined ? null : Number(snapshot.net_pay || 0),
       attendance_breakdown: snapshot.attendance_deductions || null,
     },
+    payroll: {
+      approved: Boolean(payrollRun),
+      run: describePayrollRun(payrollRun),
+      // Where an advance taken now would land: the month itself while it is open, the one
+      // after it once approved (see resolveAdvanceDeductionMonth).
+      next_advance_month: payrollRun ? nextPayrollMonth(range.month) : range.month,
+      blockers: approvalBlockers.map((blocker) => ({
+        type: blocker.type || "",
+        severity: blocker.severity || "warning",
+        message: blocker.message_ar || blocker.message || "",
+      })),
+      hard_blocked: approvalBlockers.some((blocker) => String(blocker.severity || "").toLowerCase() === "hard"),
+    },
     advances: {
       total_outstanding: sum(advanceRows.filter((r) => r.status !== "cancelled"), "remaining_amount"),
       total_taken: sum(advanceRows.filter((r) => r.status !== "cancelled")),
@@ -2882,6 +2958,68 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     bonuses: { total: sum(monthBonuses), rows: monthBonuses },
     penalties: { total: sum(monthPenalties), rows: monthPenalties },
     attendance: { totals: attendanceTotals, rows: attendance },
+  };
+};
+
+// اعتماد المرتب from the manager portal. Same engine as the ERP payroll page's finalize
+// (`getPayrollPreview` with `markAdvancesDeducted`): it records the run, settles every
+// outstanding advance dated up to this month, and posts the approval journal. Approving is
+// what closes the month — from then on a new advance rolls to the next month
+// (resolveAdvanceDeductionMonth), which is the whole point of doing it here.
+export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employeeId, month = "" } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const range = monthRange(month);
+  const todayIso = cairoToday();
+  if (range.start > todayIso) {
+    const error = new Error("لا يمكن اعتماد مرتب شهر لم يبدأ بعد");
+    error.status = 400;
+    throw error;
+  }
+  const existing = await loadEmployeePayrollRun({ tenantId, employeeId: employee.id, month: range.month });
+  if (existing) {
+    return {
+      created: false,
+      already_approved: true,
+      month: range.month,
+      run: describePayrollRun(existing),
+      next_advance_month: nextPayrollMonth(range.month),
+    };
+  }
+  const salesCommission = await import("./salesCommissionService.js");
+  // Same window the sheet previews (capped at today), so what is approved is what was shown.
+  const previewEnd = range.end > todayIso ? todayIso : range.end;
+  const result = await salesCommission.getPayrollPreview({
+    tenantId,
+    employeeId: employee.id,
+    filters: {
+      month: range.month,
+      startDate: range.start,
+      endDate: previewEnd,
+      markAdvancesDeducted: "true",
+      createdBy: manager.user_id || null,
+    },
+  });
+  if (!result?.payroll_run) {
+    const error = new Error("تعذر تسجيل اعتماد المرتب");
+    error.status = 500;
+    throw error;
+  }
+  console.log("[manager-portal] payroll approved", {
+    manager_employee_id: manager.id || null,
+    manager_user_id: manager.user_id || null,
+    employee_id: employee.id,
+    payroll_period: range.month,
+    payroll_run_id: result.payroll_run.id,
+    net_pay: Number(result.payroll_run.net_pay || 0),
+    settled_advances: (result.employee_advances || []).map((row) => row.id),
+  });
+  return {
+    created: true,
+    already_approved: false,
+    month: range.month,
+    run: describePayrollRun(result.payroll_run),
+    next_advance_month: nextPayrollMonth(range.month),
+    settled_advances: (result.employee_advances || []).map((row) => ({ id: row.id, amount: Number(row.amount || 0) })),
   };
 };
 

@@ -6,6 +6,7 @@ import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
 import {
   createJournalEntry,
   recordCashDrawerEvent,
@@ -789,7 +790,16 @@ router.post("/", protect, permit("expenses", "create"), expenseAttachmentUpload.
         VALUES ($1,$2,$3,0,$3,$4,'pending','pending',$5,$6,$7,$8,NOW(),NOW())
         RETURNING *
         `,
-        [tenantId, payload.employee_id, payload.amount, payload.deduction_month, payload.notes, result.rows[0].id, payload.money_account_id, req.user?.id || null]
+        [
+          tenantId,
+          payload.employee_id,
+          payload.amount,
+          await resolveAdvanceDeductionMonth({ clientOrPool: client, tenantId, employeeId: payload.employee_id, month: payload.deduction_month }),
+          payload.notes,
+          result.rows[0].id,
+          payload.money_account_id,
+          req.user?.id || null,
+        ]
       );
       advance = advanceResult.rows[0];
       console.log("[expenses] advance created", {
@@ -798,7 +808,7 @@ router.post("/", protect, permit("expenses", "create"), expenseAttachmentUpload.
         expense_id: result.rows[0].id,
         employee_id: payload.employee_id,
         amount: payload.amount,
-        deduction_month: payload.deduction_month,
+        deduction_month: advance?.deduction_month || payload.deduction_month,
         remaining_amount: advance.remaining_amount,
         deduction_status: advance.deduction_status,
         status: advance.status || "pending",
@@ -924,7 +934,16 @@ router.put("/:id", protect, permit("expenses", "edit"), expenseAttachmentUpload.
         VALUES ($1,$2,$3,0,$3,$4,'pending','pending',$5,$6,$7,$8,NOW(),NOW())
         RETURNING *
         `,
-        [result.rows[0].tenant_id, payload.employee_id, payload.amount, payload.deduction_month, payload.notes, result.rows[0].id, payload.money_account_id, req.user?.id || null]
+        [
+          result.rows[0].tenant_id,
+          payload.employee_id,
+          payload.amount,
+          await resolveAdvanceDeductionMonth({ clientOrPool: client, tenantId: result.rows[0].tenant_id, employeeId: payload.employee_id, month: payload.deduction_month }),
+          payload.notes,
+          result.rows[0].id,
+          payload.money_account_id,
+          req.user?.id || null,
+        ]
         );
         advance = advanceResult.rows[0];
       }
@@ -934,7 +953,7 @@ router.put("/:id", protect, permit("expenses", "edit"), expenseAttachmentUpload.
         expense_id: result.rows[0].id,
         employee_id: payload.employee_id,
         amount: payload.amount,
-        deduction_month: payload.deduction_month,
+        deduction_month: advance?.deduction_month || payload.deduction_month,
         remaining_amount: advance?.remaining_amount,
         deduction_status: advance?.deduction_status,
         status: advance?.status || "pending",
@@ -1280,7 +1299,16 @@ router.post("/employee-advances", protect, permit("expenses.advances", "create")
       VALUES ($1,$2,$3,0,$3,$4,'pending','pending',$5,$6,$7,$8,NOW(),NOW())
       RETURNING *
       `,
-      [tenantId, employeeId, amount, deductionMonth, clean(req.body?.notes), expense.rows[0].id, moneyAccountId, req.user?.id || null]
+      [
+        tenantId,
+        employeeId,
+        amount,
+        await resolveAdvanceDeductionMonth({ clientOrPool: client, tenantId, employeeId, month: deductionMonth }),
+        clean(req.body?.notes),
+        expense.rows[0].id,
+        moneyAccountId,
+        req.user?.id || null,
+      ]
     );
 
     if (shouldPayNow) {
@@ -1292,7 +1320,7 @@ router.post("/employee-advances", protect, permit("expenses.advances", "create")
       expense_id: expense.rows[0]?.id,
       employee_id: employeeId,
       amount,
-      deduction_month: deductionMonth,
+      deduction_month: advance.rows[0]?.deduction_month || deductionMonth,
       remaining_amount: advance.rows[0]?.remaining_amount,
       deduction_status: advance.rows[0]?.deduction_status,
       status: advance.rows[0]?.status || "pending",

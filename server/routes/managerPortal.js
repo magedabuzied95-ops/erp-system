@@ -24,6 +24,7 @@ import {
   getManagerPortalStaff,
   getManagerPortalEmployeeDetails,
   createManagerPortalEmployeeAdjustment,
+  approveManagerPortalEmployeePayroll,
   cancelManagerPortalEmployeeAdjustment,
   correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
@@ -347,6 +348,26 @@ router.post("/:token/staff/:employeeId/adjustments", verifyManagerPortalToken, a
   } catch (error) {
     console.error("[manager-portal] employee adjustment error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to save adjustment" });
+  }
+});
+
+// اعتماد المرتب: freezes the month's salary, settles its outstanding advances, and — through
+// resolveAdvanceDeductionMonth — pushes every advance taken afterwards onto the next month.
+router.post("/:token/staff/:employeeId/payroll/approve", verifyManagerPortalToken, async (req, res) => {
+  try {
+    const result = await approveManagerPortalEmployeePayroll({
+      manager: req.managerPortalManager,
+      employeeId: req.params.employeeId,
+      month: req.body?.month || req.query?.month,
+    });
+    return res.status(result.created ? 201 : 200).json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] payroll approve error", error);
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.message || "Failed to approve payroll",
+      blockers: Array.isArray(error.blockers) ? error.blockers : undefined,
+    });
   }
 });
 

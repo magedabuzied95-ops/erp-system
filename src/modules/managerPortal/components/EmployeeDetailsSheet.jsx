@@ -125,6 +125,44 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const name = d?.employee?.name || employee?.employee_name || tt("managerPortal.common.employee");
   const isCurrentMonth = month === currentMonth();
 
+  // اعتماد المرتب — the month's salary is frozen server-side, its advances settled, and any
+  // advance taken afterwards is recorded on the next month.
+  const [approving, setApproving] = useState(false);
+  const [approveNotice, setApproveNotice] = useState({ tone: "", text: "", blockers: [] });
+  useEffect(() => { setApproveNotice({ tone: "", text: "", blockers: [] }); }, [month, employeeId]);
+  const payrollRun = d?.payroll?.run || null;
+  const nextAdvanceMonth = d?.payroll?.next_advance_month || shiftMonth(month, 1);
+  const hardBlockers = (d?.payroll?.blockers || [])
+    .filter((blocker) => String(blocker?.severity || "").toLowerCase() === "hard")
+    .map((blocker) => blocker.message)
+    .filter(Boolean);
+  const approvePayroll = async () => {
+    if (!d || approving || payrollRun) return;
+    const net = d.salary.net_pay === null ? "—" : formatCurrency(d.salary.net_pay);
+    if (!window.confirm(tt("managerPortal.employeeDetails.payrollApproveConfirm", { month: monthLabel(month), net, next: monthLabel(nextAdvanceMonth) }))) return;
+    try {
+      setApproving(true);
+      setApproveNotice({ tone: "", text: "", blockers: [] });
+      await managerPortalApi.approveEmployeePayroll(token, employeeId, { month });
+      setApproveNotice({ tone: "ok", text: tt("managerPortal.employeeDetails.payrollApprovedNow", { month: monthLabel(month) }), blockers: [] });
+      await load();
+      onChanged?.();
+    } catch (error) {
+      const data = error?.response?.data || {};
+      const blockers = (Array.isArray(data.blockers) ? data.blockers : [])
+        .filter((blocker) => String(blocker?.severity || "").toLowerCase() === "hard")
+        .map((blocker) => blocker.message_ar || blocker.message || "")
+        .filter(Boolean);
+      setApproveNotice({
+        tone: "error",
+        text: blockers.length ? tt("managerPortal.employeeDetails.payrollBlocked") : (data.message || error?.message || tt("managerPortal.employeeDetails.payrollApproveError")),
+        blockers,
+      });
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const submitAdjustment = async (event) => {
     event.preventDefault();
     const amount = Number(form.amount);
@@ -281,6 +319,51 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     <Row label={tt("managerPortal.employeeDetails.attendanceDeductions")} value={`- ${formatCurrency(d.salary.attendance_deduction_total)}`} tone="text-rose-700" />
                     <Row label={tt("managerPortal.employeeDetails.totalDeductions")} value={`- ${formatCurrency(d.salary.deductions)}`} tone="text-rose-700" />
                     <Row label={tt("managerPortal.employeeDetails.netPay")} value={d.salary.net_pay === null ? "—" : formatCurrency(d.salary.net_pay)} tone="text-slate-950 text-base" />
+                  </div>
+                  <div className={`rounded-[var(--radius-card)] border px-3 py-3 ${payrollRun ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-slate-700">{tt("managerPortal.employeeDetails.payrollTitle")}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${payrollRun ? "bg-emerald-600 text-white" : "bg-amber-500/15 text-amber-800"}`}>
+                        {payrollRun
+                          ? (String(payrollRun.payment_status || "").toLowerCase() === "paid" ? tt("managerPortal.employeeDetails.payrollPaid") : tt("managerPortal.employeeDetails.payrollApproved"))
+                          : statusLabel("pending")}
+                      </span>
+                    </div>
+                    {payrollRun ? (
+                      <div className="mt-1.5 space-y-0.5 text-[11px] font-bold text-slate-600">
+                        <div>{tt("managerPortal.employeeDetails.payrollApprovedOn", { date: formatDate(payrollRun.approved_at) })}</div>
+                        <div>{tt("managerPortal.employeeDetails.payrollApprovedHint", { next: monthLabel(nextAdvanceMonth) })}</div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="mt-1.5 text-[11px] font-bold text-slate-600">
+                          {tt("managerPortal.employeeDetails.payrollOpenHint", { month: monthLabel(month), next: monthLabel(nextAdvanceMonth) })}
+                        </div>
+                        {hardBlockers.length ? (
+                          <div className="mt-1.5 text-[11px] font-bold text-rose-700">
+                            {tt("managerPortal.employeeDetails.payrollBlocked")}
+                            <ul className="mt-0.5 list-disc space-y-0.5 pr-4">{hardBlockers.map((text, index) => <li key={index}>{text}</li>)}</ul>
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={approving || hardBlockers.length > 0 || d.salary.net_pay === null}
+                          onClick={approvePayroll}
+                          className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50"
+                        >
+                          {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                          {approving ? tt("managerPortal.employeeDetails.payrollApproving") : tt("managerPortal.employeeDetails.payrollApprove", { month: monthLabel(month) })}
+                        </button>
+                      </>
+                    )}
+                    {approveNotice.text ? (
+                      <div className={`mt-2 text-xs font-bold ${approveNotice.tone === "ok" ? "text-emerald-700" : "text-rose-700"}`}>
+                        {approveNotice.text}
+                        {approveNotice.blockers.length ? (
+                          <ul className="mt-0.5 list-disc space-y-0.5 pr-4 text-[11px]">{approveNotice.blockers.map((text, index) => <li key={index}>{text}</li>)}</ul>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Stat label={tt("managerPortal.employeeDetails.advancesOutstanding")} value={formatCurrency(d.advances.total_outstanding)} tone="text-amber-700" />

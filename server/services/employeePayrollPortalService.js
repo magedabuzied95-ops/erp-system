@@ -11,6 +11,7 @@ import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "./attendanc
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ensureAccountingSchema, recordCashDrawerEvent } from "./accountingService.js";
+import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
 
 const tokenBytes = 32;
 
@@ -3292,6 +3293,8 @@ const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null, clie
   );
   const expense = expenseResult.rows[0];
 
+  // A month whose salary is already approved is closed: the advance lands on the next one.
+  const advanceDeductionMonth = await resolveAdvanceDeductionMonth({ clientOrPool: queryClient, tenantId: request.tenant_id, employeeId: request.employee_id });
   const result = await queryClient.query(
     `
     INSERT INTO employee_advances (
@@ -3299,7 +3302,7 @@ const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null, clie
       deduction_month, deduction_status, status, notes, expense_id, employee_portal_request_id,
       payment_method, shift_id, created_by, created_at, updated_at
     )
-    VALUES ($1,$2,$3,0,$3,to_char(CURRENT_DATE, 'YYYY-MM'),'pending','active',$4,$5,$6,$7,$8,$9,NOW(),NOW())
+    VALUES ($1,$2,$3,0,$3,$10,'pending','active',$4,$5,$6,$7,$8,$9,NOW(),NOW())
     ON CONFLICT (employee_portal_request_id) WHERE employee_portal_request_id IS NOT NULL
     DO UPDATE SET updated_at = NOW()
     RETURNING *
@@ -3314,6 +3317,7 @@ const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null, clie
       paymentMethod,
       shift?.id || null,
       reviewedBy,
+      advanceDeductionMonth,
     ]
   );
   if (paymentMethod === "cash") {

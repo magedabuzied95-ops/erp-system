@@ -22,6 +22,7 @@
 // customer is linked to an employee onwards.
 
 import db from "../database/db.js";
+import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
 
 // The payment method stored on both the settled order and the backing expense.
 // Deliberately NOT a cash method: nothing was collected and nothing was paid out.
@@ -283,7 +284,8 @@ export const syncOrderEmployeeAdvance = async (client, {
 
   if (effectiveAmount <= 0) return null;
 
-  const deductionMonth = currentDeductionMonth();
+  // A month whose salary is already approved is closed: the advance lands on the next one.
+  const deductionMonth = await resolveAdvanceDeductionMonth({ clientOrPool: client, tenantId, employeeId: employee.id, month: currentDeductionMonth() });
   const expense = await insertBackingExpense(client, {
     tenantId,
     order,

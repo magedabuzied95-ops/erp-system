@@ -24,6 +24,7 @@ import {
   ensureSalesCommissionSchema,
   getSalesSettings,
 } from "../services/salesCommissionService.js";
+import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
 import { sendTextMessage } from "../services/whatsappGatewayService.js";
 import { getSetting } from "../services/settingsService.js";
 import { assignNextOpeningEmployee, getDefaultOpeningWorkDate, getHrAttendanceSettings, listEligibleOpeningEmployees } from "../services/openingShiftService.js";
@@ -1702,6 +1703,8 @@ export const createQuickPosExpense = async (req, res) => {
     let advance = null;
 
     if (isEmployeeAdvance) {
+      // A month whose salary is already approved is closed: the advance lands on the next one.
+      const advanceDeductionMonth = await resolveAdvanceDeductionMonth({ clientOrPool: client, tenantId, employeeId });
       const advanceResult = await client.query(
         `
         INSERT INTO employee_advances (
@@ -1709,10 +1712,10 @@ export const createQuickPosExpense = async (req, res) => {
           deduction_month, deduction_status, status, notes, expense_id,
           created_by, created_at, updated_at
         )
-        VALUES ($1,$2,$3,0,$3,to_char(CURRENT_DATE, 'YYYY-MM'),'pending','active',$4,$5,$6,NOW(),NOW())
+        VALUES ($1,$2,$3,0,$3,$7,'pending','active',$4,$5,$6,NOW(),NOW())
         RETURNING *
         `,
-        [tenantId, employeeId, amount, notes, expense.id, req.user?.id || null]
+        [tenantId, employeeId, amount, notes, expense.id, req.user?.id || null, advanceDeductionMonth]
       );
       advance = advanceResult.rows[0] || null;
     }
