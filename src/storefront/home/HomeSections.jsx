@@ -283,6 +283,128 @@ function ProductCollection({
   );
 }
 
+/* ==========================================================================
+   Filtered row — a section that asks the catalogue a question
+   ==========================================================================
+   Title, one line of copy, an audience switch, a snapping rail of cards, and a
+   full-width link to the whole answer. Modelled on level-egypt.com at the
+   owner's request: 8 cards, roughly five visible on a wide screen and two on a
+   phone, the next one always peeking so the row reads as scrollable.
+
+   The switch does NOT filter cards this component is holding. Tapping رجالي
+   re-asks the server, because a row that filters 8 loaded cards down to 2 looks
+   empty while the catalogue has 69 men's Skechers in it. The fetch lives in
+   Storefront.jsx with every other request; this file stays presentation.
+   ========================================================================== */
+
+export function HomeFilteredRail({
+  title,
+  subtitle = "",
+  genders = [],
+  activeGender = "",
+  genderLabel = () => "",
+  onGenderChange,
+  cards = [],
+  loading = false,
+  viewAllHref = "",
+  viewAllLabel = "",
+  emptyLabel = "",
+  isFavorite,
+  onToggleFavorite,
+  onImageError,
+  favoriteLabel = "",
+  prevLabel = "",
+  nextLabel = "",
+  isRtl = true,
+}) {
+  const railRef = useRef(null);
+  const { start, end, page } = useRailPaging(railRef, cards.length);
+  const items = loading && !cards.length ? Array.from({ length: 8 }) : cards;
+
+  // A row with nothing to show is not a row. It happens when a whole audience
+  // sells out, and an empty rail under a heading reads as a broken page.
+  if (!loading && !cards.length) return null;
+
+  return (
+    <section className="m1h-block">
+      <div className="m1h-shell">
+        <div className="m1h-frow__head">
+          <div className="m1h-frow__titles">
+            <h2 className="m1h-sec__title">{title}</h2>
+            {subtitle ? <p className="m1h-frow__sub">{subtitle}</p> : null}
+          </div>
+          {genders.length > 1 ? (
+            <div className="m1h-frow__tabs" role="tablist" aria-label={title}>
+              {genders.map((gender) => (
+                <button
+                  key={gender}
+                  type="button"
+                  role="tab"
+                  aria-selected={gender === activeGender}
+                  className={`m1h-frow__tab${gender === activeGender ? " is-on" : ""}`}
+                  onClick={() => onGenderChange?.(gender)}
+                >
+                  {genderLabel(gender)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="m1h-frow__rail-wrap">
+          <div className="m1h-rail m1h-rail--filtered" ref={railRef}>
+            {items.map((card, index) =>
+              card ? (
+                <HomeProductCard
+                  key={card.key}
+                  card={card}
+                  favorite={isFavorite?.(card.product) || false}
+                  onToggleFavorite={onToggleFavorite}
+                  onImageError={onImageError}
+                  favoriteLabel={favoriteLabel}
+                  eager={index < 2}
+                />
+              ) : (
+                <ProductCardSkeleton key={`skeleton-${index}`} />
+              )
+            )}
+          </div>
+          {cards.length > 1 ? (
+            <div className="m1h-railnav">
+              <button
+                type="button"
+                className="m1h-railnav__btn"
+                onClick={() => page(-1)}
+                disabled={start}
+                aria-label={prevLabel}
+              >
+                {isRtl ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
+              </button>
+              <button
+                type="button"
+                className="m1h-railnav__btn"
+                onClick={() => page(1)}
+                disabled={end}
+                aria-label={nextLabel}
+              >
+                {isRtl ? <ArrowLeft size={16} /> : <ArrowRight size={16} />}
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {viewAllHref && viewAllLabel ? (
+          <Link to={viewAllHref} className="m1h-frow__all">
+            {viewAllLabel}
+            {isRtl ? <ArrowLeft size={15} strokeWidth={2} /> : <ArrowRight size={15} strokeWidth={2} />}
+          </Link>
+        ) : null}
+        {emptyLabel ? <span className="sr-only">{emptyLabel}</span> : null}
+      </div>
+    </section>
+  );
+}
+
 export function HomeProductRail(props) {
   return <ProductCollection variant="rail" skeletonCount={3} {...props} />;
 }
@@ -557,7 +679,15 @@ export function HomeHero({
                 ) : null}
                 <span className="m1h-hero__caption">
                   <span className="m1h-hero__caption-name">{slide.name}</span>
-                  {slide.priceText ? <span className="m1h-hero__caption-price">{slide.priceText}</span> : null}
+                  {slide.priceText ? (
+                    <span className="m1h-hero__caption-prices">
+                      {/* Was first, now second: the shopper reads the drop in the
+                          order it happened, and the struck-through figure is only
+                          rendered when there is a real one to strike. */}
+                      {slide.compareText ? <span className="m1h-hero__caption-was">{slide.compareText}</span> : null}
+                      <span className="m1h-hero__caption-price">{slide.priceText}</span>
+                    </span>
+                  ) : null}
                 </span>
               </Link>
             ) : null}

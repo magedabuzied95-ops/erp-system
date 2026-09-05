@@ -803,36 +803,62 @@
   }
 }
 
+/* The caption reads off the shot itself rather than off a pill floating over
+   it: a bottom-anchored ramp that has faded to nothing by mid-frame leaves the
+   product untouched and still gives the type a ground to sit on. Same reasoning
+   -- and the same literal rgba, not color-mix -- as the overlay card template
+   and the hero video scrim. The stage clips it, so it needs no radius of its
+   own. */
 .m1h-hero__caption {
   position: absolute;
-  inset-inline: var(--m1h-s4);
-  bottom: var(--m1h-s4);
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 1;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--m1h-s3);
-  border-radius: var(--m1h-r-md);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 10px var(--m1h-s3);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--m1h-s10) var(--m1h-s5) var(--m1h-s5);
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.82) 0%,
+    rgba(0, 0, 0, 0.58) 45%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  pointer-events: none;
 }
 
 .m1h-hero__caption-name {
-  min-width: 0;
+  max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--m1h-t-sm);
+  font-size: var(--m1h-t-product);
   font-weight: 600;
-  color: #1c1917;
+  line-height: 1.35;
+  color: #ffffff;
+}
+
+.m1h-hero__caption-prices {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--m1h-s2);
+}
+
+.m1h-hero__caption-was {
+  font-size: var(--m1h-t-sm);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: line-through;
 }
 
 .m1h-hero__caption-price {
-  flex: none;
-  font-size: var(--m1h-t-product);
+  font-size: var(--m1h-t-price);
   font-weight: 700;
-  color: #1c1917;
+  color: #ffffff;
 }
 
 /* Slide indicator: thin bars, no counter, no dots the thumb wants to press. */
@@ -1235,5 +1261,151 @@
     transform: none;
     transition: none;
     animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Filtered rows — heading, audience switch, snapping rail, view-all
+   ---------------------------------------------------------------------------
+   Proportions measured off level-egypt.com, which the owner gave as the
+   reference: a 220px card on a 1280px screen (about five visible with the sixth
+   peeking) and 169px on a 375px phone (about two). Expressed as percentages of
+   the rail rather than fixed pixels so the peek survives every width in between.
+
+   `.m1h-rail` already snaps, hides its scrollbar and bleeds to the viewport
+   edge, so this only re-points the card width — and turns snapping back on above
+   768px, where the shared rail deliberately switches it off but the reference
+   keeps it.
+   ------------------------------------------------------------------------- */
+.m1h-frow__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--m1h-s4);
+  flex-wrap: wrap;
+  margin-bottom: var(--m1h-s4);
+}
+
+.m1h-frow__titles {
+  min-width: 0;
+}
+
+.m1h-frow__sub {
+  margin-top: var(--m1h-s2);
+  max-width: 46ch;
+  font-size: var(--m1h-t-base);
+  line-height: 1.5;
+  color: var(--m1h-text-2);
+}
+
+/* One track, two states — the pill slides between them rather than each tab
+   carrying its own border, so the group reads as a single control. */
+.m1h-frow__tabs {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--m1h-surface);
+  box-shadow: inset 0 0 0 1px var(--m1h-line);
+}
+
+.m1h-frow__tab {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 180ms var(--m1h-ease), color 180ms var(--m1h-ease);
+}
+
+.m1h-frow__tab:hover {
+  color: var(--m1h-text);
+}
+
+.m1h-frow__tab.is-on {
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
+}
+
+.m1h-frow__tab:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+.m1h-frow__rail-wrap {
+  position: relative;
+}
+
+.m1h-rail--filtered {
+  grid-auto-columns: 45%;
+  scroll-snap-type: x mandatory;
+}
+
+@media (min-width: 480px) {
+  .m1h-rail--filtered {
+    grid-auto-columns: 32%;
+  }
+}
+
+@media (min-width: 768px) {
+  .m1h-rail--filtered {
+    grid-auto-columns: 24%;
+    scroll-snap-type: x mandatory;
+  }
+}
+
+@media (min-width: 1024px) {
+  .m1h-rail--filtered {
+    grid-auto-columns: 18.6%;
+  }
+}
+
+/* Full width, like the reference: the row is one answer and this is the way to
+   the rest of it, not a link competing with the heading. */
+.m1h-frow__all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m1h-s2);
+  margin-top: var(--m1h-s5);
+  min-height: 48px;
+  padding-inline: var(--m1h-s5);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--m1h-line);
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-sm);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: box-shadow 180ms var(--m1h-ease), color 180ms var(--m1h-ease);
+}
+
+.m1h-frow__all:hover {
+  box-shadow: inset 0 0 0 1px var(--m1h-accent);
+  color: var(--m1h-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m1h-frow__tab,
+  .m1h-frow__all {
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .m1h-frow__head {
+    gap: var(--m1h-s3);
+  }
+
+  .m1h-frow__tab {
+    padding: 6px 13px;
+    font-size: var(--m1h-t-xs);
   }
 }

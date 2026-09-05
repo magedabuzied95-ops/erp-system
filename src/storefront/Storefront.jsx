@@ -3000,6 +3000,8 @@ function PremiumHomePage(props) {
     return (candidates.length ? candidates : heroFallback).slice(0, 5).map((product, index) => {
       const slide = featuredSlideProduct(product);
       const { brand, title } = splitProductDisplayName(product, { knownBrands: knownBrandNames });
+      const slidePrice = Number(slide.price) || 0;
+      const slideComparePrice = Number(slide.comparePrice) || 0;
       return {
         key: productIdentityKey(product, index),
         href: productUrl(product),
@@ -3007,7 +3009,10 @@ function PremiumHomePage(props) {
         imageProps: slide.image ? responsiveImageProps(slide.image, "hero") : {},
         rawImage: slide.image || "",
         name: [brand, title].filter(Boolean).join(" "),
-        priceText: Number(slide.price) > 0 ? money(slide.price) : "",
+        priceText: slidePrice > 0 ? money(slidePrice) : "",
+        // The struck-through original only says anything beside a real price,
+        // and only while it is actually higher than what the shopper pays.
+        compareText: slidePrice > 0 && slideComparePrice > slidePrice ? money(slideComparePrice) : "",
       };
     });
   }, [homepageProductPool, knownBrandNames, mirrorProducts, storefrontHome.hero]);
