@@ -413,3 +413,38 @@ test("the studio previews cards through the storefront's own rules", () => {
   const css = readFileSync(new URL("../src/modules/settings/pages/SiteStudio.m1.css", import.meta.url), "utf8");
   assert.ok(!/\.m1-site__mock-card \{/.test(css), "the superseded lookalike card rule is back");
 });
+
+/* ------------------------------------------- late-mounting homepage sections */
+
+// A section that mounts after the reveal observer was wired stays at opacity 0
+// for the life of the page: full height, nothing painted. It shipped that way —
+// ~900px of invisible page where the offers block sits — because the hook
+// scanned for `.m1h-reveal` once and the offers block is deferred behind its own
+// observer AND waits on its own request, so it always arrives late.
+test("the reveal observer picks up sections that mount later", () => {
+  const model = readFileSync(new URL("../src/storefront/home/homeModel.js", import.meta.url), "utf8");
+  assert.ok(model.includes("MutationObserver"), "useHomeReveal no longer watches for sections that mount later");
+  assert.ok(
+    /mutations\.observe\(root, \{ childList: true, subtree: true \}\)/.test(model),
+    "the mutation watcher no longer covers the whole homepage subtree"
+  );
+  assert.ok(model.includes("mutations.disconnect()"), "the mutation watcher is never torn down");
+  // The re-scan must still exclude already-revealed nodes, or every mutation
+  // re-observes the whole page.
+  assert.ok(
+    model.includes('".m1h-reveal:not(.is-in)"'),
+    "the re-scan stopped excluding sections that have already been revealed"
+  );
+});
+
+// The deferred block reserves a fixed height until its observer fires. When that
+// observer never delivers — a throttled tab, a background render — the
+// reservation is a permanent hole, so there has to be a time-based backstop.
+test("a deferred homepage section mounts even if its observer never fires", () => {
+  const sections = readFileSync(new URL("../src/storefront/home/HomeSections.jsx", import.meta.url), "utf8");
+  const start = sections.indexOf("export function HomeDeferred");
+  const block = sections.slice(start, sections.indexOf("export function HomeSectionHeader"));
+  assert.ok(block.length > 200, "HomeDeferred was not found");
+  assert.ok(/setTimeout\(\(\) => setShown\(true\)/.test(block), "HomeDeferred lost its mount backstop");
+  assert.ok(/clearTimeout\(backstop\)/.test(block), "the backstop timer is never cleared");
+});

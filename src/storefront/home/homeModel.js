@@ -95,8 +95,36 @@ export const useHomeReveal = (rootRef, deps = []) => {
       },
       { threshold: 0.05, rootMargin: "0px 0px -6% 0px" }
     );
-    root.querySelectorAll(".m1h-reveal:not(.is-in)").forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
+    const observeNew = () => {
+      root.querySelectorAll(".m1h-reveal:not(.is-in)").forEach((element) => observer.observe(element));
+    };
+    observeNew();
+
+    // Sections that mount AFTER this effect ran have to be picked up too, or
+    // they stay parked at opacity 0 for the life of the page — taking their full
+    // height and painting nothing. That is not hypothetical: the offers block is
+    // deferred behind its own IntersectionObserver and then waits on its own
+    // request, so it always arrives late, and it shipped as ~900px of invisible
+    // page between the category tiles and the first product row.
+    //
+    // Re-observing an element the observer already holds is a no-op, so a plain
+    // re-scan is safe; it is coalesced into a frame because a single mount can
+    // produce many mutation records.
+    let scheduled = 0;
+    const mutations = new MutationObserver(() => {
+      if (scheduled) return;
+      scheduled = window.requestAnimationFrame(() => {
+        scheduled = 0;
+        observeNew();
+      });
+    });
+    mutations.observe(root, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      mutations.disconnect();
+      if (scheduled) window.cancelAnimationFrame(scheduled);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 };
