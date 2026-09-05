@@ -7825,8 +7825,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
 /* ----------------------------------------------------------------------------
    The hero is scenery, not a player. iOS paints its own centred play button
-   over any video it declined to autoplay, and Chrome will offer controls on a
-   long-press, so both are refused outright and taps pass through to the page.
+   over any video it declined to autoplay, Chrome on Android paints an overlay
+   one, and Chrome will offer controls on a long-press: all of it is refused
+   outright and taps pass through to the page. The badge each browser draws
+   lives in the video's shadow tree, so hiding the pseudo-elements is the
+   second line of defence — the first is that the element itself is only ever
+   opaque while a frame is actually moving.
    -------------------------------------------------------------------------- */
 @layer components {
   :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media {
@@ -7835,6 +7839,10 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
   :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls,
   :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-panel,
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-enclosure,
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-overlay-enclosure,
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-overlay-play-button,
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-play-button,
   :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-start-playback-button {
     display: none !important;
     -webkit-appearance: none;

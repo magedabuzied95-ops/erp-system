@@ -529,6 +529,20 @@
   opacity: 1;
 }
 
+/* Same tile, second line of defence: a browser that declines the silent
+   autoplay draws its own play badge inside the video's shadow tree. */
+.m1h-cat__video::-webkit-media-controls,
+.m1h-cat__video::-webkit-media-controls-panel,
+.m1h-cat__video::-webkit-media-controls-enclosure,
+.m1h-cat__video::-webkit-media-controls-overlay-enclosure,
+.m1h-cat__video::-webkit-media-controls-overlay-play-button,
+.m1h-cat__video::-webkit-media-controls-play-button,
+.m1h-cat__video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .m1h-cat__scrim {
   position: absolute;
   inset: 0;

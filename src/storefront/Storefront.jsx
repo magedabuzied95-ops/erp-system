@@ -2828,7 +2828,14 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
 // not — the browser buffered the whole clip either way.
 function StorefrontHeroVideo() {
   const videoRef = useRef(null);
+  // "Ready" means playing, not merely loadable. A clip that has downloaded but
+  // was refused autoplay — Low Power Mode, data saver, a tab woken up offline —
+  // is precisely the case where the browser paints its own centred play badge
+  // over the middle of the frame. So nothing short of a moving frame is ever
+  // shown: a hero that is not playing is the backdrop colour with the copy on
+  // it, never a still with a play button on it.
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -2875,25 +2882,29 @@ function StorefrontHeroVideo() {
 
   return (
     <div className="sf-hero-video">
-      <video
-        ref={videoRef}
-        className={`sf-hero-video__media${ready ? " is-ready" : ""}`}
-        src="/media/hero-walk.mp4"
-        // No poster file: the frame's own average colour is the backdrop, which
-        // costs nothing to download and is already painted before the first
-        // frame arrives.
-        autoPlay
-        muted
-        loop
-        playsInline
-        controls={false}
-        disablePictureInPicture
-        disableRemotePlayback
-        preload="auto"
-        tabIndex={-1}
-        aria-hidden="true"
-        onCanPlay={() => setReady(true)}
-      />
+      {failed ? null : (
+        <video
+          ref={videoRef}
+          className={`sf-hero-video__media${ready ? " is-ready" : ""}`}
+          src="/media/hero-walk.mp4"
+          // No poster file: the frame's own average colour is the backdrop, which
+          // costs nothing to download and is already painted before the first
+          // frame arrives.
+          autoPlay
+          muted
+          loop
+          playsInline
+          controls={false}
+          disablePictureInPicture
+          disableRemotePlayback
+          preload="auto"
+          tabIndex={-1}
+          aria-hidden="true"
+          onPlaying={() => setReady(true)}
+          onPause={() => setReady(false)}
+          onError={() => setFailed(true)}
+        />
+      )}
       <StorefrontHeroVideoOverlay />
     </div>
   );
