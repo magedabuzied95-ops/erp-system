@@ -126,6 +126,9 @@ export const performSend = async (row, gateway) => {
         text: body,
         footer: text(send.footer) || "M1 Store",
         orderId: row.order_id,
+        // Frozen at enqueue, so a template send replays the order as it was when the automation
+        // fired rather than as it looks now, several retries later.
+        templateValues: send.templateValues || null,
       });
     } catch (buttonsError) {
       logLifecycle("buttons-unavailable", {

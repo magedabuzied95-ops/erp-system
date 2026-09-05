@@ -27,8 +27,45 @@ import { getConversationMemory } from "./aiConversationMemory.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import { autoRegisterWhatsappCustomer, ensureWhatsappCustomerAvatarSchema } from "./whatsappCustomerAutoRegistrationService.js";
 import { extractWhatsappReactionEvent } from "../utils/whatsappReaction.js";
+import whatsappCloud from "./whatsappCloudProvider.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
+
+/*
+ * Which transport a given number sends on.
+ *
+ * The plan is one number on Cloud API and one on Evolution at the same time, so this cannot be a
+ * global switch. It reuses the `instance` argument that already threads through every send path
+ * from the multi-number work: a plain name is an Evolution instance, "cloud:<phone_number_id>"
+ * is a Cloud number, and empty means "whatever WHATSAPP_GATEWAY_PROVIDER says" — which keeps
+ * every existing caller on Evolution byte-for-byte until an env var says otherwise.
+ */
+const CLOUD_INSTANCE_PREFIX = "cloud:";
+
+export const resolveWhatsappTransport = (instance = "") => {
+  const selected = String(instance ?? "").trim();
+  if (selected.toLowerCase().startsWith(CLOUD_INSTANCE_PREFIX)) {
+    return { provider: "cloud", phoneNumberId: selected.slice(CLOUD_INSTANCE_PREFIX.length), instanceName: "" };
+  }
+  if (selected) return { provider: "evolution", instanceName: selected, phoneNumberId: "" };
+  return provider() === "cloud"
+    ? { provider: "cloud", phoneNumberId: "", instanceName: "" }
+    : { provider: "evolution", instanceName: "", phoneNumberId: "" };
+};
+
+const isCloudTransport = (instance = "") => resolveWhatsappTransport(instance).provider === "cloud";
+
+// A LID identifies a chat inside one Baileys session and means nothing to Graph, so a username
+// customer simply cannot be reached from a Cloud number. Say so rather than send to a number
+// built out of digits that are not a phone number.
+const refuseCloudLid = (lid = "") => {
+  if (!lid) return;
+  throw gatewayError(
+    "A WhatsApp username (LID) customer can only be answered from the Evolution number",
+    "WHATSAPP_CLOUD_LID_UNSUPPORTED",
+    409
+  );
+};
 const apiUrl = () => String(process.env.EVOLUTION_API_URL || "").trim().replace(/\/+$/g, "");
 const apiKey = () => String(process.env.EVOLUTION_API_KEY || "").trim();
 const instanceName = () => String(process.env.WHATSAPP_INSTANCE_NAME || process.env.EVOLUTION_INSTANCE_NAME || process.env.instanceName || "m1-store").trim();
@@ -999,6 +1036,9 @@ export const refreshWhatsappConversationAvatar = async ({ tenantId = null, conve
 };
 
 export const getStatus = async ({ instance = "" } = {}) => {
+  if (isCloudTransport(instance)) {
+    return whatsappCloud.getStatus({ phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId });
+  }
   const current = config();
   const selectedInstance = text(instance);
   if (selectedInstance) current.instanceName = selectedInstance;
@@ -1113,6 +1153,14 @@ export const sendTextMessage = async ({ phone, message, instance = "" } = {}) =>
   const body = String(message ?? "");
   if (!sendTarget) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!body.trim()) throw gatewayError("Message body is required", "WHATSAPP_MESSAGE_REQUIRED", 400);
+  if (isCloudTransport(instance)) {
+    refuseCloudLid(lid);
+    return whatsappCloud.sendText({
+      phone: sendTarget,
+      message: body,
+      phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
+    });
+  }
   const current = requireEvolutionConfig(instance);
   // Link previews are OFF, and that is load-bearing: with them on, Baileys fetches preview
   // metadata for the URL and - proven live on 2026-08-25 - the message is acked with DELIVERY_ACK
@@ -1207,6 +1255,15 @@ export const sendWhatsappReaction = async ({ remoteJid = "", targetMessageId = "
   const safeEmoji = String(emoji ?? "").trim();
   if (!safeRemoteJid) throw gatewayError("WhatsApp conversation target is required", "WHATSAPP_REACTION_TARGET_REQUIRED", 400);
   if (!safeTargetMessageId) throw gatewayError("WhatsApp message id is required", "WHATSAPP_REACTION_MESSAGE_ID_REQUIRED", 400);
+  if (isCloudTransport(instance)) {
+    refuseCloudLid(normalizeWhatsappLid(safeRemoteJid));
+    return whatsappCloud.sendReaction({
+      phone: safeRemoteJid.replace(/@.*$/, ""),
+      targetMessageId: safeTargetMessageId,
+      emoji: safeEmoji,
+      phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
+    });
+  }
   const current = requireEvolutionConfig(instance);
   const endpoint = `/message/sendReaction/${encodeURIComponent(current.instanceName)}`;
   const payload = {
@@ -1283,6 +1340,15 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
   const mimetype = imageMimeType(media) || "image/jpeg";
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!isPublicImageUrl(media)) throw gatewayError("A valid public image URL is required", "WHATSAPP_IMAGE_URL_REQUIRED", 400);
+  if (isCloudTransport(instance)) {
+    refuseCloudLid(lid);
+    return whatsappCloud.sendImage({
+      phone: normalizedPhone,
+      imageUrl: media,
+      caption: safeCaption,
+      phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
+    });
+  }
   const current = requireEvolutionConfig(instance);
   const endpoint = `/message/sendMedia/${encodeURIComponent(current.instanceName)}`;
   const payload = {
@@ -1790,7 +1856,22 @@ export const sendOrderConfirmationListMessage = async ({ phone, title = "", text
   });
 };
 
-export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
+export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3, templateValues = null } = {}) => {
+  if (isCloudTransport()) {
+    if (!templateValues) {
+      throw gatewayError(
+        "The Cloud transport sends the approved template, which needs the order fields in templateValues",
+        "WHATSAPP_TEMPLATE_VALUES_REQUIRED",
+        409
+      );
+    }
+    return whatsappCloud.sendTemplate({
+      automationType: "order_confirmation",
+      phone: normalizeEgyptPhone(phone),
+      values: templateValues,
+      phoneNumberId: resolveWhatsappTransport().phoneNumberId,
+    });
+  }
   if (provider() !== "evolution") {
     throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   }
@@ -1892,10 +1973,21 @@ export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "
 // message is always a message of its own. Callers pass a fallback: a button that fails to render
 // must never cost the customer the message it was attached to.
 export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = "", footer = "", displayText = "", url = "", fallbackText = "" } = {}) => {
-  if (provider() !== "evolution") throw gatewayError("CTA buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
   if (!text(url) || !text(displayText)) throw gatewayError("A CTA button needs a url and a label", "WHATSAPP_CTA_INCOMPLETE", 400);
+  if (isCloudTransport()) {
+    return whatsappCloud.sendCtaUrl({
+      phone: normalizedPhone,
+      bodyText,
+      title,
+      footer,
+      displayText,
+      url,
+      phoneNumberId: resolveWhatsappTransport().phoneNumberId,
+    });
+  }
+  if (provider() !== "evolution") throw gatewayError("CTA buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
   const current = requireEvolutionConfig();
   const payload = {
     number: normalizedPhone,
@@ -1924,6 +2016,9 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
 // Same family as the CTA sender, so the same rule applies — a card that cannot render must never
 // cost the customer the message, hence the plain-text fallback with the same link.
 export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fallbackText = "" } = {}) => {
+  // A carousel is not a session message on Cloud API — it exists only as an approved MARKETING
+  // template, which is a different product with its own review, price and opt-out rules.
+  if (isCloudTransport()) throw gatewayError("A carousel can only be sent from the Evolution number; on Cloud it would have to be an approved marketing template", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   if (provider() !== "evolution") throw gatewayError("Carousel messages are only supported on the Evolution provider", "WHATSAPP_CAROUSEL_UNSUPPORTED", 409);
   const normalizedPhone = normalizeEgyptPhone(phone);
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);

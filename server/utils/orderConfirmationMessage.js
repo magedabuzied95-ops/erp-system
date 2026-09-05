@@ -22,7 +22,7 @@ const shortenConfirmationLink = (value = "") => {
 };
 
 // Whole pounds read better than trailing zeros in a chat bubble; piastres still show when real.
-const formatAmount = (value) => {
+export const formatAmount = (value) => {
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return "";
   const hasPiastres = Math.round(amount * 100) % 100 !== 0;
@@ -51,7 +51,7 @@ const productLines = (items = []) => {
   return shown.join("\n");
 };
 
-const addressLine = (order = {}) => {
+export const addressLine = (order = {}) => {
   const parts = [
     clean(order.governorate),
     clean(order.city_area || order.shipping_city_name),

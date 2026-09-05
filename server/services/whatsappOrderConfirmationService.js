@@ -17,7 +17,8 @@ import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
-import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage } from "../utils/orderConfirmationMessage.js";
+import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount } from "../utils/orderConfirmationMessage.js";
+import { summariseItems } from "./whatsappTemplates.js";
 
 const STOREFRONT_SOURCES = new Set(["storefront", "website", "web"]);
 const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_transfer", "shipping_confirmation", "transfer"]);
@@ -769,6 +770,22 @@ const orderConfirmationActionLabel = (action = "") => {
   return "تم تحديث الطلب";
 };
 
+/*
+ * The order's fields, laid out the way the approved template expects them.
+ *
+ * Cloud API takes variables, not a rendered body: the text is frozen at approval and only these
+ * six values move. The products are summarised onto ONE line because a template variable cannot
+ * contain a line break — the per-item detail stays in the invoice link.
+ */
+export const orderConfirmationTemplateValues = (order = {}) => ({
+  customer_name: firstName(order?.customer_name) || "عميلنا",
+  order_number: orderNumber(order),
+  cod_amount: formatAmount(order?.total_amount ?? order?.total) || "0",
+  items_summary: summariseItems(order?.items || []),
+  address: addressLine(order),
+  invoice_url: buildPublicInvoiceUrl(orderNumber(order)),
+});
+
 export const sendOrderConfirmation = async (order = {}, options = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
   const current = order?.id ? await loadOrderById(order.id) : order;
@@ -869,6 +886,8 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
         kind: "order_confirmation_buttons",
         title: "تأكيد الطلب",
         footer: "M1 Store",
+        // Only the Cloud transport reads these; Evolution keeps using fallbackText below.
+        templateValues: orderConfirmationTemplateValues(current),
         // The links-and-actions form: what the customer needs when no button renders.
         fallbackText: buildOrderConfirmationLinksMessage({
           order: current,
@@ -915,6 +934,7 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
         text: message,
         footer: "M1 Store",
         orderId: current.id,
+        templateValues: orderConfirmationTemplateValues(current),
       });
       deliveryMode = text(result?.delivery_mode) || "interactive_buttons";
     } catch (buttonsError) {
