@@ -119,7 +119,6 @@ import { splitProductDisplayName } from "./lib/productDisplayName";
 import {
   HomeCategoryRail,
   HomeDeferred,
-  HomeEditorial,
   HomeHero,
   HomeFilteredRail,
   HomeProductRail,
@@ -2599,6 +2598,11 @@ const getProductTypeLabel = (value = "", lang = "ar") => {
   if (!entry) return cleanDisplayText(String(value || ""));
   return cleanDisplayText((lang === "en" ? entry.en : entry.ar) || entry.ar || entry.en || value || "");
 };
+// The hero names Mirror Original and opens the Mirror Original listing, but the
+// grade also covers bags and slippers - a school bag under a "Mirror Original"
+// headline reads as the wrong product. The first card is sneakers only.
+const isSneakerProduct = (product) =>
+  resolveProductTypeKey(product?.product_type || product?.productType || "") === "sneakers";
 const storefrontLocalizedLabels = {
   ar: { men: "رجالي", women: "حريمي", kids: "أطفال" },
   en: { men: "Men", women: "Women", kids: "Kids" },
@@ -2756,7 +2760,6 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
     [knownBrands, products]
   );
   const cards = useMemo(() => offerProducts.map((product) => buildHomeProductCard(product, cardCtx)), [cardCtx, offerProducts]);
-  const leadImage = offerProducts.length ? homeProductWithImage(offerProducts[0])?.image || "" : "";
   const isFavorite = useCallback(
     (product) => (Array.isArray(wishlist) ? wishlist : []).some((entry) => String(entry.id) === String(product?.id)),
     [wishlist]
@@ -2764,35 +2767,24 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
 
   if (!loading && !cards.length) return null;
 
+  // The editorial card that used to head this section is gone at the owner's
+  // request: a tall image panel repeating a "Browse all offers" link that the
+  // rail below already carries, for a section the visitor reached on purpose.
+  // The rail is the section now.
   return (
-    <>
-      <HomeEditorial
-        isRtl={isRtl}
-        eyebrow={isRtl ? "عروض M1" : "M1 offers"}
-        title={isRtl ? "أسعار الموسم" : "This season's prices"}
-        text={isRtl
-          ? "مجموعة العروض الحالية في مكان واحد — والمتاح منها بيتحرك بسرعة."
-          : "The current offer edit in one place — and what is left of it moves fast."}
-        ctaLabel={isRtl ? "تصفح كل العروض" : "Browse all offers"}
-        href="/offers"
-        image={leadImage ? imageFor(leadImage) : ""}
-        imageProps={leadImage ? responsiveImageProps(leadImage, "hero") : {}}
-        onImageError={onImageError}
-      />
-      <HomeProductRail
-        title={isRtl ? "من العروض" : "From the offers"}
-        href="/offers"
-        linkLabel={sfText("common.viewAll")}
-        cards={cards}
-        loading={loading}
-        prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
-        nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
-        isFavorite={isFavorite}
-        onToggleFavorite={toggleWishlist}
-        onImageError={onImageError}
-        favoriteLabel={isRtl ? "أضف إلى المفضلة" : "Add to wishlist"}
-      />
-    </>
+    <HomeProductRail
+      title={isRtl ? "من العروض" : "From the offers"}
+      href="/offers"
+      linkLabel={sfText("common.viewAll")}
+      cards={cards}
+      loading={loading}
+      prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
+      nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
+      isFavorite={isFavorite}
+      onToggleFavorite={toggleWishlist}
+      onImageError={onImageError}
+      favoriteLabel={isRtl ? "أضف إلى المفضلة" : "Add to wishlist"}
+    />
   );
 }
 
@@ -3095,12 +3087,17 @@ function PremiumHomePage(props) {
   // Five hero slides, not twelve: a hero that has to cycle a dozen products is a
   // carousel of everything, and nothing in it gets looked at.
   const heroSlides = useMemo(() => {
-    const candidates = uniqueProductsByIdentity([
+    const mirrorPool = uniqueProductsByIdentity([
       ...(Array.isArray(mirrorProducts) ? mirrorProducts : []),
       ...homepageProductPool.filter(isMirrorProduct),
     ])
       .filter((product) => isAvailableProduct(product) && homeProductWithImage(product))
       .sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a));
+    // Sneakers only. The fallback to the whole mirror pool exists so a catalogue
+    // that momentarily holds no in-stock mirror sneaker leaves a hero standing
+    // rather than a blank slot at the top of the homepage.
+    const mirrorSneakers = mirrorPool.filter(isSneakerProduct);
+    const candidates = mirrorSneakers.length ? mirrorSneakers : mirrorPool;
     const heroFallback = storefrontHome.hero && isMirrorProduct(storefrontHome.hero) ? [storefrontHome.hero] : [];
     return (candidates.length ? candidates : heroFallback).slice(0, 5).map((product, index) => {
       const slide = featuredSlideProduct(product);
