@@ -2015,6 +2015,20 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
 // one URL button. Proven live on 2.4.0 (2026-08-26): renders like the courier-style card lists.
 // Same family as the CTA sender, so the same rule applies — a card that cannot render must never
 // cost the customer the message, hence the plain-text fallback with the same link.
+/*
+ * The approved-template send. This is the ONLY thing that may leave a Cloud number outside the
+ * 24-hour service window, and it has no Evolution equivalent — Evolution just sends the text.
+ */
+export const sendWhatsappTemplate = async ({ automationType = "", phone, values = {}, instance = "" } = {}) => {
+  const transport = resolveWhatsappTransport(instance);
+  if (transport.provider !== "cloud") {
+    throw gatewayError("Approved templates exist only on the Cloud transport", "WHATSAPP_TEMPLATE_UNSUPPORTED", 409);
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  return whatsappCloud.sendTemplate({ automationType, phone: normalizedPhone, values, phoneNumberId: transport.phoneNumberId });
+};
+
 export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fallbackText = "" } = {}) => {
   // A carousel is not a session message on Cloud API — it exists only as an approved MARKETING
   // template, which is a different product with its own review, price and opt-out rules.

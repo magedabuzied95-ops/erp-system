@@ -3,6 +3,7 @@ import { getSetting } from "./settingsService.js";
 import { sendCartCarouselMessage } from "./whatsappGatewayService.js";
 import { appendChannelOutboundSupportReply } from "./aiSupportLogService.js";
 import { resolvePublicAppUrl } from "../utils/whatsapp.js";
+import { summariseItems } from "./whatsappTemplates.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ABANDONED_CART_DEFAULTS } from "../../shared/abandonedCartDefaults.js";
@@ -203,7 +204,7 @@ export const runAbandonedCartReminderTick = async () => {
       const squared = await ensureSquareCardImageUrl(original).catch(() => "");
       return squared ? { ...item, image_url: squared } : item;
     }));
-    const { body, cards, fallbackText } = buildAbandonedCartCarousel(items, config);
+    const { body, cards, fallbackText, cartUrl } = buildAbandonedCartCarousel(items, config);
     if (!cards.length) {
       // nothing renderable (nameless items) — claim anyway so it is not retried forever
       await claimCart(row).catch(() => {});
@@ -228,7 +229,9 @@ export const runAbandonedCartReminderTick = async () => {
       customerId: null,
       recipientPhone: row.customer_phone,
       send: { kind: "carousel", cards, fallbackText },
-      values: { store_name: "M1 Store" },
+      // A Cloud number cannot send the carousel at all, so the approved template is what goes
+      // out there — and it needs these named the way the registry expects them.
+      values: { store_name: "M1 Store", cart_url: cartUrl, items_summary: summariseItems(items) },
       fallbackBody: body,
       // One reminder per claim: a second tick on the same claim lands on the same key.
       idempotencySuffix: `cart:${row.id}:${claimed}`,

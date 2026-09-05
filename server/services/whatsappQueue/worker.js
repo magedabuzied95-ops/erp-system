@@ -1,4 +1,6 @@
 import db from "../../database/db.js";
+import { hasTemplate, resolveTemplateValues } from "../whatsappTemplates.js";
+import { isWithinServiceWindow } from "../whatsappCloudProvider.js";
 import { ensureWhatsappQueueSchema } from "./schema.js";
 import { loadWhatsappQueueSettings, rulesForAutomation } from "./config.js";
 import {
@@ -72,16 +74,81 @@ export const extractWhatsAppMessageId = (result = {}) => text(
 );
 
 /*
+ * When the customer last wrote to us, which on Cloud API decides whether a message may be sent
+ * as itself at all. Read from the inbox transcript rather than tracked separately: that table is
+ * where every inbound already lands, so it cannot drift from what actually happened.
+ *
+ * A failure here answers null, and null means "outside the window" — the template path. Guessing
+ * "inside" on a database hiccup would send free text that Graph rejects for that customer only,
+ * which is the failure that is hardest to notice.
+ */
+export const lastCustomerInboundAt = async (phone = "") => {
+  const safePhone = text(phone);
+  if (!safePhone) return null;
+  try {
+    const result = await db.query(
+      `
+      SELECT MAX(created_at) AS at
+      FROM ai_support_messages
+      WHERE session_id = $1
+        AND COALESCE(sender_type, '') = 'customer'
+        AND COALESCE(customer_message, '') <> ''
+      `,
+      [`whatsapp:${safePhone}`]
+    );
+    return result.rows[0]?.at || null;
+  } catch (error) {
+    logLifecycle("service-window-lookup-failed", { phone_suffix: safePhone.slice(-4), error: error?.message || String(error) });
+    return null;
+  }
+};
+
+/*
  * Perform the send. The queue stores WHAT to send declaratively so the worker never has to
  * import the automation services back — which would be a cycle, since they import the queue.
  */
-export const performSend = async (row, gateway) => {
+export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
   const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
   const send = payload.send && typeof payload.send === "object" ? payload.send : {};
   const kind = text(send.kind) || "text";
   const phone = text(row.recipient_phone);
   const body = text(row.rendered_body);
   const instance = text(row.instance);
+
+  /*
+   * The Cloud fork, and the reason this queue needed templates at all.
+   *
+   * Everything the queue carries is proactive — a receipt fires after a sale, a shipping update
+   * days later — so the customer has usually not written to us in 24 hours, and on Cloud that
+   * means the message may only leave as an approved template. Inside the window the free-form
+   * kinds below are still both allowed and better (buttons, carousels, a CTA), so the window is
+   * measured rather than assumed in either direction.
+   */
+  if (gateway.resolveWhatsappTransport?.(instance)?.provider === "cloud") {
+    // The caller may pass the timestamp it already has; undefined means look it up.
+    const inboundAt = lastInboundAt === undefined ? await lastCustomerInboundAt(phone) : lastInboundAt;
+    const withinWindow = isWithinServiceWindow(inboundAt);
+    if (!withinWindow) {
+      if (!hasTemplate(row.automation_type)) {
+        // Sending anyway would be rejected per customer, long after anyone is watching. Fail the
+        // row with the reason instead, so it shows up as a queue failure and not as silence.
+        throw Object.assign(
+          new Error(`No approved template for ${row.automation_type}, and the 24-hour window has closed`),
+          { code: "WHATSAPP_TEMPLATE_MISSING" }
+        );
+      }
+      logLifecycle("cloud-template-send", { id: row.id, automation_type: row.automation_type, reason: "outside_service_window" });
+      return gateway.sendWhatsappTemplate({
+        automationType: row.automation_type,
+        phone,
+        values: resolveTemplateValues(row.automation_type, {
+          values: payload.values || {},
+          templateValues: send.templateValues || null,
+        }),
+        instance,
+      });
+    }
+  }
 
   if (kind === "cta_url") {
     // The receipt's review button. A CTA cannot be mixed with reply buttons, so if it will not

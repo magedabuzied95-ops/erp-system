@@ -164,9 +164,15 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
     samples: ["INV-1084", "990"],
     body: `🛵 المندوب خرج لتسليم طلبك رقم {{1}}
 
-المبلغ المطلوب: {{2}} جنيه
+المبلغ المطلوب: {{2}}
 
 نتمنى تكون متاح لاستلام الطلب النهاردة.`,
+    /*
+     * A prepaid parcel renders cod_amount empty on purpose, and our own renderer drops the whole
+     * line. A template cannot drop anything, so the fallback has to READ correctly rather than
+     * print a dash where a sum belongs.
+     */
+    fallbacks: { cod_amount: "لا يوجد مبلغ للتحصيل" },
     buttons: [],
   },
 
@@ -217,6 +223,8 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
     category: TEMPLATE_CATEGORIES.MARKETING,
     variables: ["customer_name", "items_summary", "cart_url"],
     samples: ["مي", "حذاء رياضي — أسود · 42", "https://m1store-egy.com/cart"],
+    // The abandoned-cart row is keyed by phone and carries no name at all.
+    fallbacks: { customer_name: "عميلنا" },
     body: `🛒 يا {{1}}، سلتك في M1 Store لسه مستنياك
 
 لسه فيها {{2}}، وتقدر تكمل طلبك من هنا: {{3}}
@@ -225,6 +233,47 @@ export const WHATSAPP_TEMPLATE_DEFINITIONS = Object.freeze({
     buttons: [],
   },
 });
+
+/*
+ * The queue already carries a `values` bag for message-variant placeholders, and its vocabulary
+ * is almost the template vocabulary — shipmentTemplateValues even uses the same six names. These
+ * aliases cover the rest rather than making every enqueue site pass a second, near-identical bag.
+ */
+export const TEMPLATE_VALUE_ALIASES = Object.freeze({
+  cod_amount: ["cod_amount", "total", "total_amount"],
+  review_url: ["review_url", "google_review_url"],
+  invoice_url: ["invoice_url", "public_invoice_url"],
+  cart_url: ["cart_url", "checkout_url"],
+  items_summary: ["items_summary", "items"],
+  customer_name: ["customer_name", "name"],
+  order_number: ["order_number", "invoice_number"],
+});
+
+/*
+ * What actually fills a template on send.
+ *
+ * Explicit values win: order_confirmation builds its own six, because summarising products onto
+ * one line and assembling an address are things only the order knows how to do. Everything else
+ * falls back to the queue's bag through the aliases above, then to the definition's own wording
+ * for a missing value, then to a dash.
+ */
+export const resolveTemplateValues = (automationType = "", { values = {}, templateValues = null } = {}) => {
+  const definition = templateDefinition(automationType);
+  if (!definition) throw new Error(`WHATSAPP_TEMPLATE_UNKNOWN:${text(automationType)}`);
+  const explicit = templateValues && typeof templateValues === "object" ? templateValues : {};
+  const bag = values && typeof values === "object" ? values : {};
+  const resolved = {};
+  for (const name of definition.variables) {
+    if (text(explicit[name])) {
+      resolved[name] = explicit[name];
+      continue;
+    }
+    const candidates = TEMPLATE_VALUE_ALIASES[name] || [name];
+    const found = candidates.map((key) => bag[key]).find((value) => text(value));
+    resolved[name] = text(found) || text(definition.fallbacks?.[name]) || EMPTY_VALUE_FALLBACK;
+  }
+  return resolved;
+};
 
 export const templateDefinition = (automationType = "") =>
   WHATSAPP_TEMPLATE_DEFINITIONS[text(automationType)] || null;
@@ -270,7 +319,9 @@ export const buildTemplateComponents = (automationType = "", values = {}) => {
   const definition = templateDefinition(automationType);
   if (!definition) throw new Error(`WHATSAPP_TEMPLATE_UNKNOWN:${text(automationType)}`);
   const parameters = definition.variables.map((name) => {
-    const value = templateValue(values?.[name]);
+    const value = templateValue(values?.[name]) === EMPTY_VALUE_FALLBACK
+      ? (text(definition.fallbacks?.[name]) || EMPTY_VALUE_FALLBACK)
+      : templateValue(values?.[name]);
     const problems = validateTemplateValue(value);
     if (problems.length) throw new Error(`WHATSAPP_TEMPLATE_VALUE_INVALID:${name}:${problems[0]}`);
     return { type: "text", text: value };
@@ -343,6 +394,8 @@ export const templateButtonAction = (payload = "") => TEMPLATE_BUTTON_ACTIONS[te
 
 export default {
   WHATSAPP_TEMPLATE_DEFINITIONS,
+  TEMPLATE_VALUE_ALIASES,
+  resolveTemplateValues,
   templateDefinition,
   hasTemplate,
   buildTemplateComponents,
