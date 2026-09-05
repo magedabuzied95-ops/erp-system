@@ -22,6 +22,95 @@ import { handleInboundMessageIntake } from "../services/aiInboundIntakeService.j
 
 const router = express.Router();
 
+/* ==========================================================================================
+ * Meta WhatsApp Cloud API webhook.
+ *
+ * This path is SHARED with the live Evolution inbound webhook, which has been POSTing here since
+ * long before Cloud existed. The two are told apart by the payload itself: Meta stamps every
+ * delivery with object "whatsapp_business_account", and Evolution never sends that key. The Meta
+ * branch runs first and returns before anything Evolution-specific is touched, so the existing
+ * integration is not modified in any way — it simply never sees a Meta body.
+ *
+ * The Facebook Messenger and Instagram webhooks are a different mount entirely
+ * (/api/meta/webhook) and are not touched here.
+ * ========================================================================================== */
+
+const WHATSAPP_CLOUD_WEBHOOK_OBJECT = "whatsapp_business_account";
+
+/*
+ * The verify token. Defaulted rather than required, because a missing env var on the server would
+ * turn Meta's verification into a silent 403 that reads exactly like a wrong token.
+ */
+const whatsappWebhookVerifyToken = () =>
+  String(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "M1_WHATSAPP_VERIFY_2026").trim();
+
+export const isWhatsappCloudWebhookPayload = (body) =>
+  Boolean(body) && typeof body === "object" && String(body.object || "").trim() === WHATSAPP_CLOUD_WEBHOOK_OBJECT;
+
+/*
+ * A summary, never the payload. An inbound WhatsApp body carries the customer's phone number and
+ * the text they wrote; logging it whole would copy that into the container logs on every message.
+ * Structure is what a webhook needs at this stage — shape, counts, and which fields arrived.
+ */
+const summariseCloudWebhook = (body = {}) => {
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+  const changes = entries.flatMap((entry) => (Array.isArray(entry?.changes) ? entry.changes : []));
+  const values = changes.map((change) => change?.value || {});
+  return {
+    object: String(body.object || ""),
+    entry_count: entries.length,
+    fields: [...new Set(changes.map((change) => String(change?.field || "")).filter(Boolean))],
+    phone_number_ids: [...new Set(values.map((value) => String(value?.metadata?.phone_number_id || "")).filter(Boolean))],
+    message_count: values.reduce((sum, value) => sum + (Array.isArray(value.messages) ? value.messages.length : 0), 0),
+    message_types: [...new Set(values.flatMap((value) => (Array.isArray(value.messages) ? value.messages : []).map((message) => String(message?.type || ""))).filter(Boolean))],
+    status_count: values.reduce((sum, value) => sum + (Array.isArray(value.statuses) ? value.statuses.length : 0), 0),
+    from_suffixes: [...new Set(values.flatMap((value) => (Array.isArray(value.messages) ? value.messages : []).map((message) => String(message?.from || "").slice(-4))).filter(Boolean))],
+  };
+};
+
+export const handleWhatsappCloudWebhookVerification = (req, res) => {
+  const mode = String(req.query?.["hub.mode"] ?? "").trim();
+  const verifyToken = String(req.query?.["hub.verify_token"] ?? "").trim();
+  const challenge = String(req.query?.["hub.challenge"] ?? "").trim();
+  const matched = mode === "subscribe" && verifyToken === whatsappWebhookVerifyToken() && verifyToken.length > 0;
+
+  console.info("[whatsapp:cloud-webhook-verification]", {
+    path: req.originalUrl || req.url || "",
+    mode,
+    token_matched: matched,
+    challenge_present: challenge.length > 0,
+  });
+
+  /*
+   * Meta compares the response BODY to the challenge byte for byte, so this must be the raw value
+   * and nothing else: no JSON envelope, no trailing newline, no redirect. res.type is set before
+   * send() because express would otherwise answer a numeric-looking string as JSON.
+   */
+  res.type("text/plain");
+  if (matched && challenge) return res.status(200).send(challenge);
+  return res.status(403).send("Forbidden");
+};
+
+/*
+ * Accept, log, acknowledge. Nothing is processed yet: Meta retries anything that is not answered
+ * quickly with a 200, so acknowledging first is the behaviour that keeps deliveries flowing while
+ * the message pipeline is still being built.
+ */
+export const handleWhatsappCloudWebhookEvent = (req, res) => {
+  try {
+    console.info("[whatsapp:cloud-webhook-event]", {
+      ...summariseCloudWebhook(req.body || {}),
+      signature_present: Boolean(req.headers?.["x-hub-signature-256"]),
+    });
+  } catch (error) {
+    // A malformed body must still be acknowledged, or Meta retries it forever.
+    console.warn("[whatsapp:cloud-webhook-log-failed]", { message: error?.message || String(error) });
+  }
+  return res.status(200).json({ success: true, received: true });
+};
+
+router.get("/webhook", handleWhatsappCloudWebhookVerification);
+
 const tenantScope = (req) =>
   req.user?.tenant_id ||
   req.user?.tenantId ||
@@ -211,6 +300,9 @@ router.post("/order-confirmation/:orderId/action", protect, permit("orders", "ed
 
 router.post("/webhook", async (req, res) => {
   try {
+    // Meta first, and before verifyWebhookSecret: Meta does not carry the Evolution secret, so
+    // the existing check would answer it 401 and Meta would disable the subscription.
+    if (isWhatsappCloudWebhookPayload(req.body)) return handleWhatsappCloudWebhookEvent(req, res);
     if (!verifyWebhookSecret(req)) {
       console.warn("[whatsapp:webhook-incoming]", { rejected: true, reason: "invalid_secret" });
       return res.status(401).json({ success: false, message: "Invalid webhook secret" });
