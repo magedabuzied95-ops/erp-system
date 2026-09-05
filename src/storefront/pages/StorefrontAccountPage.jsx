@@ -2,6 +2,7 @@
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
+import { sfText } from "../lib/sfText";
 import { api } from "../../shared/api/api";
 import { VirtualList } from "../../shared/components/VirtualList";
 import {
@@ -357,7 +358,7 @@ function StorefrontAccountPageContent({
 
   const invalidateCustomerIdentity = useCallback(() => {
     clearCustomerIdentity();
-    toast.error("ط·آ§ط¸â€ ط·ع¾ط¸â€،ط·ع¾ ط·آµط¸â€‍ط·آ§ط·آ­ط¸ظ¹ط·آ© ط·آ§ط¸â€‍ط·آ¯ط·آ®ط¸ث†ط¸â€‍. ط·آ³ط·آ¬ط¸â€کط¸â€‍ ط·آ¯ط·آ®ط¸ث†ط¸â€‍ط¸ئ’ ط¸â€¦ط·آ±ط·آ© ط·آ£ط·آ®ط·آ±ط¸â€°.");
+    toast.error(sfText("storefront.auth.sessionExpired"));
   }, [clearCustomerIdentity]);
 
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -404,7 +405,7 @@ function StorefrontAccountPageContent({
         invalidateCustomerIdentity();
       }
       if (!silent) {
-        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "ط¸â€‍ط·آ§ ط¸ظ¹ط¸â€¦ط¸ئ’ط¸â€  ط¸ظ¾ط·ع¾ط·آ­ ط·آ§ط¸â€‍ط·آ­ط·آ³ط·آ§ط·آ¨ ط·آ§ط¸â€‍ط·آ¢ط¸â€ ."));
+        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
       }
       return null;
     } finally {
@@ -459,7 +460,7 @@ function StorefrontAccountPageContent({
   const requestOtp = useCallback(async () => {
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
     if (normalizedPhone.length < 10) {
-      toast.error("أدخل رقم موبايل صحيح");
+      toast.error(sfText("storefront.auth.invalidPhone"));
       return;
     }
     setRequestingOtp(true);
@@ -470,9 +471,9 @@ function StorefrontAccountPageContent({
       });
       setOtpRequestedAt(Date.now());
       setOtpCode("");
-      toast.success("تم إرسال كود الدخول على واتساب");
+      toast.success(sfText("storefront.auth.otpSent"));
     } catch (error) {
-      toast.error(error.message || "تعذر إرسال كود الدخول");
+      toast.error(error.message || sfText("storefront.auth.otpSendFailed"));
     } finally {
       setRequestingOtp(false);
     }
@@ -482,11 +483,11 @@ function StorefrontAccountPageContent({
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
     const otp = String(otpCode || "").replace(/\D/g, "").slice(0, 6);
     if (normalizedPhone.length < 10) {
-      toast.error("أدخل رقم موبايل صحيح");
+      toast.error(sfText("storefront.auth.invalidPhone"));
       return;
     }
     if (otp.length !== 6) {
-      toast.error("أدخل كود OTP من 6 أرقام");
+      toast.error(sfText("storefront.auth.otpLengthHint"));
       return;
     }
     setVerifyingOtp(true);
@@ -505,10 +506,10 @@ function StorefrontAccountPageContent({
       setResendCountdown(0);
       setOtpCode("");
       setAccount(null);
-      toast.success("تم تسجيل الدخول بنجاح");
+      toast.success(sfText("storefront.auth.loginSuccess"));
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "الكود غير صحيح أو انتهت صلاحيته");
+      toast.error(error?.message || sfText("storefront.auth.otpInvalid"));
     } finally {
       setVerifyingOtp(false);
     }
@@ -544,15 +545,15 @@ function StorefrontAccountPageContent({
     const password = String(authPassword || "");
     const confirm = String(authConfirmPassword || "");
     if (!name || !email || !normalizedPhone || !password) {
-      toast.error("أدخل الاسم والبريد ورقم الموبايل وكلمة المرور");
+      toast.error(sfText("storefront.auth.registerFieldsRequired"));
       return;
     }
     if (password.length < 8) {
-      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+      toast.error(sfText("storefront.auth.passwordTooShort"));
       return;
     }
     if (password !== confirm) {
-      toast.error("كلمتا المرور غير متطابقتين");
+      toast.error(sfText("storefront.auth.passwordMismatch"));
       return;
     }
     setAuthSubmitting(true);
@@ -575,10 +576,10 @@ function StorefrontAccountPageContent({
       setResetPasswordConfirm("");
       setSearchParams({});
       setAccount(null);
-      toast.success("تم إنشاء الحساب وتسجيل الدخول بنجاح");
+      toast.success(sfText("storefront.auth.registerSuccess"));
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "تعذر إنشاء الحساب حاليًا");
+      toast.error(error?.message || sfText("storefront.auth.registerFailed"));
     } finally {
       setAuthSubmitting(false);
     }
@@ -588,7 +589,7 @@ function StorefrontAccountPageContent({
     const email = String(authEmail || "").trim();
     const password = String(authPassword || "");
     if (!email || !password) {
-      toast.error("أدخل البريد الإلكتروني وكلمة المرور");
+      toast.error(sfText("storefront.auth.loginFieldsRequired"));
       return;
     }
     setAuthSubmitting(true);
@@ -604,10 +605,10 @@ function StorefrontAccountPageContent({
       setAuthMode("login");
       setAccount(null);
       setAuthPassword("");
-      toast.success("تم تسجيل الدخول بنجاح");
+      toast.success(sfText("storefront.auth.loginSuccess"));
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "البريد أو كلمة المرور غير صحيحة");
+      toast.error(error?.message || sfText("storefront.auth.loginInvalid"));
     } finally {
       setAuthSubmitting(false);
     }
@@ -616,7 +617,7 @@ function StorefrontAccountPageContent({
   const requestPasswordReset = useCallback(async () => {
     const email = String(authEmail || "").trim();
     if (!email) {
-      toast.error("أدخل البريد الإلكتروني");
+      toast.error(sfText("storefront.auth.emailRequired"));
       return;
     }
     setAuthSubmitting(true);
@@ -626,9 +627,9 @@ function StorefrontAccountPageContent({
         body: { email },
       });
       setAuthMode("forgot");
-      toast.success("إذا كان الحساب موجودًا فسيصلك رابط استعادة التعيين");
+      toast.success(sfText("storefront.auth.resetLinkSent"));
     } catch (error) {
-      toast.error(error?.message || "تعذر إرسال رسالة إعادة التعيين");
+      toast.error(error?.message || sfText("storefront.auth.resetSendFailed"));
     } finally {
       setAuthSubmitting(false);
     }
@@ -639,15 +640,15 @@ function StorefrontAccountPageContent({
     const password = String(resetPassword || "");
     const confirm = String(resetPasswordConfirm || "");
     if (!token) {
-      toast.error("رابط إعادة التعيين غير صالح");
+      toast.error(sfText("storefront.auth.resetLinkInvalid"));
       return;
     }
     if (!password || password.length < 8) {
-      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+      toast.error(sfText("storefront.auth.passwordTooShort"));
       return;
     }
     if (password !== confirm) {
-      toast.error("كلمتا المرور غير متطابقتين");
+      toast.error(sfText("storefront.auth.passwordMismatch"));
       return;
     }
     setAuthSubmitting(true);
@@ -656,7 +657,7 @@ function StorefrontAccountPageContent({
         method: "POST",
         body: { token, password },
       });
-      toast.success("تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن");
+      toast.success(sfText("storefront.auth.passwordUpdated"));
       setAuthMode("login");
       setResetPassword("");
       setResetPasswordConfirm("");
@@ -664,7 +665,7 @@ function StorefrontAccountPageContent({
       setSearchParams({});
       navigate("/account", { replace: true });
     } catch (error) {
-      toast.error(error?.message || "تعذر تحديث كلمة المرور");
+      toast.error(error?.message || sfText("storefront.auth.passwordUpdateFailed"));
     } finally {
       setAuthSubmitting(false);
     }
@@ -679,7 +680,7 @@ function StorefrontAccountPageContent({
 
   const savePreferredSizes = useCallback(async () => {
     if (!hasCustomerToken) {
-      toast.error("سجل دخولك أولًا حتى نحفظ مقاساتك");
+      toast.error(sfText("storefront.auth.loginToSaveSizes"));
       return;
     }
     setSavingPreferences(true);
@@ -689,13 +690,13 @@ function StorefrontAccountPageContent({
         body: { preferred_sizes: preferredSizes },
       });
       setPreferredSizes(normalizePreferredSizes(response?.preferences || preferredSizes));
-      toast.success("تم حفظ المقاسات");
+      toast.success(sfText("storefront.account.sizesSaved"));
     } catch (error) {
       if (Number(error?.status || error?.response?.status || 0) === 401) {
-        toast.error("سجل الدخول مرة أخرى");
+        toast.error(sfText("storefront.auth.signInAgain"));
         return;
       }
-      toast.error("تعذر حفظ المقاسات حاليًا");
+      toast.error(sfText("storefront.account.sizesSaveFailed"));
     } finally {
       setSavingPreferences(false);
     }
@@ -763,7 +764,7 @@ function StorefrontAccountPageContent({
     if (added) {
       toast.success(skipped ? sfText("storefront.toasts.reorderPartial", "Available items were added to cart. Some choices are currently unavailable.") : sfText("storefront.toasts.reorderAdded", "The order was added to cart again."));
     } else {
-      toast.error(sfText("storefront.toasts.reorderUnavailable", "ظ‡ط°ظ‡ ط§ظ„ظ…ظ†طھط¬ط§طھ ط؛ظٹط± ظ…طھط§ط­ط© ط­ط§ظ„ظٹظ‹ط§. ط¬ط±ظ‘ط¨ ط§ط®طھظٹط§ط±ط§طھ ط£ط®ط±ظ‰."));
+      toast.error(sfText("storefront.toasts.reorderUnavailable", "هذه المنتجات غير متاحة حاليًا. جرّب اختيارات أخرى."));
     }
   }, [customerAuth.phone, displayOrderNumber, loadProductsForReorder, onAddToCart, selectedOrder?.items, sfText]);
 
@@ -783,7 +784,7 @@ function StorefrontAccountPageContent({
   const customerPhone = customerAuth.phone || phone;
 
   return (
-    <section className="sf-account-page mx-auto max-w-[1440px] px-4 py-6 pb-28 sm:px-6 md:py-10 md:pb-14 lg:px-8" dir="rtl" lang="ar">
+    <section className="sf-account-page mx-auto max-w-[1440px] px-4 py-6 pb-28 sm:px-6 md:py-10 md:pb-14 lg:px-8">
       <div className={`sf-account-layout ${hasCustomerToken ? "is-dashboard" : "is-auth"}`}>
         <div className="space-y-5">
           {hasCustomerToken ? (
@@ -806,20 +807,20 @@ function StorefrontAccountPageContent({
                   <div className="flex flex-wrap gap-3">
                     <button type="button" onClick={() => load()} disabled={loading} className="sf-account-hero-button inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
                       <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                      تحديث البيانات
+                      {sfText("storefront.account.refreshData")}
                     </button>
                     <button type="button" onClick={clearCustomerIdentity} className="sf-account-hero-button is-danger inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
                       <LogOut className="h-4 w-4" />
-                      تسجيل الخروج
+                      {sfText("storefront.account.signOut")}
                     </button>
                   </div>
                 </div>
                 <div className="relative z-[1] mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
                   {[
-                    [PackageCheck, orders.length, "الطلبات"],
-                    [Heart, wishlistItems.length, "المفضلة"],
-                    [MapPin, addresses.length, "العناوين"],
-                    [Gem, Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0).toLocaleString(i18n.language || "en"), "نقاطك"],
+                    [PackageCheck, orders.length, sfText("storefront.account.stats.orders")],
+                    [Heart, wishlistItems.length, sfText("storefront.header.wishlist")],
+                    [MapPin, addresses.length, sfText("storefront.account.stats.addresses")],
+                    [Gem, Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0).toLocaleString(i18n.language || "en"), sfText("storefront.account.stats.points")],
                   ].map(([Icon, value, label]) => (
                     <div key={label} className="sf-account-stat rounded-[1.25rem] border p-4">
                       <div className="flex items-center justify-between gap-3">
@@ -840,7 +841,7 @@ function StorefrontAccountPageContent({
                         <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><ShoppingBag className="h-5 w-5" /></span>
                         <div>
                           <h2 className="text-xl font-black">{sfText("storefront.account.myOrders", "طلباتي")}</h2>
-                          <p className="mt-0.5 text-xs font-bold text-white/45">تابع طلباتك أو أعد طلب منتجاتك المفضلة</p>
+                          <p className="mt-0.5 text-xs font-bold text-white/45">{sfText("storefront.account.ordersHint")}</p>
                         </div>
                       </div>
                       <span className="sf-account-count rounded-full px-3 py-1 text-xs font-black">{orders.length}</span>
@@ -858,9 +859,9 @@ function StorefrontAccountPageContent({
                         <div>
                           <span className="mx-auto grid h-14 w-14 place-items-center rounded-full"><ShoppingBag className="h-6 w-6" /></span>
                           <h3 className="mt-4 text-lg font-black">{sfText("storefront.account.noOrders", "لا توجد طلبات حتى الآن")}</h3>
-                          <p className="mx-auto mt-2 max-w-sm text-sm font-bold leading-6">ابدأ جولتك واكتشف أحدث اختيارات M1 المختارة لك.</p>
+                          <p className="mx-auto mt-2 max-w-sm text-sm font-bold leading-6">{sfText("storefront.account.noOrdersText")}</p>
                           <Link to="/products" className="sf-account-primary-button mt-5 inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
-                            تسوق الآن <ChevronLeft className="h-4 w-4" />
+                            {sfText("storefront.common.shopNow")} <ChevronLeft className="h-4 w-4 ltr:rotate-180" />
                           </Link>
                         </div>
                       </div>
@@ -874,8 +875,8 @@ function StorefrontAccountPageContent({
                     <div className="flex items-center gap-3">
                       <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><Crown className="h-5 w-5" /></span>
                       <div>
-                        <h2 className="text-lg font-black">عضوية M1</h2>
-                        <p className="text-xs font-bold text-white/45">رصيدك ومستوى عضويتك</p>
+                        <h2 className="text-lg font-black">{sfText("storefront.account.membershipTitle")}</h2>
+                        <p className="text-xs font-bold text-white/45">{sfText("storefront.account.membershipSubtitle")}</p>
                       </div>
                     </div>
                     <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} />
@@ -885,7 +886,7 @@ function StorefrontAccountPageContent({
                       <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><MapPin className="h-5 w-5" /></span>
                       <div>
                         <h2 className="text-lg font-black">{sfText("storefront.account.myAddresses", "عناويني")}</h2>
-                        <p className="text-xs font-bold text-white/45">عناوين التوصيل المحفوظة</p>
+                        <p className="text-xs font-bold text-white/45">{sfText("storefront.account.savedAddressesSubtitle")}</p>
                       </div>
                     </div>
                     {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl p-4 font-bold">{address}</div>) : (
@@ -923,19 +924,19 @@ function StorefrontAccountPageContent({
                   <div className="min-w-0 flex-1">
                     <span className="sf-account-guest-eyebrow">M1 MEMBERS</span>
                     <h1 className="sf-account-guest-title">
-                      {showResetView ? "استعادة حسابك" : "أهلاً بك في M1 Store"}
+                      {showResetView ? sfText("storefront.auth.recoverAccount") : sfText("storefront.auth.welcomeTitle")}
                     </h1>
                     <p className="sf-account-guest-copy">
                       {showResetView
-                        ? "أنشئ كلمة مرور جديدة للعودة إلى حسابك بأمان."
-                        : "تابع طلباتك، احفظ عناوينك واستفد من نقاطك في مكان واحد."}
+                        ? sfText("storefront.auth.resetIntro")
+                        : sfText("storefront.auth.welcomeIntro")}
                     </p>
                   </div>
                   <div className="sf-account-guest-security">
                     <span className="sf-account-intro-icon grid h-12 w-12 shrink-0 place-items-center rounded-2xl">
                       <ShieldCheck className="h-5 w-5" />
                     </span>
-                    <span className="sf-account-security-label">دخول آمن</span>
+                    <span className="sf-account-security-label">{sfText("storefront.auth.secureLogin")}</span>
                   </div>
                 </div>
               </div>
@@ -943,57 +944,57 @@ function StorefrontAccountPageContent({
                   <div className="sf-account-auth-card border-t p-4 sm:p-5">
                     {!showForgotView && !showResetView ? (
                       <div className="sf-account-tabs grid grid-cols-2 gap-2 rounded-full border p-1">
-                        <button type="button" onClick={() => setAuthMode("login")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "is-active shadow-sm" : ""}`}>تسجيل الدخول</button>
-                        <button type="button" onClick={() => setAuthMode("register")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "is-active shadow-sm" : ""}`}>إنشاء حساب</button>
+                        <button type="button" onClick={() => setAuthMode("login")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "is-active shadow-sm" : ""}`}>{sfText("storefront.auth.signIn")}</button>
+                        <button type="button" onClick={() => setAuthMode("register")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "is-active shadow-sm" : ""}`}>{sfText("storefront.auth.createAccount")}</button>
                       </div>
                     ) : null}
                     <div className="mt-5 space-y-4">
                       {authMode === "login" ? (
                         <>
-                          <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
+                          <Field label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
                           <div className="space-y-2">
-                            <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" inputClassName={ltrInputClassName} />
+                            <Field label={sfText("storefront.auth.password")} value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" inputClassName={ltrInputClassName} />
                             <div className="flex justify-end">
-                              <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">نسيت كلمة المرور؟</button>
+                              <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">{sfText("storefront.auth.forgotPassword")}</button>
                             </div>
                           </div>
                           <button onClick={submitEmailAuthLogin} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري تسجيل الدخول...</span> : "تسجيل الدخول"}
+                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.signingIn")}</span> : sfText("storefront.auth.signIn")}
                           </button>
                           {showOtpLogin ? (
                             <>
                               <div className="flex items-center gap-3 py-1">
                                 <div className="h-px flex-1 bg-stone-200" />
-                                <span className="text-xs font-black uppercase tracking-[0.28em] text-stone-400">أو</span>
+                                <span className="text-xs font-black uppercase tracking-[0.28em] text-stone-400">{sfText("storefront.auth.or")}</span>
                                 <div className="h-px flex-1 bg-stone-200" />
                               </div>
                               {!otpPanelOpen ? (
-                                <button type="button" onClick={() => setOtpPanelOpen(true)} className="sf-account-secondary-button min-h-12 w-full rounded-full border px-5 py-3 font-black transition">الدخول برقم الموبايل / واتساب</button>
+                                <button type="button" onClick={() => setOtpPanelOpen(true)} className="sf-account-secondary-button min-h-12 w-full rounded-full border px-5 py-3 font-black transition">{sfText("storefront.auth.phoneLoginButton")}</button>
                               ) : (
                                 <div className="sf-account-otp-card rounded-[1.25rem] border p-4">
                                   <div className="flex items-start justify-between gap-3">
                                     <div>
-                                      <div className="text-sm font-black text-stone-950">الدخول برقم الموبايل</div>
-                                      <p className="mt-1 text-xs font-bold leading-6 text-stone-500">سنرسل كود واتساب لمرة واحدة على رقمك ثم نكمل تسجيل الدخول.</p>
+                                      <div className="text-sm font-black text-stone-950">{sfText("storefront.auth.phoneLoginTitle")}</div>
+                                      <p className="mt-1 text-xs font-bold leading-6 text-stone-500">{sfText("storefront.auth.phoneLoginHint")}</p>
                                     </div>
-                                    <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4">إغلاق</button>
+                                    <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4">{sfText("storefront.common.close")}</button>
                                   </div>
                                   <div className="mt-4 space-y-3">
                                     <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
                                     {!otpRequestedAt ? (
                                       <button onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                                        {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إرسال الكود...</span> : "إرسال كود واتساب"}
+                                        {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.sendingCode")}</span> : sfText("storefront.auth.sendWhatsappCode")}
                                       </button>
                                     ) : (
                                       <>
-                                        <Field label="كود OTP" value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" inputClassName={ltrInputClassName} />
+                                        <Field label={sfText("storefront.auth.otpCode")} value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" inputClassName={ltrInputClassName} />
                                         <button onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                                          {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحقق...</span> : "تأكيد الدخول"}
+                                          {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.verifying")}</span> : sfText("storefront.auth.confirmLogin")}
                                         </button>
                                         <button onClick={requestOtp} disabled={requestingOtp || resendCountdown > 0} className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60">
-                                          <span className="inline-flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" />{resendCountdown > 0 ? `إعادة الإرسال بعد ${resendCountdown} ثانية` : "إعادة إرسال الكود"}</span>
+                                          <span className="inline-flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" />{resendCountdown > 0 ? sfText("storefront.auth.resendIn", undefined, { seconds: resendCountdown }) : sfText("storefront.auth.resendCode")}</span>
                                         </button>
-                                        <p className="text-xs font-bold leading-6 text-stone-500">أرسلنا كود الدخول عبر واتساب. أدخل الكود المكوّن من 6 أرقام خلال 5 دقائق.</p>
+                                        <p className="text-xs font-bold leading-6 text-stone-500">{sfText("storefront.auth.otpSentHint")}</p>
                                       </>
                                     )}
                                   </div>
@@ -1005,38 +1006,38 @@ function StorefrontAccountPageContent({
                       ) : null}
                       {authMode === "register" ? (
                         <>
-                          <Field label="الاسم" value={authFullName} onChange={setAuthFullName} autoComplete="name" />
-                          <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
+                          <Field label={sfText("storefront.form.name")} value={authFullName} onChange={setAuthFullName} autoComplete="name" />
+                          <Field label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
                           <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
-                          <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <Field label="تأكيد كلمة المرور" value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                          <Field label={sfText("storefront.auth.password")} value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                          <Field label={sfText("storefront.auth.confirmPassword")} value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
                           <button onClick={submitEmailAuthRegister} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إنشاء الحساب...</span> : "إنشاء حساب"}
+                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.creatingAccount")}</span> : sfText("storefront.auth.createAccount")}
                           </button>
                         </>
                       ) : null}
                       {authMode === "forgot" ? (
                         <>
                           <div>
-                            <div className="text-base font-black text-stone-950">استعادة كلمة المرور</div>
-                            <p className="mt-1 text-sm font-bold leading-6 text-stone-500">أدخل بريدك الإلكتروني وسنرسل لك رابط الاستعادة حسب نفس المنطق الحالي.</p>
+                            <div className="text-base font-black text-stone-950">{sfText("storefront.auth.recoverPassword")}</div>
+                            <p className="mt-1 text-sm font-bold leading-6 text-stone-500">{sfText("storefront.auth.recoverHint")}</p>
                           </div>
-                          <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
+                          <Field label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
                           <button onClick={requestPasswordReset} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</span> : "إرسال رابط الاستعادة"}
+                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.sending")}</span> : sfText("storefront.auth.sendRecoveryLink")}
                           </button>
-                          <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">رجوع إلى تسجيل الدخول</button>
+                          <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">{sfText("storefront.auth.backToSignIn")}</button>
                         </>
                       ) : null}
                       {authMode === "reset" ? (
                         <>
-                          {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">رابط إعادة التعيين غير مكتمل. تأكد من فتح الرابط الكامل من البريد الإلكتروني أو اطلب رابطًا جديدًا.</div> : null}
-                          <Field label="كلمة المرور الجديدة" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <Field label="تأكيد كلمة المرور الجديدة" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                          {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">{sfText("storefront.auth.resetLinkIncomplete")}</div> : null}
+                          <Field label={sfText("storefront.auth.newPassword")} value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                          <Field label={sfText("storefront.auth.confirmNewPassword")} value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
                           <button onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحديث...</span> : "تحديث كلمة المرور"}
+                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.updating")}</span> : sfText("storefront.auth.updatePassword")}
                           </button>
-                          {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">طلب رابط جديد</button> : null}
+                          {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">{sfText("storefront.auth.requestNewLink")}</button> : null}
                         </>
                       ) : null}
                     </div>
@@ -1067,19 +1068,19 @@ class StorefrontAccountPageBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <section className="mx-auto max-w-3xl px-4 py-8" dir="rtl">
+        <section className="mx-auto max-w-3xl px-4 py-8">
           <div className="rounded-[1.5rem] border border-stone-200 bg-white p-6 text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
-            <div className="text-sm font-black text-[#d4af37]">حسابك</div>
-            <h1 className="mt-2 text-2xl font-black">تعذر فتح صفحة الحساب الآن</h1>
+            <div className="text-sm font-black text-[#d4af37]">{sfText("storefront.account.yourAccount")}</div>
+            <h1 className="mt-2 text-2xl font-black">{sfText("storefront.account.errorTitle")}</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
-              حدث خطأ أثناء العرض. حاول تحديث الصفحة أو إعادة تعيين كلمة المرور ثم تسجيل الدخول. يمكنك تحديث الصفحة والمحاولة مرة أخرى.
+              {sfText("storefront.account.errorText")}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white"
             >
-              تحديث الصفحة
+              {sfText("storefront.common.refreshPage")}
             </button>
           </div>
         </section>

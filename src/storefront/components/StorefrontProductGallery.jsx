@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { sfText } from "../lib/sfText";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 
@@ -39,7 +40,7 @@ export default function StorefrontProductGallery({
             type="button"
             onClick={() => stepGallery(-1)}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-[0_8px_18px_rgba(39,20,75,0.08)] transition hover:border-stone-300 hover:text-stone-950 md:h-11 md:w-11"
-            aria-label="Previous image"
+            aria-label={sfText("storefront.products.previousImage")}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -64,7 +65,7 @@ export default function StorefrontProductGallery({
             type="button"
             onClick={() => stepGallery(1)}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-[0_8px_18px_rgba(39,20,75,0.08)] transition hover:border-stone-300 hover:text-stone-950 md:h-11 md:w-11"
-            aria-label="Next image"
+            aria-label={sfText("storefront.products.nextImage")}
           >
             <ChevronRight className="h-4 w-4" />
           </button>

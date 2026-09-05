@@ -76,7 +76,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
         <span className="sf-visual-card-image-wrap">
           <img ref={imageRef} src={imageFor(displayImageForProduct(safeProduct, variant))} onError={fallbackProductImage} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
         </span>
-        <span className="min-w-0 flex-1 text-right">
+        <span className="min-w-0 flex-1 text-start">
           <span className="sf-visual-card-name">{safeProduct?.name}</span>
           <span className="sf-visual-card-meta">{meta}</span>
           <span className="mt-2 flex flex-wrap items-center gap-2">

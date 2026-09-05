@@ -1,5 +1,8 @@
 import { Component, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import i18n from "../../i18n/i18n";
+import { sfText } from "../lib/sfText";
 import {
   CheckCircle2,
   Image as ImageIcon,
@@ -16,23 +19,23 @@ import { api } from "../../shared/api/api";
 
 const ACTION_META = {
   confirm: {
-    label: "تأكيد الطلب",
-    success: "تم تأكيد الطلب",
-    hint: "سيبدأ فريقنا تجهيز الطلب للشحن.",
+    get label() { return sfText("storefront.confirmLink.confirm.label"); },
+    get success() { return sfText("storefront.confirmLink.confirm.success"); },
+    get hint() { return sfText("storefront.confirmLink.confirm.hint"); },
     icon: CheckCircle2,
     className: "border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-500",
   },
   edit: {
-    label: "طلب تعديل",
-    success: "تم طلب تعديل الطلب",
-    hint: "سيتم التواصل معك لتأكيد التعديل.",
+    get label() { return sfText("storefront.confirmLink.modify.label"); },
+    get success() { return sfText("storefront.confirmLink.modify.success"); },
+    get hint() { return sfText("storefront.confirmLink.modify.hint"); },
     icon: PencilLine,
     className: "border-amber-200 bg-amber-400 text-slate-950 hover:bg-amber-300",
   },
   cancel: {
-    label: "إلغاء الطلب",
-    success: "تم إلغاء الطلب",
-    hint: "تم إلغاء الطلب وسيتم التعامل مع أي خطوات لازمة.",
+    get label() { return sfText("storefront.confirmLink.cancel.label"); },
+    get success() { return sfText("storefront.confirmLink.cancel.success"); },
+    get hint() { return sfText("storefront.confirmLink.cancel.hint"); },
     icon: XCircle,
     className: "border-rose-200 bg-rose-600 text-white hover:bg-rose-500",
   },
@@ -44,7 +47,8 @@ const EXPIRED_CODES = new Set([
   "ORDER_CONFIRMATION_CODE_ALREADY_USED",
 ]);
 
-const moneyFormatter = new Intl.NumberFormat("ar-EG", { maximumFractionDigits: 2 });
+// Built per call: a module-scope formatter would pin the digit system to whichever language loaded the chunk.
+const moneyFormatter = { format: (value) => new Intl.NumberFormat(String(i18n.language || "ar").startsWith("ar") ? "ar-EG" : "en-EG", { maximumFractionDigits: 2 }).format(value) };
 
 const text = (...values) => {
   for (const value of values) {
@@ -59,7 +63,7 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatMoney = (value = 0) => `${moneyFormatter.format(toNumber(value))} جنيه`;
+const formatMoney = (value = 0) => `${moneyFormatter.format(toNumber(value))} ${sfText("storefront.confirmLink.egp")}`;
 
 const normalizeItems = (payload = {}) => {
   const order = payload?.order ?? payload?.data?.order ?? payload?.result?.order ?? payload?.data ?? payload?.result ?? payload ?? {};
@@ -85,7 +89,7 @@ const normalizeItems = (payload = {}) => {
   return items
     .map((item, index) => ({
       key: item?.id ?? `${index}-${text(item?.product_name, item?.name, item?.title, "item")}`,
-      product_name: text(item?.resolved_product_name, item?.product_name, item?.name, item?.title, item?.product?.name, "منتج"),
+      product_name: text(item?.resolved_product_name, item?.product_name, item?.name, item?.title, item?.product?.name, sfText("storefront.confirmLink.productFallback")),
       price: item?.price,
       unit_price: item?.unit_price,
       selling_price: item?.selling_price,
@@ -155,7 +159,7 @@ const normalizeMaybeMoney = (value) => {
 
 const formatMaybeMoney = (value) => {
   const normalized = normalizeMaybeMoney(value);
-  if (normalized === undefined) return "غير محدد";
+  if (normalized === undefined) return sfText("storefront.confirmLink.notSpecified");
   return formatMoney(normalized);
 };
 
@@ -180,13 +184,13 @@ const getTotalValue = (order = null) => normalizeMaybeMoney(firstDefined(order?.
 
 const getConfirmationAddressFields = (order = null) => {
   const fields = [
-    ["المحافظة", firstDefined(order?.governorate, order?.governorate_name, order?.province, order?.province_name, order?.state, order?.state_name)],
-    ["المركز / المدينة", firstDefined(order?.center, order?.center_name, order?.city, order?.city_name, order?.town, order?.town_name, order?.district, order?.district_name, order?.shipping_zone_name, order?.shipping_zone_name_ar, order?.shipping_zone_name_en)],
-    ["المنطقة", firstDefined(order?.area, order?.area_name, order?.region, order?.region_name, order?.neighborhood, order?.neighborhood_name, order?.zone, order?.zone_name, order?.shipping_district_name, order?.shipping_district_name_ar, order?.shipping_district_name_en)],
-    ["الشارع", firstDefined(order?.street, order?.street_name, order?.street_address, order?.address_line)],
-    ["رقم العمارة", firstDefined(order?.building_number, order?.building_no, order?.building, order?.building_name)],
-    ["الدور", firstDefined(order?.floor, order?.floor_number, order?.level, order?.level_number)],
-    ["الشقة", firstDefined(order?.apartment, order?.apartment_number, order?.unit, order?.unit_number, order?.flat, order?.flat_number)],
+    [sfText("storefront.confirmLink.fields.governorate"), firstDefined(order?.governorate, order?.governorate_name, order?.province, order?.province_name, order?.state, order?.state_name)],
+    [sfText("storefront.confirmLink.fields.city"), firstDefined(order?.center, order?.center_name, order?.city, order?.city_name, order?.town, order?.town_name, order?.district, order?.district_name, order?.shipping_zone_name, order?.shipping_zone_name_ar, order?.shipping_zone_name_en)],
+    [sfText("storefront.confirmLink.fields.area"), firstDefined(order?.area, order?.area_name, order?.region, order?.region_name, order?.neighborhood, order?.neighborhood_name, order?.zone, order?.zone_name, order?.shipping_district_name, order?.shipping_district_name_ar, order?.shipping_district_name_en)],
+    [sfText("storefront.confirmLink.fields.street"), firstDefined(order?.street, order?.street_name, order?.street_address, order?.address_line)],
+    [sfText("storefront.confirmLink.fields.building"), firstDefined(order?.building_number, order?.building_no, order?.building, order?.building_name)],
+    [sfText("storefront.confirmLink.fields.floor"), firstDefined(order?.floor, order?.floor_number, order?.level, order?.level_number)],
+    [sfText("storefront.confirmLink.fields.apartment"), firstDefined(order?.apartment, order?.apartment_number, order?.unit, order?.unit_number, order?.flat, order?.flat_number)],
   ];
 
   return fields
@@ -206,14 +210,14 @@ const getAddressSummary = (order = null) => {
 
 const getStructuredAddressFields = (order = null) => {
   const fields = [
-    ["المحافظة", firstDefined(order?.governorate, order?.governorate_name, order?.province, order?.province_name, order?.state, order?.state_name)],
-    ["المركز / المدينة", firstDefined(order?.center, order?.center_name, order?.city, order?.city_name, order?.town, order?.town_name, order?.district, order?.district_name)],
-    ["المنطقة", firstDefined(order?.area, order?.area_name, order?.region, order?.region_name, order?.neighborhood, order?.neighborhood_name, order?.zone, order?.zone_name)],
-    ["الشارع", firstDefined(order?.street, order?.street_name, order?.street_address, order?.address_line)],
-    ["رقم العمارة", firstDefined(order?.building_number, order?.building_no, order?.building, order?.building_name)],
-    ["الدور", firstDefined(order?.floor, order?.floor_number, order?.level, order?.level_number)],
-    ["الشقة", firstDefined(order?.apartment, order?.apartment_number, order?.unit, order?.unit_number, order?.flat, order?.flat_number)],
-    ["علامة مميزة / ملاحظات", firstDefined(order?.landmark, order?.notes, order?.note, order?.delivery_notes, order?.customer_notes, order?.special_instructions)],
+    [sfText("storefront.confirmLink.fields.governorate"), firstDefined(order?.governorate, order?.governorate_name, order?.province, order?.province_name, order?.state, order?.state_name)],
+    [sfText("storefront.confirmLink.fields.city"), firstDefined(order?.center, order?.center_name, order?.city, order?.city_name, order?.town, order?.town_name, order?.district, order?.district_name)],
+    [sfText("storefront.confirmLink.fields.area"), firstDefined(order?.area, order?.area_name, order?.region, order?.region_name, order?.neighborhood, order?.neighborhood_name, order?.zone, order?.zone_name)],
+    [sfText("storefront.confirmLink.fields.street"), firstDefined(order?.street, order?.street_name, order?.street_address, order?.address_line)],
+    [sfText("storefront.confirmLink.fields.building"), firstDefined(order?.building_number, order?.building_no, order?.building, order?.building_name)],
+    [sfText("storefront.confirmLink.fields.floor"), firstDefined(order?.floor, order?.floor_number, order?.level, order?.level_number)],
+    [sfText("storefront.confirmLink.fields.apartment"), firstDefined(order?.apartment, order?.apartment_number, order?.unit, order?.unit_number, order?.flat, order?.flat_number)],
+    [sfText("storefront.confirmLink.fields.landmark"), firstDefined(order?.landmark, order?.notes, order?.note, order?.delivery_notes, order?.customer_notes, order?.special_instructions)],
   ];
 
   return fields
@@ -252,8 +256,8 @@ class OrderConfirmationActionPageErrorBoundary extends Component {
       return (
         <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-8 text-white">
           <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-            <h1 className="text-xl font-black">حدث خطأ في صفحة تأكيد الطلب</h1>
-            <p className="mt-2 text-sm leading-7 text-slate-700">تعذر تحميل الصفحة. حاول مرة أخرى أو تواصل معنا إذا استمرت المشكلة.</p>
+            <h1 className="text-xl font-black">{sfText("storefront.confirmLink.errorTitle")}</h1>
+            <p className="mt-2 text-sm leading-7 text-slate-700">{sfText("storefront.confirmLink.errorText")}</p>
           </div>
         </main>
       );
@@ -272,6 +276,7 @@ export function OrderConfirmationActionPage() {
 }
 
 function OrderConfirmationActionPageInner() {
+  useTranslation();
   const { code, token } = useParams();
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState("");
@@ -322,7 +327,7 @@ function OrderConfirmationActionPageInner() {
   }, [items, order, resolvedCode]);
 
   const orderNumber = text(order?.public_order_number, order?.display_order_number, order?.invoice_number, order?.order_number, order?.id);
-  const customerName = text(order?.customer_name, "العميل");
+  const customerName = text(order?.customer_name, sfText("storefront.confirmLink.customer"));
   const customerPhone = text(order?.customer_phone, order?.phone, order?.whatsapp, order?.mobile);
   const itemsSubtotal = pricing.subtotal;
   const shippingFee = pricing.shipping;
@@ -365,7 +370,7 @@ function OrderConfirmationActionPageInner() {
 
   const loadCode = async () => {
     if (!resolvedCode) {
-      setError("رابط التأكيد غير صالح.");
+      setError(sfText("storefront.confirmLink.invalidLink"));
       setLinkState("error");
       setLoading(false);
       return;
@@ -381,7 +386,7 @@ function OrderConfirmationActionPageInner() {
     } catch (err) {
       const status = Number(err?.status || err?.response?.status || 0);
       const responseCode = String(err?.responseBody?.code || err?.responseBody?.error || err?.code || "");
-      setError(err?.responseBody?.message || err?.message || "تعذر تحميل بيانات الطلب.");
+      setError(err?.responseBody?.message || err?.message || sfText("storefront.confirmLink.loadFailed"));
       if (status === 410 || responseCode === "ORDER_CONFIRMATION_CODE_EXPIRED") setLinkState("expired");
       else if (status === 404 || responseCode === "ORDER_CONFIRMATION_CODE_NOT_FOUND") setLinkState("used");
       else setLinkState("error");
@@ -429,7 +434,7 @@ function OrderConfirmationActionPageInner() {
         err?.responseBody?.message ||
         err?.message ||
         "";
-      setError(backendMessage || "تعذر تنفيذ الإجراء الآن، حاول مرة أخرى.");
+      setError(backendMessage || sfText("storefront.confirmLink.actionFailed"));
     } finally {
       setPendingAction("");
     }
@@ -438,13 +443,13 @@ function OrderConfirmationActionPageInner() {
   const resultAction = String(result?.action || "").trim();
   const actionMeta = ACTION_META[resultAction];
   const isReadOnlyResult = Boolean(result?.already_used || result?.link_locked);
-  const resultMessage = String(result?.message || (actionMeta ? actionMeta.success : "تم تنفيذ الإجراء بنجاح")).trim();
+  const resultMessage = String(result?.message || (actionMeta ? actionMeta.success : sfText("storefront.confirmLink.actionDone"))).trim();
   const resultHeadline = isReadOnlyResult
-    ? (result?.link_locked ? "تم استخدام هذا الرابط بالفعل" : "تم استخدام هذا الرابط بالفعل")
-    : (actionMeta ? actionMeta.success : "تم تنفيذ الإجراء بنجاح");
+    ? (result?.link_locked ? sfText("storefront.confirmLink.linkAlreadyUsed") : sfText("storefront.confirmLink.linkAlreadyUsed"))
+    : (actionMeta ? actionMeta.success : sfText("storefront.confirmLink.actionDone"));
   const resultSubtext = isReadOnlyResult
-    ? (result?.link_locked && !result?.already_used ? "تم قفل هذا الرابط بعد تنفيذ الإجراء السابق." : resultMessage)
-    : (actionMeta?.hint || "يمكنك اختيار أحد الإجراءات التالية.");
+    ? (result?.link_locked && !result?.already_used ? sfText("storefront.confirmLink.linkLocked") : resultMessage)
+    : (actionMeta?.hint || sfText("storefront.confirmLink.chooseAction"));
   const ResultCardIcon = isReadOnlyResult ? MessageCircleWarning : CheckCircle2;
   const resultCardClassName = isReadOnlyResult
     ? "rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-slate-950 shadow-sm"
@@ -467,9 +472,9 @@ function OrderConfirmationActionPageInner() {
                     <CheckCircle2 className="h-7 w-7" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#d4af37]">COD confirmation</p>
-                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">طلبك جاهز للتأكيد</h1>
-                    <p className="mt-2 text-sm leading-6 text-white/72">رقم الطلب: {orderNumber || "—"}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#d4af37]">{sfText("storefront.confirmLink.eyebrow")}</p>
+                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">{sfText("storefront.confirmLink.title")}</h1>
+                    <p className="mt-2 text-sm leading-6 text-white/72">{sfText("storefront.confirmLink.orderNumberLabel")} {orderNumber || "—"}</p>
                   </div>
                 </div>
 
@@ -477,7 +482,7 @@ function OrderConfirmationActionPageInner() {
                   <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] px-4 py-5 text-sm font-bold text-white/72 shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
                     <div className="flex items-center gap-3">
                       <Loader2 className="h-5 w-5 animate-spin text-[#d4af37]" />
-                      جاري تحميل بيانات الطلب...
+                      {sfText("storefront.confirmLink.loading")}
                     </div>
                   </div>
                 ) : error && isExpiredState ? (
@@ -487,14 +492,14 @@ function OrderConfirmationActionPageInner() {
                         <MessageCircleWarning className="h-5 w-5" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-black">هذا الرابط لم يعد صالحًا</h2>
-                        <p className="mt-1 text-sm leading-7 text-white/72">يبدو أن الرابط انتهت صلاحيته أو تم استخدامه بالفعل. تواصل معنا لإرسال رابط جديد.</p>
+                        <h2 className="text-lg font-black">{sfText("storefront.confirmLink.linkExpiredTitle")}</h2>
+                        <p className="mt-1 text-sm leading-7 text-white/72">{sfText("storefront.confirmLink.linkExpiredText")}</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                         <Phone className="h-4 w-4" />
-                        تواصل واتساب
+                        {sfText("storefront.confirmLink.contactWhatsapp")}
                       </a>
                     </div>
                   </div>
@@ -505,14 +510,14 @@ function OrderConfirmationActionPageInner() {
                         <MessageCircleWarning className="h-5 w-5" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-black">تعذر تحميل الرابط</h2>
+                        <h2 className="text-lg font-black">{sfText("storefront.confirmLink.linkLoadFailedTitle")}</h2>
                         <p className="mt-1 text-sm leading-7 text-white/72">{error}</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                         <Phone className="h-4 w-4" />
-                        تواصل واتساب
+                        {sfText("storefront.confirmLink.contactWhatsapp")}
                       </a>
                     </div>
                   </div>
@@ -535,12 +540,12 @@ function OrderConfirmationActionPageInner() {
                                   )}
                                 </div>
                                 <div className="space-y-3 p-4">
-                                  <h3 className="text-lg font-black leading-snug text-white">{item.product_name || "منتج"}</h3>
+                                  <h3 className="text-lg font-black leading-snug text-white">{item.product_name || sfText("storefront.confirmLink.productFallback")}</h3>
                                   <div className="flex flex-wrap gap-2 text-xs font-bold text-white/72">
-                                    {item.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">اللون: {item.color}</span> : null}
-                                    {item.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">المقاس: {item.size}</span> : null}
-                                    <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">الكمية: {item.quantity || 1}</span>
-                                    {itemPrice !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">السعر: {formatMoney(itemPrice)}</span> : null}
+                                    {item.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.colorLabel")} {item.color}</span> : null}
+                                    {item.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.sizeLabel")} {item.size}</span> : null}
+                                    <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.quantityLabel")} {item.quantity || 1}</span>
+                                    {itemPrice !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.priceLabel")} {formatMoney(itemPrice)}</span> : null}
                                   </div>
                                 </div>
                               </div>
@@ -559,12 +564,12 @@ function OrderConfirmationActionPageInner() {
                             )}
                           </div>
                           <div className="space-y-3 p-4">
-                            <h3 className="text-lg font-black leading-snug text-white">{primaryItem?.product_name || "منتج"}</h3>
+                            <h3 className="text-lg font-black leading-snug text-white">{primaryItem?.product_name || sfText("storefront.confirmLink.productFallback")}</h3>
                             <div className="flex flex-wrap gap-2 text-xs font-bold text-white/72">
-                              {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">اللون: {primaryItem.color}</span> : null}
-                              {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">المقاس: {primaryItem.size}</span> : null}
-                              <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">الكمية: {primaryItem?.quantity || 1}</span>
-                              {getItemPrice(primaryItem) !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">السعر: {formatMoney(getItemPrice(primaryItem))}</span> : null}
+                              {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.colorLabel")} {primaryItem.color}</span> : null}
+                              {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.sizeLabel")} {primaryItem.size}</span> : null}
+                              <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.quantityLabel")} {primaryItem?.quantity || 1}</span>
+                              {getItemPrice(primaryItem) !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.priceLabel")} {formatMoney(getItemPrice(primaryItem))}</span> : null}
                             </div>
                           </div>
                         </div>
@@ -572,42 +577,42 @@ function OrderConfirmationActionPageInner() {
                     </div>
 
                     {false && (<div className="grid gap-4 sm:grid-cols-2">
-                      <InfoCard title="العميل" icon={ShoppingBag}>
+                      <InfoCard title={sfText("storefront.confirmLink.customer")} icon={ShoppingBag}>
                         <div className="space-y-2">
                           <div className="text-sm font-black text-slate-950">{customerName || "â€”"}</div>
                           <div className="text-sm font-bold text-slate-700">{customerPhone || "â€”"}</div>
                         </div>
                       </InfoCard>
 
-                      <InfoCard title="العنوان" icon={MapPin}>
+                      <InfoCard title={sfText("storefront.confirmLink.address")} icon={MapPin}>
                         <div className="space-y-4">
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">سعر المنتجات</span>
+                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.itemsPrice")}</span>
                               <span className="font-black text-slate-950">{formatMoney(itemsSubtotal)}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">الشحن</span>
-                              <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : "غير محدد"}</span>
+                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.shipping")}</span>
+                              <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : sfText("storefront.confirmLink.notSpecified")}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">الخصم</span>
+                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.discount")}</span>
                               <span className="font-black text-slate-950">{formatMoney(discountValue || 0)}</span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                              <span className="font-bold text-slate-600">الإجمالي النهائي</span>
-                              <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : "غير محدد"}</span>
+                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.finalTotal")}</span>
+                              <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : sfText("storefront.confirmLink.notSpecified")}</span>
                             </div>
                           </div>
 
                           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">المحافظة / المدينة / المنطقة</div>
+                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{sfText("storefront.confirmLink.locationHeading")}</div>
                             <div className="mt-1 text-sm font-bold text-slate-900">
-                              {addressSummary.locationLine || "غير محدد"}
+                              {addressSummary.locationLine || sfText("storefront.confirmLink.notSpecified")}
                             </div>
-                            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">العنوان التفصيلي</div>
+                            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{sfText("storefront.confirmLink.detailedAddress")}</div>
                             <div className="mt-1 text-sm leading-7 text-slate-700">
-                              {addressSummary.addressLine || "غير محدد"}
+                              {addressSummary.addressLine || sfText("storefront.confirmLink.notSpecified")}
                             </div>
                           </div>
                         </div>
@@ -615,14 +620,14 @@ function OrderConfirmationActionPageInner() {
                     </div>)}
 
                     <div className="space-y-4">
-                      <InfoCard title="العميل" icon={ShoppingBag}>
+                      <InfoCard title={sfText("storefront.confirmLink.customer")} icon={ShoppingBag}>
                         <div className="space-y-2">
                           <div className="text-sm font-black text-slate-950">{customerName || "—"}</div>
                           <div className="text-sm font-bold text-slate-700">{customerPhone || "—"}</div>
                         </div>
                       </InfoCard>
 
-                      <InfoCard title="العنوان" icon={MapPin}>
+                      <InfoCard title={sfText("storefront.confirmLink.address")} icon={MapPin}>
                         <div className="space-y-3">
                           {hasStructuredAddressFields ? (
                             <div className="grid gap-2 text-sm">
@@ -639,29 +644,29 @@ function OrderConfirmationActionPageInner() {
                             </div>
                           ) : (
                             <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
-                              غير محدد
+                              {sfText("storefront.confirmLink.notSpecified")}
                             </div>
                           )}
                         </div>
                       </InfoCard>
 
-                      <InfoCard title="ملخص الدفع" icon={ShoppingBag}>
+                      <InfoCard title={sfText("storefront.confirmLink.paymentSummary")} icon={ShoppingBag}>
                         <div className="space-y-2 text-sm">
                           <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                            <span className="font-bold text-slate-600">سعر المنتجات</span>
+                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.itemsPrice")}</span>
                             <span className="font-black text-slate-950">{formatMoney(itemsSubtotal)}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                            <span className="font-bold text-slate-600">الشحن</span>
-                            <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : "غير محدد"}</span>
+                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.shipping")}</span>
+                            <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : sfText("storefront.confirmLink.notSpecified")}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                            <span className="font-bold text-slate-600">الخصم</span>
+                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.discount")}</span>
                             <span className="font-black text-slate-950">{formatMoney(discountValue || 0)}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                            <span className="font-bold text-slate-600">الإجمالي النهائي</span>
-                            <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : "غير محدد"}</span>
+                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.finalTotal")}</span>
+                            <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : sfText("storefront.confirmLink.notSpecified")}</span>
                           </div>
                         </div>
                       </InfoCard>
@@ -680,7 +685,7 @@ function OrderConfirmationActionPageInner() {
                                 type="button"
                                 onClick={() => applyAction(action)}
                                 disabled={disabled}
-                                className={["flex min-h-[88px] items-center gap-3 rounded-[1.35rem] border px-4 py-4 text-right transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60", meta.className].join(" ")}
+                                className={["flex min-h-[88px] items-center gap-3 rounded-[1.35rem] border px-4 py-4 text-start transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60", meta.className].join(" ")}
                               >
                                 <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/15 text-current">
                                   {isBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
@@ -696,7 +701,7 @@ function OrderConfirmationActionPageInner() {
 
                         {pendingAction ? (
                           <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">
-                            جاري تنفيذ: {ACTION_META[pendingAction]?.label || "الإجراء"}...
+                            {sfText("storefront.confirmLink.running")} {ACTION_META[pendingAction]?.label || sfText("storefront.confirmLink.theAction")}...
                           </div>
                         ) : null}
                       </div>
@@ -710,8 +715,8 @@ function OrderConfirmationActionPageInner() {
                             <div>
                               <h2 className="text-lg font-black">{resultHeadline}</h2>
                               <p className="mt-1 text-sm leading-7 text-slate-700">{resultSubtext}</p>
-                              {isReadOnlyResult ? <p className="mt-2 text-xs font-bold text-slate-700">هذا الرابط لم يعد يقبل أي إجراء جديد.</p> : null}
-                              {!isReadOnlyResult && result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">تم تنفيذ هذا الإجراء بالفعل من قبل.</p> : null}
+                              {isReadOnlyResult ? <p className="mt-2 text-xs font-bold text-slate-700">{sfText("storefront.confirmLink.readOnly")}</p> : null}
+                              {!isReadOnlyResult && result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">{sfText("storefront.confirmLink.alreadyApplied")}</p> : null}
                             </div>
                           </div>
                         </div>
@@ -719,7 +724,7 @@ function OrderConfirmationActionPageInner() {
                           <div className="flex flex-col gap-3 sm:flex-row">
                             <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
                               <Phone className="h-4 w-4" />
-                              تواصل واتساب
+                              {sfText("storefront.confirmLink.contactWhatsapp")}
                             </a>
                           </div>
                         ) : null}

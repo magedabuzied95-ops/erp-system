@@ -414,7 +414,7 @@ const couponErrorKeyMap = {
 };
 const couponErrorText = (reason = "") => {
   const key = couponErrorKeyMap[String(reason || "").trim()] || "storefront.checkout.couponErrors.invalid";
-  return sfText(key, String(reason || "").trim() || "تعذر تطبيق العملية");
+  return sfText(key, String(reason || "").trim() || sfText("storefront.errors.operationFailed"));
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 // Sale prices are opt-in and are controlled by the public POS sale-mode setting.
@@ -883,7 +883,7 @@ const useStorefrontGenderClassifications = () => {
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "تعذر تحميل خيارات الفئة", options: [] });
+          setState({ loading: false, error: error?.message || sfText("storefront.errors.categoryOptionsFailed"), options: [] });
         }
       });
     return () => {
@@ -2565,7 +2565,7 @@ const cleanDisplayText = (value = "") =>
     .replace(/\uFFFD/g, "")
     .replace(/\u00e2\u0153\u00a8/g, "")
     .replace(/\u00e2\u20ac\u00a6/g, "...")
-    .replace(/\u0637\u0152/g, "ط·آ·ط¥â€™")
+    .replace(/\u0637\u0152/g, "،")
     .replace(/\s+/g, " ")
     .trim();
 const classificationColor = (option = {}) => option.color || "#d4af37";
@@ -2796,8 +2796,8 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
         linkLabel={sfText("common.viewAll")}
         cards={cards}
         loading={loading}
-        prevLabel={isRtl ? "السابق" : "Previous"}
-        nextLabel={isRtl ? "التالي" : "Next"}
+        prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
+        nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
         isFavorite={isFavorite}
         onToggleFavorite={toggleWishlist}
         onImageError={onImageError}
@@ -3105,8 +3105,8 @@ function PremiumHomePage(props) {
         linkLabel={sfText("common.viewAll")}
         cards={popularCards}
         loading={loading}
-        prevLabel={isRtl ? "السابق" : "Previous"}
-        nextLabel={isRtl ? "التالي" : "Next"}
+        prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
+        nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
         eagerFirst
         isFavorite={isFavorite}
         onToggleFavorite={toggleWishlist}
@@ -3483,7 +3483,7 @@ function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
       className={`relative overflow-hidden rounded-full border px-3 py-2.5 text-center font-black transition active:scale-[0.98] ${ active ? "border-[#f8e7b3]/55 bg-[#f8e7b3] text-stone-950 shadow-[0_18px_34px_rgba(248,231,179,0.18)]" : "border-white/10 bg-white/[0.06] text-white hover:border-[#f8e7b3]/35 hover:bg-[#f8e7b3]/10" } ${compact ? "min-h-11 text-sm" : "min-h-14 text-[0.95rem] md:min-h-16 md:text-base"}`}
     >
       <span className="block truncate">{label}</span>
-      {Number.isFinite(Number(count)) ? <span className={`mt-0.5 block text-[10px] font-black ${active ? "text-stone-800" : "text-white/45"}`}>{count} {Number(count) === 1 ? "موديل" : "موديلات"}</span> : null}
+      {Number.isFinite(Number(count)) ? <span className={`mt-0.5 block text-[10px] font-black ${active ? "text-stone-800" : "text-white/45"}`}>{count} {Number(count) === 1 ? sfText("storefront.offers.modelOne") : sfText("storefront.offers.modelMany")}</span> : null}
     </button>
   );
 }
@@ -3539,7 +3539,7 @@ function OfferStorySlide({ storyItem, selectedSize, onViewProduct, onTouchStart,
               }}
               className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#f8e7b3]/25 bg-[#f8e7b3] px-5 py-3 text-sm font-black text-stone-950 transition hover:bg-[#f3d77a] active:scale-[0.98]"
             >
-              عرض المنتج
+              {sfText("storefront.products.viewProduct")}
             </button>
           </div>
         </div>
@@ -3757,11 +3757,11 @@ function OfferStoryViewer() {
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)] text-white" dir="rtl" onClick={handleViewerClick}>
+    <div className="fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)] text-white" onClick={handleViewerClick}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(212,175,55,0.22),transparent_24%),radial-gradient(circle_at_82%_10%,rgba(248,231,179,0.12),transparent_18%)]" />
       <div className="relative flex h-[100dvh] w-[100vw] flex-col px-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top,12px)+0.35rem)] md:px-5">
         <div className="flex items-start gap-3">
-          <button type="button" onClick={(event) => { event.stopPropagation(); closeStory(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="إغلاق">
+          <button type="button" onClick={(event) => { event.stopPropagation(); closeStory(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label={sfText("storefront.common.close")}>
             <X className="h-5 w-5" />
           </button>
           <div className="flex-1 pt-1">
@@ -3774,7 +3774,7 @@ function OfferStoryViewer() {
             ) : null}
           </div>
           {stage === "story" ? (
-            <button type="button" onClick={(event) => { event.stopPropagation(); goPrev(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label="رجوع">
+            <button type="button" onClick={(event) => { event.stopPropagation(); goPrev(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label={sfText("storefront.common.back")}>
               <ChevronLeft className="h-5 w-5 rotate-180" />
             </button>
           ) : (
@@ -3787,23 +3787,23 @@ function OfferStoryViewer() {
             <div className="grid h-full min-h-[52vh] place-items-center">
               <div className="text-center">
                 <div className="mx-auto h-14 w-14 animate-pulse rounded-full border border-[#f8e7b3]/30 bg-[#f8e7b3]/12" />
-                <p className="mt-4 text-sm font-black text-white/70">جاري تحميل العروض</p>
+                <p className="mt-4 text-sm font-black text-white/70">{sfText("storefront.offers.loading")}</p>
               </div>
             </div>
           ) : loadError && !offerProducts.length ? (
             <div className="flex h-full items-center justify-center">
               <OfferStoryEmptyState
-                title="تعذر تحميل العروض"
-                text={String(loadError || "حدث خطأ أثناء تحميل العروض")}
-                actionLabel="العودة للرئيسية"
+                title={sfText("storefront.offers.loadFailedTitle")}
+                text={String(loadError || sfText("storefront.offers.loadFailedText"))}
+                actionLabel={sfText("storefront.offers.backHome")}
                 onAction={() => navigate("/")}
               />
             </div>
           ) : stage === "size" ? (
             <div className="flex h-full min-h-0 flex-col justify-start pt-0">
               <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-2xl font-black md:text-4xl">اختر مقاسك</h2>
-                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">المقاسات المتاحة داخل عروض المتجر</p>
+                <h2 className="text-2xl font-black md:text-4xl">{sfText("storefront.offers.chooseSize")}</h2>
+                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">{sfText("storefront.offers.sizesInOffers")}</p>
               </div>
               {availableSizes.length > 0 ? (
                 <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
@@ -3827,21 +3827,21 @@ function OfferStoryViewer() {
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#f8e7b3]/20 bg-[#f8e7b3]/10 text-[#f8e7b3]">
                     <BadgePercent className="h-7 w-7" />
                   </div>
-                  <h3 className="mt-4 text-lg font-black text-white">تم العثور على 7 منتجات عروض</h3>
+                  <h3 className="mt-4 text-lg font-black text-white">{sfText("storefront.offers.foundProducts")}</h3>
                   <p className="mt-2 text-sm font-bold leading-6 text-white/72">
-                    لكن لم يتم العثور على أي مقاسات داخل بيانات المنتج.
+                    {sfText("storefront.offers.noSizesInData")}
                   </p>
                   <p className="mt-2 text-xs font-bold leading-5 text-white/50">
-                    يرجى التحقق من `variants` أو `color_cards` أو `variant_matrix` أو `inventory_variants` أو `available_options` داخل بيانات المنتج.
+                    {sfText("storefront.offers.noSizesHint")}
                   </p>
                 </div>
               ) : null}
               {!availableSizes.length && !hasOfferProducts ? (
                 <div className="mt-8">
                   <OfferStoryEmptyState
-                    title="لا توجد عروض متاحة الآن"
-                    text="لم نتمكن من العثور على منتجات عروض صالحة للعرض في المتجر."
-                    actionLabel="العودة للرئيسية"
+                    title={sfText("storefront.offers.noneNowTitle")}
+                    text={sfText("storefront.offers.noneNowText")}
+                    actionLabel={sfText("storefront.offers.backHome")}
                     onAction={() => navigate("/")}
                   />
                 </div>
@@ -3850,8 +3850,8 @@ function OfferStoryViewer() {
           ) : stage === "type" ? (
             <div className="flex h-full min-h-0 flex-col justify-start pt-0">
               <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-2xl font-black md:text-4xl">اختر نوع المنتج</h2>
-                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">المقاس المختار: {selectedSize}</p>
+                <h2 className="text-2xl font-black md:text-4xl">{sfText("storefront.offers.chooseType")}</h2>
+                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">{sfText("storefront.offers.selectedSize")} {selectedSize}</p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                 {typeOptions.map((option) => (
@@ -3871,9 +3871,9 @@ function OfferStoryViewer() {
               {!typeOptions.length ? (
                 <div className="mt-8">
                   <OfferStoryEmptyState
-                    title="لا توجد أنواع لهذا المقاس"
-                    text="جرّب مقاساً آخر من نفس العروض."
-                    actionLabel="رجوع"
+                    title={sfText("storefront.offers.noTypesTitle")}
+                    text={sfText("storefront.offers.noTypesText")}
+                    actionLabel={sfText("storefront.common.back")}
                     onAction={() => setSelectedSize("")}
                   />
                 </div>
@@ -3897,9 +3897,9 @@ function OfferStoryViewer() {
           ) : (
             <div className="flex h-full items-center justify-center">
               <OfferStoryEmptyState
-                title="لا توجد عروض متاحة"
-                text="لا توجد منتجات مطابقة للمقاس أو النوع الحاليين."
-                actionLabel="إعادة التصفية"
+                title={sfText("storefront.offers.noneTitle")}
+                text={sfText("storefront.offers.noneText")}
+                actionLabel={sfText("storefront.offers.resetFilters")}
                 onAction={() => {
                   setSelectedSize("");
                   setSelectedType("");
@@ -3925,7 +3925,7 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
   if (!loading && !hasProducts) return null;
   return (
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
-      <div className="mb-2 flex items-end justify-between gap-3 text-right md:mb-4 md:gap-4">
+      <div className="mb-2 flex items-end justify-between gap-3 text-start md:mb-4 md:gap-4">
         <div className="min-w-0">
           <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow")}</div>
           <h2 className="text-[1.25rem] font-black tracking-normal md:text-3xl">{title}</h2>
@@ -4125,7 +4125,7 @@ function GuidedGenderStep({ options = [], selectedGender, lang, onSelect }) {
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group inline-flex min-h-[44px] min-w-[96px] items-center gap-2 rounded-full border px-3 py-1.5 text-right shadow-[0_10px_24px_rgba(39,20,75,0.045)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[120px] md:px-4 ${ active ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-white text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-[#101010] dark:text-white" }`}
+              className={`group inline-flex min-h-[44px] min-w-[96px] items-center gap-2 rounded-full border px-3 py-1.5 text-start shadow-[0_10px_24px_rgba(39,20,75,0.045)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[120px] md:px-4 ${ active ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-white text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-[#101010] dark:text-white" }`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-stone-950" : "bg-stone-100 text-[#d4af37] dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
@@ -4153,7 +4153,7 @@ function GuidedGradeStep({ options = [], selectedGrade, lang, disabled, loading,
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${ active ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white" }`}
+              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-start transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${ active ? "border-[#d4af37] bg-[#151515] text-[#d4af37] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white" }`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-stone-950" : "bg-white text-[#d4af37] shadow-sm dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
@@ -4192,7 +4192,7 @@ function GuidedProductTypeStep({ options = [], selectedProductType, lang, disabl
               key={option.id || option.value}
               type="button"
               onClick={() => onSelect(option.value)}
-              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-right transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${ active ? "border-[#d4af37] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white" }`}
+              className={`group inline-flex min-h-[44px] min-w-[112px] items-center gap-2 rounded-full border px-3 py-1.5 text-start transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-[52px] md:min-w-[128px] md:px-4 ${ active ? "border-[#d4af37] bg-[#f5f3ff] text-[#5b21b6] ring-2 ring-[#d4af37]/15" : "border-stone-200 bg-[#fbfaf7] text-stone-900 hover:border-[#d4af37]/45 dark:border-white/10 dark:bg-white/5 dark:text-white" }`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full ${active ? "bg-[#d4af37] text-white" : "bg-white text-[#d4af37] shadow-sm dark:bg-white/8"}`}>
                 <Icon className="h-3 w-3" />
@@ -4463,8 +4463,8 @@ function filterOptionCount(option = {}) {
 function filterOptionIcon(sectionKey, option = {}, lang = "ar") {
   const label = `${classificationLabel(option, lang)} ${option.value || ""}`.toLowerCase();
   if (sectionKey === "gender") {
-    if (label.includes("kid") || label.includes("child") || label.includes("ط·آ·ط¢آ£ط·آ·ط¢آ·ط·آ¸ط¸آ¾ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چ") || label.includes("ط·آ·ط¢آ§ط·آ·ط¢آ·ط·آ¸ط¸آ¾ط·آ·ط¢آ§ط·آ¸أ¢â‚¬â€چ")) return Baby;
-    if (label.includes("women") || label.includes("woman") || label.includes("ط·آ·ط¢آ­ط·آ·ط¢آ±ط·آ¸ط¸آ¹ط·آ¸أ¢â‚¬آ¦ط·آ¸ط¸آ¹") || label.includes("ط·آ¸أ¢â‚¬آ ط·آ·ط¢آ³ط·آ·ط¢آ§ط·آ·ط¢آ¦ط·آ¸ط¸آ¹")) return Heart;
+    if (label.includes("kid") || label.includes("child") || label.includes("أطفال") || label.includes("اطفال")) return Baby;
+    if (label.includes("women") || label.includes("woman") || label.includes("حريمي") || label.includes("نسائي")) return Heart;
     return Users;
   }
   if (sectionKey === "product_type") {
@@ -5027,7 +5027,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
           error?.responseBody?.message ||
           error?.responseBody?.error ||
           (error?.message && error.message !== "Request Failed" ? error.message : "") ||
-          "البحث بالصورة غير متاح حاليًا. جرّب تاني أو استخدم البحث النصي.";
+          sfText("storefront.visualSearch.unavailableRetry");
         setSuggestions([]);
         setVisualSearch({
           active: true,
@@ -5051,11 +5051,11 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
 
   const shareVisualSearchImage = useCallback(async () => {
     const file = selectedVisualImageRef.current;
-    const text = "هذه صورة المنتج الذي أبحث عنه";
+    const text = sfText("storefront.visualSearch.shareText");
     if (file && typeof navigator !== "undefined" && navigator.share) {
       try {
         if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], text, title: "صورة للبحث عن موديل" });
+          await navigator.share({ files: [file], text, title: sfText("storefront.visualSearch.shareTitle") });
           return;
         }
       } catch {
@@ -5066,7 +5066,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   }, []);
 
   const requestVisualSearchSupply = useCallback(() => {
-    window.open(buildWhatsAppHref("عايز أطلب توفير الموديل ده لو متاح"), "_blank", "noopener,noreferrer");
+    window.open(buildWhatsAppHref(sfText("storefront.visualSearch.requestRestockMessage")), "_blank", "noopener,noreferrer");
   }, []);
 
 
@@ -5652,7 +5652,7 @@ function PremiumSearch({
 
   return (
     <div className={`relative w-full max-w-[520px] justify-self-center transition-all duration-300 ${open ? "max-w-[640px]" : ""} ${className}`}>
-      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden bg-stone-950/24 backdrop-blur-[2px] md:block" aria-label="Close search" /> : null}
+      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden bg-stone-950/24 backdrop-blur-[2px] md:block" aria-label={sfText("storefront.search.close")} /> : null}
       <div className="relative z-50">
         {searchInput}
         {open ? <div className="absolute left-0 right-0 top-full mt-3 animate-[sfFadeUp_180ms_ease-out_both]">{resultsPanel}</div> : null}
@@ -5688,14 +5688,14 @@ function SearchQuickSections({
   const hasImageSearch = Boolean(imageSearch?.active || imageSearch?.loading || imageSearch?.error || exactMatches.length || similarMatches.length);
   const imageResults = exactMatches.length ? exactMatches : similarMatches;
   const imageTitle = imageSearch?.loading
-    ? "بنبحث عن أقرب موديل..."
+    ? sfText("storefront.visualSearch.searchingClosest")
     : exactMatches.length && Number(imageSearch?.confidence || 0) >= 80
-      ? "لقينا الموديل ده"
+      ? sfText("storefront.visualSearch.foundExact")
       : similarMatches.length
-        ? "الموديل مش متوفر، بس دي أقرب موديلات شبهه"
+        ? sfText("storefront.visualSearch.notAvailableClosest")
         : imageSearch?.error
-          ? "البحث بالصورة غير متاح حاليًا"
-          : "الموديل ده مش متوفر حاليًا";
+          ? sfText("storefront.visualSearch.unavailable")
+          : sfText("storefront.visualSearch.modelUnavailable");
   return (
     <div className="grid gap-3">
       {hasImageSearch ? (
@@ -5705,17 +5705,17 @@ function SearchQuickSections({
               {imageSearch?.previewUrl ? <img src={imageSearch.previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b0891b] dark:text-[#f3d77a]">البحث بالصورة</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b0891b] dark:text-[#f3d77a]">{sfText("storefront.visualSearch.title")}</div>
               <h3 className="mt-1 text-sm font-black">{imageTitle}</h3>
               {imageSearch?.loading ? (
-                <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">بنبحث عن أقرب موديل...</p>
+                <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">{sfText("storefront.visualSearch.searchingClosest")}</p>
               ) : null}
               {!imageSearch?.loading && imageSearch?.message ? (
                 <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">{imageSearch.message}</p>
               ) : null}
               {Number.isFinite(Number(imageSearch?.confidence)) && Number(imageSearch?.confidence || 0) > 0 ? (
                 <div className="mt-2 inline-flex items-center rounded-full border border-amber-300/30 bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">
-                  ثقة {Math.round(Number(imageSearch.confidence || 0))}%
+                  {sfText("storefront.visualSearch.confidence")} {Math.round(Number(imageSearch.confidence || 0))}%
                 </div>
               ) : null}
             </div>
@@ -5724,13 +5724,13 @@ function SearchQuickSections({
           {imageSearch?.loading ? (
             <div className="mt-3 flex items-center gap-2 rounded-2xl border border-dashed border-[#d4af37]/25 bg-white/70 px-3 py-3 text-xs font-bold text-stone-600 dark:border-white/10 dark:bg-white/5 dark:text-stone-300">
               <Loader2 className="h-4 w-4 animate-spin text-[#d4af37]" />
-              <span>بنبحث عن أقرب موديل...</span>
+              <span>{sfText("storefront.visualSearch.searchingClosest")}</span>
             </div>
           ) : null}
 
           {!imageSearch?.loading && imageResults.length ? (
             <div className="mt-3 grid gap-1.5">
-              {exactMatches.length ? <div className="px-1 text-[11px] font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">النتيجة المطابقة</div> : null}
+              {exactMatches.length ? <div className="px-1 text-[11px] font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">{sfText("storefront.visualSearch.exactMatch")}</div> : null}
               {imageResults.slice(0, 6).map((product, index) => (
                 <SearchResultRow
                   key={`${product.id || product.product_id || index}-${product.match_type || "image"}`}
@@ -5744,18 +5744,18 @@ function SearchQuickSections({
 
           {!imageSearch?.loading && !imageResults.length ? (
             <div className="mt-3 grid gap-2 rounded-[1.2rem] border border-dashed border-[#d4af37]/24 bg-white/75 p-3 dark:border-white/10 dark:bg-white/5">
-              <p className="text-sm font-black text-stone-900 dark:text-white">الموديل ده مش متوفر حاليًا</p>
-              <p className="text-xs leading-5 text-stone-600 dark:text-stone-300">ممكن تبعتلنا الصورة على واتساب أو تسيب رقمك ونبلغك أول ما يوصل</p>
+              <p className="text-sm font-black text-stone-900 dark:text-white">{sfText("storefront.visualSearch.modelUnavailable")}</p>
+              <p className="text-xs leading-5 text-stone-600 dark:text-stone-300">{sfText("storefront.visualSearch.sendPhotoHint")}</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <button type="button" onClick={onShareImageOnWhatsApp} className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/35 bg-emerald-500/10 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-500/15 dark:text-emerald-100">
-                  إرسال الصورة على واتساب
+                  {sfText("storefront.visualSearch.sendOnWhatsapp")}
                 </button>
                 <button type="button" onClick={onRequestVisualSearchSupply} className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[#d4af37]/12 px-3 text-xs font-black text-[#8a6700] transition hover:bg-[#d4af37]/18 dark:text-[#f3d77a]">
-                  طلب توفير الموديل
+                  {sfText("storefront.visualSearch.requestModel")}
                 </button>
               </div>
               <button type="button" onClick={onClearImageSearch} className="inline-flex min-h-9 items-center justify-center rounded-full border border-stone-200 bg-white px-3 text-[11px] font-black text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
-                رجوع للبحث النصي
+                {sfText("storefront.visualSearch.backToText")}
               </button>
             </div>
           ) : null}
@@ -5777,7 +5777,7 @@ function SearchQuickSections({
                   onPickProduct={onPickProduct}
                 />
               )) : (
-                <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
+                <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-start text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
                 {t("storefront.search.searchFor")} "{query}"
                 </button>
               )}
@@ -5870,7 +5870,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
     <button
       type="button"
       onClick={() => onPickProduct(product)}
-      className={`sf-search-result-row flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-right text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:text-white dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
+      className={`sf-search-result-row flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-start text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:text-white dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
     >
       <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
       <div className="min-w-0 flex-1">
@@ -6430,7 +6430,7 @@ function ProductCardVariantSheet({
   const previewImage = productCardPrimaryImageFor(product, priceVariant, activeGroup);
   const maxQty = Math.max(1, Number(selectedVariant?.stock || 1));
   const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
-  const submitLabel = !activeGroup ? "اختار اللون أولًا" : selectedVariant ? t("storefront.cart.addToCart") : "اختار المقاس أولًا";
+  const submitLabel = !activeGroup ? sfText("storefront.products.chooseColorFirst") : selectedVariant ? t("storefront.cart.addToCart") : sfText("storefront.products.chooseSizeFirst");
   const handleCloseRequest = useCallback((event) => {
     if (event) {
       event.stopPropagation();
@@ -6451,7 +6451,7 @@ function ProductCardVariantSheet({
   if (!open) return null;
 
   return createPortal(
-    <div dir="rtl" className="sf-product-variant-sheet fixed inset-0 z-[120] flex items-end justify-center pointer-events-auto md:items-center" role="dialog" aria-modal="true">
+    <div className="sf-product-variant-sheet fixed inset-0 z-[120] flex items-end justify-center pointer-events-auto md:items-center" role="dialog" aria-modal="true">
       <button
         type="button"
         className="absolute inset-0 z-0 bg-stone-950/72 backdrop-blur-sm transition-opacity"
@@ -6501,7 +6501,7 @@ function ProductCardVariantSheet({
 
         <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 md:px-5">
           <div className="rounded-[1.25rem] border border-[#d4af37]/18 bg-[linear-gradient(145deg,rgba(212,175,55,0.10),rgba(255,255,255,0.03))] px-3 py-2 text-[12px] font-bold leading-5 text-white/80">
-            سيتم إضافة اللون والمقاس المختارين فقط إلى السلة.
+            {sfText("storefront.products.onlySelectedAdded")}
           </div>
 
           <div className="mt-4">
@@ -6560,7 +6560,7 @@ function ProductCardVariantSheet({
               </>
             ) : (
               <div className="rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-3 text-center text-xs font-bold text-white/50">
-                اختار اللون أولًا
+                {sfText("storefront.products.chooseColorFirst")}
               </div>
             )}
           </div>
@@ -6593,7 +6593,7 @@ function ProductCardVariantSheet({
             </div>
             {selectedVariant ? (
               <div className="mt-2 text-[11px] font-bold text-white/45">
-                المتاح لهذا المقاس: {maxQty}
+                {sfText("storefront.products.availableForSize")} {maxQty}
               </div>
             ) : null}
           </div>
@@ -6799,7 +6799,7 @@ function RecommendationProductTile({ product, wishlist = [], toggleWishlist, sal
           <ShoppingCart className="h-[18px] w-[18px]" />
         </button>
       </div>
-      {typeof toggleWishlist === "function" ? <button type="button" onClick={() => toggleWishlist(product)} aria-label="المفضلة" className={`absolute start-2 top-2 grid h-7 w-7 place-items-center rounded-full border bg-white/95 shadow-sm transition ${inWishlist ? "border-rose-300 text-rose-500" : "border-stone-200 text-stone-700"}`}><Heart className={`h-3.5 w-3.5 ${inWishlist ? "fill-current" : ""}`} /></button> : null}
+      {typeof toggleWishlist === "function" ? <button type="button" onClick={() => toggleWishlist(product)} aria-label={sfText("storefront.header.wishlist")} className={`absolute start-2 top-2 grid h-7 w-7 place-items-center rounded-full border bg-white/95 shadow-sm transition ${inWishlist ? "border-rose-300 text-rose-500" : "border-stone-200 text-stone-700"}`}><Heart className={`h-3.5 w-3.5 ${inWishlist ? "fill-current" : ""}`} /></button> : null}
       <ProductCardVariantSheet
         open={quickAddOpen}
         product={product}
@@ -6953,8 +6953,8 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
           {subtitle ? <p className="mt-1 truncate text-xs font-bold text-stone-500 dark:text-white/55 md:text-sm">{subtitle}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => moveBy(-1)} disabled={!canSlide} aria-label="السابق" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => moveBy(1)} disabled={!canSlide} aria-label="التالي" className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveBy(-1)} disabled={!canSlide} aria-label={sfText("storefront.common.previous")} className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
+          <button type="button" onClick={() => moveBy(1)} disabled={!canSlide} aria-label={sfText("storefront.common.next")} className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
           <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
         </div>
       </div>
@@ -6992,7 +6992,7 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
           </div>
         </div>
       </div>
-      {canSlide ? <div className="mt-3 flex flex-wrap justify-center gap-1.5">{items.map((product, index) => <button key={productCardKey(product, index)} type="button" onClick={() => moveBy(index - activeDot)} aria-label={`شريحة ${index + 1}`} className={`h-1.5 rounded-full transition-all ${activeDot === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
+      {canSlide ? <div className="mt-3 flex flex-wrap justify-center gap-1.5">{items.map((product, index) => <button key={productCardKey(product, index)} type="button" onClick={() => moveBy(index - activeDot)} aria-label={sfText("storefront.common.slideN", undefined, { n: index + 1 })} className={`h-1.5 rounded-full transition-all ${activeDot === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
     </section>
   );
 }
@@ -7033,8 +7033,8 @@ function RelatedProductsContent({ currentProduct, ...props }) {
   const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
   return (
     <div className="sf-related-products mt-5">
-      <StorefrontRecommendationRail title="منتجات ذات صلة" subtitle="منتجات مشابهة مختارة لك" href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
-      <StorefrontRecommendationRail title={brand ? `المزيد من منتجات ${brand}` : "منتجات من نفس الماركة"} subtitle="منتجات من نفس الماركة" href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
+      <StorefrontRecommendationRail title={sfText("storefront.products.relatedProducts")} subtitle={sfText("storefront.products.relatedSubtitle")} href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
+      <StorefrontRecommendationRail title={brand ? sfText("storefront.products.moreFromBrand", undefined, { brand }) : sfText("storefront.products.sameBrand")} subtitle={sfText("storefront.products.sameBrand")} href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
     </div>
   );
 }
@@ -8022,7 +8022,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       if (!phone) next.primary_phone = sfText("storefront.validation.phoneRequired");
       else if (!/^01[0125][0-9]{8}$/.test(phone)) next.primary_phone = sfText("storefront.validation.invalidEgyptPhone");
       if (form.email.trim() && !isValidSurveyEmail(form.email)) {
-        next.email = "يرجى إدخال بريد إلكتروني صحيح أو ترك الحقل فارغًا.";
+        next.email = sfText("storefront.validation.invalidEmailOptional");
       }
     }
 
@@ -8361,7 +8361,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <Field label={sfText("storefront.form.primaryPhone")} placeholder="01012345678" value={form.primary_phone} onChange={(v) => setField("primary_phone", v)} required error={errors.primary_phone} inputMode="tel" />
               <Field label={sfText("storefront.form.secondaryPhone")} placeholder={sfText("storefront.form.secondaryPhonePlaceholder")} value={form.secondary_phone} onChange={(v) => setField("secondary_phone", v)} inputMode="tel" />
               <Field
-                label="البريد الإلكتروني لاستلام الفاتورة وطلب التقييم بعد التسليم"
+                label={sfText("storefront.checkout.emailLabel")}
                 placeholder="name@example.com"
                 value={form.email}
                 onChange={(value) => setField("email", value)}
@@ -8372,12 +8372,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               />
             </div>
           </CheckoutSection> : null}
-          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address")} note={sfText("storefront.checkout.addressNote")} className="checkout-address-section" dir="rtl">
+          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address")} note={sfText("storefront.checkout.addressNote")} className="checkout-address-section">
             {latestAddressApplied ? (
               <div className="sf-checkout-address-success mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
                 <span className="sf-checkout-address-success-text">{sfText("storefront.checkout.latestAddressApplied")}</span>
                 <button type="button" onClick={useNewAddress} className="shrink-0 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[10px] font-black text-white transition hover:bg-white/15">
-                  استخدم عنوانًا جديدًا
+                  {sfText("storefront.checkout.useNewAddress")}
                 </button>
               </div>
             ) : null}
@@ -8394,7 +8394,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     required
                     error={errors.governorate}
                     placeholder={sfText("storefront.checkout.chooseGovernorate")}
-                    searchPlaceholder="ابحث عن المحافظة..."
+                    searchPlaceholder={sfText("storefront.checkout.searchGovernoratePlaceholder")}
                     loadingText={sfText("storefront.checkout.loadingGovernorates")}
                     themeMode={themeMode}
                   />
@@ -8409,7 +8409,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
                     placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone") : sfText("storefront.checkout.chooseGovernorateFirst")}
-                    searchPlaceholder="ابحث عن المنطقة..."
+                    searchPlaceholder={sfText("storefront.checkout.searchAreaPlaceholder")}
                     loadingText={sfText("storefront.checkout.loadingZones")}
                     themeMode={themeMode}
                     helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint") : ""}
@@ -8426,7 +8426,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                     disabled={!form.shipping_zone_id}
                     error={!form.shipping_district_id ? errors.city_area : ""}
                     placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict") : sfText("storefront.checkout.chooseZoneFirst")}
-                    searchPlaceholder="ابحث عن الحي..."
+                    searchPlaceholder={sfText("storefront.checkout.searchDistrictPlaceholder")}
                     loadingText={sfText("storefront.checkout.loadingDistricts")}
                     themeMode={themeMode}
                     helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint") : ""}
@@ -8441,21 +8441,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                   {!locationGovernorates.length ? <CityAreaField themeMode={themeMode} governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
                 </>
               )}
-              <TextField label={sfText("storefront.checkout.fullAddress")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} inputClassName="text-right" />
+              <TextField label={sfText("storefront.checkout.fullAddress")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} inputClassName="text-start" />
               <div className="sf-checkout-bosta-card md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails")}</p>
                   {bostaMode ? <span className="rounded-full border border-cyan-300/30 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800 shadow-[0_8px_18px_rgba(15,118,110,0.08)] dark:border-cyan-300/25 dark:bg-cyan-300/15 dark:text-cyan-100">{sfText("storefront.checkout.requiredForBosta")}</span> : null}
                 </div>
                 <div className="grid gap-2.5 md:grid-cols-4">
-                  <Field label={sfText("storefront.checkout.streetAddress")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} inputClassName="text-right" />
-                  <Field label={sfText("storefront.checkout.buildingNumber")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} inputClassName="text-right" />
-                  <Field label={sfText("storefront.checkout.floorNumber")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} inputClassName="text-right" />
-                  <Field label={sfText("storefront.checkout.apartmentNumber")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} inputClassName="text-right" />
+                  <Field label={sfText("storefront.checkout.streetAddress")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} inputClassName="text-start" />
+                  <Field label={sfText("storefront.checkout.buildingNumber")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} inputClassName="text-start" />
+                  <Field label={sfText("storefront.checkout.floorNumber")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} inputClassName="text-start" />
+                  <Field label={sfText("storefront.checkout.apartmentNumber")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} inputClassName="text-start" />
                 </div>
               </div>
-              <Field label={sfText("storefront.checkout.landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder")} value={form.landmark} onChange={(v) => setField("landmark", v)} inputClassName="text-right" />
-              <TextField label={sfText("storefront.checkout.deliveryNotes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} inputClassName="text-right" />
+              <Field label={sfText("storefront.checkout.landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder")} value={form.landmark} onChange={(v) => setField("landmark", v)} inputClassName="text-start" />
+              <TextField label={sfText("storefront.checkout.deliveryNotes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} inputClassName="text-start" />
             </div>
           </CheckoutSection> : null}
           {checkoutStep === 3 ? (
@@ -8476,7 +8476,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       setPaymentProofUploaded(false);
                       setForm((current) => ({ ...current, payment_method: "card" }));
                     }}
-                    className={`checkout-payment-choice mb-3 flex w-full min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "online" ? "border-sky-300/35 bg-sky-400/12 shadow-[0_16px_34px_rgba(56,189,248,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
+                    className={`checkout-payment-choice mb-3 flex w-full min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-start transition ${paymentMode === "online" ? "border-sky-300/35 bg-sky-400/12 shadow-[0_16px_34px_rgba(56,189,248,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
                     <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.online.title")}</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">
@@ -8496,9 +8496,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       setPaymentProofUploaded(false);
                       setForm((current) => ({ ...current, payment_method: "cod" }));
                     }}
-                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
+                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-start transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
-                    <span className="text-sm font-black text-white">الدفع عند الاستلام</span>
+                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.cod.title")}</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.cod.text")}</span>
                   </button>
                   <button
@@ -8509,9 +8509,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                       setForm((current) => ({ ...current, payment_method: visibleTransferMethods[0]?.id || shippingTransferMethod || "instapay" }));
                       setShippingTransferMethod((current) => (visibleTransferMethods.some((method) => method.id === current) ? current : (visibleTransferMethods[0]?.id || "instapay")));
                     }}
-                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-right transition ${paymentMode === "electronic" ? "border-[#e5c158]/35 bg-[#d4af37]/14 shadow-[0_16px_34px_rgba(212,175,55,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
+                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-start transition ${paymentMode === "electronic" ? "border-[#e5c158]/35 bg-[#d4af37]/14 shadow-[0_16px_34px_rgba(212,175,55,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
                   >
-                    <span className="text-sm font-black text-white">تأكيد الشحن</span>
+                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.shippingConfirmationTitle")}</span>
                     <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.shippingConfirmation.text")}</span>
                   </button>
                 </div>
@@ -8855,7 +8855,7 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "", whatsapp
               <InfoBox label={t("storefront.orders.orderStatus")} value={successStatus} />
               <InfoBox label={t("storefront.orders.expectedDelivery")} value={t("storefront.orders.expectedDeliveryWindow")} />
             </div>
-            <div className="sf-info-box mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4 text-right text-white">
+            <div className="sf-info-box mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4 text-start text-white">
               <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress")}</div>
               <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved")}</div>
             </div>
@@ -8902,7 +8902,7 @@ const shippingProviderCopy = (value = "") => {
     return sfText("storefront.shipping.inStoreDelivery");
   }
   if (raw === "bosta" || raw.includes("bosta")) {
-    return "بوسطة";
+    return sfText("storefront.shipping.bosta");
   }
   return sfText("storefront.shipping.inStoreDelivery");
 };
@@ -8996,43 +8996,43 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   const contactRows = [
     {
       id: "phone",
-      title: "الهاتف",
+      title: sfText("storefront.contact.phone"),
       icon: Phone,
       value: phoneNumber,
       href: phoneHref,
-      cta: "اتصال",
+      cta: sfText("storefront.contact.call"),
       tone: "phone",
     },
     {
       id: "instagram",
-      title: "انستجرام",
+      title: sfText("storefront.contact.instagram"),
       icon: BrandInstagramIcon,
       value: instagramUsername || instagramHref,
       href: instagramHref,
-      cta: "زيارة الصفحة",
+      cta: sfText("storefront.contact.visitPage"),
       tone: "instagram",
     },
     {
       id: "facebook",
-      title: "فيسبوك",
+      title: sfText("storefront.contact.facebook"),
       icon: BrandFacebookIcon,
       value: facebookPage || facebookHref,
       href: facebookHref,
-      cta: "زيارة الصفحة",
+      cta: sfText("storefront.contact.visitPage"),
       tone: "facebook",
     },
     {
       id: "address",
-      title: "العنوان",
+      title: sfText("storefront.contact.address"),
       icon: MapPin,
       value: addressDisplay,
       href: mapHref,
-      cta: "فتح الخريطة",
+      cta: sfText("storefront.contact.openMap"),
       tone: "map",
     },
     {
       id: "working_hours",
-      title: "مواعيد العمل",
+      title: sfText("storefront.contact.workingHours"),
       icon: Clock3,
       value: workingHours,
       href: "",
@@ -9045,10 +9045,10 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   }));
   const visibleContactRows = contactRows.filter((card) => card.id !== "whatsapp" && (card.id === "working_hours" ? workingHoursLines.length > 0 : Boolean(String(card.value || "").trim())));
   const helpItems = [
-    { icon: Footprints, label: "استفسار عن مقاس" },
-    { icon: PackageSearch, label: "متابعة طلب" },
-    { icon: RefreshCcw, label: "استبدال أو استرجاع" },
-    { icon: PackageCheck, label: "مشكلة في منتج" },
+    { icon: Footprints, label: sfText("storefront.contact.topics.size") },
+    { icon: PackageSearch, label: sfText("storefront.contact.topics.track") },
+    { icon: RefreshCcw, label: sfText("storefront.contact.topics.exchange") },
+    { icon: PackageCheck, label: sfText("storefront.contact.topics.issue") },
   ];
   const actionButtonStyles = {
     phone: "border-none bg-[#10B981] text-white shadow-[0_14px_34px_rgba(16,185,129,0.28)] hover:bg-[#0EA5E9]",
@@ -9064,12 +9064,12 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   };
 
   return (
-    <section className="mx-auto w-full max-w-6xl bg-[#050505] px-4 pt-6 pb-[calc(var(--mobile-bottom-nav-height,58px)+env(safe-area-inset-bottom)+1.5rem)] text-white md:px-6 md:py-10 md:pb-10" dir="rtl">
+    <section className="mx-auto w-full max-w-6xl bg-[#050505] px-4 pt-6 pb-[calc(var(--mobile-bottom-nav-height,58px)+env(safe-area-inset-bottom)+1.5rem)] text-white md:px-6 md:py-10 md:pb-10">
       <div className="mx-auto max-w-2xl">
         <p className="text-xs font-black uppercase tracking-[0.24em] text-[#D4AF37]/85">M1 Store</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">تواصل معنا</h1>
+        <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">{sfText("storefront.contact.title")}</h1>
         <p className="mt-3 text-sm font-medium leading-7 text-slate-400 md:text-base">
-          فريق M1 Store جاهز لمساعدتك في الطلبات، المقاسات، الاستبدال والاسترجاع.
+          {sfText("storefront.contact.subtitle")}
         </p>
       </div>
 
@@ -9082,14 +9082,14 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
             className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,185,129,0.24)] transition duration-200 hover:bg-emerald-400 active:scale-[0.99]"
           >
             <MessageCircle className="h-4.5 w-4.5" />
-            تواصل عبر واتساب
+            {sfText("storefront.contact.chatOnWhatsapp")}
           </a>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             {[
-              [Clock3, "الرد خلال دقائق"],
-              [Footprints, "مساعدة المقاسات"],
-              [PackageSearch, "متابعة الطلبات"],
-              [RefreshCcw, "استبدال واسترجاع"],
+              [Clock3, sfText("storefront.contact.perks.fastReply")],
+              [Footprints, sfText("storefront.contact.perks.sizeHelp")],
+              [PackageSearch, sfText("storefront.contact.perks.trackOrders")],
+              [RefreshCcw, sfText("storefront.contact.perks.exchange")],
             ].map(([Icon, label]) => (
               <div key={label} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-[11px] font-black text-slate-200 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
                 <Icon className="h-3.5 w-3.5 text-[#D4AF37]" />
@@ -9159,8 +9159,8 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
             <Sparkles className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-base font-black text-white">كيف نساعدك؟</h2>
-            <p className="mt-1 text-sm font-medium leading-7 text-slate-400">اختر نوع المساعدة المناسب وسيصلك الرد بأوضح طريقة ممكنة.</p>
+            <h2 className="text-base font-black text-white">{sfText("storefront.contact.howCanWeHelp")}</h2>
+            <p className="mt-1 text-sm font-medium leading-7 text-slate-400">{sfText("storefront.contact.howCanWeHelpText")}</p>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
@@ -9185,68 +9185,68 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
 function ReturnsPolicy({ publicStoreSettings = {} }) {
   let sections = [
     {
-      title: "الاستبدال والاسترجاع",
+      title: sfText("storefront.returns.policy.title"),
       items: [
-        "يحق للعميل طلب الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفقًا للشروط التالية:",
-        "أن يكون المنتج في حالته الأصلية كما تم استلامه.",
-        "عدم استخدام المنتج أو تعرضه لأي تلف أو اتساخ.",
-        "وجود العلبة الأصلية وجميع الملحقات الخاصة بالمنتج.",
-        "تقديم أصل الفاتورة أو رقم الطلب.",
+        sfText("storefront.returns.policy.intro"),
+        sfText("storefront.returns.policy.cond1"),
+        sfText("storefront.returns.policy.cond2"),
+        sfText("storefront.returns.policy.cond3"),
+        sfText("storefront.returns.policy.cond4"),
       ],
     },
     {
-      title: "حالات لا يشملها الاستبدال أو الاسترجاع",
+      title: sfText("storefront.returns.policy.excludedTitle"),
       items: [
-        "المنتجات التي تم استخدامها أو تعرضت للتلف بعد الاستلام.",
-        "المنتجات التي لا تكون في حالتها الأصلية.",
-        "المنتجات التي تم تعديلها أو إصلاحها بواسطة العميل.",
-        "المنتجات التي يظهر عليها أي آثار استخدام أو سوء تخزين.",
+        sfText("storefront.returns.policy.excluded1"),
+        sfText("storefront.returns.policy.excluded2"),
+        sfText("storefront.returns.policy.excluded3"),
+        sfText("storefront.returns.policy.excluded4"),
       ],
     },
     {
-      title: "الطلبات الأونلاين",
+      title: sfText("storefront.returns.policy.onlineTitle"),
       items: [
-        "في حالة طلب المنتج أونلاين واستلامه من شركة الشحن، يحق للعميل طلب الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفقًا للشروط المذكورة.",
+        sfText("storefront.returns.policy.onlineText"),
       ],
     },
     {
-      title: "في حالة تغيير المقاس أو الاختيار الخاطئ من العميل",
+      title: sfText("storefront.returns.policy.customerChangeTitle"),
       items: [
-        "إذا كان سبب الاستبدال أو الاسترجاع هو اختيار مقاس غير مناسب.",
-        "أو تغيير الرأي بعد الاستلام.",
-        "أو الرغبة في تغيير اللون أو الموديل.",
-        "فإن العميل يتحمل كامل مصاريف الشحن والاستبدال أو الاسترجاع ذهابًا وإيابًا.",
+        sfText("storefront.returns.policy.customerChange1"),
+        sfText("storefront.returns.policy.customerChange2"),
+        sfText("storefront.returns.policy.customerChange3"),
+        sfText("storefront.returns.policy.customerChange4"),
       ],
     },
     {
-      title: "في حالة وجود خطأ من المتجر",
+      title: sfText("storefront.returns.policy.storeErrorTitle"),
       items: [
-        "إرسال مقاس مختلف عن الطلب.",
-        "إرسال منتج مختلف عن الطلب.",
-        "وجود عيب تصنيع مؤكد بالمنتج.",
-        "فإن المتجر يتحمل جميع مصاريف الشحن والاستبدال أو الاسترجاع بالكامل.",
+        sfText("storefront.returns.policy.storeError1"),
+        sfText("storefront.returns.policy.storeError2"),
+        sfText("storefront.returns.policy.storeError3"),
+        sfText("storefront.returns.policy.storeError4"),
       ],
     },
     {
-      title: "فحص المنتجات",
+      title: sfText("storefront.returns.policy.inspectionTitle"),
       items: [
-        "يتم فحص جميع المنتجات المرتجعة قبل اعتماد طلب الاستبدال أو الاسترجاع.",
-        "يحتفظ المتجر بحق رفض الطلب إذا تبين عدم مطابقة المنتج لشروط الاستبدال والاسترجاع.",
+        sfText("storefront.returns.policy.inspection1"),
+        sfText("storefront.returns.policy.inspection2"),
       ],
     },
     {
-      title: "استرداد المبلغ",
+      title: sfText("storefront.returns.policy.refundTitle"),
       items: [
-        "يتم رد قيمة الطلب بعد استلام المنتج وفحصه واعتماد طلب الاسترجاع.",
-        "قد تستغرق عملية استرداد المبلغ عدة أيام عمل وفقًا لوسيلة الدفع المستخدمة.",
+        sfText("storefront.returns.policy.refund1"),
+        sfText("storefront.returns.policy.refund2"),
       ],
     },
     {
-      title: "ملاحظات هامة",
+      title: sfText("storefront.returns.policy.notesTitle"),
       items: [
-        "يُنصح بمراجعة جدول المقاسات والتواصل مع خدمة العملاء قبل إتمام الطلب لضمان اختيار المقاس المناسب.",
-        "اختلاف درجة اللون بشكل بسيط نتيجة الإضاءة أو إعدادات شاشة الهاتف أو الكمبيوتر لا يُعد عيبًا في المنتج.",
-        "إتمام عملية الشراء يعني الموافقة على سياسة الاستبدال والاسترجاع الخاصة بالمتجر.",
+        sfText("storefront.returns.policy.note1"),
+        sfText("storefront.returns.policy.note2"),
+        sfText("storefront.returns.policy.note3"),
       ],
     },
   ];
@@ -9257,15 +9257,15 @@ function ReturnsPolicy({ publicStoreSettings = {} }) {
       : {};
     sections = [
       {
-        title: "مدة الاستبدال والاسترجاع",
-        items: [`يمكن طلب الاستبدال أو الاسترجاع خلال ${configuredPolicy.days} يومًا من تاريخ الاستلام.`],
+        title: sfText("storefront.returns.policy.durationTitle"),
+        items: [sfText("storefront.returns.policy.durationText", undefined, { days: configuredPolicy.days })],
       },
       {
-        title: "شروط قبول المنتج",
+        title: sfText("storefront.returns.policy.acceptanceTitle"),
         items: [conditions.unused_original_condition, conditions.invoice_required].filter(Boolean),
       },
       {
-        title: "تكلفة الشحن",
+        title: sfText("storefront.returns.policy.shippingCostTitle"),
         items: [conditions.customer_choice_shipping, conditions.defect_shipping].filter(Boolean),
       },
     ].filter((section) => section.items.length);
@@ -9276,7 +9276,7 @@ function ReturnsPolicy({ publicStoreSettings = {} }) {
         <div className="max-w-3xl">
           <h1 className="text-2xl font-black tracking-tight text-stone-950 sm:text-3xl dark:text-white">{sfText("storefront.returns.title")}</h1>
           <p className="mt-3 text-sm leading-7 text-stone-600 sm:text-base dark:text-slate-300">
-            يوضح هذا القسم شروط الاستبدال والاسترجاع المعتمدة داخل المتجر، بما يضمن وضوح الإجراءات وحفظ حقوق العميل والمتجر.
+            {sfText("storefront.returns.policy.footer")}
           </p>
         </div>
         <div className="mt-6 grid gap-4">
@@ -9443,7 +9443,7 @@ function TextField({ label, value, onChange, required, error, compact, placehold
 function CityAreaField({ governorate, options, value, onChange, manual, onManualChange, required, error, themeMode = "light" }) {
   const selectOptions = [
     ...options.map((option) => ({ value: option, label: option })),
-    { value: MANUAL_CITY_AREA_LABEL, label: MANUAL_CITY_AREA_LABEL },
+    { value: MANUAL_CITY_AREA_LABEL, label: sfText("storefront.checkout.manualSelection") },
   ];
   const darkMode = themeMode === "dark";
   const selectedOption = manual
@@ -9452,7 +9452,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
 
   return (
     <div className="sf-checkout-field block">
-      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>المدينة / المنطقة</span>
+      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{sfText("storefront.checkout.cityArea")}</span>
       <Suspense fallback={<CityAreaNativeSelect themeMode={themeMode} governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA_LABEL : value} onChange={onChange} required={required} error={error} />}>
         <Select
           instanceId="checkout-city-area"
@@ -9694,7 +9694,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
               <button
                 type="button"
                 onClick={() => chooseOption(option)}
-                className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-right transition duration-150 ${ selected ? darkMode ? "border-[#e5c158]/30 bg-[#d4af37]/10" : "border-[#f3d77a] bg-[#f5f3ff]" : darkMode ? "border-white/10 bg-white/[0.025] hover:border-[#e5c158]/22 hover:bg-white/[0.045]" : "border-slate-300 bg-white hover:border-[#e5c158]/30 hover:bg-[#faf5ff]" }`}
+                className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-start transition duration-150 ${ selected ? darkMode ? "border-[#e5c158]/30 bg-[#d4af37]/10" : "border-[#f3d77a] bg-[#f5f3ff]" : darkMode ? "border-white/10 bg-white/[0.025] hover:border-[#e5c158]/22 hover:bg-white/[0.045]" : "border-slate-300 bg-white hover:border-[#e5c158]/30 hover:bg-[#faf5ff]" }`}
               >
                 <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${selected ? (darkMode ? "border-[#f3d77a] bg-[#d4af37]/90 text-white" : "border-[#d4af37] bg-[#d4af37] text-white") : (darkMode ? "border-white/14 bg-white/[0.03] text-transparent group-hover:border-[#e5c158]/45" : "border-slate-300 bg-white text-transparent group-hover:border-[#d4af37]/35")}`}>
                   <Check className="h-3.5 w-3.5" />
@@ -9722,7 +9722,7 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
         type="button"
         onClick={() => !isBlocked && setOpen((current) => !current)}
         disabled={isBlocked}
-        className={`flex min-h-[48px] w-full items-center gap-3 rounded-[16px] border px-3.5 text-right text-sm font-bold outline-none backdrop-blur transition duration-150 focus:border-[#d4af37] focus:shadow-[0_0_0_3px_rgba(212,175,55,0.12),0_12px_28px_rgba(212,175,55,0.10)] disabled:cursor-not-allowed disabled:opacity-65 ${darkMode ? `bg-white/[0.045] text-white shadow-[0_10px_22px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.03)] focus:bg-white/[0.065] ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/10"}` : `bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] focus:bg-white ${error ? "border-rose-300/80 focus:border-rose-400" : "border-slate-300"}`}`}
+        className={`flex min-h-[48px] w-full items-center gap-3 rounded-[16px] border px-3.5 text-start text-sm font-bold outline-none backdrop-blur transition duration-150 focus:border-[#d4af37] focus:shadow-[0_0_0_3px_rgba(212,175,55,0.12),0_12px_28px_rgba(212,175,55,0.10)] disabled:cursor-not-allowed disabled:opacity-65 ${darkMode ? `bg-white/[0.045] text-white shadow-[0_10px_22px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.03)] focus:bg-white/[0.065] ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/10"}` : `bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] focus:bg-white ${error ? "border-rose-300/80 focus:border-rose-400" : "border-slate-300"}`}`}
         aria-haspopup="dialog"
         aria-expanded={open}
       >
@@ -9766,12 +9766,12 @@ const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
                       <Search className={`h-4 w-4 shrink-0 ${darkMode ? "text-white/42" : "text-slate-600"}`} />
                       <input
                         ref={inputRef}
-                        dir="rtl"
+                       
                         lang="ar"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder={searchHint}
-                        className={"min-w-0 flex-1 bg-transparent text-right text-sm font-bold outline-none " + (darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500")}
+                        className={"min-w-0 flex-1 bg-transparent text-start text-sm font-bold outline-none " + (darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500")}
                       />
                       {query ? (
                         <button type="button" onClick={() => setQuery("")} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${darkMode ? "border-white/10 bg-white/[0.04] text-white/52 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} aria-label={sfText("storefront.common.clear")}>
@@ -9876,17 +9876,17 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   return (
     <div className="fixed inset-0 z-50">
       <button className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" onClick={onClose} aria-label={sfText("storefront.common.close")} />
-      <aside dir="rtl" className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
+      <aside className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
         <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.035] px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5">
           <div className="min-w-0">
-            <p className="text-xs font-black text-[#f3d77a]">{cart.length ? sfText("storefront.products.productCount", undefined, { count: cart.length }) : "Your cart is empty"}</p>
+            <p className="text-xs font-black text-[#f3d77a]">{cart.length ? sfText("storefront.products.productCount", undefined, { count: cart.length }) : sfText("storefront.cart.emptyTitle")}</p>
             <h2 className="mt-1 truncate text-2xl font-black text-white">Cart</h2>
           </div>
           <button onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/74 shadow-[0_12px_28px_rgba(0,0,0,0.24)] transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.common.close")}><X className="h-5 w-5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
           {!cart.length ? (
-            <EmptyState title="Your cart is empty" text="Add items to your cart to see them here." actionLabel="Browse products" />
+            <EmptyState title={sfText("storefront.cart.emptyTitle")} text={sfText("storefront.cart.emptyText")} actionLabel={sfText("storefront.common.shopNow")} />
           ) : (
             <div className="grid gap-3 pb-2">
               {cart.map((item) => (
@@ -9896,8 +9896,8 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
           )}
         </div>
         {cart.length ? (
-          <div dir="rtl" className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
-            <div className="mb-3 flex items-end justify-between gap-3 text-right">
+          <div className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
+            <div className="mb-3 flex items-end justify-between gap-3 text-start">
               <div className="sf-cart-drawer-total">
                 <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total")}</p>
                 <p className="mt-1 text-2xl font-black leading-none text-white">{money(total)}</p>
@@ -9916,7 +9916,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
 
 function MobileCartRow({ item, updateCart, removeFromCart }) {
   return (
-    <article dir="rtl" className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#101010_0%,#151515_100%)] p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
+    <article className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#101010_0%,#151515_100%)] p-3 text-start text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
       <div className="flex min-w-0 items-start gap-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white/[0.065] ring-1 ring-white/10">
           <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
@@ -9932,7 +9932,7 @@ function MobileCartRow({ item, updateCart, removeFromCart }) {
       </div>
       <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
         <QuantityStepper quantity={item.quantity} onMinus={() => updateCart(item.lineId, item.quantity - 1)} onPlus={() => updateCart(item.lineId, item.quantity + 1)} />
-        <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label="Remove item">
+        <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem")}>
           <Trash2 className="h-5 w-5" />
         </button>
       </div>
@@ -9957,9 +9957,9 @@ function QuantityStepper({ quantity, onMinus, onPlus }) {
 
 function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
   if (dark) {
-    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)]" : "font-black text-white"}`}>{value}</span></div>;
+    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)]" : "font-black text-white"}`}>{value}</span></div>;
   }
-  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-stone-200/80 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-stone-200/80 bg-white px-3 py-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]" : "font-black text-stone-800"}`}>{value}</span></div>;
+  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-stone-200/80 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-stone-200/80 bg-white px-3 py-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]" : "font-black text-stone-800"}`}>{value}</span></div>;
 }
 
 
@@ -10095,7 +10095,7 @@ function MobileBuyBar({ product, variant, visible, onAddToCart }) {
   if (!visible) return null;
   return (
     <div
-      dir="rtl"
+     
       className="sf-mobile-buy-bar fixed inset-x-3 z-[52] mx-auto max-w-md rounded-[1rem] px-3 py-3 text-white transition md:hidden"
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
@@ -11133,7 +11133,7 @@ class StorefrontErrorBoundary extends Component {
     if (this.state.recovering) return <StorefrontPageFallback />;
     if (this.state.hasError) {
       return (
-        <div dir="rtl" className="min-h-screen bg-[#f7f4ee] px-4 py-10 text-center text-stone-950">
+        <div className="min-h-screen bg-[#f7f4ee] px-4 py-10 text-center text-stone-950">
           <div className="mx-auto max-w-md rounded-[1.5rem] border border-stone-200 bg-white p-6 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
             <Sparkles className="mx-auto h-8 w-8 text-[#d4af37]" />
             <h1 className="mt-4 text-2xl font-black">{sfText("storefront.errors.simpleProblem")}</h1>

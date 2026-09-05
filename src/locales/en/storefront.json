@@ -208,7 +208,15 @@
       "retry": "Retry payment",
       "awaitingPayment": "Waiting for payment confirmation",
       "paid": "Payment received"
-    }
+    },
+    "emailLabel": "Email for the invoice and the post-delivery review request",
+    "useNewAddress": "Use a new address",
+    "searchGovernoratePlaceholder": "Search governorate...",
+    "searchAreaPlaceholder": "Search area...",
+    "searchDistrictPlaceholder": "Search neighbourhood...",
+    "shippingConfirmationTitle": "Shipping confirmation",
+    "cityArea": "City / area",
+    "manualSelection": "Manual selection"
   },
   "invoice": {
     "unavailable": "Unavailable",
@@ -246,7 +254,10 @@
     "remove": "Remove",
     "viewAll": "View all",
     "back": "Back",
-    "refreshPage": "Refresh page"
+    "refreshPage": "Refresh page",
+    "previous": "Previous",
+    "next": "Next",
+    "slideN": "Slide {{n}}"
   },
   "header": {
     "tagline": "Premium Shoes",
@@ -387,7 +398,23 @@
     "analyzing": "Analyzing the image and finding closest products...",
     "resultsFromImage": "Results based on the uploaded image",
     "noSimilarProduct": "No similar product found",
-    "emptyHint": "Try a clearer image or use the suggested keywords."
+    "emptyHint": "Try a clearer image or use the suggested keywords.",
+    "unavailableRetry": "Image search is unavailable right now. Try again or use text search.",
+    "shareText": "This is a photo of the product I am looking for",
+    "shareTitle": "Photo to find a model",
+    "requestRestockMessage": "I would like to request this model if it becomes available",
+    "searchingClosest": "Looking for the closest model...",
+    "foundExact": "We found this model",
+    "notAvailableClosest": "This model is not available, but these are the closest matches",
+    "unavailable": "Image search is unavailable right now",
+    "modelUnavailable": "This model is not available right now",
+    "title": "Image search",
+    "confidence": "Confidence",
+    "exactMatch": "Exact match",
+    "sendPhotoHint": "You can send us the photo on WhatsApp, or leave your number and we will tell you as soon as it arrives",
+    "sendOnWhatsapp": "Send the photo on WhatsApp",
+    "requestModel": "Request this model",
+    "backToText": "Back to text search"
   },
   "products": {
     "products": "Products",
@@ -469,7 +496,33 @@
     "sortMostViewed": "Most viewed",
     "sortNewest": "Newest",
     "sortPriceAsc": "Price: low to high",
-    "sortPriceDesc": "Price: high to low"
+    "sortPriceDesc": "Price: high to low",
+    "defaultDescription": "A practical design in premium materials, made for everyday wear and easy to style.",
+    "highRating": "Highly rated by customers",
+    "fastShipping": "Fast shipping",
+    "perks": {
+      "materialsText": "Materials and looks shown clearly before you buy.",
+      "shippingText": "Quick preparation and clear stock status for your selection.",
+      "safeChoiceTitle": "Safe choice",
+      "safeChoiceText": "Check the colour and size before adding the item to your cart."
+    },
+    "whyYouWillLoveIt": "Why you'll love it",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "onlySelectedAdded": "Only the selected colour and size will be added to the cart.",
+    "chooseColorFirst": "Choose a colour first",
+    "chooseSizeFirst": "Choose a size first",
+    "availableForSize": "Available for this size:",
+    "relatedProducts": "Related products",
+    "relatedSubtitle": "Similar products picked for you",
+    "sameBrand": "Products from the same brand",
+    "moreFromBrand": "More from {{brand}}",
+    "productCount_zero": "{{count}} products",
+    "productCount_one": "{{count}} product",
+    "productCount_two": "{{count}} products",
+    "productCount_few": "{{count}} products",
+    "productCount_many": "{{count}} products",
+    "productCount_other": "{{count}} products"
   },
   "filters": {
     "gender": "Gender",
@@ -521,7 +574,21 @@
     "add": "Add",
     "buy": "Buy",
     "reserveProduct": "Reserve product",
-    "orderNow": "Order now"
+    "orderNow": "Order now",
+    "emptyPageText": "Pick a product first, then complete checkout",
+    "estimatedShipping": "Estimated shipping",
+    "proceedToCheckout": "Proceed to checkout",
+    "finalShippingAtCheckout": "Final shipping is calculated at checkout",
+    "reviewBeforeCheckout": "Review the items and quantities before moving on to checkout.",
+    "itemCount": "Products",
+    "pieceCount": "Total pieces",
+    "lineTotal": "Line total",
+    "shippingNote": "Final shipping is calculated at checkout based on your address and delivery method.",
+    "nextStepAddress": "Review address and payment in the next step",
+    "editQuantityHint": "You can adjust quantities here before continuing",
+    "currentTotal": "Current total",
+    "summaryHint": "The final total and shipping are shown clearly before you place the order.",
+    "totalsEyebrow": "Cart totals"
   },
   "success": {
     "awaitingVerificationSubtitle": "We will review the transfer proof, then start preparing the order.",
@@ -558,7 +625,8 @@
     "manual": "Manual delivery",
     "provider": "Shipping provider",
     "trackingNumber": "Tracking number",
-    "status": "Shipping status"
+    "status": "Shipping status",
+    "bosta": "Bosta"
   },
   "support": {
     "generalHelpMessage": "Hello, I need help with a website order",
@@ -572,7 +640,9 @@
   "errors": {
     "simpleProblem": "Something went wrong",
     "tryAgainOrWhatsapp": "Try again or contact us on WhatsApp",
-    "cleanedTemporaryData": "We cleaned temporary browsing data. Try refreshing the page."
+    "cleanedTemporaryData": "We cleaned temporary browsing data. Try refreshing the page.",
+    "operationFailed": "The operation could not be applied",
+    "categoryOptionsFailed": "We could not load the category options"
   },
   "form": {
     "fullName": "Full name",
@@ -580,7 +650,8 @@
     "mobileNumber": "Mobile number",
     "primaryPhone": "Primary mobile number",
     "secondaryPhone": "Optional alternate number",
-    "secondaryPhonePlaceholder": "Alternative contact number"
+    "secondaryPhonePlaceholder": "Alternative contact number",
+    "name": "Name"
   },
   "customer": {
     "customer": "Customer",
@@ -596,7 +667,8 @@
     "addressRequired": "Enter the full address so the courier can reach you quickly",
     "paymentMethodRequired": "Choose a payment method",
     "codUnavailable": "Cash on delivery is not available for this customer",
-    "transferProofRequired": "Upload the transfer proof image to confirm the order"
+    "transferProofRequired": "Upload the transfer proof image to confirm the order",
+    "invalidEmailOptional": "Enter a valid email address or leave the field empty."
   },
   "tracking": {
     "eyebrow": "Your order is on the way",
@@ -647,7 +719,24 @@
     "loyaltyBalance": "Loyalty balance",
     "points": "points",
     "pointsToNextTier": "{{count}} points to reach {{tier}}",
-    "topTierReached": "You reached the top tier"
+    "topTierReached": "You reached the top tier",
+    "sizesSaved": "Sizes saved",
+    "sizesSaveFailed": "We could not save the sizes right now",
+    "refreshData": "Refresh",
+    "signOut": "Sign out",
+    "stats": {
+      "orders": "Orders",
+      "addresses": "Addresses",
+      "points": "Your points"
+    },
+    "ordersHint": "Track your orders or reorder your favourites",
+    "noOrdersText": "Start browsing and discover the latest M1 picks chosen for you.",
+    "membershipTitle": "M1 membership",
+    "membershipSubtitle": "Your balance and membership level",
+    "savedAddressesSubtitle": "Saved delivery addresses",
+    "yourAccount": "Your account",
+    "errorTitle": "We could not open the account page right now",
+    "errorText": "Something went wrong while rendering. Refresh the page, or reset your password and sign in again."
   },
   "contact": {
     "title": "Contact us",
@@ -656,7 +745,28 @@
     "address": "Address",
     "addressPlaceholder": "Branch location appears here.",
     "workingHours": "Working hours",
-    "workingHoursValue": "Daily from 12 PM to 11 PM."
+    "workingHoursValue": "Daily from 12 PM to 11 PM.",
+    "call": "Call",
+    "instagram": "Instagram",
+    "visitPage": "Visit page",
+    "facebook": "Facebook",
+    "openMap": "Open map",
+    "topics": {
+      "size": "Size question",
+      "track": "Track an order",
+      "exchange": "Exchange or return",
+      "issue": "Problem with a product"
+    },
+    "subtitle": "The M1 Store team is ready to help with orders, sizes, exchanges and returns.",
+    "chatOnWhatsapp": "Chat on WhatsApp",
+    "perks": {
+      "fastReply": "Replies within minutes",
+      "sizeHelp": "Size help",
+      "trackOrders": "Order tracking",
+      "exchange": "Exchanges and returns"
+    },
+    "howCanWeHelp": "How can we help?",
+    "howCanWeHelpText": "Pick the kind of help you need and we will reply as clearly as possible."
   },
   "faq": {
     "title": "FAQ",
@@ -692,7 +802,47 @@
   "returns": {
     "title": "Exchange and return policy",
     "noBags": "Bags cannot be exchanged or returned.",
-    "originalCondition": "The product must be in its original condition."
+    "originalCondition": "The product must be in its original condition.",
+    "policy": {
+      "intro": "Customers may request an exchange or return within 14 days of delivery under the following conditions:",
+      "cond1": "The item is in its original condition as received.",
+      "cond2": "The item has not been used, damaged or soiled.",
+      "cond3": "The original box and all accessories are included.",
+      "cond4": "The original invoice or order number is provided.",
+      "excludedTitle": "Cases not covered by exchange or return",
+      "excluded1": "Items that were used or damaged after delivery.",
+      "excluded2": "Items that are not in their original condition.",
+      "excluded3": "Items modified or repaired by the customer.",
+      "excluded4": "Items showing any signs of use or poor storage.",
+      "onlineTitle": "Online orders",
+      "onlineText": "For items ordered online and received from the courier, the customer may request an exchange or return within 14 days of delivery under the conditions above.",
+      "customerChangeTitle": "If the customer changes the size or made a wrong choice",
+      "customerChange1": "If the exchange or return is due to choosing an unsuitable size.",
+      "customerChange2": "Or a change of mind after delivery.",
+      "customerChange3": "Or wanting a different colour or model.",
+      "customerChange4": "The customer bears the full shipping cost of the exchange or return, both ways.",
+      "storeErrorTitle": "If the store made a mistake",
+      "storeError1": "A different size than ordered was sent.",
+      "storeError2": "A different product than ordered was sent.",
+      "storeError3": "A confirmed manufacturing defect in the product.",
+      "storeError4": "The store bears all shipping, exchange and return costs in full.",
+      "inspectionTitle": "Product inspection",
+      "inspection1": "All returned items are inspected before an exchange or return is approved.",
+      "inspection2": "The store reserves the right to decline a request if the item does not meet the exchange and return conditions.",
+      "refundTitle": "Refunds",
+      "refund1": "The order value is refunded after the item is received, inspected and the return is approved.",
+      "refund2": "Refunds can take several working days depending on the payment method used.",
+      "notesTitle": "Important notes",
+      "note1": "We recommend checking the size chart and contacting customer service before ordering to make sure you pick the right size.",
+      "note2": "A slight colour difference caused by lighting or your phone or computer screen settings is not considered a defect.",
+      "note3": "Completing a purchase means you agree to the store's exchange and return policy.",
+      "durationTitle": "Exchange and return period",
+      "acceptanceTitle": "Product acceptance conditions",
+      "shippingCostTitle": "Shipping cost",
+      "title": "Exchanges and returns",
+      "footer": "This section sets out the store's approved exchange and return conditions, so the process is clear and both the customer's and the store's rights are protected.",
+      "durationText": "Exchanges or returns can be requested within {{days}} days of delivery."
+    }
   },
   "reviews": {
     "title": "Customer reviews",
@@ -701,7 +851,13 @@
       "quality": "The material is excellent and delivery was fast.",
       "size": "The size was accurate and support helped me.",
       "experience": "Easy experience and the order arrived neatly."
-    }
+    },
+    "badges": {
+      "quality": "Great quality",
+      "size": "True to size",
+      "experience": "Comfortable experience"
+    },
+    "eyebrow": "Reviews"
   },
   "sizeGuide": {
     "eyebrow": "Shoe Fit Guide",
@@ -746,6 +902,33 @@
         "title": "Choose the larger",
         "text": "Repeat for both feet and choose based on the larger foot."
       }
+    },
+    "types": {
+      "men": {
+        "label": "Men",
+        "title": "Men's shoe size guide"
+      },
+      "women": {
+        "label": "Women",
+        "title": "Women's shoe size guide"
+      },
+      "kids": {
+        "label": "Kids",
+        "title": "Kids' shoe size guide"
+      },
+      "crocsAdult": {
+        "label": "Crocs adults",
+        "title": "Crocs size guide for adults"
+      },
+      "crocsKids": {
+        "label": "Crocs kids",
+        "title": "Crocs size guide for kids"
+      }
+    },
+    "columns": {
+      "eu": "EU",
+      "footLengthCm": "Foot length (cm)",
+      "factorySize": "Factory size"
     }
   },
   "wishlist": {
@@ -767,5 +950,211 @@
     "noImage": "No image available",
     "variants": "Variants",
     "noVariants": "No variants available."
+  },
+  "addressLink": {
+    "errorTitle": "Something went wrong on the address page",
+    "errorText": "We could not load the page. Try again or contact us.",
+    "invalidLink": "This address link is not valid.",
+    "loadFailed": "We could not load the address link.",
+    "fieldsRequired": "Please pick your area and enter the street name and building number.",
+    "submitFailed": "We could not send the address. Please try again.",
+    "eyebrow": "Delivery details",
+    "receivedHeading": "We got your address 🎉",
+    "receivedSubtitle": "Our team will review the order and confirm it with you before shipping.",
+    "introSubtitle": "Enter your address once and we will prepare the order. It only takes a minute.",
+    "loading": "Loading your details...",
+    "linkExpired": "This link has expired",
+    "linkUnavailable": "We could not open this link",
+    "askForNewLink": "Ask the store team to send a new link in the chat.",
+    "submittedTitle": "Address received",
+    "submittedText": "Nothing else is needed from you. We will contact you to confirm the order.",
+    "submittedAddressLabel": "The address we received",
+    "yourDetails": "Your details",
+    "fullNamePlaceholder": "Full name *",
+    "changePhone": "Change number",
+    "newPhonePlaceholder": "New mobile number",
+    "phonePlaceholder": "Mobile number *",
+    "yourArea": "Your area",
+    "manualHint": "Pick the city, area and neighbourhood from the lists.",
+    "searchHint": "Type your city or area name and pick it from the list.",
+    "changeArea": "Change area",
+    "cityPlaceholder": "City *",
+    "areaPlaceholder": "Area *",
+    "districtPlaceholder": "Neighbourhood *",
+    "quickSearch": "Quick search by typing",
+    "searchPlaceholder": "e.g. Maadi, Tanta, Nasr City...",
+    "searching": "Searching...",
+    "noResults": "No results. Try another name or pick manually.",
+    "manualPick": "Pick manually from the lists",
+    "detailedAddress": "Detailed address",
+    "streetPlaceholder": "Street name and detailed address *",
+    "buildingPlaceholder": "Building number *",
+    "extraDetails": "Extra details (floor, apartment, landmark)",
+    "apartmentPlaceholder": "Apartment number",
+    "landmarkPlaceholder": "Landmark",
+    "floorPlaceholder": "Floor",
+    "submit": "Send address",
+    "privacyNote": "This link is private to you and your current order. Your details are used only to deliver the order.",
+    "greeting": "Hi {{name}} 👋",
+    "greetingFallbackName": "there",
+    "buildingPrefix": "Building {{value}}",
+    "floorPrefix": "Floor {{value}}",
+    "apartmentPrefix": "Apt {{value}}"
+  },
+  "confirmLink": {
+    "confirm": {
+      "label": "Confirm order",
+      "success": "Order confirmed",
+      "hint": "Our team will start preparing the order for shipping."
+    },
+    "modify": {
+      "label": "Request a change",
+      "success": "Change request received",
+      "hint": "We will contact you to confirm the change."
+    },
+    "cancel": {
+      "label": "Cancel order",
+      "hint": "The order was cancelled and any follow-up steps will be handled.",
+      "success": "Order cancelled"
+    },
+    "notSpecified": "Not specified",
+    "locationHeading": "Governorate / city / area",
+    "fields": {
+      "governorate": "Governorate",
+      "city": "Centre / city",
+      "area": "Area",
+      "street": "Street",
+      "building": "Building number",
+      "floor": "Floor",
+      "apartment": "Apartment",
+      "landmark": "Landmark / notes"
+    },
+    "errorTitle": "Something went wrong on the confirmation page",
+    "errorText": "We could not load the page. Try again, or contact us if the problem continues.",
+    "invalidLink": "This confirmation link is not valid.",
+    "loadFailed": "We could not load the order details.",
+    "actionFailed": "We could not complete that action right now. Please try again.",
+    "actionDone": "Action completed",
+    "linkAlreadyUsed": "This link has already been used",
+    "linkLocked": "This link was locked after the previous action.",
+    "chooseAction": "Choose one of the actions below.",
+    "title": "Your order is ready to confirm",
+    "orderNumberLabel": "Order number:",
+    "loading": "Loading order details...",
+    "linkExpiredTitle": "This link is no longer valid",
+    "linkExpiredText": "It looks like the link has expired or was already used. Contact us to get a new one.",
+    "contactWhatsapp": "Chat on WhatsApp",
+    "linkLoadFailedTitle": "We could not load this link",
+    "colorLabel": "Colour:",
+    "sizeLabel": "Size:",
+    "quantityLabel": "Quantity:",
+    "priceLabel": "Price:",
+    "paymentSummary": "Payment summary",
+    "itemsPrice": "Items",
+    "finalTotal": "Final total",
+    "shipping": "Shipping",
+    "discount": "Discount",
+    "detailedAddress": "Detailed address",
+    "customer": "Customer",
+    "address": "Address",
+    "running": "Working on:",
+    "theAction": "the action",
+    "readOnly": "This link no longer accepts new actions.",
+    "alreadyApplied": "This action was already applied earlier.",
+    "productFallback": "Product",
+    "egp": "EGP",
+    "eyebrow": "COD confirmation"
+  },
+  "auth": {
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "invalidPhone": "Enter a valid mobile number",
+    "otpSent": "The login code was sent on WhatsApp",
+    "otpSendFailed": "We could not send the login code",
+    "otpLengthHint": "Enter the 6-digit OTP code",
+    "loginSuccess": "Signed in successfully",
+    "otpInvalid": "The code is incorrect or has expired",
+    "registerFieldsRequired": "Enter your name, email, mobile number and password",
+    "passwordTooShort": "The password must be at least 8 characters",
+    "passwordMismatch": "The passwords do not match",
+    "registerSuccess": "Account created and signed in",
+    "registerFailed": "We could not create the account right now",
+    "loginFieldsRequired": "Enter your email and password",
+    "loginInvalid": "The email or password is incorrect",
+    "emailRequired": "Enter your email address",
+    "resetLinkSent": "If the account exists, a reset link is on its way",
+    "resetSendFailed": "We could not send the reset email",
+    "resetLinkInvalid": "This reset link is not valid",
+    "passwordUpdated": "Password updated. You can sign in now",
+    "passwordUpdateFailed": "We could not update the password",
+    "loginToSaveSizes": "Sign in first so we can save your sizes",
+    "signInAgain": "Please sign in again",
+    "recoverAccount": "Recover your account",
+    "welcomeTitle": "Welcome to M1 Store",
+    "resetIntro": "Create a new password to get back into your account safely.",
+    "welcomeIntro": "Track your orders, save your addresses and use your points in one place.",
+    "secureLogin": "Secure sign-in",
+    "signIn": "Sign in",
+    "createAccount": "Create account",
+    "email": "Email address",
+    "newPassword": "New password",
+    "confirmNewPassword": "Confirm new password",
+    "confirmPassword": "Confirm password",
+    "password": "Password",
+    "forgotPassword": "Forgot your password?",
+    "signingIn": "Signing in...",
+    "or": "or",
+    "phoneLoginButton": "Sign in with mobile / WhatsApp",
+    "phoneLoginTitle": "Sign in with your mobile number",
+    "phoneLoginHint": "We will send a one-time WhatsApp code to your number, then finish signing you in.",
+    "sendingCode": "Sending the code...",
+    "sendWhatsappCode": "Send WhatsApp code",
+    "otpCode": "OTP code",
+    "verifying": "Verifying...",
+    "confirmLogin": "Confirm sign-in",
+    "resendCode": "Resend code",
+    "otpSentHint": "We sent the login code on WhatsApp. Enter the 6-digit code within 5 minutes.",
+    "creatingAccount": "Creating your account...",
+    "recoverPassword": "Recover password",
+    "recoverHint": "Enter your email address and we will send you a recovery link.",
+    "sending": "Sending...",
+    "sendRecoveryLink": "Send recovery link",
+    "backToSignIn": "Back to sign in",
+    "resetLinkIncomplete": "The reset link is incomplete. Open the full link from your email, or request a new one.",
+    "updating": "Updating...",
+    "updatePassword": "Update password",
+    "requestNewLink": "Request a new link",
+    "resendIn": "Resend in {{seconds}}s"
+  },
+  "restock": {
+    "notifyProduct": "We will let you know when this product is back",
+    "cta": "Notify me when available",
+    "availableNow": "This size is available now",
+    "loginRequired": "Sign in to turn on back-in-stock alerts",
+    "error": "We could not create the alert. Please try again",
+    "notifySizeColor": "We will let you know when {{color}} size {{size}} is back",
+    "notifySize": "We will let you know when size {{size}} is back",
+    "notifyColor": "We will let you know when {{color}} is back"
+  },
+  "offers": {
+    "loading": "Loading offers",
+    "loadFailedTitle": "We could not load the offers",
+    "loadFailedText": "Something went wrong while loading the offers",
+    "backHome": "Back to home",
+    "chooseSize": "Choose your size",
+    "sizesInOffers": "Sizes available in the store's offers",
+    "foundProducts": "Offer products were found",
+    "noSizesInData": "but no sizes were found in the product data.",
+    "noSizesHint": "Please check variants, color_cards, variant_matrix, inventory_variants or available_options in the product data.",
+    "noneNowTitle": "No offers available right now",
+    "noneNowText": "We could not find any offer products to show in the store.",
+    "chooseType": "Choose a product type",
+    "selectedSize": "Selected size:",
+    "noTypesTitle": "No types for this size",
+    "noTypesText": "Try another size from the same offers.",
+    "noneTitle": "No offers available",
+    "noneText": "No products match the current size or type.",
+    "resetFilters": "Reset filters",
+    "modelOne": "model",
+    "modelMany": "models"
   }
 }

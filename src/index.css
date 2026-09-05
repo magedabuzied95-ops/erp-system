@@ -1241,12 +1241,12 @@
 
   .storefront-shell .sf-ai-chat .sf-ai-chat-message-row--user {
     justify-content: flex-end !important;
-    text-align: right !important;
+    text-align: start !important;
   }
 
   .storefront-shell .sf-ai-chat .sf-ai-chat-message-row--assistant {
     justify-content: flex-start !important;
-    text-align: right !important;
+    text-align: start !important;
   }
 
   .storefront-shell .sf-ai-chat .sf-ai-chat-bubble,
@@ -5451,7 +5451,7 @@ body.sf-mobile-search-scroll-lock {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem;
-  text-align: right;
+  text-align: start;
 }
 
 .sf-visual-card-image-wrap {

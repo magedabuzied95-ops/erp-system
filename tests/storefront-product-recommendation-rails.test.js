@@ -9,9 +9,9 @@ const lightStyles = readFileSync(new URL("../src/storefront/storefront-light.css
 test("product details render similar, brand and recently viewed recommendation rails", () => {
   assert.match(detailSource, /<RelatedProducts currentProduct=\{product\}/);
   assert.match(detailSource, /<RecentProductsSection currentId=\{product\.id\}/);
-  assert.match(storefrontSource, /title="منتجات ذات صلة"/);
+  assert.match(storefrontSource, /title=\{sfText\("storefront\.products\.relatedProducts"\)\}/);
   assert.match(storefrontSource, /brand: brand \|\| "__no_brand__", limit: 15/);
-  assert.match(storefrontSource, /title=\{brand \? `المزيد من منتجات \$\{brand\}`/);
+  assert.match(storefrontSource, /title=\{brand \? sfText\("storefront\.products\.moreFromBrand", undefined, \{ brand \}\)/);
   assert.match(storefrontSource, /slice\(0, 15\)/);
   assert.match(storefrontSource, /sfText\("storefront\.account\.recentlyViewed"\)/);
 });
@@ -190,7 +190,7 @@ test("recommendation rails provide slide controls and exclude the open product",
   assert.match(storefrontSource, /onClick=\{\(\) => moveBy\(1\)\}/);
   assert.match(storefrontSource, /window\.setInterval/);
   assert.match(storefrontSource, /sf-product-recommendation-page/);
-  assert.match(storefrontSource, /aria-label=\{`شريحة \$\{index \+ 1\}`\}/);
+  assert.match(storefrontSource, /aria-label=\{sfText\("storefront\.common\.slideN", undefined, \{ n: index \+ 1 \}\)\}/);
   // A swipe has to follow the reading direction, which flips under RTL.
   assert.match(storefrontSource, /moveBy\(distance \* direction > 0 \? 1 : -1\)/);
 });
@@ -237,7 +237,7 @@ test("product recommendation strips have explicit light-mode colors", () => {
 test("recommendation copy never exposes the raw mirror grade", () => {
   assert.doesNotMatch(storefrontSource, /\[brand, category\]\.filter/);
   assert.doesNotMatch(storefrontSource, /`المزيد من فئة \$\{grade\}`/);
-  assert.match(storefrontSource, /subtitle="منتجات مشابهة مختارة لك"/);
+  assert.match(storefrontSource, /subtitle=\{sfText\("storefront\.products\.relatedSubtitle"\)\}/);
 });
 
 test("the product page reuses the exact home service strip and footer components", () => {

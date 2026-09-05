@@ -35,7 +35,7 @@ import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontIm
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
-import { shouldShowRestockCta, restockVariantKey, restockSuccessText, RESTOCK_CTA_LABEL, RESTOCK_AVAILABLE_NOW_TEXT, RESTOCK_LOGIN_TEXT, RESTOCK_ERROR_TEXT } from "../lib/restockIntentUi";
+import { shouldShowRestockCta, restockVariantKey, restockSuccessCopy, RESTOCK_COPY } from "../lib/restockIntentUi";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
@@ -161,16 +161,16 @@ function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, b
 
 function ProductDetailReviewSection() {
   const reviews = [
-    { id: "quality", name: "M", text: sfText("storefront.reviews.items.quality"), badge: "جودة ممتازة" },
-    { id: "size", name: "A", text: sfText("storefront.reviews.items.size"), badge: "مقاس مضبوط" },
-    { id: "experience", name: "S", text: sfText("storefront.reviews.items.experience"), badge: "تجربة مريحة" },
+    { id: "quality", name: "M", text: sfText("storefront.reviews.items.quality"), badge: sfText("storefront.reviews.badges.quality") },
+    { id: "size", name: "A", text: sfText("storefront.reviews.items.size"), badge: sfText("storefront.reviews.badges.size") },
+    { id: "experience", name: "S", text: sfText("storefront.reviews.items.experience"), badge: sfText("storefront.reviews.badges.experience") },
   ];
 
   return (
     <section className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#090909_0%,#111111_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.28)] md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">Reviews</div>
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.reviews.eyebrow")}</div>
           <h2 className="mt-2 text-2xl font-black">{sfText("storefront.reviews.title")}</h2>
         </div>
         <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white/80">
@@ -551,7 +551,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const selectedComparePrice = selectedPrice.comparePrice || 0;
   const selectedDiscountPercent = Number(selectedPrice.discountPercent || 0) || 0;
   const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
-    || "طھطµظ…ظٹظ… ط¹ظ…ظ„ظٹ ط¨ط®ط§ظ…ط© Premium ظ…ظ†ط§ط³ط¨ ظ„ظ„ط®ط±ظˆط¬ ط§ظ„ظٹظˆظ…ظٹ ظˆط³ظ‡ظ„ ط§ظ„طھظ†ط³ظٹظ‚ ظ…ط¹ ط³طھط§ظٹظ„ط§طھ ظ…ط®طھظ„ظپط©.";
+    || sfText("storefront.products.defaultDescription");
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
 
   useEffect(() => {
@@ -719,11 +719,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             {false && <div className="mt-4 flex flex-wrap gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/78">
                 <Star className="h-3.5 w-3.5 fill-[#f3d77a] text-[#f3d77a]" />
-                تقييم مرتفع من العملاء
+                {sfText("storefront.products.highRating")}
               </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/78">
                 <Truck className="h-3.5 w-3.5 text-emerald-200" />
-                شحن سريع
+                {sfText("storefront.products.fastShipping")}
               </span>
             </div>}
           </div>
@@ -855,9 +855,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
 
             {showRestockCta ? (
               restockStatus === "done" ? (
-                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 text-sm font-black text-emerald-100"><Check className="h-4 w-4" />{restockSuccessText(safeActiveVariant)}</div>
+                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 text-sm font-black text-emerald-100"><Check className="h-4 w-4" />{sfText(...restockSuccessCopy(safeActiveVariant))}</div>
               ) : restockStatus === "available" ? (
-                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/[0.08] text-sm font-black text-white"><Sparkles className="h-4 w-4" />{RESTOCK_AVAILABLE_NOW_TEXT}</div>
+                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/[0.08] text-sm font-black text-white"><Sparkles className="h-4 w-4" />{sfText("storefront.restock.availableNow", RESTOCK_COPY.availableNow)}</div>
               ) : (
                 <button
                   type="button"
@@ -866,15 +866,15 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                   className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 text-sm font-black text-[#e5c158] transition hover:-translate-y-0.5 hover:bg-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {restockStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
-                  {RESTOCK_CTA_LABEL}
+                  {sfText("storefront.restock.cta", RESTOCK_COPY.cta)}
                 </button>
               )
             ) : null}
             {showRestockCta && restockStatus === "login" ? (
-              <div className="col-span-full text-center text-[12px] font-bold text-white/70">{RESTOCK_LOGIN_TEXT}</div>
+              <div className="col-span-full text-center text-[12px] font-bold text-white/70">{sfText("storefront.restock.loginRequired", RESTOCK_COPY.loginRequired)}</div>
             ) : null}
             {showRestockCta && restockStatus === "error" ? (
-              <div className="col-span-full text-center text-[12px] font-bold text-rose-300">{RESTOCK_ERROR_TEXT}</div>
+              <div className="col-span-full text-center text-[12px] font-bold text-rose-300">{sfText("storefront.restock.error", RESTOCK_COPY.error)}</div>
             ) : null}
 
             {false && <button
@@ -884,7 +884,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-sm font-black text-[#151515] shadow-[0_14px_34px_rgba(212,175,55,0.24)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-white/35"
             >
               <Sparkles className="h-4 w-4" />
-              اشترِ الآن
+              {sfText("storefront.cart.buyNow")}
             </button>}
           </div>
         </div>
@@ -927,27 +927,27 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             <p className="mt-3 text-sm font-bold leading-7 text-white/82">{descriptionText}</p>
           </div>
           <div className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0a0a0a_0%,#101010_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-5">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">Why You'll Love It</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.whyYouWillLoveIt")}</div>
             <div className="mt-4 space-y-3">
               <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37]/14 text-[#f3d77a]"><Sparkles className="h-4 w-4" /></span>
                 <div>
                   <div className="font-black text-white">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">خامات وشكل معروضين بوضوح قبل الشراء.</p>
+                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">{sfText("storefront.products.perks.materialsText")}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-400/12 text-emerald-200"><Truck className="h-4 w-4" /></span>
                 <div>
-                  <div className="font-black text-white">شحن سريع</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">تجهيز سريع ووضوح في حالة المنتج المختار.</p>
+                  <div className="font-black text-white">{sfText("storefront.products.fastShipping")}</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">{sfText("storefront.products.perks.shippingText")}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-200"><ShieldCheck className="h-4 w-4" /></span>
                 <div>
-                  <div className="font-black text-white">اختيار آمن</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">راجع اللون والمقاس قبل إضافة المنتج للسلة.</p>
+                  <div className="font-black text-white">{sfText("storefront.products.perks.safeChoiceTitle")}</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">{sfText("storefront.products.perks.safeChoiceText")}</p>
                 </div>
               </div>
             </div>

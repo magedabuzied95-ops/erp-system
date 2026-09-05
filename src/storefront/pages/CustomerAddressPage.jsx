@@ -1,5 +1,7 @@
 import { Component, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { sfText } from "../lib/sfText";
 import {
   Building2,
   CheckCircle2,
@@ -59,8 +61,8 @@ class CustomerAddressPageErrorBoundary extends Component {
       return (
         <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-8 text-white">
           <div className="mx-auto max-w-xl rounded-[1.5rem] border border-white/10 bg-[#101010] p-5">
-            <h1 className="text-xl font-black">حدث خطأ في صفحة العنوان</h1>
-            <p className="mt-2 text-sm leading-7 text-white/72">تعذر تحميل الصفحة. حاول مرة أخرى أو تواصل معنا.</p>
+            <h1 className="text-xl font-black">{sfText("storefront.addressLink.errorTitle")}</h1>
+            <p className="mt-2 text-sm leading-7 text-white/72">{sfText("storefront.addressLink.errorText")}</p>
           </div>
         </main>
       );
@@ -78,6 +80,7 @@ export function CustomerAddressPage() {
 }
 
 function CustomerAddressPageInner() {
+  useTranslation();
   const { code } = useParams();
   const resolvedCode = useMemo(() => {
     try {
@@ -119,7 +122,7 @@ function CustomerAddressPageInner() {
     let active = true;
     if (!resolvedCode) {
       setLinkState("error");
-      setError("رابط العنوان غير صالح.");
+      setError(sfText("storefront.addressLink.invalidLink"));
       return undefined;
     }
     api.get(`/public/address-request/${encodeURIComponent(resolvedCode)}`)
@@ -133,7 +136,7 @@ function CustomerAddressPageInner() {
       .catch((err) => {
         if (!active) return;
         const status = Number(err?.status || err?.response?.status || 0);
-        setError(err?.responseBody?.message || err?.message || "تعذر تحميل رابط العنوان.");
+        setError(err?.responseBody?.message || err?.message || sfText("storefront.addressLink.loadFailed"));
         setLinkState(status === 410 ? "expired" : "error");
       });
     return () => {
@@ -215,7 +218,7 @@ function CustomerAddressPageInner() {
 
   const submit = async () => {
     if (!canSubmit) {
-      setFieldError("من فضلك اختر منطقتك واكتب اسم الشارع ورقم المبنى.");
+      setFieldError(sfText("storefront.addressLink.fieldsRequired"));
       return;
     }
     setFieldError("");
@@ -243,7 +246,7 @@ function CustomerAddressPageInner() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
       const status = Number(err?.status || err?.response?.status || 0);
-      const message = err?.responseBody?.message || err?.message || "تعذر إرسال العنوان، حاول مرة أخرى.";
+      const message = err?.responseBody?.message || err?.message || sfText("storefront.addressLink.submitFailed");
       if (status === 410) {
         setLinkState("expired");
         setError(message);
@@ -258,7 +261,7 @@ function CustomerAddressPageInner() {
   const submittedAddress = request?.address || {};
 
   return (
-    <main dir="rtl" className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-6 text-white sm:px-6">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-6 text-white sm:px-6">
       <div className="mx-auto flex min-h-[92svh] max-w-xl flex-col justify-center py-3">
         <section className="w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="px-4 pb-6 pt-5 sm:px-6">
@@ -269,14 +272,14 @@ function CustomerAddressPageInner() {
                 <MapPin className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[#d4af37]">بيانات التوصيل</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[#d4af37]">{sfText("storefront.addressLink.eyebrow")}</p>
                 <h1 className="mt-1 text-2xl font-black leading-tight">
-                  {linkState === "submitted" ? "وصلنا عنوانك 🎉" : `أهلاً ${text(customerName).split(" ")[0] || "بيك"} 👋`}
+                  {linkState === "submitted" ? sfText("storefront.addressLink.receivedHeading") : sfText("storefront.addressLink.greeting", undefined, { name: text(customerName).split(" ")[0] || sfText("storefront.addressLink.greetingFallbackName") })}
                 </h1>
                 <p className="mt-1.5 text-sm leading-6 text-white/64">
                   {linkState === "submitted"
-                    ? "فريقنا هيراجع الطلب ويأكد معاك قبل الشحن."
-                    : "اكتب عنوانك مرة واحدة وإحنا نجهز الأوردر — دقيقة واحدة بس."}
+                    ? sfText("storefront.addressLink.receivedSubtitle")
+                    : sfText("storefront.addressLink.introSubtitle")}
                 </p>
               </div>
             </header>
@@ -284,7 +287,7 @@ function CustomerAddressPageInner() {
             {linkState === "loading" ? (
               <div className="mt-6 flex items-center gap-3 rounded-[1.35rem] border border-white/10 bg-[#101010] px-4 py-5 text-sm font-bold text-white/72">
                 <Loader2 className="h-5 w-5 animate-spin text-[#d4af37]" />
-                جاري تحميل البيانات...
+                {sfText("storefront.addressLink.loading")}
               </div>
             ) : null}
 
@@ -295,9 +298,9 @@ function CustomerAddressPageInner() {
                     <MessageCircleWarning className="h-5 w-5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-black">{linkState === "expired" ? "الرابط انتهت صلاحيته" : "تعذر فتح الرابط"}</h2>
+                    <h2 className="text-lg font-black">{linkState === "expired" ? sfText("storefront.addressLink.linkExpired") : sfText("storefront.addressLink.linkUnavailable")}</h2>
                     <p className="mt-1 text-sm leading-7 text-white/72">
-                      {error || "اطلب من فريق المتجر إرسال رابط جديد في المحادثة."}
+                      {error || sfText("storefront.addressLink.askForNewLink")}
                     </p>
                   </div>
                 </div>
@@ -312,8 +315,8 @@ function CustomerAddressPageInner() {
                       <CheckCircle2 className="h-5 w-5" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-black text-emerald-200">تم استلام العنوان</h2>
-                      <p className="mt-1 text-sm leading-7 text-white/72">مفيش حاجة تانية مطلوبة منك — هنتواصل معاك لتأكيد الطلب.</p>
+                      <h2 className="text-lg font-black text-emerald-200">{sfText("storefront.addressLink.submittedTitle")}</h2>
+                      <p className="mt-1 text-sm leading-7 text-white/72">{sfText("storefront.addressLink.submittedText")}</p>
                     </div>
                   </div>
                 </div>
@@ -321,16 +324,16 @@ function CustomerAddressPageInner() {
                   <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
                     <div className="mb-2 flex items-center gap-2 text-sm font-black">
                       <MapPin className="h-4 w-4 text-[#d4af37]" />
-                      العنوان اللي وصلنا
+                      {sfText("storefront.addressLink.submittedAddressLabel")}
                     </div>
                     <p className="text-sm leading-7 text-white/80">
                       {[
                         submittedAddress.governorate,
                         submittedAddress.city_area,
                         submittedAddress.street_address,
-                        submittedAddress.building_number ? `مبنى ${submittedAddress.building_number}` : "",
-                        submittedAddress.floor_number ? `الدور ${submittedAddress.floor_number}` : "",
-                        submittedAddress.apartment_number ? `شقة ${submittedAddress.apartment_number}` : "",
+                        submittedAddress.building_number ? sfText("storefront.addressLink.buildingPrefix", undefined, { value: submittedAddress.building_number }) : "",
+                        submittedAddress.floor_number ? sfText("storefront.addressLink.floorPrefix", undefined, { value: submittedAddress.floor_number }) : "",
+                        submittedAddress.apartment_number ? sfText("storefront.addressLink.apartmentPrefix", undefined, { value: submittedAddress.apartment_number }) : "",
                       ]
                         .filter(Boolean)
                         .join(" — ")}
@@ -344,12 +347,12 @@ function CustomerAddressPageInner() {
               <div className="mt-6 space-y-4">
                 {/* Who */}
                 <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
-                  <div className="mb-3 text-sm font-black text-white/88">بياناتك</div>
+                  <div className="mb-3 text-sm font-black text-white/88">{sfText("storefront.addressLink.yourDetails")}</div>
                   <div className="space-y-2.5">
                     <input
                       value={customerName}
                       onChange={(event) => setCustomerName(event.target.value)}
-                      placeholder="الاسم بالكامل *"
+                      placeholder={sfText("storefront.addressLink.fullNamePlaceholder")}
                       className={inputClass}
                     />
                     {request?.has_phone && !editingPhone ? (
@@ -361,17 +364,17 @@ function CustomerAddressPageInner() {
                           className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-xs font-black text-[#d4af37]"
                         >
                           <Pencil className="h-3.5 w-3.5" />
-                          تغيير الرقم
+                          {sfText("storefront.addressLink.changePhone")}
                         </button>
                       </div>
                     ) : (
                       <input
                         value={phoneOverride}
                         onChange={(event) => setPhoneOverride(event.target.value)}
-                        placeholder={request?.has_phone ? "رقم الموبايل الجديد" : "رقم الموبايل *"}
+                        placeholder={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.phonePlaceholder")}
                         inputMode="tel"
                         dir="ltr"
-                        className={`${inputClass} text-right`}
+                        className={`${inputClass} text-left rtl:text-right`}
                       />
                     )}
                   </div>
@@ -381,10 +384,10 @@ function CustomerAddressPageInner() {
                 <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
                   <div className="mb-1 flex items-center gap-2 text-sm font-black text-white/88">
                     <MapPin className="h-4 w-4 text-[#d4af37]" />
-                    منطقتك
+                    {sfText("storefront.addressLink.yourArea")}
                   </div>
                   <p className="mb-3 text-xs leading-5 text-white/48">
-                    {manualMode ? "اختار المدينة والمنطقة والحي من القوائم." : "اكتب اسم مدينتك أو منطقتك واختار من القائمة."}
+                    {manualMode ? sfText("storefront.addressLink.manualHint") : sfText("storefront.addressLink.searchHint")}
                   </p>
 
                   {location ? (
@@ -397,7 +400,7 @@ function CustomerAddressPageInner() {
                           setSearchTerm("");
                           window.setTimeout(() => searchBoxRef.current?.focus(), 50);
                         }}
-                        aria-label="تغيير المنطقة"
+                        aria-label={sfText("storefront.addressLink.changeArea")}
                         className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-white/72"
                       >
                         <X className="h-4 w-4" />
@@ -410,7 +413,7 @@ function CustomerAddressPageInner() {
                         onChange={(event) => setManual((current) => ({ ...current, cityId: event.target.value, zoneId: "", districtId: "", zones: [], districts: [] }))}
                         className={inputClass}
                       >
-                        <option value="">المدينة *</option>
+                        <option value="">{sfText("storefront.addressLink.cityPlaceholder")}</option>
                         {manual.cities.map((item) => (
                           <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
                         ))}
@@ -421,7 +424,7 @@ function CustomerAddressPageInner() {
                         disabled={!manual.cityId}
                         className={inputClass}
                       >
-                        <option value="">المنطقة *</option>
+                        <option value="">{sfText("storefront.addressLink.areaPlaceholder")}</option>
                         {manual.zones.map((item) => (
                           <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
                         ))}
@@ -432,13 +435,13 @@ function CustomerAddressPageInner() {
                         disabled={!manual.zoneId}
                         className={inputClass}
                       >
-                        <option value="">الحي *</option>
+                        <option value="">{sfText("storefront.addressLink.districtPlaceholder")}</option>
                         {manual.districts.map((item) => (
                           <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
                         ))}
                       </select>
                       <button type="button" onClick={() => setManualMode(false)} className="text-xs font-black text-[#d4af37]">
-                        البحث السريع بالكتابة
+                        {sfText("storefront.addressLink.quickSearch")}
                       </button>
                     </div>
                   ) : (
@@ -449,14 +452,14 @@ function CustomerAddressPageInner() {
                           ref={searchBoxRef}
                           value={searchTerm}
                           onChange={(event) => setSearchTerm(event.target.value)}
-                          placeholder="مثال: المعادي، طنطا، مدينة نصر..."
+                          placeholder={sfText("storefront.addressLink.searchPlaceholder")}
                           className={`${inputClass} pr-11`}
                         />
                       </div>
                       {searching ? (
                         <div className="mt-2 flex items-center gap-2 px-1 text-xs font-bold text-white/48">
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          جاري البحث...
+                          {sfText("storefront.addressLink.searching")}
                         </div>
                       ) : null}
                       {!searching && searchResults.length ? (
@@ -474,7 +477,7 @@ function CustomerAddressPageInner() {
                                 });
                                 setSearchResults([]);
                               }}
-                              className="block w-full border-b border-white/6 px-4 py-3 text-right text-sm font-bold text-white/84 transition last:border-b-0 hover:bg-white/5"
+                              className="block w-full border-b border-white/6 px-4 py-3 text-start text-sm font-bold text-white/84 transition last:border-b-0 hover:bg-white/5"
                             >
                               {searchRowLabel(row)}
                             </button>
@@ -482,10 +485,10 @@ function CustomerAddressPageInner() {
                         </div>
                       ) : null}
                       {!searching && text(searchTerm).length >= 2 && !searchResults.length ? (
-                        <p className="mt-2 px-1 text-xs font-bold text-white/48">مفيش نتائج — جرب اسم تاني أو الاختيار اليدوي.</p>
+                        <p className="mt-2 px-1 text-xs font-bold text-white/48">{sfText("storefront.addressLink.noResults")}</p>
                       ) : null}
                       <button type="button" onClick={() => setManualMode(true)} className="mt-3 text-xs font-black text-[#d4af37]">
-                        الاختيار اليدوي من القوائم
+                        {sfText("storefront.addressLink.manualPick")}
                       </button>
                     </div>
                   )}
@@ -495,20 +498,20 @@ function CustomerAddressPageInner() {
                 <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
                   <div className="mb-3 flex items-center gap-2 text-sm font-black text-white/88">
                     <Building2 className="h-4 w-4 text-[#d4af37]" />
-                    العنوان بالتفصيل
+                    {sfText("storefront.addressLink.detailedAddress")}
                   </div>
                   <div className="space-y-2.5">
                     <textarea
                       value={streetAddress}
                       onChange={(event) => setStreetAddress(event.target.value)}
-                      placeholder="اسم الشارع والعنوان بالتفصيل *"
+                      placeholder={sfText("storefront.addressLink.streetPlaceholder")}
                       rows={3}
                       className={`${inputClass} min-h-[88px] resize-none leading-6`}
                     />
                     <input
                       value={buildingNumber}
                       onChange={(event) => setBuildingNumber(event.target.value)}
-                      placeholder="رقم المبنى / العمارة *"
+                      placeholder={sfText("storefront.addressLink.buildingPlaceholder")}
                       className={inputClass}
                     />
                     <button
@@ -517,13 +520,13 @@ function CustomerAddressPageInner() {
                       className="flex items-center gap-1.5 text-xs font-black text-[#d4af37]"
                     >
                       <ChevronDown className={`h-4 w-4 transition-transform ${extrasOpen ? "rotate-180" : ""}`} />
-                      تفاصيل إضافية (الدور، الشقة، علامة مميزة)
+                      {sfText("storefront.addressLink.extraDetails")}
                     </button>
                     {extrasOpen ? (
                       <div className="grid grid-cols-2 gap-2.5">
-                        <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder="الدور" className={inputClass} />
-                        <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder="رقم الشقة" className={inputClass} />
-                        <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder="علامة مميزة" className={`${inputClass} col-span-2`} />
+                        <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={sfText("storefront.addressLink.floorPlaceholder")} className={inputClass} />
+                        <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={sfText("storefront.addressLink.apartmentPlaceholder")} className={inputClass} />
+                        <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={sfText("storefront.addressLink.landmarkPlaceholder")} className={`${inputClass} col-span-2`} />
                       </div>
                     ) : null}
                   </div>
@@ -542,10 +545,10 @@ function CustomerAddressPageInner() {
                   className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#d4af37,#e5c158)] text-[15px] font-black text-[#151515] transition disabled:opacity-40"
                 >
                   {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                  إرسال العنوان
+                  {sfText("storefront.addressLink.submit")}
                 </button>
                 <p className="text-center text-[11px] leading-5 text-white/40">
-                  الرابط ده خاص بيك وبطلبك الحالي فقط — بياناتك تُستخدم لتوصيل الأوردر لا غير.
+                  {sfText("storefront.addressLink.privacyNote")}
                 </p>
               </div>
             ) : null}

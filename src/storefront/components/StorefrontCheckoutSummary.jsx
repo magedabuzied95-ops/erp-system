@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { sfText } from "../lib/sfText";
 
 const normalizeSummaryText = (value = "") => String(value ?? "").trim();
 const firstSummaryValue = (...values) => {
@@ -33,7 +34,7 @@ const hasVariantIndicators = (item = {}) =>
 const variantDisplayValue = (value, shouldFallback) => {
   const text = normalizeSummaryText(value);
   if (text) return text;
-  return shouldFallback ? "غير محدد" : "";
+  return shouldFallback ? sfText("storefront.confirmLink.notSpecified") : "";
 };
 const cartItemImageUrl = (item = {}) =>
   firstSummaryValue(
@@ -46,7 +47,7 @@ const cartItemImageUrl = (item = {}) =>
     item.main_image,
     item.mainImage
   );
-const cartItemName = (item = {}) => firstSummaryValue(item.name, item.product_name, item.title, "المنتج");
+const cartItemName = (item = {}) => firstSummaryValue(item.name, item.product_name, item.title, sfText("storefront.confirmLink.productFallback"));
 const cartItemSku = (item = {}) => firstSummaryValue(item.sku, item.barcode);
 const cartItemColor = (item = {}) => firstSummaryValue(item.color, item.color_name, item.selectedColor);
 const cartItemSize = (item = {}) => firstSummaryValue(item.display_size, item.size, item.size_name, item.selectedSize);
@@ -176,7 +177,7 @@ export default function StorefrontCheckoutSummary({
                             {comparePrice ? <span className="text-[10px] text-white/36 line-through">{money(comparePrice)}</span> : null}
                           </div>
                         </div>
-                        <div className="rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] px-2.5 py-2 text-right">
+                        <div className="rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] px-2.5 py-2 text-start">
                           <div className="text-[#f3d77a]/80">{t("storefront.checkout.lineTotal", "الإجمالي")}</div>
                           <div className="mt-1 text-white">{money(lineTotal)}</div>
                         </div>

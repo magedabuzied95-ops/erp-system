@@ -46,6 +46,7 @@ import {
   categoryCanonical,
   productHasLargeAvailableSize,
   seoCategoryByPath,
+  localizeSeoCategory,
 } from "../../shared/lib/categorySeo.js";
 
 const FILTER_DEBOUNCE_MS = 320;
@@ -115,9 +116,9 @@ const storefrontProductTypeQueryValue = (value = "") => {
   return normalizeStorefrontProductTypeValue(value);
 };
 const storefrontGenderSwitchOptions = [
-  { value: "men", label: "رجالي" },
-  { value: "women", label: "حريمي" },
-  { value: "kids", label: "أطفال" },
+  { value: "men", label: "رجالي", label_ar: "رجالي", label_en: "Men" },
+  { value: "women", label: "حريمي", label_ar: "حريمي", label_en: "Women" },
+  { value: "kids", label: "أطفال", label_ar: "أطفال", label_en: "Kids" },
 ];
 const normalizeStorefrontSearchTerm = (value = "") =>
   normalizeStorefrontAudienceValue(value) || normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/(?:\u0640|\u200c|\u200d|\u200e|\u200f)/g, "").replace(/\p{M}+/gu, ""));
@@ -368,9 +369,9 @@ const sortCatalogProducts = (products = [], sort = "") => {
   return items.sort(sorters[normalizedSort] || sorters.newest);
 };
 const catalogQuickCategoryItems = [
-  { key: "men", label: "رجالي", field: "gender", value: "men", icon: "shirt" },
-  { key: "women", label: "حريمي", field: "gender", value: "women", icon: "user" },
-  { key: "kids", label: "أطفال", field: "gender", value: "kids", icon: "baby" },
+  { key: "men", label: "رجالي", label_ar: "رجالي", label_en: "Men", field: "gender", value: "men", icon: "shirt" },
+  { key: "women", label: "حريمي", label_ar: "حريمي", label_en: "Women", field: "gender", value: "women", icon: "user" },
+  { key: "kids", label: "أطفال", label_ar: "أطفال", label_en: "Kids", field: "gender", value: "kids", icon: "baby" },
   { key: "bags", label: getProductTypeLabel("bags", "ar"), field: "type", value: "bags", icon: "bag" },
   { key: "crocs", label: getProductTypeLabel("crocs", "ar"), field: "type", value: "crocs", icon: "footprints" },
   { key: "slippers", label: getProductTypeLabel("slippers", "ar"), field: "type", value: "slippers", icon: "footprints" },
@@ -528,7 +529,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
-  const seoCategory = seoCategoryByPath(location.pathname);
+  const seoCategory = useMemo(() => localizeSeoCategory(seoCategoryByPath(location.pathname), lang), [location.pathname, lang]);
   const page = Math.max(1, Number.parseInt(params.get("page") || "1", 10) || 1);
   const pageSize = normalizePageSize(params.get("per_page") || params.get("perPage"));
   const q = params.get("q") || "";
@@ -836,7 +837,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       setMeta('meta[name="twitter:image"]', { name: "twitter:image" }, socialImage);
     }
     const schemas = [
-      ["breadcrumb", buildCategoryBreadcrumb(seoCategory)],
+      ["breadcrumb", buildCategoryBreadcrumb(seoCategory, t("storefront.nav.home", "الرئيسية"))],
       ["item-list", buildCategoryItemList(seoCategory, orderedFilteredProducts, page, pageSize)],
     ];
     schemas.forEach(([key, value]) => {
@@ -1357,7 +1358,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
               {seoCategory ? (
                 <nav aria-label={lang === "en" ? "Related sections" : "أقسام مرتبطة"} className="mt-7 flex flex-wrap justify-center gap-2">
                   {seoCategory.related.map((path) => {
-                    const related = seoCategoryByPath(path);
+                    const related = localizeSeoCategory(seoCategoryByPath(path), lang);
                     return related ? <Link key={path} to={path} className="rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;
                   })}
                 </nav>
@@ -1521,7 +1522,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-right text-[11px] font-black text-stone-600 dark:text-stone-300">
+        <div className="grid grid-cols-2 gap-2 text-start text-[11px] font-black text-stone-600 dark:text-stone-300">
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
             <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.minPrice", "أقل سعر")}</span>
             <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)}</span>
@@ -1566,7 +1567,7 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
       <select
         value={normalizeCatalogSortValue(value)}
         onChange={(event) => onChange?.(event.target.value)}
-        className="min-w-0 flex-1 bg-transparent text-right text-xs font-black outline-none md:text-sm"
+        className="min-w-0 flex-1 bg-transparent text-start text-xs font-black outline-none md:text-sm"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1594,7 +1595,6 @@ function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
             key={item.key}
             to={buildUrl(item.field === "gender" ? "gender" : "type", item.value)}
             aria-current={isActive ? "page" : undefined}
-            dir="rtl"
             className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${isActive ? "border border-[#d4af37]/55 bg-[#d4af37]/12 text-[#d4af37] shadow-[0_10px_28px_rgba(212,175,55,0.12)]" : "border border-stone-200 bg-white text-stone-700 hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
           >
             <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />

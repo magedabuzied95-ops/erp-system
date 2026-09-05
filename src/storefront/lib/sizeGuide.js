@@ -12,8 +12,11 @@ const CROCS_KIDS_GUIDE_ROWS = CROCS_CANONICAL_SIZE_MAP
 const SIZE_GUIDE_TYPES = {
   men: {
     label: "رجالي",
+    labelKey: "storefront.sizeGuide.types.men.label",
     title: "دليل مقاسات الأحذية الرجالية",
+    titleKey: "storefront.sizeGuide.types.men.title",
     columns: ["EU", "طول القدم CM"],
+    columnKeys: ["storefront.sizeGuide.columns.eu", "storefront.sizeGuide.columns.footLengthCm"],
     rows: [
       ["40", "25.4"], ["41", "26.0"], ["42", "26.6"], ["43", "27.2"],
       ["44", "27.8"], ["45", "28.4"], ["46", "29.0"], ["47", "29.6"],
@@ -22,8 +25,11 @@ const SIZE_GUIDE_TYPES = {
   },
   women: {
     label: "حريمي",
+    labelKey: "storefront.sizeGuide.types.women.label",
     title: "دليل مقاسات الأحذية الحريمي",
+    titleKey: "storefront.sizeGuide.types.women.title",
     columns: ["EU", "طول القدم CM"],
+    columnKeys: ["storefront.sizeGuide.columns.eu", "storefront.sizeGuide.columns.footLengthCm"],
     rows: [
       ["36", "23.0"], ["37", "23.6"], ["38", "24.2"],
       ["39", "24.8"], ["40", "25.4"], ["41", "26.0"],
@@ -31,8 +37,11 @@ const SIZE_GUIDE_TYPES = {
   },
   kids: {
     label: "أطفال",
+    labelKey: "storefront.sizeGuide.types.kids.label",
     title: "دليل مقاسات أحذية الأطفال",
+    titleKey: "storefront.sizeGuide.types.kids.title",
     columns: ["EU", "طول القدم CM"],
+    columnKeys: ["storefront.sizeGuide.columns.eu", "storefront.sizeGuide.columns.footLengthCm"],
     rows: [
       ["22", "13.2"], ["23", "13.8"], ["24", "14.4"], ["25", "15.0"],
       ["26", "15.6"], ["27", "16.2"], ["28", "16.8"], ["29", "17.4"],
@@ -42,14 +51,20 @@ const SIZE_GUIDE_TYPES = {
   },
   "crocs-adult": {
     label: "كروكس كبار",
+    labelKey: "storefront.sizeGuide.types.crocsAdult.label",
     title: "دليل مقاسات كروكس للكبار",
+    titleKey: "storefront.sizeGuide.types.crocsAdult.title",
     columns: ["EU", "مقاس المصنع"],
+    columnKeys: ["storefront.sizeGuide.columns.eu", "storefront.sizeGuide.columns.factorySize"],
     rows: CROCS_ADULT_GUIDE_ROWS,
   },
   "crocs-kids": {
     label: "كروكس أطفال",
+    labelKey: "storefront.sizeGuide.types.crocsKids.label",
     title: "دليل مقاسات كروكس للأطفال",
+    titleKey: "storefront.sizeGuide.types.crocsKids.title",
     columns: ["EU", "مقاس المصنع"],
+    columnKeys: ["storefront.sizeGuide.columns.eu", "storefront.sizeGuide.columns.factorySize"],
     rows: CROCS_KIDS_GUIDE_ROWS,
   },
 };

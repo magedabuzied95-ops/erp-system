@@ -1,16 +1,15 @@
 import { useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowUpRight, Footprints } from "lucide-react";
 
 import { SIZE_GUIDE_TABS, buildSizeGuidePath, getSizeGuideConfig, normalizeSizeGuideType } from "../lib/sizeGuide";
 
 const sizeGuidePhoto = "https://cdn.shopify.com/s/files/1/0592/5807/7362/files/measure-foot-at-home-guide.png?v=1759953450";
-// Keep this page's Arabic copy local until the legacy storefront locale file is
-// fully re-encoded. This prevents corrupted translations from overriding clean
-// Arabic fallbacks in production.
-const sfText = (_key, fallback) => fallback;
+import { sfText } from "../lib/sfText";
 
 function StorefrontSizeGuidePage() {
+  const { i18n } = useTranslation();
   const [searchParams] = useSearchParams();
   const requestedType = searchParams.get("type") || "";
   const activeType = useMemo(() => normalizeSizeGuideType(requestedType) || "men", [requestedType]);
@@ -18,8 +17,8 @@ function StorefrontSizeGuidePage() {
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    document.title = `${guide.title} | M1 Store`;
-  }, [guide.title]);
+    document.title = `${sfText(guide.titleKey, guide.title)} | M1 Store`;
+  }, [guide, i18n.language]);
 
   const measureSteps = [
     ["1", sfText("storefront.sizeGuide.steps.paper.title", "قف على ورقة"), sfText("storefront.sizeGuide.steps.paper.text", "ضع قدمك على ورقة فوق أرض مستوية وأنت واقف بكامل وزنك.")],
@@ -29,11 +28,11 @@ function StorefrontSizeGuidePage() {
   ];
 
   return (
-    <section className="sf-size-guide-page mx-auto max-w-6xl px-4 py-8 text-white md:py-12" dir="rtl">
+    <section className="sf-size-guide-page mx-auto max-w-6xl px-4 py-8 text-white md:py-12">
       <div className="sf-size-guide-header mb-6 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="sf-size-guide-eyebrow text-sm font-black text-[#f3d77a]">{sfText("storefront.sizeGuide.eyebrow", "دليل المقاسات")}</p>
-          <h1 className="mt-1 text-3xl font-black tracking-normal md:text-5xl">{guide.title}</h1>
+          <h1 className="mt-1 text-3xl font-black tracking-normal md:text-5xl">{sfText(guide.titleKey, guide.title)}</h1>
           <p className="sf-size-guide-subtitle mt-3 max-w-2xl text-sm font-bold leading-7 text-slate-300 md:text-base">
             {sfText("storefront.sizeGuide.subtitle", "اختر المقاس المناسب من جدول واضح، ثم قِس قدمك بالسنتيمتر قبل الشراء للحصول على أفضل نتيجة.")}
           </p>
@@ -50,7 +49,7 @@ function StorefrontSizeGuidePage() {
           const active = type === activeType;
           return (
             <Link key={type} to={buildSizeGuidePath(type)} className={`sf-size-guide-tab inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-black transition ${active ? "is-active border-[#d4af37]/60 bg-[rgba(212,175,55,0.14)] text-[#f3d77a] shadow-[0_12px_28px_rgba(212,175,55,0.22)]" : "border-white/10 bg-white/[0.04] text-slate-200 hover:border-[#d4af37]/30 hover:bg-white/[0.08] hover:text-white"}`}>
-              {config.label}
+              {sfText(config.labelKey, config.label)}
             </Link>
           );
         })}
@@ -62,8 +61,8 @@ function StorefrontSizeGuidePage() {
           <p className="mt-1 text-sm font-bold text-slate-400">{sfText("storefront.sizeGuide.mobileScrollHint", "مرّر الجدول أفقيًا على الموبايل لمشاهدة كل الأعمدة.")}</p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-right text-sm font-bold">
-            <thead><tr className="border-b border-white/10 bg-white/[0.045] text-xs font-black uppercase tracking-[0.12em] text-slate-300">{guide.columns.map((column) => <th key={column} className="whitespace-nowrap px-5 py-4">{column}</th>)}</tr></thead>
+          <table className="w-full min-w-[520px] text-start text-sm font-bold">
+            <thead><tr className="border-b border-white/10 bg-white/[0.045] text-xs font-black uppercase tracking-[0.12em] text-slate-300">{guide.columns.map((column, index) => <th key={column} className="whitespace-nowrap px-5 py-4">{sfText(guide.columnKeys?.[index], column)}</th>)}</tr></thead>
             <tbody className="divide-y divide-white/10">
               {guide.rows.map((row) => <tr key={row[0]} className="text-slate-200 transition hover:bg-white/[0.06]">{row.map((cell, index) => <td key={`${row[0]}-${index}`} className={`whitespace-nowrap px-5 py-4 ${index === 0 ? "text-lg font-black text-white" : "text-slate-100"}`}>{cell}</td>)}</tr>)}
             </tbody>
