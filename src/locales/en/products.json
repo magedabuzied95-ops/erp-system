@@ -765,7 +765,17 @@
     "noVariantRows": "No size rows to update",
     "zeroAllColorStock": "Zero stock for all colors",
     "zeroAllColorStockConfirm": "Set the stock quantity of every size in every color to zero?",
-    "zeroAllColorStockDone": "Stock set to zero for all colors"
+    "zeroAllColorStockDone": "Stock set to zero for all colors",
+    "thisColor": "this color",
+    "deleteColorConfirm": "Delete the color {{color}}?",
+    "deleteColorSizes": "Sizes: {{count}}",
+    "deleteColorStock": "Stock leaving inventory: {{count}}",
+    "deleteColorPurchases": "On {{invoices}} purchase invoice(s) — {{quantity}} unit(s) bought",
+    "deleteColorOrders": "On {{orders}} sales order(s) — {{quantity}} unit(s) sold",
+    "deleteColorImages": "{{count}} image(s) will be archived with the color",
+    "deleteColorInvoicesSafe": "The invoices themselves are not touched — they keep their own color, size and cost. Re-adding the color with the same name brings its sizes, stock and images back.",
+    "deleteColorReversible": "Re-adding the color with the same name brings its sizes, stock and images back.",
+    "deleteColorSaveNote": "Nothing is removed until you save the product."
   },
   "classifications": {
     "title": "Product Classifications",

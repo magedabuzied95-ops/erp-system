@@ -370,6 +370,19 @@ export const getProductFull = async (id, options = {}) => {
   return unwrapItem(response);
 };
 
+/**
+ * What a colour is carrying, so the editor can say it out loud before the
+ * operator deletes it. Read-only; a failure here must not block the delete.
+ */
+export const getProductColorUsage = async (productId, { color = "", variantIds = [] } = {}) => {
+  const params = new URLSearchParams();
+  if (color) params.set("color", color);
+  const ids = (Array.isArray(variantIds) ? variantIds : []).filter(Boolean);
+  if (ids.length) params.set("variant_ids", ids.join(","));
+  const response = await api.get(`/products/${encodeURIComponent(productId)}/color-usage?${params.toString()}`);
+  return response?.usage || null;
+};
+
 export const getProductByQrToken = async (token) => {
   return unwrapItem(await api.get(`/products/qr/${encodeURIComponent(token)}`), "product");
 };

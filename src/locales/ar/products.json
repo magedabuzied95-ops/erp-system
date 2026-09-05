@@ -765,7 +765,17 @@
     "noVariantRows": "لا توجد صفوف مقاسات للتحديث",
     "zeroAllColorStock": "تصفير المخزون لكل الألوان",
     "zeroAllColorStockConfirm": "هل تريد تصفير كمية المخزون لكل مقاس في كل لون؟",
-    "zeroAllColorStockDone": "تم تصفير المخزون لكل الألوان"
+    "zeroAllColorStockDone": "تم تصفير المخزون لكل الألوان",
+    "thisColor": "هذا اللون",
+    "deleteColorConfirm": "حذف اللون {{color}}؟",
+    "deleteColorSizes": "المقاسات: {{count}}",
+    "deleteColorStock": "رصيد سيخرج من المخزون: {{count}}",
+    "deleteColorPurchases": "موجود في {{invoices}} فاتورة شراء — {{quantity}} قطعة مشتراة",
+    "deleteColorOrders": "موجود في {{orders}} أمر بيع — {{quantity}} قطعة مباعة",
+    "deleteColorImages": "سيتم أرشفة {{count}} صورة مع اللون",
+    "deleteColorInvoicesSafe": "الفواتير نفسها لن تتأثر — تحتفظ باللون والمقاس والتكلفة الخاصة بها. وإعادة إضافة اللون بنفس الاسم ترجّع مقاساته ورصيده وصوره.",
+    "deleteColorReversible": "إعادة إضافة اللون بنفس الاسم ترجّع مقاساته ورصيده وصوره.",
+    "deleteColorSaveNote": "لن يُحذف شيء قبل حفظ المنتج."
   },
   "classifications": {
     "title": "تصنيفات المنتجات",

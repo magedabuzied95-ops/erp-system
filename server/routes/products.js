@@ -9,6 +9,7 @@ import {
   deleteProduct,
   deleteVariant,
   getProductsAdminList,
+  getProductColorUsage,
   getProductFull,
   getProductByQrToken,
   getProducts,
@@ -194,6 +195,7 @@ router.get("/pos-catalog-version", protect, permit("products", "view"), getPosCa
 router.get("/available-sizes", protect, permit("products", "view"), getAvailableProductSizes);
 router.get("/by-size", protect, permit("products", "view"), getProductsBySize);
 router.get("/:id/full", protect, permit("products", "view"), getProductFull);
+router.get("/:id/color-usage", protect, permit("products", "view"), getProductColorUsage);
 router.get("/qr/:token", protect, permit("products", "view"), getProductByQrToken);
 router.post("/generate-ai-data", protect, permit("products", "edit"), generateAiProductDataController);
 router.post("/generate-description", protect, permit("products", "edit"), async (req, res) => {

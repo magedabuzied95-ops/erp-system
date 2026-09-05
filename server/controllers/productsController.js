@@ -3114,6 +3114,210 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
   };
 };
 
+/**
+ * Deleting a colour used to destroy its images outright, and nothing brought
+ * them back: `replaceProductVariantImages` rewrites the whole product from the
+ * editor's payload, and a removed colour is simply absent from it. Everything
+ * else about the delete is reversible - the size rows are archived, not
+ * dropped, and re-adding the colour revives the very same rows with their stock
+ * and their link to the purchase invoices - so the images were the one
+ * permanent loss.
+ *
+ * They now move to a side table instead. Nothing reads it, so no live surface
+ * can serve an archived image; the whole row travels as jsonb, so a column
+ * added to `product_variant_images` later does not need a matching migration
+ * here.
+ */
+// DDL inside the product-save transaction, once per process. Colour deletes are
+// rare, but a CREATE that runs on every one of them is a catalog lock nobody
+// asked for - see the DDL-under-load brownout this codebase already survived.
+let productVariantImageArchiveReady = null;
+
+const ensureProductVariantImageArchive = async (client) => {
+  if (productVariantImageArchiveReady !== null) return productVariantImageArchiveReady;
+  if (!(await tableExists(client, "product_variant_images"))) {
+    productVariantImageArchiveReady = false;
+    return false;
+  }
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS product_variant_images_archive (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT,
+      product_id BIGINT,
+      variant_id BIGINT,
+      color_name TEXT,
+      source_image_id BIGINT,
+      payload JSONB NOT NULL,
+      archived_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await client.query(
+    `CREATE INDEX IF NOT EXISTS idx_product_variant_images_archive_product ON product_variant_images_archive (product_id, variant_id)`
+  ).catch(() => {});
+  productVariantImageArchiveReady = true;
+  return true;
+};
+
+/**
+ * Copy a colour's images aside, then remove them from the live table - the same
+ * removal the callers performed before, with the copy in front of it.
+ *
+ * A colour owns two kinds of image row: per-size rows carrying a variant_id, and
+ * the colour gallery the editor uploads, which carries only a colour name. Both
+ * have to travel, or the gallery - the images anyone actually looks at - is
+ * still the thing that gets destroyed.
+ *
+ * The colour-name half is claimed only when no live size row of this product
+ * still wears that name, so a duplicate colour name cannot drag a living
+ * colour's gallery into the archive with it.
+ */
+const archiveProductVariantImagesForVariants = async (client, { productId, tenantId, variantIds = [], colorNames = [] }) => {
+  const ids = [...new Set((Array.isArray(variantIds) ? variantIds : [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0))];
+  const colors = [...new Set((Array.isArray(colorNames) ? colorNames : [])
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean))];
+  if (!ids.length && !colors.length) return 0;
+  if (!(await ensureProductVariantImageArchive(client))) return 0;
+
+  const columns = await getTableColumns(client, "product_variant_images");
+  const hasColorName = columns.has("color_name");
+  const colorNameExpr = hasColorName ? "pvi.color_name" : "NULL";
+  const tenantExpr = columns.has("tenant_id") ? "pvi.tenant_id" : "NULL::bigint";
+
+  const values = [productId, ids, colors];
+  let tenantFilter = "";
+  if (columns.has("tenant_id")) {
+    values.push(tenantId);
+    tenantFilter = `AND ($${values.length}::bigint IS NULL OR pvi.tenant_id IS NULL OR pvi.tenant_id = $${values.length}::bigint)`;
+  }
+
+  const orphanColorClause = hasColorName
+    ? `
+      OR (
+        LOWER(BTRIM(COALESCE(pvi.color_name, ''))) = ANY($3::text[])
+        AND NOT EXISTS (
+          SELECT 1
+          FROM product_variants live
+          WHERE live.product_id = pvi.product_id
+            AND live.is_active IS DISTINCT FROM FALSE
+            AND live.deleted_at IS NULL
+            AND LOWER(BTRIM(COALESCE(live.color, ''))) = LOWER(BTRIM(COALESCE(pvi.color_name, '')))
+        )
+      )`
+    : "";
+  const matchClause = `(pvi.variant_id = ANY($2::bigint[])${orphanColorClause})`;
+
+  const archived = await client.query(
+    `
+    INSERT INTO product_variant_images_archive
+      (tenant_id, product_id, variant_id, color_name, source_image_id, payload)
+    SELECT ${tenantExpr}, pvi.product_id, pvi.variant_id, ${colorNameExpr}, pvi.id, to_jsonb(pvi)
+    FROM product_variant_images pvi
+    WHERE pvi.product_id = $1
+      AND ${matchClause}
+      ${tenantFilter}
+    RETURNING source_image_id
+    `,
+    values
+  );
+
+  const archivedImageIds = archived.rows.map((row) => Number(row.source_image_id)).filter(Boolean);
+  if (archivedImageIds.length) {
+    await client.query(`DELETE FROM product_variant_images WHERE id = ANY($1::bigint[])`, [archivedImageIds]);
+  }
+
+  return archivedImageIds.length;
+};
+
+/**
+ * Put a revived colour's images back. Runs after the product's images have been
+ * rewritten from the editor payload, and only fills colours the rewrite left
+ * empty - a colour the operator re-added with fresh images keeps the fresh
+ * ones, and its archive is dropped rather than merged in behind them.
+ *
+ * Best-effort: a failure here must never cost the operator a save.
+ */
+const restoreArchivedProductVariantImages = async (client, { productId, tenantId, activeVariantIds = [], activeColorNames = [] }) => {
+  const ids = [...new Set((Array.isArray(activeVariantIds) ? activeVariantIds : [])
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0))];
+  const colors = [...new Set((Array.isArray(activeColorNames) ? activeColorNames : [])
+    .map((value) => String(value ?? "").trim().toLowerCase())
+    .filter(Boolean))];
+  if (!ids.length && !colors.length) return 0;
+  if (!(await ensureProductVariantImageArchive(client))) return 0;
+
+  const columns = await getTableColumns(client, "product_variant_images");
+  const values = [productId, ids, colors];
+  let tenantFilter = "";
+  if (columns.has("tenant_id")) {
+    values.push(tenantId);
+    tenantFilter = `AND ($${values.length}::bigint IS NULL OR a.tenant_id IS NULL OR a.tenant_id = $${values.length}::bigint)`;
+  }
+
+  // The colour is live again when either half of its identity is: a size row
+  // that came back on its original id, or the colour name on the product now.
+  const revivedClause = `(
+    a.variant_id = ANY($2::bigint[])
+    OR LOWER(BTRIM(COALESCE(a.color_name, ''))) = ANY($3::text[])
+  )`;
+
+  // A colour that carries no image today is the only one worth refilling;
+  // anything else would duplicate or sit behind the operator's fresh upload.
+  const restorable = await client.query(
+    `
+    SELECT a.id
+    FROM product_variant_images_archive a
+    WHERE a.product_id = $1
+      AND ${revivedClause}
+      ${tenantFilter}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM product_variant_images live
+        WHERE live.product_id = a.product_id
+          AND (
+            (a.variant_id IS NOT NULL AND live.variant_id = a.variant_id)
+            OR (
+              COALESCE(BTRIM(a.color_name), '') <> ''
+              AND LOWER(BTRIM(COALESCE(live.color_name, ''))) = LOWER(BTRIM(a.color_name))
+            )
+          )
+      )
+    `,
+    values
+  );
+  const restorableIds = restorable.rows.map((row) => Number(row.id));
+
+  if (restorableIds.length) {
+    await client.query(
+      `
+      INSERT INTO product_variant_images
+      SELECT (jsonb_populate_record(NULL::product_variant_images, a.payload)).*
+      FROM product_variant_images_archive a
+      WHERE a.id = ANY($1::bigint[])
+      ON CONFLICT DO NOTHING
+      `,
+      [restorableIds]
+    );
+  }
+
+  // Every archived row for a colour that is live again has now had its chance -
+  // restored, or superseded by a fresh image. Either way it stops waiting.
+  await client.query(
+    `
+    DELETE FROM product_variant_images_archive a
+    WHERE a.product_id = $1
+      AND ${revivedClause}
+      ${tenantFilter}
+    `,
+    values
+  );
+
+  return restorableIds.length;
+};
+
 const archiveMissingProductVariants = async (client, { productId, tenantId, savedVariantIds = [] }) => {
   const ids = [...new Set((Array.isArray(savedVariantIds) ? savedVariantIds : [])
     .map((value) => Number(value))
@@ -3135,15 +3339,12 @@ const archiveMissingProductVariants = async (client, { productId, tenantId, save
   );
 
   if (result.rows.length > 0) {
-    await client.query(
-      `
-      DELETE FROM product_variant_images
-      WHERE product_id = $1
-        AND variant_id = ANY($2::bigint[])
-        AND tenant_id = $3
-      `,
-      [productId, result.rows.map((row) => row.id), tenantId]
-    );
+    await archiveProductVariantImagesForVariants(client, {
+      productId,
+      tenantId,
+      variantIds: result.rows.map((row) => row.id),
+      colorNames: result.rows.map((row) => row.color),
+    });
   }
 
   return result.rows;
@@ -3173,15 +3374,12 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
   );
 
   if (result.rows.length > 0) {
-    await client.query(
-      `
-      DELETE FROM product_variant_images
-      WHERE product_id = $1
-        AND variant_id = ANY($2::bigint[])
-        AND tenant_id = $3
-      `,
-      [productId, result.rows.map((row) => row.id), tenantId]
-    );
+    await archiveProductVariantImagesForVariants(client, {
+      productId,
+      tenantId,
+      variantIds: result.rows.map((row) => row.id),
+      colorNames: result.rows.map((row) => row.color),
+    });
   }
 
   return result.rows;
@@ -6704,6 +6902,22 @@ export const updateProduct = async (req, res) => {
         colorGroups: activeColorImages,
       });
     }
+    // A colour deleted earlier and re-added now comes back on its original
+    // variant rows, so its archived images can come back with it - but only
+    // where the rewrite above left the colour with none of its own.
+    if (shouldPersistVariantImages) {
+      await restoreArchivedProductVariantImages(client, {
+        productId,
+        tenantId,
+        activeVariantIds: activeVariantsAfterSave.map((variant) => variant.id),
+        activeColorNames: activeVariantsAfterSave.map((variant) => variant.color),
+      }).catch((error) => {
+        console.warn("[products:update] archived colour images not restored", {
+          productId,
+          message: error?.message || error,
+        });
+      });
+    }
     performanceLogger.markStage("Save variant images");
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
@@ -7838,6 +8052,152 @@ export const updateVariant = async (req, res) => {
       message: "Failed to update variant",
       error: error.message,
     });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * What a colour is carrying before the editor throws it away.
+ *
+ * Deleting a colour in the product editor archives its size rows
+ * (`archiveProductVariantsByIds`) with no questions asked - unlike the
+ * single-variant DELETE below, which refuses while stock is on the shelf. The
+ * invoices themselves survive the archive (purchase_items keeps its own
+ * colour/size/cost snapshot and the FK to product_variants was dropped), but
+ * the stock leaves every inventory report while the purchase still books its
+ * cost. So the editor asks first, and this is what it asks about.
+ *
+ * Read-only. Matches history by variant id, and - for rows written before the
+ * variant existed or re-keyed since - by product + colour name where the
+ * history table carries one.
+ */
+export const getProductColorUsage = async (req, res) => {
+  const productId = Number(req.params.id);
+  if (!Number.isInteger(productId) || productId <= 0) {
+    return res.status(400).json({ success: false, message: "Invalid product id" });
+  }
+
+  const client = await db.connect();
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const color = String(req.query.color ?? "").trim();
+    const requestedVariantIds = String(req.query.variant_ids ?? "")
+      .split(",")
+      .map((value) => Number(String(value).trim()))
+      .filter((value) => Number.isInteger(value) && value > 0);
+
+    if (!color && requestedVariantIds.length === 0) {
+      return res.status(400).json({ success: false, message: "A colour name or variant ids are required" });
+    }
+
+    // The colour the caller means is the union of the rows it named and every
+    // live row of this product wearing the same colour name - a size added from
+    // another screen belongs to the colour just as much.
+    const variantRows = await client.query(
+      `
+      SELECT id, COALESCE(stock, 0)::int AS stock
+      FROM product_variants
+      WHERE product_id = $1
+        AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+        AND (
+          id = ANY($3::bigint[])
+          OR ($4 <> '' AND LOWER(BTRIM(COALESCE(color, ''))) = LOWER(BTRIM($4)))
+        )
+      `,
+      [productId, tenantId, requestedVariantIds, color]
+    );
+
+    const variantIds = variantRows.rows.map((row) => Number(row.id));
+    const stock = variantRows.rows.reduce((total, row) => total + Number(row.stock || 0), 0);
+    // A row the caller named but that is already archived still counts for
+    // history: the editor may be deleting a colour it just re-added.
+    const historyVariantIds = [...new Set([...variantIds, ...requestedVariantIds])];
+
+    const countHistory = async ({ table, idColumn, quantityColumn }) => {
+      const empty = { document_count: 0, quantity: 0 };
+      if (!(await tableExists(client, table))) return empty;
+      const columns = await getTableColumns(client, table);
+      if (!columns.has(idColumn)) return empty;
+
+      const matchClauses = ["pi.variant_id = ANY($1::bigint[])"];
+      if (columns.has("product_id") && columns.has("color")) {
+        matchClauses.push("(pi.product_id = $2 AND $3 <> '' AND LOWER(BTRIM(COALESCE(pi.color, ''))) = LOWER(BTRIM($3)))");
+      }
+      const values = [historyVariantIds, productId, color];
+      let tenantClause = "";
+      if (columns.has("tenant_id")) {
+        values.push(tenantId);
+        tenantClause = `AND (${values.length}::bigint IS NULL OR pi.tenant_id IS NULL OR pi.tenant_id = ${values.length}::bigint)`;
+      }
+      const quantityExpr = columns.has(quantityColumn) ? `COALESCE(pi.${quantityColumn}, 0)` : "0";
+
+      const result = await client.query(
+        `
+        SELECT
+          COUNT(DISTINCT pi.${idColumn})::int AS document_count,
+          COALESCE(SUM(${quantityExpr}), 0)::int AS quantity
+        FROM ${table} pi
+        WHERE (${matchClauses.join(" OR ")})
+          ${tenantClause}
+        `,
+        values
+      );
+      return {
+        document_count: Number(result.rows[0]?.document_count || 0),
+        quantity: Number(result.rows[0]?.quantity || 0),
+      };
+    };
+
+    const [purchases, orders] = await Promise.all([
+      countHistory({ table: "purchase_items", idColumn: "purchase_id", quantityColumn: "quantity" }),
+      countHistory({ table: "order_items", idColumn: "order_id", quantityColumn: "quantity" }),
+    ]);
+
+    let imageCount = 0;
+    if (variantIds.length && (await tableExists(client, "product_variant_images"))) {
+      const imageColumns = await getTableColumns(client, "product_variant_images");
+      const values = [productId, variantIds, color];
+      let tenantClause = "";
+      if (imageColumns.has("tenant_id")) {
+        values.push(tenantId);
+        tenantClause = `AND (${values.length}::bigint IS NULL OR tenant_id IS NULL OR tenant_id = ${values.length}::bigint)`;
+      }
+      const imageResult = await client.query(
+        `
+        SELECT COUNT(*)::int AS count
+        FROM product_variant_images
+        WHERE product_id = $1
+          AND (
+            variant_id = ANY($2::bigint[])
+            OR ($3 <> '' AND LOWER(BTRIM(COALESCE(color_name, ''))) = LOWER(BTRIM($3)))
+          )
+          ${tenantClause}
+        `,
+        values
+      );
+      imageCount = Number(imageResult.rows[0]?.count || 0);
+    }
+
+    return res.json({
+      success: true,
+      usage: {
+        product_id: productId,
+        color,
+        variant_count: variantIds.length,
+        stock,
+        purchases,
+        orders,
+        image_count: imageCount,
+        has_history: purchases.document_count > 0 || orders.document_count > 0,
+        has_stock: stock > 0,
+      },
+    });
+  } catch (error) {
+    console.error("[product-color-usage-failed]", { productId, message: error.message });
+    return res.status(500).json({ success: false, message: "Failed to read colour usage" });
   } finally {
     client.release();
   }

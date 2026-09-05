@@ -75,6 +75,7 @@ import {
   regenerateAiShoeCover,
   generateThermalArtwork,
   getManufacturers,
+  getProductColorUsage,
   getProductFull,
   normalizeVariantPayload,
   suggestMirrorEditionName,
@@ -1044,6 +1045,7 @@ function ProductEdit() {
   const [highlightMissingColorKeys, setHighlightMissingColorKeys] = useState(() => new Set());
   const [crocsLibraryGroupId, setCrocsLibraryGroupId] = useState("");
   const [removedVariantIds, setRemovedVariantIds] = useState([]);
+  const [colorUsageLoadingId, setColorUsageLoadingId] = useState(null);
   const [variantStructureEdited, setVariantStructureEdited] = useState(false);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
   const [bulkStockInput, setBulkStockInput] = useState("");
@@ -2285,11 +2287,8 @@ function ProductEdit() {
     setRemovedVariantIds((prev) => Array.from(new Set([...prev, ...nextIds])));
   };
 
-  const removeColorGroup = (groupId) => {
-    const target = colorGroups.find((group) => group.id === groupId);
-    if (target) {
-      queueRemovedVariantIds(target.sizes.map((row) => row.variantId).filter(Boolean));
-    }
+  const dropColorGroup = (groupId, variantIds = []) => {
+    if (variantIds.length) queueRemovedVariantIds(variantIds);
 
     setColorGroups((prev) => {
       if (prev.length <= 1)
@@ -2300,6 +2299,70 @@ function ProductEdit() {
         ];
       return prev.filter((group) => group.id !== groupId);
     });
+  };
+
+  /**
+   * Deleting a colour used to be one unguarded click - while zeroing its stock
+   * asked for confirmation. It is reversible (the size rows are archived, and
+   * re-adding the colour revives the same rows with their stock and their link
+   * to the purchase invoices), but its stock leaves every inventory report the
+   * moment it goes, and the purchase that paid for it keeps its cost. So say
+   * what is on the line first, in the colour's own numbers.
+   */
+  const removeColorGroup = async (groupId) => {
+    const target = colorGroups.find((group) => group.id === groupId);
+    const variantIds = target ? target.sizes.map((row) => row.variantId).filter(Boolean) : [];
+    const colorName = String(target?.color || "").trim();
+
+    // A colour that was never saved has no history to warn about.
+    if (!variantIds.length || !id) {
+      dropColorGroup(groupId, variantIds);
+      return;
+    }
+
+    setColorUsageLoadingId(groupId);
+    let usage = null;
+    try {
+      usage = await getProductColorUsage(id, { color: colorName, variantIds });
+    } catch (error) {
+      console.warn("[product-edit] colour usage lookup failed", error?.message || error);
+    } finally {
+      setColorUsageLoadingId(null);
+    }
+
+    const label = colorName || t("products.editor.thisColor", "this color");
+    const lines = [t("products.editor.deleteColorConfirm", "Delete the color {{color}}?", { color: label })];
+
+    if (usage) {
+      lines.push("");
+      lines.push(t("products.editor.deleteColorSizes", "Sizes: {{count}}", { count: usage.variant_count }));
+      lines.push(t("products.editor.deleteColorStock", "Stock leaving inventory: {{count}}", { count: usage.stock }));
+      if (usage.purchases?.document_count) {
+        lines.push(t("products.editor.deleteColorPurchases", "On {{invoices}} purchase invoice(s) — {{quantity}} unit(s) bought", {
+          invoices: usage.purchases.document_count,
+          quantity: usage.purchases.quantity,
+        }));
+      }
+      if (usage.orders?.document_count) {
+        lines.push(t("products.editor.deleteColorOrders", "On {{orders}} sales order(s) — {{quantity}} unit(s) sold", {
+          orders: usage.orders.document_count,
+          quantity: usage.orders.quantity,
+        }));
+      }
+      if (usage.image_count) {
+        lines.push(t("products.editor.deleteColorImages", "{{count}} image(s) will be archived with the color", { count: usage.image_count }));
+      }
+      lines.push("");
+      lines.push(usage.has_history
+        ? t("products.editor.deleteColorInvoicesSafe", "The invoices themselves are not touched — they keep their own color, size and cost. Re-adding the color with the same name brings its sizes, stock and images back.")
+        : t("products.editor.deleteColorReversible", "Re-adding the color with the same name brings its sizes, stock and images back."));
+    }
+
+    lines.push("");
+    lines.push(t("products.editor.deleteColorSaveNote", "Nothing is removed until you save the product."));
+
+    if (!window.confirm(lines.join("\n"))) return;
+    dropColorGroup(groupId, variantIds);
   };
 
   const addSizeRow = (groupId) => {
@@ -4564,14 +4627,15 @@ function ProductEdit() {
                       </button>
                       <button
                         type="button"
+                        disabled={colorUsageLoadingId === group.id}
                         onClick={(event) => {
                           event.stopPropagation();
                           removeColorGroup(group.id);
                         }}
-                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-red-300"
+                        className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={`Remove color group ${group.color || groupIndex + 1}`}
                       >
-                        <Trash2 size={16} />
+                        {colorUsageLoadingId === group.id ? <Loader2 className="animate-spin" size={16} /> : <Trash2 size={16} />}
                       </button>
                       {isExpanded ? <ChevronDown className="text-text-muted" size={18} /> : <ChevronRight className="text-text-muted" size={18} />}
                     </div>
