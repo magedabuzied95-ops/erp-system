@@ -217,8 +217,6 @@ export const HOME_SECTIONS = [
   { id: "heroVideo", label: { ar: "فيديو المقدمة", en: "Hero video" }, titled: false },
   { id: "productHero", label: { ar: "واجهة المنتجات", en: "Product hero" }, titled: false },
   { id: "categories", label: { ar: "تسوّق حسب القسم", en: "Shop by category" }, titled: true },
-  { id: "mostWanted", label: { ar: "الأكثر طلبًا", en: "Most wanted" }, titled: true },
-  { id: "newArrivals", label: { ar: "وصل حديثًا", en: "New arrivals" }, titled: true },
   { id: "offers", label: { ar: "العروض", en: "Offers" }, titled: false },
   { id: "brands", label: { ar: "الماركات", en: "Brands" }, titled: false },
   { id: "trust", label: { ar: "شريط الضمانات", en: "Trust strip" }, titled: false },
@@ -231,8 +229,6 @@ export const TITLED_HOME_SECTIONS = HOME_SECTIONS.filter((section) => section.ti
 
 const DEFAULT_SECTION_TITLES = {
   categories: { ar: "تسوّق حسب القسم", en: "Shop by category" },
-  mostWanted: { ar: "الأكثر طلبًا", en: "Most wanted" },
-  newArrivals: { ar: "وصل حديثًا", en: "New arrivals" },
 };
 
 /* ------------------------------------------------------------------ defaults */

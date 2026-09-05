@@ -111,7 +111,6 @@ import {
   HomeDeferred,
   HomeEditorial,
   HomeHero,
-  HomeProductGrid,
   HomeProductRail,
   HomeSectionHeader,
   HomeTrustStrip,
@@ -1193,15 +1192,6 @@ const productStock = (product = {}) => productTotalStock(product);
 const isAvailableProduct = (product = {}) => productStock(product) > 0;
 const stockScore = (product = {}) => productTotalStock(product);
 const newestScore = (product = {}) => new Date(product.created_at || 0).getTime() || Number(product.id || 0);
-const popularScore = (product = {}) => {
-  const sold = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
-  const viewed = Number(product.views_count ?? product.view_count ?? product.product_views ?? product.analytics?.views ?? 0);
-  const featured = product.featured || product.is_featured || product.home_featured ? 1 : 0;
-  return (Number.isFinite(sold) ? sold * 1000 : 0) +
-    (Number.isFinite(viewed) ? viewed * 10 : 0) +
-    (featured * 500) +
-    Math.min(stockScore(product), 100);
-};
 const isOfferStory = (product = {}) =>
   product?.is_offer_story === true ||
   String(product?.is_offer_story || "").toLowerCase() === "true" ||
@@ -1718,20 +1708,6 @@ const uniqueProductsByIdentity = (products = []) => {
     seen.add(key);
     return true;
   });
-};
-const pickHomeProducts = ({ preferred = [], fallback = [], exclude = new Set(), limit = 8 } = {}) => {
-  const picked = [];
-  const pickedKeys = new Set();
-  const add = (product, index) => {
-    const key = productIdentityKey(product, index);
-    if (!key || pickedKeys.has(key)) return;
-    if (exclude.has(key)) return;
-    picked.push(product);
-    pickedKeys.add(key);
-  };
-  (Array.isArray(preferred) ? preferred : []).forEach(add);
-  if (picked.length < limit) (Array.isArray(fallback) ? fallback : []).forEach(add);
-  return picked.slice(0, limit);
 };
 const getProductColorGroups = (product = {}) => {
   const groups = new Map();
@@ -3073,48 +3049,11 @@ function PremiumHomePage(props) {
     [isRtl]
   );
 
-  // Two collections, two purposes, and no product allowed to appear in both.
-  const collections = useMemo(() => {
-    const used = new Set();
-    const pick = (preferred) => {
-      const selected = pickHomeProducts({ preferred, fallback: homepageProductsWithImages, exclude: used, limit: 8 });
-      selected.forEach((product, index) => {
-        const key = productIdentityKey(product, index);
-        if (key) used.add(key);
-      });
-      return selected;
-    };
-    const popular = uniqueProductsByIdentity(
-      [...homepageProductsWithImages].sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a))
-    );
-    const newest = uniqueProductsByIdentity([...homepageProductsWithImages].sort((a, b) => newestScore(b) - newestScore(a)));
-    return { popular: pick(popular), newest: pick(newest) };
-  }, [homepageProductsWithImages]);
-
-  const popularCards = useMemo(
-    () => collections.popular.map((product) => buildHomeProductCard(product, cardCtx)),
-    [cardCtx, collections.popular]
-  );
-  const newestCards = useMemo(
-    () => collections.newest.map((product) => buildHomeProductCard(product, cardCtx)),
-    [cardCtx, collections.newest]
-  );
-
-  const isFavorite = useCallback(
-    (product) => wishlist.some((entry) => String(entry.id) === String(product?.id)),
-    [wishlist]
-  );
   const preloadSlide = useCallback((slide) => {
     if (slide?.rawImage) preloadStorefrontImage(slide.rawImage, "hero");
   }, []);
 
-  useHomeReveal(homeRootRef, [
-    categoryTiles.length,
-    popularCards.length,
-    newestCards.length,
-    visibleBrands.length,
-    loading,
-  ]);
+  useHomeReveal(homeRootRef, [categoryTiles.length, visibleBrands.length, loading]);
 
   // No eyebrow above this hero: the owner asked for the label to go entirely.
   // The slot is removed rather than emptied — HomeHero skips the element when
@@ -3138,8 +3077,6 @@ function PremiumHomePage(props) {
         secondaryHref: "/offers",
         slidesLabel: "Mirror picks",
       };
-
-  const favoriteLabel = isRtl ? "أضف إلى المفضلة" : "Add to wishlist";
 
   // The homepage as a set of named sections rather than a fixed sequence, so
   // Site Studio can reorder and hide them. The ids are the contract with
@@ -3169,35 +3106,6 @@ function PremiumHomePage(props) {
         links={categoryLinks}
         loading={loading}
         onImageError={fallbackProductImage}
-      />
-    ),
-    mostWanted: (
-      <HomeProductRail
-        title={resolveSectionTitle(siteDesign, "mostWanted", lang)}
-        href={productsPath({ sort: "trending" })}
-        linkLabel={sfText("common.viewAll")}
-        cards={popularCards}
-        loading={loading}
-        prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
-        nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
-        eagerFirst
-        isFavorite={isFavorite}
-        onToggleFavorite={toggleWishlist}
-        onImageError={fallbackProductImage}
-        favoriteLabel={favoriteLabel}
-      />
-    ),
-    newArrivals: (
-      <HomeProductGrid
-        title={resolveSectionTitle(siteDesign, "newArrivals", lang)}
-        href={productsPath({ sort: "newest" })}
-        linkLabel={sfText("common.viewAll")}
-        cards={newestCards}
-        loading={loading}
-        isFavorite={isFavorite}
-        onToggleFavorite={toggleWishlist}
-        onImageError={fallbackProductImage}
-        favoriteLabel={favoriteLabel}
       />
     ),
     offers: (
