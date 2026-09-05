@@ -103,7 +103,17 @@ import { animateFlyToCart } from "./lib/flyToCart";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import { attachSiteDesign, detachSiteDesign, refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
-import { resolveHeroCopy, resolveHomeSections, resolveSectionTitle, resolveStripItems } from "../../shared/siteDesign.js";
+import {
+  GENDER_LABELS,
+  HOME_FILTER_ROWS,
+  HOME_FILTER_ROW_MAP,
+  homeFilterRowHref,
+  homeFilterRowQuery,
+  resolveHeroCopy,
+  resolveHomeSections,
+  resolveSectionTitle,
+  resolveStripItems,
+} from "../../shared/siteDesign.js";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../theme/documentColorScheme";
 import { splitProductDisplayName } from "./lib/productDisplayName";
 import {
@@ -111,6 +121,7 @@ import {
   HomeDeferred,
   HomeEditorial,
   HomeHero,
+  HomeFilteredRail,
   HomeProductRail,
   HomeSectionHeader,
   HomeTrustStrip,
@@ -2935,6 +2946,100 @@ function StorefrontHeroVideoOverlay() {
   );
 }
 
+// One filtered homepage row: which audience is selected, and the products the
+// server returns for it.
+//
+// The audience switch re-requests rather than filtering in place. A row holds 8
+// cards; filtering those 8 down to whichever happen to be men's would show 2 of
+// the 69 men's Skechers in the catalogue, and the number on screen would depend
+// on how the first page happened to be sorted.
+//
+// Each (row, audience) answer is cached for the session, so switching back and
+// forth costs one request per pair and the second tap is instant.
+const HOME_FILTER_ROW_TTL_MS = 5 * 60 * 1000;
+
+const useHomeFilterRow = (rowId, cardCtx) => {
+  const row = HOME_FILTER_ROW_MAP[rowId];
+  const [gender, setGender] = useState(() => row?.genders?.[0] || "");
+  const [state, setState] = useState({ loading: true, products: [] });
+
+  useEffect(() => {
+    if (!row) return undefined;
+    let cancelled = false;
+    const url = `/storefront/products?${homeFilterRowQuery(rowId, gender, { limit: 8 })}`;
+    const cached = getCachedStorefrontGetData(url, { ttlMs: HOME_FILTER_ROW_TTL_MS });
+    if (cached) {
+      setState({ loading: false, products: Array.isArray(cached.products) ? cached.products : [] });
+      return undefined;
+    }
+    setState((current) => ({ loading: true, products: current.products }));
+    cachedStorefrontGet(url, { ttlMs: HOME_FILTER_ROW_TTL_MS })
+      .then((data) => {
+        if (cancelled) return;
+        setState({ loading: false, products: Array.isArray(data?.products) ? data.products : [] });
+      })
+      .catch(() => {
+        // A failed row disappears rather than showing an error under a heading —
+        // the rest of the homepage is unaffected by one collection being down.
+        if (!cancelled) setState({ loading: false, products: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gender, row, rowId]);
+
+  const cards = useMemo(
+    () => state.products.map((product) => buildHomeProductCard(product, cardCtx)).filter((card) => card.image),
+    [cardCtx, state.products]
+  );
+
+  return { gender, setGender, cards, loading: state.loading, row };
+};
+
+// One row per component instance, because each row owns a hook (its selected
+// audience and its request). A single component looping over the five rows
+// would be calling hooks in a loop.
+function HomeFilterRowSection({ rowId, cardCtx, lang = "ar", wishlist = [], toggleWishlist, onImageError }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const { gender, setGender, cards, loading, row } = useHomeFilterRow(rowId, cardCtx);
+
+  const isFavorite = useCallback(
+    (product) => wishlist.some((entry) => String(entry.id) === String(product?.id)),
+    [wishlist]
+  );
+  const genderLabel = useCallback(
+    (value) => (isRtl ? GENDER_LABELS[value]?.ar : GENDER_LABELS[value]?.en) || value,
+    [isRtl]
+  );
+
+  if (!row) return null;
+
+  const audience = genderLabel(gender);
+  return (
+    <HomeFilteredRail
+      title={isRtl ? row.label.ar : row.label.en}
+      subtitle={isRtl ? row.subtitle.ar : row.subtitle.en}
+      genders={row.genders}
+      activeGender={gender}
+      genderLabel={genderLabel}
+      onGenderChange={setGender}
+      cards={cards}
+      loading={loading}
+      viewAllHref={homeFilterRowHref(rowId, gender)}
+      // "شوف كل الرجالي" — the button names the audience the visitor is looking
+      // at, so it never promises more than it opens.
+      viewAllLabel={isRtl ? `شوف كل ${audience}` : `View all ${audience}`}
+      isFavorite={isFavorite}
+      onToggleFavorite={toggleWishlist}
+      onImageError={onImageError}
+      favoriteLabel={isRtl ? "أضف إلى المفضلة" : "Add to wishlist"}
+      prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
+      nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
+      isRtl={isRtl}
+    />
+  );
+}
+
 function PremiumHomePage(props) {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
@@ -3112,6 +3217,21 @@ function PremiumHomePage(props) {
         loading={loading}
         onImageError={fallbackProductImage}
       />
+    ),
+    // The five filtered rows. Each is its own component instance because each
+    // owns a request and a selected audience.
+    ...Object.fromEntries(
+      HOME_FILTER_ROWS.map((row) => [
+        row.id,
+        <HomeFilterRowSection
+          rowId={row.id}
+          cardCtx={cardCtx}
+          lang={lang}
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onImageError={fallbackProductImage}
+        />,
+      ])
     ),
     offers: (
       <HomeDeferred minHeight={420}>

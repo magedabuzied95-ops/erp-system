@@ -213,10 +213,111 @@ const DEFAULT_CARD = {
 //
 // The footer is deliberately not in this list: it is the end of the page, not a
 // section, and an owner who dragged it to the top would just be reporting a bug.
+/* ------------------------------------------------- filtered homepage rows */
+
+// Rows that ask the catalogue a question and show the answer, with the audience
+// switch built into the header: tap رجالي and the row re-asks the server for
+// men's products. The filter is sent to /storefront/products — the row never
+// filters cards it already holds, because a page of 12 filtered down to 3 is
+// how a section ends up looking empty when the catalogue is full.
+//
+// `filter` is exactly the query the API receives. The values were measured
+// against the live catalogue on 2026-09-05, and the counts are recorded here
+// because they are the evidence that each row has something to show:
+//
+//   crocs      product_type=crocs      men 14 · women 10 · kids 31
+//   skechers   brand=skechers          men 69 · women 50 · kids 17   (disjoint)
+//   slippers   product_type=slippers   men 49 · women 24             (disjoint)
+//   womenBags  bags − school bags      women ~168
+//   schoolBags bag_type=school_bag     kids 105 · women 93
+//
+// ⚠️ The catalogue has NO categories — `categories` comes back empty from the
+// facets endpoint. `product_type` and `brand` are the two axes that work, which
+// is why Skechers is a brand row and the rest are product types.
+export const HOME_FILTER_ROWS = [
+  {
+    id: "crocs",
+    label: { ar: "كروكس", en: "Crocs" },
+    subtitle: { ar: "كروكس أصلي لكل العائلة.", en: "Crocs for the whole family." },
+    filter: { product_type: "crocs" },
+    genders: ["men", "women", "kids"],
+  },
+  {
+    id: "skechers",
+    label: { ar: "سكتشرز", en: "Skechers" },
+    subtitle: { ar: "راحة يومية من سكتشرز.", en: "Everyday comfort from Skechers." },
+    filter: { brand: "skechers" },
+    genders: ["men", "women", "kids"],
+  },
+  {
+    id: "slippers",
+    label: { ar: "شباشب", en: "Slippers" },
+    subtitle: { ar: "شباشب مريحة للبيت والخروج.", en: "Soft slippers for laid-back daily wear." },
+    filter: { product_type: "slippers" },
+    genders: ["men", "women"],
+  },
+  {
+    id: "womenBags",
+    label: { ar: "شنط حريمي", en: "Women's bags" },
+    subtitle: { ar: "شنط يد وكتف بتشكيلة متجددة.", en: "Hand and shoulder bags, restocked often." },
+    // School bags are excluded by name, not by hoping the gender tag separates
+    // them: 93 of the 105 school bags are ALSO tagged women, so without this the
+    // two bag rows would show largely the same products.
+    filter: { product_type: "bags", exclude_bag_type: "school_bag" },
+    genders: ["women"],
+  },
+  {
+    id: "schoolBags",
+    label: { ar: "شنط مدارس", en: "School bags" },
+    subtitle: { ar: "شنط مدارس بمقاسات بالبوصة.", en: "School bags, sized in inches." },
+    filter: { bag_type: "school_bag" },
+    genders: ["kids", "women"],
+  },
+];
+
+export const HOME_FILTER_ROW_MAP = Object.fromEntries(HOME_FILTER_ROWS.map((row) => [row.id, row]));
+
+export const GENDER_LABELS = {
+  men: { ar: "رجالي", en: "Men" },
+  women: { ar: "حريمي", en: "Women" },
+  kids: { ar: "أطفال", en: "Kids" },
+};
+
+/**
+ * The query string one of these rows sends for a given audience.
+ *
+ * `in_stock` is always on: a homepage row that offers an audience switch and
+ * then shows something the visitor cannot buy is worse than not offering it.
+ */
+export const homeFilterRowQuery = (rowId, gender = "", { limit = 12 } = {}) => {
+  const row = HOME_FILTER_ROW_MAP[rowId];
+  if (!row) return "";
+  const params = new URLSearchParams();
+  Object.entries(row.filter).forEach(([key, value]) => params.set(key, value));
+  if (gender && row.genders.includes(gender)) params.set("gender", gender);
+  params.set("in_stock", "1");
+  params.set("limit", String(limit));
+  return params.toString();
+};
+
+/** Where "view all" goes: the listing page carrying the same filter. */
+export const homeFilterRowHref = (rowId, gender = "") => {
+  const row = HOME_FILTER_ROW_MAP[rowId];
+  if (!row) return "/products";
+  const params = new URLSearchParams();
+  Object.entries(row.filter).forEach(([key, value]) => params.set(key, value));
+  if (gender && row.genders.includes(gender)) params.set("gender", gender);
+  params.set("in_stock", "1");
+  return `/products?${params.toString()}`;
+};
+
 export const HOME_SECTIONS = [
   { id: "heroVideo", label: { ar: "فيديو المقدمة", en: "Hero video" }, titled: false },
   { id: "productHero", label: { ar: "واجهة المنتجات", en: "Product hero" }, titled: false },
   { id: "categories", label: { ar: "تسوّق حسب القسم", en: "Shop by category" }, titled: true },
+  // The filtered rows, in the order the owner asked for them. Not "titled":
+  // their heading is the row label defined above, not a separately editable one.
+  ...HOME_FILTER_ROWS.map((row) => ({ id: row.id, label: row.label, titled: false })),
   { id: "offers", label: { ar: "العروض", en: "Offers" }, titled: false },
   { id: "brands", label: { ar: "الماركات", en: "Brands" }, titled: false },
   { id: "trust", label: { ar: "شريط الضمانات", en: "Trust strip" }, titled: false },

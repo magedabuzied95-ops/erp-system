@@ -1874,6 +1874,16 @@ const storefrontProductsWhereSql = `
         OR LOWER(TRIM(COALESCE(p.product_type, ''))) = ANY($12::text[])
       )
       AND (COALESCE(array_length($15::text[], 1), 0) = 0 OR LOWER(TRIM(COALESCE(p.bag_type, ''))) = ANY($15::text[]))
+      -- Exclusion, not just inclusion. A homepage row for women's bags has to be
+      -- able to say "bags, for women, that are NOT school bags": measured on the
+      -- live catalogue, 93 of the 105 school bags are also tagged women, so
+      -- without this the women's-bags row and the school-bags row would be
+      -- largely the same products. A product with no bag_type is never excluded.
+      AND (
+        COALESCE(array_length($16::text[], 1), 0) = 0
+        OR COALESCE(TRIM(p.bag_type), '') = ''
+        OR LOWER(TRIM(p.bag_type)) <> ALL($16::text[])
+      )
       AND (COALESCE(array_length($10::text[], 1), 0) = 0 OR EXISTS (
         SELECT 1
         FROM product_variants pv_size
@@ -1980,6 +1990,7 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
     limit,
     offset,
     lowerArrayParam(filters.bagType),
+    lowerArrayParam(filters.excludeBagType),
   ];
   try {
     const result = await db.query(sql, params);
@@ -3359,6 +3370,7 @@ const normalizeStorefrontProductsQuery = (query = {}) => {
     size: queryText(query.size),
     colors: queryTextList(query.color, query.colors),
     bagType: queryTextList(query.bag_type, query.bagType),
+    excludeBagType: queryTextList(query.exclude_bag_type, query.excludeBagType),
     minPrice: queryPositiveNumber(query.min_price ?? query.minPrice),
     maxPrice: queryPositiveNumber(query.max_price ?? query.maxPrice),
     lastSizes: queryFlagOn(query.last_sizes || query.lastSizes),
@@ -3419,7 +3431,7 @@ export const listProducts = async (req, res) => {
     const pricingSettings = await perf.step("pricing_settings", () => loadStorefrontPricingSettings(tenantId));
     const payload = await getOrSetCacheSWR(storefrontCacheKey(tenantId, "products", req.query || {}), storefrontCacheWindows(), async () => {
       const normalizedQuery = perf.sync("normalize_query", () => normalizeStorefrontProductsQuery(req.query || {}));
-      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, sizes, colors, bagType, minPrice, maxPrice, lastSizes, inStock, audienceSearch, largeSizes } = normalizedQuery;
+      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, sizes, colors, bagType, excludeBagType, minPrice, maxPrice, lastSizes, inStock, audienceSearch, largeSizes } = normalizedQuery;
       const genderAliases = await perf.step("alias_gender", () => getClassificationFilterAliases("gender", normalizedQuery.gender));
       const productType = await perf.step("alias_product_type", () => getActiveClassificationFilterAliases("product_type", normalizedQuery.productType));
       const grade = await perf.step("alias_grade", () => getActiveClassificationFilterAliases("grade", normalizedQuery.grade));
@@ -3449,7 +3461,7 @@ export const listProducts = async (req, res) => {
           },
           computedSearchTerm: q,
           computedGenderFilter: gender,
-          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, saleOnly: effectiveSaleOnly, offerStory: effectiveOfferStoryOnly },
+          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, saleOnly: effectiveSaleOnly, offerStory: effectiveOfferStoryOnly },
         });
       }
       if (ERP_PERF_DEBUG) console.log("[storefront-random-seed]", {
@@ -3469,9 +3481,9 @@ export const listProducts = async (req, res) => {
       if (process.env.NODE_ENV !== "production" && effectiveOfferStoryOnly) {
         const debugLimit = Math.max(candidateLimit, 1000);
         const [beforeOfferStory, afterOfferStoryBeforeVisibility, afterVisibility] = await Promise.all([
-          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, debugLimit, 0),
-          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
-          queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
+          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, debugLimit, 0),
+          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
+          queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
         ]);
         const dbCheck = await db.query(
           `
@@ -3505,10 +3517,10 @@ export const listProducts = async (req, res) => {
           excluded_due_to_is_storefront_visible: excludedDueToVisibility,
         });
       }
-      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
       let usedTenantFallback = false;
       if (!result.rows.length && tenantId !== null) {
-        const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+        const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         if (fallback.rows.length) {
           result = fallback;
           usedTenantFallback = true;
@@ -3517,9 +3529,9 @@ export const listProducts = async (req, res) => {
       if (effectiveOfferStoryOnly && !result.rows.length) {
         const isDbOfferStory = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
         const isDbStorefrontVisible = (value) => value === true || value === 1 || value === undefined || value === null || String(value || "").trim() === "" || String(value || "").toLowerCase() === "true";
-        let relaxedResult = await perf.step("sql_relaxed", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
+        let relaxedResult = await perf.step("sql_relaxed", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
         if (!relaxedResult.rows.length && tenantId !== null) {
-          relaxedResult = await perf.step("sql_relaxed_null", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
+          relaxedResult = await perf.step("sql_relaxed_null", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
         }
         const relaxedRows = relaxedResult.rows.filter((row) => isDbOfferStory(row.is_offer_story) && isDbStorefrontVisible(row.is_storefront_visible));
         if (relaxedRows.length) {
@@ -3535,7 +3547,7 @@ export const listProducts = async (req, res) => {
       }
       let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
       if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
+        const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
         const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
         if (fallbackProducts.some((product) => product.total_stock > 0)) {
           products = fallbackProducts;

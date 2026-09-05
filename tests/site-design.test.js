@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import {
   CARD_TEMPLATES,
   DEFAULT_SITE_DESIGN,
+  HOME_FILTER_ROWS,
   HOME_SECTIONS,
   PALETTE_FIELD_KEYS,
   SITE_DESIGN_SETTING_KEY,
@@ -324,7 +325,18 @@ test("the shared tokens are applied inline, not only through the sheet", () => {
 test("the homepage renders its sections from the stored order", () => {
   assert.ok(storefrontSource.includes("homeSectionOrder.map("), "the homepage went back to a fixed sequence");
   assert.ok(storefrontSource.includes("const homeSectionNodes = {"), "the section map is gone");
+  // Every id in the registry must reach a node, or the section silently never
+  // renders. The filtered rows enter the map as a spread over HOME_FILTER_ROWS
+  // rather than as five literal keys, so they are covered by asserting that
+  // spread exists — assert a literal `crocs:` and adding a sixth row would pass
+  // this guard while rendering nothing.
+  const filterRowIds = new Set(HOME_FILTER_ROWS.map((row) => row.id));
+  assert.ok(
+    /HOME_FILTER_ROWS\.map\(\(row\) => \[\s*row\.id,\s*<HomeFilterRowSection/.test(storefrontSource),
+    "the filtered rows no longer build their nodes from HOME_FILTER_ROWS, so a new row would render nothing"
+  );
   for (const section of HOME_SECTIONS) {
+    if (filterRowIds.has(section.id)) continue;
     assert.ok(
       new RegExp(`\\b${section.id}:`).test(storefrontSource),
       `the homepage has no node for the "${section.id}" section, so it can never render`
