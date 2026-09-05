@@ -8156,4 +8156,15 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     background: var(--sf-footer-bar-bg, #070707) !important;
     color: var(--sf-footer-bar-ink, #8d8981) !important;
   }
+
+  /* The newsletter button, same story as the copyright bar. It carries
+     Tailwind’s text-white on a decided near-black fill, and the
+     html[data-theme] .text-white remap above points that at the ERP’s --text —
+     which in the light theme is #25231f, i.e. near-black on near-black. Measured
+     on the live site: the label was invisible on every phone in light mode.
+     Dark mode is untouched: there the button is gold with deliberate dark ink,
+     painted by home.css. */
+  body.storefront-shell:not(.storefront-dark) .sf-footer .sf-footer__submit {
+    color: var(--sf-footer-submit-ink, #ffffff) !important;
+  }
 }

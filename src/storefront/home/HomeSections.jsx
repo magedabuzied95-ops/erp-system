@@ -48,7 +48,18 @@ export function HomeDeferred({ minHeight = 320, children }) {
       { rootMargin: "600px 0px" }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    // The observer is an optimisation, not a gate. When it does not deliver —
+    // a throttled or hidden tab at load, a background render, a browser that
+    // defers callbacks — the placeholder below is a fixed block of empty page
+    // that never resolves, and this section sits high enough in the homepage
+    // order for that hole to be the first thing a visitor sees. Mounting anyway
+    // after a second still keeps the request off the boot waterfall, which is
+    // the only reason this component exists.
+    const backstop = window.setTimeout(() => setShown(true), 1000);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(backstop);
+    };
   }, [shown]);
 
   if (shown) return children;
