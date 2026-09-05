@@ -14,7 +14,7 @@ import { ensureWalletSchema, recordWalletTransaction } from "../services/walletS
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
 import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, resolveReceiptCoupon, syncRedemptionForOrder, validateCoupon } from "../services/couponsService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
-import { sendManagerInvoiceCreatedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
+import { sendManagerInvoiceCreatedPush, sendManagerInvoiceDeletedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
 import { getSetting } from "../services/settingsService.js";
 import { sendInvoiceWhatsapp } from "../services/whatsappOrderConfirmationService.js";
@@ -7295,6 +7295,20 @@ export const cancelOrder = async (req, res) => {
   }
 };
 
+// The manager's notification about a removed invoice has to name the goods, not just a
+// number, so the lines are flattened into the same shape the operations push already
+// speaks — name / quantity / variant, with size and colour where order_items carries them.
+const deletedInvoiceLines = (items = []) =>
+  (Array.isArray(items) ? items : []).map((item) => ({
+    name: String(item?.product_name || item?.name || "منتج").trim(),
+    quantity: Number(item?.quantity || 0),
+    variant_id: item?.variant_id || null,
+    product_id: item?.product_id || null,
+    variant_label: [item?.color, item?.size].map((part) => String(part || "").trim()).filter(Boolean).join(" / "),
+    price: Number(item?.sale_price || item?.price || 0),
+    line_total: Number(item?.total_amount || item?.line_total || 0),
+  }));
+
 export const deleteOrder = async (req, res) => {
   const client = await db.connect();
   try {
@@ -7405,6 +7419,17 @@ export const deleteOrder = async (req, res) => {
     });
 
     await client.query("COMMIT");
+    // Nothing else tells the manager an invoice is gone — it just stops appearing in the
+    // sales list. This is the only trace they get, so it fires on every delete.
+    sendManagerInvoiceDeletedPush({
+      kind: "delete",
+      order: { ...loaded.order, ...updateResult.rows[0] },
+      items: deletedInvoiceLines(loaded.items),
+      actorName: req.user?.name || req.user?.email || "",
+      reason: req.body?.reason || "",
+      stockRestored: !stockAlreadyRestored,
+      amount: Number(loaded.order.total_amount || loaded.order.total || 0),
+    }).catch((error) => console.warn("[manager-push:invoice-deleted-skipped]", { orderId: loaded.order.id, message: error?.message || String(error) }));
     void syncDeliveryOrderFavorite({
       tenantId: updateResult.rows[0]?.tenant_id || tenantId,
       order: updateResult.rows[0],
@@ -7475,6 +7500,17 @@ export const archiveOrder = async (req, res) => {
     );
 
     await client.query("COMMIT");
+    // Archiving hides the invoice without putting a single item back on the shelf, so the
+    // manager hears about it too — and the body says the stock did NOT return.
+    sendManagerInvoiceDeletedPush({
+      kind: "archive",
+      order: { ...loaded.order, ...(updateResult.rows[0] || {}) },
+      items: deletedInvoiceLines(loaded.items),
+      actorName: req.user?.name || req.user?.email || "",
+      reason: req.body?.reason || "",
+      stockRestored: false,
+      amount: Number(loaded.order.total_amount || loaded.order.total || 0),
+    }).catch((error) => console.warn("[manager-push:invoice-archived-skipped]", { orderId: loaded.order.id, message: error?.message || String(error) }));
     // An archived order is not on its way to anyone, so it stops holding a star.
     void syncDeliveryOrderFavorite({
       tenantId: updateResult.rows[0]?.tenant_id || tenantId,
@@ -7563,14 +7599,32 @@ export const permanentDeleteOrder = async (req, res) => {
         invoice_number: loaded.order.invoice_number || null,
         total_amount: Number(loaded.order.total_amount || loaded.order.total || 0),
         deleted_by: req.user?.id || null,
+        deleted_by_name: req.user?.name || req.user?.email || "",
         deleted_at: new Date().toISOString(),
         restored_items: restoredItems,
         stock_already_restored: stockAlreadyRestored,
         related_deleted: relatedDeleted,
+        // The orders row is about to be gone for good, so the activity log becomes the
+        // only record of it. Scope and identity are copied in, or the manager portal
+        // could never tell whose invoice this was or which branch it belonged to.
+        tenant_id: loaded.order.tenant_id || null,
+        branch_id: loaded.order.branch_id || null,
+        customer_name: loaded.order.customer_name || "",
+        reason: req.body?.reason || "",
+        items: deletedInvoiceLines(loaded.items),
       }
     );
 
     await client.query("COMMIT");
+    sendManagerInvoiceDeletedPush({
+      kind: "permanent",
+      order: loaded.order,
+      items: deletedInvoiceLines(loaded.items),
+      actorName: req.user?.name || req.user?.email || "",
+      reason: req.body?.reason || "",
+      stockRestored: !stockAlreadyRestored,
+      amount: Number(loaded.order.total_amount || loaded.order.total || 0),
+    }).catch((error) => console.warn("[manager-push:invoice-hard-deleted-skipped]", { orderId: loaded.order.id, message: error?.message || String(error) }));
     return res.status(200).json({
       success: true,
       message: "Order permanently deleted.",

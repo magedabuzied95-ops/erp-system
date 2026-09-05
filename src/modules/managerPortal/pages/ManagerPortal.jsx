@@ -85,7 +85,14 @@ const TABS = ["today", "staff", "tasks", "sales", "chat", "inventory", "more"];
 // Reachable by URL and by notification, but deliberately not in the bottom bar —
 // seven thumb targets is already the ceiling on a phone.
 const SECONDARY_TABS = ["notifications", "operations"];
-const OPERATION_KINDS = ["all", "exchange", "return", "edit"];
+const OPERATION_KINDS = ["all", "exchange", "return", "edit", "delete"];
+// A deleted invoice is the one operation that removes money from the day rather than
+// moving it, so it never borrows the amber "edit" tone — it reads as red on sight.
+const operationKindTone = (kind = "") => {
+  if (kind === "return" || kind === "delete") return "red";
+  if (kind === "exchange") return "blue";
+  return "amber";
+};
 const STORAGE_KEY = "manager.portal.active.tab";
 const DEFAULT_NOTIFICATION_SETTINGS = {
   messages: { sound: true, toast: true, push: true },
@@ -1312,6 +1319,12 @@ export default function ManagerPortal() {
     if (operation.mechanism === "return") {
       const amount = Number(operation.refund_amount || 0);
       return { paid: false, amount, methods: methods.length ? methods : (operation.refund_method ? [{ method: operation.refund_method, amount }] : []) };
+    }
+    // A delete settles nothing: it un-does the sale, so the money that moves is whatever
+    // the customer had already handed over and is getting back.
+    if (operation.kind === "delete") {
+      const amount = Number(operation.paid_amount || 0);
+      return { paid: false, amount, methods: amount > 0.009 && operation.payment_method ? [{ method: operation.payment_method, amount }] : [] };
     }
     const difference = Number(operation.difference || 0);
     return { paid: difference >= 0, amount: Math.abs(difference), methods };
@@ -3146,8 +3159,11 @@ export default function ManagerPortal() {
                               >
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <StatusPill tone={operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber"} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
+                                    <StatusPill tone={operationKindTone(operation.kind)} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
                                     <span className="text-sm font-black text-white">{portalText(operation.invoice_number)}</span>
+                                    {operation.kind === "delete" && !operation.stock_restored ? (
+                                      <StatusPill tone="amber" value={tt("managerPortal.operations.stockNotRestored")} />
+                                    ) : null}
                                   </div>
                                   <div className="mt-1 truncate text-xs font-semibold text-slate-400">
                                     <InlineName>{portalText(operation.customer_name)}</InlineName> · {formatDateTime(operation.at)}
@@ -3160,8 +3176,8 @@ export default function ManagerPortal() {
                                   ) : null}
                                 </div>
                                 <div className="shrink-0 text-left">
-                                  <div className={`text-sm font-black ${difference > 0 ? "text-emerald-300" : difference < 0 ? "text-rose-300" : "text-slate-400"}`}>
-                                    {difference > 0 ? "+" : ""}{formatCurrency(difference)}
+                                  <div className={`text-sm font-black ${operation.kind === "delete" ? "text-rose-300" : difference > 0 ? "text-emerald-300" : difference < 0 ? "text-rose-300" : "text-slate-400"}`}>
+                                    {operation.kind === "delete" ? `−${formatCurrency(operation.old_total || 0)}` : `${difference > 0 ? "+" : ""}${formatCurrency(difference)}`}
                                   </div>
                                   {/* dir=ltr so before → after keeps pointing at the new total inside the RTL page. */}
                                   <div dir="ltr" className="mt-0.5 text-[11px] font-bold text-slate-500">
@@ -4162,7 +4178,7 @@ export default function ManagerPortal() {
                 )}
               >
                 {operations.summary ? (
-                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                       <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.exchanges")}</div>
                       <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{formatNumber(operations.summary.exchanges || 0)}</div>
@@ -4170,6 +4186,13 @@ export default function ManagerPortal() {
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                       <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.returns")}</div>
                       <div className="mt-1 text-lg font-black text-slate-950 dark:text-white">{formatNumber(operations.summary.returns || 0)}</div>
+                    </div>
+                    <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
+                      <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.deletes")}</div>
+                      <div className="mt-1 text-lg font-black text-rose-600">{formatNumber(operations.summary.deletes || 0)}</div>
+                      {operations.summary.deleted_amount > 0 ? (
+                        <div className="text-[11px] font-bold text-slate-500">{formatCurrency(operations.summary.deleted_amount)}</div>
+                      ) : null}
                     </div>
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                       <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.summary.refunded")}</div>
@@ -4202,7 +4225,8 @@ export default function ManagerPortal() {
                     {operations.operations.map((operation) => {
                       const expanded = Boolean(expandedOperationIds[String(operation.id)]);
                       const difference = Number(operation.difference || 0);
-                      const kindTone = operation.kind === "return" ? "red" : operation.kind === "exchange" ? "blue" : "amber";
+                      const kindTone = operationKindTone(operation.kind);
+                      const isDeleted = operation.kind === "delete";
                       return (
                         <div key={operation.id} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.03]">
                           <button
@@ -4214,6 +4238,15 @@ export default function ManagerPortal() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <StatusPill tone={kindTone} value={tt(`managerPortal.operations.kinds.${operation.kind}`)} />
                                 <span className="text-sm font-black text-slate-950 dark:text-white">{portalText(operation.invoice_number)}</span>
+                                {isDeleted && operation.permanent ? (
+                                  <StatusPill tone="red" value={tt("managerPortal.operations.permanentDelete")} />
+                                ) : null}
+                                {isDeleted ? (
+                                  <StatusPill
+                                    tone={operation.stock_restored ? "green" : "amber"}
+                                    value={operation.stock_restored ? tt("managerPortal.operations.stockRestored") : tt("managerPortal.operations.stockNotRestored")}
+                                  />
+                                ) : null}
                                 {operation.money && operation.money.balanced === false ? (
                                   <StatusPill tone="red" value={tt("managerPortal.operations.notInShift")} />
                                 ) : null}
@@ -4225,8 +4258,10 @@ export default function ManagerPortal() {
                               <div className="mt-0.5 text-[11px] font-bold text-slate-500">{formatDateTime(operation.at)}</div>
                             </div>
                             <div className="shrink-0 text-left">
-                              <div className={`text-base font-black ${difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                                {difference > 0 ? "+" : ""}{formatCurrency(difference)}
+                              {/* A delete moves no difference — the whole invoice is what left,
+                                  so the headline number is its value, not a zero. */}
+                              <div className={`text-base font-black ${isDeleted ? "text-rose-600" : difference > 0 ? "text-emerald-600" : difference < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                                {isDeleted ? `−${formatCurrency(operation.old_total || 0)}` : `${difference > 0 ? "+" : ""}${formatCurrency(difference)}`}
                               </div>
                               {/* dir=ltr so the before → after arrow keeps pointing at the
                                   new total; in the RTL page it silently reversed. */}
@@ -4275,11 +4310,17 @@ export default function ManagerPortal() {
                                 <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.03]">
                                   <div className="text-[11px] font-black text-slate-500">{tt("managerPortal.operations.money")}</div>
                                   <div className="mt-1 font-bold text-slate-800 dark:text-slate-100">
-                                    {operation.money?.cash_event_label
-                                      ? `${operation.money.cash_event_label}: ${formatCurrency(operation.money.cash_amount || 0)}`
-                                      : operation.money?.account_amount
-                                        ? `${portalText(operation.money.account_name, tt("managerPortal.operations.account"))}: ${formatCurrency(operation.money.account_amount)}`
-                                        : tt("managerPortal.operations.noMoneyMoved")}
+                                    {/* The delete reverses whatever the customer had already paid,
+                                        so that figure — not a drawer event — is the money answer. */}
+                                    {isDeleted
+                                      ? (Number(operation.paid_amount || 0) > 0.009
+                                          ? `${tt("managerPortal.operations.reversedPayment")}: ${formatCurrency(operation.paid_amount)}`
+                                          : tt("managerPortal.operations.noMoneyMoved"))
+                                      : operation.money?.cash_event_label
+                                        ? `${operation.money.cash_event_label}: ${formatCurrency(operation.money.cash_amount || 0)}`
+                                        : operation.money?.account_amount
+                                          ? `${portalText(operation.money.account_name, tt("managerPortal.operations.account"))}: ${formatCurrency(operation.money.account_amount)}`
+                                          : tt("managerPortal.operations.noMoneyMoved")}
                                   </div>
                                   {operation.settlement?.deferred_amount > 0 ? (
                                     <div className="mt-1 text-xs font-bold text-amber-700">{tt("managerPortal.operations.deferred")}: {formatCurrency(operation.settlement.deferred_amount)}</div>
@@ -4308,14 +4349,20 @@ export default function ManagerPortal() {
                                 <div className="text-xs font-bold text-slate-500">{tt("managerPortal.operations.reason")}: {portalText(operation.reason)}</div>
                               ) : null}
 
-                              <button
-                                type="button"
-                                onClick={() => openInvoiceDetail(operation.order_id)}
-                                className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                                {tt("managerPortal.operations.openInvoice")}
-                              </button>
+                              {/* A permanently deleted invoice has no row left to open — the feed
+                                  entry IS the record, so the button would only 404. */}
+                              {operation.order_id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openInvoiceDetail(operation.order_id)}
+                                  className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                  {tt("managerPortal.operations.openInvoice")}
+                                </button>
+                              ) : (
+                                <div className="text-xs font-bold text-slate-500">{tt("managerPortal.operations.invoiceGone")}</div>
+                              )}
                             </div>
                           ) : null}
                         </div>

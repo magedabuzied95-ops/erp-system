@@ -1556,6 +1556,8 @@ const emptyOperationsSummary = () => ({
   edits: 0,
   returns: 0,
   exchanges: 0,
+  deletes: 0,
+  deleted_amount: 0,
   refunded_amount: 0,
   collected_amount: 0,
   unbalanced: 0,
@@ -1568,6 +1570,14 @@ const summarizeOperations = (operations = []) => {
     if (operation.kind === "edit") summary.edits += 1;
     if (operation.kind === "return") summary.returns += 1;
     if (operation.kind === "exchange") summary.exchanges += 1;
+    // A deleted invoice is not a refund: no money went back over the counter, the sale
+    // simply stopped existing. Folding its total into "مبالغ مرتجعة" would double-count
+    // it against the returns a manager actually has to reconcile, so it gets its own line.
+    if (operation.kind === "delete") {
+      summary.deletes += 1;
+      summary.deleted_amount += Math.abs(toNumber(operation.old_total));
+      continue;
+    }
     const difference = toNumber(operation.difference);
     if (difference < 0) summary.refunded_amount += Math.abs(difference);
     if (difference > 0) summary.collected_amount += difference;
@@ -1575,6 +1585,7 @@ const summarizeOperations = (operations = []) => {
   }
   summary.refunded_amount = Number(summary.refunded_amount.toFixed(2));
   summary.collected_amount = Number(summary.collected_amount.toFixed(2));
+  summary.deleted_amount = Number(summary.deleted_amount.toFixed(2));
   return summary;
 };
 
@@ -1651,7 +1662,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   const limit = Math.min(Math.max(Number(query.limit) || 60, 1), 200);
   const kindFilter = lower(query.kind || "all") || "all";
 
-  const [hasOrders, hasEdits, hasReturns, hasReturnItems, hasCashEvents, hasAccountEntries, hasExchangeColumn, hasDisposition, hasPaymentMethod, hasPaymentBreakdown] = await Promise.all([
+  const [hasOrders, hasEdits, hasReturns, hasReturnItems, hasCashEvents, hasAccountEntries, hasExchangeColumn, hasDisposition, hasPaymentMethod, hasPaymentBreakdown, hasDeletedAt, hasDeleteReason, hasDeletedBy, hasStockRestoredAt, hasActivityLogs] = await Promise.all([
     tableExists("orders"),
     tableExists("order_edit_audits"),
     tableExists("returns"),
@@ -1662,6 +1673,11 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
     columnExists("returns", "disposition"),
     columnExists("orders", "payment_method"),
     columnExists("orders", "payment_breakdown"),
+    columnExists("orders", "deleted_at"),
+    columnExists("orders", "delete_reason"),
+    columnExists("orders", "deleted_by"),
+    columnExists("orders", "stock_restored_at"),
+    tableExists("activity_logs"),
   ]);
   if (!hasOrders) return { operations: [], summary: emptyOperationsSummary(), range, kind: kindFilter, total: 0 };
 
@@ -1864,6 +1880,86 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
     exchangeItemsByOrder.set(key, list);
   }
 
+  // A deleted invoice leaves no trace anywhere else in the portal — it just stops being
+  // in the sales list — so the operations feed is where it has to surface. Two sources,
+  // because the row survives a soft delete and does not survive a permanent one.
+  const deletedOrderRows = hasDeletedAt
+    ? await safeQuery(
+        `
+        SELECT
+          o.id, o.invoice_number, o.customer_name, o.customer_phone, o.branch_id,
+          o.deleted_at, o.created_at, o.status,
+          COALESCE(o.total_amount, o.total, 0) AS order_total,
+          COALESCE(o.paid_amount, 0) AS paid_amount,
+          ${hasDeleteReason ? "COALESCE(o.delete_reason, '')" : "''"} AS delete_reason,
+          ${hasStockRestoredAt ? "o.stock_restored_at" : "NULL::timestamp"} AS stock_restored_at,
+          ${hasPaymentMethod ? "COALESCE(o.payment_method, '')" : "''"} AS payment_method,
+          o.shift_id AS order_shift_id,
+          COALESCE(b.name, '') AS branch_name,
+          ${hasDeletedBy ? "COALESCE(NULLIF(u.name, ''), NULLIF(u.email, ''), 'غير معروف')" : "'غير معروف'"} AS actor_name
+        FROM orders o
+        LEFT JOIN branches b ON b.id = o.branch_id
+        ${hasDeletedBy ? "LEFT JOIN users u ON u.id = o.deleted_by" : ""}
+        WHERE o.deleted_at IS NOT NULL
+          AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+          ${branchClause}
+          AND ${operationRangeClause(range, "o.deleted_at", operationsStartHour)}
+        ORDER BY o.deleted_at DESC
+        LIMIT ${limit}
+        `,
+        params,
+        []
+      )
+    : [];
+
+  const deletedOrderIds = deletedOrderRows.map((row) => Number(row.id)).filter(Boolean);
+  const deletedItemRows = deletedOrderIds.length
+    ? await safeQuery(
+        `
+        SELECT oi.order_id, oi.quantity, oi.variant_id, COALESCE(NULLIF(oi.product_name, ''), 'منتج') AS product_name,
+               COALESCE(oi.total_amount, 0) AS total_amount
+        FROM order_items oi
+        WHERE oi.order_id = ANY($1::bigint[])
+        `,
+        [deletedOrderIds],
+        []
+      )
+    : [];
+  const deletedItemsByOrder = new Map();
+  for (const row of deletedItemRows) {
+    const key = String(row.order_id);
+    const quantity = toNumber(row.quantity);
+    const list = deletedItemsByOrder.get(key) || [];
+    list.push({
+      name: repairManagerPortalPayload(clean(row.product_name)),
+      variant_id: numberOrNull(row.variant_id),
+      quantity,
+      line_total: toNumber(row.total_amount),
+      price: quantity > 0 ? Number((toNumber(row.total_amount) / quantity).toFixed(2)) : toNumber(row.total_amount),
+    });
+    deletedItemsByOrder.set(key, list);
+  }
+
+  // A permanent delete takes the orders row with it, so the activity log is the only
+  // record left. It carries no tenant_id / branch_id columns of its own — the scope was
+  // copied into the details payload at delete time — so the filtering happens in JS.
+  const hardDeleteRows = hasActivityLogs
+    ? await safeQuery(
+        `
+        SELECT al.id, al.entity_id, al.details, al.created_at,
+               COALESCE(NULLIF(u.name, ''), NULLIF(u.email, ''), 'غير معروف') AS actor_name
+        FROM activity_logs al
+        LEFT JOIN users u ON u.id = al.user_id
+        WHERE al.action = 'PERMANENT_DELETE_ORDER'
+          AND ${operationRangeClause(range, "al.created_at", operationsStartHour)}
+        ORDER BY al.created_at DESC
+        LIMIT ${limit * 4}
+        `,
+        [],
+        []
+      )
+    : [];
+
   const operations = [];
 
   for (const row of editRows) {
@@ -2031,6 +2127,87 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
     });
   }
 
+  for (const row of deletedOrderRows) {
+    const total = toNumber(row.order_total);
+    // Cancel-and-restore stamps stock_restored_at; a plain archive never does. That one
+    // column is the whole difference between "the mistake was undone" and "the invoice
+    // was hidden and the goods are still off the shelf".
+    const stockRestored = Boolean(row.stock_restored_at);
+    operations.push({
+      id: `delete-${row.id}`,
+      kind: "delete",
+      mechanism: stockRestored ? "invoice_delete" : "invoice_archive",
+      at: row.deleted_at,
+      order_id: Number(row.id),
+      invoice_number: repairManagerPortalPayload(clean(row.invoice_number)) || `#${row.id}`,
+      customer_name: repairManagerPortalPayload(clean(row.customer_name)) || "عميل",
+      customer_phone: clean(row.customer_phone),
+      branch_id: numberOrNull(row.branch_id),
+      branch_name: repairManagerPortalPayload(clean(row.branch_name)),
+      actor_name: repairManagerPortalPayload(clean(row.actor_name)),
+      reason: repairManagerPortalPayload(clean(row.delete_reason)),
+      fields_only: false,
+      permanent: false,
+      stock_restored: stockRestored,
+      invoice_created_at: row.created_at,
+      old_total: total,
+      new_total: 0,
+      difference: 0,
+      paid_amount: toNumber(row.paid_amount),
+      payment_method: lower(clean(row.payment_method)),
+      payment_methods: [],
+      items_out: deletedItemsByOrder.get(String(row.id)) || [],
+      items_in: [],
+      settlement: null,
+      money: null,
+      order_shift_id: numberOrNull(row.order_shift_id),
+    });
+  }
+
+  for (const row of hardDeleteRows) {
+    const details = jsonObject(typeof row.details === "string" ? (() => { try { return JSON.parse(row.details); } catch { return {}; } })() : row.details);
+    const rowTenantId = numberOrNull(details.tenant_id);
+    const rowBranchId = numberOrNull(details.branch_id);
+    if (tenantId && rowTenantId && rowTenantId !== tenantId) continue;
+    if (branchId && rowBranchId !== branchId) continue;
+    const orderId = numberOrNull(row.entity_id);
+    const items = Array.isArray(details.items) ? details.items : [];
+    operations.push({
+      id: `hard-delete-${orderId || row.id}`,
+      kind: "delete",
+      mechanism: "invoice_hard_delete",
+      at: row.created_at,
+      // No orders row is left, so the feed must not offer "open the invoice".
+      order_id: null,
+      deleted_order_id: orderId,
+      invoice_number: repairManagerPortalPayload(clean(details.invoice_number || details.order_code)) || `#${orderId || ""}`,
+      customer_name: repairManagerPortalPayload(clean(details.customer_name)) || "عميل",
+      customer_phone: "",
+      branch_id: rowBranchId,
+      branch_name: "",
+      actor_name: repairManagerPortalPayload(clean(details.deleted_by_name || row.actor_name)),
+      reason: repairManagerPortalPayload(clean(details.reason)),
+      fields_only: false,
+      permanent: true,
+      stock_restored: !details.stock_already_restored,
+      old_total: toNumber(details.total_amount),
+      new_total: 0,
+      difference: 0,
+      payment_methods: [],
+      items_out: items.map((item) => ({
+        name: repairManagerPortalPayload(clean(item?.name)) || "منتج",
+        variant_id: numberOrNull(item?.variant_id),
+        quantity: toNumber(item?.quantity),
+        line_total: toNumber(item?.line_total),
+        price: toNumber(item?.price),
+      })),
+      items_in: [],
+      settlement: null,
+      money: null,
+      order_shift_id: null,
+    });
+  }
+
   operations.sort((a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime());
   const filtered = kindFilter === "all" ? operations : operations.filter((operation) => operation.kind === kindFilter);
   const page = filtered.slice(0, limit);
@@ -2041,7 +2218,7 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   // Each source is capped independently, so a source that came back exactly full may
   // be hiding older rows — and then the counts below describe the window, not the
   // period. Say so rather than letting the totals read as complete.
-  const truncated = [editRows, returnRows, exchangeOrderRows].some((rows) => rows.length >= limit)
+  const truncated = [editRows, returnRows, exchangeOrderRows, deletedOrderRows].some((rows) => rows.length >= limit)
     || filtered.length > page.length;
 
   return {

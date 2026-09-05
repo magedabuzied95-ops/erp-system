@@ -739,3 +739,138 @@ export const sendManagerOrderOperationPush = async ({
     },
   });
 };
+
+// A deleted invoice is the one operation with no trace left on the sales list: the row
+// simply stops being there. Nothing else in the portal would ever tell the manager it
+// happened, so the notification has to carry the whole invoice — number, customer,
+// value, who removed it and why — and it fires for every flavour of removal.
+const DELETE_TITLES = {
+  delete: "حذف فاتورة",
+  archive: "أرشفة فاتورة",
+  permanent: "حذف نهائي لفاتورة",
+};
+
+const DELETE_TYPES = {
+  delete: "order_deleted",
+  archive: "order_archived",
+  permanent: "order_hard_deleted",
+};
+
+const DELETE_ENTITY_PREFIX = {
+  delete: "delete",
+  archive: "archive",
+  permanent: "hard-delete",
+};
+
+export const sendManagerInvoiceDeletedPush = async ({
+  kind = "delete",
+  order = {},
+  items = [],
+  actorName = "",
+  reason = "",
+  stockRestored = false,
+  amount = null,
+} = {}) => {
+  const orderId = numberOrNull(order.id || order.order_id);
+  const tenantId = numberOrNull(order.tenant_id);
+  const branchId = numberOrNull(order.branch_id);
+  if (!orderId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
+
+  const normalizedKind = DELETE_TITLES[kind] ? kind : "delete";
+  const invoiceNumber = text(order.invoice_number || order.public_order_number || order.display_order_number || orderId);
+  const customerName = text(order.customer_name) || "عميل";
+  const total = Number(amount ?? order.total_amount ?? order.total ?? 0) || 0;
+  const title = `${DELETE_TITLES[normalizedKind]} · ${invoiceNumber}`;
+
+  // Size/colour on the line, exactly as an edit or a return reads — the manager is
+  // being told which goods just left the books.
+  const lines = Array.isArray(items) ? items.filter((item) => item && text(item.name)) : [];
+  await attachOperationVariantLabels(lines);
+
+  const parts = [`قيمة الفاتورة ${money(total)}`];
+  const preview = operationItemsPreview(lines);
+  if (preview) parts.push(preview);
+  const actor = text(actorName);
+  if (actor) parts.push(`بواسطة ${actor}`);
+  // "Stock went back" is the difference between a mistake being undone and inventory
+  // quietly going missing, so it is never left implicit.
+  parts.push(stockRestored ? "المخزون رجع" : "المخزون لم يرجع");
+  const why = text(reason);
+  if (why) parts.push(`السبب: ${why}`);
+  const body = `${customerName} — ${parts.join(" · ")}`;
+  // Two different ids on purpose. `entityId` is the dedupe key and has to separate an
+  // archive from a delete of the same invoice. `feedOperationId` is what the portal
+  // expands when the manager taps through, and the feed keys a soft removal — archive
+  // or cancel-and-restore — on one row: `delete-<id>`. Collapsing them left the tap
+  // opening the operations tab with nothing expanded.
+  const entityId = `${DELETE_ENTITY_PREFIX[normalizedKind]}-${orderId}`;
+  const feedOperationId = normalizedKind === "permanent" ? `hard-delete-${orderId}` : `delete-${orderId}`;
+
+  console.info("[manager-push:invoice-deleted]", {
+    tenantId,
+    branchId,
+    order_id: orderId,
+    invoice_number: invoiceNumber,
+    kind: normalizedKind,
+    entity_id: entityId,
+  });
+
+  createNotification({
+    tenant_id: tenantId || null,
+    role_key: "manager",
+    branch_id: branchId || null,
+    type: DELETE_TYPES[normalizedKind],
+    category: "sales",
+    priority: "high",
+    title,
+    message: body,
+    action_label: "عرض التفاصيل",
+    // Same entity_type as the other operations so the portal opens the operations feed
+    // rather than an invoice sheet that no longer has anything to show.
+    entity_type: "order_operation",
+    entity_id: entityId,
+    metadata: {
+      type: DELETE_TYPES[normalizedKind],
+      operation_kind: normalizedKind === "permanent" ? "hard_delete" : normalizedKind,
+      operation_id: feedOperationId,
+      order_id: orderId,
+      invoice_number: invoiceNumber,
+      customer_name: customerName,
+      actor_name: actor,
+      reason: why,
+      amount: Number(total.toFixed(2)),
+      stock_restored: Boolean(stockRestored),
+      items_out: lines,
+      // A permanently deleted invoice has no row left to open, so the sheet is off.
+      invoice_id: normalizedKind === "permanent" ? null : orderId,
+      open_operations: true,
+    },
+  }).catch((error) => console.warn("[manager-push:invoice-deleted-notification-failed]", { order_id: orderId, message: error?.message || String(error) }));
+
+  return sendToManagerSubscriptions({
+    tenantId,
+    branchId,
+    category: "sales",
+    logLabels: {
+      attempt: "[manager-push:invoice-deleted-send-attempt]",
+      success: "[manager-push:invoice-deleted-send-success]",
+      failed: "[manager-push:invoice-deleted-send-failed]",
+    },
+    buildPayload: (row) => {
+      const url = `/manager-portal/${encodeURIComponent(row.portal_token)}?tab=operations&operation_id=${encodeURIComponent(feedOperationId)}`;
+      return {
+        title,
+        body,
+        tag: `manager-invoice-deleted-${entityId}`,
+        data: {
+          type: DELETE_TYPES[normalizedKind],
+          operation_kind: normalizedKind === "permanent" ? "hard_delete" : normalizedKind,
+          operation_id: feedOperationId,
+          order_id: orderId,
+          invoice_number: invoiceNumber,
+          url,
+        },
+      };
+    },
+  });
+};

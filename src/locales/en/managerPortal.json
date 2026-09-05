@@ -591,8 +591,8 @@
     "loyaltyDiscount": "Loyalty points discount"
   },
   "operations": {
-    "title": "Edits & returns",
-    "subtitle": "Every edit, return, and exchange made after the invoice was issued",
+    "title": "Edits, returns & deletions",
+    "subtitle": "Every edit, return, exchange, and deletion made after the invoice was issued",
     "paidByCustomer": "Customer paid",
     "refundedToCustomer": "Customer received",
     "creditUsed": "Credit from the old invoice",
@@ -601,7 +601,8 @@
       "all": "All",
       "edit": "Edit",
       "return": "Return",
-      "exchange": "Exchange"
+      "exchange": "Exchange",
+      "delete": "Deleted"
     },
     "ranges": {
       "today": "Today",
@@ -613,7 +614,8 @@
       "exchanges": "Exchanges",
       "returns": "Returns",
       "refunded": "Refunded",
-      "collected": "Difference collected"
+      "collected": "Difference collected",
+      "deletes": "Deleted invoices"
     },
     "itemsOut": "Left the invoice",
     "itemsIn": "Added to the invoice",
@@ -631,8 +633,13 @@
     "openInvoice": "Open invoice",
     "unbalancedWarning": "{{count}} operation(s) moved money that never reached a drawer or account — review them.",
     "empty": "No operations in this period",
-    "emptyHint": "Every edit, return, and exchange shows up here as it happens.",
-    "truncated": "Showing the newest operations in this period — the counts above cover only what is shown. Narrow the range to see all of them."
+    "emptyHint": "Every edit, return, exchange, and deletion shows up here as it happens.",
+    "truncated": "Showing the newest operations in this period — the counts above cover only what is shown. Narrow the range to see all of them.",
+    "permanentDelete": "Permanent delete",
+    "stockRestored": "Stock returned",
+    "stockNotRestored": "Stock not returned",
+    "reversedPayment": "Payment reversed",
+    "invoiceGone": "Permanently deleted — there is no invoice left to open"
   },
   "employeeDetails": {
     "open": "Employee details",
