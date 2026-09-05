@@ -536,6 +536,11 @@ const scrubInactiveClassifications = async (products = []) => {
   });
 };
 
+// Returned instead of an empty list so the caller filters on a value nothing can
+// match: an inactive classification must narrow the catalogue to nothing, never
+// widen it back to everything.
+const NO_ACTIVE_CLASSIFICATION_MATCH = "__no_active_classification_match__";
+
 const getActiveClassificationFilterAliases = async (groupKey, value) => {
   const raw = toText(value);
   if (!raw) return [];
@@ -547,7 +552,7 @@ const getActiveClassificationFilterAliases = async (groupKey, value) => {
       .filter(Boolean)
       .includes(rawToken)
   );
-  if (!option) return ["__no_active_classification_match__"];
+  if (!option) return [NO_ACTIVE_CLASSIFICATION_MATCH];
   return [option.value, option.label_ar, option.label_en, option.name_ar, option.name_en, option.english_name]
     .map((item) => toText(item).toLowerCase())
     .filter(Boolean);
@@ -3027,6 +3032,19 @@ export const isHomeMirrorProduct = (product = {}) => {
 };
 
 const STOREFRONT_HOME_MIRROR_FILTER_SLUG = "mirror_original";
+// The homepage hero is the Mirror Original *sneakers* window. The grade itself
+// also covers bags and slippers, and the bags carry the larger stock, so an
+// unfiltered mirror pool hands the hero a school bag under a sneakers headline.
+const STOREFRONT_HOME_MIRROR_PRODUCT_TYPE = "sneakers";
+
+// The taxonomy is the authority on how "sneakers" is spelled in product_type, but
+// a store whose classification group is missing or renamed must still get a
+// sneakers-only hero rather than the whole grade back - hence the literal.
+const storefrontHomeMirrorProductTypes = async () => {
+  const aliases = await getActiveClassificationFilterAliases("product_type", STOREFRONT_HOME_MIRROR_PRODUCT_TYPE);
+  const usable = aliases.filter((alias) => alias && alias !== NO_ACTIVE_CLASSIFICATION_MATCH);
+  return usable.length ? usable : [STOREFRONT_HOME_MIRROR_PRODUCT_TYPE];
+};
 
 const isHomeSaleProduct = (product = {}) => {
   const salePrice = roundMoney(product.sale_price);
@@ -3081,7 +3099,11 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   await ensureProductVariantImagesSchema();
   const pricingSettings = normalizeStorefrontPricingSettings(settings || await getWebsiteSettings({ tenantId }));
   const filters = { gender: [], productType: [], grade: [], quality: [], size: "", inStock: true };
-  const mirrorFilters = { ...filters, quality: storefrontQualityAliases(STOREFRONT_HOME_MIRROR_FILTER_SLUG) };
+  const mirrorFilters = {
+    ...filters,
+    quality: storefrontQualityAliases(STOREFRONT_HOME_MIRROR_FILTER_SLUG),
+    productType: await storefrontHomeMirrorProductTypes(),
+  };
   let [result, mirrorResult] = await Promise.all([
     queryProducts(tenantId, "", "", filters, false, 80, 0),
     queryProducts(tenantId, "", "", mirrorFilters, false, 12, 0),
