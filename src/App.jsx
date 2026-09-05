@@ -242,6 +242,7 @@ const AdminTenants = lazy(() => import("./modules/saas/pages/AdminTenants"));
 const SettingsCenter = lazy(() => import("./modules/settings/pages/SettingsCenter"));
 const InvoiceStudio = lazy(() => import("./modules/settings/pages/InvoiceStudio"));
 const AppearanceStudio = lazy(() => import("./modules/settings/pages/AppearanceStudio"));
+const SiteStudio = lazy(() => import("./modules/settings/pages/SiteStudio"));
 const NotificationsCenter = lazy(() => import("./modules/notifications/pages/NotificationsCenter"));
 const AiSupportConsole = lazy(() => import("./modules/aiSupport/pages/AiSupportConsole"));
 const AiSupportKnowledgeBase = lazy(() => import("./modules/aiSupport/pages/AiSupportKnowledgeBase"));
@@ -1046,6 +1047,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["settings.view"]}>
               <AppearanceStudio />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="settings/site-studio"
+          element={
+            <ProtectedRoute requiredPermissions={["settings.view"]}>
+              <SiteStudio />
             </ProtectedRoute>
           }
         />

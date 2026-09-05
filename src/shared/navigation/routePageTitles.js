@@ -23,6 +23,7 @@ const EXACT_ROUTE_TITLES = Object.freeze({
   "/settings": "Settings Center",
   "/settings/company": "Company Settings",
   "/settings/appearance": "Appearance Settings",
+  "/settings/site-studio": "Site Studio",
   "/settings/currencies": "Currency Settings",
   "/settings/storefront": "Storefront Settings",
   "/settings/shipping": "Shipping Settings",

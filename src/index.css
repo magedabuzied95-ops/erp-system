@@ -7787,7 +7787,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
    in over it. That is a poster image's job done with zero bytes.
    ========================================================================== */
 @layer components {
-  .storefront-shell .sf-hero-video {
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video {
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 11;
@@ -7797,13 +7797,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 
   @media (min-width: 768px) {
-    .storefront-shell .sf-hero-video {
+    :is(.storefront-shell, .sf-hero-preview) .sf-hero-video {
       aspect-ratio: 21 / 9;
       max-height: 70vh;
     }
   }
 
-  .storefront-shell .sf-hero-video__media {
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media {
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -7812,12 +7812,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     transition: opacity 500ms ease;
   }
 
-  .storefront-shell .sf-hero-video__media.is-ready {
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media.is-ready {
     opacity: 1;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .storefront-shell .sf-hero-video__media {
+    :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media {
       transition: none;
     }
   }
@@ -7829,15 +7829,195 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
    long-press, so both are refused outright and taps pass through to the page.
    -------------------------------------------------------------------------- */
 @layer components {
-  .storefront-shell .sf-hero-video__media {
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media {
     pointer-events: none;
   }
 
-  .storefront-shell .sf-hero-video__media::-webkit-media-controls,
-  .storefront-shell .sf-hero-video__media::-webkit-media-controls-panel,
-  .storefront-shell .sf-hero-video__media::-webkit-media-controls-start-playback-button {
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls,
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-panel,
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__media::-webkit-media-controls-start-playback-button {
     display: none !important;
     -webkit-appearance: none;
     appearance: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   HERO VIDEO — the copy laid over the clip
+   ----------------------------------------------------------------------------
+   Footage moves, so text on top of it is not reliably legible on its own. The
+   scrim is the fix: a bottom-anchored gradient under the words, dense where the
+   text sits and gone by the top of the frame so the product is never veiled.
+   Its colour, strength and height are set in Site Studio and arrive as
+   --sf-hero-scrim-* on `body.storefront-shell` (see shared/siteDesign.js); the
+   values below are the defaults for a visitor whose settings have not loaded.
+
+   Nothing here uses a physical side. The overlay is written with logical
+   properties so the same rules read correctly in Arabic and English, and
+   `is-align-start` means "the side the language starts on", not "left".
+
+   Every selector is scoped to `:is(.storefront-shell, .sf-hero-preview)` so Site
+   Studio’s preview renders through these exact rules rather than a lookalike
+   copy of them — a preview that drifts from the page it previews is worse than
+   no preview.
+
+   The overlay itself is click-through — the clip fills the top of the page and
+   swallowing taps across it would break scroll-to-dismiss on mobile — so only
+   the buttons take pointer events back.
+   -------------------------------------------------------------------------- */
+@layer components {
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    pointer-events: none;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-bottom {
+    align-items: flex-end;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-center {
+    align-items: center;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-align-start {
+    justify-content: flex-start;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-align-center {
+    justify-content: center;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__scrim {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: var(--sf-hero-scrim-height, 62%);
+    background-image: var(
+      --sf-hero-scrim-image,
+      linear-gradient(
+        to top,
+        rgba(0, 0, 0, 0.72) 0%,
+        rgba(0, 0, 0, 0.59) 26%,
+        rgba(0, 0, 0, 0.245) 62%,
+        rgba(0, 0, 0, 0) 100%
+      )
+    );
+    opacity: var(--sf-hero-scrim-opacity, 1);
+  }
+
+  /* When the copy is centred vertically the gradient has to cover the middle of
+     the frame too, or the text sits on bare footage above its own scrim. */
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-center .sf-hero-video__scrim {
+    height: 100%;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__copy {
+    position: relative;
+    max-width: min(560px, 100%);
+    padding-inline: clamp(1.15rem, 5vw, 3.5rem);
+    padding-block: clamp(1.5rem, 5vw, 3.25rem);
+    color: var(--sf-hero-text, #ffffff);
+    text-align: start;
+    /* The scrim handles the frame; this handles the one bright patch that lands
+       behind a word. Taken from the scrim colour, so a light scrim gets a light
+       halo rather than an outline fighting it. */
+    text-shadow: 0 1px 14px var(--sf-hero-text-halo, rgba(0, 0, 0, 0.45));
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-align-center .sf-hero-video__copy {
+    text-align: center;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__eyebrow {
+    display: inline-block;
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    /* The pill has to hold its shape over any frame, including a blown-out one,
+       so it carries its own hairline rather than relying on the scrim. */
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1.4;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__title {
+    margin-top: 0.75rem;
+    font-size: clamp(1.9rem, 7.5vw, 3.4rem);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    /* Arabic display type sits taller than Latin and clips its descenders at a
+       tight line-height, so the block gets its room back from the box. */
+    padding-block-end: 0.06em;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__sub {
+    margin-top: 0.6rem;
+    max-width: 38ch;
+    font-size: clamp(0.85rem, 3.4vw, 1.02rem);
+    line-height: 1.6;
+    opacity: 0.88;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-align-center .sf-hero-video__sub {
+    margin-inline: auto;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin-top: 1.1rem;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__overlay.is-align-center .sf-hero-video__actions {
+    justify-content: center;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__cta {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding-inline: 1.35rem;
+    border-radius: var(--m1h-r-sm, 8px);
+    background: var(--sf-hero-text, #ffffff);
+    color: #14120f;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+    /* The buttons sit on their own solid fill, so the copy halo above would only
+       muddy their label. */
+    text-shadow: none;
+    transition: transform 160ms ease, opacity 160ms ease;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__cta:hover {
+    opacity: 0.88;
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__cta:active {
+    transform: translateY(1px);
+  }
+
+  :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__cta--ghost {
+    background: transparent;
+    color: var(--sf-hero-text, #ffffff);
+    box-shadow: inset 0 0 0 1px currentColor;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :is(.storefront-shell, .sf-hero-preview) .sf-hero-video__cta {
+      transition: none;
+    }
   }
 }

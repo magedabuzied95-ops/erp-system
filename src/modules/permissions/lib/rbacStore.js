@@ -536,6 +536,7 @@ const RAW_SIDEBAR_SECTIONS = [
       { label: "General", to: "/settings/company", permission: "settings.view", icon: Settings2 },
       { label: "Invoice Studio", to: "/settings/invoice", permission: "settings.view", icon: ReceiptText },
       { label: "Appearance", to: "/settings/appearance", permission: "settings.view", icon: Paintbrush },
+      { label: "Site Studio", to: "/settings/site-studio", permission: "settings.view", icon: Store },
       { label: "Shipping", to: "/settings/shipping", permission: "settings.view", icon: Settings2 },
       { label: "Payments", to: "/settings/payments", permission: "settings.view", icon: CircleDollarSign },
       { label: "AI Inbox", to: "/admin/ai-inbox", permission: "settings.view", icon: Bot, adminOnly: true },

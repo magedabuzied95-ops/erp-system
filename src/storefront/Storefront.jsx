@@ -102,6 +102,8 @@ import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGu
 import { animateFlyToCart } from "./lib/flyToCart";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
+import { refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
+import { resolveHeroCopy } from "../../shared/siteDesign.js";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../theme/documentColorScheme";
 import { splitProductDisplayName } from "./lib/productDisplayName";
 import {
@@ -2872,7 +2874,7 @@ function StorefrontHeroVideo() {
   }, []);
 
   return (
-    <div className="sf-hero-video" aria-hidden="true">
+    <div className="sf-hero-video">
       <video
         ref={videoRef}
         className={`sf-hero-video__media${ready ? " is-ready" : ""}`}
@@ -2889,8 +2891,59 @@ function StorefrontHeroVideo() {
         disableRemotePlayback
         preload="auto"
         tabIndex={-1}
+        aria-hidden="true"
         onCanPlay={() => setReady(true)}
       />
+      <StorefrontHeroVideoOverlay />
+    </div>
+  );
+}
+
+// The copy that sits on the clip.
+//
+// Footage moves, so nothing on top of it is reliably legible on its own: the
+// scrim underneath the text is not decoration, it is what makes the words
+// readable while the frame changes. It is a bottom-anchored gradient rather
+// than a flat wash so the top of the frame — where the product is — stays
+// clear, and its colour, opacity and height all come from Site Studio.
+//
+// The video is aria-hidden and out of the tab order; this overlay is not. It is
+// real copy with real links, so it is announced and focusable in reading order.
+// The title is a paragraph, not a heading: the page's <h1> belongs to the
+// product hero below and there is only ever one.
+function StorefrontHeroVideoOverlay() {
+  const { i18n } = useTranslation();
+  const design = useSiteDesign();
+
+  useEffect(() => {
+    refreshSiteDesign();
+  }, []);
+
+  const copy = useMemo(() => resolveHeroCopy(design, i18n.language), [design, i18n.language]);
+  if (!copy) return null;
+
+  return (
+    <div className={`sf-hero-video__overlay is-${copy.position} is-align-${copy.align}`}>
+      <div className="sf-hero-video__scrim" aria-hidden="true" />
+      <div className="sf-hero-video__copy">
+        {copy.eyebrow ? <span className="sf-hero-video__eyebrow">{copy.eyebrow}</span> : null}
+        <p className="sf-hero-video__title">{copy.title}</p>
+        {copy.subtitle ? <p className="sf-hero-video__sub">{copy.subtitle}</p> : null}
+        {copy.primaryLabel || copy.secondaryLabel ? (
+          <div className="sf-hero-video__actions">
+            {copy.primaryLabel ? (
+              <Link to={copy.primaryHref} className="sf-hero-video__cta">
+                {copy.primaryLabel}
+              </Link>
+            ) : null}
+            {copy.secondaryLabel ? (
+              <Link to={copy.secondaryHref} className="sf-hero-video__cta sf-hero-video__cta--ghost">
+                {copy.secondaryLabel}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -10405,6 +10458,14 @@ function Storefront() {
     // so the light theme does NOT hand over its cream canvas here.
     setStorefrontColorScheme(themeMode, dark ? "#050505" : "#111111");
   }, [themeMode]);
+
+  // The palette, fonts and corners are decided in Site Studio and ride the same
+  // /settings/public payload the effect below reads, so this costs no extra
+  // request. It lives on the shell rather than the homepage because a visitor
+  // who lands on a product page must get the store’s colours too.
+  useEffect(() => {
+    refreshSiteDesign();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

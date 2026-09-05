@@ -462,7 +462,7 @@ function SettingsCenterContent({ debugMode = false }) {
     : "lg:grid-cols-[20rem_minmax(0,1fr)]";
 
   const definitions = useMemo(() => settingsByCategory[activeCategory] || [], [activeCategory]);
-  const siteSettingKeys = useMemo(() => new Set(["general.company_name", "general.company_logo_url", "general.favicon_url", "general.appearance_profile"]), []);
+  const siteSettingKeys = useMemo(() => new Set(["general.company_name", "general.company_logo_url", "general.favicon_url", "general.appearance_profile", "storefront.site_design"]), []);
   const recordMap = useMemo(() => mapByKey(records), [records]);
   const definitionMap = useMemo(() => mapByKey(definitions), [definitions]);
 

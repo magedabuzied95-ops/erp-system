@@ -3,6 +3,7 @@ import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
 import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
 import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.js";
 import { ABANDONED_CART_DEFAULTS } from "./abandonedCartDefaults.js";
+import { DEFAULT_SITE_DESIGN } from "./siteDesign.js";
 import {
   WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS,
   WHATSAPP_MESSAGE_VARIANT_DEFAULTS,
@@ -177,6 +178,7 @@ const definitions = [
   ["storefront.map_url", "storefront", "url", "", "Map URL", "رابط الخريطة", "Google Maps or other map URL for the store.", "رابط الخريطة أو Google Maps الخاص بالمتجر.", { isPublic: true, validation: { maxLength: 2048 } }],
   ["storefront.working_hours", "storefront", "textarea", "", "Working hours", "مواعيد العمل", "Public working hours text shown to customers.", "نص مواعيد العمل الظاهر للعملاء.", { isPublic: true, validation: { maxLength: 500 } }],
   ["storefront.homepage_hero", "storefront", "json", { title: "", subtitle: "", imageUrl: "" }, "Homepage hero settings", "واجهة الصفحة الرئيسية", "Hero title, subtitle, and image URL.", "العنوان والوصف وصورة واجهة الصفحة الرئيسية.", { isPublic: true }],
+  ["storefront.site_design", "storefront", "json", DEFAULT_SITE_DESIGN, "Site design", "تصميم الموقع", "Storefront colours, fonts, corners, and hero video overlay. Edited in Site Studio.", "ألوان المتجر والخطوط والزوايا والكتابة فوق فيديو المقدمة. تُضبط من استوديو الموقع.", { isPublic: true, usedBy: ["Storefront"] }],
   ["storefront.featured_collections", "storefront", "json", [], "Featured collections", "المجموعات المميزة", "Collection IDs or slugs displayed on home.", "معرفات أو روابط المجموعات الظاهرة في الرئيسية.", { isPublic: true }],
   ["storefront.default_shipping_price", "shipping", "number", 60, "Default shipping price", "سعر الشحن الافتراضي", "Fallback shipping price when no governorate, city, or area zone matches.", "سعر الشحن الاحتياطي عند عدم وجود منطقة أو مدينة أو محافظة مطابقة.", { validation: { min: 0 }, usedBy: ["Storefront", "Checkout"] }],
   ["storefront.shipping_handling_min_days", "shipping", "number", 0, "Minimum order handling days", "الحد الأدنى لمدة تجهيز الطلب", "Time from order registration until handoff to the shipping company. It does not include customer transit time.", "المدة من تسجيل الطلب حتى تسليمه لشركة الشحن، ولا تشمل مدة النقل للعميل.", { validation: { min: 0, integer: true }, usedBy: ["Storefront Product Schema", "Merchant Shipping"] }],

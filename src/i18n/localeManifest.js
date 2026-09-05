@@ -38,6 +38,7 @@ export const RESOURCE_BRANCHES = [
   // Reads the ALREADY-WIRED common bundle, so no new i18n.js import is involved.
   { branch: "notifications", file: "common", pick: "notifications" },
   { branch: "appearance", file: "settings", pick: "appearance" },
+  { branch: "siteStudio", file: "settings", pick: "siteStudio" },
   { branch: "settings", file: "settings", pick: "settings" },
   { branch: "dashboard", file: "dashboard" },
   { branch: "products", file: "products" },

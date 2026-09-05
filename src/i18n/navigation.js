@@ -63,6 +63,7 @@ const ITEM_LABEL_KEYS = {
   Employees: "sidebar.employees",
   Kiosk: "sidebar.kiosk",
   Appearance: "sidebar.appearance",
+  "Site Studio": "sidebar.siteStudio",
   Company: "sidebar.company",
   Roles: "sidebar.roles",
   Permissions: "sidebar.permissions",

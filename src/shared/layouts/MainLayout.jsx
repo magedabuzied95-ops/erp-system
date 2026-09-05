@@ -63,7 +63,7 @@ const SIDEBAR_SUBGROUP_TITLE_KEYS = {
   "System Settings": "sidebar.subgroups.systemSettings",
 };
 
-const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
+const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/site-studio", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
 const SETTINGS_CENTER_SIDEBAR_HIDE_ROUTES = new Set([
   "/settings/company",
   "/settings/currencies",
@@ -128,6 +128,7 @@ const CONCRETE_SIDEBAR_PATHS = new Set([
   "/settings/shipping",
   "/settings/payments",
   "/settings/appearance",
+  "/settings/site-studio",
 ]);
 
 const sidebarItemActive = (item, location) => {
@@ -245,7 +246,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
   let canAccessSettings = false;
   sections.forEach((section) => {
     section.items.forEach((item) => {
-      if (item.to === "/settings" || item.to === "/settings/appearance" || item.to === "/settings/company" || item.to === "/settings/storefront" || item.to === "/settings/shipping" || item.to === "/settings/payments") canAccessSettings = true;
+      if (item.to === "/settings" || item.to === "/settings/appearance" || item.to === "/settings/site-studio" || item.to === "/settings/company" || item.to === "/settings/storefront" || item.to === "/settings/shipping" || item.to === "/settings/payments") canAccessSettings = true;
       if (SETTINGS_CENTER_SIDEBAR_HIDE_ROUTES.has(String(item.to || ""))) return;
       const key = item.to || `${section.title}:${item.label}`;
       if (seen.has(key)) return;
@@ -253,6 +254,8 @@ const buildEnterpriseSidebarGroups = (sections) => {
       const groupTitle = groupForSidebarItem(section.sourceTitle || section.title, item);
       const sidebarLabelKey = item.to === "/settings/appearance"
         ? "sidebar.appearance"
+        : item.to === "/settings/site-studio"
+          ? "sidebar.siteStudio"
         : item.to === "/settings"
           ? "sidebar.settingsCenter"
         : item.to === "/settings/company"
@@ -266,6 +269,8 @@ const buildEnterpriseSidebarGroups = (sections) => {
           : undefined;
       const sidebarIcon = item.to === "/settings/appearance"
         ? Paintbrush
+        : item.to === "/settings/site-studio"
+          ? Store
         : item.to === "/settings"
           ? Settings2
         : item.to === "/settings/company"

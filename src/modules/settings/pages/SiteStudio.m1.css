@@ -1,0 +1,104 @@
+/* Site Studio.
+   The page itself is ERP chrome and stays on ERP tokens; only what is inside
+   `.m1-site__stage` may use the storefront's tokens, because that block is the
+   preview and is fed those tokens inline. Nothing here uses a literal colour
+   outside the preview — the page has to survive an appearance change like every
+   other ERP surface. */
+
+.m1-site { display: flex; flex-direction: column; gap: var(--space-4); padding-block-end: var(--space-8); }
+
+.m1-site__notice { margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface-soft); color: var(--text-secondary); font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 700; }
+.m1-site__notice--dirty { border-color: var(--warning); background: var(--warning-soft); color: var(--text); }
+.m1-site__spin { animation: m1-site-spin 900ms linear infinite; }
+@keyframes m1-site-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .m1-site__spin { animation: none; } }
+
+/* ---- layout ------------------------------------------------------------ */
+.m1-site__layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--space-5); align-items: start; }
+.m1-site__controls { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+/* The preview is the thing being decided, so it follows the eye down a long
+   colour list instead of scrolling away. */
+.m1-site__preview { position: sticky; top: calc(var(--toolbar-height) + var(--space-3)); display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+@media (max-width: 1100px) {
+  .m1-site__layout { grid-template-columns: minmax(0, 1fr); }
+  .m1-site__preview { position: static; order: -1; }
+}
+
+/* ---- tabs -------------------------------------------------------------- */
+.m1-site__tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-soft); }
+.m1-site__tabs > button { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-height-sm); padding-inline: var(--space-3); border: 1px solid transparent; border-radius: calc(var(--radius-control) - 3px); background: transparent; color: var(--text-secondary); font: 700 var(--font-label) / var(--font-label-lh) var(--font-ui); cursor: pointer; }
+.m1-site__tabs > button.is-active { background: var(--surface); border-color: var(--border-strong); color: var(--text); box-shadow: var(--shadow-card); }
+.m1-site__tabs > button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---- panels ------------------------------------------------------------ */
+.m1-site__panel { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow-card); }
+.m1-site__panel-head h2 { margin: 0; color: var(--text); font-size: var(--font-section-title); line-height: var(--font-section-title-lh); font-weight: 800; }
+.m1-site__panel-head p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--font-label); line-height: var(--font-label-lh); }
+
+.m1-site__field { display: grid; gap: var(--space-2); }
+.m1-site__field-label { color: var(--text); font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 700; }
+.m1-site__field-label b { color: var(--text-secondary); font-weight: 800; }
+.m1-site__hint { color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); }
+.m1-site__specimen { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-soft); color: var(--text); font-size: 1.05rem; }
+.m1-site__field input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+/* ---- segmented --------------------------------------------------------- */
+.m1-site__segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-soft); }
+.m1-site__segmented > button { min-height: var(--control-height-sm); padding-inline: var(--space-3); border: 1px solid transparent; border-radius: calc(var(--radius-control) - 3px); background: transparent; color: var(--text-secondary); font: 700 var(--font-label) / var(--font-label-lh) var(--font-ui); cursor: pointer; }
+.m1-site__segmented > button.is-active { background: var(--surface); border-color: var(--border-strong); color: var(--text); box-shadow: var(--shadow-card); }
+.m1-site__segmented > button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ---- colours ----------------------------------------------------------- */
+.m1-site__colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--space-3); }
+.m1-site__color { display: grid; gap: 6px; min-width: 0; }
+.m1-site__color-label { color: var(--text-secondary); font-size: var(--font-caption); line-height: var(--font-caption-lh); font-weight: 700; }
+.m1-site__color-controls { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.m1-site__color-controls > .m1-control { flex: 1 1 auto; min-width: 0; }
+/* The native swatch draws its own inset chrome; stripping it makes the colour
+   read as a tile rather than a button with a colour inside it. */
+.m1-site__color-swatch { flex: 0 0 auto; inline-size: 38px; block-size: var(--control-height-md); padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-control); background: none; cursor: pointer; }
+.m1-site__color-swatch::-webkit-color-swatch-wrapper { padding: 2px; }
+.m1-site__color-swatch::-webkit-color-swatch { border: none; border-radius: calc(var(--radius-control) - 3px); }
+.m1-site__color-swatch::-moz-color-swatch { border: none; border-radius: calc(var(--radius-control) - 3px); }
+.m1-site__color.is-invalid .m1-site__color-label { color: var(--danger); }
+
+/* ---- bilingual copy ---------------------------------------------------- */
+.m1-site__bilingual { display: grid; gap: var(--space-2); }
+.m1-site__bilingual-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+@media (max-width: 640px) { .m1-site__bilingual-grid { grid-template-columns: minmax(0, 1fr); } }
+.m1-site__bilingual-grid > label { display: grid; gap: 4px; min-width: 0; }
+.m1-site__bilingual-grid > label > span { color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); font-weight: 800; letter-spacing: .08em; }
+
+/* ---- preview ----------------------------------------------------------- */
+.m1-site__preview-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.m1-site__preview-head > span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 800; }
+.m1-site__preview-modes { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-soft); }
+.m1-site__preview-modes > button { display: inline-flex; align-items: center; justify-content: center; inline-size: 30px; block-size: 26px; border: 1px solid transparent; border-radius: calc(var(--radius-control) - 4px); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.m1-site__preview-modes > button.is-active { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
+
+/* Everything below is painted with the STOREFRONT tokens, handed in inline by
+   siteDesignPreviewVariables(). The ERP tokens stop at this boundary. */
+.m1-site__stage { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--m1h-bg); color: var(--m1h-text); }
+
+.m1-site__stage .sf-hero-preview { position: relative; }
+/* The clip is 21:9 on a wide storefront; the preview panel is narrower than a
+   real viewport, so it is capped rather than scaled to keep the copy readable. */
+.m1-site__stage .sf-hero-preview .sf-hero-video { aspect-ratio: 16 / 9; max-height: 300px; }
+.m1-site__stage .sf-hero-preview .sf-hero-video__title { font-size: clamp(1.4rem, 4.2vw, 2.1rem); }
+.m1-site__stage .sf-hero-preview .sf-hero-video__copy { padding-inline: clamp(1rem, 3.5vw, 1.75rem); padding-block: clamp(1rem, 3.5vw, 1.75rem); }
+
+.m1-site__mock { display: grid; gap: var(--space-3); padding: var(--space-3); }
+.m1-site__mock-bar { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); padding-block-end: var(--space-2); border-block-end: 1px solid var(--m1h-line); }
+.m1-site__mock-bar strong { color: var(--m1h-text); font-size: 0.95rem; font-weight: 800; letter-spacing: .04em; }
+.m1-site__mock-bar span { color: var(--m1h-text-3); font-size: 0.72rem; letter-spacing: .1em; text-transform: uppercase; }
+.m1-site__mock-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
+.m1-site__mock-card { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--m1h-line); border-radius: var(--m1h-r-md); background: var(--m1h-surface); }
+.m1-site__mock-plate { aspect-ratio: 1 / 1; border-radius: var(--m1h-r-sm); background: var(--m1h-plate); box-shadow: inset 0 0 0 1px var(--m1h-plate-edge); }
+.m1-site__mock-name { margin: 0; color: var(--m1h-text-2); font-size: 0.72rem; }
+.m1-site__mock-price { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--m1h-text); font-size: 0.82rem; font-weight: 800; }
+.m1-site__mock-price em { color: var(--m1h-sale); font-size: 0.7rem; font-style: normal; text-decoration: line-through; }
+.m1-site__mock-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.m1-site__mock-pill { padding: 4px 10px; border-radius: 999px; background: var(--m1h-sale); color: var(--m1h-sale-fg); font-size: 0.66rem; font-weight: 800; letter-spacing: .06em; }
+.m1-site__mock-cta { padding: 8px 16px; border-radius: var(--m1h-r-sm); background: var(--m1h-invert-bg); color: var(--m1h-invert-text); font-size: 0.7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.m1-site__preview-note { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); }
