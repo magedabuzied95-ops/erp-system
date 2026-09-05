@@ -339,27 +339,32 @@ export function HomeFilteredRail({
   return (
     <section className="m1h-block">
       <div className="m1h-shell">
+        {/* The switch pairs with the TITLE, not with the whole header block. Put
+            it beside the titles-and-subtitle group instead and the subtitle's
+            width decides whether it fits, so a row with a longer sentence drops
+            its switch onto a second line while the row above keeps it inline —
+            which is exactly how Skechers ended up looking different from Crocs. */}
         <div className="m1h-frow__head">
-          <div className="m1h-frow__titles">
+          <div className="m1h-frow__topline">
             <h2 className="m1h-sec__title">{title}</h2>
-            {subtitle ? <p className="m1h-frow__sub">{subtitle}</p> : null}
+            {genders.length > 1 ? (
+              <div className="m1h-frow__tabs" role="tablist" aria-label={title}>
+                {genders.map((gender) => (
+                  <button
+                    key={gender}
+                    type="button"
+                    role="tab"
+                    aria-selected={gender === activeGender}
+                    className={`m1h-frow__tab${gender === activeGender ? " is-on" : ""}`}
+                    onClick={() => onGenderChange?.(gender)}
+                  >
+                    {genderLabel(gender)}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
-          {genders.length > 1 ? (
-            <div className="m1h-frow__tabs" role="tablist" aria-label={title}>
-              {genders.map((gender) => (
-                <button
-                  key={gender}
-                  type="button"
-                  role="tab"
-                  aria-selected={gender === activeGender}
-                  className={`m1h-frow__tab${gender === activeGender ? " is-on" : ""}`}
-                  onClick={() => onGenderChange?.(gender)}
-                >
-                  {genderLabel(gender)}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          {subtitle ? <p className="m1h-frow__sub">{subtitle}</p> : null}
         </div>
 
         <div className="m1h-frow__rail-wrap">

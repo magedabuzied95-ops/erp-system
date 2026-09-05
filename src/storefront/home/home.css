@@ -1278,16 +1278,26 @@
    keeps it.
    ------------------------------------------------------------------------- */
 .m1h-frow__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--m1h-s4);
-  flex-wrap: wrap;
   margin-bottom: var(--m1h-s4);
 }
 
-.m1h-frow__titles {
+/* Title and switch share one line at every width. The switch is a fixed-size
+   control and the title is short, so this pairing always fits — it is the
+   subtitle that does not, and it now sits underneath on its own line where its
+   length cannot push anything around. */
+.m1h-frow__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
   min-width: 0;
+}
+
+.m1h-frow__topline .m1h-sec__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .m1h-frow__sub {
