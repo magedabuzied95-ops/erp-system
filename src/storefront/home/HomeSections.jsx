@@ -311,6 +311,11 @@ function ProductCollection({
 export function HomeFilteredRail({
   title,
   subtitle = "",
+  // A row carries ONE control beside its title. Gender rows pass  and
+  // get the pill group; anything else passes a finished  node. Two
+  // props rather than two components, so the header, the rail and the view-all
+  // button stay identical across every row.
+  control = null,
   genders = [],
   activeGender = "",
   genderLabel = () => "",
@@ -334,7 +339,12 @@ export function HomeFilteredRail({
 
   // A row with nothing to show is not a row. It happens when a whole audience
   // sells out, and an empty rail under a heading reads as a broken page.
-  if (!loading && !cards.length) return null;
+  //
+  // Unless the row carries a control: then the visitor chose the filter that
+  // emptied it, and taking the row away takes the control with it and leaves
+  // them with no way back. The header stays and says so instead.
+  const isEmpty = !loading && !cards.length;
+  if (isEmpty && !control) return null;
 
   return (
     <section className="m1h-block">
@@ -347,7 +357,8 @@ export function HomeFilteredRail({
         <div className="m1h-frow__head">
           <div className="m1h-frow__topline">
             <h2 className="m1h-sec__title">{title}</h2>
-            {genders.length > 1 ? (
+            {control}
+            {!control && genders.length > 1 ? (
               <div className="m1h-frow__tabs" role="tablist" aria-label={title}>
                 {genders.map((gender) => (
                   <button
@@ -367,6 +378,9 @@ export function HomeFilteredRail({
           {subtitle ? <p className="m1h-frow__sub">{subtitle}</p> : null}
         </div>
 
+        {isEmpty ? (
+          <p className="m1h-frow__empty">{emptyLabel}</p>
+        ) : (
         <div className="m1h-frow__rail-wrap">
           <div className="m1h-rail m1h-rail--filtered" ref={railRef}>
             {items.map((card, index) =>
@@ -409,13 +423,14 @@ export function HomeFilteredRail({
           ) : null}
         </div>
 
-        {viewAllHref && viewAllLabel ? (
+        )}
+
+        {!isEmpty && viewAllHref && viewAllLabel ? (
           <Link to={viewAllHref} className="m1h-frow__all">
             {viewAllLabel}
             {isRtl ? <ArrowLeft size={15} strokeWidth={2} /> : <ArrowRight size={15} strokeWidth={2} />}
           </Link>
         ) : null}
-        {emptyLabel ? <span className="sr-only">{emptyLabel}</span> : null}
       </div>
     </section>
   );

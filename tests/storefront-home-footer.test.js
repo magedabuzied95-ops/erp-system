@@ -18,7 +18,12 @@ test("storefront home ends with the full legacy-inspired responsive footer", asy
   assert.match(lowerHome, /معلومات عنا/);
   assert.match(lowerHome, /أقسام مميزة/);
   assert.match(lowerHome, /روابط مهمة/);
-  assert.match(lowerHome, /آخر العروض/);
+  // The newsletter sign-up was removed on request. It never subscribed anyone
+  // either — the form only raised a success toast, so every address typed into it
+  // was discarded. Asserted as absent so it cannot come back by accident.
+  assert.doesNotMatch(lowerHome, /آخر العروض|Latest offers/);
+  assert.doesNotMatch(lowerHome, /sf-footer__input|sf-footer__submit/);
+  assert.doesNotMatch(lowerHome, /Subscribed successfully|تم الاشتراك بنجاح/);
   assert.match(lowerHome, /Mastercard/);
   assert.match(lowerHome, /FaCcMastercard/);
   assert.match(lowerHome, /FaCcVisa/);

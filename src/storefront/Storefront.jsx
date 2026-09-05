@@ -2741,12 +2741,54 @@ const dedupeHomeCardsByLabel = (products = [], knownBrands = []) => {
   });
 };
 
+// The sizes the current offers actually come in, newest first by how many
+// offers carry them. Read from the facets endpoint scoped to offers, so the
+// picker can never list a size that has nothing behind it.
+//
+// Non-numeric sizes are dropped. "مقاس واحد" is reported by the facets with 8
+// products, but filtering on it returns 0 — the stored variant value does not
+// round-trip through the size filter — and a picker option that lands on an
+// empty row is worse than one that is not offered.
+const useOfferSizes = () => {
+  const [sizes, setSizes] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    cachedStorefrontGet("/storefront/products/facets?offer_story=1&in_stock=1", { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
+      .then((data) => {
+        if (cancelled) return;
+        const raw = Array.isArray(data?.facets?.sizes) ? data.facets.sizes : Array.isArray(data?.sizes) ? data.sizes : [];
+        const numeric = raw
+          .map((entry) => ({ value: String(entry?.value ?? "").trim(), count: Number(entry?.count || 0) }))
+          .filter((entry) => /^\d{1,3}$/.test(entry.value) && entry.count > 0)
+          .sort((a, b) => Number(a.value) - Number(b.value));
+        setSizes(numeric);
+      })
+      .catch(() => {
+        // No sizes means no picker, and the row still shows every offer.
+        if (!cancelled) setSizes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return sizes;
+};
+
 // The offer collection is the one homepage block that needs a request of its
 // own, so it is mounted behind <HomeDeferred> and does not start until the
 // reader is most of the way down the page. Boot still costs one /storefront/home
 // call, exactly as before.
 function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishlist, onImageError }) {
-  const { products, loading } = useProducts({ offer_story: 1, sort: "newest", limit: 12 });
+  const sizes = useOfferSizes();
+  const [size, setSize] = useState("");
+  const { products, loading } = useProducts({
+    offer_story: 1,
+    sort: "newest",
+    limit: 12,
+    ...(size ? { size, in_stock: 1 } : {}),
+  });
   // `is_offer_story` is re-checked on the client on purpose: an ignored filter
   // param comes back as a 200 with the whole catalogue in it, and that would
   // quietly file ordinary stock under an "Offers" heading.
@@ -2765,25 +2807,46 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
     [wishlist]
   );
 
-  if (!loading && !cards.length) return null;
+  if (!loading && !cards.length && !size) return null;
 
-  // The editorial card that used to head this section is gone at the owner's
-  // request: a tall image panel repeating a "Browse all offers" link that the
-  // rail below already carries, for a section the visitor reached on purpose.
-  // The rail is the section now.
+  // A native <select>: this is a one-of-many choice on a page whose visitors are
+  // overwhelmingly on phones, where the platform picker is the better control —
+  // it is reachable, scrollable with a thumb, and needs no z-index of its own.
+  const sizePicker = sizes.length ? (
+    <label className="m1h-frow__size">
+      <span className="sr-only">{isRtl ? "اختر المقاس" : "Choose a size"}</span>
+      <select value={size} onChange={(event) => setSize(event.target.value)} aria-label={isRtl ? "المقاس" : "Size"}>
+        <option value="">{isRtl ? "كل المقاسات" : "All sizes"}</option>
+        {sizes.map((entry) => (
+          <option key={entry.value} value={entry.value}>
+            {isRtl ? `مقاس ${entry.value}` : `Size ${entry.value}`}
+          </option>
+        ))}
+      </select>
+    </label>
+  ) : null;
+
   return (
-    <HomeProductRail
+    <HomeFilteredRail
       title={isRtl ? "من العروض" : "From the offers"}
-      href="/offers"
-      linkLabel={sfText("common.viewAll")}
+      subtitle=""
+      control={sizePicker}
       cards={cards}
       loading={loading}
-      prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
-      nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
+      viewAllHref={size ? `/offers?size=${encodeURIComponent(size)}` : "/offers"}
+      viewAllLabel={
+        size
+          ? (isRtl ? `شوف كل عروض مقاس ${size}` : `View all size ${size}`)
+          : (isRtl ? "شوف كل العروض" : "View all offers")
+      }
+      emptyLabel={!loading && !cards.length ? (isRtl ? "مفيش عروض في المقاس ده حاليًا." : "No offers in this size right now.") : ""}
       isFavorite={isFavorite}
       onToggleFavorite={toggleWishlist}
       onImageError={onImageError}
       favoriteLabel={isRtl ? "أضف إلى المفضلة" : "Add to wishlist"}
+      prevLabel={isRtl ? sfText("storefront.common.previous") : "Previous"}
+      nextLabel={isRtl ? sfText("storefront.common.next") : "Next"}
+      isRtl={isRtl}
     />
   );
 }
@@ -3469,7 +3532,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   return (
     <footer data-testid="storefront-modern-footer" data-theme={themeTokens.resolvedMode || "light"} dir={isRtl ? "rtl" : "ltr"} className="sf-footer border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
       <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr_1.15fr]">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr]">
           <div>
             <div className="relative h-24 w-24 md:h-28 md:w-28" aria-label="M1 Store">
               <div className="absolute inset-0 dark:hidden">
@@ -3526,18 +3589,9 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             </div>
           </nav>
 
-          <div>
-            <h3 className="text-base font-black">{isRtl ? "آخر العروض" : "Latest offers"}</h3>
-            <p className="mt-4 text-sm font-semibold leading-7 text-stone-600 dark:text-white/55">
-              {isRtl ? "تابع آخر العروض والمنتجات الجديدة مباشرة على بريدك." : "Receive the latest offers and new arrivals in your inbox."}
-            </p>
-            <form className="mt-4 grid gap-2" onSubmit={(event) => { event.preventDefault(); toast.success(isRtl ? "تم الاشتراك بنجاح" : "Subscribed successfully"); }}>
-              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="sf-footer__input h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#121212] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
-              <button type="submit" className="sf-footer__submit h-12 rounded-xl bg-[#121212] px-4 text-sm font-black text-white transition hover:bg-[#000] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
-                {isRtl ? "اشترك دلوقتي" : "Subscribe now"}
-              </button>
-            </form>
-          </div>
+          {/* The newsletter sign-up was removed on request. It also never
+              subscribed anyone: the form only raised a success toast, so every
+              address typed into it was thrown away. */}
         </div>
 
         {/* Payment marks only: the app-launch block was removed on request — the app is

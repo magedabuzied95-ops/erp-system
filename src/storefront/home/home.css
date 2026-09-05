@@ -1138,8 +1138,7 @@
   font-weight: 600;
 }
 
-.m1h .sf-footer .sf-footer__contact,
-.m1h .sf-footer .sf-footer__submit {
+.m1h .sf-footer .sf-footer__contact {
   font-weight: 600;
 }
 
@@ -1176,21 +1175,6 @@
 .m1h[data-theme="dark"] .sf-footer .sf-footer__social:hover {
   border-color: var(--m1h-accent);
   color: var(--m1h-accent);
-}
-
-.m1h[data-theme="dark"] .sf-footer .sf-footer__input {
-  border-color: var(--m1h-line);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--m1h-text);
-}
-
-.m1h[data-theme="dark"] .sf-footer .sf-footer__input::placeholder {
-  color: var(--m1h-text-3);
-}
-
-.m1h[data-theme="dark"] .sf-footer .sf-footer__submit {
-  background: var(--m1h-accent);
-  color: #14120f;
 }
 
 .m1h[data-theme="dark"] .sf-footer .sf-footer__mark {
@@ -1418,4 +1402,63 @@
     padding: 6px 13px;
     font-size: var(--m1h-t-xs);
   }
+}
+
+/* ---- size picker + empty state on a filtered row ----------------------- */
+/* A native <select> wearing the same pill as the audience switch: on a phone
+   the platform picker is the better control — reachable, thumb-scrollable, and
+   it needs no z-index of its own to sit above the rail. */
+.m1h-frow__size {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+.m1h-frow__size select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-height: 38px;
+  padding-block: 0;
+  /* Room for the chevron on the end side, in both directions. */
+  padding-inline: 16px 34px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--m1h-surface);
+  box-shadow: inset 0 0 0 1px var(--m1h-line);
+  color: var(--m1h-text);
+  font-family: inherit;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.m1h-frow__size select:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+/* Drawn rather than shipped as an icon: one element, no import, and it takes
+   the text colour so it follows the theme without a second rule. */
+.m1h-frow__size::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 14px;
+  width: 7px;
+  height: 7px;
+  border-inline-end: 1.6px solid currentColor;
+  border-block-end: 1.6px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  color: var(--m1h-text-3);
+  pointer-events: none;
+}
+
+.m1h-frow__empty {
+  padding: var(--m1h-s8) var(--m1h-s4);
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface);
+  box-shadow: inset 0 0 0 1px var(--m1h-line);
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-base);
+  text-align: center;
 }
