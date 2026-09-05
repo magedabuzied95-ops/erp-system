@@ -482,7 +482,8 @@
       "type": "Type & shape",
       "hero": "Hero video",
       "bands": "Strip & footer",
-      "sections": "Homepage sections"
+      "sections": "Homepage sections",
+      "cards": "Product card"
     },
     "colorsTitle": "Store colours",
     "colorsHint": "Light and dark each keep their own palette. Pick a shade from the swatch or paste an exact colour value.",
@@ -542,6 +543,14 @@
     "hideSection": "Hide section",
     "showSection": "Show section",
     "sectionTitlesTitle": "Section headings",
-    "sectionTitlesHint": "The headings shown above each homepage section."
+    "sectionTitlesHint": "The headings shown above each homepage section.",
+    "cardsTitle": "Product card look",
+    "cardsHint": "Pick the card used across every product list and the homepage. The preview follows immediately.",
+    "cardShowBrand": "Show the brand above the product name",
+    "cardShowBrandHint": "If only some products carry a brand, this line sits empty and takes a row for nothing.",
+    "cardShowBadge": "Show the discount badge on the image",
+    "cardShowBadgeHint": "The badge shows the discount, or a last-pair warning when there is no discount.",
+    "cardImageNote": "The image stays whole inside the frame in every template — the catalogue was re-cropped so the product sits centred in the frame, and a template that cropped it would undo that work.",
+    "mockBrand": "Brand"
   }
 }

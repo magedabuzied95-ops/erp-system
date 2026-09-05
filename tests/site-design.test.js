@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import {
+  CARD_TEMPLATES,
   DEFAULT_SITE_DESIGN,
   HOME_SECTIONS,
   PALETTE_FIELD_KEYS,
@@ -20,6 +21,7 @@ import {
   isSafeCssColor,
   normalizeSiteDesign,
   STRIP_MAX_ITEMS,
+  resolveCardLook,
   resolveHeroCopy,
   resolveHomeSections,
   resolveSectionTitle,
@@ -346,4 +348,56 @@ test("turning the strip off leaves the language and theme controls in place", ()
     !/\{announcementItems\.length \?[\s\S]{0,80}sf-announcement-row/.test(storefrontSource),
     "the whole strip is now conditional, which would take the language switch with it"
   );
+});
+
+/* --------------------------------------------------- product card templates */
+
+test("an unknown card template falls back to the shipped look", () => {
+  assert.equal(normalizeSiteDesign({ card: { template: "fancy" } }).card.template, "classic");
+  assert.equal(resolveCardLook({ card: { template: "overlay" } }).className, "m1h-card--overlay");
+});
+
+test("every template has a rule, and classic deliberately has none", () => {
+  for (const template of CARD_TEMPLATES) {
+    const look = resolveCardLook({ card: { template: template.id } });
+    assert.equal(look.className, `m1h-card--${template.id}`);
+    if (template.id === "classic") continue;
+    assert.ok(
+      homeCss.includes(`.m1h-card--${template.id}`),
+      `the "${template.id}" template has no CSS, so picking it would change nothing`
+    );
+  }
+  // classic IS the base look; a rule for it would be a second source of truth.
+  assert.ok(!homeCss.includes(".m1h-card--classic"), "classic grew its own rules instead of staying the base");
+});
+
+test("the card reads its look from the record rather than forking the component", () => {
+  const sections = readFileSync(new URL("../src/storefront/home/HomeSections.jsx", import.meta.url), "utf8");
+  assert.ok(sections.includes("resolveCardLook(useSiteDesign())"), "the card no longer follows the stored template");
+  // One card component, four looks. A second card component is how the wishlist
+  // button ends up fixed in one of them and broken in the other three.
+  assert.equal((sections.match(/function HomeProductCard/g) || []).length, 1, "a second product card component appeared");
+  for (const modifier of ["m1h-card--no-brand", "m1h-card--no-badge"]) {
+    assert.ok(sections.includes(modifier), `${modifier} is never applied`);
+    assert.ok(homeCss.includes(modifier), `${modifier} has no rule`);
+  }
+});
+
+// The catalogue was re-cropped so the product sits centred in the frame rather
+// than the file being centred (3,188 images). A template that switched the image
+// to `cover` would undo all of it, so no template may touch object-fit.
+test("no template changes how the product image is fitted", () => {
+  const templateBlock = homeCss.slice(homeCss.indexOf(".m1h-card--framed"), homeCss.indexOf(".m1h-card--no-badge"));
+  assert.ok(templateBlock.length > 400, "the template block was not found");
+  assert.ok(!/object-fit/.test(templateBlock), "a template overrides object-fit, which undoes the card-fit backfill");
+  assert.ok(!/\.m1h-card__img\s*\{/.test(templateBlock), "a template restyles the product image itself");
+});
+
+test("the studio previews cards through the storefront's own rules", () => {
+  const studio = readFileSync(new URL("../src/modules/settings/pages/SiteStudio.jsx", import.meta.url), "utf8");
+  assert.ok(studio.includes('import "../../../storefront/home/home.css"'), "the preview lost the real card stylesheet");
+  assert.ok(studio.includes('className="m1-site__mock-grid"'), "the preview grid is gone");
+  assert.ok(studio.includes("m1h-card__plate"), "the preview stopped using real card markup");
+  const css = readFileSync(new URL("../src/modules/settings/pages/SiteStudio.m1.css", import.meta.url), "utf8");
+  assert.ok(!/\.m1-site__mock-card \{/.test(css), "the superseded lookalike card rule is back");
 });

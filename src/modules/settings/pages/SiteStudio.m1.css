@@ -92,7 +92,8 @@
 .m1-site__mock-bar strong { color: var(--m1h-text); font-size: 0.95rem; font-weight: 800; letter-spacing: .04em; }
 .m1-site__mock-bar span { color: var(--m1h-text-3); font-size: 0.72rem; letter-spacing: .1em; text-transform: uppercase; }
 .m1-site__mock-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
-.m1-site__mock-card { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--m1h-line); border-radius: var(--m1h-r-md); background: var(--m1h-surface); }
+/* The mock cards render as real .m1h-card elements now, so their look comes
+   from home.css and cannot drift from the storefront. */
 .m1-site__mock-plate { aspect-ratio: 1 / 1; border-radius: var(--m1h-r-sm); background: var(--m1h-plate); box-shadow: inset 0 0 0 1px var(--m1h-plate-edge); }
 .m1-site__mock-name { margin: 0; color: var(--m1h-text-2); font-size: 0.72rem; }
 .m1-site__mock-price { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--m1h-text); font-size: 0.82rem; font-weight: 800; }
@@ -119,3 +120,39 @@
 .m1-site__section-index { display: grid; place-items: center; inline-size: 22px; block-size: 22px; flex: 0 0 auto; border-radius: 999px; background: var(--surface-soft); color: var(--text-tertiary); font-size: var(--font-caption); font-weight: 800; }
 .m1-site__section-name { flex: 1 1 auto; min-width: 0; color: var(--text); font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 700; }
 .m1-site__section-actions { display: inline-flex; gap: 4px; flex: 0 0 auto; }
+
+/* ---- card templates ---------------------------------------------------- */
+.m1-site__templates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+@media (max-width: 640px) { .m1-site__templates { grid-template-columns: minmax(0, 1fr); } }
+.m1-site__template { display: grid; gap: 6px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); color: var(--text); text-align: start; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.m1-site__template:hover { border-color: var(--border-strong); }
+.m1-site__template.is-active { border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus-ring); }
+.m1-site__template:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.m1-site__template-name { color: var(--text); font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 800; }
+.m1-site__template-note { color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); }
+
+/* A drawing of the layout rather than a screenshot: three shapes standing for
+   the image, the name and the price. It stays true when the card changes. */
+.m1-site__template-art { position: relative; display: block; block-size: 74px; border-radius: var(--radius-md); background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
+.m1-site__template-art i { position: absolute; inset-block-start: 8px; inset-inline: 8px; block-size: 38px; border-radius: 4px; background: var(--border-strong); }
+.m1-site__template-art b { position: absolute; inset-block-end: 16px; inset-inline-start: 8px; inline-size: 60%; block-size: 6px; border-radius: 999px; background: var(--text-tertiary); }
+.m1-site__template-art u { position: absolute; inset-block-end: 6px; inset-inline-start: 8px; inline-size: 34%; block-size: 6px; border-radius: 999px; background: var(--primary); text-decoration: none; }
+
+.m1-site__template-art.is-framed { padding: 4px; }
+.m1-site__template-art.is-framed i { inset-block-start: 12px; inset-inline: 12px; block-size: 32px; }
+.m1-site__template-art.is-framed b { inset-inline-start: 12px; }
+.m1-site__template-art.is-framed u { inset-inline-start: 12px; }
+
+.m1-site__template-art.is-minimal i { background: var(--border); }
+.m1-site__template-art.is-minimal b { inset-inline: 0; margin-inline: auto; inline-size: 52%; }
+.m1-site__template-art.is-minimal u { inset-inline: 0; margin-inline: auto; inline-size: 28%; }
+
+/* The overlay drawing has no copy below the image, because that is the point:
+   the two bars sit inside the frame, over a ramp. */
+.m1-site__template-art.is-overlay i { inset: 8px; block-size: auto; }
+.m1-site__template-art.is-overlay b { inset-block-end: 20px; inset-inline-start: 14px; background: rgba(255, 255, 255, 0.92); }
+.m1-site__template-art.is-overlay u { inset-block-end: 11px; inset-inline-start: 14px; background: rgba(255, 255, 255, 0.6); }
+
+/* The preview stage is a homepage root, so the card rules from home.css apply
+   to it. The photograph is the only stand-in. */
+.m1-site__stage .m1-site__mock-plate { position: absolute; inset: 0; display: block; background: repeating-linear-gradient(135deg, var(--m1h-line-soft) 0 8px, transparent 8px 16px); }

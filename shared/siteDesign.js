@@ -161,6 +161,49 @@ const DEFAULT_FOOTER = {
   dark: { background: "#0b0b0b", text: "#efeee9", bar: "#070707", barText: "#8d8981" },
 };
 
+/* -------------------------------------------------------- product card look */
+
+// Four looks for the one card component. Each is a modifier class on the card
+// root and nothing else — no second component, no forked markup — so the
+// wishlist button, the badge, the lazy-loading and the image handling stay in
+// one place and every template inherits a fix to any of them.
+//
+// The reference the owner asked for (m1store-eg.com) is the `framed` and
+// `detailed` pair: a bordered tile with the category above the name.
+export const CARD_TEMPLATES = [
+  {
+    id: "classic",
+    label: { ar: "الكلاسيكي", en: "Classic" },
+    note: { ar: "الشكل الحالي — صورة على لوح فاتح والكلام تحتها", en: "Today's look — image on a light plate, copy underneath" },
+  },
+  {
+    id: "framed",
+    label: { ar: "المؤطر", en: "Framed" },
+    note: { ar: "الكارت كله داخل إطار بخلفية وحواف", en: "The whole card in a bordered, filled tile" },
+  },
+  {
+    id: "minimal",
+    label: { ar: "البسيط", en: "Minimal" },
+    note: { ar: "بدون لوح ولا إطار، والكلام في المنتصف", en: "No plate, no frame, copy centred" },
+  },
+  {
+    id: "overlay",
+    label: { ar: "فوق الصورة", en: "Over the image" },
+    note: { ar: "الاسم والسعر فوق الصورة على تدرج", en: "Name and price on the image, over a gradient" },
+  },
+];
+
+export const CARD_TEMPLATE_MAP = Object.fromEntries(CARD_TEMPLATES.map((item) => [item.id, item]));
+
+const DEFAULT_CARD = {
+  template: "classic",
+  // The brand line above the product name. Some catalogues carry a brand on
+  // every product and some on none; a card with a permanently empty eyebrow
+  // just wastes a line.
+  showBrand: true,
+  showBadge: true,
+};
+
 /* --------------------------------------------------- homepage section order */
 
 // The homepage in the order it ships. `id` is the contract with Storefront.jsx —
@@ -202,6 +245,7 @@ export const DEFAULT_SITE_DESIGN = Object.freeze({
   radius: "default",
   palette: { light: { ...LIGHT_PALETTE }, dark: { ...DARK_PALETTE } },
   hero: { ...DEFAULT_HERO },
+  card: { ...DEFAULT_CARD },
   strip: { ...DEFAULT_STRIP },
   footer: { light: { ...DEFAULT_FOOTER.light }, dark: { ...DEFAULT_FOOTER.dark } },
   sections: HOME_SECTIONS.map((section) => ({ id: section.id, enabled: true })),
@@ -297,6 +341,15 @@ const normalizeBand = (input, defaults) => {
   return Object.fromEntries(Object.keys(defaults).map((key) => [key, color(source[key], defaults[key])]));
 };
 
+const normalizeCard = (input) => {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    template: pickId(source.template, CARD_TEMPLATE_MAP, DEFAULT_CARD.template),
+    showBrand: source.showBrand !== false,
+    showBadge: source.showBadge !== false,
+  };
+};
+
 const normalizeStrip = (input) => {
   const source = input && typeof input === "object" ? input : {};
   const items = Array.isArray(source.items)
@@ -373,6 +426,7 @@ export const normalizeSiteDesign = (input) => {
       dark: normalizePalette(palette.dark, DARK_PALETTE),
     },
     hero: normalizeHero(source.hero),
+    card: normalizeCard(source.card),
     strip: normalizeStrip(source.strip),
     footer: normalizeFooter(source.footer),
     sections: normalizeSections(source.sections),
@@ -700,6 +754,21 @@ export const resolveStripItems = (input, language = "ar") => {
 export const resolveHomeSections = (input) => {
   const design = normalizeSiteDesign(input);
   return design.sections.filter((section) => section.enabled).map((section) => section.id);
+};
+
+/**
+ * How the product card should render: the modifier class for the chosen
+ * template plus the two visibility switches. Returned as one object so a card
+ * reads it once instead of pulling three fields out of the record itself.
+ */
+export const resolveCardLook = (input) => {
+  const design = normalizeSiteDesign(input);
+  return {
+    template: design.card.template,
+    className: `m1h-card--${design.card.template}`,
+    showBrand: design.card.showBrand,
+    showBadge: design.card.showBadge,
+  };
 };
 
 /** A section's heading in one language, falling back to the shipped wording. */

@@ -15,6 +15,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CreditCard, Headphones, Heart, RefreshCcw, Truck } from "lucide-react";
 
+import { resolveCardLook } from "../../../shared/siteDesign.js";
+import { useSiteDesign } from "../lib/siteDesign";
 import "./home.css";
 
 /* ==========================================================================
@@ -91,6 +93,11 @@ export const HomeProductCard = memo(function HomeProductCard({
   favoriteLabel = "",
   eager = false,
 }) {
+  // The card's look is a modifier class, not a fork of this component. Read
+  // through the hook so a change in Site Studio repaints every card on the page
+  // without the rails and grids above having to thread it down as a prop.
+  const look = resolveCardLook(useSiteDesign());
+
   const handleFavorite = useCallback(
     (event) => {
       event.preventDefault();
@@ -100,8 +107,17 @@ export const HomeProductCard = memo(function HomeProductCard({
     [card.product, onToggleFavorite]
   );
 
+  const className = [
+    "m1h-card",
+    look.className,
+    look.showBrand ? "" : "m1h-card--no-brand",
+    look.showBadge ? "" : "m1h-card--no-badge",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <Link to={card.href} className="m1h-card" aria-label={card.alt}>
+    <Link to={card.href} className={className} aria-label={card.alt}>
       <div className="m1h-card__plate">
         {card.discount ? (
           <span className="m1h-badge m1h-badge--sale">-{card.discount}%</span>

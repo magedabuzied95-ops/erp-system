@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutList, Loader2, Monitor, Moon, Palette, Plus, RotateCcw, Save, Sun, Trash2, Type, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutGrid, LayoutList, Loader2, Monitor, Moon, Palette, Plus, RotateCcw, Save, Sun, Trash2, Type, Video } from "lucide-react";
 
 import { Badge, Button, Input, PageHeader, Select, Switch, Textarea } from "../../../shared/ui/M1UI";
 import { api } from "../../../shared/api/api";
@@ -33,21 +33,28 @@ import {
   HERO_TEXT_POSITIONS,
   PALETTE_FIELDS,
   SITE_DESIGN_SETTING_KEY,
+  CARD_TEMPLATES,
   SITE_RADIUS_PROFILES,
   STRIP_MAX_ITEMS,
   TITLED_HOME_SECTIONS,
   HOME_SECTION_MAP,
   isSafeCssColor,
   normalizeSiteDesign,
+  resolveCardLook,
   resolveHeroCopy,
   siteDesignPreviewVariables,
 } from "../../../../shared/siteDesign.js";
+// The homepage stylesheet, so the card templates preview through the rules the
+// storefront actually uses. Every selector in it is scoped to ".m1h", which only
+// the preview stage below carries, so it cannot reach the rest of the ERP.
+import "../../../storefront/home/home.css";
 import "./SiteStudio.m1.css";
 
 const TABS = [
   { id: "colors", icon: Palette },
   { id: "type", icon: Type },
   { id: "hero", icon: Video },
+  { id: "cards", icon: LayoutGrid },
   { id: "bands", icon: LayoutList },
   { id: "sections", icon: LayoutList },
 ];
@@ -211,6 +218,13 @@ export default function SiteStudio() {
   const dirty = useMemo(() => JSON.stringify(design) !== JSON.stringify(saved), [design, saved]);
   const previewVars = useMemo(() => siteDesignPreviewVariables(design, mode), [design, mode]);
   const heroCopy = useMemo(() => resolveHeroCopy(design, language), [design, language]);
+  const cardLook = useMemo(() => resolveCardLook(design), [design]);
+  const cardClassName = [
+    "m1h-card",
+    cardLook.className,
+    cardLook.showBrand ? "" : "m1h-card--no-brand",
+    cardLook.showBadge ? "" : "m1h-card--no-badge",
+  ].filter(Boolean).join(" ");
   const fontStack = useMemo(
     () => (language === "ar" ? arabicFontStack(design.fontAr) : latinFontStack(design.fontEn, design.fontAr)),
     [design.fontAr, design.fontEn, language]
@@ -491,6 +505,50 @@ export default function SiteStudio() {
             </section>
           ) : null}
 
+          {tab === "cards" ? (
+            <section className="m1-site__panel">
+              <header className="m1-site__panel-head">
+                <h2>{tr("cardsTitle")}</h2>
+                <p>{tr("cardsHint")}</p>
+              </header>
+              <div className="m1-site__templates">
+                {CARD_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className={`m1-site__template${design.card.template === template.id ? " is-active" : ""}`}
+                    aria-pressed={design.card.template === template.id}
+                    onClick={() => update(["card", "template"], template.id)}
+                  >
+                    {/* A drawing of the layout, not a screenshot of it: the real
+                        thing is one scroll away in the preview, and a thumbnail
+                        that pretends to be a photograph goes stale the first
+                        time the card changes. */}
+                    <span className={`m1-site__template-art is-${template.id}`} aria-hidden="true">
+                      <i />
+                      <b />
+                      <u />
+                    </span>
+                    <span className="m1-site__template-name">{localized(template.label, language)}</span>
+                    <span className="m1-site__template-note">{localized(template.note, language)}</span>
+                  </button>
+                ))}
+              </div>
+              <Switch
+                label={tr("cardShowBrand")}
+                checked={design.card.showBrand}
+                onChange={(event) => update(["card", "showBrand"], event.target.checked)}
+              />
+              <span className="m1-site__hint">{tr("cardShowBrandHint")}</span>
+              <Switch
+                label={tr("cardShowBadge")}
+                checked={design.card.showBadge}
+                onChange={(event) => update(["card", "showBadge"], event.target.checked)}
+              />
+              <span className="m1-site__hint">{tr("cardShowBadgeHint")}</span>
+              <p className="m1-site__hint">{tr("cardImageNote")}</p>
+            </section>
+          ) : null}
           {tab === "bands" ? (
             <section className="m1-site__panel">
               <header className="m1-site__panel-head">
@@ -668,7 +726,7 @@ export default function SiteStudio() {
             </div>
           </div>
 
-          <div className="m1-site__stage" style={{ ...previewVars, fontFamily: fontStack }}>
+          <div className="m1-site__stage m1h" data-theme={mode} style={{ ...previewVars, fontFamily: fontStack }}>
             <div className="sf-hero-preview">
               <div className="sf-hero-video">
                 <video
@@ -709,15 +767,24 @@ export default function SiteStudio() {
                 <strong>{tr("mockStore")}</strong>
                 <span>{tr("mockNav")}</span>
               </div>
+              {/* Real card markup and the real home.css rules, not a lookalike:
+                  the whole point of a card template picker is that the thing you
+                  pick is the thing you get. Only the photograph is a stand-in. */}
               <div className="m1-site__mock-grid">
                 {[0, 1, 2].map((index) => (
-                  <article key={index} className="m1-site__mock-card">
-                    <div className="m1-site__mock-plate" />
-                    <p className="m1-site__mock-name">{tr("mockProduct")}</p>
-                    <p className="m1-site__mock-price">
-                      <span>1,450</span>
-                      {index === 1 ? <em>1,900</em> : null}
-                    </p>
+                  <article key={index} className={cardClassName}>
+                    <div className="m1h-card__plate">
+                      {index === 1 ? <span className="m1h-badge m1h-badge--sale">-24%</span> : null}
+                      <span className="m1-site__mock-plate" aria-hidden="true" />
+                    </div>
+                    <div className="m1h-card__body">
+                      <p className="m1h-card__brand">{tr("mockBrand")}</p>
+                      <h3 className="m1h-card__name">{tr("mockProduct")}</h3>
+                      <div className="m1h-card__price">
+                        <span className={`m1h-card__price-now${index === 1 ? " m1h-card__price-now--sale" : ""}`}>1,450</span>
+                        {index === 1 ? <span className="m1h-card__price-was">1,900</span> : null}
+                      </div>
+                    </div>
                   </article>
                 ))}
               </div>

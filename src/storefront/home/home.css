@@ -408,6 +408,138 @@
   text-decoration: line-through;
 }
 
+/* ---------------------------------------------------------------------------
+   Product card templates
+   ---------------------------------------------------------------------------
+   Four looks, one component. Each is a modifier class on `.m1h-card` and adds
+   nothing to the markup, so the wishlist button, the badge, the lazy-loading
+   and the image handling stay in one place and a fix to any of them lands in
+   every template at once.
+
+   `classic` is the shipped look and deliberately has no rules here: it IS the
+   base. The other three only state what they change.
+
+   Two things are NOT template-dependent on purpose. The image stays
+   `object-fit: contain` with padding in every one of them — the catalogue was
+   re-cropped so the product, not the file, is centred in the frame, and a
+   `cover` template would undo 3,188 images' worth of that work. And the plate
+   stays light in dark mode, because the product photography is shot on white.
+   ------------------------------------------------------------------------- */
+
+/* ---- framed: the card itself becomes the tile ------------------------- */
+.m1h-card--framed {
+  padding: var(--m1h-s3);
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface);
+  box-shadow: inset 0 0 0 1px var(--m1h-line);
+  transition: box-shadow 200ms var(--m1h-ease), transform 200ms var(--m1h-ease);
+}
+
+@media (hover: hover) {
+  .m1h-card--framed:hover {
+    box-shadow: inset 0 0 0 1px var(--m1h-accent), var(--m1h-shadow-float);
+  }
+}
+
+.m1h-card--framed .m1h-card__plate {
+  border-radius: var(--m1h-r-md);
+}
+
+.m1h-card--framed .m1h-card__body {
+  padding-top: var(--m1h-s3);
+}
+
+/* ---- minimal: no plate, no frame, copy centred ------------------------ */
+.m1h-card--minimal .m1h-card__plate {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.m1h-card--minimal .m1h-card__body {
+  text-align: center;
+}
+
+.m1h-card--minimal .m1h-card__name {
+  font-weight: 500;
+}
+
+.m1h-card--minimal .m1h-card__price {
+  justify-content: center;
+}
+
+/* The wishlist heart has no plate to sit on any more, so it gets its own
+   surface rather than floating on the photograph. */
+.m1h-card--minimal .m1h-fav {
+  background: var(--m1h-surface);
+  box-shadow: 0 0 0 1px var(--m1h-line);
+}
+
+/* ---- overlay: name and price on the image ----------------------------- */
+.m1h-card--overlay .m1h-card__body {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: var(--m1h-s4) var(--m1h-s3) var(--m1h-s3);
+  /* The same reasoning as the hero: type over a photograph is not reliably
+     legible on its own, and a bottom-anchored ramp keeps the product in the
+     upper half of the frame untouched. Literal rgba rather than color-mix —
+     this file is bundled, but the value is the plate's own black either way. */
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.78) 0%,
+    rgba(0, 0, 0, 0.55) 45%,
+    rgba(0, 0, 0, 0) 100%
+  );
+  border-end-start-radius: var(--m1h-r-md);
+  border-end-end-radius: var(--m1h-r-md);
+  pointer-events: none;
+}
+
+.m1h-card--overlay {
+  position: relative;
+}
+
+/* The plate is the whole card in this template, so the copy has something to
+   sit on; without it the gradient would hang below the image. */
+.m1h-card--overlay .m1h-card__plate {
+  border-radius: var(--m1h-r-md);
+}
+
+.m1h-card--overlay .m1h-card__brand,
+.m1h-card--overlay .m1h-card__name,
+.m1h-card--overlay .m1h-card__price-now,
+.m1h-card--overlay .m1h-card__price-was {
+  color: #ffffff;
+}
+
+.m1h-card--overlay .m1h-card__brand,
+.m1h-card--overlay .m1h-card__price-was {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.m1h-card--overlay .m1h-card__price-now--sale {
+  color: var(--m1h-accent);
+}
+
+.m1h-card--overlay .m1h-card__name {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  min-height: 0;
+}
+
+/* ---- the two switches ------------------------------------------------- */
+/* `min-height` on the brand line reserves a row so cards in a grid keep their
+   names aligned. With the line switched off there is nothing to reserve. */
+.m1h-card--no-brand .m1h-card__brand {
+  display: none;
+}
+
+.m1h-card--no-badge .m1h-badge {
+  display: none;
+}
+
 /* One indicator per card, never a stack of them. */
 .m1h-badge {
   position: absolute;
