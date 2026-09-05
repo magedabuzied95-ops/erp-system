@@ -3116,9 +3116,11 @@ function PremiumHomePage(props) {
     loading,
   ]);
 
+  // No eyebrow above this hero: the owner asked for the label to go entirely.
+  // The slot is removed rather than emptied — HomeHero skips the element when
+  // there is no eyebrow, so the title moves up instead of sitting under a gap.
   const heroCopy = isRtl
     ? {
-        eyebrow: "مختارات M1",
         title: "ميرور أوريجنال",
         subtitle: "موديلات مختارة بمقاسات متاحة، وتوصيل لكل محافظات مصر.",
         primaryLabel: "تسوق ميرور أوريجنال",
@@ -3128,7 +3130,6 @@ function PremiumHomePage(props) {
         slidesLabel: "اختيارات ميرور",
       }
     : {
-        eyebrow: "M1 picks",
         title: "Mirror Original",
         subtitle: "Selected models, sizes in stock, delivered across Egypt.",
         primaryLabel: "Shop Mirror Original",

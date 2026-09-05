@@ -491,7 +491,10 @@ export function HomeHero({
       <div className="m1h-shell">
         <div className="grid items-center gap-6 lg:grid-cols-2 lg:gap-16">
           <div className="order-2 lg:order-1">
-            <p className="m1h-hero__eyebrow">{copy.eyebrow}</p>
+            {/* Conditional, not blanked: an empty <p> still draws a line box, so
+                a hero with no eyebrow would keep a gap where the label used to
+                be and the title would sit low against the image beside it. */}
+            {copy.eyebrow ? <p className="m1h-hero__eyebrow">{copy.eyebrow}</p> : null}
             <h1 className="m1h-hero__title">{copy.title}</h1>
             {copy.subtitle ? <p className="m1h-hero__sub">{copy.subtitle}</p> : null}
             <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
