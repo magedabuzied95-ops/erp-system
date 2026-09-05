@@ -26,6 +26,7 @@ import {
   getOrdersCount,
   logOrderReprint,
   resendOrderInvoiceWhatsapp,
+  sendOrderConfirmationWhatsapp,
   markPosEditTiming,
   permanentDeleteOrder,
   returnOrder,
@@ -116,6 +117,15 @@ router.post(
   protect,
   permit("orders", "view"),
   resendOrderInvoiceWhatsapp
+);
+
+// Asking the customer to confirm can move the order to confirmed, edit_requested or cancelled
+// once they tap, so it sits behind the same grant as editing the order rather than viewing it.
+router.post(
+  "/:id/send-confirmation",
+  protect,
+  permit("orders", "edit"),
+  sendOrderConfirmationWhatsapp
 );
 
 router.get(

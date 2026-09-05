@@ -20,15 +20,26 @@ const replyFnStart = source.indexOf("export const processConfirmationReply = asy
 assert.ok(replyFnStart > -1);
 const replySource = source.slice(replyFnStart);
 
+// The confirm and edit branches now read one shared status set; earlier revisions inlined the
+// same list as an array literal in each branch. What this file guards is the CONTENT of that
+// whitelist, so it accepts either spelling and then reads the statuses out of it.
+const statusWhitelist = (gate) => {
+  const inline = gate.match(/\[([^\]]*)\]\.includes\(currentStatus\)/);
+  if (inline) return inline[1];
+  assert.match(gate, /ORDER_CONFIRMATION_ACTIONABLE_STATUSES\.has\(currentStatus\)/, "the gate must read a status whitelist");
+  const shared = source.match(/const ORDER_CONFIRMATION_ACTIONABLE_STATUSES = new Set\(\[([\s\S]*?)\]\);/);
+  assert.ok(shared, "the shared status set exists");
+  return shared[1];
+};
+
 test("an edit request is accepted after the customer already confirmed", () => {
   const editGate = applySource.slice(
     applySource.indexOf('} else if (normalizedAction === "edit") {'),
     applySource.indexOf('} else if (normalizedAction === "cancel") {')
   );
-  const whitelist = editGate.match(/\[([^\]]*)\]\.includes\(currentStatus\)/);
-  assert.ok(whitelist, "edit still gates on a status whitelist");
-  assert.match(whitelist[1], /"confirmed"/, "confirmed must be allowed to request an edit");
-  assert.match(whitelist[1], /"pending_confirmation"/);
+  const whitelist = statusWhitelist(editGate);
+  assert.match(whitelist, /"confirmed"/, "confirmed must be allowed to request an edit");
+  assert.match(whitelist, /"pending_confirmation"/);
 });
 
 test("a corrected order can be confirmed again after an edit request", () => {
@@ -36,9 +47,8 @@ test("a corrected order can be confirmed again after an edit request", () => {
     applySource.indexOf('if (normalizedAction === "confirm") {'),
     applySource.indexOf('} else if (normalizedAction === "edit") {')
   );
-  const whitelist = confirmGate.match(/\[([^\]]*)\]\.includes\(currentStatus\)/);
-  assert.ok(whitelist, "confirm still gates on a status whitelist");
-  assert.match(whitelist[1], /"edit_requested"/, "an edited order must be confirmable again");
+  const whitelist = statusWhitelist(confirmGate);
+  assert.match(whitelist, /"edit_requested"/, "an edited order must be confirmable again");
 });
 
 test("dispatched orders are still protected", () => {

@@ -11,11 +11,13 @@ import {
   Download,
   Eye,
   ExternalLink,
+  Loader2,
   MessageCircle,
   Phone,
   Printer,
   RefreshCcw,
   Save,
+  Send,
   ShieldCheck,
   Truck,
   X,
@@ -445,6 +447,8 @@ function OrderDetails() {
   const [paymentProofImageFailed, setPaymentProofImageFailed] = useState(false);
   const [invoicePreviewOpen, setInvoicePreviewOpen] = useState(false);
   const [statusTimelineOpen, setStatusTimelineOpen] = useState(false);
+  const [confirmationSendOpen, setConfirmationSendOpen] = useState(false);
+  const [sendingConfirmation, setSendingConfirmation] = useState(false);
   const [packingChecklist, setPackingChecklist] = useState(emptyPackingChecklist);
   const [shippingSetupOpen, setShippingSetupOpen] = useState(false);
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
@@ -817,6 +821,24 @@ function OrderDetails() {
     }
   };
 
+  const handleSendConfirmation = async () => {
+    if (sendingConfirmation) return;
+    try {
+      setSendingConfirmation(true);
+      const response = await api.post(`/orders/${order.id}/send-confirmation`, {});
+      // The service declines by answering a body, not by failing. Reporting that as a
+      // success would tell the operator a customer was messaged when nobody was.
+      if (response?.sent === false) throw new Error(response?.message || t("orders.details.confirmationSend.failed"));
+      toast.success(response?.message || t("orders.details.confirmationSend.sent"));
+      setConfirmationSendOpen(false);
+      await loadOrder();
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err.message || t("orders.details.confirmationSend.failed"));
+    } finally {
+      setSendingConfirmation(false);
+    }
+  };
+
   const handleCopyPhone = async () => {
     if (!customerPhone) {
       toast.error(t("orders.fallback.noPhoneRecorded"));
@@ -1053,6 +1075,16 @@ function OrderDetails() {
                   >
                     <Phone className="h-3.5 w-3.5" />
                     {t("orders.details.call")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmationSendOpen(true)}
+                    disabled={!canContactCustomer || sendingConfirmation}
+                    title={canContactCustomer ? "" : t("orders.details.confirmationSend.noPhone")}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {sendingConfirmation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                    {t("orders.details.confirmationSend.action")}
                   </button>
                 </div>
               </div>
@@ -1860,6 +1892,43 @@ function OrderDetails() {
                 </div>
               </div>
             ))}
+          </div>
+        </ModalShell>
+      ) : null}
+
+      {confirmationSendOpen ? (
+        <ModalShell title={t("orders.details.confirmationSend.title")} onClose={() => setConfirmationSendOpen(false)} closeLabel={t("common.close")}>
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold leading-6 text-amber-100">{t("orders.details.confirmationSend.question")}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{t("orders.details.confirmationSend.detail")}</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Info label={t("orders.details.confirmationSend.invoice")} value={order.invoice_number} />
+              <Info label={t("orders.details.confirmationSend.customer")} value={order.customer_name || t("orders.fallback.customer")} />
+              <Info label={t("orders.details.confirmationSend.phone")} value={customerPhone || t("orders.fallback.noPhoneRecorded")} />
+              <Info
+                label={t("orders.details.confirmationSend.lastSent")}
+                value={order.whatsapp_confirmation_sent_at ? formatDateTime(order.whatsapp_confirmation_sent_at) : t("orders.details.confirmationSend.neverSent")}
+              />
+            </div>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setConfirmationSendOpen(false)}
+                disabled={sendingConfirmation}
+                className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+              >
+                {t("orders.bulk.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendConfirmation}
+                disabled={sendingConfirmation}
+                className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-black transition hover:bg-primary disabled:cursor-wait disabled:opacity-60"
+              >
+                {sendingConfirmation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {sendingConfirmation ? t("orders.details.confirmationSend.sending") : t("orders.details.confirmationSend.confirm")}
+              </button>
+            </div>
           </div>
         </ModalShell>
       ) : null}

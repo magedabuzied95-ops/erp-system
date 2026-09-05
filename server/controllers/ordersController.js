@@ -17,7 +17,7 @@ import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush, sendManagerInvoiceDeletedPush, sendManagerOrderOperationPush } from "../services/managerPortalPushService.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
 import { getSetting } from "../services/settingsService.js";
-import { sendInvoiceWhatsapp } from "../services/whatsappOrderConfirmationService.js";
+import { sendInvoiceWhatsapp, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 import { ensureWhatsappShippingSchema, sendShipmentNotificationForStatus } from "../services/whatsappShippingService.js";
 import {
   ensureSalesCommissionSchema,
@@ -5894,6 +5894,102 @@ export const resendOrderInvoiceWhatsapp = async (req, res) => {
   } catch (error) {
     console.error("[whatsapp:invoice-resend-error]", { order_id: orderId, message: error?.message || String(error) });
     return res.status(500).json({ success: false, sent: false, message: "Failed to resend invoice on WhatsApp", error: error.message });
+  }
+};
+
+// Same shape as the invoice resend: the reason code travels with the Arabic text so the page
+// can say what stopped the send instead of a bare failure.
+const ORDER_CONFIRMATION_SEND_FAILURE_MESSAGES = {
+  order_missing: "الطلب غير موجود",
+  missing_phone: "لا يوجد رقم واتساب مسجل لهذا العميل",
+  order_already_dispatched: "الطلب خرج للشحن بالفعل، لا يمكن طلب تأكيده من العميل",
+  status_not_confirmable: "حالة الطلب لا تسمح بطلب تأكيد من العميل",
+  gateway_error: "تعذر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل.",
+};
+
+const orderConfirmationSendFailureMessage = (reason) =>
+  ORDER_CONFIRMATION_SEND_FAILURE_MESSAGES[reason] || "تعذر إرسال رسالة التأكيد على واتساب";
+
+export const sendOrderConfirmationWhatsapp = async (req, res) => {
+  const orderId = String(req.params.id || "").trim();
+  try {
+    // A non-numeric id would blow up inside Postgres and come back as a 5xx, which the
+    // browser then reports as a CORS failure. Answer it as the missing order it is.
+    if (!/^\d+$/.test(orderId)) {
+      return res.status(404).json({ success: false, sent: false, reason: "order_missing", message: orderConfirmationSendFailureMessage("order_missing") });
+    }
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const orderColumns = await getTableColumnSet(db, "orders");
+    const tenantClause = orderColumns.has("tenant_id") ? "AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)" : "";
+    const found = await db.query(
+      `
+      SELECT o.id, o.invoice_number, o.customer_name, o.customer_phone, o.status, o.source, o.channel
+      FROM orders o
+      WHERE o.id = $1
+        ${tenantClause}
+      LIMIT 1
+      `,
+      tenantClause ? [orderId, tenantId] : [orderId]
+    );
+    const order = found.rows[0];
+    if (!order) return res.status(404).json({ success: false, sent: false, reason: "order_missing", message: orderConfirmationSendFailureMessage("order_missing") });
+
+    console.info("[whatsapp:order-confirmation-manual-requested]", {
+      order_id: order.id,
+      invoice_number: order.invoice_number || "",
+      status: order.status || "",
+      user_id: req.user?.id || null,
+      user_name: req.user?.name || "",
+      tenant_id: tenantId,
+      phone_suffix: String(order.customer_phone || "").slice(-4),
+    });
+
+    let result;
+    try {
+      result = await sendOrderConfirmation(order, { force: true });
+    } catch (gatewayError) {
+      // The gateway refusing us is an outcome the operator has to read, not a server fault -
+      // and a 5xx reaches the browser as an opaque CORS error, which would tell them nothing.
+      console.error("[whatsapp:order-confirmation-manual-failed]", {
+        order_id: order.id,
+        invoice_number: order.invoice_number || "",
+        message: gatewayError?.message || String(gatewayError),
+        code: gatewayError?.code || "",
+        status: gatewayError?.status || "",
+      });
+      return res.status(400).json({
+        success: false,
+        sent: false,
+        reason: "gateway_error",
+        message: orderConfirmationSendFailureMessage("gateway_error"),
+        error: gatewayError?.message || String(gatewayError),
+      });
+    }
+
+    // The outbound queue is the normal path, so a queued message IS the success case here: it is
+    // recorded, paced and retried. Only a service that declined outright is a failure.
+    const queued = Boolean(result?.queued);
+    if (!result?.sent && !queued) {
+      const reason = result?.reason || "unknown";
+      console.warn("[whatsapp:order-confirmation-manual-skipped]", {
+        order_id: order.id,
+        invoice_number: order.invoice_number || "",
+        reason,
+      });
+      return res.status(400).json({ success: false, sent: false, reason, message: orderConfirmationSendFailureMessage(reason) });
+    }
+
+    return res.status(200).json({
+      success: true,
+      sent: true,
+      queued,
+      invoice_number: order.invoice_number || "",
+      customer_phone: order.customer_phone || "",
+      message: queued ? "تم إدراج رسالة التأكيد في طابور الإرسال" : "تم إرسال رسالة التأكيد على واتساب",
+    });
+  } catch (error) {
+    console.error("[whatsapp:order-confirmation-manual-error]", { order_id: orderId, message: error?.message || String(error) });
+    return res.status(500).json({ success: false, sent: false, message: "Failed to send order confirmation on WhatsApp", error: error.message });
   }
 };
 

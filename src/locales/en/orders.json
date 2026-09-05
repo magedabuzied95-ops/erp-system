@@ -707,7 +707,23 @@
     "invoice": "Order invoice",
     "activityLog": "Activity log",
     "moreActions": "More actions",
-    "enterpriseOps": "Manage enterprise operations and subscriptions"
+    "enterpriseOps": "Manage enterprise operations and subscriptions",
+    "confirmationSend": {
+      "action": "Send confirmation",
+      "title": "Send the order confirmation request",
+      "question": "Send this customer the order confirmation request on WhatsApp?",
+      "detail": "The customer gets buttons to confirm, request an edit, or cancel the order, plus a secure link. Sending it retires any earlier confirmation link for this order.",
+      "invoice": "Invoice",
+      "customer": "Customer",
+      "phone": "WhatsApp number",
+      "lastSent": "Last sent",
+      "neverSent": "Never sent",
+      "confirm": "Send",
+      "sending": "Sending...",
+      "sent": "Confirmation request sent",
+      "failed": "Could not send the confirmation request",
+      "noPhone": "No WhatsApp number recorded for this customer"
+    }
   },
   "channels": {
     "instagramStory": "Instagram story",

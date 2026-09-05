@@ -26,6 +26,18 @@ const ORDER_CONFIRMATION_CODE_LENGTH = 7;
 const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
 const ORDER_CONFIRMATION_FALLBACK_TEXT = buildCodOrderConfirmationMessage({ withActions: true });
 const ORDER_CONFIRMATION_PROTECTED_STATUSES = new Set(["shipped", "out_for_delivery", "delivered", "completed", "shipment_created", "ready_to_ship"]);
+// Where a confirm/edit tap is still meaningful. "pending" and "pending_payment" are on the list
+// because the request is now also sent by hand from the order page, and an order that never went
+// through the automatic COD flow sits in one of those - a till-raised online order, a gateway
+// checkout, or the shop's own default website status. All of them are pre-confirmation, the same
+// stage as pending_confirmation; anything past dispatch is refused by the protected set above.
+const ORDER_CONFIRMATION_ACTIONABLE_STATUSES = new Set([
+  "pending",
+  "pending_payment",
+  "pending_confirmation",
+  "confirmed",
+  "edit_requested",
+]);
 const ORDER_CONFIRMATION_SINGLE_USE_ACTIONS = new Set(["confirm", "edit", "cancel"]);
 const ORDER_CONFIRMATION_ACTION_META = {
   confirm: {
@@ -757,28 +769,45 @@ const orderConfirmationActionLabel = (action = "") => {
   return "تم تحديث الطلب";
 };
 
-export const sendOrderConfirmation = async (order = {}) => {
+export const sendOrderConfirmation = async (order = {}, options = {}) => {
   await ensureWhatsappOrderConfirmationSchema();
   const current = order?.id ? await loadOrderById(order.id) : order;
   const messageTenantId = tenantIdForMessage(current, current);
   const phone = normalizeEgyptPhone(current?.customer_phone || current?.phone || current?.whatsapp || current?.mobile);
+  const status = text(current?.status).toLowerCase();
+  // A manual send is a human on the order page asking for this request to go out. It clears the
+  // guards that exist only to keep the AUTOMATIC send from firing twice, or from firing on a kind
+  // of order the automation was never meant to touch. What it cannot clear is a request the
+  // customer would be unable to act on: no phone to send it to, an order already out for
+  // delivery, or one that is finished with.
+  const isManualSend = options.force === true;
+  const manualBlockReason = !phone
+    ? "missing_phone"
+    : isOrderConfirmationProtectedStatus(status)
+      ? "order_already_dispatched"
+      : !ORDER_CONFIRMATION_ACTIONABLE_STATUSES.has(status)
+        ? "status_not_confirmable"
+        : "";
   const reason = !current?.id
     ? "order_missing"
-    : !STOREFRONT_SOURCES.has(sourceOf(current))
-      ? "not_storefront_order"
-      : !isCodPayment(current)
-        ? "not_cod_order"
-        : isShippingProofOrder(current)
-          ? "shipping_proof_order_excluded"
-          : text(current.status).toLowerCase() !== "pending_confirmation"
-            ? "not_pending_confirmation"
-            : current.whatsapp_confirmation_sent_at
-              ? "already_sent"
-              : !phone
-                ? "missing_phone"
-                : "";
+    : isManualSend
+      ? manualBlockReason
+      : !STOREFRONT_SOURCES.has(sourceOf(current))
+        ? "not_storefront_order"
+        : !isCodPayment(current)
+          ? "not_cod_order"
+          : isShippingProofOrder(current)
+            ? "shipping_proof_order_excluded"
+            : text(current.status).toLowerCase() !== "pending_confirmation"
+              ? "not_pending_confirmation"
+              : current.whatsapp_confirmation_sent_at
+                ? "already_sent"
+                : !phone
+                  ? "missing_phone"
+                  : "";
   const shouldSend = !reason;
   console.info("[whatsapp:order-confirmation-check]", {
+    manual: isManualSend,
     order_id: current?.id || null,
     order_number: current ? orderNumber(current) : "",
     channel: current?.channel || "",
@@ -831,6 +860,7 @@ export const sendOrderConfirmation = async (order = {}) => {
     const queued = await queueWhatsappAutomation({
       tenantId: messageTenantId,
       automationType: "order_confirmation",
+      idempotencySuffix: isManualSend ? `manual-${Date.now()}` : "",
       customerId: current?.customer_id || null,
       orderId: current.id,
       invoiceNumber: text(current?.invoice_number),
@@ -924,11 +954,11 @@ export const sendOrderConfirmation = async (order = {}) => {
   await db.query(
     `
     UPDATE orders
-    SET whatsapp_confirmation_sent_at = COALESCE(whatsapp_confirmation_sent_at, NOW()),
+    SET whatsapp_confirmation_sent_at = CASE WHEN $2::boolean THEN NOW() ELSE COALESCE(whatsapp_confirmation_sent_at, NOW()) END,
         updated_at = NOW()
     WHERE id = $1
     `,
-    [current.id]
+    [current.id, isManualSend]
   );
   try {
     const transcriptMessage = await appendWhatsappOutboundSupportReply({
@@ -1561,7 +1591,7 @@ async function applyConfirmationAction({
     if (normalizedAction === "confirm") {
       // edit_requested is allowed back: the customer asks for a change, we fix it, and the same
       // buttons are still sitting in their chat for them to confirm the corrected order.
-      if (!["pending_confirmation", "confirmed", "edit_requested"].includes(currentStatus)) {
+      if (!ORDER_CONFIRMATION_ACTIONABLE_STATUSES.has(currentStatus)) {
         if (shouldManageTransaction) {
           await timedOrderConfirmationQuery({
             client,
@@ -1604,7 +1634,7 @@ async function applyConfirmationAction({
       // A customer who confirms and THEN notices the wrong size still needs to reach us. WhatsApp
       // buttons cannot be withdrawn once sent, so a late tap is normal, not abuse. Anything past
       // dispatch is still refused above by isOrderConfirmationProtectedStatus.
-      if (!["pending_confirmation", "edit_requested", "confirmed"].includes(currentStatus)) {
+      if (!ORDER_CONFIRMATION_ACTIONABLE_STATUSES.has(currentStatus)) {
         if (shouldManageTransaction) {
           await timedOrderConfirmationQuery({
             client,
