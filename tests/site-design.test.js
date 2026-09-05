@@ -424,6 +424,11 @@ test("the studio previews cards through the storefront's own rules", () => {
 test("the reveal observer picks up sections that mount later", () => {
   const model = readFileSync(new URL("../src/storefront/home/homeModel.js", import.meta.url), "utf8");
   assert.ok(model.includes("MutationObserver"), "useHomeReveal no longer watches for sections that mount later");
+  // The observer is the fast path, not the only path: it was measured producing
+  // no callback at all for an element sitting inside the viewport, and an
+  // animation must never be the reason a section is permanently invisible.
+  assert.ok(/box.bottom > 0 && box.top < window.innerHeight/.test(model), "the reveal no longer has a geometry fallback, so a silent observer hides the section for good");
+  assert.ok(model.includes('addEventListener("scroll", schedule'), "nothing re-checks the reveals as the visitor scrolls");
   assert.ok(
     /mutations\.observe\(root, \{ childList: true, subtree: true \}\)/.test(model),
     "the mutation watcher no longer covers the whole homepage subtree"

@@ -95,34 +95,54 @@ export const useHomeReveal = (rootRef, deps = []) => {
       },
       { threshold: 0.05, rootMargin: "0px 0px -6% 0px" }
     );
-    const observeNew = () => {
-      root.querySelectorAll(".m1h-reveal:not(.is-in)").forEach((element) => observer.observe(element));
-    };
-    observeNew();
-
-    // Sections that mount AFTER this effect ran have to be picked up too, or
-    // they stay parked at opacity 0 for the life of the page — taking their full
-    // height and painting nothing. That is not hypothetical: the offers block is
-    // deferred behind its own IntersectionObserver and then waits on its own
-    // request, so it always arrives late, and it shipped as ~900px of invisible
-    // page between the category tiles and the first product row.
+    // The guaranteed path. This animation hides content until something says
+    // "you are on screen", so every way that signal can fail to arrive is a way
+    // for a whole section to occupy its full height and paint nothing — which is
+    // exactly how the offers block shipped as ~900px of blank page. Measured on
+    // the live site: a freshly created IntersectionObserver on an element sitting
+    // at top:-27 in an 812px viewport produced no callback at all.
     //
-    // Re-observing an element the observer already holds is a no-op, so a plain
-    // re-scan is safe; it is coalesced into a frame because a single mount can
-    // produce many mutation records.
+    // So the observer is the fast path and this is the correctness path: any
+    // reveal whose box is inside the viewport gets shown, checked on scroll and
+    // resize and coalesced into a frame. Cheap — it only ever measures elements
+    // that have not been revealed yet, and each one is measured once.
+    const reveal = (element) => {
+      element.classList.add("is-in");
+      observer.unobserve(element);
+    };
+    const sweep = () => {
+      const pending = root.querySelectorAll(".m1h-reveal:not(.is-in)");
+      pending.forEach((element) => {
+        const box = element.getBoundingClientRect();
+        if (box.bottom > 0 && box.top < window.innerHeight) reveal(element);
+        else observer.observe(element);
+      });
+    };
+
     let scheduled = 0;
-    const mutations = new MutationObserver(() => {
+    const schedule = () => {
       if (scheduled) return;
       scheduled = window.requestAnimationFrame(() => {
         scheduled = 0;
-        observeNew();
+        sweep();
       });
-    });
+    };
+
+    sweep();
+
+    // Sections that mount AFTER this effect ran have to be picked up too: the
+    // offers block is deferred behind its own observer and then waits on its own
+    // request, so it is always late and the initial sweep cannot see it.
+    const mutations = new MutationObserver(schedule);
     mutations.observe(root, { childList: true, subtree: true });
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule, { passive: true });
 
     return () => {
       observer.disconnect();
       mutations.disconnect();
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
       if (scheduled) window.cancelAnimationFrame(scheduled);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
