@@ -17,7 +17,13 @@
 
 import { useSyncExternalStore } from "react";
 
-import { DEFAULT_SITE_DESIGN, SITE_DESIGN_SETTING_KEY, normalizeSiteDesign, siteDesignStylesheet } from "../../../shared/siteDesign.js";
+import {
+  DEFAULT_SITE_DESIGN,
+  SITE_DESIGN_SETTING_KEY,
+  normalizeSiteDesign,
+  sharedPaletteVariables,
+  siteDesignStylesheet,
+} from "../../../shared/siteDesign.js";
 import { arabicFontStack, ensureFontLoaded, latinFontStack, ARABIC_FONT_MAP, LATIN_FONT_MAP } from "../../theme/appearance";
 import { getPublicSettingsResponse } from "../../shared/api/publicSettings";
 
@@ -81,12 +87,71 @@ export const applySiteDesign = (input) => {
   if (style.textContent !== css) style.textContent = css;
 };
 
+/* ------------------------------------------- the tokens ThemeProvider owns */
+
+// `--bg/--surface/--card/--surface-soft/--border/--text/--muted` are written
+// INLINE on <html> and <body> by src/theme/ThemeProvider.jsx — 69 custom
+// properties, measured — and an inline declaration beats any stylesheet rule on
+// the same element. The generated sheet therefore cannot move them, and they are
+// not decoration: index.css remaps a set of Tailwind utilities through them
+// (`html[data-theme] .text-white { color: var(--text) !important }`), so a
+// storefront element carrying a bare `text-white` reads its colour from --text.
+//
+// The fix is to write them inline too, on <body>, while a storefront route is
+// mounted — and to put them back whenever something else rewrites that
+// attribute. The observer is idempotent by construction: it only writes a
+// property whose current value differs, so its own write produces a mutation
+// record that asks for no further write and the loop settles immediately.
+let bodyObserver = null;
+let attached = false;
+
+const applySharedTokens = () => {
+  if (!attached || typeof document === "undefined") return;
+  const body = document.body;
+  if (!body) return;
+  const mode = body.classList.contains("storefront-dark") ? "dark" : "light";
+  const variables = sharedPaletteVariables(current, mode);
+  Object.entries(variables).forEach(([name, value]) => {
+    if (body.style.getPropertyValue(name) !== value) body.style.setProperty(name, value);
+  });
+};
+
+const releaseSharedTokens = () => {
+  if (typeof document === "undefined" || !document.body) return;
+  Object.keys(sharedPaletteVariables(current, "light")).forEach((name) => {
+    document.body.style.removeProperty(name);
+  });
+};
+
+/**
+ * Starts applying the design's shared tokens to <body>. Called by the storefront
+ * shell alongside the `storefront-shell` class, so the ERP never inherits them.
+ */
+export const attachSiteDesign = () => {
+  if (typeof document === "undefined" || attached) return;
+  attached = true;
+  applySharedTokens();
+  if (typeof MutationObserver === "undefined") return;
+  bodyObserver = new MutationObserver(applySharedTokens);
+  bodyObserver.observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
+};
+
+/** Hands <body> back to the ERP theme when the storefront unmounts. */
+export const detachSiteDesign = () => {
+  bodyObserver?.disconnect();
+  bodyObserver = null;
+  if (!attached) return;
+  attached = false;
+  releaseSharedTokens();
+};
+
 const publish = (design) => {
   const next = normalizeSiteDesign(design);
   if (JSON.stringify(next) === JSON.stringify(current)) return;
   current = next;
   snapshot = next;
   applySiteDesign(next);
+  applySharedTokens();
   listeners.forEach((listener) => {
     try {
       listener();

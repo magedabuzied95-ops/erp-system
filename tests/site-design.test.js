@@ -13,12 +13,18 @@ import { readFileSync } from "node:fs";
 
 import {
   DEFAULT_SITE_DESIGN,
+  HOME_SECTIONS,
   PALETTE_FIELD_KEYS,
   SITE_DESIGN_SETTING_KEY,
   heroScrimImage,
   isSafeCssColor,
   normalizeSiteDesign,
+  STRIP_MAX_ITEMS,
   resolveHeroCopy,
+  resolveHomeSections,
+  resolveSectionTitle,
+  resolveStripItems,
+  sharedPaletteVariables,
   siteDesignPreviewVariables,
   siteDesignStylesheet,
 } from "../shared/siteDesign.js";
@@ -180,9 +186,14 @@ test("the hero overlay is rendered and the video stays out of the reading order"
   const start = storefrontSource.indexOf("function StorefrontHeroVideo()");
   const component = storefrontSource.slice(start, storefrontSource.indexOf("function StorefrontHeroVideoOverlay()"));
   // The clip is scenery; the copy on top of it is not. aria-hidden has to sit on
-  // the <video>, not on the container, or the headline and buttons disappear
-  // from every screen reader.
-  assert.ok(/aria-hidden="true"[\s\S]{0,200}onCanPlay/.test(component), "the video lost its aria-hidden");
+  // the <video> element itself, not on the container, or the headline and the
+  // buttons disappear from every screen reader. Read off the <video> tag rather
+  // than a neighbouring prop: this guard once pinned `onCanPlay`, and renaming
+  // the media event that marks the clip ready broke it for no real reason.
+  const videoStart = component.indexOf("<video");
+  const videoTag = component.slice(videoStart, component.indexOf("/>", videoStart));
+  assert.ok(videoStart !== -1 && videoTag.length > 40, "the <video> element is gone from the hero");
+  assert.ok(videoTag.includes('aria-hidden="true"'), "the video lost its aria-hidden");
   assert.ok(
     !/<div className="sf-hero-video" aria-hidden/.test(component),
     "aria-hidden is back on the hero container, which hides the overlay copy from screen readers"
@@ -210,4 +221,129 @@ test("the overlay uses logical sides so Arabic and English both read correctly",
     assert.ok(!block.includes(physical), `the overlay uses a physical side (${physical}), which breaks one of the two directions`);
   }
   assert.ok(block.includes("text-align: start"), "the copy no longer follows the document direction");
+});
+
+/* ------------------------------------------- strip, footer, section order */
+
+test("the shipped section order round-trips, and an unknown id cannot blank the homepage", () => {
+  const shipped = normalizeSiteDesign(DEFAULT_SITE_DESIGN).sections.map((section) => section.id);
+  assert.deepEqual(resolveHomeSections(DEFAULT_SITE_DESIGN), shipped);
+  // A stored id the code no longer has is dropped, not rendered as a hole.
+  const stale = normalizeSiteDesign({ sections: [{ id: "ghostSection" }, { id: "categories" }] });
+  assert.ok(!stale.sections.some((section) => section.id === "ghostSection"));
+  // ...and a section the code HAS but the stored order does not is appended, so
+  // adding a section to the code makes it appear for stores that saved earlier.
+  assert.deepEqual(new Set(stale.sections.map((s) => s.id)), new Set(shipped));
+  assert.equal(stale.sections[0].id, "categories", "the stored order lost its first entry");
+});
+
+test("hiding a section removes it from the render list and nothing else", () => {
+  const design = normalizeSiteDesign({ sections: [{ id: "heroVideo", enabled: false }] });
+  const visible = resolveHomeSections(design);
+  assert.ok(!visible.includes("heroVideo"));
+  assert.equal(design.sections.length, HOME_SECTIONS.length, "a hidden section must stay in the stored order");
+  assert.ok(visible.includes("productHero"));
+});
+
+test("a reordered list is preserved exactly", () => {
+  const design = normalizeSiteDesign({
+    sections: [{ id: "categories" }, { id: "heroVideo" }, { id: "productHero" }],
+  });
+  assert.deepEqual(design.sections.slice(0, 3).map((s) => s.id), ["categories", "heroVideo", "productHero"]);
+});
+
+test("a section heading falls back to the shipped wording, never to an empty heading", () => {
+  assert.equal(resolveSectionTitle(DEFAULT_SITE_DESIGN, "categories", "en"), "Shop by category");
+  assert.equal(resolveSectionTitle({ sectionTitles: { categories: { ar: "", en: "" } } }, "categories", "en"), "Shop by category");
+  assert.equal(resolveSectionTitle({ sectionTitles: { categories: { ar: "الأقسام", en: "" } } }, "categories", "en"), "الأقسام");
+});
+
+test("an empty promise list means 'use the built-in ones', not 'show nothing'", () => {
+  // The caller distinguishes the two by null vs []; collapsing them would either
+  // strand a store with no promises or make the off switch impossible.
+  assert.deepEqual(resolveStripItems(DEFAULT_SITE_DESIGN, "ar"), []);
+  assert.equal(resolveStripItems({ strip: { enabled: false } }, "ar"), null);
+  const own = resolveStripItems({ strip: { items: [{ ar: "شحن مجاني", en: "Free shipping" }] } }, "en");
+  assert.deepEqual(own, ["Free shipping"]);
+});
+
+test("the promise list is bounded and drops blank rows", () => {
+  const many = Array.from({ length: 20 }, (_, index) => ({ ar: `عرض ${index}`, en: `Deal ${index}` }));
+  assert.equal(normalizeSiteDesign({ strip: { items: many } }).strip.items.length, STRIP_MAX_ITEMS);
+  assert.equal(normalizeSiteDesign({ strip: { items: [{ ar: "", en: "" }, { ar: "x", en: "x" }] } }).strip.items.length, 1);
+});
+
+test("the strip and footer are painted from variables the stylesheet sets", () => {
+  const css = siteDesignStylesheet(DEFAULT_SITE_DESIGN);
+  for (const token of ["--sf-strip-bg", "--sf-strip-ink", "--sf-footer-bg", "--sf-footer-ink", "--sf-footer-bar-bg", "--sf-footer-bar-ink"]) {
+    assert.ok(css.includes(`${token}:`), `${token} is not written by the generated sheet`);
+    assert.ok(stylesheetSource.includes(`var(${token},`), `index.css does not read ${token} with a fallback`);
+  }
+});
+
+// The dark strip paints no background of its own today — the page gradient
+// behind it supplies the near-black. A solid default would have been a silent
+// visual change and would have flattened the strip's backdrop blur.
+test("the dark strip stays transparent by default", () => {
+  assert.equal(normalizeSiteDesign(DEFAULT_SITE_DESIGN).strip.dark.background, "transparent");
+});
+
+// `.sf-footer__bar` carries Tailwind's `text-white`, which index.css repoints at
+// var(--text) — the ERP's near-black, written inline by ThemeProvider. The
+// copyright line was rendering #1b1915 on #070707: invisible in both themes.
+test("the copyright bar has an ink colour of its own", () => {
+  assert.ok(
+    /\.sf-footer__bar \{[\s\S]{0,240}color: var\(--sf-footer-bar-ink/.test(stylesheetSource),
+    "the copyright bar no longer sets its own colour and falls back to the remapped text-white"
+  );
+  const design = normalizeSiteDesign(DEFAULT_SITE_DESIGN);
+  assert.notEqual(design.footer.dark.barText, design.footer.dark.bar, "the bar ink matches its background");
+  assert.notEqual(design.footer.light.barText, design.footer.light.bar);
+});
+
+// ThemeProvider writes the generic palette tokens INLINE on <body>, and an
+// inline declaration cannot be beaten from a stylesheet. The storefront has to
+// write them inline too, or the studio's text colour reaches nothing that reads
+// var(--text) — which is every storefront element carrying a bare `text-white`.
+test("the shared tokens are applied inline, not only through the sheet", () => {
+  const variables = sharedPaletteVariables(DEFAULT_SITE_DESIGN, "dark");
+  assert.equal(variables["--text"], DEFAULT_SITE_DESIGN.palette.dark.text);
+  assert.equal(variables["--bg"], DEFAULT_SITE_DESIGN.palette.dark.page);
+  const store = readFileSync(new URL("../src/storefront/lib/siteDesign.js", import.meta.url), "utf8");
+  assert.ok(store.includes("body.style.setProperty"), "the store no longer writes the shared tokens inline");
+  assert.ok(store.includes("MutationObserver"), "nothing re-applies them after ThemeProvider rewrites the attribute");
+  assert.ok(store.includes("removeProperty"), "the ERP never gets <body> back when the storefront unmounts");
+  assert.ok(
+    storefrontSource.includes("attachSiteDesign()") && storefrontSource.includes("detachSiteDesign()"),
+    "the shell no longer attaches and detaches the inline tokens"
+  );
+});
+
+test("the homepage renders its sections from the stored order", () => {
+  assert.ok(storefrontSource.includes("homeSectionOrder.map("), "the homepage went back to a fixed sequence");
+  assert.ok(storefrontSource.includes("const homeSectionNodes = {"), "the section map is gone");
+  for (const section of HOME_SECTIONS) {
+    assert.ok(
+      new RegExp(`\\b${section.id}:`).test(storefrontSource),
+      `the homepage has no node for the "${section.id}" section, so it can never render`
+    );
+  }
+  // The footer is rendered outside the loop on purpose.
+  assert.ok(
+    /homeSectionOrder\.map\([\s\S]{0,700}<HomeSimpleFooter/.test(storefrontSource),
+    "the footer is no longer pinned after the section list"
+  );
+});
+
+test("turning the strip off leaves the language and theme controls in place", () => {
+  // The two corner controls live on the strip by owner decree, so "off" has to
+  // mean "no promises", never "no strip".
+  assert.ok(
+    storefrontSource.includes("ownAnnouncements === null"),
+    "the header no longer distinguishes an empty promise list from a disabled strip"
+  );
+  assert.ok(
+    !/\{announcementItems\.length \?[\s\S]{0,80}sf-announcement-row/.test(storefrontSource),
+    "the whole strip is now conditional, which would take the language switch with it"
+  );
 });

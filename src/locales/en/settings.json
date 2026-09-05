@@ -480,7 +480,9 @@
     "tabs": {
       "colors": "Colours",
       "type": "Type & shape",
-      "hero": "Hero video"
+      "hero": "Hero video",
+      "bands": "Strip & footer",
+      "sections": "Homepage sections"
     },
     "colorsTitle": "Store colours",
     "colorsHint": "Light and dark each keep their own palette. Pick a shade from the swatch or paste an exact colour value.",
@@ -515,6 +517,31 @@
     "mockNav": "Men · Women · Kids",
     "mockProduct": "Product name",
     "mockSale": "Sale",
-    "mockCta": "Shop now"
+    "mockCta": "Shop now",
+    "bandsTitle": "Announcement strip",
+    "bandsHint": "The band at the very top of every page. The language and theme buttons take their colour from it, so a change here reaches them too.",
+    "stripEnabled": "Show the promises in the strip",
+    "stripEnabledHint": "Turning this off leaves the strip in place without any copy — the language and theme buttons live in it.",
+    "stripItems": "Strip promises",
+    "stripItemsHint": "Leave empty to use the built-in promises (fast shipping, exchange, cash on delivery…). The moment you write one, only what you wrote is used.",
+    "addItem": "Add a promise",
+    "removeItem": "Remove promise",
+    "stripBackground": "Strip background",
+    "stripText": "Strip text colour",
+    "stripColorHint": "In dark the strip is transparent by default and takes the page background behind it. Set a colour to pin it.",
+    "footerTitle": "Footer",
+    "footerHint": "The footer and the copyright bar under it. The bar has its own colour because it reads as the floor of the page rather than as part of the footer.",
+    "footerBackground": "Footer background",
+    "footerText": "Footer text colour",
+    "footerBar": "Copyright bar background",
+    "footerBarText": "Copyright bar text colour",
+    "sectionsTitle": "Homepage section order",
+    "sectionsHint": "Reorder with the arrows and hide any section with the eye. The footer is not in the list — it is always the end of the page.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "hideSection": "Hide section",
+    "showSection": "Show section",
+    "sectionTitlesTitle": "Section headings",
+    "sectionTitlesHint": "The headings shown above each homepage section."
   }
 }

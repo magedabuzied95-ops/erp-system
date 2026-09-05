@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { Loader2, Monitor, Moon, Palette, RotateCcw, Save, Sun, Type, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutList, Loader2, Monitor, Moon, Palette, Plus, RotateCcw, Save, Sun, Trash2, Type, Video } from "lucide-react";
 
 import { Badge, Button, Input, PageHeader, Select, Switch, Textarea } from "../../../shared/ui/M1UI";
 import { api } from "../../../shared/api/api";
@@ -34,6 +34,9 @@ import {
   PALETTE_FIELDS,
   SITE_DESIGN_SETTING_KEY,
   SITE_RADIUS_PROFILES,
+  STRIP_MAX_ITEMS,
+  TITLED_HOME_SECTIONS,
+  HOME_SECTION_MAP,
   isSafeCssColor,
   normalizeSiteDesign,
   resolveHeroCopy,
@@ -45,6 +48,8 @@ const TABS = [
   { id: "colors", icon: Palette },
   { id: "type", icon: Type },
   { id: "hero", icon: Video },
+  { id: "bands", icon: LayoutList },
+  { id: "sections", icon: LayoutList },
 ];
 
 const localized = (value, language) => (value && typeof value === "object" ? value[language] || value.en : value);
@@ -213,6 +218,18 @@ export default function SiteStudio() {
 
   const palette = design.palette[mode];
   const update = (path, value) => setDesign((current) => setIn(current, path, value));
+
+  // Swaps a section with its neighbour. Order is stored as a list, not as an
+  // index on each section, so a move is a swap and nothing else can drift.
+  const moveSection = (index, delta) => {
+    const target = index + delta;
+    setDesign((current) => {
+      if (target < 0 || target >= current.sections.length) return current;
+      const sections = [...current.sections];
+      [sections[index], sections[target]] = [sections[target], sections[index]];
+      return { ...current, sections };
+    });
+  };
 
   const save = async () => {
     if (!canEdit || saving) return;
@@ -471,6 +488,156 @@ export default function SiteStudio() {
                 />
                 <span className="m1-site__hint">{tr("scrimHeightHint")}</span>
               </label>
+            </section>
+          ) : null}
+
+          {tab === "bands" ? (
+            <section className="m1-site__panel">
+              <header className="m1-site__panel-head">
+                <h2>{tr("bandsTitle")}</h2>
+                <p>{tr("bandsHint")}</p>
+              </header>
+
+              <Switch
+                label={tr("stripEnabled")}
+                checked={design.strip.enabled}
+                onChange={(event) => update(["strip", "enabled"], event.target.checked)}
+              />
+              <span className="m1-site__hint">{tr("stripEnabledHint")}</span>
+
+              <div className="m1-site__field">
+                <span className="m1-site__field-label">{tr("stripItems")}</span>
+                <span className="m1-site__hint">{tr("stripItemsHint")}</span>
+                {design.strip.items.map((item, index) => (
+                  <div key={index} className="m1-site__row">
+                    <div className="m1-site__row-main">
+                      <BilingualField
+                        label={`${index + 1}`}
+                        value={item}
+                        maxLength={80}
+                        onChange={(value) => update(["strip", "items", index], value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="m1-site__icon-button"
+                      aria-label={tr("removeItem")}
+                      onClick={() => update(["strip", "items"], design.strip.items.filter((_, i) => i !== index))}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  variant="secondary"
+                  disabled={design.strip.items.length >= STRIP_MAX_ITEMS}
+                  onClick={() => update(["strip", "items"], [...design.strip.items, { ar: "", en: "" }])}
+                >
+                  <Plus size={15} />
+                  {tr("addItem")}
+                </Button>
+              </div>
+
+              <Segmented value={mode} options={modeOptions} onChange={setMode} ariaLabel={tr("modeLabel")} />
+              <ColorRow
+                label={tr("stripBackground")}
+                value={design.strip[mode].background}
+                onChange={(value) => update(["strip", mode, "background"], value)}
+              />
+              <ColorRow
+                label={tr("stripText")}
+                value={design.strip[mode].text}
+                onChange={(value) => update(["strip", mode, "text"], value)}
+              />
+              <span className="m1-site__hint">{tr("stripColorHint")}</span>
+
+              <header className="m1-site__panel-head">
+                <h2>{tr("footerTitle")}</h2>
+                <p>{tr("footerHint")}</p>
+              </header>
+              <ColorRow
+                label={tr("footerBackground")}
+                value={design.footer[mode].background}
+                onChange={(value) => update(["footer", mode, "background"], value)}
+              />
+              <ColorRow
+                label={tr("footerText")}
+                value={design.footer[mode].text}
+                onChange={(value) => update(["footer", mode, "text"], value)}
+              />
+              <ColorRow
+                label={tr("footerBar")}
+                value={design.footer[mode].bar}
+                onChange={(value) => update(["footer", mode, "bar"], value)}
+              />
+              <ColorRow
+                label={tr("footerBarText")}
+                value={design.footer[mode].barText}
+                onChange={(value) => update(["footer", mode, "barText"], value)}
+              />
+            </section>
+          ) : null}
+
+          {tab === "sections" ? (
+            <section className="m1-site__panel">
+              <header className="m1-site__panel-head">
+                <h2>{tr("sectionsTitle")}</h2>
+                <p>{tr("sectionsHint")}</p>
+              </header>
+              <ol className="m1-site__sections">
+                {design.sections.map((entry, index) => {
+                  const meta = HOME_SECTION_MAP[entry.id];
+                  return (
+                    <li key={entry.id} className={`m1-site__section${entry.enabled ? "" : " is-off"}`}>
+                      <span className="m1-site__section-index">{index + 1}</span>
+                      <span className="m1-site__section-name">{localized(meta?.label, language) || entry.id}</span>
+                      <span className="m1-site__section-actions">
+                        <button
+                          type="button"
+                          className="m1-site__icon-button"
+                          aria-label={tr("moveUp")}
+                          disabled={index === 0}
+                          onClick={() => moveSection(index, -1)}
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="m1-site__icon-button"
+                          aria-label={tr("moveDown")}
+                          disabled={index === design.sections.length - 1}
+                          onClick={() => moveSection(index, 1)}
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="m1-site__icon-button"
+                          aria-label={entry.enabled ? tr("hideSection") : tr("showSection")}
+                          aria-pressed={!entry.enabled}
+                          onClick={() => update(["sections", index, "enabled"], !entry.enabled)}
+                        >
+                          {entry.enabled ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <header className="m1-site__panel-head">
+                <h2>{tr("sectionTitlesTitle")}</h2>
+                <p>{tr("sectionTitlesHint")}</p>
+              </header>
+              {TITLED_HOME_SECTIONS.map((section) => (
+                <BilingualField
+                  key={section.id}
+                  label={localized(section.label, language)}
+                  value={design.sectionTitles[section.id]}
+                  maxLength={60}
+                  onChange={(value) => update(["sectionTitles", section.id], value)}
+                />
+              ))}
             </section>
           ) : null}
         </div>

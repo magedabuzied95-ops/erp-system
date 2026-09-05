@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- Shared storefront helpers are imported by route-level modules. */
-import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
 import { useDeferredValue } from "react";
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -102,8 +102,8 @@ import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGu
 import { animateFlyToCart } from "./lib/flyToCart";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
-import { refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
-import { resolveHeroCopy } from "../../shared/siteDesign.js";
+import { attachSiteDesign, detachSiteDesign, refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
+import { resolveHeroCopy, resolveHomeSections, resolveSectionTitle, resolveStripItems } from "../../shared/siteDesign.js";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../theme/documentColorScheme";
 import { splitProductDisplayName } from "./lib/productDisplayName";
 import {
@@ -2969,6 +2969,7 @@ function PremiumHomePage(props) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const themeMode = props.themeMode || "light";
   const themeTokens = useMemo(() => getStorefrontThemeTokens(themeMode), [themeMode]);
+  const siteDesign = useSiteDesign();
   const brandFilter = params.get("brand") || "";
   const wishlist = useMemo(() => (Array.isArray(props.wishlist) ? props.wishlist : []), [props.wishlist]);
   const toggleWishlist = props.toggleWishlist;
@@ -3139,13 +3140,18 @@ function PremiumHomePage(props) {
 
   const favoriteLabel = isRtl ? "أضف إلى المفضلة" : "Add to wishlist";
 
-  return (
-    <div
-      ref={homeRootRef}
-      className="m1h sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
-      data-theme={themeTokens.resolvedMode}
-    >
-      <StorefrontHeroVideo />
+  // The homepage as a set of named sections rather than a fixed sequence, so
+  // Site Studio can reorder and hide them. The ids are the contract with
+  // HOME_SECTIONS in shared/siteDesign.js — renaming one here drops that section
+  // for every store that already saved an order.
+  //
+  // Every section is built whether it renders or not: they are plain elements,
+  // not calls, so an unrendered one costs an object literal. Making this lazy
+  // would mean hooks inside conditionals.
+  const homeSectionOrder = resolveHomeSections(siteDesign);
+  const homeSectionNodes = {
+    heroVideo: <StorefrontHeroVideo />,
+    productHero: (
       <HomeHero
         isRtl={isRtl}
         loading={loading}
@@ -3154,17 +3160,19 @@ function PremiumHomePage(props) {
         onImageError={fallbackProductImage}
         onPreloadSlide={preloadSlide}
       />
-
+    ),
+    categories: (
       <HomeCategoryRail
-        title={isRtl ? "تسوّق حسب القسم" : "Shop by category"}
+        title={resolveSectionTitle(siteDesign, "categories", lang)}
         cards={categoryTiles}
         links={categoryLinks}
         loading={loading}
         onImageError={fallbackProductImage}
       />
-
+    ),
+    mostWanted: (
       <HomeProductRail
-        title={isRtl ? "الأكثر طلبًا" : "Most wanted"}
+        title={resolveSectionTitle(siteDesign, "mostWanted", lang)}
         href={productsPath({ sort: "trending" })}
         linkLabel={sfText("common.viewAll")}
         cards={popularCards}
@@ -3177,9 +3185,10 @@ function PremiumHomePage(props) {
         onImageError={fallbackProductImage}
         favoriteLabel={favoriteLabel}
       />
-
+    ),
+    newArrivals: (
       <HomeProductGrid
-        title={isRtl ? "وصل حديثًا" : "New arrivals"}
+        title={resolveSectionTitle(siteDesign, "newArrivals", lang)}
         href={productsPath({ sort: "newest" })}
         linkLabel={sfText("common.viewAll")}
         cards={newestCards}
@@ -3189,7 +3198,8 @@ function PremiumHomePage(props) {
         onImageError={fallbackProductImage}
         favoriteLabel={favoriteLabel}
       />
-
+    ),
+    offers: (
       <HomeDeferred minHeight={420}>
         <HomeOfferCampaign
           isRtl={isRtl}
@@ -3200,9 +3210,26 @@ function PremiumHomePage(props) {
           onImageError={fallbackProductImage}
         />
       </HomeDeferred>
+    ),
+    brands: <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />,
+    trust: <HomeTrustStrip isRtl={isRtl} />,
+  };
 
-      <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
-      <HomeTrustStrip isRtl={isRtl} />
+  return (
+    <div
+      ref={homeRootRef}
+      className="m1h sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
+      data-theme={themeTokens.resolvedMode}
+    >
+      {homeSectionOrder.map((sectionId) => {
+        const section = homeSectionNodes[sectionId];
+        // An id the renderer does not know is skipped rather than thrown on: a
+        // section removed from the code must not blank the homepage of every
+        // store that still has it in its saved order.
+        return section ? <Fragment key={sectionId}>{section}</Fragment> : null;
+      })}
+      {/* Not a section. The footer is the end of the page, and an owner who
+          dragged it to the top would only be reporting a bug. */}
       <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
     </div>
   );
@@ -4697,13 +4724,24 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
   const languageLabel = nextLanguage === "ar" ? "العربية" : "English";
   const searchPlaceholders = getSearchPlaceholders();
-  const announcementItems = [
-    t("storefront.header.announcements.fastShipping"),
-    t("storefront.header.announcements.exchange"),
-    t("storefront.header.announcements.cod"),
-    t("storefront.header.announcements.premium"),
-    t("storefront.header.announcements.todayDeals"),
-  ];
+  // The five shipped promises are the fallback, not the content: the moment the
+  // owner writes their own in Site Studio those are used instead, verbatim, and
+  // an empty list turns the strip off entirely. resolveStripItems returns null
+  // for "off" and [] for "nothing written", which is why the two cases are
+  // distinguished here rather than with a truthiness check.
+  const siteDesign = useSiteDesign();
+  const ownAnnouncements = resolveStripItems(siteDesign, currentLanguage);
+  const announcementItems = ownAnnouncements === null
+    ? []
+    : ownAnnouncements.length
+      ? ownAnnouncements
+      : [
+          t("storefront.header.announcements.fastShipping"),
+          t("storefront.header.announcements.exchange"),
+          t("storefront.header.announcements.cod"),
+          t("storefront.header.announcements.premium"),
+          t("storefront.header.announcements.todayDeals"),
+        ];
   // Mobile shows ONE promise at a time, centred, and swaps it on a timer. The
   // desktop marquee is untouched: on a phone a line sliding past is something
   // the eye has to chase, and the bar is 28px tall — there is room for one
@@ -10434,9 +10472,15 @@ function Storefront() {
       bodyStorefrontDark: body.classList.contains("storefront-dark"),
     };
     body.classList.add("storefront-shell");
+    // ThemeProvider writes the generic palette tokens INLINE on <body>, and an
+    // inline declaration cannot be beaten from a stylesheet — so the site design
+    // takes them over for exactly as long as this class is on the body, and hands
+    // them back on the way out.
+    attachSiteDesign();
 
     return () => {
       const previous = previousDocumentThemeRef.current;
+      detachSiteDesign();
       body.classList.remove("storefront-shell");
       if (!previous) return;
       root.classList.toggle("dark", previous.rootDark);

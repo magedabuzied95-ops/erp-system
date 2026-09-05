@@ -129,6 +129,69 @@ const DEFAULT_HERO = {
   scrimHeight: 62,
 };
 
+/* --------------------------------------------------------- announcement strip */
+
+// The strip is the first thing on every page and it is NOT on the palette: it is
+// black in dark and white in light by an explicit owner decision, and the two
+// corner controls (language, theme toggle) take their colour from it. So it gets
+// its own two colours per mode rather than following `page`/`surface`.
+const DEFAULT_STRIP = {
+  enabled: true,
+  // Empty means "use the five built-in promises", which are translated. The
+  // moment the owner writes their own, those are used verbatim in both
+  // languages — a shop that writes its own promises does not want ours.
+  items: [],
+  light: { background: "#ffffff", text: "#25231f" },
+  // Transparent, not black: measured on a fresh load, the dark strip paints no
+  // background of its own and the page gradient behind it supplies the near-black
+  // (#030303 at the top of the page). Defaulting to a solid colour would have
+  // been a change nobody asked for, and would flatten the strip’s backdrop blur.
+  dark: { background: "transparent", text: "rgba(248,250,252,0.82)" },
+};
+
+export const STRIP_MAX_ITEMS = 8;
+
+/* ------------------------------------------------------------------- footer */
+
+// The footer's own band, plus the copyright bar under it. The bar is a separate
+// colour because it is nearly black in both themes today and reads as the page's
+// floor rather than as part of the footer.
+const DEFAULT_FOOTER = {
+  light: { background: "#f5f3ef", text: "#1c1917", bar: "#050505", barText: "#ffffff" },
+  dark: { background: "#0b0b0b", text: "#efeee9", bar: "#070707", barText: "#8d8981" },
+};
+
+/* --------------------------------------------------- homepage section order */
+
+// The homepage in the order it ships. `id` is the contract with Storefront.jsx —
+// renaming one drops that section for every store that already saved an order,
+// so the renderer treats an unknown id as "skip" and appends anything new to the
+// end (see resolveHomeSections).
+//
+// The footer is deliberately not in this list: it is the end of the page, not a
+// section, and an owner who dragged it to the top would just be reporting a bug.
+export const HOME_SECTIONS = [
+  { id: "heroVideo", label: { ar: "فيديو المقدمة", en: "Hero video" }, titled: false },
+  { id: "productHero", label: { ar: "واجهة المنتجات", en: "Product hero" }, titled: false },
+  { id: "categories", label: { ar: "تسوّق حسب القسم", en: "Shop by category" }, titled: true },
+  { id: "mostWanted", label: { ar: "الأكثر طلبًا", en: "Most wanted" }, titled: true },
+  { id: "newArrivals", label: { ar: "وصل حديثًا", en: "New arrivals" }, titled: true },
+  { id: "offers", label: { ar: "العروض", en: "Offers" }, titled: false },
+  { id: "brands", label: { ar: "الماركات", en: "Brands" }, titled: false },
+  { id: "trust", label: { ar: "شريط الضمانات", en: "Trust strip" }, titled: false },
+];
+
+export const HOME_SECTION_MAP = Object.fromEntries(HOME_SECTIONS.map((section) => [section.id, section]));
+
+// Only the three rails carry a visible heading, so only those three are editable.
+export const TITLED_HOME_SECTIONS = HOME_SECTIONS.filter((section) => section.titled);
+
+const DEFAULT_SECTION_TITLES = {
+  categories: { ar: "تسوّق حسب القسم", en: "Shop by category" },
+  mostWanted: { ar: "الأكثر طلبًا", en: "Most wanted" },
+  newArrivals: { ar: "وصل حديثًا", en: "New arrivals" },
+};
+
 /* ------------------------------------------------------------------ defaults */
 
 export const DEFAULT_SITE_DESIGN = Object.freeze({
@@ -139,6 +202,14 @@ export const DEFAULT_SITE_DESIGN = Object.freeze({
   radius: "default",
   palette: { light: { ...LIGHT_PALETTE }, dark: { ...DARK_PALETTE } },
   hero: { ...DEFAULT_HERO },
+  strip: { ...DEFAULT_STRIP },
+  footer: { light: { ...DEFAULT_FOOTER.light }, dark: { ...DEFAULT_FOOTER.dark } },
+  sections: HOME_SECTIONS.map((section) => ({ id: section.id, enabled: true })),
+  sectionTitles: {
+    categories: { ...DEFAULT_SECTION_TITLES.categories },
+    mostWanted: { ...DEFAULT_SECTION_TITLES.mostWanted },
+    newArrivals: { ...DEFAULT_SECTION_TITLES.newArrivals },
+  },
 });
 
 /* --------------------------------------------------------------- normalizing */
@@ -221,6 +292,67 @@ const normalizeHero = (input) => {
   };
 };
 
+const normalizeBand = (input, defaults) => {
+  const source = input && typeof input === "object" ? input : {};
+  return Object.fromEntries(Object.keys(defaults).map((key) => [key, color(source[key], defaults[key])]));
+};
+
+const normalizeStrip = (input) => {
+  const source = input && typeof input === "object" ? input : {};
+  const items = Array.isArray(source.items)
+    ? source.items
+        .map((item) => bilingual(item, { ar: "", en: "" }, 80))
+        .filter((item) => item.ar || item.en)
+        .slice(0, STRIP_MAX_ITEMS)
+    : [];
+  return {
+    enabled: source.enabled !== false,
+    items,
+    light: normalizeBand(source.light, DEFAULT_STRIP.light),
+    dark: normalizeBand(source.dark, DEFAULT_STRIP.dark),
+  };
+};
+
+const normalizeFooter = (input) => {
+  const source = input && typeof input === "object" ? input : {};
+  return {
+    light: normalizeBand(source.light, DEFAULT_FOOTER.light),
+    dark: normalizeBand(source.dark, DEFAULT_FOOTER.dark),
+  };
+};
+
+/**
+ * The homepage running order.
+ *
+ * Two rules, both about not losing a section. A stored id that no longer exists
+ * is dropped, and a section that exists but is not in the stored list is
+ * appended in its shipped position — so adding a new section to HOME_SECTIONS
+ * makes it appear for every store that saved an order before it existed, rather
+ * than silently never rendering.
+ */
+const normalizeSections = (input) => {
+  const stored = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const ordered = [];
+  for (const entry of stored) {
+    const id = typeof entry === "string" ? entry : String(entry?.id || "");
+    if (!HOME_SECTION_MAP[id] || seen.has(id)) continue;
+    seen.add(id);
+    ordered.push({ id, enabled: typeof entry === "object" && entry !== null ? entry.enabled !== false : true });
+  }
+  for (const section of HOME_SECTIONS) {
+    if (!seen.has(section.id)) ordered.push({ id: section.id, enabled: true });
+  }
+  return ordered;
+};
+
+const normalizeSectionTitles = (input) => {
+  const source = input && typeof input === "object" ? input : {};
+  return Object.fromEntries(
+    TITLED_HOME_SECTIONS.map((section) => [section.id, bilingual(source[section.id], DEFAULT_SECTION_TITLES[section.id], 60)])
+  );
+};
+
 /**
  * Accepts anything at all — a stored blob, a half-filled form, null — and
  * returns a complete, renderable record. It never throws and never returns a
@@ -241,6 +373,10 @@ export const normalizeSiteDesign = (input) => {
       dark: normalizePalette(palette.dark, DARK_PALETTE),
     },
     hero: normalizeHero(source.hero),
+    strip: normalizeStrip(source.strip),
+    footer: normalizeFooter(source.footer),
+    sections: normalizeSections(source.sections),
+    sectionTitles: normalizeSectionTitles(source.sectionTitles),
   };
 };
 
@@ -253,6 +389,16 @@ export const isDefaultSiteDesign = (input) =>
 // spelled differently in each of the three stylesheets the storefront grew out
 // of. Re-pointing all of them together is the whole point: miss one and a page
 // keeps the old colour for no visible reason.
+// The generic token names the ERP theme also owns. They matter on the storefront
+// because index.css remaps a set of Tailwind utilities through them
+// (`html[data-theme] .text-white { color: var(--text) !important }` and friends),
+// so a storefront element carrying a bare `text-white` reads its colour from here.
+//
+// ⚠️ ThemeProvider writes these INLINE on <html> and <body> (69 custom properties
+// measured, 2026-09-05), and an inline declaration beats any stylesheet rule on
+// the same element. So the block this map generates is a fallback, not the
+// mechanism: the storefront applies these same values inline instead — see
+// `sharedPaletteVariables` and its use in src/storefront/lib/siteDesign.js.
 const SHARED_TOKENS = {
   page: ["--bg"],
   surface: ["--surface", "--card"],
@@ -260,6 +406,22 @@ const SHARED_TOKENS = {
   border: ["--border"],
   text: ["--text"],
   textMuted: ["--muted"],
+};
+
+/**
+ * The shared tokens as a flat `{ "--name": value }` map for one mode — the
+ * values the storefront writes inline on <body> to outrank ThemeProvider.
+ */
+export const sharedPaletteVariables = (input, mode = "light") => {
+  const design = normalizeSiteDesign(input);
+  const palette = design.palette[mode === "dark" ? "dark" : "light"];
+  const variables = {};
+  Object.entries(SHARED_TOKENS).forEach(([field, tokens]) => {
+    tokens.forEach((token) => {
+      variables[token] = palette[field];
+    });
+  });
+  return variables;
 };
 
 const LIGHT_TOKENS = {
@@ -429,6 +591,19 @@ export const siteDesignStylesheet = (input, stacks = {}) => {
     `  --sf-hero-text-halo: ${heroTextHalo(design.hero.scrimColor)};`,
   ];
 
+  // The strip and the footer are the two bands that are NOT on the palette:
+  // both are decided colours (a black-or-white strip, a warm-grey footer) that
+  // an owner tunes directly. index.css reads these four variables through
+  // `var(… , <today's literal>)`, so an untouched store is unchanged.
+  const band = (mode) => [
+    `  --sf-strip-bg: ${design.strip[mode].background};`,
+    `  --sf-strip-ink: ${design.strip[mode].text};`,
+    `  --sf-footer-bg: ${design.footer[mode].background};`,
+    `  --sf-footer-ink: ${design.footer[mode].text};`,
+    `  --sf-footer-bar-bg: ${design.footer[mode].bar};`,
+    `  --sf-footer-bar-ink: ${design.footer[mode].barText};`,
+  ];
+
   return [
     "/* generated from storefront.site_design — edit it in Site Studio, not here */",
     block("body.storefront-shell", [...shell, ...hero]),
@@ -436,10 +611,12 @@ export const siteDesignStylesheet = (input, stacks = {}) => {
     block("body.storefront-shell:not(.storefront-dark)", [
       ...declarations(SHARED_TOKENS, light),
       ...declarations(LIGHT_TOKENS, light),
+      ...band("light"),
     ]),
     block("body.storefront-shell.storefront-dark", [
       ...declarations(SHARED_TOKENS, dark),
       ...declarations(DARK_TOKENS, dark),
+      ...band("dark"),
     ]),
     block("body.storefront-shell .m1h", [...declarations(HOME_TOKENS, light), ...homeExtras(light), ...home]),
     block('body.storefront-shell .m1h[data-theme="dark"]', [
@@ -490,7 +667,48 @@ export const siteDesignPreviewVariables = (input, mode = "light") => {
   variables["--sf-hero-scrim-opacity"] = heroScrimOpacity(design.hero.scrimColor, design.hero.scrimOpacity);
   variables["--sf-hero-scrim-height"] = `${design.hero.scrimHeight}%`;
   variables["--sf-hero-text-halo"] = heroTextHalo(design.hero.scrimColor);
+  const bandMode = mode === "dark" ? "dark" : "light";
+  variables["--sf-strip-bg"] = design.strip[bandMode].background;
+  variables["--sf-strip-ink"] = design.strip[bandMode].text;
+  variables["--sf-footer-bg"] = design.footer[bandMode].background;
+  variables["--sf-footer-ink"] = design.footer[bandMode].text;
+  variables["--sf-footer-bar-bg"] = design.footer[bandMode].bar;
+  variables["--sf-footer-bar-ink"] = design.footer[bandMode].barText;
   return variables;
+};
+
+/**
+ * The announcement promises for one language.
+ *
+ * Returns null when the strip is turned off, and an empty array when the owner
+ * has written nothing — the caller keeps its own translated defaults in that
+ * case, so an untouched store still shows five promises in the reader's
+ * language rather than none.
+ */
+export const resolveStripItems = (input, language = "ar") => {
+  const design = normalizeSiteDesign(input);
+  if (!design.enabled || !design.strip.enabled) return null;
+  const lang = String(language || "ar").toLowerCase().startsWith("en") ? "en" : "ar";
+  return design.strip.items.map((item) => String(item[lang] || item.ar || item.en || "").trim()).filter(Boolean);
+};
+
+/**
+ * The homepage sections to render, in order, already filtered to the visible
+ * ones. Ids the renderer does not know are simply not rendered, so a section
+ * removed from the code cannot crash a store that still has it in its order.
+ */
+export const resolveHomeSections = (input) => {
+  const design = normalizeSiteDesign(input);
+  return design.sections.filter((section) => section.enabled).map((section) => section.id);
+};
+
+/** A section's heading in one language, falling back to the shipped wording. */
+export const resolveSectionTitle = (input, sectionId, language = "ar") => {
+  const design = normalizeSiteDesign(input);
+  const lang = String(language || "ar").toLowerCase().startsWith("en") ? "en" : "ar";
+  const title = design.sectionTitles[sectionId];
+  const fallback = DEFAULT_SECTION_TITLES[sectionId] || { ar: "", en: "" };
+  return String(title?.[lang] || title?.ar || title?.en || fallback[lang] || "").trim();
 };
 
 /**

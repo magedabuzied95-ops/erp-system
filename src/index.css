@@ -8029,3 +8029,131 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     }
   }
 }
+
+/* ============================================================================
+   THE TWO BANDS — announcement strip and footer, painted from Site Studio
+   ----------------------------------------------------------------------------
+   These two are not on the palette. The strip is a decided colour (black in
+   dark, white in light, by the owner's call) and the two corner controls take
+   their colour from it; the footer is its own warm band with a near-black
+   copyright bar under it. Both are now read from four variables the generated
+   sheet sets — `--sf-strip-bg/-ink` and `--sf-footer-bg/-ink/-bar-bg/-bar-ink`
+   — with today's shipped values as the fallback, so a store that has never
+   opened Site Studio renders exactly as before.
+
+   MUST be the last `@layer components` block that touches these elements. Four
+   earlier rules already paint the strip, they tie on specificity and are
+   resolved by source order, and a layered `!important` is the only thing that
+   can outrank the unlayered `!important` at `.sf-header-v2 .sf-header-announcement`
+   (see [[css-important-layer-inversion]]). Every selector here also carries a
+   leading `body`, which puts it above all of them on specificity as well.
+
+   The strip's DARK default is `transparent`, not black: measured on a fresh
+   load, the dark strip has no background of its own and the header shell behind
+   it supplies the black. Forcing a colour there would have introduced a seam.
+
+   The copyright bar's ink is the one behaviour change. `.sf-footer__bar` carries
+   Tailwind's `text-white`, and `html[data-theme] .text-white { color: var(--text)
+   !important }` in this file repoints that at the ERP's --text — which
+   ThemeProvider writes inline as the ERP's near-black. The line was rendering
+   #1b1915 on a #070707 bar: invisible in both themes. It now has an explicit
+   colour it can actually be read at.
+   ========================================================================== */
+@layer components {
+  body.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-announcement-row,
+  body.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-announcement,
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-row,
+  body.storefront-shell:not(.storefront-dark) .sf-header-announcement {
+    background: var(--sf-strip-bg, #ffffff) !important;
+    background-image: none !important;
+  }
+
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-row,
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-row span,
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-row .sf-announcement-solo-line,
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-track,
+  body.storefront-shell:not(.storefront-dark) .sf-header-announcement,
+  body.storefront-shell:not(.storefront-dark) .sf-header-announcement span {
+    color: var(--sf-strip-ink, #25231f) !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-header-v2 .sf-announcement-row,
+  body.storefront-shell.storefront-dark .sf-header-v2 .sf-header-announcement,
+  body.storefront-shell.storefront-dark .sf-announcement-row,
+  body.storefront-shell.storefront-dark .sf-header-announcement {
+    background: var(--sf-strip-bg, transparent) !important;
+    background-image: none !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-announcement-row,
+  body.storefront-shell.storefront-dark .sf-announcement-row span,
+  body.storefront-shell.storefront-dark .sf-announcement-row .sf-announcement-solo-line,
+  body.storefront-shell.storefront-dark .sf-announcement-track,
+  body.storefront-shell.storefront-dark .sf-header-announcement,
+  body.storefront-shell.storefront-dark .sf-header-announcement span {
+    color: var(--sf-strip-ink, rgba(248, 250, 252, 0.82)) !important;
+  }
+
+  /* The corner controls sit ON the strip, so they take its colour rather than a
+     fixed one — that is the whole reason the first version of them read as a
+     black patch on a white bar. The ::before fades are the same colour bleeding
+     out, so the marquee slides under the control instead of being cut at its
+     edge. `transparent` is a legitimate strip colour (the dark default), and a
+     transparent button on a dark header is still correct: the header behind it
+     supplies the same black. */
+  body.storefront-shell .sf-announcement-corner {
+    background: var(--sf-strip-bg, #000000) !important;
+  }
+
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-corner {
+    background: var(--sf-strip-bg, #ffffff) !important;
+  }
+
+  body.storefront-shell .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-corner,
+  body.storefront-shell .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-corner :is(span, svg) {
+    color: var(--sf-strip-ink, #ffffff) !important;
+  }
+
+  body.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-corner,
+  body.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-announcement-row.sf-header-announcement .sf-announcement-corner :is(span, svg) {
+    color: var(--sf-strip-ink, #25231f) !important;
+  }
+
+  body.storefront-shell .sf-announcement-lang::before {
+    background: linear-gradient(to left, var(--sf-strip-bg, #000000), transparent) !important;
+  }
+
+  body.storefront-shell .sf-announcement-theme::before {
+    background: linear-gradient(to right, var(--sf-strip-bg, #000000), transparent) !important;
+  }
+
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-lang::before {
+    background: linear-gradient(to left, var(--sf-strip-bg, #ffffff), transparent) !important;
+  }
+
+  body.storefront-shell:not(.storefront-dark) .sf-announcement-theme::before {
+    background: linear-gradient(to right, var(--sf-strip-bg, #ffffff), transparent) !important;
+  }
+
+  /* ---- footer ---------------------------------------------------------- */
+
+  body.storefront-shell:not(.storefront-dark) .sf-footer {
+    background: var(--sf-footer-bg, #f5f3ef) !important;
+    color: var(--sf-footer-ink, #1c1917) !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer {
+    background: var(--sf-footer-bg, #0b0b0b) !important;
+    color: var(--sf-footer-ink, #efeee9) !important;
+  }
+
+  body.storefront-shell:not(.storefront-dark) .sf-footer .sf-footer__bar {
+    background: var(--sf-footer-bar-bg, #050505) !important;
+    color: var(--sf-footer-bar-ink, #ffffff) !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__bar {
+    background: var(--sf-footer-bar-bg, #070707) !important;
+    color: var(--sf-footer-bar-ink, #8d8981) !important;
+  }
+}

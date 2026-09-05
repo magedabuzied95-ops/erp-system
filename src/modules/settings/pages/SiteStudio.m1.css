@@ -102,3 +102,20 @@
 .m1-site__mock-cta { padding: 8px 16px; border-radius: var(--m1h-r-sm); background: var(--m1h-invert-bg); color: var(--m1h-invert-text); font-size: 0.7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 
 .m1-site__preview-note { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); }
+
+/* ---- repeatable rows (strip promises, section order) -------------------- */
+.m1-site__row { display: flex; align-items: flex-start; gap: var(--space-2); }
+.m1-site__row-main { flex: 1 1 auto; min-width: 0; }
+.m1-site__icon-button { display: inline-flex; align-items: center; justify-content: center; inline-size: var(--control-height-sm); block-size: var(--control-height-sm); flex: 0 0 auto; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); color: var(--text-secondary); cursor: pointer; }
+.m1-site__icon-button:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
+.m1-site__icon-button:disabled { opacity: .4; cursor: default; }
+.m1-site__icon-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.m1-site__sections { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.m1-site__section { display: flex; align-items: center; gap: var(--space-2); padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); }
+/* A hidden section stays in the list at reduced weight rather than dropping out
+   of it: an owner has to be able to find the thing they switched off. */
+.m1-site__section.is-off { opacity: .55; }
+.m1-site__section-index { display: grid; place-items: center; inline-size: 22px; block-size: 22px; flex: 0 0 auto; border-radius: 999px; background: var(--surface-soft); color: var(--text-tertiary); font-size: var(--font-caption); font-weight: 800; }
+.m1-site__section-name { flex: 1 1 auto; min-width: 0; color: var(--text); font-size: var(--font-label); line-height: var(--font-label-lh); font-weight: 700; }
+.m1-site__section-actions { display: inline-flex; gap: 4px; flex: 0 0 auto; }
