@@ -304,7 +304,8 @@ test("the illustration style keeps the interior seams, not just the silhouette",
     }
   }
   const photo = await sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
-  const { buffer, meta } = await renderThermalArtwork(photo, { canvas: 448, style: "sketch", outline: false });
+  // singleItem off: this exercises the sketch filter, not the segmentation.
+  const { buffer, meta } = await renderThermalArtwork(photo, { canvas: 448, style: "sketch", outline: false, singleItem: false });
   const { data, width: outWidth, height: outHeight, channels } = await readPixels(buffer);
 
   // Sample the centre of the artwork, well away from the silhouette.

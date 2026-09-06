@@ -286,6 +286,22 @@ const isolateFrontItem = async (input, rgb, gray, width, height, background, bou
     let keep = candidates[0].mask;
     keep = dilateInk(keep, width, height, 2);
     keep = erodeInk(keep, width, height, 2);
+
+    // What goes must be the shoe standing behind: its pixels sit above the
+    // front shoe. If most of the would-be removed area is not in the upper
+    // part of the subject box, the model split the product itself and the
+    // photo is left alone.
+    const upperCut = bounds.top + Math.round(bounds.height * 0.55);
+    let removedTotal = 0;
+    let removedUpper = 0;
+    for (let index = 0; index < background.length; index += 1) {
+      if (background[index] || keep[index]) continue;
+      removedTotal += 1;
+      if (Math.floor(index / width) < upperCut) removedUpper += 1;
+    }
+    if (removedTotal && removedUpper / removedTotal < 0.7) {
+      return { applied: false, reason: "removed-not-above", keepShare, runtime: result.runtime, durationMs: result.durationMs };
+    }
     let removed = 0;
     for (let index = 0; index < background.length; index += 1) {
       if (background[index] || keep[index]) continue;
