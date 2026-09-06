@@ -36,7 +36,7 @@ import ManufacturerSelect from "../components/ManufacturerSelect";
 import MultiVersionGenerator from "../components/MultiVersionGenerator";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 import CrocsSizeSelector from "../components/CrocsSizeSelector";
-import { normalizeArticleCodes } from "../../../../shared/articleCode";
+import { applyColorArticleCodesToRows, normalizeArticleCodes, rowInheritsColorArticleCodes } from "../../../../shared/articleCode";
 import { SECTION_CARD_CLASSES, SECTION_ICON_CLASSES, buttonClasses } from "../lib/formChrome";
 import "./product-form.m1.css";
 
@@ -1261,6 +1261,20 @@ function CreateProduct() {
             ? {
                 ...group,
                 [field]: value,
+                // The colour Article Code is the default for its sizes: a row that
+                // never got its own code follows the colour instead of staying blank.
+                ...(field === "color_article_codes" || field === "color_article_code"
+                  ? (() => {
+                      const codes = field === "color_article_codes"
+                        ? normalizeArticleCodes(value)
+                        : normalizeArticleCodes(value, group.color_article_codes);
+                      return {
+                        color_article_codes: codes,
+                        color_article_code: codes[0] || "",
+                        sizes: applyColorArticleCodesToRows(group.sizes, codes),
+                      };
+                    })()
+                  : {}),
                 ...(field === "edition_name"
                   ? {
                       edition_slug: slugifyEdition(value),
@@ -1543,6 +1557,8 @@ function CreateProduct() {
                   image_url: getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "",
                   manufacturer_id: group.manufacturer_id || "",
                   price: regularPrice || "",
+                  article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
+                  article_code_inherited: true,
                 }),
               ]),
             }
@@ -1681,9 +1697,15 @@ function CreateProduct() {
       return;
     }
 
-    const hasExistingArticle = targetGroups.some((group) =>
-      String(group.color_article_code || "").trim() ||
-      (group.sizes || []).some((row) => String(row.article_code || "").trim())
+    // Only a code that would really be lost is worth a prompt: a size that follows
+    // its colour is not "existing work", and re-applying a colour code onto its own
+    // sizes overwrites nothing.
+    const hasExistingArticle = targetGroups.some(
+      (group) =>
+        (!targetGroupId && normalizeArticleCodes(group.color_article_codes, group.color_article_code).length > 0) ||
+        (group.sizes || []).some(
+          (row) => !rowInheritsColorArticleCodes(row) && String(row.article_code || "").trim()
+        )
     );
     if (hasExistingArticle && !shouldOverwriteExisting) {
       const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "بعض المتغيرات تحتوي بالفعل على أكواد مقال. هل تريد استبدالها؟"));
@@ -1700,7 +1722,12 @@ function CreateProduct() {
           const shouldSetRow = shouldOverwriteExisting || !String(row.article_code || "").trim();
           if (!shouldSetRow) return row;
           changedCount += 1;
-          return { ...row, article_codes: appliedArticleCodes, article_code: appliedArticleCodes[0] || articleCode };
+          return {
+            ...row,
+            article_codes: appliedArticleCodes,
+            article_code: appliedArticleCodes[0] || articleCode,
+            article_code_inherited: true,
+          };
         });
         if (shouldSetGroup) changedCount += 1;
         return {
@@ -1759,6 +1786,11 @@ function CreateProduct() {
                         ...row,
                         [field]: field === "barcode" ? String(nextValue || "") : field === "sku" ? String(nextValue || "").toUpperCase().replace(/[^A-Z0-9-]/g, "") : nextValue,
                         ...(field === "size" ? { sizeManualOverride: true } : {}),
+                        // Typing in the row Article Code detaches it from the colour,
+                        // so a later colour edit no longer overwrites this size.
+                        ...(field === "article_codes" || field === "article_code"
+                          ? { article_code_inherited: false }
+                          : {}),
                         ...(field === "sku" ? { skuManualOverride: true } : {}),
                         ...(field === "barcode" ? { barcodeManualOverride: true } : {}),
                       }

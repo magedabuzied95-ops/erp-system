@@ -1,4 +1,5 @@
 import { generateBarcode } from "./catalog.js";
+import { normalizeArticleCodes, rowInheritsColorArticleCodes } from "../../../../shared/articleCode.js";
 import {
   CROCS_SIZE_GROUPS,
   compareCrocsSizes,
@@ -130,7 +131,21 @@ export const createVariantRow = (defaults = {}) => ({
   available_stock: formatFieldValue(defaults.available_stock),
   sku: formatFieldValue(defaults.sku),
   skuManualOverride: Boolean(defaults.skuManualOverride),
-  article_code: formatFieldValue(defaults.article_code ?? defaults.articleCode ?? defaults.variant_article_code),
+  article_code: formatFieldValue(
+    defaults.article_code ??
+      defaults.articleCode ??
+      defaults.variant_article_code ??
+      normalizeArticleCodes(defaults.article_codes)[0]
+  ),
+  article_codes: normalizeArticleCodes(
+    defaults.article_codes,
+    defaults.articleCodes,
+    defaults.article_code ?? defaults.articleCode ?? defaults.variant_article_code
+  ),
+  // Left undefined on purpose: a row with no code of its own follows the colour
+  // until someone types one there, and only an explicit flag overrides that.
+  article_code_inherited:
+    typeof defaults.article_code_inherited === "boolean" ? defaults.article_code_inherited : undefined,
   barcode: formatFieldValue(
     Object.prototype.hasOwnProperty.call(defaults, "barcode")
       ? defaults.barcode
@@ -264,6 +279,13 @@ export const applyBulkSizesToGroups = ({
             price: formatFieldValue(row.price || 0),
             image_url: row.image_url || group.image_url || "",
             manufacturer_id: row.manufacturer_id || group.manufacturer_id || "",
+            ...(rowInheritsColorArticleCodes(row)
+              ? {
+                  article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
+                  article_code: normalizeArticleCodes(group.color_article_codes, group.color_article_code)[0] || "",
+                  article_code_inherited: true,
+                }
+              : {}),
           };
         }
 
@@ -272,6 +294,9 @@ export const applyBulkSizesToGroups = ({
       })
       .filter(Boolean);
 
+    // A size added in bulk starts out following the colour Article Code, the
+    // same as a size added by hand.
+    const groupArticleCodes = normalizeArticleCodes(group.color_article_codes, group.color_article_code);
     const appendedRows = missingSizes.slice(nextMissingSizeIndex).map((size) =>
       createVariantRow({
         variantId: null,
@@ -283,6 +308,8 @@ export const applyBulkSizesToGroups = ({
         price: 0,
         image_url: group.image_url || "",
         manufacturer_id: group.manufacturer_id || "",
+        article_codes: groupArticleCodes,
+        article_code_inherited: true,
       })
     );
 

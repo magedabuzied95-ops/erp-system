@@ -90,7 +90,7 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isAdminUser } from "../../../shared/auth/authStorage";
 import { canViewCostPrices } from "../../permissions/lib/rbacStore";
-import { normalizeArticleCodes } from "../../../../shared/articleCode";
+import { applyColorArticleCodesToRows, normalizeArticleCodes, rowInheritsColorArticleCodes } from "../../../../shared/articleCode";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 import { isSchoolBagType } from "../lib/schoolBagSizes";
 import "./product-form.m1.css";
@@ -757,6 +757,14 @@ const normalizeVariantForm = (row = {}) => ({
     row.colorArticleCodes,
     row.article_code || row.variant_article_code
   ),
+  // A size that carries nothing of its own, or carries exactly the colour code,
+  // is following the colour: editing the colour code has to move it along too.
+  // A size with its own distinct code (L122-40) keeps it.
+  article_code_inherited: (() => {
+    const ownCodes = normalizeArticleCodes(row.variant_article_code ?? row.article_code);
+    const colorCodes = normalizeArticleCodes(row.color_article_codes, row.colorArticleCodes, row.color_article_code);
+    return ownCodes.length === 0 || ownCodes.every((code) => colorCodes.includes(code));
+  })(),
   barcode: row.barcode || row.variant_barcode || "",
   thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || row.product_thermal_image_url || "",
   thermalImageUrl: row.thermalImageUrl || row.thermal_image_url || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || row.product_thermal_image_url || "",
@@ -1996,13 +2004,20 @@ function ProductEdit() {
             ? {
                 ...group,
                 [field]: value,
-                ...(field === "color_article_code"
-                  ? {
-                      sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => ({
-                        ...row,
-                        article_code: String(value || ""),
-                      })),
-                    }
+                // The colour Article Code is the default for its sizes: a row that
+                // never got its own code follows the colour instead of staying blank,
+                // and a row with its own code keeps it.
+                ...(field === "color_article_codes" || field === "color_article_code"
+                  ? (() => {
+                      const codes = field === "color_article_codes"
+                        ? normalizeArticleCodes(value)
+                        : normalizeArticleCodes(value, group.color_article_codes);
+                      return {
+                        color_article_codes: codes,
+                        color_article_code: codes[0] || "",
+                        sizes: applyColorArticleCodesToRows(group.sizes, codes),
+                      };
+                    })()
                   : {}),
                 ...(field === "edition_name"
                   ? {
@@ -2386,6 +2401,8 @@ function ProductEdit() {
                     image_url: getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "",
                     manufacturer_id: group.manufacturer_id || "",
                     price: product.price || "",
+                    article_codes: normalizeArticleCodes(group.color_article_codes, group.color_article_code),
+                    article_code_inherited: true,
                     }),
                   ]),
               }
@@ -2522,9 +2539,15 @@ function ProductEdit() {
       return;
     }
 
-    const hasExistingArticle = targetGroups.some((group) =>
-      String(group.color_article_code || "").trim() ||
-      (group.sizes || []).some((row) => String(row.article_code || "").trim())
+    // Only a code that would really be lost is worth a prompt: a size that follows
+    // its colour is not "existing work", and re-applying a colour code onto its own
+    // sizes overwrites nothing.
+    const hasExistingArticle = targetGroups.some(
+      (group) =>
+        (!targetGroupId && normalizeArticleCodes(group.color_article_codes, group.color_article_code).length > 0) ||
+        (group.sizes || []).some(
+          (row) => !rowInheritsColorArticleCodes(row) && String(row.article_code || "").trim()
+        )
     );
     if (hasExistingArticle && !shouldOverwriteExisting) {
       const confirmed = window.confirm(t("products.editor.confirmOverwriteArticleCodes", "Some variants already have article codes. Overwrite them?"));
@@ -2541,7 +2564,12 @@ function ProductEdit() {
           const shouldSetRow = shouldOverwriteExisting || !String(row.article_code || "").trim();
           if (!shouldSetRow) return row;
           changedCount += 1;
-          return { ...row, article_codes: appliedArticleCodes, article_code: appliedArticleCodes[0] || articleCode };
+          return {
+            ...row,
+            article_codes: appliedArticleCodes,
+            article_code: appliedArticleCodes[0] || articleCode,
+            article_code_inherited: true,
+          };
         });
         if (shouldSetGroup) changedCount += 1;
         return {
@@ -2919,6 +2947,11 @@ function ProductEdit() {
                         ...row,
                         [field]: field === "barcode" ? String(nextValue || "") : field === "sku" ? String(nextValue || "").toUpperCase().replace(/[^A-Z0-9-]/g, "") : nextValue,
                         ...(field === "sku" ? { skuManualOverride: true } : {}),
+                        // Typing in the row Article Code detaches it from the colour,
+                        // so a later colour edit no longer overwrites this size.
+                        ...(field === "article_codes" || field === "article_code"
+                          ? { article_code_inherited: false }
+                          : {}),
                         isStarter: false,
                       }
                     : row

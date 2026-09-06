@@ -40,3 +40,19 @@ export const articleCodeSearchValues = (variant = {}, color = {}) =>
     )
   );
 
+
+// A size row carries its own Article Code only when someone typed one there.
+// Until then it follows the colour, so adding a code at the colour level shows
+// up on every size instead of leaving the rows blank.
+export const rowInheritsColorArticleCodes = (row = {}) => {
+  if (typeof row?.article_code_inherited === "boolean") return row.article_code_inherited;
+  return normalizeArticleCodes(row?.article_codes, row?.article_code).length === 0;
+};
+
+export const applyColorArticleCodesToRows = (rows = [], colorCodes = []) => {
+  const codes = normalizeArticleCodes(colorCodes);
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    if (!rowInheritsColorArticleCodes(row)) return row;
+    return { ...row, article_codes: codes, article_code: codes[0] || "", article_code_inherited: true };
+  });
+};
