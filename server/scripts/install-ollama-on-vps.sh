@@ -46,11 +46,18 @@ index = text.rfind(marker)
 if index < 0:
     raise SystemExit("top-level volumes: block not found in " + path)
 text = text[:index + 1] + service + text[index + 1:]
-if "erp_ollama_models:" not in text:
-    text = text.rstrip("\n") + "\n  erp_ollama_models:\n"
 open(path, "w", encoding="utf-8").write(text)
 print("erp-ollama service added")
 PY
+fi
+# The named volume must be declared under the top-level volumes: block, which
+# is the last block of this file. Checked as a whole line: the service's own
+# "erp_ollama_models:/root/.ollama" mount must not satisfy this test.
+if grep -qE "^  erp_ollama_models:[[:space:]]*$" "$COMPOSE"; then
+  echo "erp_ollama_models volume already declared"
+else
+  printf "  erp_ollama_models:\n" >> "$COMPOSE"
+  echo "erp_ollama_models volume declared"
 fi
 docker compose -f "$COMPOSE" config >/dev/null && echo "compose file is valid"
 
