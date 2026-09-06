@@ -144,6 +144,24 @@ test("automatic uses the drawing model whenever it is installed", async () => {
   assert.ok(["node", "web"].includes(dark.meta.lineartRuntime), `runtime ${dark.meta.lineartRuntime}`);
 });
 
+test("the drawing model's strokes are traced to a vector twin of the label artwork", async () => {
+  const { isLineartModelAvailable } = await import("../server/lib/thermalLineartModel.js");
+  if (!(await isLineartModelAvailable())) return;
+
+  const { svg, meta } = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20 }), { canvas: 448 });
+  assert.equal(meta.resolvedStyle, "lineart");
+  assert.equal(meta.vectorised, true);
+  assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 \d+ \d+"/);
+  assert.match(svg, /<path[^>]+d="[^"]*C[^"]*"/, "curves, not just line segments");
+
+  // The vector must render on its own, at a size the model never saw.
+  const rendered = await sharp(Buffer.from(svg.replace(/ width="\d+" height="\d+"/, ' width="1000" height="1000"')))
+    .flatten({ background: "#ffffff" }).grayscale().raw().toBuffer({ resolveWithObject: true });
+  let ink = 0;
+  for (let index = 0; index < rendered.data.length; index += rendered.info.channels) if (rendered.data[index] < 128) ink += 1;
+  assert.ok(ink > 1000, `expected a drawing in the rendered vector, got ${ink} ink pixels`);
+});
+
 test("without the drawing model, automatic picks halftone, line art or illustration from how dark the product is", async () => {
   // Point the engine at a model file that does not exist: the fallback must be
   // the tone-based pick, not a failure.

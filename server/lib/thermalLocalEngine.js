@@ -716,6 +716,49 @@ const dilateInk = (ink, width, height, radius = 1) => {
   return out;
 };
 
+/**
+ * Fit Bézier curves to a stroke mask with potrace and return a standalone SVG
+ * whose viewBox is the mask's pixel grid. Every stroke outline becomes a
+ * smooth path; specks below `turdSize` pixels are dropped by the tracer.
+ */
+const traceStrokesToSvg = async (strokes, width, height) => {
+  const potrace = (await import("potrace")).default;
+  const png = await sharp(rawBuffer(strokes.map((value) => (value ? 0 : 255))), { raw: { width, height, channels: 1 } })
+    .png({ compressionLevel: 1 })
+    .toBuffer();
+  const tracer = new potrace.Potrace({
+    threshold: 128,
+    blackOnWhite: true,
+    turdSize: Math.max(8, Math.round(width * height * 0.00004)),
+    alphaMax: 1,
+    optCurve: true,
+    optTolerance: 0.2,
+    turnPolicy: potrace.Potrace.TURNPOLICY_MINORITY,
+    color: "#000000",
+    background: "transparent",
+  });
+  await new Promise((resolve, reject) => {
+    tracer.loadImage(png, (error) => (error ? reject(error) : resolve()));
+  });
+  const pathTag = tracer.getPathTag();
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${pathTag}</svg>`;
+};
+
+/** Render an SVG at a target size and hand back one grey byte per pixel. */
+const rasterizeSvgPlane = async (svg, width, height) => {
+  const sized = svg.replace(/ width="\d+" height="\d+"/, ` width="${width}" height="${height}"`);
+  const { data, info } = await sharp(Buffer.from(sized), { density: 96 })
+    .resize({ width, height, fit: "fill" })
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = Number(info.channels || 1);
+  const plane = new Uint8Array(width * height);
+  for (let index = 0; index < plane.length; index += 1) plane[index] = data[index * channels];
+  return plane;
+};
+
 const erodeInk = (ink, width, height, radius = 1) => {
   const out = new Uint8Array(ink.length);
   for (let y = 0; y < height; y += 1) {
@@ -975,31 +1018,44 @@ const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 }
     // stroke a body that survives the downscale to the label's dot grid.
     strokes = dilateInk(strokes, bigWidth, bigHeight, 3);
     strokes = erodeInk(strokes, bigWidth, bigHeight, 2);
-    const plane = new Uint8Array(strokes.length);
-    for (let index = 0; index < plane.length; index += 1) plane[index] = strokes[index] ? 0 : 255;
-    const rounded = await filterPlane(plane, bigWidth, bigHeight, (image) => image.blur(1.2));
 
-    const small = await resizePlane(rounded, bigWidth, bigHeight, width, height, sharp.kernel.lanczos3);
+    // Vectorise the strokes: potrace fits Bézier curves to the outline of
+    // every stroke, so the label gets true curves rather than pixel stairs,
+    // and the same drawing can be rendered at any print size later.
+    let svg = "";
+    let plane;
+    try {
+      const traced = await traceStrokesToSvg(strokes, bigWidth, bigHeight);
+      plane = await rasterizeSvgPlane(traced, width, height);
+      svg = traced;
+    } catch (error) {
+      console.warn("[thermal-artwork] vectorising failed, keeping the raster strokes", { message: error?.message || String(error) });
+      const raster = new Uint8Array(strokes.length);
+      for (let index = 0; index < raster.length; index += 1) raster[index] = strokes[index] ? 0 : 255;
+      const rounded = await filterPlane(raster, bigWidth, bigHeight, (image) => image.blur(1.2));
+      plane = await resizePlane(rounded, bigWidth, bigHeight, width, height, sharp.kernel.lanczos3);
+    }
+
     let ink = new Uint8Array(width * height);
     for (let index = 0; index < ink.length; index += 1) {
-      if (!background[index] && small[index] < 150) ink[index] = 1;
+      if (!background[index] && plane[index] < 150) ink[index] = 1;
     }
     ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02)), 8);
-    return ink;
+    return { ink, svg };
   };
 
   // A black shoe comes back as dense hatching. Tightening the cut keeps the
   // strong strokes and drops the faint ones, on the same map — no second run
   // of the network.
   let cut = baseCut;
-  let ink = await cutAt(cut);
+  let traced = await cutAt(cut);
   let passes = 1;
-  while (passes < 4 && inkRatio(ink, background) > INK_RATIO_MAX && cut > 0.25) {
+  while (passes < 4 && inkRatio(traced.ink, background) > INK_RATIO_MAX && cut > 0.25) {
     cut = Math.max(0.2, cut - 0.1);
-    ink = await cutAt(cut);
+    traced = await cutAt(cut);
     passes += 1;
   }
-  return { ink, runtime: result.runtime, durationMs: result.durationMs, modelWidth, modelHeight, cut, passes };
+  return { ink: traced.ink, svg: traced.svg, runtime: result.runtime, durationMs: result.durationMs, modelWidth, modelHeight, cut, passes };
 };
 
 const binarizeForStyle = (style, gray, width, height, background, bias, tone = 0) => {
@@ -1235,6 +1291,9 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
 
   return {
     buffer,
+    // The traced drawing, when the style produced one: a standalone SVG whose
+    // viewBox is the model grid, so it can be rendered at any print size.
+    svg: lineart?.svg || "",
     meta: {
       engine: "local",
       engineVersion: THERMAL_LOCAL_ENGINE_VERSION,
@@ -1246,6 +1305,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       lineartMs: lineart?.durationMs ?? null,
       lineartModelSize: lineart ? `${lineart.modelWidth}x${lineart.modelHeight}` : "",
       lineartError,
+      vectorised: Boolean(lineart?.svg),
       inkLevel: options.inkLevel,
       backgroundRemoved,
       backgroundRatio: Number(backgroundRatio.toFixed(4)),

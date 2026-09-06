@@ -661,14 +661,15 @@ const updateThermalRecord = async ({ entityType = "product", productId = null, v
 
 const renderLocalThermalBuffer = async (sourceBuffer, engineConfig, context = {}) => {
   const startedAt = Date.now();
-  const { buffer, meta } = await renderThermalArtwork(sourceBuffer, engineConfig.localOptions);
+  const { buffer, meta, svg } = await renderThermalArtwork(sourceBuffer, engineConfig.localOptions);
   console.log("THERMAL_LOCAL_RENDER", {
     ...context,
     ...meta,
     bufferBytes: buffer?.length || 0,
+    svgBytes: svg?.length || 0,
     durationMs: Date.now() - startedAt,
   });
-  return buffer;
+  return { buffer, svg: svg || "" };
 };
 
 /**
@@ -679,6 +680,7 @@ const renderLocalThermalBuffer = async (sourceBuffer, engineConfig, context = {}
  */
 const finishThermalJob = async ({
   buffer,
+  svg = "",
   engineConfig,
   entityType,
   productId,
@@ -733,9 +735,23 @@ const finishThermalJob = async ({
     mimetype: "image/png",
   });
 
+  // The vector twin of the PNG, for any future print path that wants curves
+  // instead of dots. Local storage only: the label still points at the PNG.
+  let svgPath = "";
+  if (svg && stored.outputPath) {
+    svgPath = stored.outputPath.replace(/\.png$/i, "") + ".svg";
+    try {
+      await fs.writeFile(svgPath, svg, "utf8");
+    } catch (error) {
+      console.warn("[thermal-artwork] svg twin not written", { svgPath, message: error?.message || String(error) });
+      svgPath = "";
+    }
+  }
+
   console.log("THERMAL_SAVE_FINAL_BUFFER", {
     hasWhiteTextOverlay: Boolean(productName),
     outputUrl: stored.thermal_image_url,
+    svgPath,
     cacheBypassed: regenerate,
     generatedAt: new Date().toISOString(),
   });
@@ -933,12 +949,14 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     const startedAt = Date.now();
 
     if (engineConfig.engine === "local") {
+      const local = await renderLocalThermalBuffer(normalizedSource.buffer, engineConfig, {
+        entityType,
+        productId,
+        variantId,
+      });
       return finishThermalJob({
-        buffer: await renderLocalThermalBuffer(normalizedSource.buffer, engineConfig, {
-          entityType,
-          productId,
-          variantId,
-        }),
+        buffer: local.buffer,
+        svg: local.svg,
         engineConfig,
         entityType,
         productId,
