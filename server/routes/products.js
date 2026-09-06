@@ -26,7 +26,7 @@ import {
 } from "../controllers/productsController.js";
 import { generateAiProductDataController } from "../controllers/aiProductDataController.js";
 import { suggestMirrorEditionName } from "../controllers/editionSuggestionsController.js";
-import { generateProductDescription, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
+import { generateProductDescription, generateProductSeoMetadata, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
 import { getActiveBarcodePrintQueueItem } from "../services/barcodePrintQueueService.js";
 import { scheduleThermalColorArtworkJobs } from "../services/thermalColorJobPlanner.js";
 import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
@@ -200,6 +200,29 @@ router.get("/:id/full", protect, permit("products", "view"), getProductFull);
 router.get("/:id/color-usage", protect, permit("products", "view"), getProductColorUsage);
 router.get("/qr/:token", protect, permit("products", "view"), getProductByQrToken);
 router.post("/generate-ai-data", protect, permit("products", "edit"), generateAiProductDataController);
+router.post("/generate-seo", protect, permit("products", "edit"), async (req, res) => {
+  const startedAt = Date.now();
+  const requestId = `product-seo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    const result = await generateProductSeoMetadata({ ...(req.body || {}), request_id: requestId });
+    console.log("[products] generate-seo end", { requestId, source: result.source, durationMs: Date.now() - startedAt });
+    res.json({
+      success: true,
+      meta_title: result.meta_title || "",
+      meta_description: result.meta_description || "",
+      keywords: Array.isArray(result.keywords) ? result.keywords : [],
+      slug: result.slug || "",
+      source: result.source,
+      error: result.error,
+    });
+  } catch (error) {
+    console.error("[products] generate-seo failed", { requestId, durationMs: Date.now() - startedAt, message: error?.message, stack: error?.stack });
+    res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === "production" ? "Product SEO generation failed" : error?.message || "Product SEO generation failed",
+    });
+  }
+});
 router.post("/generate-description", protect, permit("products", "edit"), async (req, res) => {
   const startedAt = Date.now();
   const requestId = `product-description-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

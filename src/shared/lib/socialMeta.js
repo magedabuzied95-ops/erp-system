@@ -88,9 +88,11 @@ export const applyProductSeo = (product = {}) => {
   setMetaTag('meta[name="robots"]', { name: "robots", content: seo.robots });
   setLinkTag('link[rel="canonical"]', { rel: "canonical", href: seo.canonical });
   setMetaTag('meta[property="og:type"]', { property: "og:type", content: "product" });
+  setMetaTag('meta[property="og:locale"]', { property: "og:locale", content: seo.locale });
   setMetaTag('meta[property="og:title"]', { property: "og:title", content: seo.title });
   setMetaTag('meta[property="og:description"]', { property: "og:description", content: seo.description });
   setMetaTag('meta[property="og:image"]', { property: "og:image", content: seo.image });
+  setMetaTag('meta[property="og:image:alt"]', { property: "og:image:alt", content: seo.imageAlt });
   setMetaTag('meta[property="og:url"]', { property: "og:url", content: seo.url });
   setMetaTag('meta[name="twitter:card"]', { name: "twitter:card", content: "summary_large_image" });
   setMetaTag('meta[name="twitter:title"]', { name: "twitter:title", content: seo.title });

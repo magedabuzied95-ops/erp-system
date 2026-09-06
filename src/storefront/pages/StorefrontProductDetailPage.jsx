@@ -550,8 +550,19 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const selectedSellingPrice = selectedPrice.price || displaySellingPrice(product, safeActiveVariant);
   const selectedComparePrice = selectedPrice.comparePrice || 0;
   const selectedDiscountPercent = Number(selectedPrice.discountPercent || 0) || 0;
-  const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
-    || sfText("storefront.products.defaultDescription");
+  // The visible body copy follows the page language: Arabic readers get the
+  // Arabic description, English readers the English one, each falling back to
+  // the other. seo_description is the search snippet, not page content.
+  const rawDescription = String(
+    (isRtl
+      ? product?.description_ar || product?.description_en
+      : product?.description_en || product?.description_ar) || product?.description || product?.seo_description || ""
+  );
+  const descriptionParagraphs = useMemo(
+    () => rawDescription.split(/\r?\n+/).map((line) => cleanDisplayText(line)).filter(Boolean),
+    [rawDescription]
+  );
+  const descriptionText = descriptionParagraphs.join(" ") || sfText("storefront.products.defaultDescription");
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
 
   useEffect(() => {
@@ -953,6 +964,25 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           </div>
         </div>}
+        {/* The product description is real page content for the crawler as well
+            as for the shopper: it used to be authored in the ERP and then never
+            rendered here. One card, the language of the page, paragraphs kept. */}
+        {descriptionParagraphs.length ? (
+          <section
+            aria-labelledby="sf-product-description-title"
+            className="sf-product-description rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0b0b0b_0%,#111111_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-6"
+          >
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
+            <h2 id="sf-product-description-title" className="mt-2 text-xl font-black md:text-2xl">{sfText("storefront.products.productDetails", "Product details")}</h2>
+            <div className="mt-3 space-y-3">
+              {descriptionParagraphs.map((paragraph, index) => (
+                <p key={`${index}-${paragraph.slice(0, 24)}`} className="text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          </section>
+        ) : null}
         {false && <ProductDetailReviewSection />}
         <RelatedProducts currentProduct={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         <RecentProductsSection currentId={product.id} recent={recent} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />

@@ -38,22 +38,39 @@ const escapeHtml = (value = "") => String(value ?? "")
 
 const safeJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
 
+/* The shell ships with lang="en-GB" because the SPA flips it at boot from the
+ * visitor's saved language. A crawler never runs that code, and the product
+ * metadata is Arabic-first, so the server-rendered product page declares the
+ * language the crawler is actually reading. */
+const declareArabicDocument = (html = "") =>
+  String(html).replace(/<html\b([^>]*)>/i, (match, attributes) => {
+    const cleaned = String(attributes || "")
+      .replace(/\s+lang=["'][^"']*["']/i, "")
+      .replace(/\s+dir=["'][^"']*["']/i, "");
+    return `<html${cleaned} lang="ar" dir="rtl">`;
+  });
+
 export const injectProductSeoIntoHtml = (html = "", seo = {}) => {
-  const cleaned = String(html)
+  const cleaned = declareArabicDocument(html)
     .replace(/<title>[\s\S]*?<\/title>/gi, "")
-    .replace(/<meta\s+(?:name|property)=["'](?:description|robots|og:[^"']+|twitter:[^"']+)["'][^>]*>/gi, "")
+    .replace(/<meta\s+(?:name|property)=["'](?:description|keywords|robots|og:[^"']+|twitter:[^"']+)["'][^>]*>/gi, "")
     .replace(/<link\s+rel=["']canonical["'][^>]*>/gi, "")
     .replace(/<script[^>]+data-m1-product-seo=["'](?:product|breadcrumb)["'][^>]*>[\s\S]*?<\/script>/gi, "");
+  const keywords = Array.isArray(seo.keywords) ? seo.keywords.filter(Boolean) : [];
   const tags = [
     `<title>${escapeHtml(seo.title)}</title>`,
     `<meta name="description" content="${escapeHtml(seo.description)}" />`,
+    ...(keywords.length ? [`<meta name="keywords" content="${escapeHtml(keywords.join(", "))}" />`] : []),
     `<meta name="robots" content="${escapeHtml(seo.robots)}" />`,
     `<link rel="canonical" href="${escapeHtml(seo.canonical)}" />`,
     `<meta property="og:type" content="product" />`,
     `<meta property="og:site_name" content="M1 Store" />`,
+    `<meta property="og:locale" content="${escapeHtml(seo.locale || "ar_EG")}" />`,
+    `<meta property="og:locale:alternate" content="${escapeHtml(seo.localeAlternate || "en_US")}" />`,
     `<meta property="og:title" content="${escapeHtml(seo.title)}" />`,
     `<meta property="og:description" content="${escapeHtml(seo.description)}" />`,
     `<meta property="og:image" content="${escapeHtml(seo.image)}" />`,
+    ...(seo.imageAlt ? [`<meta property="og:image:alt" content="${escapeHtml(seo.imageAlt)}" />`] : []),
     `<meta property="og:url" content="${escapeHtml(seo.url)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(seo.title)}" />`,

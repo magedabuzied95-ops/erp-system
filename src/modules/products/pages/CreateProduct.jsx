@@ -20,7 +20,7 @@ import {
   Save,
   ScanLine,
   Search,
-  Share2,
+
   Sparkles,
   Trash2,
   Upload,
@@ -33,7 +33,7 @@ import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import ManufacturerSelect from "../components/ManufacturerSelect";
-import MultiVersionGenerator from "../components/MultiVersionGenerator";
+import ProductSeoWorkbench from "../components/ProductSeoWorkbench";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 import CrocsSizeSelector from "../components/CrocsSizeSelector";
 import { applyColorArticleCodesToRows, normalizeArticleCodes, rowInheritsColorArticleCodes } from "../../../../shared/articleCode";
@@ -445,7 +445,6 @@ const normalizeBrandRows = (rows = []) =>
     })
     .filter((item) => item && item.active !== false && item.is_active !== false);
 
-const SEO_PANEL_STATE_KEY = "erp.products.seoPanelOpen";
 
 function CreateProduct() {
   const { t } = useTranslation();
@@ -468,12 +467,6 @@ function CreateProduct() {
   const [seoKeywords, setSeoKeywords] = useState("");
   const [canonicalSlug, setCanonicalSlug] = useState("");
   const [seoTouched, setSeoTouched] = useState({ title: false, description: false, keywords: false, slug: false });
-  const [seoGenerating, setSeoGenerating] = useState(false);
-  const [seoOpen, setSeoOpen] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const saved = window.localStorage.getItem(SEO_PANEL_STATE_KEY);
-    return saved ? saved === "open" : true;
-  });
   const [mainCategory, setMainCategory] = useState("");
   const [subCategory, setSubCategory] = useState("");
   const [childCategory, setChildCategory] = useState("");
@@ -543,7 +536,6 @@ function CreateProduct() {
   const [aiProductData, setAiProductData] = useState(null);
   const [aiProductLoading, setAiProductLoading] = useState(false);
   const [aiProductProgress, setAiProductProgress] = useState(AI_PROGRESS_STEPS[0]);
-  const [activeContentTab, setActiveContentTab] = useState("description");
   const [colorPickTarget, setColorPickTarget] = useState(null);
   const pendingColorUploadsRef = useRef(new Map());
   const colorImageUrlsRef = useRef(new Map());
@@ -635,10 +627,6 @@ function CreateProduct() {
   const generatedDescriptions = useMemo(() => safeGenerateProductDescriptions(descriptionContext), [descriptionContext]);
   const generatedDescriptionAr = generatedDescriptions.description_ar;
   const generatedDescriptionEn = generatedDescriptions.description_en;
-  const seoPreviewTitle = metaTitle || generatedDescriptions.meta_title || name || "Product";
-  const seoPreviewDescription = seoDescription || generatedDescriptions.seo_description || descriptionEn || descriptionAr || "";
-  const seoPreviewSlug = canonicalSlug || generatedDescriptions.canonical_slug || "product";
-  const seoPreviewUrl = `store.example/products/${seoPreviewSlug}`;
   const aiSuggestions = aiProductData?.suggestions || {};
   const selectedBrand = useMemo(() => {
     const byId = brands.find((item) => String(item.id) === String(brandId)) || null;
@@ -763,17 +751,52 @@ function CreateProduct() {
       toast.success(t("products.editor.versionApplied", "Description version applied"));
     }
   };
-  const regenerateSeoMetadata = () => {
-    setSeoGenerating(true);
-    window.setTimeout(() => {
-      const next = safeGenerateProductDescriptions(descriptionContext);
-      setMetaTitle(next.meta_title);
-      setSeoDescription(next.seo_description);
-      setSeoKeywords(next.seo_keywords);
-      setCanonicalSlug(next.canonical_slug);
-      setSeoTouched({ title: false, description: false, keywords: false, slug: false });
-      setSeoGenerating(false);
-    }, 180);
+  const handleSeoWorkbenchChange = (field, value) => {
+    if (field === "description_ar") {
+      setDescriptionAr(value);
+      setDescriptionTouched((current) => ({ ...current, ar: true }));
+      setDescription(descriptionEn || value);
+      return;
+    }
+    if (field === "description_en") {
+      setDescriptionEn(value);
+      setDescriptionTouched((current) => ({ ...current, en: true }));
+      setDescription(value || descriptionAr);
+      return;
+    }
+    if (field === "tone") {
+      setDescriptionTone(value);
+      return;
+    }
+    if (field === "meta_title") {
+      setMetaTitle(value);
+      setSeoTouched((current) => ({ ...current, title: true }));
+    } else if (field === "seo_description") {
+      setSeoDescription(value);
+      setSeoTouched((current) => ({ ...current, description: true }));
+    } else if (field === "seo_keywords") {
+      setSeoKeywords(value);
+      setSeoTouched((current) => ({ ...current, keywords: true }));
+    } else if (field === "canonical_slug") {
+      setCanonicalSlug(value);
+      setSeoTouched((current) => ({ ...current, slug: true }));
+    }
+  };
+  // AI results are the merchant's choice and must survive later template
+  // refreshes (touched = true); the quick template keeps following the product
+  // facts as they change (touched = false), which is what it did before.
+  const applySeoWorkbenchValues = (next = {}, { source = "ai" } = {}) => {
+    const touched = source === "ai";
+    if (next.meta_title) setMetaTitle(next.meta_title);
+    if (next.seo_description) setSeoDescription(next.seo_description);
+    if (next.seo_keywords) setSeoKeywords(next.seo_keywords);
+    if (next.canonical_slug) setCanonicalSlug(next.canonical_slug);
+    setSeoTouched({
+      title: touched && Boolean(next.meta_title),
+      description: touched && Boolean(next.seo_description),
+      keywords: touched && Boolean(next.seo_keywords),
+      slug: touched && Boolean(next.canonical_slug),
+    });
   };
   const hasUnsavedChanges = useMemo(
     () =>
@@ -876,11 +899,6 @@ function CreateProduct() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges, saving]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(SEO_PANEL_STATE_KEY, seoOpen ? "open" : "closed");
-    }
-  }, [seoOpen]);
 
   useEffect(() => {
     if (!descriptionTouched.ar || !descriptionAr.trim()) {
@@ -1129,11 +1147,6 @@ function CreateProduct() {
     { id: "content-seo", title: t("products.editor.seoNav") },
     { id: "inventory", title: t("products.editor.inventory") },
     { id: "variants", title: t("products.stats.variants") },
-  ];
-  const productContentTabs = [
-    { id: "description", title: t("products.editor.customerDescriptionShortTitle") },
-    { id: "metadata", title: t("products.editor.seoMetadata") },
-    { id: "preview", title: t("products.editor.facebookWhatsappPreview") },
   ];
   const scrollToSection = (sectionId) => {
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2532,179 +2545,6 @@ function CreateProduct() {
     }
   };
 
-  const productDescriptionPanel = (
-    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-black text-text">{t("products.editor.customerDescriptionShortTitle", "Customer-facing description")}</p>
-          <p className="mt-1 text-xs leading-5 text-text-muted">
-            Generated after image analysis, then refined for storefront catalog and product detail pages.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => regenerateDescriptions("ar")}
-            disabled={descriptionGenerating.ar}
-            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-          >
-            {descriptionGenerating.ar ? t("products.editor.generatingArabic", "Generating Arabic...") : t("products.editor.regenerateArabic", "Regenerate Arabic")}
-          </button>
-          <button
-            type="button"
-            onClick={() => regenerateDescriptions("en")}
-            disabled={descriptionGenerating.en}
-            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
-          >
-            {descriptionGenerating.en ? t("products.editor.generatingEnglish", "Generating English...") : t("products.editor.regenerateEnglish", "Regenerate English")}
-          </button>
-          <button
-            type="button"
-            onClick={() => regenerateDescriptions("all")}
-            disabled={descriptionGenerating.ar || descriptionGenerating.en}
-            className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/40 hover:bg-amber-300/15"
-          >
-            {descriptionGenerating.ar && descriptionGenerating.en ? t("products.editor.generating", "Generating...") : t("products.editor.regenerateAll", "Regenerate All")}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div className="lg:col-span-2">
-          <label className="text-sm font-semibold text-text">{t("products.editor.promptCustomization", "Prompt customization")}</label>
-          <input
-            value={descriptionTone}
-            onChange={(event) => setDescriptionTone(event.target.value)}
-            placeholder={t("products.editor.promptPlaceholder", "premium tone, concise tone, friendly tone")}
-            className="mt-1.5 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm text-text outline-none placeholder:text-text-muted transition focus:border-amber-300/35 focus:bg-surface-soft"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-semibold text-text">{t("products.editor.arabicDescription", "Arabic description")}</label>
-          <textarea
-            value={descriptionAr}
-            onChange={(e) => {
-              setDescriptionAr(e.target.value);
-              setDescriptionTouched((current) => ({ ...current, ar: true }));
-              setDescription(descriptionEn || e.target.value);
-            }}
-            rows={6}
-            dir="rtl"
-            placeholder={generatedDescriptionAr}
-            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary focus:bg-surface-soft"
-          />
-        </div>
-
-        <div>
-          <label className="text-sm font-semibold text-text">{t("products.editor.englishDescription", "English description")}</label>
-          <textarea
-            value={descriptionEn}
-            onChange={(e) => {
-              setDescriptionEn(e.target.value);
-              setDescriptionTouched((current) => ({ ...current, en: true }));
-              setDescription(e.target.value || descriptionAr);
-            }}
-            rows={6}
-            placeholder={generatedDescriptionEn}
-            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm leading-6 text-text outline-none placeholder:text-text-muted transition focus:border-primary/35 focus:bg-surface-soft"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const seoMetadataPanel = (
-    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-black text-text">{t("products.editor.seoMetadata", "SEO metadata")}</p>
-          <p className="mt-1 text-xs text-text-muted">{t("products.editor.seoMetadataHelp", "يتم توليد عنوان البحث والوصف والكلمات المفتاحية من صورة المنتج ومحتواه.")}</p>
-        </div>
-        <button
-          type="button"
-          onClick={regenerateSeoMetadata}
-          disabled={seoGenerating}
-          className="inline-flex h-[var(--control-height-md)] items-center rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-semibold text-text transition hover:border-amber-300/30 hover:bg-amber-300/10 hover:text-amber-100"
-        >
-          {seoGenerating ? t("products.editor.generatingSeo", "جاري توليد تحسينات البحث...") : t("products.editor.regenerateSeoMetadata", "إعادة توليد بيانات تحسين البحث")}
-        </button>
-      </div>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <div>
-          <label className="text-sm font-semibold text-text">{t("products.editor.metaTitle", "Meta title")}</label>
-          <input
-            value={metaTitle}
-            onChange={(event) => {
-              setMetaTitle(event.target.value);
-              setSeoTouched((current) => ({ ...current, title: true }));
-            }}
-            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none"
-          />
-        </div>
-        <div>
-          <label className="text-sm font-semibold text-text">{t("products.editor.seoKeywords", "SEO keywords")}</label>
-          <input
-            value={seoKeywords}
-            onChange={(event) => {
-              setSeoKeywords(event.target.value);
-              setSeoTouched((current) => ({ ...current, keywords: true }));
-            }}
-            className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none"
-          />
-        </div>
-        <div className="lg:col-span-2">
-          <label className="text-sm font-semibold text-text">{t("products.editor.seoMetaDescription", "SEO meta description")}</label>
-          <textarea
-            value={seoDescription}
-            onChange={(event) => {
-              setSeoDescription(event.target.value);
-              setSeoTouched((current) => ({ ...current, description: true }));
-            }}
-            rows={3}
-            className="mt-1.5 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm leading-5 text-text outline-none"
-          />
-          <p className="mt-1 text-[11px] text-text-muted">{seoDescription.length}/160 characters</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const socialPreviewPanel = (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">
-          <Search size={14} />
-          {t("products.editor.googlePreview")}
-        </div>
-        <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
-          <p className="truncate text-[13px] text-text-muted">{seoPreviewUrl}</p>
-          <p className="mt-1 line-clamp-1 text-lg font-semibold text-primary">{seoPreviewTitle}</p>
-          <p className="mt-1 line-clamp-2 text-sm leading-5 text-text">{seoPreviewDescription}</p>
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
-        {/* Deliberate white matte, NOT a surface: this is the Open Graph image
-            preview and product photography is shot on white. It must not follow
-            the theme. Same for the <img> below. */}
-        <div className="relative aspect-[1.91/1] w-full overflow-hidden bg-white">
-          {coverImage ? (
-            <img src={resolveAssetUrl(coverImage)} alt={t("products.editor.openGraphPreviewAlt")} className="h-full w-full bg-white object-contain" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-surface-soft">
-              <Share2 className="text-text-muted" size={28} />
-            </div>
-          )}
-        </div>
-        <div className="p-3">
-          <p className="text-[11px] uppercase tracking-[0.16em] text-text-muted">{t("products.editor.previewDomain")}</p>
-          <p className="mt-1 line-clamp-1 text-sm font-black text-text">{seoPreviewTitle}</p>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-muted">{seoPreviewDescription}</p>
-        </div>
-      </div>
-    </div>
-  );
-
   const aiVisionPanel = aiProductData ? (
     <div className="mt-4 rounded-[var(--radius-card)] border border-primary/20 bg-primary/[0.07] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -3047,35 +2887,36 @@ function CreateProduct() {
                 tone="sky"
               />
 
-              <div className="mt-4 overflow-x-auto">
-                <div className="flex min-w-max gap-2">
-                  {productContentTabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setActiveContentTab(tab.id)}
-                      className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border px-3 text-xs font-bold transition ${ activeContentTab === tab.id ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-surface-soft text-text hover:border-border hover:bg-surface-soft" }`}
-                    >
-                      {tab.title}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4">
-                {activeContentTab === "description" ? productDescriptionPanel : null}
-                {activeContentTab === "description" ? (
-                  <div className="mt-4">
-                    <MultiVersionGenerator
-                      context={descriptionContext}
-                      onApplyVersion={applyGeneratedVersion}
-                      t={t}
-                    />
-                  </div>
-                ) : null}
-                {activeContentTab === "metadata" ? seoMetadataPanel : null}
-                {activeContentTab === "preview" ? socialPreviewPanel : null}
-              </div>
+              <ProductSeoWorkbench
+                t={t}
+                values={{
+                  name,
+                  brand: selectedBrandName,
+                  descriptionAr,
+                  descriptionEn,
+                  tone: descriptionTone,
+                  metaTitle,
+                  seoDescription,
+                  seoKeywords,
+                  canonicalSlug,
+                  coverImage,
+                }}
+                placeholders={{
+                  descriptionAr: generatedDescriptionAr,
+                  descriptionEn: generatedDescriptionEn,
+                  metaTitle: generatedDescriptions.meta_title,
+                  seoDescription: generatedDescriptions.seo_description,
+                  seoKeywords: generatedDescriptions.seo_keywords,
+                  canonicalSlug: generatedDescriptions.canonical_slug,
+                }}
+                onChange={handleSeoWorkbenchChange}
+                onApplySeo={applySeoWorkbenchValues}
+                descriptionContext={descriptionContext}
+                descriptionGenerating={descriptionGenerating}
+                onRegenerateDescriptions={regenerateDescriptions}
+                onApplyVersion={applyGeneratedVersion}
+                resolveImageUrl={resolveAssetUrl}
+              />
             </SectionCard>
             <SectionCard id="inventory">
               <SectionHeader

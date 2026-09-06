@@ -1,4 +1,8 @@
 export const STOREFRONT_ORIGIN = "https://m1store-egy.com";
+export const STORE_NAME = "M1 Store";
+export const PRODUCT_SEO_LOCALE = "ar_EG";
+export const PRODUCT_SEO_LOCALE_ALTERNATE = "en_US";
+export const PRODUCT_TITLE_MAX = 70;
 
 const text = (value = "") => String(value ?? "").replace(/\s+/g, " ").trim();
 const number = (value) => {
@@ -29,6 +33,33 @@ const liveVariantPrice = (variant = {}, product = {}) =>
   number(product.selling_price) ||
   number(product.price);
 
+const hasStoreName = (value = "") => new RegExp(`\\b${STORE_NAME.replace(/\s+/g, "\\s*")}\\b`, "i").test(value);
+
+/* The <title> the crawler receives.
+ *
+ * A merchant-written (or AI-written) meta_title wins; it already carries the
+ * search phrase the merchant wants ("كوتشي Nike Air Force 1 رجالي"). The store
+ * name is appended once, unless the title is already long enough that the
+ * suffix would push it past what Google renders. Without a meta_title the
+ * title falls back to name | brand | store, as before. */
+export const buildProductSeoTitle = (product = {}) => {
+  const name = text(product.name || product.title);
+  const brand = text(product.brand_name || product.brand || product.product_brand);
+  const metaTitle = text(product.meta_title);
+  if (metaTitle) {
+    if (hasStoreName(metaTitle)) return metaTitle;
+    const withSuffix = `${metaTitle} | ${STORE_NAME}`;
+    return withSuffix.length <= PRODUCT_TITLE_MAX ? withSuffix : metaTitle;
+  }
+  const titleParts = unique([name, brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "", STORE_NAME]);
+  return titleParts.join(" | ");
+};
+
+export const splitProductKeywords = (value = "") => {
+  const source = Array.isArray(value) ? value : String(value ?? "").split(/[,،\n]/);
+  return unique(source.map(text)).slice(0, 15);
+};
+
 export const buildProductSeo = (product = {}) => {
   const name = text(product.name || product.title);
   const brand = text(product.brand_name || product.brand || product.product_brand);
@@ -38,10 +69,9 @@ export const buildProductSeo = (product = {}) => {
     product.description_ar ||
     product.description_en ||
     product.description ||
-    `${name}${brand ? ` من ${brand}` : ""} متوفر لدى M1 Store.`
+    `${name}${brand ? ` من ${brand}` : ""} متوفر لدى ${STORE_NAME}.`
   );
-  const titleParts = unique([name, brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "", "M1 Store"]);
-  const title = titleParts.join(" | ");
+  const title = buildProductSeoTitle(product);
   const url = productCanonicalUrl(product);
   const images = unique([
     product.og_image_url,
@@ -83,6 +113,7 @@ export const buildProductSeo = (product = {}) => {
   if (merchantPolicies.returnPolicy) offers.hasMerchantReturnPolicy = merchantPolicies.returnPolicy;
   const colors = unique(variants.map((variant) => text(variant.color || variant.color_name)));
   const sku = text(product.sku || product.product_code || product.id);
+  const keywords = splitProductKeywords(product.seo_keywords);
 
   const productJsonLd = {
     "@context": "https://schema.org",
@@ -95,6 +126,7 @@ export const buildProductSeo = (product = {}) => {
     url,
     ...(colors.length ? { color: colors.join(", ") } : {}),
     ...(category ? { category } : {}),
+    ...(keywords.length ? { keywords: keywords.join(", ") } : {}),
     offers,
   };
   const categoryName = category || "المنتجات";
@@ -114,7 +146,11 @@ export const buildProductSeo = (product = {}) => {
     description,
     canonical: url,
     image: images[0] || "",
+    imageAlt: name,
     url,
+    locale: PRODUCT_SEO_LOCALE,
+    localeAlternate: PRODUCT_SEO_LOCALE_ALTERNATE,
+    keywords,
     robots: "index,follow,max-image-preview:large",
     productJsonLd,
     breadcrumbJsonLd,

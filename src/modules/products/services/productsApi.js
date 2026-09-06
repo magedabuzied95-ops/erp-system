@@ -441,6 +441,11 @@ export const generateProductDescription = async (body) => {
   return response?.data || response || null;
 };
 
+export const generateProductSeoMetadata = async (body) => {
+  const response = await api.post("/products/generate-seo", body, { timeoutMs: 45000 });
+  return response?.data || response || null;
+};
+
 export const generateSocialPublisherCaption = async (body) => {
   const response = await api.post("/products/generate-social-caption", body, { timeoutMs: 45000 });
   return response?.data || response || null;

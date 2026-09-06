@@ -785,3 +785,286 @@ export const generateSocialPublisherCaption = async (input = {}) => {
   }
 };
 
+
+/* ------------------------------------------------------------------------- *
+ * SEO metadata (meta title, meta description, keywords, slug)
+ *
+ * The storefront is Arabic-first for Egypt, so the generated title and
+ * description are Arabic search phrases that keep the brand and model in
+ * Latin the way customers actually type them ("كوتشي Nike Air Force 1 رجالي").
+ * The server-rendered product page appends " | M1 Store" itself, so the model
+ * is told to leave the store name out of the title.
+ * ------------------------------------------------------------------------- */
+
+export const SEO_TITLE_MAX = 60;
+export const SEO_DESCRIPTION_MAX = 160;
+export const SEO_SLUG_MAX = 80;
+
+const seoMetadataSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["meta_title", "meta_description", "keywords", "slug"],
+  properties: {
+    meta_title: { type: "string" },
+    meta_description: { type: "string" },
+    keywords: { type: "array", items: { type: "string" } },
+    slug: { type: "string" },
+  },
+};
+
+const SEO_TYPE_AR = [
+  [/crocs|كروكس/, "كروكس"],
+  [/backpack|school bag|شنطة ظهر|شنطة مدرس/, "شنطة ظهر"],
+  [/bag|handbag|حقيبة|شنطة/, "شنطة"],
+  [/boot|بوت|جزمة/, "بوت"],
+  [/slipper|slide|سليبر|شبشب/, "سليبر"],
+  [/sandal|صندل/, "صندل"],
+  [/sneaker|shoe|footwear|trainer|running|كوتشي|حذاء/, "كوتشي"],
+  [/shirt|tee|t-shirt|top|تيشيرت|قميص/, "تيشيرت"],
+  [/pants|trouser|jeans|بنطلون/, "بنطلون"],
+];
+
+const seoTypeAr = (context = {}) => {
+  const source = [context.product_type, context.category, context.product_name].map(cleanText).join(" ").toLowerCase();
+  const hit = SEO_TYPE_AR.find(([pattern]) => pattern.test(source));
+  if (hit) return hit[1];
+  const arabic = [context.product_type, context.category].map(cleanText).find((value) => /[؀-ۿ]/.test(value));
+  return arabic || "";
+};
+
+const seoTypeEn = (context = {}) => {
+  const source = [context.product_type, context.category, context.product_name].map(cleanText).join(" ").toLowerCase();
+  if (/crocs/.test(source)) return "crocs";
+  if (/backpack|school bag/.test(source)) return "backpack";
+  if (/bag/.test(source)) return "bag";
+  if (/boot/.test(source)) return "boots";
+  if (/slipper|slide/.test(source)) return "slippers";
+  if (/sandal/.test(source)) return "sandals";
+  if (/sneaker|shoe|footwear|trainer/.test(source)) return "sneakers";
+  const latin = [context.product_type, context.category].map(cleanText).find((value) => /^[a-z0-9\s-]+$/i.test(value));
+  return latin ? latin.toLowerCase() : "";
+};
+
+const seoGenderEn = (value = "") => {
+  const normalized = cleanText(value).toLowerCase();
+  if (/women|female|woman|حريم|نساء|ستات/.test(normalized)) return "women";
+  if (/men|male|man|رجال/.test(normalized)) return "men";
+  if (/kid|child|boy|girl|أطفال|اطفال/.test(normalized)) return "kids";
+  return "";
+};
+
+const seoGenderAr = (value = "") => {
+  const gender = seoGenderEn(value);
+  if (gender === "men") return "رجالي";
+  if (gender === "women") return "حريمي";
+  if (gender === "kids") return "أطفال";
+  return "";
+};
+
+const slugifySeo = (value = "") => {
+  const slug = cleanText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9؀-ۿ]+/gi, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (slug.length <= SEO_SLUG_MAX) return slug;
+  // Cut on a word boundary so the URL never ends in half a word.
+  const clipped = slug.slice(0, SEO_SLUG_MAX);
+  const boundary = clipped.lastIndexOf("-");
+  return (boundary > SEO_SLUG_MAX * 0.5 ? clipped.slice(0, boundary) : clipped).replace(/-+$/g, "");
+};
+
+const clipAtWord = (value = "", max = 60) => {
+  const clean = cleanText(value).replace(/\s+/g, " ");
+  if (clean.length <= max) return clean;
+  const clipped = clean.slice(0, max);
+  const boundary = clipped.lastIndexOf(" ");
+  return (boundary > max * 0.6 ? clipped.slice(0, boundary) : clipped).replace(/[\s,،:;|\-–—]+$/g, "").trim();
+};
+
+const stripStoreSuffix = (value = "") =>
+  cleanText(value)
+    .replace(/\s*[|\-–—]\s*M1\s*Store\s*$/i, "")
+    .replace(/^\s*M1\s*Store\s*[|\-–—]\s*/i, "")
+    .trim();
+
+const uniqueKeywords = (values = [], limit = 10) => {
+  const seen = new Set();
+  const out = [];
+  for (const raw of values) {
+    const item = cleanText(raw).replace(/^#/, "");
+    const key = item.toLowerCase();
+    if (!item || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+};
+
+const compactSeoContext = (input = {}) => {
+  const current = input.current || input;
+  return {
+    product_name: cleanText(current.product_name || current.name || input.product_name || input.name),
+    brand: cleanText(current.brand || current.brand_name || input.brand),
+    manufacturer: cleanText(current.manufacturer || input.manufacturer),
+    category: cleanText(current.category || input.category),
+    product_type: cleanText(current.productType || current.product_type || input.productType || input.product_type),
+    gender: cleanText(current.gender || (Array.isArray(current.audiences) ? current.audiences[0] : "") || input.gender),
+    grade: cleanText(current.grade || input.grade),
+    material: cleanText(current.material || input.material),
+    colors: normalizeList(current.colors || input.colors),
+    sizes: normalizeList(current.sizes || input.sizes),
+    description_ar: cleanText(current.description_ar || input.description_ar),
+    description_en: cleanText(current.description_en || input.description_en),
+    tone: cleanText(input.tone || input.prompt_customization || current.prompt_customization),
+  };
+};
+
+export const buildSeoFallback = (context = {}) => {
+  const name = cleanText(context.product_name);
+  const brand = cleanText(context.brand);
+  const typeAr = seoTypeAr(context);
+  const typeEn = seoTypeEn(context);
+  const genderAr = seoGenderAr(context.gender);
+  const genderEn = seoGenderEn(context.gender);
+  const nameHasBrand = Boolean(brand) && name.toLowerCase().includes(brand.toLowerCase());
+  const displayName = [nameHasBrand ? "" : brand, name].filter(Boolean).join(" ");
+  const colorsAr = normalizeList(context.colors).map(localizeColorName).filter(Boolean).slice(0, 4);
+  const sizes = normalizeList(context.sizes).slice(0, 6);
+
+  const metaTitle = clipAtWord([typeAr, displayName, genderAr].filter(Boolean).join(" ") || name, SEO_TITLE_MAX);
+
+  const lead = `${[typeAr, genderAr, displayName].filter(Boolean).join(" ")}${typeAr ? " بخامات مريحة وشكل عملي يناسب اللبس اليومي." : " متوفر الآن."}`;
+  const cta = "اطلبه الآن من M1 Store.";
+  const optionalParts = [
+    colorsAr.length ? `متوفر بألوان ${colorsAr.join("، ")}.` : "",
+    sizes.length ? `مقاسات ${sizes.join("، ")}.` : "",
+  ].filter(Boolean);
+  // Whole sentences only: drop sizes, then colours, before ever clipping the
+  // lead. A meta description that ends mid-sentence reads as broken in the SERP.
+  let metaDescription = "";
+  for (let keep = optionalParts.length; keep >= 0; keep -= 1) {
+    const candidate = [lead, ...optionalParts.slice(0, keep), cta].join(" ");
+    if (candidate.length <= SEO_DESCRIPTION_MAX) {
+      metaDescription = candidate;
+      break;
+    }
+  }
+  if (!metaDescription) {
+    const clippedLead = clipAtWord(lead, SEO_DESCRIPTION_MAX - cta.length - 2).replace(/[.،,]+$/, "");
+    metaDescription = `${clippedLead}. ${cta}`;
+  }
+
+  const keywords = uniqueKeywords([
+    name,
+    brand,
+    typeAr && genderAr ? `${typeAr} ${genderAr}` : typeAr,
+    typeAr && brand ? `${typeAr} ${brand}` : "",
+    typeAr && brand && genderAr ? `${typeAr} ${brand} ${genderAr}` : "",
+    typeEn && genderEn ? `${brand ? `${brand} ` : ""}${genderEn} ${typeEn}` : typeEn,
+    cleanText(context.category),
+    ...colorsAr.map((color) => (typeAr ? `${typeAr} ${color}` : color)),
+    "M1 Store",
+  ]);
+
+  const slug = slugifySeo([nameHasBrand ? "" : brand, name, typeEn, genderEn].filter(Boolean).join(" ")) || slugifySeo(name);
+
+  return {
+    meta_title: metaTitle,
+    meta_description: metaDescription,
+    keywords,
+    slug,
+  };
+};
+
+const buildSeoPrompt = (context = {}) => [
+  "You write search-engine metadata for M1 Store, an Egyptian footwear and bags shop (m1store-egy.com).",
+  "Return strict JSON only with keys meta_title, meta_description, keywords, slug.",
+  "Language: Arabic-first for Egyptian shoppers. Keep the brand and model names in Latin exactly as customers type them (for example: كوتشي Nike Air Force 1 رجالي).",
+  "Use the search words Egyptians actually use: كوتشي، شنطة، سليبر، كروكس، بوت، رجالي، حريمي، أطفال. Never use حذاء رياضي or formal MSA marketing phrasing.",
+  `meta_title: at most ${SEO_TITLE_MAX} characters. Pattern: product type + brand/model + audience (+ one colour only if it is the defining feature). Do NOT include the store name; the site appends it.`,
+  `meta_description: 120 to ${SEO_DESCRIPTION_MAX} characters, one or two natural sentences: what it is, who it is for, colours/sizes if supplied, and a short soft call to action such as اطلبه الآن من M1 Store.`,
+  "keywords: 6 to 10 short search phrases mixing Arabic phrases and Latin brand/model terms. No hashtags, no duplicates, the store name at most once.",
+  `slug: Latin lowercase words joined by hyphens, at most ${SEO_SLUG_MAX} characters, built from brand, model, product type and audience. No Arabic letters, no stop words.`,
+  "Use only the supplied product facts. Do not invent material, technology, comfort features, authenticity, discounts, shipping promises or stock claims.",
+  "No emojis, no exclamation marks, no keyword stuffing.",
+  context.tone ? `Optional tone customization: ${context.tone}.` : "",
+  `Product facts:\n${JSON.stringify(context, null, 2)}`,
+]
+  .filter(Boolean)
+  .join("\n");
+
+export const normalizeSeoGenerated = (raw = {}, fallback = {}) => {
+  const metaTitle = clipAtWord(stripStoreSuffix(raw.meta_title || raw.title || ""), SEO_TITLE_MAX) || fallback.meta_title || "";
+  const metaDescription = clipAtWord(raw.meta_description || raw.seo_description || raw.description || "", SEO_DESCRIPTION_MAX) || fallback.meta_description || "";
+  const rawKeywords = Array.isArray(raw.keywords) ? raw.keywords : String(raw.keywords || "").split(/[,،\n]/);
+  const keywords = uniqueKeywords(rawKeywords);
+  const slug = slugifySeo(raw.slug || raw.canonical_slug || "")
+    .replace(/[؀-ۿ]/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return {
+    meta_title: metaTitle,
+    meta_description: metaDescription,
+    keywords: keywords.length >= 3 ? keywords : uniqueKeywords([...keywords, ...(fallback.keywords || [])]),
+    slug: slug || fallback.slug || "",
+  };
+};
+
+export const generateProductSeoMetadata = async (input = {}) => {
+  const context = compactSeoContext(input);
+  const fallback = buildSeoFallback(context);
+  const requestId = cleanText(input.request_id) || `product-seo-${Date.now()}`;
+
+  if (!context.product_name) {
+    return { ...fallback, source: "LOCAL_FALLBACK", error: "PRODUCT_NAME_REQUIRED" };
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn("[product-seo] OPENAI_API_KEY missing; using fallback", { requestId });
+    return { ...fallback, source: "LOCAL_FALLBACK" };
+  }
+
+  const startedAt = Date.now();
+  const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
+  try {
+    console.log("[product-seo] OpenAI request start", { requestId, model });
+    const response = await getClient().responses.create(
+      {
+        model,
+        instructions: "You are a senior ecommerce SEO specialist for the Egyptian market. You write concise, honest, search-friendly Arabic metadata.",
+        input: buildSeoPrompt(context),
+        text: {
+          format: {
+            type: "json_schema",
+            name: "product_seo_metadata",
+            strict: true,
+            schema: seoMetadataSchema,
+          },
+          verbosity: "low",
+        },
+      },
+      {
+        timeout: positiveNumber(process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+        maxRetries: 0,
+      }
+    );
+    const parsed = JSON.parse(response.output_text || "{}");
+    console.log("[product-seo] OpenAI request end", { requestId, durationMs: Date.now() - startedAt });
+    return { ...normalizeSeoGenerated(parsed, fallback), source: "OPENAI" };
+  } catch (error) {
+    console.error("[product-seo] OpenAI request failed", {
+      requestId,
+      durationMs: Date.now() - startedAt,
+      status: error?.status,
+      code: error?.code,
+      message: error?.message,
+    });
+    return {
+      ...fallback,
+      source: "LOCAL_FALLBACK",
+      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "OpenAI request failed",
+    };
+  }
+};
