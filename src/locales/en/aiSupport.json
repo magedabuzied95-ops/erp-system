@@ -2038,6 +2038,40 @@
         "failed": "Could not start pairing",
         "expired": "The code rotates — press “New code” if it expires.",
         "noQr": "The gateway returned no code. Try again in a moment."
+      },
+      "embeddedSignup": {
+        "title": "Connect WhatsApp Business",
+        "subtitle": "Connect your WhatsApp number officially through Meta, without taking it off the WhatsApp Business app.",
+        "intro": "The connection runs inside Meta's own dialog. We never see your password, and Meta decides whether the number is eligible to run alongside the WhatsApp Business app.",
+        "connect": "Connect WhatsApp Business",
+        "reconnect": "Reconnect",
+        "disconnect": "Disconnect",
+        "disconnectNote": "Disconnecting only stops this ERP from using the number. Your WhatsApp account on Meta is untouched, the number is not removed from the WhatsApp Business app, and you can reconnect at any time.",
+        "statusConnected": "Connected",
+        "connected": "WhatsApp connected successfully",
+        "disconnected": "Disconnected from this ERP only",
+        "finishing": "Meta finished, completing the connection...",
+        "cancelled": "The Meta dialog was cancelled (step: {{step}})",
+        "failed": "Could not complete the WhatsApp connection",
+        "loadFailed": "Could not read the WhatsApp connection status",
+        "noCode": "The Meta dialog closed without returning an authorization code",
+        "notConfigured": "Meta settings are missing on the server (META_APP_ID / META_APP_SECRET / META_WHATSAPP_CONFIG_ID)",
+        "encryptionMissing": "The token encryption key is not set on the server ({{code}}) — connecting is blocked until it is.",
+        "sdkBlocked": "The Facebook SDK could not load. An ad blocker or browser extension is most likely blocking connect.facebook.net — disable it or try a private window.",
+        "phone": "Phone number",
+        "verifiedName": "Verified name",
+        "wabaId": "WhatsApp Business Account ID",
+        "phoneNumberId": "Phone Number ID",
+        "coexistence": "Onboarding type",
+        "webhook": "Webhook subscription",
+        "connectedAt": "Connected at",
+        "quality": "Quality rating",
+        "coexistenceState": {
+          "cloud_api_only": "Cloud API only",
+          "business_app_coexistence": "Coexistence with WhatsApp Business app",
+          "on_premise": "On-Premise",
+          "unknown": "Unknown"
+        }
       }
     },
     "tiktok": {

@@ -13,6 +13,7 @@ import { MessageCircle, Phone, Plus, RefreshCw, Send, ShieldCheck } from "lucide
 
 import { api } from "../../../../shared/api/api";
 import { WhatsappPairingCard } from "../WhatsappSessionAlert";
+import WhatsAppEmbeddedSignupCard from "./WhatsAppEmbeddedSignupCard.jsx";
 import { isWhatsappSessionDown } from "../../services/whatsappSession";
 import {
   ActionButton,
@@ -136,6 +137,8 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
 
   return (
     <div className="space-y-4">
+      <WhatsAppEmbeddedSignupCard onConnected={() => load({ silent: true })} />
+
       <PanelSection
         icon={MessageCircle}
         title={t("aiSupport.integrations.whatsapp.cloud.title")}

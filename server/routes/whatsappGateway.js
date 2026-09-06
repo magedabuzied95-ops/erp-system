@@ -19,6 +19,16 @@ import {
 } from "../services/whatsappGatewayService.js";
 import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 import { handleInboundMessageIntake } from "../services/aiInboundIntakeService.js";
+import {
+  completeEmbeddedSignup,
+  consumeSignupState,
+  disconnectIntegration,
+  findIntegrationByPhoneNumberId,
+  issueSignupState,
+  listIntegrations,
+  publicEmbeddedSignupConfig,
+  publicIntegrationShape,
+} from "../services/whatsappEmbeddedSignupService.js";
 
 const router = express.Router();
 
@@ -92,24 +102,207 @@ export const handleWhatsappCloudWebhookVerification = (req, res) => {
 };
 
 /*
- * Accept, log, acknowledge. Nothing is processed yet: Meta retries anything that is not answered
- * quickly with a 200, so acknowledging first is the behaviour that keeps deliveries flowing while
- * the message pipeline is still being built.
+ * The delivery statuses Meta reports for a message we sent.
+ *
+ * "sent" is only that we handed it over; "delivered" is the customer's phone; "read" is them
+ * opening it; "failed" carries an errors[] saying why. They arrive out of order and the same id
+ * can repeat, so anything acting on these later has to treat them as a set, not a sequence.
+ */
+const CLOUD_DELIVERY_STATUSES = new Set(["sent", "delivered", "read", "failed"]);
+
+/*
+ * Coexistence sends us our OWN outgoing messages back, because a message typed on the phone in
+ * the WhatsApp Business app is an event this app never produced. Those must never be read as a
+ * customer writing in — that is exactly the mistake that once confirmed an order 0.8s after we
+ * asked about it (see mayDecideOrderConfirmation). The check is structural: the sender is our own
+ * number, not the customer's.
+ */
+export const isCloudOwnEcho = (message = {}, metadata = {}) => {
+  const from = String(message?.from || "").replace(/\D/g, "");
+  const ours = String(metadata?.display_phone_number || "").replace(/\D/g, "");
+  return Boolean(from && ours && from === ours);
+};
+
+/*
+ * Everything that is NOT the acknowledgement. Runs detached: Meta retries anything not answered
+ * quickly, so the response goes out first and this cannot delay or fail it.
+ */
+export const processWhatsappCloudWebhook = async (body = {}) => {
+  const entries = Array.isArray(body?.entry) ? body.entry : [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const value = change?.value || {};
+      const metadata = value?.metadata || {};
+      const phoneNumberId = String(metadata?.phone_number_id || "").trim();
+      // Which of our connected numbers this belongs to. A delivery for a number we do not know
+      // is logged and dropped rather than guessed at.
+      const integration = phoneNumberId ? await findIntegrationByPhoneNumberId(phoneNumberId) : null;
+      if (!integration) {
+        console.warn("[whatsapp:cloud-webhook-unknown-number]", {
+          phone_number_id: phoneNumberId,
+          waba_id: String(entry?.id || ""),
+          field: String(change?.field || ""),
+        });
+      }
+
+      for (const status of Array.isArray(value.statuses) ? value.statuses : []) {
+        const name = String(status?.status || "").toLowerCase();
+        console.info("[whatsapp:cloud-delivery-status]", {
+          integration_id: integration?.id || null,
+          phone_number_id: phoneNumberId,
+          message_id: String(status?.id || ""),
+          status: name,
+          known_status: CLOUD_DELIVERY_STATUSES.has(name),
+          recipient_suffix: String(status?.recipient_id || "").slice(-4),
+          error_code: status?.errors?.[0]?.code ?? null,
+        });
+      }
+
+      for (const message of Array.isArray(value.messages) ? value.messages : []) {
+        const echo = isCloudOwnEcho(message, metadata);
+        console.info("[whatsapp:cloud-inbound]", {
+          integration_id: integration?.id || null,
+          phone_number_id: phoneNumberId,
+          message_id: String(message?.id || ""),
+          type: String(message?.type || ""),
+          own_echo: echo,
+          // A tap on a template's quick reply arrives here; the payload is what decides the order.
+          button_payload: String(message?.button?.payload || message?.interactive?.button_reply?.id || ""),
+          from_suffix: String(message?.from || "").slice(-4),
+        });
+      }
+    }
+  }
+};
+
+/*
+ * Accept, acknowledge, then work. Meta retries anything not answered quickly with a 200, so the
+ * acknowledgement is sent before any processing starts and no failure below can turn into a
+ * retry storm.
  */
 export const handleWhatsappCloudWebhookEvent = (req, res) => {
+  const body = req.body || {};
   try {
     console.info("[whatsapp:cloud-webhook-event]", {
-      ...summariseCloudWebhook(req.body || {}),
+      ...summariseCloudWebhook(body),
       signature_present: Boolean(req.headers?.["x-hub-signature-256"]),
     });
   } catch (error) {
     // A malformed body must still be acknowledged, or Meta retries it forever.
     console.warn("[whatsapp:cloud-webhook-log-failed]", { message: error?.message || String(error) });
   }
-  return res.status(200).json({ success: true, received: true });
+  res.status(200).json({ success: true, received: true });
+  setImmediate(() => {
+    processWhatsappCloudWebhook(body).catch((error) => {
+      console.error("[whatsapp:cloud-webhook-processing-failed]", { message: error?.message || String(error) });
+    });
+  });
+  return res;
 };
 
 router.get("/webhook", handleWhatsappCloudWebhookVerification);
+
+/* ==========================================================================================
+ * WhatsApp Embedded Signup.
+ *
+ * The browser runs Meta's dialog and comes back with an authorization CODE. It is exchanged
+ * here, never there: the app secret stays on this side, and nothing below ever returns a token
+ * or a fragment of one to the client.
+ *
+ * These are new paths under the existing /api/whatsapp mount. The Messenger and Instagram
+ * integrations live on /api/meta and /api/integrations/meta and are not touched.
+ * ========================================================================================== */
+
+// Public by design: the app id and config id travel inside Meta's own dialog URL. The secret is
+// not part of this shape, and a test pins that it never becomes part of it.
+router.get("/embedded-signup/config", protect, permit("settings", "view"), (req, res) => {
+  return res.json({ success: true, config: publicEmbeddedSignupConfig() });
+});
+
+// One-time state, so a code cannot be replayed into this endpoint by a page the operator was
+// tricked into opening while authenticated.
+router.post("/embedded-signup/state", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const state = await issueSignupState({ tenantId: tenantScope(req) || 0, userId: req.user?.id || null });
+    return res.json({ success: true, state });
+  } catch (error) {
+    return sendError(res, error, "Failed to start the WhatsApp connection");
+  }
+});
+
+router.get("/embedded-signup/status", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const rows = await listIntegrations({ tenantId: tenantScope(req) || 0 });
+    return res.json({
+      success: true,
+      config: publicEmbeddedSignupConfig(),
+      integrations: rows.map(publicIntegrationShape),
+      connected: rows.some((row) => row.status === "connected"),
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to read the WhatsApp connection");
+  }
+});
+
+router.post("/embedded-signup/callback", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = tenantScope(req) || 0;
+  try {
+    const code = String(req.body?.code || "").trim();
+    const state = String(req.body?.state || "").trim();
+    if (!code) return res.status(400).json({ success: false, code: "AUTH_CODE_REQUIRED", message: "لم يصل كود التفويض من ميتا" });
+    if (!(await consumeSignupState({ state, tenantId }))) {
+      return res.status(400).json({ success: false, code: "SIGNUP_STATE_INVALID", message: "انتهت صلاحية جلسة الربط، ابدأ من جديد" });
+    }
+    const result = await completeEmbeddedSignup({
+      code,
+      wabaId: String(req.body?.wabaId || req.body?.waba_id || "").trim(),
+      phoneNumberId: String(req.body?.phoneNumberId || req.body?.phone_number_id || "").trim(),
+      businessId: String(req.body?.businessId || req.body?.business_id || "").trim(),
+      tenantId,
+      userId: req.user?.id || null,
+      signupEvent: req.body?.event && typeof req.body.event === "object" ? req.body.event : null,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    // A typed refusal is an outcome the operator has to read, not a server fault — and a 5xx
+    // reaches the browser as an opaque CORS error, which would tell them nothing.
+    console.error("[whatsapp-cloud:signup-failed]", {
+      tenant_id: tenantId,
+      code: error?.code || "",
+      status: error?.status || 0,
+      message: error?.message || String(error),
+    });
+    return res.status(error?.status && error.status < 500 ? error.status : 400).json({
+      success: false,
+      code: error?.code || "EMBEDDED_SIGNUP_FAILED",
+      message: error?.message || "تعذر إتمام ربط واتساب",
+    });
+  }
+});
+
+/*
+ * Disconnect is local. It flips our row and drops our copy of the token; it does NOT call Meta,
+ * does not deregister the number, and does not delete the WABA — the operator's WhatsApp account
+ * is exactly as it was and the dialog can be run again to reconnect.
+ */
+router.post("/embedded-signup/disconnect", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const rows = await disconnectIntegration({
+      tenantId: tenantScope(req) || 0,
+      id: req.body?.id ? Number(req.body.id) : null,
+    });
+    console.info("[whatsapp-cloud:disconnected]", {
+      tenant_id: tenantScope(req) || 0,
+      user_id: req.user?.id || null,
+      count: rows.length,
+      meta_side_untouched: true,
+    });
+    return res.json({ success: true, disconnected: rows.length, integrations: rows.map(publicIntegrationShape) });
+  } catch (error) {
+    return sendError(res, error, "Failed to disconnect WhatsApp");
+  }
+});
 
 const tenantScope = (req) =>
   req.user?.tenant_id ||

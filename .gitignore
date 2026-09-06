@@ -193,3 +193,9 @@ server/scripts/timestamptz-fingerprint.json
 # deploy ships a gateway importing a file that does not exist.
 !server/services/whatsappTemplates.js
 !server/services/whatsappCloudProvider.js
+
+# WhatsApp Embedded Signup: token-at-rest crypto + the connect flow. server/services/* above
+# ignores the whole directory, so without these the deploy ships routes importing files that
+# do not exist.
+!server/services/whatsappCloudCryptoService.js
+!server/services/whatsappEmbeddedSignupService.js
