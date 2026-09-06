@@ -276,6 +276,13 @@ const ProductSeoWorkbench = ({
       else toast(t("products.editor.seoWorkbench.generatedLocal"));
     } catch (error) {
       console.error("[product-seo-workbench] generation failed", error);
+      // The frontend ships from Vercel on push while the backend is deployed
+      // separately; until the route exists the merchant still gets metadata.
+      if (Number(error?.status) === 404) {
+        applyLocalTemplate();
+        toast(t("products.editor.seoWorkbench.generatedLocal"));
+        return;
+      }
       toast.error(error?.message || t("products.editor.seoWorkbench.generateFailed"));
     } finally {
       setSeoGenerating(false);
