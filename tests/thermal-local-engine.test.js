@@ -15,7 +15,7 @@ import { settingsByKey } from "../shared/settingsRegistry.js";
  * A stand-in product photo: a grey shape with darker internal detail, sitting
  * off-centre on a white studio background, the way supplier photos arrive.
  */
-const buildProductPhoto = async ({ width = 600, height = 600, frame = false, body = 150, stripe = 30 } = {}) => {
+const buildProductPhoto = async ({ width = 600, height = 600, frame = false, body = 150, stripe = 30, stripeWidth = 8 } = {}) => {
   const pixels = Buffer.alloc(width * height * 3, 255);
   const put = (x, y, value) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return;
@@ -32,7 +32,7 @@ const buildProductPhoto = async ({ width = 600, height = 600, frame = false, bod
   for (let y = top; y < top + shapeHeight; y += 1) {
     for (let x = left; x < left + shapeWidth; x += 1) {
       // A body with darker stripes, so a threshold has real detail to find.
-      put(x, y, ((x - left) % 40) < 8 ? stripe : body);
+      put(x, y, ((x - left) % 40) < stripeWidth ? stripe : body);
     }
   }
 
@@ -92,8 +92,8 @@ test("a faint photo frame does not pin the crop to the full frame", async () => 
 
 test("ink level moves how much of the product is burned", async () => {
   const photo = await buildProductPhoto();
-  const light = await renderThermalArtwork(photo, { canvas: 512, inkLevel: 5, outline: false });
-  const heavy = await renderThermalArtwork(photo, { canvas: 512, inkLevel: 95, outline: false });
+  const light = await renderThermalArtwork(photo, { canvas: 512, style: "detail", inkLevel: 5, outline: false });
+  const heavy = await renderThermalArtwork(photo, { canvas: 512, style: "detail", inkLevel: 95, outline: false });
   assert.ok(heavy.meta.inkRatio > light.meta.inkRatio, `expected ${heavy.meta.inkRatio} > ${light.meta.inkRatio}`);
 });
 
@@ -131,16 +131,59 @@ test("unknown options fall back to the shipped defaults", () => {
   assert.equal(options.canvas, 256);
 });
 
-test("automatic picks halftone for a dark product and line art for a pale one", async () => {
+test("automatic picks halftone, line art or illustration from how dark the product is", async () => {
   // A near-black product: line art would collapse to an empty outline on the label.
   const dark = await renderThermalArtwork(await buildProductPhoto({ body: 40, stripe: 20 }), { canvas: 448 });
   assert.equal(dark.meta.style, "auto");
   assert.equal(dark.meta.resolvedStyle, "halftone");
   assert.ok(dark.meta.autoDarkShare > 0.6);
 
-  const pale = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 120 }), { canvas: 448 });
-  assert.equal(pale.meta.resolvedStyle, "detail");
-  assert.ok(pale.meta.autoDarkShare < 0.6);
+  // Heavy black trim on a pale body: the sketch would fill the trim as blobs,
+  // the adaptive threshold keeps the texture inside it. Stripes are 8 of every
+  // 40 columns, so wide dark stripes land the dark share between the two cuts.
+  const trimmed = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20, stripeWidth: 18 }), { canvas: 448 });
+  assert.equal(trimmed.meta.resolvedStyle, "detail");
+  assert.ok(trimmed.meta.autoDarkShare >= 0.35 && trimmed.meta.autoDarkShare < 0.6, `dark share ${trimmed.meta.autoDarkShare}`);
+
+  // A mostly pale product gets the illustrated look.
+  const pale = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20 }), { canvas: 448 });
+  assert.equal(pale.meta.resolvedStyle, "sketch");
+  assert.ok(pale.meta.autoDarkShare < 0.35, `dark share ${pale.meta.autoDarkShare}`);
+});
+
+test("the illustration style keeps the interior seams, not just the silhouette", async () => {
+  // The stroke filter once measured 4-connected components, so every diagonal
+  // one-pixel Canny ridge was its own island and the whole interior vanished.
+  // A photo with only a faint diagonal seam inside must still draw that seam.
+  const width = 600;
+  const height = 600;
+  const pixels = Buffer.alloc(width * height * 3, 255);
+  const put = (x, y, value) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const index = ((y * width) + x) * 3;
+    pixels[index] = value;
+    pixels[index + 1] = value;
+    pixels[index + 2] = value;
+  };
+  for (let y = 150; y < 450; y += 1) {
+    for (let x = 100; x < 500; x += 1) {
+      // A pale body split by a diagonal seam of moderate contrast.
+      put(x, y, (x - 100) > (y - 150) ? 200 : 165);
+    }
+  }
+  const photo = await sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+  const { buffer, meta } = await renderThermalArtwork(photo, { canvas: 448, style: "sketch", outline: false });
+  const { data, width: outWidth, height: outHeight, channels } = await readPixels(buffer);
+
+  // Sample the centre of the artwork, well away from the silhouette.
+  let inkInsideCentre = 0;
+  for (let y = Math.floor(outHeight * 0.3); y < Math.floor(outHeight * 0.7); y += 1) {
+    for (let x = Math.floor(outWidth * 0.3); x < Math.floor(outWidth * 0.7); x += 1) {
+      if (data[((y * outWidth) + x) * channels] === 0) inkInsideCentre += 1;
+    }
+  }
+  assert.equal(meta.resolvedStyle, "sketch");
+  assert.ok(inkInsideCentre > 40, `expected the seam to be drawn through the centre, got ${inkInsideCentre} ink pixels`);
 });
 
 test("a named style is never overridden by the automatic pick", async () => {

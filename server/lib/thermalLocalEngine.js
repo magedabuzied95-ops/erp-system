@@ -22,7 +22,7 @@ import {
  * meaningful.
  */
 
-export const THERMAL_LOCAL_ENGINE_VERSION = "v1-local-sharp";
+export const THERMAL_LOCAL_ENGINE_VERSION = "v2-local-sketch";
 
 export const THERMAL_LOCAL_STYLES = THERMAL_ARTWORK_STYLES;
 export const DEFAULT_THERMAL_LOCAL_STYLE = THERMAL_ARTWORK_DEFAULTS.style;
@@ -38,6 +38,9 @@ const DEFAULT_CANVAS = 448;
 // the catalogue the two groups sit at <=0.50 and >=0.69, so the cut is wide.
 const AUTO_STYLE_DARK_SHARE = 0.6;
 const AUTO_STYLE_DARK_LEVEL = 96;
+// Between this and the halftone cut the shoe carries enough black trim that the
+// sketch would fill it as solid blobs; the adaptive threshold keeps its texture.
+const AUTO_STYLE_TRIM_SHARE = 0.35;
 const DEFAULT_FILL = 0.94;
 const DEFAULT_BACKGROUND_THRESHOLD = 238;
 const SAUVOLA_K = 0.2;
@@ -477,6 +480,206 @@ const silhouetteBinarize = (gray, width, height, background) => {
   return ink;
 };
 
+/** Run sharp's raster filters over a one-channel plane and get a plane back. */
+const filterPlane = async (plane, width, height, apply) => {
+  const pipeline = apply(sharp(rawBuffer(plane), { raw: { width, height, channels: 1 } }));
+  const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
+  const channels = Number(info.channels || 1);
+  const out = new Uint8Array(width * height);
+  for (let index = 0; index < out.length; index += 1) out[index] = data[index * channels];
+  return out;
+};
+
+/**
+ * Canny edges: Sobel gradient, non-maximum suppression down to one-pixel
+ * ridges, then hysteresis so a contour that fades in the middle still connects
+ * through its weak stretch instead of breaking into dashes. Thresholds come
+ * from the subject's own gradient distribution, so a flat pale shoe and a
+ * busy dark one get the same amount of line work.
+ */
+const cannyEdges = (gray, width, height, background, { highPercentile = 0.9, lowRatio = 0.4, highAbsolute = 0, lowAbsolute = 0 } = {}) => {
+  const total = width * height;
+  const magnitude = new Float32Array(total);
+  const direction = new Uint8Array(total);
+  const samples = [];
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = (y * width) + x;
+      const tl = gray[index - width - 1];
+      const t = gray[index - width];
+      const tr = gray[index - width + 1];
+      const l = gray[index - 1];
+      const r = gray[index + 1];
+      const bl = gray[index + width - 1];
+      const b = gray[index + width];
+      const br = gray[index + width + 1];
+      const gx = (tr + (2 * r) + br) - (tl + (2 * l) + bl);
+      const gy = (bl + (2 * b) + br) - (tl + (2 * t) + tr);
+      const value = Math.sqrt((gx * gx) + (gy * gy));
+      magnitude[index] = value;
+      // Quantise the gradient direction to the four neighbour axes.
+      const angle = Math.atan2(gy, gx);
+      const degrees = ((angle * 180) / Math.PI + 180) % 180;
+      direction[index] = degrees < 22.5 || degrees >= 157.5 ? 0 : degrees < 67.5 ? 1 : degrees < 112.5 ? 2 : 3;
+      if (!background[index] && value > 0) samples.push(value);
+    }
+  }
+
+  const edges = new Uint8Array(total);
+  if (!samples.length) return edges;
+  samples.sort((a, b) => a - b);
+  // Absolute thresholds when given: a percentile cut lets one black stripe
+  // raise the bar above every pale seam on the same shoe. The percentile
+  // stays as a floor so a flat, textureless photo does not fill with noise.
+  const percentileHigh = Math.max(8, samples[Math.min(samples.length - 1, Math.floor(samples.length * highPercentile))]);
+  const high = highAbsolute > 0 ? Math.max(highAbsolute, percentileHigh * 0.35) : percentileHigh;
+  const low = lowAbsolute > 0 ? Math.min(lowAbsolute, high * 0.9) : high * lowRatio;
+
+  // Non-maximum suppression: keep a pixel only if it is the ridge of its
+  // gradient, compared against the two neighbours along the gradient direction.
+  const ridge = new Uint8Array(total);
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = (y * width) + x;
+      const value = magnitude[index];
+      if (value < low) continue;
+      let a;
+      let b;
+      switch (direction[index]) {
+        case 0: a = magnitude[index - 1]; b = magnitude[index + 1]; break;
+        case 1: a = magnitude[index - width + 1]; b = magnitude[index + width - 1]; break;
+        case 2: a = magnitude[index - width]; b = magnitude[index + width]; break;
+        default: a = magnitude[index - width - 1]; b = magnitude[index + width + 1]; break;
+      }
+      if (value >= a && value >= b) ridge[index] = value >= high ? 2 : 1;
+    }
+  }
+
+  // Hysteresis: strong ridges seed, weak ridges join only when connected.
+  const stack = new Int32Array(total);
+  let top = 0;
+  for (let index = 0; index < total; index += 1) {
+    if (ridge[index] !== 2 || edges[index]) continue;
+    edges[index] = 1;
+    stack[top] = index;
+    top += 1;
+    while (top > 0) {
+      top -= 1;
+      const current = stack[top];
+      const y = Math.floor(current / width);
+      const x = current - (y * width);
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          const next = (ny * width) + nx;
+          if (!ridge[next] || edges[next]) continue;
+          edges[next] = 1;
+          stack[top] = next;
+          top += 1;
+        }
+      }
+    }
+  }
+
+  return edges;
+};
+
+/** Drop edge fragments too short to describe anything — texture, glints, noise. */
+const dropShortStrokes = (edges, width, height, minLength) => despeckleInk(edges, width, height, minLength, 8);
+
+/**
+ * Solid regions dark enough and large enough to be a design element — the
+ * three stripes, a swoosh, a black heel tab — are filled rather than outlined,
+ * so the brand still reads at a glance.
+ */
+const darkFills = (gray, width, height, background, { level = 60, minArea = 64 } = {}) => {
+  const total = width * height;
+  const dark = new Uint8Array(total);
+  for (let index = 0; index < total; index += 1) {
+    if (!background[index] && gray[index] < level) dark[index] = 1;
+  }
+  return despeckleInk(dark, width, height, minArea);
+};
+
+const dilateInk = (ink, width, height, radius = 1) => {
+  const out = new Uint8Array(ink.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width) + x;
+      if (!ink[index]) continue;
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -radius; dx <= radius; dx += 1) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          out[(ny * width) + nx] = 1;
+        }
+      }
+    }
+  }
+  return out;
+};
+
+/**
+ * Sketch: the illustrated look — clean contour lines of one weight on a white
+ * body, with only the genuinely black design elements filled. Texture is
+ * smoothed away before the edges are found, so leather grain and mesh do not
+ * come through as scribble, and the strokes are rounded after dilation so the
+ * head prints curves rather than staircases.
+ */
+const sketchBinarize = async (gray, width, height, background, { inkOffset = 0 } = {}) => {
+  // Work at twice the label resolution and come back down at the end: the
+  // downsample anti-aliases the strokes before the final threshold, which is
+  // what turns pixel stairs into the smooth curves of a drawn illustration.
+  const scale = 2;
+  const w = width * scale;
+  const h = height * scale;
+  const bigGray = await resizePlane(gray, width, height, w, h, sharp.kernel.lanczos3);
+  const maskPlane = new Uint8Array(background.length);
+  for (let index = 0; index < maskPlane.length; index += 1) maskPlane[index] = background[index] ? 255 : 0;
+  const bigMaskRaw = await resizePlane(maskPlane, width, height, w, h, sharp.kernel.nearest);
+  const bigBackground = new Uint8Array(w * h);
+  for (let index = 0; index < bigBackground.length; index += 1) bigBackground[index] = bigMaskRaw[index] >= 128 ? 1 : 0;
+
+  // Enough smoothing to lose leather grain and mesh, not the seams.
+  const smoothed = await filterPlane(bigGray, w, h, (image) => image.median(3).blur(1.0));
+
+  // Ink level widens or narrows how much edge work survives. The thresholds
+  // are in Sobel units on the smoothed plane: a seam between two whites sits
+  // around 60-120, leather grain below 40, a black stripe edge well over 600.
+  const highAbsolute = clamp(Math.round(72 - (inkOffset * 40)), 36, 160);
+  const lowAbsolute = Math.round(highAbsolute * 0.35);
+  let edges = cannyEdges(smoothed, w, h, bigBackground, { highPercentile: 0.8, highAbsolute, lowAbsolute });
+  edges = dropShortStrokes(edges, w, h, Math.max(16, Math.round(Math.min(w, h) * 0.035)));
+
+  const fills = darkFills(smoothed, w, h, bigBackground, {
+    level: clamp(60 + (inkOffset * 25), 30, 110),
+    minArea: Math.max(96, Math.round(w * h * 0.0015)),
+  });
+
+  // Three pixels here is a pixel and a half on the label: one clean stroke.
+  const stroke = dilateInk(edges, w, h, 1);
+  const combined = new Uint8Array(w * h);
+  for (let index = 0; index < combined.length; index += 1) {
+    if (bigBackground[index]) continue;
+    if (stroke[index] || fills[index]) combined[index] = 1;
+  }
+
+  const plane = new Uint8Array(combined.length);
+  for (let index = 0; index < plane.length; index += 1) plane[index] = combined[index] ? 0 : 255;
+  const small = await resizePlane(plane, w, h, width, height, sharp.kernel.lanczos3);
+  const ink = new Uint8Array(width * height);
+  for (let index = 0; index < ink.length; index += 1) {
+    if (!background[index] && small[index] < 150) ink[index] = 1;
+  }
+  return ink;
+};
+
 /** Trace the subject outline so the shape reads even when the interior is open. */
 const reinforceOutline = (ink, background, width, height, thickness = 1) => {
   const boundary = new Uint8Array(ink.length);
@@ -517,11 +720,15 @@ const reinforceOutline = (ink, background, width, height, thickness = 1) => {
 };
 
 /** Drop black islands too small to survive a print head — dust, JPEG noise. */
-const despeckleInk = (ink, width, height, minArea) => {
+const despeckleInk = (ink, width, height, minArea, connectivity = 4) => {
   const total = width * height;
   const visited = new Uint8Array(total);
   const stack = new Int32Array(total);
   const component = new Int32Array(total);
+  // A one-pixel Canny ridge running diagonally touches its neighbours only at
+  // the corners. Under 4-connectivity every pixel of it is its own island and
+  // the whole line is thrown away as dust; strokes must be measured 8-connected.
+  const diagonal = connectivity === 8;
 
   for (let start = 0; start < total; start += 1) {
     if (!ink[start] || visited[start]) continue;
@@ -538,10 +745,20 @@ const despeckleInk = (ink, width, height, minArea) => {
       size += 1;
       const y = Math.floor(index / width);
       const x = index - (y * width);
-      if (x > 0 && ink[index - 1] && !visited[index - 1]) { visited[index - 1] = 1; stack[top] = index - 1; top += 1; }
-      if (x < width - 1 && ink[index + 1] && !visited[index + 1]) { visited[index + 1] = 1; stack[top] = index + 1; top += 1; }
-      if (y > 0 && ink[index - width] && !visited[index - width]) { visited[index - width] = 1; stack[top] = index - width; top += 1; }
-      if (y < height - 1 && ink[index + width] && !visited[index + width]) { visited[index + width] = 1; stack[top] = index + width; top += 1; }
+      const left = x > 0;
+      const right = x < width - 1;
+      const up = y > 0;
+      const down = y < height - 1;
+      if (left && ink[index - 1] && !visited[index - 1]) { visited[index - 1] = 1; stack[top] = index - 1; top += 1; }
+      if (right && ink[index + 1] && !visited[index + 1]) { visited[index + 1] = 1; stack[top] = index + 1; top += 1; }
+      if (up && ink[index - width] && !visited[index - width]) { visited[index - width] = 1; stack[top] = index - width; top += 1; }
+      if (down && ink[index + width] && !visited[index + width]) { visited[index + width] = 1; stack[top] = index + width; top += 1; }
+      if (diagonal) {
+        if (up && left && ink[index - width - 1] && !visited[index - width - 1]) { visited[index - width - 1] = 1; stack[top] = index - width - 1; top += 1; }
+        if (up && right && ink[index - width + 1] && !visited[index - width + 1]) { visited[index - width + 1] = 1; stack[top] = index - width + 1; top += 1; }
+        if (down && left && ink[index + width - 1] && !visited[index + width - 1]) { visited[index + width - 1] = 1; stack[top] = index + width - 1; top += 1; }
+        if (down && right && ink[index + width + 1] && !visited[index + width + 1]) { visited[index + width + 1] = 1; stack[top] = index + width + 1; top += 1; }
+      }
     }
 
     if (size < minArea) {
@@ -576,10 +793,17 @@ const resolveAutoStyle = (gray, background) => {
     if (gray[index] < AUTO_STYLE_DARK_LEVEL) dark += 1;
   }
   const darkShare = subject ? dark / subject : 0;
-  return {
-    style: darkShare >= AUTO_STYLE_DARK_SHARE ? "halftone" : "detail",
-    darkShare,
-  };
+  // Three bands. A black shoe only survives as halftone. A shoe with a lot of
+  // black trim keeps the texture inside that trim under the adaptive
+  // threshold, where the sketch would fill it as blobs. A mostly pale shoe
+  // gets the illustrated look: clean contours and only its real black
+  // accents filled.
+  const style = darkShare >= AUTO_STYLE_DARK_SHARE
+    ? "halftone"
+    : darkShare >= AUTO_STYLE_TRIM_SHARE
+      ? "detail"
+      : "sketch";
+  return { style, darkShare };
 };
 
 const binarizeForStyle = (style, gray, width, height, background, bias, tone = 0) => {
@@ -670,11 +894,15 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   const inkOffset = (options.inkLevel - 50) / 50;
   let bias = style === "halftone" ? 0 : inkOffset * 30;
   let tone = 0;
-  let ink = binarizeForStyle(style, stretched, artWidth, artHeight, scaledBackground, bias, tone);
+  let ink = style === "sketch"
+    ? await sketchBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset })
+    : binarizeForStyle(style, stretched, artWidth, artHeight, scaledBackground, bias, tone);
   let ratio = inkRatio(ink, scaledBackground);
   let passes = 1;
 
-  if (style === "halftone") {
+  if (style === "sketch") {
+    // Coverage is not the goal of a sketch: a clean shoe is mostly white.
+  } else if (style === "halftone") {
     // Stepping the tone coarsely overshoots: one nudge too many and a black
     // shoe washes out to a few scattered dots. Bisect instead, and stop at the
     // darkest tone that still fits the coverage target, which is where the
@@ -730,7 +958,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   }
 
   if (options.outline && backgroundRemoved && style !== "silhouette") {
-    const thickness = artBox >= 900 ? 2 : 1;
+    const thickness = style === "sketch" || artBox >= 900 ? 2 : 1;
     ink = reinforceOutline(ink, scaledBackground, artWidth, artHeight, thickness);
   }
 

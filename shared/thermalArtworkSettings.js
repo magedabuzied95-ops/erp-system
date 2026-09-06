@@ -5,7 +5,7 @@
 
 export const THERMAL_ARTWORK_ENGINES = Object.freeze(["local", "openai"]);
 
-export const THERMAL_ARTWORK_STYLES = Object.freeze(["auto", "detail", "halftone", "outline", "silhouette"]);
+export const THERMAL_ARTWORK_STYLES = Object.freeze(["auto", "sketch", "detail", "halftone", "outline", "silhouette"]);
 
 /**
  * "auto" is not a drawing style — it measures how dark the product is and picks
