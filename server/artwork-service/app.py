@@ -26,17 +26,22 @@ MODEL = os.environ.get("SD_MODEL", "Lykon/dreamshaper-8")
 CONTROLNET = os.environ.get("SD_CONTROLNET", "lllyasviel/control_v11p_sd15_lineart")
 LCM_LORA = os.environ.get("SD_LCM_LORA", "latent-consistency/lcm-lora-sdv1-5")
 THREADS = int(os.environ.get("SD_THREADS", "5"))
-MAX_SIDE = int(os.environ.get("SD_MAX_SIDE", "576"))
+MAX_SIDE = int(os.environ.get("SD_MAX_SIDE", "448"))
+# float32 is the safe default on any CPU; bfloat16 halves the memory traffic
+# and is much faster where the CPU has native bf16 (Zen 4, Sapphire Rapids).
+DTYPE = os.environ.get("SD_DTYPE", "float32").strip().lower()
 WARM_ON_START = os.environ.get("SD_WARM_ON_START", "1") != "0"
 
+# "Coloring book page" is the phrase that reliably buys a white background and
+# outline-only rendering from SD 1.5; the earlier "technical line art" wording
+# came back with a grey backdrop and soft shading.
 DEFAULT_PROMPT = (
-    "clean black ink line art illustration of a sneaker shoe, technical drawing, "
-    "crisp uniform black outlines on pure white background, no shading, no color, "
-    "no gray, minimal, vector style, high contrast"
+    "coloring book page of a sneaker shoe, clean black outlines only, pure white background, "
+    "line art, monochrome, no shading, no fill, simple flat vector illustration, thick uniform lines"
 )
 DEFAULT_NEGATIVE = (
-    "photo, photograph, realistic, color, colours, gray, grey, shading, gradient, "
-    "texture, noise, blurry, watermark, text, signature, background, shadow"
+    "gray, grey, shading, gradient, color, colours, photo, realistic, texture, background, shadow, "
+    "blurry, noise, text, watermark, dark background, halftone"
 )
 
 app = FastAPI(title="thermal-artwork-drawing")
@@ -52,12 +57,13 @@ def _load_pipeline():
     from diffusers import ControlNetModel, LCMScheduler, StableDiffusionControlNetPipeline
 
     torch.set_num_threads(THREADS)
+    dtype = torch.bfloat16 if DTYPE in ("bf16", "bfloat16") else torch.float32
     started = time.time()
-    controlnet = ControlNetModel.from_pretrained(CONTROLNET, torch_dtype=torch.float32)
+    controlnet = ControlNetModel.from_pretrained(CONTROLNET, torch_dtype=dtype)
     pipe = StableDiffusionControlNetPipeline.from_pretrained(
         MODEL,
         controlnet=controlnet,
-        torch_dtype=torch.float32,
+        torch_dtype=dtype,
         safety_checker=None,
         requires_safety_checker=False,
     )
@@ -116,6 +122,7 @@ def health():
         "lcm_lora": LCM_LORA,
         "threads": THREADS,
         "max_side": MAX_SIDE,
+        "dtype": DTYPE,
     }
 
 
@@ -123,8 +130,8 @@ class DrawRequest(BaseModel):
     control: str = Field(..., description="base64 PNG of the line map, black lines on white")
     prompt: str = DEFAULT_PROMPT
     negative_prompt: str = DEFAULT_NEGATIVE
-    steps: int = Field(5, ge=1, le=12)
-    guidance: float = Field(1.5, ge=0.0, le=8.0)
+    steps: int = Field(6, ge=1, le=12)
+    guidance: float = Field(1.8, ge=0.0, le=8.0)
     controlnet_scale: float = Field(1.0, ge=0.0, le=2.0)
     seed: int = 0
     max_side: int = Field(0, ge=0, le=768)

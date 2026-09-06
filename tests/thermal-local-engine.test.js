@@ -162,6 +162,54 @@ test("the drawing model's strokes are traced to a vector twin of the label artwo
   assert.ok(ink > 1000, `expected a drawing in the rendered vector, got ${ink} ink pixels`);
 });
 
+test("with the illustration service switched off, the diffusion style falls back to the drawing model and says so", async () => {
+  const { isLineartModelAvailable } = await import("../server/lib/thermalLineartModel.js");
+  if (!(await isLineartModelAvailable())) return;
+
+  const previous = process.env.THERMAL_DRAWING_SERVICE;
+  process.env.THERMAL_DRAWING_SERVICE = "0";
+  try {
+    const { meta } = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20 }), { canvas: 448, style: "diffusion" });
+    assert.equal(meta.style, "diffusion");
+    assert.equal(meta.serviceReady, false);
+    assert.equal(meta.resolvedStyle, "lineart", "the label must still be drawn");
+    assert.ok(meta.diffusionError.length > 0, "the fallback reason is recorded");
+    assert.equal(meta.vectorised, true);
+  } finally {
+    if (previous === undefined) delete process.env.THERMAL_DRAWING_SERVICE;
+    else process.env.THERMAL_DRAWING_SERVICE = previous;
+  }
+});
+
+test("a clean drawing on white is traced directly without a model", async () => {
+  // A page that already looks like the illustration service's output: thin
+  // black outlines on white. The internal "traced" style must cut and vector
+  // it without calling any model, and must not be normalised away to "auto".
+  const width = 600;
+  const height = 600;
+  const pixels = Buffer.alloc(width * height * 3, 255);
+  const put = (x, y, value) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const index = ((y * width) + x) * 3;
+    pixels[index] = value;
+    pixels[index + 1] = value;
+    pixels[index + 2] = value;
+  };
+  for (let t = 0; t < 2000; t += 1) {
+    const angle = (t / 2000) * Math.PI * 2;
+    for (let r = 0; r < 3; r += 1) put(Math.round(300 + (180 + r) * Math.cos(angle)), Math.round(300 + (110 + r) * Math.sin(angle)), 20);
+  }
+  for (let x = 220; x < 380; x += 1) for (let r = 0; r < 3; r += 1) put(x, 300 + r, 20);
+  const page = await sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+
+  const { svg, meta } = await renderThermalArtwork(page, { canvas: 448, style: "traced" });
+  assert.equal(meta.style, "traced");
+  assert.equal(meta.resolvedStyle, "traced");
+  assert.equal(meta.lineartRuntime, "traced");
+  assert.equal(meta.vectorised, true);
+  assert.match(svg, /<path/);
+});
+
 test("without the drawing model, automatic picks halftone, line art or illustration from how dark the product is", async () => {
   // Point the engine at a model file that does not exist: the fallback must be
   // the tone-based pick, not a failure.

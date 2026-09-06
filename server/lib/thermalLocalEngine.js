@@ -63,9 +63,15 @@ const numberOr = (value, fallback) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+// Internal only: the illustration service's page comes back through the
+// engine under this style. It is never offered in settings, and it must not be
+// normalised away — coerced to "auto" it would re-enter the service and loop.
+const INTERNAL_STYLES = new Set(["traced"]);
+
 export const normalizeThermalLocalOptions = (options = {}) => {
+  const requested = String(options.style || "").trim().toLowerCase();
   return {
-    style: normalizeThermalStyle(options.style),
+    style: INTERNAL_STYLES.has(requested) ? requested : normalizeThermalStyle(requested),
     canvas: clamp(Math.round(numberOr(options.canvas, DEFAULT_CANVAS)), 256, 2048),
     fill: clamp(numberOr(options.fill, DEFAULT_FILL), 0.5, 1),
     // 0 = lightest possible burn, 100 = heaviest. 50 is the neutral setting.
@@ -987,25 +993,7 @@ const LINEART_INK_CUT = 0.56;
 const LINEART_STROKE_WEIGHT = 3;
 
 const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 } = {}) => {
-  const scale = LINEART_MODEL_LONG_SIDE / Math.max(width, height);
-  const modelWidth = Math.max(LINEART_MODEL_STRIDE, Math.round((width * scale) / LINEART_MODEL_STRIDE) * LINEART_MODEL_STRIDE);
-  const modelHeight = Math.max(LINEART_MODEL_STRIDE, Math.round((height * scale) / LINEART_MODEL_STRIDE) * LINEART_MODEL_STRIDE);
-
-  const { data, info } = await sharp(rawBuffer(rgb), { raw: { width, height, channels: 3 } })
-    .resize({ width: modelWidth, height: modelHeight, fit: "fill", kernel: sharp.kernel.lanczos3 })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const channels = Number(info.channels || 3);
-  const modelRgb = new Uint8Array(modelWidth * modelHeight * 3);
-  for (let index = 0; index < modelWidth * modelHeight; index += 1) {
-    modelRgb[index * 3] = data[index * channels];
-    modelRgb[(index * 3) + 1] = data[(index * channels) + 1];
-    modelRgb[(index * 3) + 2] = data[(index * channels) + 2];
-  }
-
-  const { renderLineartMap } = await import("./thermalLineartModel.js");
-  const result = await renderLineartMap({ rgb: modelRgb, width: modelWidth, height: modelHeight });
+  const { result, modelWidth, modelHeight } = await computeLineartMap(rgb, width, height);
 
   // Ink level moves the cut: heavier keeps the model's fainter strokes.
   const baseCut = clamp(LINEART_INK_CUT + (inkOffset * 0.18), 0.35, 0.85);
@@ -1074,6 +1062,76 @@ const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 }
     passes += 1;
   }
   return { ink: traced.ink, svg: traced.svg, runtime: result.runtime, durationMs: result.durationMs, modelWidth, modelHeight, cut, passes };
+};
+
+/**
+ * Run the line-drawing model over a colour crop and return its soft map at
+ * model resolution (long side 512, sides rounded to the network stride).
+ */
+const computeLineartMap = async (rgb, width, height) => {
+  const scale = LINEART_MODEL_LONG_SIDE / Math.max(width, height);
+  const modelWidth = Math.max(LINEART_MODEL_STRIDE, Math.round((width * scale) / LINEART_MODEL_STRIDE) * LINEART_MODEL_STRIDE);
+  const modelHeight = Math.max(LINEART_MODEL_STRIDE, Math.round((height * scale) / LINEART_MODEL_STRIDE) * LINEART_MODEL_STRIDE);
+
+  const { data, info } = await sharp(rawBuffer(rgb), { raw: { width, height, channels: 3 } })
+    .resize({ width: modelWidth, height: modelHeight, fit: "fill", kernel: sharp.kernel.lanczos3 })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = Number(info.channels || 3);
+  const modelRgb = new Uint8Array(modelWidth * modelHeight * 3);
+  for (let index = 0; index < modelWidth * modelHeight; index += 1) {
+    modelRgb[index * 3] = data[index * channels];
+    modelRgb[(index * 3) + 1] = data[(index * channels) + 1];
+    modelRgb[(index * 3) + 2] = data[(index * channels) + 2];
+  }
+
+  const { renderLineartMap } = await import("./thermalLineartModel.js");
+  const result = await renderLineartMap({ rgb: modelRgb, width: modelWidth, height: modelHeight });
+  return { result, modelWidth, modelHeight };
+};
+
+/**
+ * Traced: for an image that is already a clean drawing on white — the
+ * illustration service's output. No model, no edge finding: cut the page at a
+ * fixed level, close hairline gaps, and trace the strokes to vector with the
+ * same pen weight the other drawing styles get.
+ */
+const TRACED_INK_LEVEL = 150;
+
+const tracedBinarize = async (gray, width, height, background, { inkOffset = 0 } = {}) => {
+  const upscale = 2;
+  const bigWidth = width * upscale;
+  const bigHeight = height * upscale;
+  const big = await resizePlane(gray, width, height, bigWidth, bigHeight, sharp.kernel.lanczos3);
+  const level = clamp(Math.round(TRACED_INK_LEVEL + (inkOffset * 50)), 60, 220);
+
+  let strokes = new Uint8Array(bigWidth * bigHeight);
+  for (let index = 0; index < strokes.length; index += 1) strokes[index] = big[index] < level ? 1 : 0;
+  strokes = dilateInk(strokes, bigWidth, bigHeight, 2);
+  strokes = erodeInk(strokes, bigWidth, bigHeight, 2);
+
+  let svg = "";
+  let plane;
+  try {
+    const traced = await traceStrokesToSvg(strokes, bigWidth, bigHeight, {
+      strokeWidth: clamp(LINEART_STROKE_WEIGHT + (inkOffset * 2.5), 0, 8),
+    });
+    plane = await rasterizeSvgPlane(traced, width, height);
+    svg = traced;
+  } catch (error) {
+    console.warn("[thermal-artwork] vectorising failed, keeping the raster strokes", { message: error?.message || String(error) });
+    const raster = new Uint8Array(strokes.length);
+    for (let index = 0; index < raster.length; index += 1) raster[index] = strokes[index] ? 0 : 255;
+    plane = await resizePlane(raster, bigWidth, bigHeight, width, height, sharp.kernel.lanczos3);
+  }
+
+  let ink = new Uint8Array(width * height);
+  for (let index = 0; index < ink.length; index += 1) {
+    if (!background[index] && plane[index] < 150) ink[index] = 1;
+  }
+  ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02)), 8);
+  return { ink, svg };
 };
 
 const binarizeForStyle = (style, gray, width, height, background, bias, tone = 0) => {
@@ -1176,9 +1234,16 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   const { isLineartModelAvailable } = await import("./thermalLineartModel.js");
   const modelAvailable = await isLineartModelAvailable();
   const auto = options.style === "auto" ? resolveAutoStyle(scaledGray, scaledBackground) : null;
-  let style = auto ? (modelAvailable ? "lineart" : auto.style) : options.style;
+  // Order of preference under "auto": the illustration service (a generative
+  // redraw), then the local drawing model, then the tone-based filter pick.
+  const { isDrawingServiceReady } = await import("./thermalDrawingClient.js");
+  const serviceReady = options.style === "auto" || options.style === "diffusion" ? await isDrawingServiceReady() : false;
+  let style = auto
+    ? (serviceReady ? "diffusion" : modelAvailable ? "lineart" : auto.style)
+    : options.style;
   let lineart = null;
   let lineartError = "";
+  let diffusionError = "";
 
   const { gray: stretched, subjectCount } = stretchSubjectContrast(scaledGray, scaledBackground);
 
@@ -1187,6 +1252,54 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   const inkOffset = (options.inkLevel - 50) / 50;
   let tone = 0;
   let ink = null;
+
+  if (style === "diffusion") {
+    try {
+      if (!modelAvailable) throw new Error("the drawing model is needed to guide the illustration service");
+      const { result: control } = await computeLineartMap(croppedRgb, padded.width, padded.height);
+      const controlPlane = new Uint8Array(control.width * control.height);
+      for (let index = 0; index < controlPlane.length; index += 1) controlPlane[index] = Math.round(control.map[index] * 255);
+      const controlPng = await sharp(rawBuffer(controlPlane), { raw: { width: control.width, height: control.height, channels: 1 } })
+        .png({ compressionLevel: 6 })
+        .toBuffer();
+
+      const { drawFromLineart } = await import("./thermalDrawingClient.js");
+      const drawn = await drawFromLineart({ controlPng, seed: 1 });
+
+      // The service hands back a finished drawing on a near-white page. Treat
+      // it as a fresh source: the same backdrop flood, shadow peel and crop
+      // apply, and the strokes are traced to vector through the "traced"
+      // style, which cuts a clean drawing rather than a photo.
+      const page = await sharp(drawn.png).normalise({ lower: 1, upper: 99 }).png().toBuffer();
+      const traced = await renderThermalArtwork(page, { ...options, style: "traced" });
+      return {
+        buffer: traced.buffer,
+        svg: traced.svg,
+        meta: {
+          ...traced.meta,
+          style: options.style,
+          resolvedStyle: "diffusion",
+          autoDarkShare: auto ? Number(auto.darkShare.toFixed(4)) : null,
+          modelAvailable,
+          serviceReady,
+          diffusionServiceMs: drawn.ms,
+          diffusionControlSize: `${control.width}x${control.height}`,
+          diffusionError: "",
+        },
+      };
+    } catch (error) {
+      diffusionError = error?.message || String(error);
+      console.warn("[thermal-artwork] illustration service failed, falling back to the drawing model", { message: diffusionError });
+      style = modelAvailable ? "lineart" : (auto ? auto.style : "sketch");
+    }
+  }
+
+  if (style === "traced") {
+    // A clean drawing on white: cut it directly and trace the strokes.
+    const traced = await tracedBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset });
+    lineart = { ink: traced.ink, svg: traced.svg, runtime: "traced", durationMs: 0, modelWidth: artWidth, modelHeight: artHeight };
+    ink = traced.ink;
+  }
 
   if (style === "lineart") {
     try {
@@ -1220,7 +1333,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   let ratio = inkRatio(ink, scaledBackground);
   let passes = 1;
 
-  if (style === "sketch" || style === "lineart") {
+  if (style === "sketch" || style === "lineart" || style === "traced") {
     // Coverage is not the goal of a drawing: a clean shoe is mostly white.
   } else if (style === "halftone") {
     // Stepping the tone coarsely overshoots: one nudge too many and a black
@@ -1324,6 +1437,8 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       lineartModelSize: lineart ? `${lineart.modelWidth}x${lineart.modelHeight}` : "",
       lineartError,
       vectorised: Boolean(lineart?.svg),
+      serviceReady,
+      diffusionError,
       inkLevel: options.inkLevel,
       backgroundRemoved,
       backgroundRatio: Number(backgroundRatio.toFixed(4)),
