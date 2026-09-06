@@ -126,7 +126,7 @@ const chatCompletionJson = async (client, { model, timeout, instructions, prompt
   const completion = await client.chat.completions.create(
     {
       model,
-      temperature: 0.4,
+      temperature: 0.3,
       messages: [
         { role: "system", content: instructions },
         {
@@ -548,6 +548,7 @@ const COMPACT_VOICE_RULES = [
   "ممنوع: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين، الرياضة، الأداء العالي.",
   "استخدم الحقائق المذكورة فقط. لا تخترع خامة أو تقنية أو استخدامات. لا تكرر اسم المنتج أو الماركة أكثر من مرة.",
   "لا تخترع كلمات. لو مش متأكد من كلمة عربية استخدم كلمة أبسط.",
+  "كل جملة لازم يكون معناها واضح ومكتمل. لا تكتب جمل غامضة أو ناقصة، ولا تشرح مواقف افتراضية للعميل.",
 ].join("\n");
 
 const buildCompactPrompt = (context = {}, target = "all") => {
