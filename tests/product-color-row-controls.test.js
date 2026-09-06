@@ -3,8 +3,29 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const pageUrl = new URL("../src/modules/products/pages/CreateProduct.jsx", import.meta.url);
+const editPageUrl = new URL("../src/modules/products/pages/ProductEdit.jsx", import.meta.url);
 
 const countOf = (source, needle) => source.split(needle).length - 1;
+
+const ROW_CONTROLS = [
+  ["storefront visibility", `updateColorGroup(group.id, "is_storefront_visible"`],
+  ["thermal on save", `updateColorGroup(group.id, "generate_thermal_artwork"`],
+];
+
+// Every control on the colour row has to swallow its own click — the row itself is the
+// accordion trigger, so a neighbour's stopPropagation must not be allowed to cover for it.
+const assertRowControlsSwallowClicks = (source, page) => {
+  for (const [label, marker] of ROW_CONTROLS) {
+    const at = source.indexOf(marker);
+    assert.ok(at > 0, `${page}: ${label} control should be findable`);
+    const buttonStart = source.lastIndexOf("<button", at);
+    assert.ok(buttonStart > 0, `${page}: ${label} control should sit inside a button`);
+    assert.ok(
+      source.slice(buttonStart, at).includes("event.stopPropagation();"),
+      `${page}: ${label} must stop the click from toggling the panel`
+    );
+  }
+};
 
 test("colour visibility and Thermal-on-save sit on the collapsed colour row, not inside the panel", async () => {
   const source = await readFile(pageUrl, "utf8");
@@ -39,22 +60,6 @@ test("colour visibility and Thermal-on-save sit on the collapsed colour row, not
 });
 
 test("the row controls do not open or close the colour panel when clicked", async () => {
-  const source = await readFile(pageUrl, "utf8");
-
-  for (const [label, marker] of [
-    ["storefront visibility", `updateColorGroup(group.id, "is_storefront_visible"`],
-    ["thermal on save", `updateColorGroup(group.id, "generate_thermal_artwork"`],
-  ]) {
-    const at = source.indexOf(marker);
-    assert.ok(at > 0, `${label} control should be findable`);
-    // The whole row is the accordion trigger, so each control has to swallow the click.
-    // Scope the check to THIS button — a neighbour's stopPropagation must not cover for it.
-    const buttonStart = source.lastIndexOf("<button", at);
-    assert.ok(buttonStart > 0, `${label} control should sit inside a button`);
-    const handler = source.slice(buttonStart, at);
-    assert.ok(
-      handler.includes("event.stopPropagation();"),
-      `${label} must stop the click from toggling the panel`
-    );
-  }
+  assertRowControlsSwallowClicks(await readFile(pageUrl, "utf8"), "create product");
+  assertRowControlsSwallowClicks(await readFile(editPageUrl, "utf8"), "edit product");
 });

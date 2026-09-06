@@ -4627,7 +4627,12 @@ function ProductEdit() {
                       <button
                         type="button"
                         aria-pressed={Boolean(group.generate_thermal_artwork)}
-                        onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
+                        onClick={(event) => {
+                          // The whole row is the accordion trigger: without this, arming
+                          // Thermal for a colour also opens (or closes) its panel.
+                          event.stopPropagation();
+                          updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork);
+                        }}
                         disabled={!getPrimaryColorImage(group)}
                         title={`إنشاء Thermal لهذا اللون عند الحفظ — ${group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}`}
                         className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
