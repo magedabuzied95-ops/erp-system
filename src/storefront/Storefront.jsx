@@ -28,6 +28,7 @@ import {
   normalizeShippingQuote,
 } from "../shared/lib/shippingCheckout";
 import usePageTitle from "../shared/hooks/usePageTitle";
+import StorefrontScrollTopButton from "./components/StorefrontScrollTopButton";
 import { safeSetSessionStorage } from "../utils/safeStorage";
 import { signalContentPainted } from "../shared/utils/contentPainted";
 import { getPublicSettingsResponse } from "../shared/api/publicSettings";
@@ -3325,6 +3326,13 @@ function PremiumHomePage(props) {
       {/* Not a section. The footer is the end of the page, and an owner who
           dragged it to the top would only be reporting a bug. */}
       <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
+      {/* Also not a section: it floats over the page and has no place in an order.
+          It is portalled to the body, so it takes the accent as a value rather
+          than reading the --m1h-* token declared on this root. */}
+      <StorefrontScrollTopButton
+        isRtl={isRtl}
+        accent={siteDesign?.palette?.[themeTokens.resolvedMode]?.accent || themeTokens.accent}
+      />
     </div>
   );
 }
