@@ -10,6 +10,8 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
   GripVertical,
   ImagePlus,
   Layers3,
@@ -3723,6 +3725,33 @@ function CreateProduct() {
                           </span>
                           <button
                             type="button"
+                            aria-pressed={group.is_storefront_visible !== false}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false);
+                            }}
+                            className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-primary/40 bg-primary/15 text-primary" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
+                            title={group.is_storefront_visible !== false ? "اللون ظاهر على الموقع — الإخفاء لا يحذف اللون ولا يؤثر على المخزون أو الـPOS" : "اللون مخفي من الموقع — لم يُحذف ولا يتأثر المخزون أو الـPOS"}
+                          >
+                            {group.is_storefront_visible !== false ? <Eye size={15} /> : <EyeOff size={15} />}
+                            <span>{group.is_storefront_visible !== false ? "ظاهر في الموقع" : "مخفي من الموقع"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-pressed={Boolean(group.generate_thermal_artwork)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork);
+                            }}
+                            disabled={!getPrimaryColorImage(group)}
+                            title={`إنشاء Thermal لهذا اللون عند الحفظ — ${group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}`}
+                            className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text-muted hover:bg-surface-hover"}`}
+                          >
+                            <span>Thermal عند الحفظ</span>
+                            <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={(event) => {
                               event.stopPropagation();
                               removeColorGroup(group.id);
@@ -3778,17 +3807,6 @@ function CreateProduct() {
                                   }}
                                 />
                               </label>
-                              <button
-                                type="button"
-                                aria-pressed={Boolean(group.generate_thermal_artwork)}
-                                onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
-                                disabled={!getPrimaryColorImage(group)}
-                                title={`إنشاء Thermal لهذا اللون عند الحفظ — ${group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}`}
-                                className={`inline-flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-primary/45 bg-primary/15 text-primary" : "border-border bg-surface text-text hover:bg-surface"}`}
-                              >
-                                <span>Thermal عند الحفظ</span>
-                                <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
-                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleGenerateThermalImage({ colorGroup: group })}
@@ -3997,19 +4015,6 @@ function CreateProduct() {
                                     ))}
                                   </div>
                                   <p className="mt-1 text-[11px] text-text-muted">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
-                                </div>
-                                <div>
-                                  <label className="text-sm font-semibold text-text">ظهور اللون على الموقع</label>
-                                  <button
-                                    type="button"
-                                    aria-pressed={group.is_storefront_visible !== false}
-                                    onClick={() => updateColorGroup(group.id, "is_storefront_visible", group.is_storefront_visible === false)}
-                                    className={`mt-1.5 flex h-[var(--control-height-md)] w-full items-center justify-between rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${group.is_storefront_visible !== false ? "border-primary/40 bg-primary/15 text-primary" : "border-rose-400/35 bg-rose-400/10 text-rose-100"}`}
-                                  >
-                                    <span>{group.is_storefront_visible !== false ? "ظاهر على الموقع" : "مخفي من الموقع"}</span>
-                                    <span>{group.is_storefront_visible !== false ? "مفعّل" : "متوقف"}</span>
-                                  </button>
-                                  <p className="mt-1 text-[11px] text-text-muted">الإخفاء لا يحذف اللون ولا يؤثر على المخزون أو الـPOS.</p>
                                 </div>
                               </div>
 
