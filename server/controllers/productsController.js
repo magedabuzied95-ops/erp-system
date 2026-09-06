@@ -750,6 +750,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS variation_mode VARCHAR(30) NOT NULL DEFAULT 'full_variations',
             ADD COLUMN IF NOT EXISTS fixed_size_label VARCHAR(80) DEFAULT '',
             ADD COLUMN IF NOT EXISTS qr_token TEXT,
+            ADD COLUMN IF NOT EXISTS last_stocked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
             ADD COLUMN IF NOT EXISTS tenant_id BIGINT
         `);
         await client.query(`UPDATE products SET is_pos_favorite = FALSE WHERE is_pos_favorite IS NULL`);
@@ -1480,6 +1481,16 @@ const normalizeResponse = (rows = []) => ({
   data: rows,
   products: rows,
 });
+
+// "Newest first" means newest ARRIVAL, not lowest row id. Re-buying a product that
+// already exists keeps its original id, so ordering by id alone buried a fresh restock
+// at the bottom of the products page and the POS grid. products.last_stocked_at is
+// stamped every time a purchase brings stock in (and defaults to creation time for a
+// brand-new product), so a restocked product climbs back to the top. Rows that predate
+// the column all share one backfilled timestamp, so among themselves they keep the old
+// id DESC order.
+const productRecencyOrderSql = (alias = "p") =>
+  `COALESCE(${alias}.last_stocked_at, to_timestamp(0)) DESC, ${alias}.id DESC`;
 
 const getProductColumns = async () => {
   if (!productColumnsReadyPromise) {
@@ -3468,6 +3479,9 @@ const ensureProductAdminListIndexes = async () => {
       await ensureProductSchema();
       await ensureProductVariantSchema();
       await ensureProductColorArticleCodeSchema();
+      // The products list and the POS grid both order by "last time stock came in",
+      // so the newest arrival — including a restock of an old product — sits first.
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_products_last_stocked_at ON products (last_stocked_at DESC, id DESC)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_products_brand_id ON products (brand_id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id)`);
@@ -3995,7 +4009,7 @@ export const getProductsAdminList = async (req, res) => {
       ${colorImageStatusJoinSql}
       ${audienceJoinSql}
       ${whereSql}
-      ORDER BY p.id DESC
+      ORDER BY ${productRecencyOrderSql("p")}
       ${limitSql}
       `,
       values
@@ -4196,7 +4210,7 @@ export const getProducts = async (req, res) => {
         LEFT JOIN brands b ON b.id = p.brand_id
         LEFT JOIN units u ON u.id = p.unit_id
         ${scopeClause.whereSql}
-        ORDER BY p.id DESC
+        ORDER BY ${productRecencyOrderSql("p")}
       `,
       values: scopeClause.values,
       scope,
@@ -4599,7 +4613,7 @@ export const getProductsWithVariants = async (req, res) => {
         LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
         LEFT JOIN units u ON u.id = p.unit_id
         ${productWhereSql}
-        ORDER BY p.id DESC
+        ORDER BY ${productRecencyOrderSql("p")}
         ${limitSql}
       `,
       values: productQueryValues,

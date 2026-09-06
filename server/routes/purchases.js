@@ -353,6 +353,7 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS last_purchase_pricing_at TIMESTAMPTZ NULL,
+      ADD COLUMN IF NOT EXISTS last_stocked_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
   await ensurePurchaseItemCostSchema(client);
@@ -885,6 +886,33 @@ const markPurchaseStockApplied = async (client, purchaseId) => {
     [purchaseId]
   );
   return result.rows[0] || null;
+};
+
+// Re-buying a product that already exists keeps its original row id, so the products
+// page and the POS grid — both ordered newest-arrival-first — used to leave the restock
+// buried at the bottom next to products nobody has touched in months. Every path that
+// brings stock IN stamps products.last_stocked_at, which is what those lists sort on.
+// Deliberately not called when stock goes OUT (reversal, delete, a negative edit delta):
+// removing stock is not an arrival and must not float the product up.
+const stampProductsRestocked = async (client, { tenantId, productIds = [] }) => {
+  const ids = [...new Set(
+    (Array.isArray(productIds) ? productIds : [])
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  )];
+  if (!ids.length) return 0;
+  const columns = await getTableColumns(client, "products");
+  if (!columns.has("last_stocked_at")) return 0;
+  const result = await client.query(
+    `
+    UPDATE products
+    SET last_stocked_at = CURRENT_TIMESTAMP
+    WHERE id = ANY($1::bigint[])
+      AND ($2::bigint IS NULL OR tenant_id = $2 OR tenant_id IS NULL)
+    `,
+    [ids, tenantId]
+  );
+  return result.rowCount || 0;
 };
 
 const resetConsumedDefaultPurchaseQty = async (client, { tenantId, items = [] }) => {
@@ -3685,6 +3713,17 @@ const applyReceivedPurchaseLineDeltas = async (client, { tenantId, purchase, nex
     );
   }
 
+  // Only a POSITIVE delta is an arrival; a corrected-down line must not float the product up.
+  await stampProductsRestocked(client, {
+    tenantId,
+    productIds: [
+      ...movementRows.filter((row) => Number(row.quantity || 0) > 0).map((row) => row.product_id),
+      ...[...productDeltaMap.entries()]
+        .filter(([, delta]) => Number(delta.quantityDelta || 0) > 0)
+        .map(([productId]) => productId),
+    ],
+  });
+
   await bulkInsertInventoryMovements(client, movementRows);
 
   const valueIncrease = deltas.reduce((sum, delta) => sum + Math.max(0, Number(delta.valueDelta || 0)), 0);
@@ -4570,6 +4609,13 @@ router.post(
         }
       }
 
+      await stampProductsRestocked(client, {
+        tenantId,
+        productIds: (purchase.items || [])
+          .filter((item) => Number(item.quantity || item.qty || 0) > 0)
+          .map((item) => item.product_id),
+      });
+
       await markPurchaseStockApplied(client, purchase.id);
       await client.query(
         `
@@ -4781,6 +4827,13 @@ router.post(
           });
         }
       }
+
+      await stampProductsRestocked(client, {
+        tenantId,
+        productIds: items
+          .filter((item) => Number(item.quantity || 0) > 0)
+          .map((item) => item.product_id),
+      });
 
       await client.query(
         `
@@ -5386,6 +5439,12 @@ router.post(
       }
 
       if (shouldApplyStock) {
+        await runStep("products.stampRestocked", () => stampProductsRestocked(client, {
+          tenantId,
+          productIds: itemsWithInsertedIds
+            .filter((item) => Number(item.quantity || 0) > 0)
+            .map((item) => item.product_id),
+        }));
         const updatedPurchase = await runStep("purchase.markStockApplied", () => markPurchaseStockApplied(client, purchase.id));
         if (updatedPurchase) Object.assign(purchase, updatedPurchase);
         console.log("[purchase:create] stock applied flag set", {
