@@ -22,7 +22,7 @@ import {
  * meaningful.
  */
 
-export const THERMAL_LOCAL_ENGINE_VERSION = "v2-local-sketch";
+export const THERMAL_LOCAL_ENGINE_VERSION = "v3-local-lineart";
 
 export const THERMAL_LOCAL_STYLES = THERMAL_ARTWORK_STYLES;
 export const DEFAULT_THERMAL_LOCAL_STYLE = THERMAL_ARTWORK_DEFAULTS.style;
@@ -96,20 +96,32 @@ const readGrayscale = async (input, canvas) => {
     .rotate()
     .flatten({ background: { r: 255, g: 255, b: 255 } })
     .resize({ width: canvas, height: canvas, fit: "inside", withoutEnlargement: false })
-    .grayscale()
+    .removeAlpha()
+    .toColourspace("srgb")
     .raw()
     .toBuffer({ resolveWithObject: true });
 
   const width = Number(info.width || 0);
   const height = Number(info.height || 0);
-  const channels = Number(info.channels || 1);
+  const channels = Number(info.channels || 3);
   if (!width || !height) return null;
 
-  const gray = new Uint8Array(width * height);
-  for (let index = 0; index < gray.length; index += 1) {
-    gray[index] = data[index * channels];
+  // Keep the colour plane too: the line-drawing model wants RGB, while every
+  // filter here works on luminance.
+  const pixels = width * height;
+  const gray = new Uint8Array(pixels);
+  const rgb = new Uint8Array(pixels * 3);
+  for (let index = 0; index < pixels; index += 1) {
+    const offset = index * channels;
+    const red = data[offset];
+    const green = channels > 1 ? data[offset + 1] : red;
+    const blue = channels > 2 ? data[offset + 2] : red;
+    rgb[index * 3] = red;
+    rgb[(index * 3) + 1] = green;
+    rgb[(index * 3) + 2] = blue;
+    gray[index] = Math.round((red * 0.299) + (green * 0.587) + (blue * 0.114));
   }
-  return { gray, width, height };
+  return { gray, rgb, width, height };
 };
 
 /**
@@ -806,6 +818,78 @@ const resolveAutoStyle = (gray, background) => {
   return { style, darkShare };
 };
 
+/**
+ * Lineart: the drawn look from the line-drawing model in thermalLineartModel.
+ * The colour crop goes to the network at its own aspect ratio (long side 512,
+ * dimensions rounded to the stride of the network), the returned ink map is
+ * cut at a fixed level — the model already decided what is a stroke — and
+ * masked to the product so a drawn floor shadow never reaches the label.
+ */
+const LINEART_MODEL_LONG_SIDE = 512;
+const LINEART_MODEL_STRIDE = 8;
+const LINEART_INK_CUT = 0.62;
+
+const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 } = {}) => {
+  const scale = LINEART_MODEL_LONG_SIDE / Math.max(width, height);
+  const modelWidth = Math.max(LINEART_MODEL_STRIDE, Math.round((width * scale) / LINEART_MODEL_STRIDE) * LINEART_MODEL_STRIDE);
+  const modelHeight = Math.max(LINEART_MODEL_STRIDE, Math.round((height * scale) / LINEART_MODEL_STRIDE) * LINEART_MODEL_STRIDE);
+
+  const { data, info } = await sharp(rawBuffer(rgb), { raw: { width, height, channels: 3 } })
+    .resize({ width: modelWidth, height: modelHeight, fit: "fill", kernel: sharp.kernel.lanczos3 })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const channels = Number(info.channels || 3);
+  const modelRgb = new Uint8Array(modelWidth * modelHeight * 3);
+  for (let index = 0; index < modelWidth * modelHeight; index += 1) {
+    modelRgb[index * 3] = data[index * channels];
+    modelRgb[(index * 3) + 1] = data[(index * channels) + 1];
+    modelRgb[(index * 3) + 2] = data[(index * channels) + 2];
+  }
+
+  const { renderLineartMap } = await import("./thermalLineartModel.js");
+  const result = await renderLineartMap({ rgb: modelRgb, width: modelWidth, height: modelHeight });
+
+  // Ink level moves the cut: heavier keeps the model's fainter strokes.
+  const baseCut = clamp(LINEART_INK_CUT + (inkOffset * 0.18), 0.35, 0.85);
+
+  const cutAt = async (cut) => {
+    let strokes = new Uint8Array(result.width * result.height);
+    for (let index = 0; index < strokes.length; index += 1) {
+      strokes[index] = result.map[index] < cut ? 1 : 0;
+    }
+    // The model draws one-pixel strokes. Left as they are, the downscale to
+    // the label breaks them into dashes; a one-pixel dilation at model
+    // resolution gives each stroke enough body to survive as a continuous line.
+    strokes = dilateInk(strokes, result.width, result.height, 1);
+    const plane = new Uint8Array(strokes.length);
+    for (let index = 0; index < plane.length; index += 1) plane[index] = strokes[index] ? 0 : 255;
+
+    // Back to the artwork size through an anti-aliased resize and re-cut,
+    // which rounds the strokes the same way the sketch style does.
+    const small = await resizePlane(plane, result.width, result.height, width, height, sharp.kernel.lanczos3);
+    let ink = new Uint8Array(width * height);
+    for (let index = 0; index < ink.length; index += 1) {
+      if (!background[index] && small[index] < 165) ink[index] = 1;
+    }
+    ink = despeckleInk(ink, width, height, Math.max(6, Math.round(Math.min(width, height) * 0.015)), 8);
+    return ink;
+  };
+
+  // A black shoe comes back as dense hatching. Tightening the cut keeps the
+  // strong strokes and drops the faint ones, on the same map — no second run
+  // of the network.
+  let cut = baseCut;
+  let ink = await cutAt(cut);
+  let passes = 1;
+  while (passes < 4 && inkRatio(ink, background) > INK_RATIO_MAX && cut > 0.25) {
+    cut = Math.max(0.2, cut - 0.1);
+    ink = await cutAt(cut);
+    passes += 1;
+  }
+  return { ink, runtime: result.runtime, durationMs: result.durationMs, modelWidth, modelHeight, cut, passes };
+};
+
 const binarizeForStyle = (style, gray, width, height, background, bias, tone = 0) => {
   if (style === "halftone") return halftoneBinarize(gray, width, height, background, bias, tone);
   if (style === "outline") return edgeBinarize(gray, width, height, background, bias);
@@ -823,7 +907,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   const loaded = await readGrayscale(input, options.canvas);
   if (!loaded) throw new Error("Thermal source image could not be decoded");
 
-  const { gray, width, height } = loaded;
+  const { gray, rgb, width, height } = loaded;
 
   const measureBackground = (mask) => {
     let pixels = 0;
@@ -869,6 +953,11 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
 
   const croppedGray = cropPlane(gray, width, padded);
   const croppedBackgroundRaw = cropPlane(background, width, padded);
+  const croppedRgb = new Uint8Array(padded.width * padded.height * 3);
+  for (let y = 0; y < padded.height; y += 1) {
+    const sourceRow = (((padded.top + y) * width) + padded.left) * 3;
+    croppedRgb.set(rgb.subarray(sourceRow, sourceRow + (padded.width * 3)), y * padded.width * 3);
+  }
 
   const margin = Math.round((options.canvas * (1 - options.fill)) / 2);
   const artBox = Math.max(64, options.canvas - (2 * margin));
@@ -884,24 +973,58 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   const scaledBackground = new Uint8Array(artWidth * artHeight);
   for (let index = 0; index < scaledBackground.length; index += 1) scaledBackground[index] = scaledMask[index] >= 128 ? 1 : 0;
 
+  // The drawing model wins whenever it is installed: it is the only path that
+  // draws what the photo merely implies. The tone-based pick stays as the
+  // fallback for a box without the model, or a model that fails to run.
+  const { isLineartModelAvailable } = await import("./thermalLineartModel.js");
+  const modelAvailable = await isLineartModelAvailable();
   const auto = options.style === "auto" ? resolveAutoStyle(scaledGray, scaledBackground) : null;
-  const style = auto ? auto.style : options.style;
+  let style = auto ? (modelAvailable ? "lineart" : auto.style) : options.style;
+  let lineart = null;
+  let lineartError = "";
 
   const { gray: stretched, subjectCount } = stretchSubjectContrast(scaledGray, scaledBackground);
 
   // Ink level moves the knob each style actually responds to: the threshold for
   // the line-art family, the coverage target for halftone.
   const inkOffset = (options.inkLevel - 50) / 50;
-  let bias = style === "halftone" ? 0 : inkOffset * 30;
   let tone = 0;
-  let ink = style === "sketch"
-    ? await sketchBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset })
-    : binarizeForStyle(style, stretched, artWidth, artHeight, scaledBackground, bias, tone);
+  let ink = null;
+
+  if (style === "lineart") {
+    try {
+      const { data: artRgbData, info: artRgbInfo } = await sharp(rawBuffer(croppedRgb), { raw: { width: padded.width, height: padded.height, channels: 3 } })
+        .resize({ width: artWidth, height: artHeight, fit: "fill", kernel: sharp.kernel.lanczos3 })
+        .removeAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const artChannels = Number(artRgbInfo.channels || 3);
+      const artRgb = new Uint8Array(artWidth * artHeight * 3);
+      for (let index = 0; index < artWidth * artHeight; index += 1) {
+        artRgb[index * 3] = artRgbData[index * artChannels];
+        artRgb[(index * 3) + 1] = artRgbData[(index * artChannels) + 1];
+        artRgb[(index * 3) + 2] = artRgbData[(index * artChannels) + 2];
+      }
+      lineart = await lineartBinarize(artRgb, artWidth, artHeight, scaledBackground, { inkOffset });
+      ink = lineart.ink;
+    } catch (error) {
+      lineartError = error?.message || String(error);
+      console.warn("[thermal-artwork] drawing model failed, falling back to the sketch filter", { message: lineartError });
+      style = auto ? auto.style : "sketch";
+    }
+  }
+
+  let bias = style === "halftone" ? 0 : inkOffset * 30;
+  if (!ink) {
+    ink = style === "sketch"
+      ? await sketchBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset })
+      : binarizeForStyle(style, stretched, artWidth, artHeight, scaledBackground, bias, tone);
+  }
   let ratio = inkRatio(ink, scaledBackground);
   let passes = 1;
 
-  if (style === "sketch") {
-    // Coverage is not the goal of a sketch: a clean shoe is mostly white.
+  if (style === "sketch" || style === "lineart") {
+    // Coverage is not the goal of a drawing: a clean shoe is mostly white.
   } else if (style === "halftone") {
     // Stepping the tone coarsely overshoots: one nudge too many and a black
     // shoe washes out to a few scattered dots. Bisect instead, and stop at the
@@ -995,6 +1118,11 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       style: options.style,
       resolvedStyle: style,
       autoDarkShare: auto ? Number(auto.darkShare.toFixed(4)) : null,
+      modelAvailable,
+      lineartRuntime: lineart?.runtime || "",
+      lineartMs: lineart?.durationMs ?? null,
+      lineartModelSize: lineart ? `${lineart.modelWidth}x${lineart.modelHeight}` : "",
+      lineartError,
       inkLevel: options.inkLevel,
       backgroundRemoved,
       backgroundRatio: Number(backgroundRatio.toFixed(4)),

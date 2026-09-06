@@ -131,24 +131,45 @@ test("unknown options fall back to the shipped defaults", () => {
   assert.equal(options.canvas, 256);
 });
 
-test("automatic picks halftone, line art or illustration from how dark the product is", async () => {
-  // A near-black product: line art would collapse to an empty outline on the label.
+test("automatic uses the drawing model whenever it is installed", async () => {
+  const { isLineartModelAvailable } = await import("../server/lib/thermalLineartModel.js");
+  if (!(await isLineartModelAvailable())) return;
+
   const dark = await renderThermalArtwork(await buildProductPhoto({ body: 40, stripe: 20 }), { canvas: 448 });
   assert.equal(dark.meta.style, "auto");
-  assert.equal(dark.meta.resolvedStyle, "halftone");
-  assert.ok(dark.meta.autoDarkShare > 0.6);
+  assert.equal(dark.meta.modelAvailable, true);
+  assert.equal(dark.meta.resolvedStyle, "lineart");
+  assert.equal(dark.meta.lineartError, "");
+  assert.ok(dark.meta.lineartMs > 0);
+  assert.ok(["node", "web"].includes(dark.meta.lineartRuntime), `runtime ${dark.meta.lineartRuntime}`);
+});
 
-  // Heavy black trim on a pale body: the sketch would fill the trim as blobs,
-  // the adaptive threshold keeps the texture inside it. Stripes are 8 of every
-  // 40 columns, so wide dark stripes land the dark share between the two cuts.
-  const trimmed = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20, stripeWidth: 18 }), { canvas: 448 });
-  assert.equal(trimmed.meta.resolvedStyle, "detail");
-  assert.ok(trimmed.meta.autoDarkShare >= 0.35 && trimmed.meta.autoDarkShare < 0.6, `dark share ${trimmed.meta.autoDarkShare}`);
+test("without the drawing model, automatic picks halftone, line art or illustration from how dark the product is", async () => {
+  // Point the engine at a model file that does not exist: the fallback must be
+  // the tone-based pick, not a failure.
+  const previous = process.env.THERMAL_LINEART_MODEL;
+  process.env.THERMAL_LINEART_MODEL = "C:/definitely/not/here/lineart.onnx";
+  try {
+    // A near-black product: line art would collapse to an empty outline on the label.
+    const dark = await renderThermalArtwork(await buildProductPhoto({ body: 40, stripe: 20 }), { canvas: 448 });
+    if (dark.meta.modelAvailable) return; // the module was already loaded with the real path
+    assert.equal(dark.meta.resolvedStyle, "halftone");
+    assert.ok(dark.meta.autoDarkShare > 0.6);
 
-  // A mostly pale product gets the illustrated look.
-  const pale = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20 }), { canvas: 448 });
-  assert.equal(pale.meta.resolvedStyle, "sketch");
-  assert.ok(pale.meta.autoDarkShare < 0.35, `dark share ${pale.meta.autoDarkShare}`);
+    // Heavy black trim on a pale body: the sketch would fill the trim as blobs,
+    // the adaptive threshold keeps the texture inside it.
+    const trimmed = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20, stripeWidth: 18 }), { canvas: 448 });
+    assert.equal(trimmed.meta.resolvedStyle, "detail");
+    assert.ok(trimmed.meta.autoDarkShare >= 0.35 && trimmed.meta.autoDarkShare < 0.6, `dark share ${trimmed.meta.autoDarkShare}`);
+
+    // A mostly pale product gets the illustrated look.
+    const pale = await renderThermalArtwork(await buildProductPhoto({ body: 190, stripe: 20 }), { canvas: 448 });
+    assert.equal(pale.meta.resolvedStyle, "sketch");
+    assert.ok(pale.meta.autoDarkShare < 0.35, `dark share ${pale.meta.autoDarkShare}`);
+  } finally {
+    if (previous === undefined) delete process.env.THERMAL_LINEART_MODEL;
+    else process.env.THERMAL_LINEART_MODEL = previous;
+  }
 });
 
 test("the illustration style keeps the interior seams, not just the silhouette", async () => {
