@@ -22,12 +22,16 @@ export default function ArticleCodeMultiInput({
     setDraft("");
   };
 
+  /* One row, always: the codes scroll sideways instead of wrapping onto a second
+     line, so adding a code never changes the height of the field. */
   return (
     <div
-      className={`rounded-[var(--radius-control)] border border-border bg-surface ${ compact ? "flex min-h-10 items-center gap-1.5 p-1 xl:mt-0" : "mt-1.5 p-1.5" }`}
+      className={`flex items-center rounded-[var(--radius-control)] border border-border bg-surface ${ compact ? "min-h-10 gap-1.5 p-1 xl:mt-0" : "mt-1.5 gap-2 p-1.5" }`}
     >
       {codes.length ? (
-        <div className={compact ? "flex min-w-0 flex-1 flex-nowrap gap-1 overflow-x-auto" : "mb-1 flex flex-wrap gap-1"}>
+        <div
+          className="flex h-7 min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {codes.map((code) => (
             <span
               key={code}
@@ -46,7 +50,7 @@ export default function ArticleCodeMultiInput({
           ))}
         </div>
       ) : null}
-      <div className={compact ? "flex shrink-0 gap-1" : "flex gap-2"}>
+      <div className={compact ? "flex shrink-0 gap-1" : "flex min-w-0 flex-[1.5] gap-2"}>
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -64,7 +68,7 @@ export default function ArticleCodeMultiInput({
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => addDraft()}
-          className={`inline-flex items-center justify-center rounded-[var(--radius-control)] border border-border text-xs font-bold text-text hover:bg-surface-hover ${ compact ? "h-[var(--control-height-sm)] w-8 p-0" : "h-[var(--control-height-sm)] gap-1 px-2.5" }`}
+          className={`inline-flex shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border text-xs font-bold text-text hover:bg-surface-hover ${ compact ? "h-[var(--control-height-sm)] w-8 p-0" : "h-[var(--control-height-sm)] gap-1 px-2.5" }`}
         >
           <Plus size={14} />
           {compact ? null : "إضافة"}
