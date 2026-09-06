@@ -713,7 +713,7 @@ function CreateProduct() {
         setDescriptionTouched((current) => ({ ...current, en: false }));
       }
       setDescription(next.description_en || next.description_ar || descriptionEn || descriptionAr);
-      if (result?.source === "OPENAI") {
+      if (result?.source && result.source !== "LOCAL_FALLBACK") {
         toast.success(t("products.editor.aiDescriptionsGenerated"));
       } else {
         toast(t("products.editor.openAiFallbackApplied"));

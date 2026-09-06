@@ -272,7 +272,7 @@ const ProductSeoWorkbench = ({
         throw new Error(t("products.editor.seoWorkbench.generateFailed"));
       }
       if (typeof onApplySeo === "function") onApplySeo(next);
-      if (result?.source === "OPENAI") toast.success(t("products.editor.seoWorkbench.generatedAi"));
+      if (result?.source && result.source !== "LOCAL_FALLBACK") toast.success(t("products.editor.seoWorkbench.generatedAi"));
       else toast(t("products.editor.seoWorkbench.generatedLocal"));
     } catch (error) {
       console.error("[product-seo-workbench] generation failed", error);

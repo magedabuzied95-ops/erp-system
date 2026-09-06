@@ -215,3 +215,88 @@ test("description fallback reads as a real listing and gets the audience right",
     if (previous !== undefined) process.env.OPENAI_API_KEY = previous;
   }
 });
+
+test("text provider resolves from env without touching OpenAI", async () => {
+  const { resolveTextProvider } = await import("../../server/services/openaiProductDescriptionService.js");
+  assert.equal(resolveTextProvider({}).kind, "none");
+  assert.equal(resolveTextProvider({ OPENAI_API_KEY: "sk" }).kind, "openai");
+  assert.equal(resolveTextProvider({ OPENAI_API_KEY: "sk", AI_TEXT_PROVIDER: "off" }).kind, "none");
+  const ollama = resolveTextProvider({ AI_TEXT_PROVIDER: "ollama", OPENAI_API_KEY: "sk" });
+  assert.equal(ollama.kind, "compatible");
+  assert.equal(ollama.label, "OLLAMA");
+  assert.equal(ollama.baseUrl, "http://127.0.0.1:11434/v1");
+  assert.equal(ollama.model, "gemma3:4b");
+  const compose = resolveTextProvider({ AI_TEXT_BASE_URL: "http://ollama:11434", AI_TEXT_MODEL: "qwen2.5:7b", AI_TEXT_TIMEOUT_MS: "120000" });
+  assert.equal(compose.baseUrl, "http://ollama:11434/v1");
+  assert.equal(compose.label, "OLLAMA");
+  assert.equal(compose.model, "qwen2.5:7b");
+  assert.equal(compose.timeout, 120000);
+  const groq = resolveTextProvider({ AI_TEXT_PROVIDER: "compatible", AI_TEXT_BASE_URL: "https://api.groq.com/openai/v1/", AI_TEXT_API_KEY: "gsk", AI_TEXT_MODEL: "llama-3.3-70b-versatile" });
+  assert.equal(groq.label, "LLM");
+  assert.equal(groq.baseUrl, "https://api.groq.com/openai/v1");
+  assert.equal(groq.apiKey, "gsk");
+});
+
+test("lenient JSON extraction survives code fences and prose from small models", async () => {
+  const { extractJsonObject } = await import("../../server/services/openaiProductDescriptionService.js");
+  assert.deepEqual(extractJsonObject('```json\n{"a": 1}\n```'), { a: 1 });
+  assert.deepEqual(extractJsonObject('Sure! Here is the JSON:\n{"arabic_description": "كوتشي", "english_description": "Sneakers"}\nHope it helps.'), {
+    arabic_description: "كوتشي",
+    english_description: "Sneakers",
+  });
+  assert.throws(() => extractJsonObject("no json here"), /no JSON object/);
+});
+
+test("compatible providers fall back from json_schema to json_object to plain text", async () => {
+  const { requestStructuredJson } = await import("../../server/services/openaiProductDescriptionService.js");
+  const calls = [];
+  const client = {
+    chat: {
+      completions: {
+        create: async (body) => {
+          calls.push(body.response_format?.type || "plain");
+          if (body.response_format?.type === "json_schema") {
+            const error = new Error("response_format json_schema is not supported");
+            error.status = 400;
+            throw error;
+          }
+          return { choices: [{ message: { content: '```json\n{"meta_title": "كوتشي Nike رجالي", "meta_description": "وصف", "keywords": ["Nike"], "slug": "nike"}\n```' } }] };
+        },
+      },
+    },
+  };
+  const provider = { kind: "compatible", label: "OLLAMA", model: "gemma3:4b", timeout: 1000, baseUrl: "http://x/v1", apiKey: "local" };
+  const parsed = await requestStructuredJson({
+    provider,
+    client,
+    label: "test",
+    instructions: "sys",
+    prompt: "user",
+    schemaName: "product_seo_metadata",
+    schema: { type: "object", properties: { meta_title: {}, meta_description: {}, keywords: {}, slug: {} } },
+  });
+  assert.equal(parsed.meta_title, "كوتشي Nike رجالي");
+  assert.deepEqual(calls, ["json_schema", "json_object"]);
+
+  const dead = { chat: { completions: { create: async () => { const error = new Error("connect ECONNREFUSED"); error.code = "ECONNREFUSED"; throw error; } } } };
+  await assert.rejects(() => requestStructuredJson({ provider, client: dead, prompt: "x", schema: {} }), /ECONNREFUSED/);
+});
+
+test("an unreachable local model degrades to the fallback instead of failing the editor", async () => {
+  const previousProvider = process.env.AI_TEXT_PROVIDER;
+  const previousUrl = process.env.AI_TEXT_BASE_URL;
+  const previousTimeout = process.env.AI_TEXT_TIMEOUT_MS;
+  process.env.AI_TEXT_PROVIDER = "ollama";
+  process.env.AI_TEXT_BASE_URL = "http://127.0.0.1:9/v1";
+  process.env.AI_TEXT_TIMEOUT_MS = "2000";
+  try {
+    const { generateProductSeoMetadata } = await import("../../server/services/openaiProductDescriptionService.js");
+    const result = await generateProductSeoMetadata({ current: { product_name: "Air Force 1", brand: "Nike", product_type: "sneakers", gender: "men" } });
+    assert.equal(result.source, "LOCAL_FALLBACK");
+    assert.equal(result.meta_title, "كوتشي Nike Air Force 1 رجالي");
+  } finally {
+    if (previousProvider === undefined) delete process.env.AI_TEXT_PROVIDER; else process.env.AI_TEXT_PROVIDER = previousProvider;
+    if (previousUrl === undefined) delete process.env.AI_TEXT_BASE_URL; else process.env.AI_TEXT_BASE_URL = previousUrl;
+    if (previousTimeout === undefined) delete process.env.AI_TEXT_TIMEOUT_MS; else process.env.AI_TEXT_TIMEOUT_MS = previousTimeout;
+  }
+});

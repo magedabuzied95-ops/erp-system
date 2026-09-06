@@ -3,7 +3,6 @@
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_TIMEOUT_MS = 20_000;
 
-let openaiClient = null;
 
 const cleanText = (value = "") => {
   const text = String(value ?? "").trim();
@@ -20,15 +19,184 @@ const positiveNumber = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
-const getClient = () => {
-  if (!openaiClient) {
-    openaiClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      maxRetries: 0,
-      timeout: positiveNumber(process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-    });
+/* ------------------------------------------------------------------------- *
+ * Text provider
+ *
+ * Every generator in this file (descriptions, SEO metadata, social captions)
+ * asks for one JSON object. The provider that answers is chosen from env, so
+ * the shop does not depend on an OpenAI subscription:
+ *
+ *   AI_TEXT_PROVIDER=ollama       Ollama on the box (open-weights models), or
+ *   AI_TEXT_PROVIDER=compatible   any OpenAI-compatible server (vLLM, LM Studio,
+ *                                 llama.cpp, Groq/OpenRouter free tiers ...)
+ *     AI_TEXT_BASE_URL=http://ollama:11434/v1   AI_TEXT_MODEL=gemma3:4b
+ *     AI_TEXT_API_KEY=...          (optional; local servers ignore it)
+ *     AI_TEXT_TIMEOUT_MS=90000     (CPU inference is slow; default 90s)
+ *   AI_TEXT_PROVIDER=openai       the old Responses API path (needs OPENAI_API_KEY)
+ *   AI_TEXT_PROVIDER=off          local templates only
+ *
+ * With nothing set, an OPENAI_API_KEY still selects OpenAI, so existing
+ * deployments keep working until they opt in.
+ * ------------------------------------------------------------------------- */
+
+const DEFAULT_COMPATIBLE_MODEL = "gemma3:4b";
+const DEFAULT_COMPATIBLE_TIMEOUT_MS = 90_000;
+const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
+
+const NO_PROVIDER = Object.freeze({ kind: "none", label: "LOCAL_FALLBACK", model: "" });
+
+export const resolveTextProvider = (env = process.env) => {
+  const explicit = cleanText(env.AI_TEXT_PROVIDER).toLowerCase();
+  const rawBaseUrl = cleanText(env.AI_TEXT_BASE_URL || env.OLLAMA_BASE_URL).replace(/\/+$/, "");
+  const openAi = () =>
+    env.OPENAI_API_KEY
+      ? {
+          kind: "openai",
+          label: "OPENAI",
+          model: env.OPENAI_PRODUCT_DESCRIPTION_MODEL || env.OPENAI_MODEL || DEFAULT_MODEL,
+          timeout: positiveNumber(env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+        }
+      : NO_PROVIDER;
+  if (explicit === "off" || explicit === "none" || explicit === "local") return NO_PROVIDER;
+  if (explicit === "openai") return openAi();
+  if (explicit === "ollama" || explicit === "compatible" || rawBaseUrl) {
+    const origin = rawBaseUrl || DEFAULT_OLLAMA_BASE_URL;
+    const baseUrl = /\/v1$/i.test(origin) ? origin : `${origin}/v1`;
+    const isOllama = explicit === "ollama" || /:11434(\/|$)/.test(baseUrl);
+    return {
+      kind: "compatible",
+      label: isOllama ? "OLLAMA" : "LLM",
+      baseUrl,
+      apiKey: cleanText(env.AI_TEXT_API_KEY) || "local",
+      model: cleanText(env.AI_TEXT_MODEL) || DEFAULT_COMPATIBLE_MODEL,
+      timeout: positiveNumber(env.AI_TEXT_TIMEOUT_MS, DEFAULT_COMPATIBLE_TIMEOUT_MS),
+    };
   }
-  return openaiClient;
+  return openAi();
+};
+
+const openAiClients = new Map();
+const getOpenAiClient = (provider) => {
+  const key = `openai:${provider.timeout}`;
+  if (!openAiClients.has(key)) {
+    openAiClients.set(key, new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0, timeout: provider.timeout }));
+  }
+  return openAiClients.get(key);
+};
+
+const compatibleClients = new Map();
+const getCompatibleClient = (provider) => {
+  const key = `${provider.baseUrl}|${provider.apiKey}|${provider.timeout}`;
+  if (!compatibleClients.has(key)) {
+    compatibleClients.set(key, new OpenAI({ baseURL: provider.baseUrl, apiKey: provider.apiKey, maxRetries: 0, timeout: provider.timeout }));
+  }
+  return compatibleClients.get(key);
+};
+
+/* Small open models wrap JSON in prose or code fences no matter what the
+ * request says; take the first balanced object rather than failing the call. */
+export const extractJsonObject = (text = "") => {
+  const raw = String(text ?? "").trim();
+  const candidates = [];
+  if (raw) {
+    candidates.push(raw);
+    candidates.push(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, ""));
+    const first = raw.indexOf("{");
+    const last = raw.lastIndexOf("}");
+    if (first >= 0 && last > first) candidates.push(raw.slice(first, last + 1));
+  }
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // try the next candidate
+    }
+  }
+  const error = new Error("Model returned no JSON object");
+  error.code = "INVALID_JSON";
+  throw error;
+};
+
+const chatCompletionJson = async (client, { model, timeout, instructions, prompt, schema, responseFormat }) => {
+  const keys = Object.keys(schema?.properties || {});
+  const completion = await client.chat.completions.create(
+    {
+      model,
+      temperature: 0.4,
+      messages: [
+        { role: "system", content: instructions },
+        {
+          role: "user",
+          content: `${prompt}\n\nReturn ONLY one JSON object with exactly these keys: ${keys.join(", ")}. No prose, no markdown, no code fences.`,
+        },
+      ],
+      ...(responseFormat ? { response_format: responseFormat } : {}),
+    },
+    { timeout, maxRetries: 0 }
+  );
+  return extractJsonObject(completion?.choices?.[0]?.message?.content || "");
+};
+
+/* One JSON object from whichever provider is configured. OpenAI keeps the
+ * Responses API with a strict schema. Compatible servers get Chat Completions:
+ * json_schema first (Ollama >= 0.5, vLLM, Groq), then json_object, then a
+ * plain request parsed leniently, so an older server still answers. */
+export const requestStructuredJson = async ({
+  provider,
+  requestId = "",
+  label = "ai-text",
+  instructions = "",
+  prompt = "",
+  schemaName = "result",
+  schema = {},
+  verbosity = "medium",
+  client = null,
+}) => {
+  if (!provider || provider.kind === "none") {
+    const error = new Error("No text provider configured");
+    error.code = "NO_PROVIDER";
+    throw error;
+  }
+  if (provider.kind === "openai") {
+    const response = await (client || getOpenAiClient(provider)).responses.create(
+      {
+        model: provider.model,
+        instructions,
+        input: prompt,
+        text: {
+          format: { type: "json_schema", name: schemaName, strict: true, schema },
+          verbosity,
+        },
+      },
+      { timeout: provider.timeout, maxRetries: 0 }
+    );
+    return JSON.parse(response.output_text || "{}");
+  }
+  const chat = client || getCompatibleClient(provider);
+  const formats = [
+    { type: "json_schema", json_schema: { name: schemaName, strict: true, schema } },
+    { type: "json_object" },
+    null,
+  ];
+  let lastError = null;
+  for (const responseFormat of formats) {
+    try {
+      return await chatCompletionJson(chat, { ...provider, instructions, prompt, schema, responseFormat });
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.status || error?.response?.status || 0);
+      const retryable = status === 400 || status === 404 || status === 422 || error?.code === "INVALID_JSON";
+      console.warn(`[${label}] structured output attempt failed`, {
+        requestId,
+        format: responseFormat?.type || "plain",
+        status,
+        message: error?.message,
+      });
+      if (!retryable) throw error;
+    }
+  }
+  throw lastError;
 };
 
 const productDescriptionSchema = {
@@ -670,8 +838,9 @@ export const generateProductDescription = async (input = {}) => {
   const fallback = fallbackDescription(context);
   const requestId = cleanText(input.request_id) || `product-description-${Date.now()}`;
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn("[product-description] OPENAI_API_KEY missing; using fallback", { requestId });
+  const provider = resolveTextProvider();
+  if (provider.kind === "none") {
+    console.warn("[product-description] no text provider configured; using fallback", { requestId });
     return {
       ...normalizeGenerated({}, fallback, target),
       source: "LOCAL_FALLBACK",
@@ -680,46 +849,33 @@ export const generateProductDescription = async (input = {}) => {
 
   const startedAt = Date.now();
   try {
-    console.log("[product-description] OpenAI request start", {
+    console.log("[product-description] text provider request start", {
       requestId,
       target,
-      model: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+      model: provider.model,
     });
 
-    const response = await getClient().responses.create(
-      {
-        model: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
-        instructions: "You are an expert ecommerce copywriter for fashion, footwear, and retail catalog pages.",
-        input: buildPrompt(context, target),
-        text: {
-          format: {
-            type: "json_schema",
-            name: "product_descriptions",
-            strict: true,
-            schema: productDescriptionSchema,
-          },
-          verbosity: "medium",
-        },
-      },
-      {
-        timeout: positiveNumber(process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-        maxRetries: 0,
-      }
-    );
-
-    const parsed = JSON.parse(response.output_text || "{}");
-    console.log("[product-description] OpenAI request end", {
+    const parsed = await requestStructuredJson({
+      provider,
+      requestId,
+      label: "product-description",
+      instructions: "You are an expert ecommerce copywriter for fashion, footwear, and retail catalog pages.",
+      prompt: buildPrompt(context, target),
+      schemaName: "product_descriptions",
+      schema: productDescriptionSchema,
+      verbosity: "medium",
+    });
+    console.log("[product-description] text provider request end", {
       requestId,
       durationMs: Date.now() - startedAt,
-      status: response?.status || "completed",
     });
 
     return {
       ...normalizeGenerated(parsed, fallback, target),
-      source: "OPENAI",
+      source: provider.label,
     };
   } catch (error) {
-    console.error("[product-description] OpenAI request failed", {
+    console.error("[product-description] text provider request failed", {
       requestId,
       durationMs: Date.now() - startedAt,
       name: error?.name,
@@ -731,7 +887,7 @@ export const generateProductDescription = async (input = {}) => {
     return {
       ...normalizeGenerated({}, fallback, target),
       source: "LOCAL_FALLBACK",
-      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "OpenAI request failed",
+      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "text provider request failed",
     };
   }
 };
@@ -741,6 +897,11 @@ export const generateSocialPublisherCaption = async (input = {}) => {
   const facts = buildProductFacts(context);
   const fallback = buildSocialCaptionFallback(context);
   const requestId = cleanText(input.request_id) || `social-caption-${Date.now()}`;
+  const provider = resolveTextProvider();
+  if (provider.kind === "none") {
+    console.warn("[social-caption] no text provider configured; using fallback", { requestId });
+    return { ...fallback, source: "LOCAL_FALLBACK" };
+  }
   logSocialCaptionContext("[ai-social-caption-fallback]", {
     ...context,
     product_id: input.product_id || input.productId || "",
@@ -757,47 +918,34 @@ export const generateSocialPublisherCaption = async (input = {}) => {
 
   const startedAt = Date.now();
   try {
-    const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
-    console.log("[social-caption] OpenAI request start", {
+    const model = provider.model;
+    console.log("[social-caption] text provider request start", {
       requestId,
       model,
     });
 
-    const response = await getClient().responses.create(
-      {
-        model,
-        instructions: "You are an expert luxury ecommerce social media copywriter.",
-        input: buildSocialCaptionPrompt(facts),
-        text: {
-          format: {
-            type: "json_schema",
-            name: "social_caption",
-            strict: true,
-            schema: socialCaptionSchema,
-          },
-          verbosity: "medium",
-        },
-      },
-      {
-        timeout: positiveNumber(process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-        maxRetries: 0,
-      }
-    );
-
-    const parsed = JSON.parse(response.output_text || "{}");
+    const parsed = await requestStructuredJson({
+      provider,
+      requestId,
+      label: "social-caption",
+      instructions: "You are an expert luxury ecommerce social media copywriter.",
+      prompt: buildSocialCaptionPrompt(facts),
+      schemaName: "social_caption",
+      schema: socialCaptionSchema,
+      verbosity: "medium",
+    });
     const generated = normalizeSocialCaptionGenerated(parsed, fallback);
-    console.log("[social-caption] OpenAI request end", {
+    console.log("[social-caption] text provider request end", {
       requestId,
       durationMs: Date.now() - startedAt,
-      status: response?.status || "completed",
     });
 
     return {
       ...generated,
-      source: "OPENAI",
+      source: provider.label,
     };
   } catch (error) {
-    const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
+    const model = provider.model;
     const errorReason = mapSocialCaptionOpenAiErrorReason(error);
     console.error("[ai-social-caption-openai-error]", {
       requestId,
@@ -1053,40 +1201,30 @@ export const generateProductSeoMetadata = async (input = {}) => {
     return { ...fallback, source: "LOCAL_FALLBACK", error: "PRODUCT_NAME_REQUIRED" };
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn("[product-seo] OPENAI_API_KEY missing; using fallback", { requestId });
+  const provider = resolveTextProvider();
+  if (provider.kind === "none") {
+    console.warn("[product-seo] no text provider configured; using fallback", { requestId });
     return { ...fallback, source: "LOCAL_FALLBACK" };
   }
 
   const startedAt = Date.now();
-  const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
+  const model = provider.model;
   try {
-    console.log("[product-seo] OpenAI request start", { requestId, model });
-    const response = await getClient().responses.create(
-      {
-        model,
-        instructions: "You are a senior ecommerce SEO specialist for the Egyptian market. You write concise, honest, search-friendly Arabic metadata.",
-        input: buildSeoPrompt(context),
-        text: {
-          format: {
-            type: "json_schema",
-            name: "product_seo_metadata",
-            strict: true,
-            schema: seoMetadataSchema,
-          },
-          verbosity: "low",
-        },
-      },
-      {
-        timeout: positiveNumber(process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-        maxRetries: 0,
-      }
-    );
-    const parsed = JSON.parse(response.output_text || "{}");
-    console.log("[product-seo] OpenAI request end", { requestId, durationMs: Date.now() - startedAt });
-    return { ...normalizeSeoGenerated(parsed, fallback), source: "OPENAI" };
+    console.log("[product-seo] text provider request start", { requestId, model });
+    const parsed = await requestStructuredJson({
+      provider,
+      requestId,
+      label: "product-seo",
+      instructions: "You are a senior ecommerce SEO specialist for the Egyptian market. You write concise, honest, search-friendly Arabic metadata.",
+      prompt: buildSeoPrompt(context),
+      schemaName: "product_seo_metadata",
+      schema: seoMetadataSchema,
+      verbosity: "low",
+    });
+    console.log("[product-seo] text provider request end", { requestId, durationMs: Date.now() - startedAt });
+    return { ...normalizeSeoGenerated(parsed, fallback), source: provider.label };
   } catch (error) {
-    console.error("[product-seo] OpenAI request failed", {
+    console.error("[product-seo] text provider request failed", {
       requestId,
       durationMs: Date.now() - startedAt,
       status: error?.status,
@@ -1096,7 +1234,7 @@ export const generateProductSeoMetadata = async (input = {}) => {
     return {
       ...fallback,
       source: "LOCAL_FALLBACK",
-      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "OpenAI request failed",
+      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "text provider request failed",
     };
   }
 };

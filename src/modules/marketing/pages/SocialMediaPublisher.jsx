@@ -1298,7 +1298,7 @@ export default function SocialMediaPublisher() {
         String(result?.caption || "").trim() ||
         buildCatalogCaption(product, { includeLocation, includeShipping });
       console.warn("[ai-social-caption-response]", {
-        success: String(result?.source || "").toUpperCase() === "OPENAI",
+        success: Boolean(result?.source) && String(result.source).toUpperCase() !== "LOCAL_FALLBACK",
         source: result?.source || "",
         error: result?.error || "",
         caption_length: nextCaption.length,
@@ -1313,7 +1313,7 @@ export default function SocialMediaPublisher() {
       if (applyToCaption) setCaption(nextCaption);
       setAiTemplateSource(String(result?.source || "LOCAL_FALLBACK"));
       setFirstComment(buildSuggestedFirstComment(productDetails || product, { includeLocation, includeShipping }));
-      if (String(result?.source || "").toUpperCase() !== "OPENAI") {
+      if (!result?.source || String(result.source).toUpperCase() === "LOCAL_FALLBACK") {
         const payloadMissing =
           !aiContext.product_name ||
           !aiContext.current_price ||

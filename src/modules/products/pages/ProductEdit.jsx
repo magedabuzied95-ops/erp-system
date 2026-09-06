@@ -1282,7 +1282,7 @@ function ProductEdit() {
       });
       if (target === "all") setDescriptionTouched({ ar: false, en: false });
       else setDescriptionTouched((current) => ({ ...current, [target]: false }));
-      if (result?.source === "OPENAI") {
+      if (result?.source && result.source !== "LOCAL_FALLBACK") {
         toast.success(t("products.editor.aiDescriptionsGenerated"));
       } else {
         toast("OpenAI unavailable. Local description fallback applied.");
