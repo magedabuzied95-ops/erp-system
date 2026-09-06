@@ -1099,6 +1099,29 @@ const computeLineartMap = async (rgb, width, height) => {
  */
 const TRACED_INK_LEVEL = 150;
 
+/**
+ * Turn filled masses into their outlines. A pen line is never wider than a
+ * few pixels, so anything that survives an erosion by `halfWidth` is a fill:
+ * the fill is removed and only a band of `halfWidth` at its edge is kept,
+ * which is what an illustrator draws for a black panel — its contour.
+ */
+const hollowSolidRegions = (ink, width, height, halfWidth) => {
+  const core = erodeInk(ink, width, height, halfWidth);
+  let any = false;
+  for (let index = 0; index < core.length; index += 1) {
+    if (core[index]) { any = true; break; }
+  }
+  if (!any) return ink;
+  // Grow the core back by (halfWidth - 1): the ring left between the grown
+  // core and the original mass is the outline we keep.
+  const inner = dilateInk(core, width, height, Math.max(0, halfWidth - 1));
+  const out = new Uint8Array(ink.length);
+  for (let index = 0; index < out.length; index += 1) {
+    out[index] = ink[index] && !inner[index] ? 1 : 0;
+  }
+  return out;
+};
+
 const tracedBinarize = async (gray, width, height, background, { inkOffset = 0 } = {}) => {
   const upscale = 2;
   const bigWidth = width * upscale;
@@ -1110,6 +1133,10 @@ const tracedBinarize = async (gray, width, height, background, { inkOffset = 0 }
   for (let index = 0; index < strokes.length; index += 1) strokes[index] = big[index] < level ? 1 : 0;
   strokes = dilateInk(strokes, bigWidth, bigHeight, 2);
   strokes = erodeInk(strokes, bigWidth, bigHeight, 2);
+  // A black shoe comes back from the illustration service as a black shoe.
+  // Solid masses are not line work: keep only their edges, so the drawing
+  // stays an outline drawing however dark the product is.
+  strokes = hollowSolidRegions(strokes, bigWidth, bigHeight, Math.max(4, Math.round(Math.min(bigWidth, bigHeight) * 0.006)));
 
   let svg = "";
   let plane;
@@ -1257,8 +1284,13 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
     try {
       if (!modelAvailable) throw new Error("the drawing model is needed to guide the illustration service");
       const { result: control } = await computeLineartMap(croppedRgb, padded.width, padded.height);
+      // Hand the service confident strokes only. On a dark product the soft
+      // map is a field of grey hatching, and the diffusion model reads that
+      // as "draw a dark textured shoe" — the cut leaves it the contours.
       const controlPlane = new Uint8Array(control.width * control.height);
-      for (let index = 0; index < controlPlane.length; index += 1) controlPlane[index] = Math.round(control.map[index] * 255);
+      for (let index = 0; index < controlPlane.length; index += 1) {
+        controlPlane[index] = control.map[index] < LINEART_INK_CUT ? 0 : 255;
+      }
       const controlPng = await sharp(rawBuffer(controlPlane), { raw: { width: control.width, height: control.height, channels: 1 } })
         .png({ compressionLevel: 6 })
         .toBuffer();

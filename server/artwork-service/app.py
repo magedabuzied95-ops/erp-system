@@ -35,13 +35,17 @@ WARM_ON_START = os.environ.get("SD_WARM_ON_START", "1") != "0"
 # "Coloring book page" is the phrase that reliably buys a white background and
 # outline-only rendering from SD 1.5; the earlier "technical line art" wording
 # came back with a grey backdrop and soft shading.
+# "every surface left white / no black areas" matters for dark products: with
+# the shorter wording a black shoe came back as a black shoe, and the label
+# then had to hollow the fills out itself.
 DEFAULT_PROMPT = (
-    "coloring book page of a sneaker shoe, clean black outlines only, pure white background, "
-    "line art, monochrome, no shading, no fill, simple flat vector illustration, thick uniform lines"
+    "coloring book page of a sneaker shoe, black outline drawing only, every surface left white, "
+    "no fill, no black areas, pure white background, line art, monochrome, no shading, "
+    "simple flat vector illustration, thick uniform lines"
 )
 DEFAULT_NEGATIVE = (
-    "gray, grey, shading, gradient, color, colours, photo, realistic, texture, background, shadow, "
-    "blurry, noise, text, watermark, dark background, halftone"
+    "black fill, solid black, dark, silhouette, gray, grey, shading, gradient, color, colours, photo, "
+    "realistic, texture, background, shadow, blurry, noise, text, watermark, dark background, halftone"
 )
 
 app = FastAPI(title="thermal-artwork-drawing")
