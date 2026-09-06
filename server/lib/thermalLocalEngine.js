@@ -182,6 +182,85 @@ const floodBackground = (gray, width, height, threshold, inset = 0) => {
  * Discarded blobs are folded back into the background so the rest of the
  * pipeline never sees them.
  */
+/**
+ * Peel the floor shadow off the subject mask.
+ *
+ * A studio shadow is neutral grey, sits in the lower part of the product's
+ * box, is nowhere near anything dark (the sole always has a dark edge or
+ * tread, the shadow floats a few pixels below it), and touches the backdrop.
+ * Every pixel that satisfies all four and can be reached from the backdrop
+ * through pixels like it is folded back into the background. A guard reverts
+ * the whole thing if it would eat a large share of the product — a shadow is
+ * small next to a shoe, so a big bite means the rule caught the product.
+ *
+ * @returns {number} pixels removed (0 when reverted or nothing matched)
+ */
+const removeFloorShadow = (gray, rgb, width, height, background, bounds) => {
+  const total = width * height;
+  // A shadow is never taller than this share of the product; a longer run of
+  // "shadow-like" pixels is a white side panel and must stay.
+  const maxRun = Math.max(6, Math.round(bounds.height * 0.28));
+  const bandTop = bounds.top + Math.round(bounds.height * 0.45);
+
+  const isShadowLike = (index, below) => {
+    const value = gray[index];
+    if (value < 150) return false;
+    const offset = index * 3;
+    const red = rgb[offset];
+    const green = rgb[offset + 1];
+    const blue = rgb[offset + 2];
+    if (Math.max(red, green, blue) - Math.min(red, green, blue) > 30) return false;
+    // Shadows fade smoothly; a jump means a seam, an edge, a sole line.
+    return below < 0 || Math.abs(value - gray[below]) <= 12;
+  };
+
+  // Peel upward from the bottom edge of the mask, one column at a time. The
+  // walk stops at the first pixel that is not shadow-like — the sole's dark
+  // contact line, a coloured outsole, a stitched edge — so the product's own
+  // white panels are never reached from below.
+  const removed = new Uint8Array(total);
+  let count = 0;
+  let subjectPixels = 0;
+  for (let x = bounds.left; x < bounds.left + bounds.width; x += 1) {
+    let y = bounds.top + bounds.height - 1;
+    // Find the bottom of the subject in this column.
+    while (y >= bounds.top && background[(y * width) + x]) y -= 1;
+    if (y < bounds.top) continue;
+    const columnBottom = y;
+    let columnPixels = 0;
+    for (let yy = bounds.top; yy <= columnBottom; yy += 1) {
+      if (!background[(yy * width) + x]) columnPixels += 1;
+    }
+    subjectPixels += columnPixels;
+    if (columnBottom < bandTop) continue;
+
+    let run = 0;
+    let below = -1;
+    while (y >= bounds.top) {
+      const index = (y * width) + x;
+      if (background[index] || !isShadowLike(index, below)) break;
+      run += 1;
+      below = index;
+      y -= 1;
+    }
+    const reachedTop = y < bounds.top || background[(y * width) + x];
+    // A column that is shadow all the way through (the ellipse spilling out
+    // beside the shoe) is removed whole; otherwise the run must be short. A
+    // run of one or two pixels is the anti-aliased fringe of the sole itself.
+    if (run < 3 || (!reachedTop && run > maxRun)) continue;
+    for (let yy = columnBottom; yy > columnBottom - run; yy -= 1) {
+      removed[(yy * width) + x] = 1;
+    }
+    count += run;
+  }
+
+  if (!count || count > subjectPixels * 0.3) return 0;
+  for (let index = 0; index < total; index += 1) {
+    if (removed[index]) background[index] = 1;
+  }
+  return count;
+};
+
 const keepProductComponents = (background, width, height) => {
   const total = width * height;
   const visited = new Uint8Array(total);
@@ -637,6 +716,27 @@ const dilateInk = (ink, width, height, radius = 1) => {
   return out;
 };
 
+const erodeInk = (ink, width, height, radius = 1) => {
+  const out = new Uint8Array(ink.length);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = (y * width) + x;
+      if (!ink[index]) continue;
+      let keep = 1;
+      for (let dy = -radius; dy <= radius && keep; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) { keep = 0; break; }
+        for (let dx = -radius; dx <= radius; dx += 1) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width || !ink[(ny * width) + nx]) { keep = 0; break; }
+        }
+      }
+      out[index] = keep;
+    }
+  }
+  return out;
+};
+
 /**
  * Sketch: the illustrated look — clean contour lines of one weight on a white
  * body, with only the genuinely black design elements filled. Texture is
@@ -853,26 +953,38 @@ const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 }
   // Ink level moves the cut: heavier keeps the model's fainter strokes.
   const baseCut = clamp(LINEART_INK_CUT + (inkOffset * 0.18), 0.35, 0.85);
 
+  // The model's map is soft. Cutting it at model resolution and scaling down
+  // leaves stair-stepped, broken strokes on the label. Instead the soft map is
+  // enlarged first (smooth interpolation, no stairs), cut there, closed so the
+  // small gaps between neighbouring strokes bridge, blurred and re-cut so the
+  // corners round off like a pen line, and only then brought down to size.
+  const upscale = 2;
+  const bigWidth = result.width * upscale;
+  const bigHeight = result.height * upscale;
+  const mapPlane = new Uint8Array(result.width * result.height);
+  for (let index = 0; index < mapPlane.length; index += 1) mapPlane[index] = Math.round(result.map[index] * 255);
+  const bigMap = await resizePlane(mapPlane, result.width, result.height, bigWidth, bigHeight, sharp.kernel.lanczos3);
+
   const cutAt = async (cut) => {
-    let strokes = new Uint8Array(result.width * result.height);
+    const level = Math.round(cut * 255);
+    let strokes = new Uint8Array(bigWidth * bigHeight);
     for (let index = 0; index < strokes.length; index += 1) {
-      strokes[index] = result.map[index] < cut ? 1 : 0;
+      strokes[index] = bigMap[index] < level ? 1 : 0;
     }
-    // The model draws one-pixel strokes. Left as they are, the downscale to
-    // the label breaks them into dashes; a one-pixel dilation at model
-    // resolution gives each stroke enough body to survive as a continuous line.
-    strokes = dilateInk(strokes, result.width, result.height, 1);
+    // Closing: dilate then erode. Bridges hairline breaks and gives the
+    // stroke a body that survives the downscale to the label's dot grid.
+    strokes = dilateInk(strokes, bigWidth, bigHeight, 3);
+    strokes = erodeInk(strokes, bigWidth, bigHeight, 2);
     const plane = new Uint8Array(strokes.length);
     for (let index = 0; index < plane.length; index += 1) plane[index] = strokes[index] ? 0 : 255;
+    const rounded = await filterPlane(plane, bigWidth, bigHeight, (image) => image.blur(1.2));
 
-    // Back to the artwork size through an anti-aliased resize and re-cut,
-    // which rounds the strokes the same way the sketch style does.
-    const small = await resizePlane(plane, result.width, result.height, width, height, sharp.kernel.lanczos3);
+    const small = await resizePlane(rounded, bigWidth, bigHeight, width, height, sharp.kernel.lanczos3);
     let ink = new Uint8Array(width * height);
     for (let index = 0; index < ink.length; index += 1) {
-      if (!background[index] && small[index] < 165) ink[index] = 1;
+      if (!background[index] && small[index] < 150) ink[index] = 1;
     }
-    ink = despeckleInk(ink, width, height, Math.max(6, Math.round(Math.min(width, height) * 0.015)), 8);
+    ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02)), 8);
     return ink;
   };
 
@@ -941,6 +1053,17 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
     backgroundRemoved = false;
     background = new Uint8Array(background.length);
     bounds = { left: 0, top: 0, width, height };
+  }
+
+  // The soft floor shadow under the product is grey, so the flood left it as
+  // part of the subject and it prints as an ellipse under the shoe. Peel it
+  // off before cropping: see removeFloorShadow for what counts as shadow.
+  let shadowRemoved = 0;
+  if (backgroundRemoved) {
+    shadowRemoved = removeFloorShadow(gray, rgb, width, height, background, bounds);
+    if (shadowRemoved > 0) {
+      bounds = keepProductComponents(background, width, height) || bounds;
+    }
   }
 
   const pad = Math.max(2, Math.round(Math.min(bounds.width, bounds.height) * 0.01));
@@ -1126,6 +1249,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       inkLevel: options.inkLevel,
       backgroundRemoved,
       backgroundRatio: Number(backgroundRatio.toFixed(4)),
+      shadowRemoved,
       sourceWidth: width,
       sourceHeight: height,
       artWidth,

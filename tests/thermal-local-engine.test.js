@@ -172,6 +172,51 @@ test("without the drawing model, automatic picks halftone, line art or illustrat
   }
 });
 
+test("the floor shadow under a product is peeled off without touching the product", async () => {
+  // A pale product with a dark sole line, standing on a soft grey ellipse —
+  // the studio shadow that used to print as a ring under the shoe.
+  const width = 600;
+  const height = 600;
+  const build = async (withShadow) => {
+    const pixels = Buffer.alloc(width * height * 3, 255);
+    const put = (x, y, value) => {
+      if (x < 0 || y < 0 || x >= width || y >= height) return;
+      const index = ((y * width) + x) * 3;
+      pixels[index] = value;
+      pixels[index + 1] = value;
+      pixels[index + 2] = value;
+    };
+    if (withShadow) {
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const dx = (x - 300) / 260;
+          const dy = (y - 420) / 40;
+          const d = (dx * dx) + (dy * dy);
+          if (d < 1) put(x, y, Math.round(205 + (30 * d)));
+        }
+      }
+    }
+    for (let y = 180; y < 400; y += 1) {
+      for (let x = 120; x < 480; x += 1) put(x, y, ((x - 120) % 40) < 8 ? 40 : 200);
+    }
+    for (let y = 400; y < 410; y += 1) {
+      for (let x = 120; x < 480; x += 1) put(x, y, 30); // the sole's dark contact line
+    }
+    return sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+  };
+
+  const clean = await renderThermalArtwork(await build(false), { canvas: 448, style: "detail" });
+  const shadowed = await renderThermalArtwork(await build(true), { canvas: 448, style: "detail" });
+  // A handful of pixels at the sole's anti-aliased corners is fringe, not shadow.
+  assert.ok(clean.meta.shadowRemoved < 40, `no shadow to peel, yet ${clean.meta.shadowRemoved} pixels went`);
+  assert.ok(shadowed.meta.shadowRemoved > 400, `the shadow must be detected, got ${shadowed.meta.shadowRemoved}`);
+  // With the shadow gone the crop is the product alone, so both renders share
+  // the product's own aspect ratio.
+  const cleanAspect = clean.meta.artWidth / clean.meta.artHeight;
+  const shadowedAspect = shadowed.meta.artWidth / shadowed.meta.artHeight;
+  assert.ok(Math.abs(cleanAspect - shadowedAspect) < 0.08, `aspect ${cleanAspect.toFixed(3)} vs ${shadowedAspect.toFixed(3)}`);
+});
+
 test("the illustration style keeps the interior seams, not just the silhouette", async () => {
   // The stroke filter once measured 4-connected components, so every diagonal
   // one-pixel Canny ridge was its own island and the whole interior vanished.
