@@ -9,6 +9,17 @@
  */
 
 const DEFAULT_URL = "http://erp-artwork:8000";
+
+// Wording for a pale product: black accents (stripes, a swoosh, a heel tab)
+// stay filled and the sole's tone comes through as hatching. The service's
+// own default is the stricter "every surface left white" wording that dark
+// products need so they do not come back as black shoes.
+export const LIGHT_PRODUCT_PROMPT =
+  "coloring book page of a sneaker shoe, clean black outlines only, pure white background, "
+  + "line art, monochrome, no shading, no fill, simple flat vector illustration, thick uniform lines";
+export const LIGHT_PRODUCT_NEGATIVE =
+  "gray, grey, shading, gradient, color, colours, photo, realistic, texture, background, shadow, "
+  + "blurry, noise, text, watermark, dark background, halftone";
 const HEALTH_TTL_MS = 30_000;
 const DRAW_TIMEOUT_MS = Number(process.env.THERMAL_DRAWING_TIMEOUT_MS || 600_000);
 

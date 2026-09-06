@@ -79,6 +79,8 @@ export const normalizeThermalLocalOptions = (options = {}) => {
     backgroundThreshold: clamp(Math.round(numberOr(options.backgroundThreshold, DEFAULT_BACKGROUND_THRESHOLD)), 150, 254),
     despeckle: options.despeckle !== false,
     outline: options.outline !== false,
+    // Internal: the cut level for the "traced" style, 0 = its default.
+    tracedLevel: clamp(Math.round(numberOr(options.tracedLevel, 0)), 0, 255),
   };
 };
 
@@ -1128,12 +1130,16 @@ const hollowSolidRegions = (ink, width, height, halfWidth, minArea = 0) => {
   return out;
 };
 
-const tracedBinarize = async (gray, width, height, background, { inkOffset = 0 } = {}) => {
+// The level the first accepted Samba drawing was cut at: strokes plus the
+// solid accents, and the gum sole's hatching kept as tone.
+const TRACED_INK_LEVEL_PALE = 150;
+
+const tracedBinarize = async (gray, width, height, background, { inkOffset = 0, level: levelOverride = 0 } = {}) => {
   const upscale = 2;
   const bigWidth = width * upscale;
   const bigHeight = height * upscale;
   const big = await resizePlane(gray, width, height, bigWidth, bigHeight, sharp.kernel.lanczos3);
-  const level = clamp(Math.round(TRACED_INK_LEVEL + (inkOffset * 50)), 60, 220);
+  const level = clamp(Math.round((levelOverride > 0 ? levelOverride : TRACED_INK_LEVEL) + (inkOffset * 50)), 60, 220);
 
   let strokes = new Uint8Array(bigWidth * bigHeight);
   for (let index = 0; index < strokes.length; index += 1) strokes[index] = big[index] < level ? 1 : 0;
@@ -1272,7 +1278,11 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
   // fallback for a box without the model, or a model that fails to run.
   const { isLineartModelAvailable } = await import("./thermalLineartModel.js");
   const modelAvailable = await isLineartModelAvailable();
-  const auto = options.style === "auto" ? resolveAutoStyle(scaledGray, scaledBackground) : null;
+  // The tone profile decides more than the automatic style: the illustration
+  // service is driven differently for a black shoe than for a pale one.
+  const toneProfile = resolveAutoStyle(scaledGray, scaledBackground);
+  const darkProduct = toneProfile.darkShare >= AUTO_STYLE_DARK_SHARE;
+  const auto = options.style === "auto" ? toneProfile : null;
   // Order of preference under "auto": the illustration service (a generative
   // redraw), then the local drawing model, then the tone-based filter pick.
   const { isDrawingServiceReady } = await import("./thermalDrawingClient.js");
@@ -1296,19 +1306,29 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
     try {
       if (!modelAvailable) throw new Error("the drawing model is needed to guide the illustration service");
       const { result: control } = await computeLineartMap(croppedRgb, padded.width, padded.height);
-      // Hand the service confident strokes only. On a dark product the soft
-      // map is a field of grey hatching, and the diffusion model reads that
-      // as "draw a dark textured shoe" — the cut leaves it the contours.
+      // A pale product gets the soft map: its greys carry the gum sole's tone
+      // and the leather's texture, which the drawing keeps as hatching. A dark
+      // product gets confident strokes only — its soft map is a field of grey
+      // hatching that the diffusion model reads as "draw a dark textured shoe".
       const controlPlane = new Uint8Array(control.width * control.height);
       for (let index = 0; index < controlPlane.length; index += 1) {
-        controlPlane[index] = control.map[index] < LINEART_INK_CUT ? 0 : 255;
+        controlPlane[index] = darkProduct
+          ? (control.map[index] < LINEART_INK_CUT ? 0 : 255)
+          : Math.round(control.map[index] * 255);
       }
       const controlPng = await sharp(rawBuffer(controlPlane), { raw: { width: control.width, height: control.height, channels: 1 } })
         .png({ compressionLevel: 6 })
         .toBuffer();
 
       const { drawFromLineart } = await import("./thermalDrawingClient.js");
-      const drawn = await drawFromLineart({ controlPng, seed: 1 });
+      const { LIGHT_PRODUCT_PROMPT, LIGHT_PRODUCT_NEGATIVE } = await import("./thermalDrawingClient.js");
+      const drawn = await drawFromLineart({
+        controlPng,
+        seed: 1,
+        // The service's own defaults are the "no fill" wording for dark
+        // products; a pale product keeps its black accents filled.
+        ...(darkProduct ? {} : { prompt: LIGHT_PRODUCT_PROMPT, negativePrompt: LIGHT_PRODUCT_NEGATIVE }),
+      });
 
       // The service hands back a finished drawing on a near-white page. Treat
       // it as a fresh source: the same backdrop flood, shadow peel and crop
@@ -1318,7 +1338,12 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       // cores and left dashes. "traced" remains the fallback for a box
       // without the model.
       const page = await sharp(drawn.png).normalise({ lower: 1, upper: 99 }).png().toBuffer();
-      const traced = await renderThermalArtwork(page, { ...options, style: modelAvailable ? "lineart" : "traced" });
+      // Pale products: cut the page directly — fills stay solid and the
+      // sole's hatching reads as tone. Dark products: the line-drawing model
+      // over the page, which gives continuous strokes where a cut of their
+      // soft grey outlines left dashes.
+      const postStyle = darkProduct && modelAvailable ? "lineart" : "traced";
+      const traced = await renderThermalArtwork(page, { ...options, style: postStyle, tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE });
       return {
         buffer: traced.buffer,
         svg: traced.svg,
@@ -1343,7 +1368,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
 
   if (style === "traced") {
     // A clean drawing on white: cut it directly and trace the strokes.
-    const traced = await tracedBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset });
+    const traced = await tracedBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset, level: options.tracedLevel });
     lineart = { ink: traced.ink, svg: traced.svg, runtime: "traced", durationMs: 0, modelWidth: artWidth, modelHeight: artHeight };
     ink = traced.ink;
   }
