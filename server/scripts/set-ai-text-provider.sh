@@ -26,7 +26,7 @@ case "$PROVIDER" in
       echo "gsk_YOUR_KEY is a placeholder. Create your own key at https://console.groq.com/keys and pass it instead (it starts with gsk_ and is ~56 characters). Nothing was changed."
       exit 1
     fi
-    LINES=("AI_TEXT_PROVIDER=compatible" "AI_TEXT_BASE_URL=https://api.groq.com/openai/v1" "AI_TEXT_API_KEY=$ARG2" "AI_TEXT_MODEL=${ARG3:-llama-3.3-70b-versatile}" "AI_TEXT_TIMEOUT_MS=60000")
+    LINES=("AI_TEXT_PROVIDER=compatible" "AI_TEXT_BASE_URL=https://api.groq.com/openai/v1" "AI_TEXT_API_KEY=$ARG2" "AI_TEXT_MODEL=${ARG3:-qwen/qwen3.8-27b}" "AI_TEXT_TIMEOUT_MS=60000")
     ;;
   openrouter)
     [ -n "$ARG2" ] || { echo "usage: $0 openrouter <api-key> [model]"; exit 1; }

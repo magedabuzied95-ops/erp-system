@@ -74,8 +74,14 @@ Switch with `AI_TEXT_MODEL=qwen2.5:7b` and a backend restart.
 ## Option B — a free OpenAI-compatible host of open models (chosen 2026-09-07)
 
 Ollama on this CPU answered in 60–90 s with a 4B model whose Arabic needed the
-guard. Groq serves the open-weights Llama 3.3 70B with a free API key and an
-OpenAI-compatible endpoint, answers in 1–3 s and writes far better Arabic. The
+guard. Groq serves open-weights models with a free API key and an OpenAI-compatible
+endpoint. Measured 2026-09-07 on the free tier: `qwen/qwen3.8-27b` answers a
+description in ~1 s and an SEO block in ~0.6 s, stays on the facts, and keeps
+the audience right; `openai/gpt-oss-120b` is a reasoning model that burns its
+token budget before the JSON and is not worth it here. Llama 3.3 70B was
+retired from Groq before this was set up. Free-tier limits: 1000 requests/day
+and 8000 tokens/min, which is why compatible providers get the compact prompt
+and every call declares a small max_tokens. The
 owner creates the key at console.groq.com (a free account, no card), then:
 
 ```
@@ -86,8 +92,8 @@ The script rewrites the `AI_TEXT_*` lines in `/opt/erp/backend/.env`,
 recreates the backend without a rebuild, stops the idle Ollama container to
 free its memory, and prints a sample from the new model. `set-ai-text-provider.sh
 ollama` switches back; `openrouter <key>` is the same idea with OpenRouter's
-free models. Hosted models get the full brand-voice prompt; only the local
-`OLLAMA` label gets the compact one.
+free models. Every compatible provider gets the compact Arabic prompt (set
+`AI_TEXT_PROMPT=full` to send the long brand-voice prompt to a strong model).
 
 What the env ends up as:
 
@@ -95,11 +101,9 @@ What the env ends up as:
 AI_TEXT_PROVIDER=compatible
 AI_TEXT_BASE_URL=https://api.groq.com/openai/v1
 AI_TEXT_API_KEY=gsk_...
-AI_TEXT_MODEL=llama-3.3-70b-versatile
+AI_TEXT_MODEL=qwen/qwen3.8-27b
 ```
 
-Free tiers are rate limited (Groq: ~30 requests/min, 14k requests/day at the
-time of writing) which is far above what the product editor generates.
 
 ## Option C — back to OpenAI, or templates only
 

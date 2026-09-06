@@ -78,6 +78,12 @@ export const resolveTextProvider = (env = process.env) => {
   return openAi();
 };
 
+/* Hosted free tiers meter tokens per minute; the compact Arabic prompt is a
+ * quarter of the full one and keeps small models on the facts. AI_TEXT_PROMPT=full
+ * restores the long brand-voice prompt for a strong hosted model. */
+const usesCompactPrompt = (provider) =>
+  provider.kind === "compatible" && cleanText(process.env.AI_TEXT_PROMPT).toLowerCase() !== "full";
+
 const openAiClients = new Map();
 const getOpenAiClient = (provider) => {
   const key = `openai:${provider.timeout}`;
@@ -123,12 +129,15 @@ export const extractJsonObject = (text = "") => {
   throw error;
 };
 
-const chatCompletionJson = async (client, { model, timeout, instructions, prompt, schema, responseFormat }) => {
+const chatCompletionJson = async (client, { model, timeout, instructions, prompt, schema, responseFormat, maxTokens }) => {
   const keys = Object.keys(schema?.properties || {});
   const completion = await client.chat.completions.create(
     {
       model,
       temperature: 0.3,
+      // Free hosted tiers meter output tokens per minute against max_tokens, so
+      // every call declares how little it needs instead of the server default.
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
       messages: [
         { role: "system", content: instructions },
         {
@@ -156,6 +165,7 @@ export const requestStructuredJson = async ({
   schemaName = "result",
   schema = {},
   verbosity = "medium",
+  maxTokens = 500,
   client = null,
 }) => {
   if (!provider || provider.kind === "none") {
@@ -187,7 +197,7 @@ export const requestStructuredJson = async ({
   let lastError = null;
   for (const responseFormat of formats) {
     try {
-      return await chatCompletionJson(chat, { ...provider, instructions, prompt, schema, responseFormat });
+      return await chatCompletionJson(chat, { ...provider, instructions, prompt, schema, responseFormat, maxTokens });
     } catch (error) {
       lastError = error;
       const status = Number(error?.status || error?.response?.status || 0);
@@ -442,11 +452,21 @@ const localizedFacts = (context = {}) => {
     type_ar: typeAr,
     audience_ar: audienceAr,
     audience_en: seoGenderEn(context.gender),
+    type_en: seoTypeEn({ product_type: context.product_type, category: context.category, product_name: context.product_name }),
     colors_ar: colorsAr,
     sizes_ar: sizes.length > 2 ? `من ${sizes[0]} إلى ${sizes[sizes.length - 1]}` : sizes.join("، "),
     sizes,
   };
 };
+
+/* Egyptians search for كوتشي, not the MSA حذاء رياضي a model reaches for. */
+const egyptianiseSearchWords = (text = "") =>
+  String(text ?? "")
+    .replace(/أحذية رياضية|احذية رياضية|أحذية رياضة/g, "كوتشيات")
+    .replace(/حذاء رياضي|حذاء رياضة|حذاء سنيكرز|حذاء/g, "كوتشي");
+
+// Arabic words a model sometimes transliterates instead of translating.
+const TRANSLITERATED_ARABIC = /\b(kutchi|kotchi|koutchi|kotshi|shanta|shantah|harimi|regali|rigali|atfal)\b/i;
 
 const AUDIENCE_WORDS = ["رجالي", "حريمي", "نسائي", "أطفال", "اطفال"];
 // SEO_TYPE_AR is declared further down; resolve the words on first use.
@@ -473,7 +493,7 @@ const guardGeneratedDescriptions = (generated = {}, fallback = {}, context = {})
   const arabic = cleanText(generated.arabic_description);
   return {
     ...generated,
-    arabic_description: arabic && contradictsFacts(arabic, facts) ? fallback.arabic_description : generated.arabic_description,
+    arabic_description: arabic && contradictsFacts(arabic, facts) ? fallback.arabic_description : egyptianiseSearchWords(generated.arabic_description),
   };
 };
 
@@ -609,6 +629,7 @@ export const buildPrompt = (context = {}, target = "all", { compact = false } = 
     "Use only supplied product facts: product name, category, brand, colors, sizes, gender, material, and selling vibe.",
     "Mention available colors and sizes naturally, without listing every color repeatedly.",
     "Do not claim material, authenticity, technology, comfort features, or performance benefits unless supplied.",
+    "Never describe material, weight, durability, quality or brand reputation unless the material field is supplied; a description that only mentions look, fit, colours and sizes is correct.",
     "Avoid keyword stuffing and avoid repeating color names excessively.",
     "Do not use fake urgency, fake discounts, fake shipping claims, or unverifiable claims.",
     "Keep each description around 70-110 words.",
@@ -957,10 +978,11 @@ export const generateProductDescription = async (input = {}) => {
       requestId,
       label: "product-description",
       instructions: "You are an expert ecommerce copywriter for fashion, footwear, and retail catalog pages.",
-      prompt: buildPrompt(context, target, { compact: provider.label === "OLLAMA" }),
+      prompt: buildPrompt(context, target, { compact: usesCompactPrompt(provider) }),
       schemaName: "product_descriptions",
       schema: productDescriptionSchema,
       verbosity: "medium",
+      maxTokens: 520,
     });
     console.log("[product-description] text provider request end", {
       requestId,
@@ -1030,6 +1052,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
       schemaName: "social_caption",
       schema: socialCaptionSchema,
       verbosity: "medium",
+      maxTokens: 400,
     });
     const generated = normalizeSocialCaptionGenerated(parsed, fallback);
     console.log("[social-caption] text provider request end", {
@@ -1275,7 +1298,8 @@ const buildCompactSeoPrompt = (context = {}) => {
     `meta_title: بالضبط "${subject}" مع لون واحد فقط لو مهم، أقل من ${SEO_TITLE_MAX} حرف، بدون اسم المتجر.`,
     `meta_description: جملتان طبيعيتان بالعربي بين 110 و${SEO_DESCRIPTION_MAX} حرف: ما هو المنتج ولمن، الألوان والمقاسات، ثم "اطلبه الآن من M1 Store."`,
     "keywords: 6 إلى 8 عبارات بحث قصيرة (عربي + اسم الماركة بالإنجليزي). بدون أرقام مقاسات وبدون هاشتاج.",
-    `slug: كلمات إنجليزية صغيرة مفصولة بشرطة من الماركة والاسم والنوع والفئة (${facts.audience_en || "بدون فئة"}).`,
+    "استخدم كلمات البحث المصرية: كوتشي، شنطة، سليبر، كروكس، بوت. لا تكتب حذاء رياضي أو أحذية رياضية.",
+    `slug: كلمات إنجليزية صغيرة مفصولة بشرطة من الماركة والاسم والنوع بالإنجليزي (${[facts.type_en, facts.audience_en].filter(Boolean).join(", ") || "بدون فئة"}). لا تكتب كلمات عربية بحروف لاتينية مثل kutchi.`,
     "لا تخترع خامات أو مزايا أو خصومات.",
   ]
     .filter(Boolean)
@@ -1314,7 +1338,7 @@ const OPPOSITE_SLUG_TOKENS = { men: ["women", "kids"], women: ["men", "kids"], k
  * weak model can only ever make the metadata better, never wrong. */
 export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => {
   const facts = localizedFacts(context);
-  const titleCandidate = clipAtWord(stripStoreSuffix(raw.meta_title || raw.title || ""), SEO_TITLE_MAX);
+  const titleCandidate = clipAtWord(egyptianiseSearchWords(stripStoreSuffix(raw.meta_title || raw.title || "")), SEO_TITLE_MAX);
   const titleAgrees =
     titleCandidate &&
     !contradictsFacts(titleCandidate, facts) &&
@@ -1322,13 +1346,13 @@ export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => 
     (!facts.audience_ar || titleCandidate.includes(facts.audience_ar));
   const metaTitle = titleAgrees ? titleCandidate : fallback.meta_title || titleCandidate || "";
 
-  const descriptionCandidate = clipAtWord(raw.meta_description || raw.seo_description || raw.description || "", SEO_DESCRIPTION_MAX);
+  const descriptionCandidate = clipAtWord(egyptianiseSearchWords(raw.meta_description || raw.seo_description || raw.description || ""), SEO_DESCRIPTION_MAX);
   const descriptionAgrees = descriptionCandidate.length >= 60 && !contradictsFacts(descriptionCandidate, facts);
   const metaDescription = descriptionAgrees ? descriptionCandidate : fallback.meta_description || descriptionCandidate || "";
 
   const rawKeywords = Array.isArray(raw.keywords) ? raw.keywords : String(raw.keywords || "").split(/[,،\n]/);
-  const cleanKeywords = uniqueKeywords(rawKeywords).filter(
-    (keyword) => keyword.length >= 3 && !/^[\d\s.,/-]+$/.test(keyword) && !contradictsFacts(keyword, facts)
+  const cleanKeywords = uniqueKeywords(rawKeywords.map(egyptianiseSearchWords)).filter(
+    (keyword) => keyword.length >= 3 && !/^[\d\s.,/-]+$/.test(keyword) && !contradictsFacts(keyword, facts) && !TRANSLITERATED_ARABIC.test(keyword)
   );
   const keywords = uniqueKeywords([...cleanKeywords, ...(fallback.keywords || [])], 10);
 
@@ -1336,14 +1360,15 @@ export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => 
     .replace(/[؀-ۿ]/g, "")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
-  const slugTokens = slugCandidate.split("-");
+  const slugTokens = slugCandidate.split("-").filter((token) => !TRANSLITERATED_ARABIC.test(token));
+  const cleanedSlug = slugTokens.join("-");
   const slugAgrees =
     slugCandidate && !(OPPOSITE_SLUG_TOKENS[facts.audience_en] || []).some((token) => slugTokens.includes(token));
   return {
     meta_title: metaTitle,
     meta_description: metaDescription,
     keywords,
-    slug: slugAgrees ? slugCandidate : fallback.slug || slugCandidate || "",
+    slug: slugAgrees ? cleanedSlug : fallback.slug || cleanedSlug || "",
   };
 };
 
@@ -1371,10 +1396,11 @@ export const generateProductSeoMetadata = async (input = {}) => {
       requestId,
       label: "product-seo",
       instructions: "You are a senior ecommerce SEO specialist for the Egyptian market. You write concise, honest, search-friendly Arabic metadata.",
-      prompt: buildSeoPrompt(context, { compact: provider.label === "OLLAMA" }),
+      prompt: buildSeoPrompt(context, { compact: usesCompactPrompt(provider) }),
       schemaName: "product_seo_metadata",
       schema: seoMetadataSchema,
       verbosity: "low",
+      maxTokens: 320,
     });
     console.log("[product-seo] text provider request end", { requestId, durationMs: Date.now() - startedAt });
     return { ...normalizeSeoGenerated(parsed, fallback, context), source: provider.label };
