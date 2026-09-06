@@ -40,7 +40,8 @@ const positiveNumber = (value, fallback) => {
  * ------------------------------------------------------------------------- */
 
 const DEFAULT_COMPATIBLE_MODEL = "gemma3:4b";
-const DEFAULT_COMPATIBLE_TIMEOUT_MS = 90_000;
+const DEFAULT_COMPATIBLE_TIMEOUT_MS = 85_000;
+const MAX_COMPATIBLE_TIMEOUT_MS = 88_000;
 const DEFAULT_OLLAMA_BASE_URL = "http://127.0.0.1:11434/v1";
 
 const NO_PROVIDER = Object.freeze({ kind: "none", label: "LOCAL_FALLBACK", model: "" });
@@ -69,7 +70,9 @@ export const resolveTextProvider = (env = process.env) => {
       baseUrl,
       apiKey: cleanText(env.AI_TEXT_API_KEY) || "local",
       model: cleanText(env.AI_TEXT_MODEL) || DEFAULT_COMPATIBLE_MODEL,
-      timeout: positiveNumber(env.AI_TEXT_TIMEOUT_MS, DEFAULT_COMPATIBLE_TIMEOUT_MS),
+      // The HTTP route is cut at 95 s (Cloudflare allows 100 s), so the model must
+      // give up before that for the template fallback to still reach the editor.
+      timeout: Math.min(positiveNumber(env.AI_TEXT_TIMEOUT_MS, DEFAULT_COMPATIBLE_TIMEOUT_MS), MAX_COMPATIBLE_TIMEOUT_MS),
     };
   }
   return openAi();

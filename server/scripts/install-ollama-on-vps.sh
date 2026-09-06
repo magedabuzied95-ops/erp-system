@@ -35,7 +35,6 @@ service = """  # Open-weights text model for product descriptions, SEO metadata 
       OLLAMA_KEEP_ALIVE: 30m
       OLLAMA_NUM_PARALLEL: 1
       OLLAMA_MAX_LOADED_MODELS: 1
-      OLLAMA_NUM_THREADS: "4"
     volumes:
       - erp_ollama_models:/root/.ollama
     mem_limit: 5g
@@ -73,7 +72,7 @@ else
     echo "AI_TEXT_PROVIDER=ollama"
     echo "AI_TEXT_BASE_URL=http://erp-ollama:11434/v1"
     echo "AI_TEXT_MODEL=$MODEL"
-    echo "AI_TEXT_TIMEOUT_MS=120000"
+    echo "AI_TEXT_TIMEOUT_MS=85000"
   } >> "$BACKEND_ENV"
   echo "AI_TEXT_* appended to $BACKEND_ENV"
 fi

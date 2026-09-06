@@ -199,8 +199,18 @@ router.get("/by-size", protect, permit("products", "view"), getProductsBySize);
 router.get("/:id/full", protect, permit("products", "view"), getProductFull);
 router.get("/:id/color-usage", protect, permit("products", "view"), getProductColorUsage);
 router.get("/qr/:token", protect, permit("products", "view"), getProductByQrToken);
+// A local open model on the CPU needs longer than the 60 s global request
+// window. No callback: the global timeout handler stays registered and fires at
+// this deadline instead. Cloudflare cuts proxied requests at 100 s, so this is
+// the real ceiling; slower generations must fall back to the template.
+const AI_TEXT_ROUTE_TIMEOUT_MS = Math.min(Math.max(Number(process.env.AI_TEXT_ROUTE_TIMEOUT_MS || 95_000), 30_000), 95_000);
+const extendAiTextTimeout = (req, res, next) => {
+  req.setTimeout(AI_TEXT_ROUTE_TIMEOUT_MS);
+  res.setTimeout(AI_TEXT_ROUTE_TIMEOUT_MS);
+  next();
+};
 router.post("/generate-ai-data", protect, permit("products", "edit"), generateAiProductDataController);
-router.post("/generate-seo", protect, permit("products", "edit"), async (req, res) => {
+router.post("/generate-seo", protect, permit("products", "edit"), extendAiTextTimeout, async (req, res) => {
   const startedAt = Date.now();
   const requestId = `product-seo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
@@ -223,7 +233,7 @@ router.post("/generate-seo", protect, permit("products", "edit"), async (req, re
     });
   }
 });
-router.post("/generate-description", protect, permit("products", "edit"), async (req, res) => {
+router.post("/generate-description", protect, permit("products", "edit"), extendAiTextTimeout, async (req, res) => {
   const startedAt = Date.now();
   const requestId = `product-description-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
@@ -263,7 +273,7 @@ router.post("/generate-description", protect, permit("products", "edit"), async 
     });
   }
 });
-router.post("/generate-social-caption", protect, permit("products", "edit"), async (req, res) => {
+router.post("/generate-social-caption", protect, permit("products", "edit"), extendAiTextTimeout, async (req, res) => {
   const startedAt = Date.now();
   const requestId = `social-caption-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {

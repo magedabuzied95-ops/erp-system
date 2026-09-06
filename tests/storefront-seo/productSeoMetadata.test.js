@@ -230,7 +230,7 @@ test("text provider resolves from env without touching OpenAI", async () => {
   assert.equal(compose.baseUrl, "http://ollama:11434/v1");
   assert.equal(compose.label, "OLLAMA");
   assert.equal(compose.model, "qwen2.5:7b");
-  assert.equal(compose.timeout, 120000);
+  assert.equal(compose.timeout, 88000, "clamped under the 95 s route window");
   const groq = resolveTextProvider({ AI_TEXT_PROVIDER: "compatible", AI_TEXT_BASE_URL: "https://api.groq.com/openai/v1/", AI_TEXT_API_KEY: "gsk", AI_TEXT_MODEL: "llama-3.3-70b-versatile" });
   assert.equal(groq.label, "LLM");
   assert.equal(groq.baseUrl, "https://api.groq.com/openai/v1");
