@@ -71,11 +71,25 @@ Models worth trying, all open weights and free:
 
 Switch with `AI_TEXT_MODEL=qwen2.5:7b` and a backend restart.
 
-## Option B — a free OpenAI-compatible host of open models
+## Option B — a free OpenAI-compatible host of open models (chosen 2026-09-07)
 
-If the box is too busy (the artwork service already draws on CPU), point the
-same code at a hosted open model. Groq and OpenRouter both serve Llama 3.3 70B
-and Qwen with a free tier and an OpenAI-compatible endpoint:
+Ollama on this CPU answered in 60–90 s with a 4B model whose Arabic needed the
+guard. Groq serves the open-weights Llama 3.3 70B with a free API key and an
+OpenAI-compatible endpoint, answers in 1–3 s and writes far better Arabic. The
+owner creates the key at console.groq.com (a free account, no card), then:
+
+```
+ssh root@13.140.141.50 "cd /opt/apps/erp-system; git pull -q origin main; bash server/scripts/set-ai-text-provider.sh groq gsk_YOUR_KEY"
+```
+
+The script rewrites the `AI_TEXT_*` lines in `/opt/erp/backend/.env`,
+recreates the backend without a rebuild, stops the idle Ollama container to
+free its memory, and prints a sample from the new model. `set-ai-text-provider.sh
+ollama` switches back; `openrouter <key>` is the same idea with OpenRouter's
+free models. Hosted models get the full brand-voice prompt; only the local
+`OLLAMA` label gets the compact one.
+
+What the env ends up as:
 
 ```
 AI_TEXT_PROVIDER=compatible

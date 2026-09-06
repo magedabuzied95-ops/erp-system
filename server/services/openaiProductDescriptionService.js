@@ -96,7 +96,9 @@ const getCompatibleClient = (provider) => {
   return compatibleClients.get(key);
 };
 
-/* Small open models wrap JSON in prose or code fences no matter what the
+/* The compact Arabic prompt is for small local models (label OLLAMA); a hosted
+ * 70B-class model handles the full brand-voice prompt and writes better copy.
+ * Small open models wrap JSON in prose or code fences no matter what the
  * request says; take the first balanced object rather than failing the call. */
 export const extractJsonObject = (text = "") => {
   const raw = String(text ?? "").trim();
@@ -955,7 +957,7 @@ export const generateProductDescription = async (input = {}) => {
       requestId,
       label: "product-description",
       instructions: "You are an expert ecommerce copywriter for fashion, footwear, and retail catalog pages.",
-      prompt: buildPrompt(context, target, { compact: provider.kind === "compatible" }),
+      prompt: buildPrompt(context, target, { compact: provider.label === "OLLAMA" }),
       schemaName: "product_descriptions",
       schema: productDescriptionSchema,
       verbosity: "medium",
@@ -1369,7 +1371,7 @@ export const generateProductSeoMetadata = async (input = {}) => {
       requestId,
       label: "product-seo",
       instructions: "You are a senior ecommerce SEO specialist for the Egyptian market. You write concise, honest, search-friendly Arabic metadata.",
-      prompt: buildSeoPrompt(context, { compact: provider.kind === "compatible" }),
+      prompt: buildSeoPrompt(context, { compact: provider.label === "OLLAMA" }),
       schemaName: "product_seo_metadata",
       schema: seoMetadataSchema,
       verbosity: "low",
