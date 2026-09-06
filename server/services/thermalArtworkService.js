@@ -7,12 +7,24 @@ import { Buffer } from "node:buffer";
 import sharp from "sharp";
 
 import db from "../database/db.js";
+import { renderThermalArtwork, thermalLocalOptionsFingerprint } from "../lib/thermalLocalEngine.js";
+import {
+  THERMAL_ARTWORK_DEFAULTS,
+  THERMAL_ARTWORK_SETTING_KEYS,
+  normalizeThermalEngine,
+  normalizeThermalInkLevel,
+  normalizeThermalStyle,
+} from "../../shared/thermalArtworkSettings.js";
 import { cloudinaryUploadsEnabled } from "../utils/cloudinaryUploads.js";
 import { thermalOpenAiApiKey } from "./openaiCredentials.js";
 
 const THERMAL_IMAGE_DIR = path.resolve(process.cwd(), "uploads", "products", "thermal");
 const THERMAL_IMAGE_PUBLIC_PREFIX = "/uploads/products/thermal";
 const THERMAL_IMAGE_MAX_SIDE = Number(process.env.THERMAL_IMAGE_MAX_SIDE || 1400);
+// Left at the engine's own default, which is sized to the label's dot grid.
+// Overriding it upward does not add detail — the browser scales the artwork
+// back down into the slot and the extra resolution is averaged away.
+const THERMAL_LOCAL_CANVAS = Number(process.env.THERMAL_ARTWORK_CANVAS || 0) || undefined;
 const THERMAL_IMAGE_FILE_FORMAT = "png";
 const THERMAL_JOB_IN_FLIGHT = new Map();
 const THERMAL_ARTWORK_BACKGROUND_THRESHOLD = 245;
@@ -87,14 +99,15 @@ const isLocalUploadsPath = (value = "") => {
 const resolveLocalSourcePath = (value = "") => {
   const normalized = normalizeText(value).replace(/\\/g, "/");
   if (!normalized) return "";
-  if (path.isAbsolute(normalized)) return normalized;
-  if (normalized.startsWith("/")) {
+  // A leading slash on an uploads path means "the app's uploads folder", not
+  // the filesystem root. path.isAbsolute() accepts "/uploads/..." on every
+  // platform, so testing it first sent every read to C:\uploads or /uploads,
+  // where nothing lives, and the source image always came back missing.
+  if (/^\/*uploads\//i.test(normalized)) {
     return path.resolve(process.cwd(), normalized.replace(/^\/+/, ""));
   }
-  if (normalized.startsWith("uploads/")) {
-    return path.resolve(process.cwd(), normalized);
-  }
-  if (normalized.startsWith("/uploads/")) {
+  if (path.isAbsolute(normalized)) return normalized;
+  if (normalized.startsWith("/")) {
     return path.resolve(process.cwd(), normalized.replace(/^\/+/, ""));
   }
   return "";
@@ -164,13 +177,17 @@ const sourceFingerprint = async (sourceImageUrl = "") => {
   return source;
 };
 
-const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = null, variantId = null, sourceImageUrl = "", cacheBust = "" } = {}) => {
+const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = null, variantId = null, sourceImageUrl = "", cacheBust = "", engineFingerprint = "" } = {}) => {
   const fingerprint = await sourceFingerprint(sourceImageUrl);
   return crypto
     .createHash("sha1")
     .update(
       [
         THERMAL_ARTWORK_VERSION,
+        // The engine and its style belong in the key: switching from OpenAI to
+        // the local renderer, or from line art to halftone, must produce a new
+        // file rather than serve the artwork drawn under the old settings.
+        engineFingerprint || "",
         entityType,
         tenantId ?? "",
         productId ?? "",
@@ -182,8 +199,8 @@ const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = 
     .digest("hex");
 };
 
-const outputFileNameFor = async ({ entityType = "product", productId = null, variantId = null, sourceImageUrl = "", cacheBust = "" } = {}) => {
-  const jobKey = await jobKeyFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
+const outputFileNameFor = async ({ entityType = "product", productId = null, variantId = null, sourceImageUrl = "", cacheBust = "", engineFingerprint = "" } = {}) => {
+  const jobKey = await jobKeyFor({ entityType, productId, variantId, sourceImageUrl, cacheBust, engineFingerprint });
   return `${entityType}-${productId || "product"}-${variantId || "base"}-${jobKey.slice(0, 16)}.${THERMAL_IMAGE_FILE_FORMAT}`;
 };
 
@@ -200,6 +217,59 @@ const cloudinaryConfig = () => ({
   apiSecret: process.env.CLOUDINARY_API_SECRET || "",
   folder: process.env.CLOUDINARY_PRODUCT_FOLDER || "erp/products",
 });
+
+/**
+ * Which engine draws the artwork, and how.
+ *
+ * The stored setting is the authority; an env var can pin it for a single
+ * deployment, and an explicit request option (a "try this style" preview) wins
+ * over both. Falling back to the local engine matters: it is the only path that
+ * still works when the OpenAI key is missing, expired or out of credit, and a
+ * label that cannot be printed stops the stockroom.
+ */
+const resolveThermalEngineConfig = async (overrides = {}) => {
+  let storedEngine = "";
+  let storedStyle = "";
+  let storedInkLevel = null;
+  try {
+    const { getSetting } = await import("./settingsService.js");
+    [storedEngine, storedStyle, storedInkLevel] = await Promise.all([
+      getSetting(THERMAL_ARTWORK_SETTING_KEYS.engine, THERMAL_ARTWORK_DEFAULTS.engine),
+      getSetting(THERMAL_ARTWORK_SETTING_KEYS.style, THERMAL_ARTWORK_DEFAULTS.style),
+      getSetting(THERMAL_ARTWORK_SETTING_KEYS.inkLevel, THERMAL_ARTWORK_DEFAULTS.inkLevel),
+    ]);
+  } catch (error) {
+    console.warn("[thermal-artwork] settings unavailable, using defaults", {
+      message: error?.message || String(error),
+    });
+  }
+
+  const requestedEngine = normalizeThermalEngine(
+    normalizeText(overrides.engine) || normalizeText(process.env.THERMAL_ARTWORK_ENGINE) || storedEngine || THERMAL_ARTWORK_DEFAULTS.engine
+  );
+  const style = normalizeThermalStyle(
+    normalizeText(overrides.style) || normalizeText(process.env.THERMAL_ARTWORK_STYLE) || storedStyle || THERMAL_ARTWORK_DEFAULTS.style
+  );
+  const inkLevel = normalizeThermalInkLevel(
+    overrides.inkLevel ?? process.env.THERMAL_ARTWORK_INK_LEVEL ?? storedInkLevel ?? THERMAL_ARTWORK_DEFAULTS.inkLevel
+  );
+
+  const hasOpenAiKey = Boolean(thermalOpenAiApiKey());
+  const engine = requestedEngine === "openai" && !hasOpenAiKey ? "local" : requestedEngine;
+  const localOptions = { style, inkLevel, canvas: THERMAL_LOCAL_CANVAS };
+
+  return {
+    engine,
+    requestedEngine,
+    style,
+    inkLevel,
+    localOptions,
+    downgradedFromOpenAi: requestedEngine === "openai" && engine === "local",
+    fingerprint: engine === "openai"
+      ? `openai:${DEFAULT_MODEL}`
+      : thermalLocalOptionsFingerprint(localOptions),
+  };
+};
 
 const getClient = () => {
   const apiKey = thermalOpenAiApiKey();
@@ -589,6 +659,154 @@ const updateThermalRecord = async ({ entityType = "product", productId = null, v
   }
 };
 
+const renderLocalThermalBuffer = async (sourceBuffer, engineConfig, context = {}) => {
+  const startedAt = Date.now();
+  const { buffer, meta } = await renderThermalArtwork(sourceBuffer, engineConfig.localOptions);
+  console.log("THERMAL_LOCAL_RENDER", {
+    ...context,
+    ...meta,
+    bufferBytes: buffer?.length || 0,
+    durationMs: Date.now() - startedAt,
+  });
+  return buffer;
+};
+
+/**
+ * Shared tail for both engines: post-process where the engine needs it, store
+ * the asset, and mark the product or variant ready. Only the OpenAI path needs
+ * the auto-zoom pass — the local engine already crops, fills and binarises, so
+ * running it again would only cost time.
+ */
+const finishThermalJob = async ({
+  buffer,
+  engineConfig,
+  entityType,
+  productId,
+  variantId,
+  tenantId,
+  sourceImageUrl,
+  cacheBust,
+  outputFileName,
+  outputUrl,
+  outputPath,
+  regenerate,
+  productName,
+  cacheKey,
+  inputKey,
+  startedAt,
+} = {}) => {
+  const isOpenAi = engineConfig?.engine === "openai";
+  const model = isOpenAi ? DEFAULT_MODEL : "local-thermal-engine";
+  const prompt = isOpenAi ? THERMAL_ARTWORK_PROMPT : "";
+
+  let thermalBuffer = buffer;
+  if (isOpenAi) {
+    try {
+      thermalBuffer = await postProcessThermalArtworkBuffer(buffer, { productName });
+    } catch (zoomError) {
+      console.warn("[thermal-artwork] auto-zoom failed, saving generated image directly", {
+        entityType,
+        productId,
+        variantId,
+        message: zoomError?.message || String(zoomError),
+      });
+      thermalBuffer = buffer;
+    }
+  }
+
+  console.log("THERMAL_FINAL_WRITE", {
+    regenerate,
+    outputUrl,
+    outputPath,
+    engine: engineConfig?.engine || "",
+    style: engineConfig?.style || "",
+    bufferBytes: thermalBuffer?.length || 0,
+    hasWhiteTextOverlay: Boolean(productName),
+    finalScale: isOpenAi ? (lastThermalAutoZoomMeta?.finalScale ?? null) : null,
+  });
+
+  const stored = await saveThermalArtworkAsset({
+    buffer: thermalBuffer,
+    productId,
+    sourceKey: `${sourceImageUrl}:${productId || ""}:${cacheBust || Date.now()}`,
+    fileName: outputFileName,
+    mimetype: "image/png",
+  });
+
+  console.log("THERMAL_SAVE_FINAL_BUFFER", {
+    hasWhiteTextOverlay: Boolean(productName),
+    outputUrl: stored.thermal_image_url,
+    cacheBypassed: regenerate,
+    generatedAt: new Date().toISOString(),
+  });
+
+  await updateThermalRecord({
+    entityType,
+    productId,
+    variantId,
+    tenantId,
+    thermalImageUrl: stored.thermal_image_url,
+    thermalImageStatus: stored.thermal_image_url ? "ready" : "failed",
+  });
+
+  const cached = {
+    thermal_image_url: stored.thermal_image_url,
+    cached: false,
+    source: isOpenAi ? "OPENAI" : "LOCAL",
+    storage: stored.storage,
+    prompt,
+    model,
+    durationMs: Date.now() - startedAt,
+  };
+  thermalArtworkCache.set(cacheKey, cached);
+
+  let updated = true;
+  if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
+    const updateParams = [stored.thermal_image_url, stored.thermal_image_url ? "ready" : "failed", Number(productId)];
+    const whereClause = tenantId ? " AND tenant_id = $4" : "";
+    if (tenantId) updateParams.push(tenantId);
+    try {
+      await db.query(
+        `UPDATE products SET thermal_image_url = $1, thermal_image_status = $2, updated_at = NOW() WHERE id = $3${whereClause}`,
+        updateParams
+      );
+    } catch (error) {
+      console.warn("[thermal-artwork] product update failed", {
+        productId,
+        message: error?.message || String(error),
+      });
+      updated = false;
+    }
+  }
+  cached.updated = updated;
+
+  console.log("THERMAL_IMAGE_JOB_READY", {
+    entityType,
+    productId,
+    variantId,
+    tenantId,
+    productName,
+    engine: engineConfig?.engine || "",
+    thermalImageUrl: stored.thermal_image_url,
+    outputPath: stored.outputPath || "",
+  });
+
+  return {
+    success: true,
+    thermal_image_url: stored.thermal_image_url,
+    source: "generated",
+    cached: false,
+    updated: true,
+    storage: stored.storage,
+    prompt,
+    model,
+    engine: engineConfig?.engine || "",
+    style: engineConfig?.style || "",
+    ink_level: engineConfig?.inkLevel ?? null,
+    job_key: inputKey,
+  };
+};
+
 export const regenerateThermalImageForProductImage = async (options = {}) => {
   const entityType = options.entityType === "variant" ? "variant" : "product";
   const productId = Number(options.productId || 0) || null;
@@ -599,15 +817,25 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
   const regenerate = options.regenerate === true || String(options.regenerate || "").toLowerCase() === "true";
   const productName = normalizeText(options.productName || options.name || "");
   const cacheBust = regenerate ? `${Date.now()}-${crypto.randomUUID()}` : "";
-  const inputKey = await jobKeyFor({ entityType, tenantId, productId, variantId, sourceImageUrl, cacheBust });
-  const outputUrl = await outputUrlFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
-  const outputPath = await outputPathFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
+  const engineConfig = await resolveThermalEngineConfig({
+    engine: options.engine,
+    style: options.style,
+    inkLevel: options.inkLevel,
+  });
+  const engineFingerprint = engineConfig.fingerprint;
+  const inputKey = await jobKeyFor({ entityType, tenantId, productId, variantId, sourceImageUrl, cacheBust, engineFingerprint });
+  const outputUrl = await outputUrlFor({ entityType, productId, variantId, sourceImageUrl, cacheBust, engineFingerprint });
+  const outputPath = await outputPathFor({ entityType, productId, variantId, sourceImageUrl, cacheBust, engineFingerprint });
   console.log("THERMAL_SERVICE_INPUT", {
     productId,
     variantId,
     regenerate,
     sourceImageUrl,
     outputUrl,
+    engine: engineConfig.engine,
+    style: engineConfig.style,
+    inkLevel: engineConfig.inkLevel,
+    downgradedFromOpenAi: engineConfig.downgradedFromOpenAi,
     cacheKey: `${entityType}:${tenantId ?? "tenant"}:${productId ?? "product"}:${variantId ?? "variant"}:${inputKey}`,
   });
 
@@ -619,7 +847,9 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       updated: false,
       storage: existingThermalImageUrl.startsWith("http") ? "remote" : "local",
       source: "cached-existing",
-      model: "sharp-thermal-artwork",
+      model: engineConfig.engine === "openai" ? DEFAULT_MODEL : "local-thermal-engine",
+      engine: engineConfig.engine,
+      style: engineConfig.style,
       prompt: "",
       job_key: inputKey,
     };
@@ -679,7 +909,9 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
         updated: true,
         storage: "local",
         prompt: "",
-        model: "sharp-thermal-artwork",
+        model: engineConfig.engine === "openai" ? DEFAULT_MODEL : "local-thermal-engine",
+      engine: engineConfig.engine,
+      style: engineConfig.style,
         job_key: inputKey,
       };
     }
@@ -698,11 +930,37 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       throw new Error("Thermal source image could not be loaded");
     }
 
+    const startedAt = Date.now();
+
+    if (engineConfig.engine === "local") {
+      return finishThermalJob({
+        buffer: await renderLocalThermalBuffer(normalizedSource.buffer, engineConfig, {
+          entityType,
+          productId,
+          variantId,
+        }),
+        engineConfig,
+        entityType,
+        productId,
+        variantId,
+        tenantId,
+        sourceImageUrl,
+        cacheBust,
+        outputFileName,
+        outputUrl,
+        outputPath,
+        regenerate,
+        productName,
+        cacheKey,
+        inputKey,
+        startedAt,
+      });
+    }
+
     const inputFile = await toFile(normalizedSource.buffer, `${cleanText(productName) || "product"}-thermal-source.png`, {
       type: normalizedSource.mimetype || "image/png",
     });
 
-    const startedAt = Date.now();
     const client = getClient();
     console.log({
       hasKey: Boolean(thermalOpenAiApiKey()),
@@ -745,104 +1003,24 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       using_original_source_buffer: false,
     });
 
-    let thermalBuffer = generatedBuffer;
-    try {
-      thermalBuffer = await postProcessThermalArtworkBuffer(generatedBuffer, { productName });
-    } catch (zoomError) {
-      console.warn("[thermal-artwork] auto-zoom failed, saving generated image directly", {
-        entityType,
-        productId,
-        variantId,
-        message: zoomError?.message || String(zoomError),
-      });
-      thermalBuffer = generatedBuffer;
-    }
-
-    console.log("THERMAL_FINAL_WRITE", {
-      regenerate,
+    return finishThermalJob({
+      buffer: generatedBuffer,
+      engineConfig,
+      entityType,
+      productId,
+      variantId,
+      tenantId,
+      sourceImageUrl,
+      cacheBust,
+      outputFileName,
       outputUrl,
       outputPath,
-      bufferBytes: thermalBuffer?.length || 0,
-      hasWhiteTextOverlay: Boolean(productName),
-      finalScale: lastThermalAutoZoomMeta?.finalScale ?? null,
-    });
-
-    const stored = await saveThermalArtworkAsset({
-      buffer: thermalBuffer,
-      productId,
-      sourceKey: `${sourceImageUrl}:${productId || ""}:${cacheBust || Date.now()}`,
-      fileName: outputFileName,
-      mimetype: "image/png",
-    });
-
-    console.log("THERMAL_SAVE_FINAL_BUFFER", {
-      hasWhiteTextOverlay: Boolean(productName),
-      outputUrl: stored.thermal_image_url,
-      cacheBypassed: regenerate,
-      generatedAt: new Date().toISOString(),
-    });
-
-    await updateThermalRecord({
-      entityType,
-      productId,
-      variantId,
-      tenantId,
-      thermalImageUrl: stored.thermal_image_url,
-      thermalImageStatus: stored.thermal_image_url ? "ready" : "failed",
-    });
-
-    const result = {
-      thermal_image_url: stored.thermal_image_url,
-      cached: false,
-      source: "OPENAI",
-      storage: stored.storage,
-      prompt: THERMAL_ARTWORK_PROMPT,
-      model,
-      durationMs: Date.now() - startedAt,
-    };
-
-    thermalArtworkCache.set(cacheKey, result);
-
-    if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
-      const updateParams = [stored.thermal_image_url, stored.thermal_image_url ? "ready" : "failed", Number(productId)];
-      const whereClause = tenantId ? " AND tenant_id = $4" : "";
-      if (tenantId) updateParams.push(tenantId);
-      try {
-        await db.query(
-          `UPDATE products SET thermal_image_url = $1, thermal_image_status = $2, updated_at = NOW() WHERE id = $3${whereClause}`,
-          updateParams
-        );
-        result.updated = true;
-      } catch (error) {
-        console.warn("[thermal-artwork] product update failed", {
-          productId,
-          message: error?.message || String(error),
-        });
-        result.updated = false;
-      }
-    }
-
-    console.log("THERMAL_IMAGE_JOB_READY", {
-      entityType,
-      productId,
-      variantId,
-      tenantId,
+      regenerate,
       productName,
-      thermalImageUrl: stored.thermal_image_url,
-      outputPath: stored.outputPath || "",
+      cacheKey,
+      inputKey,
+      startedAt,
     });
-
-      return {
-        success: true,
-        thermal_image_url: stored.thermal_image_url,
-      source: "generated",
-      cached: false,
-      updated: true,
-      storage: stored.storage,
-      prompt: THERMAL_ARTWORK_PROMPT,
-      model,
-      job_key: inputKey,
-    };
   })().catch(async (error) => {
     await updateThermalRecord({
       entityType,
@@ -873,7 +1051,9 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       updated: false,
       storage: "local",
       prompt: "",
-      model: "sharp-thermal-artwork",
+      model: engineConfig.engine === "openai" ? DEFAULT_MODEL : "local-thermal-engine",
+      engine: engineConfig.engine,
+      style: engineConfig.style,
       error: error?.message || String(error),
       job_key: inputKey,
     };

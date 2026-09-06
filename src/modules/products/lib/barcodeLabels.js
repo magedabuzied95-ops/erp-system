@@ -318,6 +318,29 @@ const isThermalArtworkTemplate = (template) => {
   ].includes(normalized);
 };
 
+/**
+ * True when the label is already showing artwork the server rendered for the
+ * thermal head. The in-page converter below is a fallback for photos that were
+ * never converted; running it again over finished artwork only thickens the
+ * lines and eats print-window time.
+ */
+const isServerThermalArtwork = (item = {}) => {
+  if (getThermalImageStatus(item) !== "ready") return false;
+  const resolved = String(item?.imageUrl || item?.resolvedImage || "").trim();
+  if (!resolved) return false;
+  return [
+    item?.variant_color_thermal_image_url,
+    item?.color_thermal_image_url,
+    item?.thermal_image_url,
+    item?.product_thermal_image_url,
+    item?.thermalImageUrl,
+    item?.productThermalImageUrl,
+  ]
+    .map((url) => String(url || "").trim())
+    .filter(Boolean)
+    .includes(resolved);
+};
+
 const buildThermalArtworkScript = () => `
   <script>
     (function () {
@@ -1626,7 +1649,9 @@ export const buildBarcodePrintHtml = ({
 
   const buildLabelMarkup = (item) => {
       const safeImage = getSafeLabelImageUrl(item);
-      const thermalArtworkAttr = useThermalArtwork && safeImage ? ' data-thermal-artwork-source="true"' : "";
+      const thermalArtworkAttr = useThermalArtwork && safeImage && !isServerThermalArtwork(item)
+        ? ' data-thermal-artwork-source="true"'
+        : "";
       const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
         width: barcodeWidth,
         height: barcodeHeight,
