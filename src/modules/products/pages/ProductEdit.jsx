@@ -189,6 +189,14 @@ const normalizeManufacturerIds = (value, fallback = "") => {
   return [...new Set(values.map((item) => String(item || "").trim()).filter(Boolean))];
 };
 
+/* The default factory is a LIST now, so "did this colour diverge from the default"
+   is a set comparison - order is irrelevant, only membership. */
+const sameManufacturerSelection = (left, right) => {
+  const a = normalizeManufacturerIds(left);
+  const b = normalizeManufacturerIds(right);
+  return a.length === b.length && a.every((id) => b.includes(id));
+};
+
 const createEmptyColorGroup = (defaults = {}) => ({
   id: formatFieldValue(defaults.color_group_key ?? defaults.colorGroupKey ?? defaults.id) || makeId(),
   color_group_key: formatFieldValue(defaults.color_group_key ?? defaults.colorGroupKey ?? defaults.id),
@@ -1037,7 +1045,11 @@ function ProductEdit() {
   const [generateCoverThermalArtwork, setGenerateCoverThermalArtwork] = useState(false);
   const [coverLabel, setCoverLabel] = useState("");
   const [gallery, setGallery] = useState([]);
-  const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
+  const [defaultManufacturerIds, setDefaultManufacturerIdsState] = useState([]);
+  /* Product-level fields (the product row, AI context) still want ONE factory,
+     so the first pick stays the product's own. Hydration hands this a string. */
+  const defaultManufacturerId = defaultManufacturerIds[0] || "";
+  const setDefaultManufacturerId = (value) => setDefaultManufacturerIdsState(normalizeManufacturerIds(value));
   const [colorGroups, setColorGroups] = useState([]);
   const [expandedGroupId, setExpandedGroupId] = useState("");
   const [draggedColorGroupId, setDraggedColorGroupId] = useState("");
@@ -1049,7 +1061,7 @@ function ProductEdit() {
   const [variantStructureEdited, setVariantStructureEdited] = useState(false);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
   const [bulkStockInput, setBulkStockInput] = useState("");
-  const [bulkArticleCodeInput, setBulkArticleCodeInput] = useState("");
+  const [bulkArticleCodes, setBulkArticleCodes] = useState([]);
   const [savedVariantsCount, setSavedVariantsCount] = useState(0);
   const [variantsHydrationFailed, setVariantsHydrationFailed] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -1999,16 +2011,13 @@ function ProductEdit() {
                   : {}),
                 ...(field === "manufacturer_id"
                   ? {
-                      manufacturer_override:
-                        normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
+                      manufacturer_override: !sameManufacturerSelection(value, defaultManufacturerIds),
                     }
                   : {}),
                 ...(field === "manufacturer_ids"
                   ? {
                       manufacturer_id: normalizeManufacturerIds(value)[0] || "",
-                      manufacturer_override:
-                        normalizeManufacturerIds(value)[0] !== normalizeManufacturerId(defaultManufacturerId) ||
-                        normalizeManufacturerIds(value).length > 1,
+                      manufacturer_override: !sameManufacturerSelection(value, defaultManufacturerIds),
                     }
                   : {}),
               }
@@ -2135,17 +2144,17 @@ function ProductEdit() {
     }
   };
 
-  const applyDefaultManufacturer = (manufacturerId) => {
-    const normalized = normalizeManufacturerId(manufacturerId);
-    setDefaultManufacturerId(normalized);
+  const applyDefaultManufacturer = (manufacturerValue) => {
+    const normalized = normalizeManufacturerIds(manufacturerValue);
+    setDefaultManufacturerIdsState(normalized);
     setColorGroups((prev) =>
       prev.map((group) =>
         group.manufacturer_override
           ? group
           : {
               ...group,
-              manufacturer_id: normalized,
-              manufacturer_ids: normalized ? [normalized] : [],
+              manufacturer_id: normalized[0] || "",
+              manufacturer_ids: normalized,
               manufacturer_override: false,
             }
       )
@@ -2276,7 +2285,7 @@ function ProductEdit() {
     setColorGroups((prev) => [
       ...prev,
       createEmptyColorGroup({
-        manufacturer_id: defaultManufacturerId,
+        manufacturer_ids: defaultManufacturerIds,
       }),
     ]);
   };
@@ -2294,7 +2303,7 @@ function ProductEdit() {
       if (prev.length <= 1)
         return [
           createEmptyColorGroup({
-            manufacturer_id: defaultManufacturerId,
+            manufacturer_ids: defaultManufacturerIds,
           }),
         ];
       return prev.filter((group) => group.id !== groupId);
@@ -2495,10 +2504,11 @@ function ProductEdit() {
       targetGroup?.color_article_codes,
       targetGroup?.color_article_code
     );
+    const bulkCodes = normalizeArticleCodes(bulkArticleCodes);
     const articleCode = targetGroupId
       ? String(targetGroupCodes.at(-1) || "").trim()
-      : String(bulkArticleCodeInput || "").trim();
-    const appliedArticleCodes = targetGroupId ? targetGroupCodes : normalizeArticleCodes(articleCode);
+      : String(bulkCodes[0] || "").trim();
+    const appliedArticleCodes = targetGroupId ? targetGroupCodes : bulkCodes;
     if (!articleCode) {
       toast.error(t("products.editor.enterArticleCode", "Enter an article code first"));
       return;
@@ -2539,7 +2549,7 @@ function ProductEdit() {
           color_article_codes: targetGroupId
             ? normalizeArticleCodes(group.color_article_codes, group.color_article_code)
             : shouldSetGroup
-              ? normalizeArticleCodes(articleCode)
+              ? appliedArticleCodes
               : group.color_article_codes,
           color_article_code: targetGroupId
             ? normalizeArticleCodes(group.color_article_codes, group.color_article_code)[0] || articleCode
@@ -3590,7 +3600,7 @@ function ProductEdit() {
               ...group,
               images: dedupeImages(group.images),
             })),
-            ...getManufacturerPayload(defaultManufacturerId),
+            ...getManufacturerPayload(defaultManufacturerIds),
             variants: isSimpleMode ? [] : variantPayloads,
             deleted_variant_ids: removedVariantIds,
           };
@@ -4403,11 +4413,10 @@ function ProductEdit() {
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                     {t("products.fields.articleCode", "Article Code")}
                   </div>
-                  <input
-                    value={bulkArticleCodeInput}
-                    onChange={(event) => setBulkArticleCodeInput(event.target.value)}
+                  <ArticleCodeMultiInput
+                    value={bulkArticleCodes}
+                    onChange={setBulkArticleCodes}
                     placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
-                    className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-raised px-3 text-sm text-text outline-none placeholder:text-text-muted"
                   />
                 </label>
                 <button
@@ -4466,11 +4475,12 @@ function ProductEdit() {
                     Manufacturer
                   </div>
                   <ManufacturerSelect
-                    value={defaultManufacturerId}
+                    value={defaultManufacturerIds}
                     onChange={applyDefaultManufacturer}
                     onCreated={handleManufacturerCreated}
                     manufacturers={manufacturers}
                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
+                    isMulti
                   />
                 </label>
                 <div className="rounded-[var(--radius-card)] border border-border bg-surface-raised px-3 py-2">

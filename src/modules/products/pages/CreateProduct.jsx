@@ -232,6 +232,14 @@ const normalizeManufacturerIds = (value, fallback = "") => {
   return [...new Set(values.map((item) => String(item || "").trim()).filter(Boolean))];
 };
 
+/* The default factory is a LIST now, so "did this colour diverge from the default"
+   is a set comparison - order is irrelevant, only membership. */
+const sameManufacturerSelection = (left, right) => {
+  const a = normalizeManufacturerIds(left);
+  const b = normalizeManufacturerIds(right);
+  return a.length === b.length && a.every((id) => b.includes(id));
+};
+
 const createEmptyColorGroup = (defaults = {}) => {
   const source = typeof defaults === "string" ? { manufacturer_id: defaults } : defaults || {};
   const manufacturerIds = normalizeManufacturerIds(source.manufacturer_ids ?? source.manufacturerIds, source.manufacturer_id);
@@ -511,11 +519,14 @@ function CreateProduct() {
   const [gallery, setGallery] = useState([]);
   const [saving, setSaving] = useState(false);
   const [savingStep, setSavingStep] = useState("");
-  const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
+  const [defaultManufacturerIds, setDefaultManufacturerIds] = useState([]);
+  /* Product-level fields (SKU prefix, AI context, the product row itself) still
+     want ONE name, so the first pick stays the product's factory. */
+  const defaultManufacturerId = defaultManufacturerIds[0] || "";
   const [colorGroups, setColorGroups] = useState([createEmptyColorGroup()]);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
   const [bulkStockInput, setBulkStockInput] = useState("");
-  const [bulkArticleCodeInput, setBulkArticleCodeInput] = useState("");
+  const [bulkArticleCodes, setBulkArticleCodes] = useState([]);
   const [expandedGroupId, setExpandedGroupId] = useState(colorGroups[0]?.id || "");
   const [draggedColorGroupId, setDraggedColorGroupId] = useState("");
   const [dragOverColorGroupId, setDragOverColorGroupId] = useState("");
@@ -1219,7 +1230,7 @@ function CreateProduct() {
   }, [colorGroups, existingSkuValues, fixedSizeLabel, isColorOnlyMode, isSimpleMode, regularPrice, skuPrefix, uniqueSmartSkuPrefix]);
 
   const addColorGroup = () => {
-    const nextGroup = createEmptyColorGroup(defaultManufacturerId);
+    const nextGroup = createEmptyColorGroup({ manufacturer_ids: defaultManufacturerIds });
     setColorGroups((prev) => [...prev, nextGroup]);
     setExpandedGroupId(nextGroup.id);
   };
@@ -1227,7 +1238,7 @@ function CreateProduct() {
   const removeColorGroup = (colorGroupId) => {
     setColorGroups((prev) => {
       if (prev.length <= 1) {
-        const nextGroup = createEmptyColorGroup(defaultManufacturerId);
+        const nextGroup = createEmptyColorGroup({ manufacturer_ids: defaultManufacturerIds });
         setExpandedGroupId(nextGroup.id);
         return [nextGroup];
       }
@@ -1255,16 +1266,13 @@ function CreateProduct() {
                   : {}),
                 ...(field === "manufacturer_id"
                   ? {
-                      manufacturer_override:
-                        normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
+                      manufacturer_override: !sameManufacturerSelection(value, defaultManufacturerIds),
                     }
                   : {}),
                 ...(field === "manufacturer_ids"
                   ? {
                       manufacturer_id: normalizeManufacturerIds(value)[0] || "",
-                      manufacturer_override:
-                        normalizeManufacturerIds(value)[0] !== normalizeManufacturerId(defaultManufacturerId) ||
-                        normalizeManufacturerIds(value).length > 1,
+                      manufacturer_override: !sameManufacturerSelection(value, defaultManufacturerIds),
                     }
                   : {}),
               }
@@ -1274,17 +1282,17 @@ function CreateProduct() {
     );
   };
 
-  const applyDefaultManufacturer = (manufacturerId) => {
-    const normalized = normalizeManufacturerId(manufacturerId);
-    setDefaultManufacturerId(normalized);
+  const applyDefaultManufacturer = (manufacturerValue) => {
+    const normalized = normalizeManufacturerIds(manufacturerValue);
+    setDefaultManufacturerIds(normalized);
     setColorGroups((prev) =>
       prev.map((group) =>
         group.manufacturer_override
           ? group
           : {
               ...group,
-              manufacturer_id: normalized,
-              manufacturer_ids: normalized ? [normalized] : [],
+              manufacturer_id: normalized[0] || "",
+              manufacturer_ids: normalized,
               manufacturer_override: false,
             }
       )
@@ -1654,10 +1662,11 @@ function CreateProduct() {
       targetGroup?.color_article_codes,
       targetGroup?.color_article_code
     );
+    const bulkCodes = normalizeArticleCodes(bulkArticleCodes);
     const articleCode = targetGroupId
       ? String(targetGroupCodes.at(-1) || "").trim()
-      : String(bulkArticleCodeInput || "").trim();
-    const appliedArticleCodes = targetGroupId ? targetGroupCodes : normalizeArticleCodes(articleCode);
+      : String(bulkCodes[0] || "").trim();
+    const appliedArticleCodes = targetGroupId ? targetGroupCodes : bulkCodes;
     if (!articleCode) {
       toast.error(t("products.editor.enterArticleCode", "أدخل كود المقال أولًا"));
       return;
@@ -1697,7 +1706,7 @@ function CreateProduct() {
           color_article_codes: targetGroupId
             ? normalizeArticleCodes(group.color_article_codes, group.color_article_code)
             : shouldSetGroup
-              ? normalizeArticleCodes(articleCode)
+              ? appliedArticleCodes
               : group.color_article_codes,
           color_article_code: targetGroupId
             ? normalizeArticleCodes(group.color_article_codes, group.color_article_code)[0] || articleCode
@@ -2397,7 +2406,7 @@ function CreateProduct() {
         variant_rows_count: generatedVariants.length,
         variants: generatedVariants,
         colorImages: colorImagesPayload,
-        ...getManufacturerPayload(defaultManufacturerId),
+        ...getManufacturerPayload(defaultManufacturerIds),
       });
       setSavingStep("Saving images...");
       const product = await createProduct(productPayload);
@@ -3520,11 +3529,10 @@ function CreateProduct() {
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">
                       {t("products.fields.articleCode", "Article Code")}
                     </div>
-                    <input
-                      value={bulkArticleCodeInput}
-                      onChange={(event) => setBulkArticleCodeInput(event.target.value)}
+                    <ArticleCodeMultiInput
+                      value={bulkArticleCodes}
+                      onChange={setBulkArticleCodes}
                       placeholder={t("products.editor.articleCodePlaceholder", "Example: L122")}
-                      className="h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm text-text outline-none placeholder:text-text-muted"
                     />
                   </label>
                   <button
@@ -3583,11 +3591,12 @@ function CreateProduct() {
                   <label className="block">
                     <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-text-muted">{t("products.fields.manufacturer", "Manufacturer")}</div>
                     <ManufacturerSelect
-                      value={defaultManufacturerId}
+                      value={defaultManufacturerIds}
                       onChange={applyDefaultManufacturer}
                       onCreated={handleManufacturerCreated}
                       manufacturers={manufacturers}
                       placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
+                      isMulti
                     />
                   </label>
                   <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2">
