@@ -19,12 +19,14 @@ export const THERMAL_ARTWORK_DEFAULTS = Object.freeze({
   engine: "local",
   style: "auto",
   inkLevel: 50,
+  singleItem: true,
 });
 
 export const THERMAL_ARTWORK_SETTING_KEYS = Object.freeze({
   engine: "general.barcode_print_thermal_engine",
   style: "general.barcode_print_thermal_style",
   inkLevel: "general.barcode_print_thermal_ink_level",
+  singleItem: "general.barcode_print_thermal_single_item",
 });
 
 export const normalizeThermalEngine = (value) => {

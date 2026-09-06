@@ -231,12 +231,14 @@ const resolveThermalEngineConfig = async (overrides = {}) => {
   let storedEngine = "";
   let storedStyle = "";
   let storedInkLevel = null;
+  let storedSingleItem = null;
   try {
     const { getSetting } = await import("./settingsService.js");
-    [storedEngine, storedStyle, storedInkLevel] = await Promise.all([
+    [storedEngine, storedStyle, storedInkLevel, storedSingleItem] = await Promise.all([
       getSetting(THERMAL_ARTWORK_SETTING_KEYS.engine, THERMAL_ARTWORK_DEFAULTS.engine),
       getSetting(THERMAL_ARTWORK_SETTING_KEYS.style, THERMAL_ARTWORK_DEFAULTS.style),
       getSetting(THERMAL_ARTWORK_SETTING_KEYS.inkLevel, THERMAL_ARTWORK_DEFAULTS.inkLevel),
+      getSetting(THERMAL_ARTWORK_SETTING_KEYS.singleItem, THERMAL_ARTWORK_DEFAULTS.singleItem),
     ]);
   } catch (error) {
     console.warn("[thermal-artwork] settings unavailable, using defaults", {
@@ -256,7 +258,9 @@ const resolveThermalEngineConfig = async (overrides = {}) => {
 
   const hasOpenAiKey = Boolean(thermalOpenAiApiKey());
   const engine = requestedEngine === "openai" && !hasOpenAiKey ? "local" : requestedEngine;
-  const localOptions = { style, inkLevel, canvas: THERMAL_LOCAL_CANVAS };
+  const singleItemRaw = overrides.singleItem ?? process.env.THERMAL_ARTWORK_SINGLE_ITEM ?? storedSingleItem ?? THERMAL_ARTWORK_DEFAULTS.singleItem;
+  const singleItem = !["false", "0", "off", "no"].includes(String(singleItemRaw).trim().toLowerCase());
+  const localOptions = { style, inkLevel, canvas: THERMAL_LOCAL_CANVAS, singleItem };
 
   return {
     engine,

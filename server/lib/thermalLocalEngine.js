@@ -81,6 +81,8 @@ export const normalizeThermalLocalOptions = (options = {}) => {
     outline: options.outline !== false,
     // Internal: the cut level for the "traced" style, 0 = its default.
     tracedLevel: clamp(Math.round(numberOr(options.tracedLevel, 0)), 0, 255),
+    // Keep only the front shoe when a second one stands behind it.
+    singleItem: options.singleItem !== false && String(options.singleItem ?? "").toLowerCase() !== "false",
   };
 };
 
@@ -96,6 +98,7 @@ export const thermalLocalOptionsFingerprint = (options = {}) => {
     normalized.backgroundThreshold,
     normalized.despeckle ? "despeckle" : "raw",
     normalized.outline ? "outline" : "flat",
+    normalized.singleItem ? "single" : "all",
   ].join(":");
 };
 
@@ -178,6 +181,126 @@ const floodBackground = (gray, width, height, threshold, inset = 0) => {
   }
 
   return background;
+};
+
+/**
+ * Keep only the front shoe.
+ *
+ * Point prompts come from the subject box: three inside the lower part of the
+ * box (the front shoe lies there), one near the top (the pair stands there).
+ * Of the model's three candidate masks the largest confident one wins. Two
+ * guards keep this from harming a photo it does not apply to: a mask that
+ * covers almost all of the subject means there was one shoe to begin with,
+ * and a mask that covers too little means the points missed — both leave the
+ * photo untouched.
+ *
+ * Removed pixels are folded into `background` and painted white in `rgb`, so
+ * neither the drawing model nor the illustration service sees the pair.
+ */
+const SINGLE_ITEM_KEEP_MIN = 0.3;
+const SINGLE_ITEM_KEEP_MAX = 0.85;
+const SINGLE_ITEM_MIN_IOU = 0.75;
+// The segmentation model sees the photo decoded fresh at this size, not the
+// label canvas upscaled: fed the 448 px canvas it lumped the pair together
+// with the front shoe, fed a clean 512 px decode it separates them.
+const SINGLE_ITEM_LONG_SIDE = 512;
+// The front shoe lies in the lower part of the subject box; the pair stands
+// above it. The box prompt starts this far down the subject.
+const SINGLE_ITEM_BOX_TOP = 0.38;
+
+const isolateFrontItem = async (input, rgb, gray, width, height, background, bounds) => {
+  const { isSegmentModelAvailable, segmentFromPoints } = await import("./thermalSegmentModel.js");
+  if (!(await isSegmentModelAvailable())) return { applied: false, reason: "unavailable" };
+
+  const { data: segData, info: segInfo } = await sharp(input, { animated: false, failOn: "none" })
+    .rotate()
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .resize({ width: SINGLE_ITEM_LONG_SIDE, height: SINGLE_ITEM_LONG_SIDE, fit: "inside", withoutEnlargement: false })
+    .removeAlpha()
+    .toColourspace("srgb")
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const segWidth = Number(segInfo.width || 0);
+  const segHeight = Number(segInfo.height || 0);
+  if (!segWidth || !segHeight) return { applied: false, reason: "decode-failed" };
+  // Both grids are "inside" fits of the same photo, so one factor maps them.
+  const scale = segWidth / width;
+  const segChannels = Number(segInfo.channels || 3);
+  const segRgb = new Uint8Array(segWidth * segHeight * 3);
+  for (let index = 0; index < segWidth * segHeight; index += 1) {
+    segRgb[index * 3] = segData[index * segChannels];
+    segRgb[(index * 3) + 1] = segData[(index * segChannels) + 1];
+    segRgb[(index * 3) + 2] = segData[(index * segChannels) + 2];
+  }
+
+  const left = bounds.left * scale;
+  const top = bounds.top * scale;
+  const right = (bounds.left + bounds.width - 1) * scale;
+  const bottom = (bounds.top + bounds.height - 1) * scale;
+  const spanY = bottom - top;
+  // A box prompt over the lower part of the subject (labels 2 and 3 are the
+  // box corners). Point prompts inside the front shoe, even with negatives on
+  // the one behind, returned the pair as one object every time; the box
+  // returns the front shoe on its own, tongue and collar included.
+  const points = [
+    [Math.round(left), Math.round(top + (spanY * SINGLE_ITEM_BOX_TOP)), 2],
+    [Math.round(right), Math.round(bottom), 3],
+  ];
+
+  try {
+    const result = await segmentFromPoints({ rgb: segRgb, width: segWidth, height: segHeight, points });
+    let subjectPixels = 0;
+    for (let index = 0; index < background.length; index += 1) if (!background[index]) subjectPixels += 1;
+    if (!subjectPixels) return { applied: false, reason: "empty" };
+
+    // Bring each candidate back to the canvas grid before measuring it
+    // against the subject.
+    const candidates = [];
+    for (let k = 0; k < result.masks.length; k += 1) {
+      if (result.ious[k] < SINGLE_ITEM_MIN_IOU) continue;
+      const plane = new Uint8Array(result.masks[k].length);
+      for (let index = 0; index < plane.length; index += 1) plane[index] = result.masks[k][index] ? 255 : 0;
+      const back = await resizePlane(plane, result.width, result.height, width, height, sharp.kernel.nearest);
+      const mask = new Uint8Array(width * height);
+      let area = 0;
+      for (let index = 0; index < mask.length; index += 1) {
+        mask[index] = back[index] >= 128 ? 1 : 0;
+        if (mask[index] && !background[index]) area += 1;
+      }
+      candidates.push({ mask, area, iou: result.ious[k] });
+    }
+    if (process.env.THERMAL_DEBUG_SINGLE) {
+      console.log("SINGLE_ITEM_DEBUG", { segWidth, segHeight, points, ious: result.ious.map((v) => Number(v.toFixed(3))), areas: candidates.map((c) => c.area), subjectPixels });
+    }
+    if (!candidates.length) return { applied: false, reason: "no-confident-mask", runtime: result.runtime, durationMs: result.durationMs };
+    // The model's own confidence picks; when two are within a hair, the
+    // larger one is the whole shoe rather than the shoe minus its tongue.
+    candidates.sort((a, b) => (Math.abs(b.iou - a.iou) < 0.02 ? b.area - a.area : b.iou - a.iou));
+    const chosenArea = candidates[0].area;
+
+    const keepShare = chosenArea / subjectPixels;
+    if (keepShare > SINGLE_ITEM_KEEP_MAX) return { applied: false, reason: "already-single", keepShare, runtime: result.runtime, durationMs: result.durationMs };
+    if (keepShare < SINGLE_ITEM_KEEP_MIN) return { applied: false, reason: "mask-too-small", keepShare, runtime: result.runtime, durationMs: result.durationMs };
+
+    // Close pin holes in the kept mask, then fold everything else into the backdrop.
+    let keep = candidates[0].mask;
+    keep = dilateInk(keep, width, height, 2);
+    keep = erodeInk(keep, width, height, 2);
+    let removed = 0;
+    for (let index = 0; index < background.length; index += 1) {
+      if (background[index] || keep[index]) continue;
+      background[index] = 1;
+      removed += 1;
+      rgb[index * 3] = 255;
+      rgb[(index * 3) + 1] = 255;
+      rgb[(index * 3) + 2] = 255;
+      gray[index] = 255;
+    }
+    return { applied: true, reason: "", keepShare, removed, runtime: result.runtime, durationMs: result.durationMs };
+  } catch (error) {
+    console.warn("[thermal-artwork] single-item segmentation failed, keeping the whole photo", { message: error?.message || String(error) });
+    return { applied: false, reason: `error: ${error?.message || String(error)}` };
+  }
 };
 
 /**
@@ -1243,6 +1366,18 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
     }
   }
 
+  // One shoe on the label. When the photo has the pair standing behind the
+  // front shoe, the segmentation model keeps the front one and the rest of
+  // the subject joins the backdrop; the drawing step later completes what the
+  // shoe behind was covering.
+  let singleItem = { applied: false, reason: options.singleItem ? "" : "off" };
+  if (options.singleItem && backgroundRemoved) {
+    singleItem = await isolateFrontItem(input, rgb, gray, width, height, background, bounds);
+    if (singleItem.applied) {
+      bounds = keepProductComponents(background, width, height) || bounds;
+    }
+  }
+
   const pad = Math.max(2, Math.round(Math.min(bounds.width, bounds.height) * 0.01));
   const padded = {
     left: Math.max(0, bounds.left - pad),
@@ -1515,6 +1650,10 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       backgroundRemoved,
       backgroundRatio: Number(backgroundRatio.toFixed(4)),
       shadowRemoved,
+      singleItem: singleItem.applied,
+      singleItemReason: singleItem.reason || "",
+      singleItemKeepShare: singleItem.keepShare !== undefined ? Number(singleItem.keepShare.toFixed(3)) : null,
+      singleItemMs: singleItem.durationMs ?? null,
       sourceWidth: width,
       sourceHeight: height,
       artWidth,

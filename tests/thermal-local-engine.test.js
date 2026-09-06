@@ -357,6 +357,22 @@ test("the default canvas matches the label dot grid, not a screen-sized image", 
   assert.ok(canvas >= 320 && canvas <= 640, `expected a print-sized canvas, got ${canvas}`);
 });
 
+test("single-item isolation leaves a photo of one product alone and reports why", async () => {
+  const { isSegmentModelAvailable } = await import("../server/lib/thermalSegmentModel.js");
+  if (!(await isSegmentModelAvailable())) return;
+
+  // One block on white: whatever the segmentation model returns for the box
+  // prompt, the guards must keep the product whole — either it is "already
+  // single" or the mask is not trusted. Never a partial product.
+  const { meta } = await renderThermalArtwork(await buildProductPhoto({ body: 120, stripe: 30 }), { canvas: 448, style: "detail", singleItem: true });
+  assert.equal(meta.singleItem, false, `reason: ${meta.singleItemReason}`);
+  assert.ok(["already-single", "no-confident-mask", "mask-too-small"].includes(meta.singleItemReason), meta.singleItemReason);
+  assert.ok(Math.abs((meta.artWidth / meta.artHeight) - (340 / 220)) < 0.08, "the crop is still the whole product");
+
+  const off = await renderThermalArtwork(await buildProductPhoto({ body: 120, stripe: 30 }), { canvas: 448, style: "detail", singleItem: false });
+  assert.equal(off.meta.singleItemReason, "off");
+});
+
 test("the settings registry exposes the thermal engine knobs", () => {
   const engine = settingsByKey["general.barcode_print_thermal_engine"];
   const style = settingsByKey["general.barcode_print_thermal_style"];
