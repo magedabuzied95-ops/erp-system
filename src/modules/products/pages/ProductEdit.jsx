@@ -87,10 +87,8 @@ import {
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
-import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isAdminUser } from "../../../shared/auth/authStorage";
-import { canViewCostPrices } from "../../permissions/lib/rbacStore";
 import { applyColorArticleCodesToRows, normalizeArticleCodes, rowInheritsColorArticleCodes } from "../../../../shared/articleCode";
 import ArticleCodeMultiInput from "../components/ArticleCodeMultiInput";
 import { isSchoolBagType } from "../lib/schoolBagSizes";
@@ -1100,7 +1098,6 @@ function ProductEdit() {
   );
   const mirrorEditionEnabled = isMirrorProduct(product);
   const canRegenerateAiCover = isAdminUser();
-  const canViewCostPrice = canViewCostPrices();
 
   useEffect(() => {
     if (String(searchParams.get("focus") || "").trim().toLowerCase() !== "colors") return undefined;
@@ -3824,31 +3821,6 @@ function ProductEdit() {
                 <p className="mt-1 text-[11px] text-text-muted">
                   Auto: {uniqueSmartSkuPrefix}{skuTouched ? " (manual override)" : ""}
                 </p>
-              </div>
-
-              <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text">{t("products.editor.pricingSummary", "Pricing summary")}</p>
-                  <p className="mt-0.5 text-xs text-text-muted">{t("products.editor.pricingSummaryHelp", "Read-only. Active pricing is updated when purchase invoice stock is received.")}</p>
-                </div>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.fields.sellingPrice", "Selling price")}</p>
-                    <p className="mt-2 text-sm font-black text-text">{Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) > 0 ? formatCurrency((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price) : "Not set"}</p>
-                  </div>
-                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.fields.originalPrice", "Original price")}</p>
-                    <p className="mt-2 text-sm font-black text-text">{Number(product.custom_compare_price || (product.sale_price_enabled ? product.regular_price || product.price : 0) || 0) > Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) ? formatCurrency(product.custom_compare_price || product.regular_price || product.price) : t("products.editor.notSet", "Not set")}</p>
-                  </div>
-                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.editor.currentCost", "Current cost")}</p>
-                    <p className="mt-2 text-sm font-black text-text">{canViewCostPrice ? (Number(product.cost_price || 0) > 0 ? formatCurrency(product.cost_price) : "Not set") : "—"}</p>
-                  </div>
-                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{t("products.editor.lastUpdatedFromPurchase", "Last updated from purchase invoice")}</p>
-                    <p className="mt-2 text-sm font-black text-text">{product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : "Not yet"}</p>
-                  </div>
-                </div>
               </div>
 
               <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
