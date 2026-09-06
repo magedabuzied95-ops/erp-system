@@ -721,7 +721,7 @@ const dilateInk = (ink, width, height, radius = 1) => {
  * whose viewBox is the mask's pixel grid. Every stroke outline becomes a
  * smooth path; specks below `turdSize` pixels are dropped by the tracer.
  */
-const traceStrokesToSvg = async (strokes, width, height) => {
+const traceStrokesToSvg = async (strokes, width, height, { strokeWidth = 0 } = {}) => {
   const potrace = (await import("potrace")).default;
   const png = await sharp(rawBuffer(strokes.map((value) => (value ? 0 : 255))), { raw: { width, height, channels: 1 } })
     .png({ compressionLevel: 1 })
@@ -740,7 +740,17 @@ const traceStrokesToSvg = async (strokes, width, height) => {
   await new Promise((resolve, reject) => {
     tracer.loadImage(png, (error) => (error ? reject(error) : resolve()));
   });
-  const pathTag = tracer.getPathTag();
+  // Weight is added as a vector stroke on the traced outline rather than by
+  // dilating pixels: the curves stay smooth, corners stay round, and two
+  // strokes that run close together thicken toward each other without
+  // fusing into one blob the way a raster dilation does.
+  const weight = strokeWidth > 0
+    ? ` stroke="#000000" stroke-width="${strokeWidth.toFixed(2)}" stroke-linejoin="round" stroke-linecap="round"`
+    : "";
+  // potrace emits its own stroke="none"; drop it before adding ours.
+  const pathTag = tracer.getPathTag()
+    .replace(/\s+stroke="[^"]*"/g, "")
+    .replace(/<path\b/, `<path${weight}`);
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">${pathTag}</svg>`;
 };
 
@@ -970,7 +980,11 @@ const resolveAutoStyle = (gray, background) => {
  */
 const LINEART_MODEL_LONG_SIDE = 512;
 const LINEART_MODEL_STRIDE = 8;
-const LINEART_INK_CUT = 0.62;
+// Faint grey strokes in the model's map are hedges — texture it was unsure
+// about. Cutting a little tighter keeps the confident black lines only, and
+// the vector stroke below gives those the weight the label needs.
+const LINEART_INK_CUT = 0.56;
+const LINEART_STROKE_WEIGHT = 3;
 
 const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 } = {}) => {
   const scale = LINEART_MODEL_LONG_SIDE / Math.max(width, height);
@@ -1025,7 +1039,11 @@ const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 }
     let svg = "";
     let plane;
     try {
-      const traced = await traceStrokesToSvg(strokes, bigWidth, bigHeight);
+      // Stroke weight in model-grid units (the viewBox): 3 here is about 1.3
+      // dots at 203 dpi added around every line. Ink level moves it.
+      const traced = await traceStrokesToSvg(strokes, bigWidth, bigHeight, {
+        strokeWidth: clamp(LINEART_STROKE_WEIGHT + (inkOffset * 2.5), 0, 8),
+      });
       plane = await rasterizeSvgPlane(traced, width, height);
       svg = traced;
     } catch (error) {
