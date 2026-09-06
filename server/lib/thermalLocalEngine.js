@@ -1097,7 +1097,9 @@ const computeLineartMap = async (rgb, width, height) => {
  * fixed level, close hairline gaps, and trace the strokes to vector with the
  * same pen weight the other drawing styles get.
  */
-const TRACED_INK_LEVEL = 150;
+// The service's outlines are soft mid greys; cutting at 150 caught only their
+// darkest cores and the label got dashes. 185 takes the whole stroke.
+const TRACED_INK_LEVEL = 185;
 
 /**
  * Turn filled masses into their outlines. A pen line is never wider than a
@@ -1105,8 +1107,12 @@ const TRACED_INK_LEVEL = 150;
  * the fill is removed and only a band of `halfWidth` at its edge is kept,
  * which is what an illustrator draws for a black panel — its contour.
  */
-const hollowSolidRegions = (ink, width, height, halfWidth) => {
-  const core = erodeInk(ink, width, height, halfWidth);
+const hollowSolidRegions = (ink, width, height, halfWidth, minArea = 0) => {
+  let core = erodeInk(ink, width, height, halfWidth);
+  // Small solid shapes — three stripes, a swoosh, a heel tab — are design
+  // elements an illustrator fills. Only masses larger than `minArea` are
+  // hollowed; the small ones keep their fill.
+  if (minArea > 0) core = despeckleInk(core, width, height, minArea, 8);
   let any = false;
   for (let index = 0; index < core.length; index += 1) {
     if (core[index]) { any = true; break; }
@@ -1131,12 +1137,18 @@ const tracedBinarize = async (gray, width, height, background, { inkOffset = 0 }
 
   let strokes = new Uint8Array(bigWidth * bigHeight);
   for (let index = 0; index < strokes.length; index += 1) strokes[index] = big[index] < level ? 1 : 0;
-  strokes = dilateInk(strokes, bigWidth, bigHeight, 2);
+  strokes = dilateInk(strokes, bigWidth, bigHeight, 3);
   strokes = erodeInk(strokes, bigWidth, bigHeight, 2);
   // A black shoe comes back from the illustration service as a black shoe.
   // Solid masses are not line work: keep only their edges, so the drawing
   // stays an outline drawing however dark the product is.
-  strokes = hollowSolidRegions(strokes, bigWidth, bigHeight, Math.max(4, Math.round(Math.min(bigWidth, bigHeight) * 0.006)));
+  strokes = hollowSolidRegions(
+    strokes,
+    bigWidth,
+    bigHeight,
+    Math.max(4, Math.round(Math.min(bigWidth, bigHeight) * 0.006)),
+    Math.round(bigWidth * bigHeight * 0.015)
+  );
 
   let svg = "";
   let plane;
@@ -1300,10 +1312,13 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
 
       // The service hands back a finished drawing on a near-white page. Treat
       // it as a fresh source: the same backdrop flood, shadow peel and crop
-      // apply, and the strokes are traced to vector through the "traced"
-      // style, which cuts a clean drawing rather than a photo.
+      // apply, and the line-drawing model runs over it — on a clean, simply
+      // shaded illustration it returns continuous bold strokes with every
+      // panel and seam, where a fixed cut of the page caught only the darkest
+      // cores and left dashes. "traced" remains the fallback for a box
+      // without the model.
       const page = await sharp(drawn.png).normalise({ lower: 1, upper: 99 }).png().toBuffer();
-      const traced = await renderThermalArtwork(page, { ...options, style: "traced" });
+      const traced = await renderThermalArtwork(page, { ...options, style: modelAvailable ? "lineart" : "traced" });
       return {
         buffer: traced.buffer,
         svg: traced.svg,
