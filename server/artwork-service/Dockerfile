@@ -9,11 +9,14 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HUB_DISABLE_TELEMETRY=1 \
     TOKENIZERS_PARALLELISM=false
 
+# Built with the repository root as context (the production deploy script
+# insists every compose service builds from the same root), so paths are
+# repo-relative.
 WORKDIR /app
-COPY requirements.txt ./
+COPY server/artwork-service/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py ./
+COPY server/artwork-service/app.py ./
 
 VOLUME ["/models"]
 EXPOSE 8000
