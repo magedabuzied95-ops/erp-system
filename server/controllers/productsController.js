@@ -8297,3 +8297,47 @@ export const deleteVariant = async (req, res) => {
     client.release();
   }
 };
+
+// The colour-name suggestion list for the product editor. The editor used to
+// offer a hard-coded set of 24 single English colours, so every compound name
+// the catalogue actually wears ("White & Burgandy", "أسود وأبيض") was missing
+// from the dropdown and had to be retyped by hand. The catalogue itself is the
+// only honest source for those, so the list is the tenant's own live colour
+// names ordered by how many products wear them.
+export const getProductColorNames = async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const result = await db.query(
+      `
+      SELECT MAX(BTRIM(v.color)) AS color,
+             COUNT(DISTINCT v.product_id)::int AS product_count
+      FROM product_variants v
+      WHERE ($1::bigint IS NULL OR v.tenant_id IS NULL OR v.tenant_id = $1::bigint)
+        AND v.is_active IS DISTINCT FROM FALSE
+        AND v.deleted_at IS NULL
+        AND BTRIM(COALESCE(v.color, '')) <> ''
+        AND LOWER(BTRIM(v.color)) <> 'default'
+      GROUP BY LOWER(BTRIM(v.color))
+      ORDER BY product_count DESC, color ASC
+      LIMIT 400
+      `,
+      [tenantId ?? null]
+    );
+
+    return res.json({
+      success: true,
+      colors: result.rows.map((row) => ({
+        name: row.color,
+        product_count: Number(row.product_count || 0),
+      })),
+    });
+  } catch (error) {
+    console.error("[products] color-names error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to load colour names",
+      error: error.message,
+    });
+  }
+};

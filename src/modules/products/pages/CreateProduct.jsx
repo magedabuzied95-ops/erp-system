@@ -72,7 +72,8 @@ import {
   getMissingRequiredProductFields,
 } from "../lib/requiredProductFields";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
-import normalizeColorName, { STANDARD_COLOR_NAMES } from "../../../shared/utils/colorNameNormalization";
+import normalizeColorName from "../../../shared/utils/colorNameNormalization";
+import ColorNameDatalist from "../components/ColorNameDatalist";
 import {
   createProduct,
   generateAiProductData,
@@ -2760,6 +2761,7 @@ function CreateProduct() {
         </Link>
       }
     >
+      <ColorNameDatalist />
       <form id="create-product-form" onSubmit={handleSubmit} className="m1-product-form w-full min-w-0 max-w-none space-y-4 overflow-x-hidden pb-28 lg:pb-24">
         <div className="flex w-full min-w-0 max-w-none flex-col gap-4 px-4 sm:px-6 lg:px-8">
           {/* One bar instead of three stacked layers. The page title is already
@@ -4033,9 +4035,6 @@ function CreateProduct() {
                                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                                     isMulti
                                   />
-                                  <datalist id="m1-standard-color-names">
-                                    {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
-                                  </datalist>
                                 </div>
                                 <div>
                                   <label className="text-sm font-semibold text-text">الجمهور لهذا اللون</label>

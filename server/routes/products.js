@@ -10,6 +10,7 @@ import {
   deleteVariant,
   getProductsAdminList,
   getProductColorUsage,
+  getProductColorNames,
   getProductFull,
   getProductByQrToken,
   getProducts,
@@ -193,6 +194,7 @@ router.get("/", protect, permit("products", "view"), getProducts);
 router.get("/with-variants", protect, permit("products", "view"), getProductsWithVariants);
 router.get("/pos-catalog-version", protect, permit("products", "view"), getPosCatalogVersion);
 router.get("/available-sizes", protect, permit("products", "view"), getAvailableProductSizes);
+router.get("/color-names", protect, permit("products", "view"), getProductColorNames);
 router.get("/by-size", protect, permit("products", "view"), getProductsBySize);
 router.get("/:id/full", protect, permit("products", "view"), getProductFull);
 router.get("/:id/color-usage", protect, permit("products", "view"), getProductColorUsage);

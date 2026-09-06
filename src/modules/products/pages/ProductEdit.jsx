@@ -67,7 +67,8 @@ import {
   getMissingRequiredProductFields,
 } from "../lib/requiredProductFields";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
-import normalizeColorName, { STANDARD_COLOR_NAMES } from "../../../shared/utils/colorNameNormalization";
+import normalizeColorName from "../../../shared/utils/colorNameNormalization";
+import ColorNameDatalist from "../components/ColorNameDatalist";
 import {
   generateProductDescription,
   generateAiProductData,
@@ -3762,6 +3763,7 @@ function ProductEdit() {
         </Link>
       }
     >
+      <ColorNameDatalist />
       {loading ? (
         <div className={`${SECTION_CARD_CLASSES} p-10 text-center text-text-muted`}>
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" />
@@ -4829,9 +4831,6 @@ function ProductEdit() {
                                 placeholder={t("products.placeholders.colorExample")}
                                 className="mt-1.5 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm text-text outline-none placeholder:text-text-muted"
                               />
-                              <datalist id="m1-standard-color-names">
-                                {STANDARD_COLOR_NAMES.map((name) => <option key={name} value={name} />)}
-                              </datalist>
                             <p className="mt-1 text-xs text-text-muted">{t("products.editor.pickColorHelp")}</p>
                             {colorDetecting[group.id] ? (
                               <p className="mt-1 text-xs font-semibold text-primary">{t("products.editor.detectingColor")}</p>
