@@ -425,6 +425,53 @@ const sortSizesForCopy = (sizes = []) => {
   return numeric ? [...sizes].sort((a, b) => Number(a) - Number(b)) : sizes;
 };
 
+/* Facts a small open model can copy verbatim. Gemma/Qwen at 4B guess the
+ * Arabic product type and audience from English fields and get them wrong
+ * ("شنطة ... رجالي" for women's sneakers), so the words are handed over ready. */
+const localizedFacts = (context = {}) => {
+  const typeAr = seoTypeAr({ product_type: context.product_type, category: context.category, product_name: context.product_name });
+  const audienceAr = seoGenderAr(context.gender);
+  const colorsAr = normalizeList(context.colors).map(localizeCompoundColor).filter(Boolean).slice(0, 5);
+  const sizes = sortSizesForCopy(normalizeList(context.sizes).slice(0, 12));
+  return {
+    type_ar: typeAr,
+    audience_ar: audienceAr,
+    audience_en: seoGenderEn(context.gender),
+    colors_ar: colorsAr,
+    sizes_ar: sizes.length > 2 ? `من ${sizes[0]} إلى ${sizes[sizes.length - 1]}` : sizes.join("، "),
+    sizes,
+  };
+};
+
+const AUDIENCE_WORDS = ["رجالي", "حريمي", "نسائي", "أطفال", "اطفال"];
+// SEO_TYPE_AR is declared further down; resolve the words on first use.
+const typeWords = () => SEO_TYPE_AR.map(([, word]) => word);
+
+/* True when the text names a different audience or product type than the
+ * facts. A wrong audience on a listing is worse than a template sentence. */
+const contradictsFacts = (text = "", facts = {}) => {
+  const value = cleanText(text);
+  if (!value) return false;
+  if (facts.audience_ar) {
+    const wrongAudience = AUDIENCE_WORDS.filter((word) => word !== facts.audience_ar && !(facts.audience_ar === "أطفال" && word === "اطفال"));
+    if (wrongAudience.some((word) => value.includes(word))) return true;
+  }
+  if (facts.type_ar) {
+    const wrongTypes = typeWords().filter((word) => word !== facts.type_ar && !word.includes(facts.type_ar) && !facts.type_ar.includes(word));
+    if (wrongTypes.some((word) => value.includes(word))) return true;
+  }
+  return false;
+};
+
+const guardGeneratedDescriptions = (generated = {}, fallback = {}, context = {}) => {
+  const facts = localizedFacts(context);
+  const arabic = cleanText(generated.arabic_description);
+  return {
+    ...generated,
+    arabic_description: arabic && contradictsFacts(arabic, facts) ? fallback.arabic_description : generated.arabic_description,
+  };
+};
+
 const fallbackDescription = (context = {}) => {
   const name = cleanText(context.product_name) || "Product";
   const brand = cleanText(context.brand);
@@ -493,10 +540,51 @@ const requestedTargets = (target = "all") => {
   };
 };
 
-const buildPrompt = (context = {}, target = "all") => {
+const COMPACT_VOICE_RULES = [
+  "اكتب بعامية مصرية بسيطة زي مدير سوشيال ميديا حقيقي: جمل قصيرة، طبيعية، بدون مبالغة وبدون كلام إعلاني رسمي.",
+  "ممنوع: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين، الرياضة، الأداء العالي.",
+  "استخدم الحقائق المذكورة فقط. لا تخترع خامة أو تقنية أو استخدامات. لا تكرر اسم المنتج أو الماركة أكثر من مرة.",
+  "لا تخترع كلمات. لو مش متأكد من كلمة عربية استخدم كلمة أبسط.",
+].join("\n");
+
+const buildCompactPrompt = (context = {}, target = "all") => {
+  const targets = requestedTargets(target);
+  const facts = localizedFacts(context);
+  const subject = [facts.type_ar, facts.audience_ar, cleanText(context.brand)].filter(Boolean).join(" ");
+  const factLines = [
+    facts.type_ar ? `النوع: ${facts.type_ar}` : "",
+    facts.audience_ar ? `الفئة: ${facts.audience_ar} (استخدم هذه الكلمة بالضبط ولا تغيّرها)` : "",
+    cleanText(context.brand) ? `الماركة: ${cleanText(context.brand)}` : "",
+    `الاسم: ${cleanText(context.product_name)}`,
+    facts.colors_ar.length ? `الألوان: ${facts.colors_ar.join("، ")}` : "",
+    facts.sizes_ar ? `المقاسات: ${facts.sizes_ar}` : "",
+    cleanText(context.material) ? `الخامة: ${cleanText(context.material)}` : "",
+    context.tone ? `النبرة المطلوبة: ${context.tone}` : "",
+  ].filter(Boolean);
+  const ctaAr = facts.audience_en === "women" ? "اطلبيه الآن قبل نفاد المقاسات." : "اطلبه الآن قبل نفاد المقاسات.";
+  return [
+    "أنت كاتب محتوى لمتجر M1 Store (أحذية وشنط في مصر).",
+    COMPACT_VOICE_RULES,
+    "الحقائق:",
+    ...factLines,
+    "أرجع JSON فقط بالمفتاحين arabic_description و english_description.",
+    targets.arabic
+      ? `arabic_description: 3 إلى 4 جمل قصيرة بالعربي. ابدأ بـ "${subject}" ثم الشكل والراحة والألوان والمقاسات، واختم بجملة واحدة: "${ctaAr}"`
+      : "arabic_description: نص فارغ.",
+    targets.english
+      ? "english_description: 3 to 4 short natural English sentences with the same facts, ending with one order line."
+      : "english_description: empty string.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+export const buildPrompt = (context = {}, target = "all", { compact = false } = {}) => {
+  if (compact) return buildCompactPrompt(context, target);
   const targets = requestedTargets(target);
   const selectedTone = cleanText(context.tone).toLowerCase();
   const toneProfile = selectedTone && M1_PERSONALITY.profiles[selectedTone] ? M1_PERSONALITY.profiles[selectedTone] : M1_PERSONALITY.profiles.premium;
+  const facts = localizedFacts(context);
   return [
     BRAND_VOICE_SYSTEM_PROMPT,
     "Generate ecommerce product descriptions for an ERP product editor.",
@@ -509,6 +597,9 @@ const buildPrompt = (context = {}, target = "all") => {
     targets.english
       ? "For english_description: write clean storefront-ready English copy with a premium ecommerce tone."
       : "For english_description: return an empty string.",
+    facts.type_ar || facts.audience_ar
+      ? `Arabic words to use verbatim: ${[facts.type_ar, facts.audience_ar].filter(Boolean).join("، ")}. Never swap the audience word.`
+      : "",
     "Use only supplied product facts: product name, category, brand, colors, sizes, gender, material, and selling vibe.",
     "Mention available colors and sizes naturally, without listing every color repeatedly.",
     "Do not claim material, authenticity, technology, comfort features, or performance benefits unless supplied.",
@@ -516,7 +607,7 @@ const buildPrompt = (context = {}, target = "all") => {
     "Do not use fake urgency, fake discounts, fake shipping claims, or unverifiable claims.",
     "Keep each description around 70-110 words.",
     context.tone ? `Optional tone customization: ${context.tone}.` : "",
-    `Product context:\n${JSON.stringify(context, null, 2)}`,
+    `Product context:\n${JSON.stringify({ ...context, ...facts }, null, 2)}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -860,7 +951,7 @@ export const generateProductDescription = async (input = {}) => {
       requestId,
       label: "product-description",
       instructions: "You are an expert ecommerce copywriter for fashion, footwear, and retail catalog pages.",
-      prompt: buildPrompt(context, target),
+      prompt: buildPrompt(context, target, { compact: provider.kind === "compatible" }),
       schemaName: "product_descriptions",
       schema: productDescriptionSchema,
       verbosity: "medium",
@@ -871,7 +962,7 @@ export const generateProductDescription = async (input = {}) => {
     });
 
     return {
-      ...normalizeGenerated(parsed, fallback, target),
+      ...guardGeneratedDescriptions(normalizeGenerated(parsed, fallback, target), fallback, context),
       source: provider.label,
     };
   } catch (error) {
@@ -1148,7 +1239,9 @@ export const buildSeoFallback = (context = {}) => {
     "M1 Store",
   ]);
 
-  const slug = slugifySeo([nameHasBrand ? "" : brand, name, typeEn, genderEn].filter(Boolean).join(" ")) || slugifySeo(name);
+  // "Puma Sneakers" + "sneakers" must not become puma-sneakers-sneakers.
+  const nameHasType = Boolean(typeEn) && name.toLowerCase().includes(typeEn.toLowerCase());
+  const slug = slugifySeo([nameHasBrand ? "" : brand, name, nameHasType ? "" : typeEn, genderEn].filter(Boolean).join(" ")) || slugifySeo(name);
 
   return {
     meta_title: metaTitle,
@@ -1158,37 +1251,93 @@ export const buildSeoFallback = (context = {}) => {
   };
 };
 
-const buildSeoPrompt = (context = {}) => [
-  "You write search-engine metadata for M1 Store, an Egyptian footwear and bags shop (m1store-egy.com).",
-  "Return strict JSON only with keys meta_title, meta_description, keywords, slug.",
-  "Language: Arabic-first for Egyptian shoppers. Keep the brand and model names in Latin exactly as customers type them (for example: كوتشي Nike Air Force 1 رجالي).",
-  "Use the search words Egyptians actually use: كوتشي، شنطة، سليبر، كروكس، بوت، رجالي، حريمي، أطفال. Never use حذاء رياضي or formal MSA marketing phrasing.",
-  `meta_title: at most ${SEO_TITLE_MAX} characters. Pattern: product type + brand/model + audience (+ one colour only if it is the defining feature). Do NOT include the store name; the site appends it.`,
-  `meta_description: 120 to ${SEO_DESCRIPTION_MAX} characters, one or two natural sentences: what it is, who it is for, colours/sizes if supplied, and a short soft call to action such as اطلبه الآن من M1 Store.`,
-  "keywords: 6 to 10 short search phrases mixing Arabic phrases and Latin brand/model terms. No hashtags, no duplicates, the store name at most once.",
-  `slug: Latin lowercase words joined by hyphens, at most ${SEO_SLUG_MAX} characters, built from brand, model, product type and audience. No Arabic letters, no stop words.`,
-  "Use only the supplied product facts. Do not invent material, technology, comfort features, authenticity, discounts, shipping promises or stock claims.",
-  "No emojis, no exclamation marks, no keyword stuffing.",
-  context.tone ? `Optional tone customization: ${context.tone}.` : "",
-  `Product facts:\n${JSON.stringify(context, null, 2)}`,
-]
-  .filter(Boolean)
-  .join("\n");
+const buildCompactSeoPrompt = (context = {}) => {
+  const facts = localizedFacts(context);
+  const brand = cleanText(context.brand);
+  const name = cleanText(context.product_name);
+  const brandInName = Boolean(brand) && name.toLowerCase().includes(brand.toLowerCase());
+  const subject = [facts.type_ar, brandInName ? "" : brand, name, facts.audience_ar].filter(Boolean).join(" ");
+  return [
+    "أنت متخصص SEO لمتجر M1 Store (أحذية وشنط في مصر). أرجع JSON فقط بالمفاتيح meta_title, meta_description, keywords, slug.",
+    "الحقائق:",
+    facts.type_ar ? `النوع: ${facts.type_ar}` : "",
+    facts.audience_ar ? `الفئة: ${facts.audience_ar} (استخدمها بالضبط، لا تكتب فئة أخرى)` : "",
+    cleanText(context.brand) ? `الماركة: ${cleanText(context.brand)}` : "",
+    `الاسم: ${cleanText(context.product_name)}`,
+    facts.colors_ar.length ? `الألوان: ${facts.colors_ar.join("، ")}` : "",
+    facts.sizes_ar ? `المقاسات: ${facts.sizes_ar}` : "",
+    `meta_title: بالضبط "${subject}" مع لون واحد فقط لو مهم، أقل من ${SEO_TITLE_MAX} حرف، بدون اسم المتجر.`,
+    `meta_description: جملتان طبيعيتان بالعربي بين 110 و${SEO_DESCRIPTION_MAX} حرف: ما هو المنتج ولمن، الألوان والمقاسات، ثم "اطلبه الآن من M1 Store."`,
+    "keywords: 6 إلى 8 عبارات بحث قصيرة (عربي + اسم الماركة بالإنجليزي). بدون أرقام مقاسات وبدون هاشتاج.",
+    `slug: كلمات إنجليزية صغيرة مفصولة بشرطة من الماركة والاسم والنوع والفئة (${facts.audience_en || "بدون فئة"}).`,
+    "لا تخترع خامات أو مزايا أو خصومات.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
 
-export const normalizeSeoGenerated = (raw = {}, fallback = {}) => {
-  const metaTitle = clipAtWord(stripStoreSuffix(raw.meta_title || raw.title || ""), SEO_TITLE_MAX) || fallback.meta_title || "";
-  const metaDescription = clipAtWord(raw.meta_description || raw.seo_description || raw.description || "", SEO_DESCRIPTION_MAX) || fallback.meta_description || "";
+export const buildSeoPrompt = (context = {}, { compact = false } = {}) => {
+  if (compact) return buildCompactSeoPrompt(context);
+  const facts = localizedFacts(context);
+  return [
+    "You write search-engine metadata for M1 Store, an Egyptian footwear and bags shop (m1store-egy.com).",
+    "Return strict JSON only with keys meta_title, meta_description, keywords, slug.",
+    "Language: Arabic-first for Egyptian shoppers. Keep the brand and model names in Latin exactly as customers type them (for example: كوتشي Nike Air Force 1 رجالي).",
+    "Use the search words Egyptians actually use: كوتشي، شنطة، سليبر، كروكس، بوت، رجالي، حريمي، أطفال. Never use حذاء رياضي or formal MSA marketing phrasing.",
+    facts.type_ar || facts.audience_ar
+      ? `Arabic words to use verbatim: ${[facts.type_ar, facts.audience_ar].filter(Boolean).join("، ")}. Never swap the audience word.`
+      : "",
+    `meta_title: at most ${SEO_TITLE_MAX} characters. Pattern: product type + brand/model + audience (+ one colour only if it is the defining feature). Do NOT include the store name; the site appends it.`,
+    `meta_description: 120 to ${SEO_DESCRIPTION_MAX} characters, one or two natural sentences: what it is, who it is for, colours/sizes if supplied, and a short soft call to action such as اطلبه الآن من M1 Store.`,
+    "keywords: 6 to 10 short search phrases mixing Arabic phrases and Latin brand/model terms. No hashtags, no duplicates, no bare size numbers, the store name at most once.",
+    `slug: Latin lowercase words joined by hyphens, at most ${SEO_SLUG_MAX} characters, built from brand, model, product type and audience. No Arabic letters, no stop words.`,
+    "Use only the supplied product facts. Do not invent material, technology, comfort features, authenticity, discounts, shipping promises or stock claims.",
+    "No emojis, no exclamation marks, no keyword stuffing.",
+    context.tone ? `Optional tone customization: ${context.tone}.` : "",
+    `Product facts:\n${JSON.stringify({ ...context, ...facts }, null, 2)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+const OPPOSITE_SLUG_TOKENS = { men: ["women", "kids"], women: ["men", "kids"], kids: ["men", "women"] };
+
+/* Model output is merged with the deterministic template field by field: a
+ * field survives only when it is well-formed AND agrees with the product facts
+ * (audience, product type). Anything else takes the template value, so a
+ * weak model can only ever make the metadata better, never wrong. */
+export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => {
+  const facts = localizedFacts(context);
+  const titleCandidate = clipAtWord(stripStoreSuffix(raw.meta_title || raw.title || ""), SEO_TITLE_MAX);
+  const titleAgrees =
+    titleCandidate &&
+    !contradictsFacts(titleCandidate, facts) &&
+    (!facts.type_ar || titleCandidate.includes(facts.type_ar)) &&
+    (!facts.audience_ar || titleCandidate.includes(facts.audience_ar));
+  const metaTitle = titleAgrees ? titleCandidate : fallback.meta_title || titleCandidate || "";
+
+  const descriptionCandidate = clipAtWord(raw.meta_description || raw.seo_description || raw.description || "", SEO_DESCRIPTION_MAX);
+  const descriptionAgrees = descriptionCandidate.length >= 60 && !contradictsFacts(descriptionCandidate, facts);
+  const metaDescription = descriptionAgrees ? descriptionCandidate : fallback.meta_description || descriptionCandidate || "";
+
   const rawKeywords = Array.isArray(raw.keywords) ? raw.keywords : String(raw.keywords || "").split(/[,،\n]/);
-  const keywords = uniqueKeywords(rawKeywords);
-  const slug = slugifySeo(raw.slug || raw.canonical_slug || "")
+  const cleanKeywords = uniqueKeywords(rawKeywords).filter(
+    (keyword) => keyword.length >= 3 && !/^[\d\s.,/-]+$/.test(keyword) && !contradictsFacts(keyword, facts)
+  );
+  const keywords = uniqueKeywords([...cleanKeywords, ...(fallback.keywords || [])], 10);
+
+  const slugCandidate = slugifySeo(raw.slug || raw.canonical_slug || "")
     .replace(/[؀-ۿ]/g, "")
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "");
+  const slugTokens = slugCandidate.split("-");
+  const slugAgrees =
+    slugCandidate && !(OPPOSITE_SLUG_TOKENS[facts.audience_en] || []).some((token) => slugTokens.includes(token));
   return {
     meta_title: metaTitle,
     meta_description: metaDescription,
-    keywords: keywords.length >= 3 ? keywords : uniqueKeywords([...keywords, ...(fallback.keywords || [])]),
-    slug: slug || fallback.slug || "",
+    keywords,
+    slug: slugAgrees ? slugCandidate : fallback.slug || slugCandidate || "",
   };
 };
 
@@ -1216,13 +1365,13 @@ export const generateProductSeoMetadata = async (input = {}) => {
       requestId,
       label: "product-seo",
       instructions: "You are a senior ecommerce SEO specialist for the Egyptian market. You write concise, honest, search-friendly Arabic metadata.",
-      prompt: buildSeoPrompt(context),
+      prompt: buildSeoPrompt(context, { compact: provider.kind === "compatible" }),
       schemaName: "product_seo_metadata",
       schema: seoMetadataSchema,
       verbosity: "low",
     });
     console.log("[product-seo] text provider request end", { requestId, durationMs: Date.now() - startedAt });
-    return { ...normalizeSeoGenerated(parsed, fallback), source: provider.label };
+    return { ...normalizeSeoGenerated(parsed, fallback, context), source: provider.label };
   } catch (error) {
     console.error("[product-seo] text provider request failed", {
       requestId,

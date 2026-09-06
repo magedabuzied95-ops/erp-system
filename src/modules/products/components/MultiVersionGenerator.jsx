@@ -53,15 +53,21 @@ const MultiVersionGenerator = ({
     setError("");
 
     try {
-      const results = await Promise.allSettled(
-        VERSION_PRESETS.map(async ({ tone, label, badge }) => {
+      // One preset at a time, shown as it lands. A local model on the CPU
+      // serves one request at a time anyway (OLLAMA_NUM_PARALLEL=1), so four
+      // parallel calls would only queue behind each other and time out; a
+      // hosted model answers each in a couple of seconds, so nothing is lost.
+      setVersions([]);
+      const nextVersions = [];
+      for (const { tone, label, badge } of VERSION_PRESETS) {
+        let version;
+        try {
           const response = await generateProductDescription({
             target: "all",
             prompt_customization: tone,
             current: buildVersionPromptContext(context, tone),
           });
-
-          return {
+          version = {
             tone,
             label,
             badge,
@@ -69,28 +75,23 @@ const MultiVersionGenerator = ({
             arabic_description: cleanText(response?.arabic_description || ""),
             english_description: cleanText(response?.english_description || ""),
           };
-        })
-      );
-
-      const nextVersions = results
-        .map((result, index) => {
-          const preset = VERSION_PRESETS[index];
-          if (result.status === "fulfilled") {
-            return result.value;
-          }
-          return {
-            tone: preset.tone,
-            label: preset.label,
-            badge: preset.badge,
+        } catch (requestError) {
+          version = {
+            tone,
+            label,
+            badge,
             source: "ERROR",
-            error: result.reason?.message || "Generation failed",
+            error: requestError?.message || "Generation failed",
             arabic_description: "",
             english_description: "",
           };
-        })
-        .filter((item) => item.arabic_description || item.english_description || item.error);
+        }
+        if (version.arabic_description || version.english_description || version.error) {
+          nextVersions.push(version);
+          setVersions([...nextVersions]);
+        }
+      }
 
-      setVersions(nextVersions);
       if (!nextVersions.length) {
         setError("No versions were generated.");
       }

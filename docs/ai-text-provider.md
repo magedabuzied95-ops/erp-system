@@ -5,10 +5,43 @@ text provider `server/services/openaiProductDescriptionService.js` resolves from
 env. Nothing else in the editor changes: the buttons, the fallback templates and
 the `source` field stay the same, only the model behind them moves.
 
-## Option A — Ollama on the VPS (recommended, fully open source)
+## What was measured on the production box (2026-09-06)
 
-The production box has 6 cores, 12 GB RAM and ~40 GB free disk. A 4B model
-answers a description in roughly 20–60 s on CPU; the editor waits up to 150 s.
+`gemma3:4b` through Ollama on the VPS (6 cores, 12 GB RAM, CPU only, 4
+threads), first run with the long English prompts:
+
+| Task | Time | Verdict |
+| --- | --- | --- |
+| Description (AR + EN) | 91 s | Usable English; Arabic had an invented word and a stiff phrase |
+| SEO metadata | 67 s | Wrong: called women's sneakers "شنطة ... رجالي", numeric keywords |
+| Social caption | 62 s | Acceptable, short |
+
+Two things were changed because of that run:
+
+- Open models now get a **compact Arabic prompt** (about a quarter of the
+  tokens) with the product type, audience and colours already in Arabic, and
+  are told to copy those words verbatim. Less prompt = faster on CPU.
+- Model output is **merged with the deterministic template field by field**:
+  a title, description, keyword or slug survives only when it is well formed
+  and agrees with the facts (audience, product type). A weak model can make
+  the metadata better, never wrong — the same guard drops an Arabic
+  description that names the wrong audience.
+
+Expect 30–60 s per request on this CPU. The editor waits up to 150 s, and the
+multi-version generator asks for its four versions one after another so they
+never queue behind each other. If that is too slow for daily use, Option B
+answers in 1–3 s with a much stronger open model.
+
+## Option A — Ollama on the VPS (fully open source, fully private)
+
+Install with one command from PowerShell (idempotent; it also repairs a
+half-applied run):
+
+```
+ssh root@13.140.141.50 "cd /opt/apps/erp-system; git pull -q origin main; bash server/scripts/install-ollama-on-vps.sh"
+```
+
+Or by hand:
 
 1. Add the `ollama` service and the four `AI_TEXT_*` backend variables from
    `docker-compose.yml` to `/opt/erp/docker-compose.yml` (same shape, same
