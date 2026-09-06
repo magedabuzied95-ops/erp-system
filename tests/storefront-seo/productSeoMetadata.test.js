@@ -181,3 +181,37 @@ test("without an OpenAI key the endpoint answers from the local fallback", async
     if (previous !== undefined) process.env.OPENAI_API_KEY = previous;
   }
 });
+
+test("description fallback reads as a real listing and gets the audience right", async () => {
+  const previous = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  try {
+    const { generateProductDescription } = await import("../../server/services/openaiProductDescriptionService.js");
+    const result = await generateProductDescription({
+      target: "all",
+      current: {
+        product_name: "Puma Sneakers",
+        brand: "Puma",
+        category: "Uncategorized",
+        productType: "sneakers",
+        gender: "women",
+        colors: ["Black & Grey", "Brown", "Grey & White"],
+        sizes: ["40", "37", "38", "39", "41"],
+      },
+    });
+    assert.equal(result.source, "LOCAL_FALLBACK");
+    assert.match(result.arabic_description, /^كوتشي حريمي Puma Sneakers/);
+    assert.doesNotMatch(result.arabic_description, /رجالي|Uncategorized|بجودة عرض/);
+    assert.match(result.arabic_description, /أسود ورمادي، بني، رمادي وأبيض/);
+    assert.match(result.arabic_description, /من 37 إلى 41/);
+    assert.match(result.arabic_description, /اطلبيه الآن/);
+    assert.match(result.english_description, /women's sneakers/);
+    assert.doesNotMatch(result.english_description, /Uncategorized|storefront-ready/);
+
+    const men = await generateProductDescription({ target: "ar", current: { product_name: "Air Force 1", brand: "Nike", product_type: "shoes", gender: "men" } });
+    assert.match(men.arabic_description, /^كوتشي رجالي Nike Air Force 1/);
+    assert.match(men.arabic_description, /اطلبه الآن/);
+  } finally {
+    if (previous !== undefined) process.env.OPENAI_API_KEY = previous;
+  }
+});

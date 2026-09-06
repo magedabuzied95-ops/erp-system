@@ -220,8 +220,10 @@ const translateArabicFallbackTerm = (value = "", type = "generic") => {
   const text = cleanText(value);
   const normalized = text.toLowerCase();
   if (type === "gender") {
-    if (/men|male|man/.test(normalized)) return "رجالي";
-    if (/women|female|woman/.test(normalized)) return "حريمي";
+    // "women" contains "men": test the women's forms first or every women's
+    // product is described as رجالي.
+    if (/women|female|woman|حريم|نسائي|ستات/.test(normalized)) return "حريمي";
+    if (/men|male|man|رجال/.test(normalized)) return "رجالي";
     if (/kid|child|boy|girl/.test(normalized)) return "أطفال";
     if (/unisex/.test(normalized)) return "للجنسين";
   }
@@ -231,51 +233,80 @@ const translateArabicFallbackTerm = (value = "", type = "generic") => {
   return text;
 };
 
+/* Local fallback used when OpenAI is unavailable. It has to read like a real
+ * listing, not like a placeholder: Arabic-first, correct audience (women's
+ * products were being described as رجالي because "women" contains "men"),
+ * Arabic colour names, a size range, and no catalogue noise such as
+ * "Uncategorized". The tone lead follows the same profiles the model uses. */
+const localizeCompoundColor = (value = "") => {
+  const text = cleanText(value);
+  if (!text) return "";
+  const parts = text
+    .split(/\s*(?:&|\/|\+|,|\band\b|\bو\b)\s*/i)
+    .map((part) => cleanText(part))
+    .filter(Boolean)
+    .map((part) => localizeColorName(part))
+    .filter(Boolean);
+  return Array.from(new Set(parts)).join(" و");
+};
+
+const CATALOGUE_NOISE = /^(uncategori[sz]ed|item|product|general|none|other|misc|n\/a)$/i;
+
+const sortSizesForCopy = (sizes = []) => {
+  const numeric = sizes.every((size) => /^\d+(\.\d+)?$/.test(size));
+  return numeric ? [...sizes].sort((a, b) => Number(a) - Number(b)) : sizes;
+};
+
 const fallbackDescription = (context = {}) => {
   const name = cleanText(context.product_name) || "Product";
   const brand = cleanText(context.brand);
-  const category = cleanText(context.category || context.product_type) || "item";
+  const rawCategory = cleanText(context.category || context.product_type);
+  const category = CATALOGUE_NOISE.test(rawCategory) ? "" : rawCategory;
   const colors = normalizeList(context.colors).slice(0, 5);
-  const sizes = normalizeList(context.sizes).slice(0, 8);
-  const tone = cleanText(context.selling_vibe) || "retail-ready";
-  const normalizedTone = tone.toLowerCase();
+  const sizes = sortSizesForCopy(normalizeList(context.sizes).slice(0, 12));
+  const tone = cleanText(context.selling_vibe || context.tone).toLowerCase();
   const gender = cleanText(context.gender);
   const material = cleanText(context.material);
   const brandPrefix = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "";
   const displayName = [brandPrefix, name].filter(Boolean).join(" ");
-  const genderPhrase = gender ? `${gender} ` : "";
-  const colorText = colors.length ? `Available in ${colors.join(", ")}` : "Designed with versatile colorways";
-  const sizeText = sizes.length ? `with sizes ${sizes.join(", ")}` : "with practical everyday sizing";
-  const materialText = material ? ` ${material} material` : "";
-  const arabicCategory = translateArabicFallbackTerm(category);
-  const arabicGender = translateArabicFallbackTerm(gender, "gender");
+  const typeAr = seoTypeAr({ product_type: context.product_type, category, product_name: name });
+  const typeEn = seoTypeEn({ product_type: context.product_type, category, product_name: name });
+  const genderAr = seoGenderAr(gender);
+  const genderEn = seoGenderEn(gender);
+  const colorsAr = colors.map(localizeCompoundColor).filter(Boolean);
+  const sizeRangeAr = sizes.length > 2 ? `من ${sizes[0]} إلى ${sizes[sizes.length - 1]}` : sizes.join("، ");
+  const sizeRangeEn = sizes.length > 2 ? `${sizes[0]} to ${sizes[sizes.length - 1]}` : sizes.join(", ");
+
   const toneLeads = {
-    premium: {
-      ar: "شكل مرتب ولمسة هادئة.",
-      en: "Clean, balanced, and polished.",
-    },
-    luxury: {
-      ar: "لمسة أنيقة وهادية.",
-      en: "Refined with a quiet premium feel.",
-    },
-    friendly: {
-      ar: "اختيار سهل ومريح للبس اليومي.",
-      en: "Easy, natural, and everyday friendly.",
-    },
-    sales: {
-      ar: "عرض واضح وكلام مباشر.",
-      en: "Clear, direct, and sales-ready.",
-    },
-    sport: {
-      ar: "ستايل عملي وخفيف.",
-      en: "Practical, light, and energetic.",
-    },
+    premium: { ar: "بشكل مرتب ولمسة هادئة تناسب أكتر من ستايل.", en: "Clean lines and a calm, polished look that works with more than one style." },
+    luxury: { ar: "بلمسة أنيقة وهادية وشكل بريميوم.", en: "A refined, quiet premium feel." },
+    friendly: { ar: "اختيار سهل ومريح للبس اليومي.", en: "An easy, comfortable everyday pick." },
+    sales: { ar: "شكل عملي ومتوفر الآن للطلب مباشرة.", en: "A practical pick, available to order right now." },
+    sport: { ar: "ستايل عملي وخفيف لليوم كله.", en: "A light, practical style for the whole day." },
   };
-  const toneLead = toneLeads[normalizedTone] || toneLeads.premium;
-  const englishDescription = `${toneLead.en} ${displayName} is a storefront-ready ${category} for ${genderPhrase || "everyday "}customers with a ${tone} presentation.${materialText ? ` Made with${materialText}.` : ""} ${colorText} and ${sizeText}, it is ready for clear catalog browsing and product detail pages.`
+  const toneLead = toneLeads[tone] || toneLeads.premium;
+  const ctaAr = genderEn === "women" ? "اطلبيه الآن قبل نفاد المقاسات." : "اطلبه الآن قبل نفاد المقاسات.";
+
+  const arabicDescription = [
+    `${[typeAr, genderAr, displayName].filter(Boolean).join(" ")} ${toneLead.ar}`,
+    material ? `بخامة ${material}.` : "",
+    colorsAr.length ? `متوفر بألوان ${colorsAr.join("، ")}${sizes.length ? ` ومقاسات ${sizeRangeAr}` : ""}.` : sizes.length ? `متوفر بمقاسات ${sizeRangeAr}.` : "",
+    ctaAr,
+  ]
+    .filter(Boolean)
+    .join(" ")
     .replace(/\s+/g, " ")
     .trim();
-  const arabicDescription = `${toneLead.ar} ${displayName} ${arabicCategory} بجودة عرض واضحة للسوق المصري.${arabicGender ? ` مناسب لـ ${arabicGender}.` : ""}${material ? ` الخامة: ${material}.` : ""} متوفر بألوان ${colors.length ? colors.join("، ") : "عملية"}${sizes.length ? ` ومقاسات ${sizes.join("، ")}` : ""}، ومجهز لعرض منظم في الكتالوج وصفحة المنتج.`
+
+  const subject = [genderEn ? `${genderEn}'s` : "", typeEn || category.toLowerCase() || "pick"].filter(Boolean).join(" ");
+  const englishDescription = [
+    `${displayName}: ${subject} with ${toneLead.en.charAt(0).toLowerCase()}${toneLead.en.slice(1)}`,
+    material ? `Made with ${material}.` : "",
+    colors.length ? `Available in ${colors.join(", ")}${sizes.length ? ` with sizes ${sizeRangeEn}` : ""}.` : sizes.length ? `Available in sizes ${sizeRangeEn}.` : "",
+    "Order now from M1 Store before your size runs out.",
+  ]
+    .filter(Boolean)
+    .join(" ")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -284,6 +315,7 @@ const fallbackDescription = (context = {}) => {
     english_description: englishDescription,
   };
 };
+
 
 const requestedTargets = (target = "all") => {
   const normalized = cleanText(target).toLowerCase();
