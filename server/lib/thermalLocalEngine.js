@@ -197,6 +197,51 @@ const floodBackground = (gray, width, height, threshold, inset = 0) => {
  * Removed pixels are folded into `background` and painted white in `rgb`, so
  * neither the drawing model nor the illustration service sees the pair.
  */
+/** The largest 8-connected blob of a mask, everything else cleared. */
+const largestComponent = (mask, width, height) => {
+  const total = width * height;
+  const label = new Int32Array(total);
+  const stack = new Int32Array(total);
+  let next = 1;
+  let bestLabel = 0;
+  let bestSize = 0;
+  for (let start = 0; start < total; start += 1) {
+    if (!mask[start] || label[start]) continue;
+    const current = next;
+    next += 1;
+    let top = 0;
+    let size = 0;
+    label[start] = current;
+    stack[top] = start;
+    top += 1;
+    while (top > 0) {
+      top -= 1;
+      const index = stack[top];
+      size += 1;
+      const y = Math.floor(index / width);
+      const x = index - (y * width);
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const ny = y + dy;
+        if (ny < 0 || ny >= height) continue;
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= width) continue;
+          const n = (ny * width) + nx;
+          if (!mask[n] || label[n]) continue;
+          label[n] = current;
+          stack[top] = n;
+          top += 1;
+        }
+      }
+    }
+    if (size > bestSize) { bestSize = size; bestLabel = current; }
+  }
+  const out = new Uint8Array(total);
+  if (!bestLabel) return out;
+  for (let index = 0; index < total; index += 1) out[index] = label[index] === bestLabel ? 1 : 0;
+  return out;
+};
+
 const SINGLE_ITEM_KEEP_MIN = 0.3;
 const SINGLE_ITEM_KEEP_MAX = 0.85;
 // The Shox pair scored just under 0.75 on the production (WebAssembly) runtime
@@ -285,10 +330,16 @@ const isolateFrontItem = async (input, rgb, gray, width, height, background, bou
     if (keepShare > SINGLE_ITEM_KEEP_MAX) return { applied: false, reason: "already-single", keepShare, runtime: result.runtime, durationMs: result.durationMs };
     if (keepShare < SINGLE_ITEM_KEEP_MIN) return { applied: false, reason: "mask-too-small", keepShare, runtime: result.runtime, durationMs: result.durationMs };
 
-    // Close pin holes in the kept mask, then fold everything else into the backdrop.
+    // Close pin holes in the kept mask, then open it: the model tends to
+    // carry thin slivers of the shoe behind along the top of the front shoe
+    // (a tread edge, a strap), and an opening of a few pixels drops those
+    // without touching the shoe's own body.
     let keep = candidates[0].mask;
     keep = dilateInk(keep, width, height, 2);
     keep = erodeInk(keep, width, height, 2);
+    const openRadius = Math.max(3, Math.round(bounds.height * 0.02));
+    keep = erodeInk(keep, width, height, openRadius);
+    keep = dilateInk(keep, width, height, openRadius);
 
     // What goes must be the shoe standing behind: its pixels sit above the
     // front shoe. If most of the would-be removed area is not in the upper
@@ -305,9 +356,16 @@ const isolateFrontItem = async (input, rgb, gray, width, height, background, bou
     if (removedTotal && removedUpper / removedTotal < 0.7) {
       return { applied: false, reason: "removed-not-above", keepShare, runtime: result.runtime, durationMs: result.durationMs };
     }
+    // One shoe is one connected shape. Whatever else survives the mask —
+    // a tread block of the shoe behind, a strap end — is a separate island
+    // and goes with the rest.
+    const kept = new Uint8Array(background.length);
+    for (let index = 0; index < kept.length; index += 1) kept[index] = !background[index] && keep[index] ? 1 : 0;
+    const largest = largestComponent(kept, width, height);
+
     let removed = 0;
     for (let index = 0; index < background.length; index += 1) {
-      if (background[index] || keep[index]) continue;
+      if (background[index] || largest[index]) continue;
       background[index] = 1;
       removed += 1;
       rgb[index * 3] = 255;
@@ -1460,19 +1518,33 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
     try {
       if (!modelAvailable) throw new Error("the drawing model is needed to guide the illustration service");
       const { result: control } = await computeLineartMap(croppedRgb, padded.width, padded.height);
-      // A pale product gets the soft map: its greys carry the gum sole's tone
-      // and the leather's texture, which the drawing keeps as hatching. A dark
-      // product gets confident strokes only — its soft map is a field of grey
-      // hatching that the diffusion model reads as "draw a dark textured shoe".
+      // The soft map for every product: its greys carry the gum sole's tone,
+      // the leather's texture and, on a dark shoe, the mesh and the eyelets
+      // that a cut to confident strokes threw away. With the pair removed and
+      // the "every surface left white" wording, a dark shoe no longer comes
+      // back as a dark textured shoe from the soft map — that only happened
+      // when the standing pair's tread filled the frame with hatching.
       const controlPlane = new Uint8Array(control.width * control.height);
       for (let index = 0; index < controlPlane.length; index += 1) {
-        controlPlane[index] = darkProduct
-          ? (control.map[index] < LINEART_INK_CUT ? 0 : 255)
-          : Math.round(control.map[index] * 255);
+        controlPlane[index] = Math.round(control.map[index] * 255);
       }
       const controlPng = await sharp(rawBuffer(controlPlane), { raw: { width: control.width, height: control.height, channels: 1 } })
         .png({ compressionLevel: 6 })
         .toBuffer();
+      if (process.env.THERMAL_DEBUG_CONTROL_DIR) {
+        // Tuning aid: the exact control image handed to the service, plus its
+        // soft twin, so prompts and scales can be tried against the service
+        // directly.
+        const fs = await import("node:fs/promises");
+        const stamp = `${Date.now()}`;
+        await fs.writeFile(`${process.env.THERMAL_DEBUG_CONTROL_DIR}/control-${stamp}-${darkProduct ? "cut" : "soft"}.png`, controlPng);
+        const softPlane = new Uint8Array(control.width * control.height);
+        for (let index = 0; index < softPlane.length; index += 1) softPlane[index] = Math.round(control.map[index] * 255);
+        await fs.writeFile(
+          `${process.env.THERMAL_DEBUG_CONTROL_DIR}/control-${stamp}-softmap.png`,
+          await sharp(rawBuffer(softPlane), { raw: { width: control.width, height: control.height, channels: 1 } }).png().toBuffer()
+        );
+      }
 
       const { drawFromLineart } = await import("./thermalDrawingClient.js");
       const { LIGHT_PRODUCT_PROMPT, LIGHT_PRODUCT_NEGATIVE } = await import("./thermalDrawingClient.js");
