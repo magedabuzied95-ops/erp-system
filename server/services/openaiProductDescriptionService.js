@@ -625,10 +625,10 @@ const buildCompactPrompt = (context = {}, target = "all") => {
     ...factLines,
     "أرجع JSON فقط بالمفتاحين arabic_description و english_description.",
     targets.arabic
-      ? `arabic_description: 3 إلى 4 جمل قصيرة بالعربي. ابدأ بـ "${subject}" ثم الشكل والراحة والألوان والمقاسات، واختم بجملة واحدة: "${ctaAr}"`
+      ? `arabic_description: 5 إلى 6 جمل قصيرة بالعربي (50 إلى 70 كلمة). ابدأ بـ "${subject}" ثم الشكل، ومع إيه بيتلبس، والراحة في اللبس اليومي، والألوان، والمقاسات، واختم بجملة واحدة: "${ctaAr}"`
       : "arabic_description: نص فارغ.",
     targets.english
-      ? "english_description: 3 to 4 short natural English sentences with the same facts, ending with one order line."
+      ? "english_description: 5 to 6 short natural English sentences (50 to 70 words) with the same facts, ending with one order line."
       : "english_description: empty string.",
   ]
     .filter(Boolean)
@@ -1012,7 +1012,7 @@ export const generateProductDescription = async (input = {}) => {
       schemaName: "product_descriptions",
       schema: productDescriptionSchema,
       verbosity: "medium",
-      maxTokens: 420,
+      maxTokens: 560,
     });
     console.log("[product-description] text provider request end", {
       requestId,
