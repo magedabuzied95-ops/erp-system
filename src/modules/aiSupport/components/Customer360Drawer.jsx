@@ -22,6 +22,7 @@ import {
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import RestockRequestsPanel from "./RestockRequestsPanel.jsx";
+import CustomerAvatar from "./CustomerAvatar.jsx";
 import "./Customer360Drawer.css";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -342,7 +343,7 @@ export default function Customer360Drawer({
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 items-start gap-3">
               {profileData.avatar_url ? (
-                <img src={profileData.avatar_url} alt="" className="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-slate-200" loading="lazy" />
+                <CustomerAvatar url={profileData.avatar_url} name={profileData.name || profileData.display_name || ""} className="h-12 w-12 shrink-0 rounded-2xl ring-1 ring-slate-200" imgClassName="object-cover" fallbackClassName="border border-[#E2E8F0] bg-slate-50 text-slate-500" />
               ) : (
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[#E2E8F0] bg-slate-50 text-slate-500">
                   <User className="h-5 w-5" />

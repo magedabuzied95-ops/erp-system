@@ -102,6 +102,8 @@ import {
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
+import CustomerAvatar from "../components/CustomerAvatar.jsx";
+import { isMetaDmConversation, metaCustomerDisplayName } from "../lib/customerIdentity.js";
 import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -739,7 +741,12 @@ const canSyncMessengerProfile = (conversation) => {
     isFacebookMessengerChannel(source) ||
     isFacebookMessengerChannel(provider) ||
     sessionId.startsWith("facebook_messenger:") ||
-    externalConversationId.startsWith("facebook_messenger:")
+    externalConversationId.startsWith("facebook_messenger:") ||
+    // Instagram Direct uses the same profile sync endpoint (the backend picks the
+    // Instagram Graph host and token for it).
+    isMetaDmConversation(conversation) ||
+    sessionId.startsWith("instagram:") ||
+    externalConversationId.startsWith("instagram:")
   );
 };
 // Phase 12 polish — MIRRORS server instagramProductShareText (aiProductCards.js) so the AI Inbox preview shows
@@ -1444,22 +1451,10 @@ const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
 };
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
-  if (isMessengerConversation(source)) {
-    const channelMetadata = source.channel_metadata || {};
-    const metadata = source.metadata || {};
-    return messengerDisplayName(source) || customerIdentifier(
-      source.external_customer_id,
-      source.phone,
-      source.customer_phone,
-      source.customer_profile?.external_customer_id,
-      source.customer_profile?.phone,
-      channelMetadata.psid,
-      channelMetadata.sender_id,
-      channelMetadata.customer_id,
-      metadata.psid,
-      metadata.sender_id,
-      metadata.customer_id,
-    ) || "Customer";
+  // Messenger + Instagram Direct: real profile name → stored name → @username →
+  // the tail of the Meta user id. The raw PSID/IGSID is never shown as a name.
+  if (isMessengerConversation(source) || isMetaDmConversation(source)) {
+    return metaCustomerDisplayName(source) || messengerDisplayName(source) || "Customer";
   }
 
   const profile = source.customer_profile || {};
@@ -1872,7 +1867,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                 aria-label={`Open customer details for ${customerName || "customer"}`}
               >
                 <div className="relative h-11 w-11 overflow-hidden rounded-2xl">
-                  <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  <CustomerAvatar url={avatarUrl} name={customerName} className="h-full w-full" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
                   {isCommentThread ? (
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
                   ) : null}
@@ -2274,7 +2269,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                 className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
                 aria-label={`Open customer details for ${customerName || "customer"}`}
               >
-                <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover" loading="lazy" />
+                <CustomerAvatar url={avatarUrl} name={customerName} className="h-11 w-11 rounded-2xl" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
               </button>
             </AvatarZoom>
           ) : (
@@ -2514,9 +2509,7 @@ function InboxChatHeader({
   const avatarUrl = isCommentConversation(conversation) ? commentThreadCustomerAvatarUrl(conversation) : customerAvatarUrl(conversation);
   const name = isCommentConversation(conversation)
     ? commentThreadCommenterName(conversation)
-    : isMessengerConversation(conversation)
-      ? messengerDisplayName(conversation)
-      : getConversationDisplayName(conversation);
+    : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
   const channelKey = clean(channel).toLowerCase();
   const isTelegramConversation = channelKey.includes("telegram");
@@ -2563,7 +2556,7 @@ function InboxChatHeader({
                 className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/40"
                 aria-label={`Open customer details for ${name || "customer"}`}
               >
-                <img src={avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" loading="lazy" />
+                <CustomerAvatar url={avatarUrl} name={name} className="h-9 w-9 shrink-0 rounded-full" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" iconClassName="h-4 w-4" />
               </button>
             </AvatarZoom>
           ) : (
@@ -4616,7 +4609,7 @@ function CustomerContextCard({ conversation = {} }) {
   return (
     <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
       <div className="mb-3 flex items-center gap-3">
-        {avatarUrl ? <AvatarZoom url={avatarUrl} name={identityName}><img src={avatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" /></AvatarZoom> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
+        {avatarUrl ? <AvatarZoom url={avatarUrl} name={identityName}><CustomerAvatar url={avatarUrl} name={identityName} className="h-12 w-12 rounded-2xl ring-1 ring-white/10" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" /></AvatarZoom> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.customerContext")}</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
@@ -5003,7 +4996,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           <div className="flex flex-row-reverse items-start gap-2.5">
             {avatarUrl ? (
               <AvatarZoom url={avatarUrl} name={identityName}>
-                <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+                <CustomerAvatar url={avatarUrl} name={identityName} className="h-10 w-10 shrink-0 rounded-2xl ring-1 ring-white/10" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
               </AvatarZoom>
             ) : (
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">

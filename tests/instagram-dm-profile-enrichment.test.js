@@ -55,8 +55,8 @@ test("fallback ordering: name -> username -> saved name; scoped id is never used
 
 test("avatar: uses profile_pic, keeps previously saved avatar, never overwrites with blank", () => {
   assert.match(igBranch, /customer_avatar_url: persisted\?\.profile_pic \|\| profile\.profile_pic \|\| cached\?\.profile_pic \|\| ""/);
-  // persist bails before writing when both name and pic are empty (no-wipe)
-  assert.match(persistSource, /if \(!tenantId \|\| !psid \|\| \(!name && !profilePic\)\) return null;/);
+  // persist bails before writing when name, pic and username are all empty (no-wipe)
+  assert.match(persistSource, /if \(!tenantId \|\| !psid \|\| \(!name && !profilePic && !username\)\) return null;/);
   // and every column upsert coalesces to the existing stored value
   assert.match(persistSource, /profile_pic_url = COALESCE\(NULLIF\(EXCLUDED\.profile_pic_url, ''\), ai_customer_profiles\.profile_pic_url\)/);
   assert.match(persistSource, /customer_name = COALESCE\(NULLIF\(EXCLUDED\.customer_name, ''\), ai_customer_profiles\.customer_name\)/);
@@ -67,8 +67,10 @@ test("main AI Inbox never displays the Instagram scoped id as the conversation n
   assert.match(pwa, /const isInstagramDmConversation = \(conversation = \{\}\) =>/);
   // scoped id excluded from the resolved display name for IG DMs
   assert.match(pwa, /\(isMessengerConversation\(conversation\) \|\| isInstagramDmConversation\(conversation\)\) && isLikelyMessengerExternalId\(value\)/);
-  // safe label instead of the scoped id when no real name resolved
-  assert.match(pwa, /if \(!resolved && isInstagramDmConversation\(conversation\)\) return "مستخدم Instagram"/);
+  // @username / id-tail fallback instead of the scoped id when no real name resolved
+  assert.match(pwa, /if \(!resolved && \(isMessengerConversation\(conversation\) \|\| isInstagramDmConversation\(conversation\)\)\)/);
+  assert.match(pwa, /const identity = resolveMetaCustomerIdentity\(conversation\)/);
+  assert.match(pwa, /return isInstagramDmConversation\(conversation\) \? "مستخدم Instagram" : "مستخدم ماسنجر"/);
 });
 
 test("meta_reviewer never exposes the scoped id as a name and falls back safely", () => {

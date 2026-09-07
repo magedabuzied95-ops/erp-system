@@ -117,6 +117,18 @@ import {
   generateUnifiedConversationDecision,
   logUnifiedDecisionEarlyReturn,
 } from "./aiUnifiedDecisionService.js";
+import {
+  META_PROFILE_FETCH_TIMEOUT_MS,
+  META_PROFILE_WEBHOOK_WAIT_MS,
+  INSTAGRAM_PROFILE_FIELDS,
+  MESSENGER_PROFILE_FIELDS,
+  classifyMetaProfileError,
+  metaProfileCoordinator,
+  normalizeMetaProfileChannel,
+  normalizeMetaProfilePayload,
+  resolveMetaProfileRefreshDecision,
+  waitAtMost,
+} from "./metaCustomerProfileService.js";
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v20.0";
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -2494,14 +2506,14 @@ const metaGraphFailure = (error) => {
   return error;
 };
 
-const callMetaGet = async ({ endpoint, token, params = {} }) => {
+const callMetaGet = async ({ endpoint, token, params = {}, signal = undefined }) => {
   const target = new URL(`${GRAPH_BASE_URL}${endpoint}`);
   Object.entries(params || {}).forEach(([key, value]) => {
     const safe = text(value);
     if (safe) target.searchParams.set(key, safe);
   });
   if (text(token)) target.searchParams.set("access_token", token);
-  const response = await fetch(target);
+  const response = await fetch(target, signal ? { signal } : undefined);
   noteGraphResponse(response);
   const payload = await parseMetaPayload(response);
   if (!response.ok) {
@@ -2543,10 +2555,15 @@ const runEnsureMessengerProfileStorage = async () => {
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS customer_profile JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS last_profile_sync_at TIMESTAMPTZ NULL`);
+  // Business Asset User Profile Access: Instagram answers with a username, and the
+  // backfill needs to know which rows Meta already refused so it can skip them.
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS username TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_sync_status TEXT NOT NULL DEFAULT ''`);
+  await db.query(`ALTER TABLE IF EXISTS ai_customer_profiles ADD COLUMN IF NOT EXISTS profile_sync_attempted_at TIMESTAMPTZ NULL`);
   await repairMessengerStoredNames();
 };
 
-const callInstagramGraph = async ({ endpoint, token, params = {}, method = "GET", body = null }) => {
+const callInstagramGraph = async ({ endpoint, token, params = {}, method = "GET", body = null, signal = undefined }) => {
   const target = new URL(`${INSTAGRAM_GRAPH_BASE_URL}${endpoint}`);
   Object.entries(params || {}).forEach(([key, value]) => {
     const safe = text(value);
@@ -2557,6 +2574,7 @@ const callInstagramGraph = async ({ endpoint, token, params = {}, method = "GET"
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? json(body) : undefined,
+    ...(signal ? { signal } : {}),
   });
   noteGraphResponse(response);
   const payload = await parseMetaPayload(response);
@@ -2572,9 +2590,10 @@ const callInstagramGraph = async ({ endpoint, token, params = {}, method = "GET"
 
 const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } = {}) =>
   [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
-const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displayName = "", externalCustomerId = "", profilePic = "", profileFetchedAt = "" } = {}) => {
+const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displayName = "", externalCustomerId = "", profilePic = "", profileFetchedAt = "", username = "" } = {}) => {
   const fullName = messengerDisplayName({ firstName, lastName, fallback: displayName });
   const safeName = isUnsafeMessengerStoredName(fullName) ? "" : fullName;
+  const safeUsername = text(username).replace(/^@/, "");
   return {
     first_name: text(firstName),
     last_name: text(lastName),
@@ -2582,6 +2601,7 @@ const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displa
     facebook_name: safeName,
     messenger_name: safeName,
     customer_name: safeName,
+    username: safeUsername,
     customer_profile: {
       name: safeName,
       display_name: safeName,
@@ -2589,6 +2609,7 @@ const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displa
       messenger_name: safeName,
       first_name: text(firstName),
       last_name: text(lastName),
+      username: safeUsername,
       profile_pic: text(profilePic),
       external_customer_id: text(externalCustomerId),
       profile_fetched_at: text(profileFetchedAt),
@@ -2597,7 +2618,6 @@ const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displa
     profile_fetched_at: text(profileFetchedAt),
   };
 };
-const MESSENGER_PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const parseMessengerProfileTimestamp = (value = "") => {
   const timestamp = new Date(text(value));
   return Number.isFinite(timestamp.getTime()) ? timestamp : null;
@@ -2611,11 +2631,6 @@ const resolveMessengerProfileFetchedAt = (row = {}) => {
     parseMessengerProfileTimestamp(profilePayload.profile_fetched_at) ||
     parseMessengerProfileTimestamp(row.profile_updated_at)
   );
-};
-const isFreshMessengerProfileCache = (cachedProfile = {}) => {
-  const fetchedAt = parseMessengerProfileTimestamp(cachedProfile.profile_fetched_at);
-  if (!fetchedAt) return false;
-  return (Date.now() - fetchedAt.getTime()) < MESSENGER_PROFILE_CACHE_TTL_MS;
 };
 const MESSENGER_INFERENCE_TOKENS = [
   "غالي",
@@ -2924,6 +2939,8 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
       p.messenger_name,
       p.customer_name AS profile_customer_name,
       p.customer_profile AS profile_customer_profile,
+      p.username AS profile_username,
+      p.profile_sync_status,
       p.last_profile_sync_at,
       p.updated_at AS profile_updated_at
     FROM ai_channel_conversations c
@@ -2931,8 +2948,11 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
       ON s.tenant_id = c.tenant_id
       AND s.session_id = c.external_conversation_id
     LEFT JOIN ai_customer_profiles p
-      ON p.id = c.customer_profile_id
-      AND p.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
+      ON p.tenant_id = COALESCE(c.tenant_id, s.tenant_id)
+      AND (
+        p.id = c.customer_profile_id
+        OR (c.customer_profile_id IS NULL AND $5::text <> '' AND p.phone = $5)
+      )
     WHERE COALESCE(c.tenant_id, s.tenant_id) = $1
       AND (
         c.external_conversation_id = $2
@@ -2943,7 +2963,13 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
     ORDER BY COALESCE(c.updated_at, s.updated_at) DESC NULLS LAST
     LIMIT 1
     `,
-    [numberOrNull(tenantId), text(conversationId), text(channel), text(psid)]
+    [
+      numberOrNull(tenantId),
+      text(conversationId),
+      text(channel),
+      text(psid),
+      text(channel) && text(psid) ? `meta:${text(channel)}:${text(psid)}` : "",
+    ]
   ).catch(() => ({ rows: [] }));
   const row = result.rows[0] || {};
   const metadataProfile = row.channel_metadata?.messenger_profile || {};
@@ -2970,16 +2996,38 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
     externalCustomerId: row.external_customer_id || psid,
   });
   const avatarUrl = text(row.profile_pic_url || row.channel_customer_avatar_url || row.session_customer_avatar_url || metadataProfile.profile_pic || profilePayload.profile_pic);
-  if (!name && !avatarUrl) return null;
+  const username = text(row.profile_username || profilePayload.username || metadataProfile.username).replace(/^@/, "");
+  if (!name && !avatarUrl && !username) return null;
   return {
     first_name: firstName,
     last_name: lastName,
     name,
+    username,
     profile_pic: avatarUrl,
     profile_id: row.customer_profile_id || null,
     profile_fetched_at: text(profileFetchedAt),
+    profile_sync_status: text(row.profile_sync_status),
     source: "cache",
   };
+};
+
+// Remember on the profile row that Meta was asked and said no, so the backfill can
+// skip the row and the operator can see why a name is missing. Only rows that already
+// exist are touched: a failure must never create a customer.
+const markMetaProfileSyncFailure = async ({ tenantId, channel, psid, classified = {} } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safePsid = text(psid);
+  if (!scopedTenantId || !safePsid) return;
+  await db.query(
+    `
+    UPDATE ai_customer_profiles
+    SET profile_sync_status = $3,
+        profile_sync_attempted_at = NOW()
+    WHERE tenant_id = $1
+      AND phone = $2
+    `,
+    [scopedTenantId, `meta:${text(channel)}:${safePsid}`, `error:${text(classified.kind || "unknown")}`.slice(0, 60)]
+  ).catch(() => {});
 };
 
 const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid, pageId = "", profile = {} } = {}) => {
@@ -2993,16 +3041,18 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
   });
   const name = isUnsafeMessengerStoredName(candidateName) ? "" : candidateName;
   const profilePic = text(profile.profile_pic);
-  if (!tenantId || !psid || (!name && !profilePic)) return null;
+  const username = text(profile.username).replace(/^@/, "");
+  if (!tenantId || !psid || (!name && !profilePic && !username)) return null;
   await ensureMessengerProfileStorage();
   const profileResult = await db.query(
     `
     INSERT INTO ai_customer_profiles (
       tenant_id, first_name, last_name, phone, source_channel, external_customer_id, profile_pic_url,
       display_name, facebook_name, messenger_name, customer_name, customer_profile,
-      conversation_summary, customer_sentiment, memory_score, last_profile_sync_at, last_seen_at, updated_at
+      conversation_summary, username, profile_sync_status, profile_sync_attempted_at,
+      customer_sentiment, memory_score, last_profile_sync_at, last_seen_at, updated_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,'neutral',20,NOW(),NOW(),NOW())
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,'ok',NOW(),'neutral',20,NOW(),NOW(),NOW())
     ON CONFLICT (tenant_id, phone) DO UPDATE SET
       first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), ai_customer_profiles.first_name),
       last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), ai_customer_profiles.last_name),
@@ -3013,15 +3063,18 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       facebook_name = COALESCE(NULLIF(EXCLUDED.facebook_name, ''), ai_customer_profiles.facebook_name),
       messenger_name = COALESCE(NULLIF(EXCLUDED.messenger_name, ''), ai_customer_profiles.messenger_name),
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_customer_profiles.customer_name),
+      username = COALESCE(NULLIF(EXCLUDED.username, ''), ai_customer_profiles.username),
       customer_profile = CASE
         WHEN EXCLUDED.customer_profile IS NULL OR EXCLUDED.customer_profile = '{}'::jsonb THEN ai_customer_profiles.customer_profile
         ELSE COALESCE(ai_customer_profiles.customer_profile, '{}'::jsonb) || EXCLUDED.customer_profile
       END,
       conversation_summary = COALESCE(NULLIF(EXCLUDED.conversation_summary, ''), ai_customer_profiles.conversation_summary),
+      profile_sync_status = 'ok',
+      profile_sync_attempted_at = NOW(),
       last_profile_sync_at = NOW(),
       last_seen_at = NOW(),
       updated_at = NOW()
-    RETURNING id, profile_pic_url, display_name, facebook_name, messenger_name, customer_name, customer_profile
+    RETURNING id, profile_pic_url, display_name, facebook_name, messenger_name, customer_name, username, customer_profile
     `,
     [
       numberOrNull(tenantId),
@@ -3042,12 +3095,15 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         externalCustomerId: psid,
         profilePic,
         profileFetchedAt,
+        username,
       }).customer_profile),
       name ? `Meta profile: ${name}` : "",
+      username,
     ]
   );
   const profileId = profileResult.rows[0]?.id || null;
   const storedProfilePicUrl = text(profileResult.rows[0]?.profile_pic_url);
+  const storedUsername = text(profileResult.rows[0]?.username) || username;
   const needsMessengerNameRepairSession = `(customer_name = '' OR customer_name = $4 OR customer_name = session_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ~ '(غالي|غالية|غاليه|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|ممكن|السلام عليكم|سلام عليكم|وريني|ابعت|ابعتلي|هات|هاتلي|فين|فيه|اهلا|أهلا|هاي)' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%' OR customer_name IN ('عايز','عايزة','عاوز','عاوزه','محتاج','محتاجة','محتاجه','ممكن','السلام عليكم','سلام عليكم','وريني','ابعت','ابعتلي','هات','هاتلي','فين','فيه','اهلا','أهلا','هاي'))`;
   const needsMessengerNameRepairConversation = `(customer_name = '' OR customer_name = $4 OR customer_name = external_conversation_id OR LOWER(customer_name) IN ('anonymous','unknown customer') OR LENGTH(customer_name) > 80 OR customer_name ~ '[?!.:;]' OR customer_name ~ '(غالي|غالية|غاليه|عايز|عايزة|عايزه|عاوز|عاوزه|محتاج|محتاجة|محتاجه|محتاجين|ممكن|السلام عليكم|سلام عليكم|وريني|ابعت|ابعتلي|هات|هاتلي|فين|فيه|اهلا|أهلا|هاي)' OR customer_name ILIKE '%message%' OR customer_name ILIKE '%preview%' OR customer_name ILIKE '%snippet%' OR customer_name ILIKE '%reply%' OR customer_name ILIKE '%conversation%' OR customer_name ILIKE '%inbox%' OR customer_name ILIKE '%customer%' OR customer_name ILIKE '%order%' OR customer_name ILIKE '%product%' OR customer_name ILIKE '%stock%' OR customer_name ILIKE '%size%' OR customer_name ILIKE '%price%' OR customer_name ILIKE '%body%' OR customer_name IN ('عايز','عايزة','عاوز','عاوزه','محتاج','محتاجة','محتاجه','ممكن','السلام عليكم','سلام عليكم','وريني','ابعت','ابعتلي','هات','هاتلي','فين','فيه','اهلا','أهلا','هاي'))`;
   const sessionResult = await db.query(
@@ -3114,6 +3170,7 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
         externalCustomerId: psid,
         profilePic,
         profileFetchedAt,
+        username: storedUsername,
       }).customer_profile),
       resolveMessengerPageIdCandidate(pageId, psid),
     ]
@@ -3143,9 +3200,11 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
       externalCustomerId: psid,
       profilePic,
       profileFetchedAt,
+      username: storedUsername,
     }).customer_profile,
     first_name: firstName,
     last_name: lastName,
+    username: storedUsername,
     profile_pic: storedProfilePicUrl || profilePic,
     profile_fetched_at: profileFetchedAt,
     updated_rows: Number(profileResult.rowCount || 0) + Number(sessionResult.rowCount || 0) + Number(messagesResult.rowCount || 0) + Number(channelConversationResult.rowCount || 0),
@@ -3210,8 +3269,9 @@ export const refreshMessengerProfileForConversation = async ({
   }
 
   const channel = row.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
-  if (adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
-    throw Object.assign(new Error("Messenger profile refresh is only available for Facebook Messenger conversations."), { status: 400, code: "NOT_MESSENGER_CONVERSATION" });
+  const refreshChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(refreshChannel)) {
+    throw Object.assign(new Error("Profile refresh is only available for Messenger and Instagram conversations."), { status: 400, code: "NOT_MESSENGER_CONVERSATION" });
   }
 
   const psid = text(row.external_customer_id);
@@ -3221,6 +3281,32 @@ export const refreshMessengerProfileForConversation = async ({
 
   const oldName = text(row.channel_customer_name || row.session_customer_name || "");
   const oldAvatar = text(row.channel_customer_avatar_url || row.session_customer_avatar_url || "");
+  if (refreshChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
+    // Instagram: no page id to resolve — the token resolver picks the connected
+    // Instagram account, and the endpoint host follows the token type.
+    const synced = await syncInstagramProfileForConversation({
+      tenantId: scopedTenantId,
+      conversationId: safeConversationId,
+      psid,
+      channelMetadata: row.channel_metadata || {},
+      dryRun,
+      source: "admin_refresh_endpoint",
+    });
+    return {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      external_customer_id: psid,
+      old_name: oldName,
+      new_name: synced.customer_name || oldName,
+      graph_name: synced.graph_name || "",
+      updated_rows: synced.updated_rows || 0,
+      dryRun: Boolean(dryRun),
+      page_id: synced.instagram_business_account_id || "",
+      customer_avatar_url: synced.customer_avatar_url || oldAvatar,
+      customer_username: synced.customer_username || "",
+      customer_profile_id: synced.customer_profile_id || null,
+    };
+  }
   const requestedPageId = text(pageId || row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
   const resolvedPageId = await resolveMessengerProfileFetchPageId({
     message: {
@@ -3384,7 +3470,54 @@ const loadMessengerProfileAvatarStorage = async ({ tenantId, channel, conversati
   };
 };
 
-export const enrichMessengerProfile = async ({ message, config, facebookPageId = "", instagramBusinessAccountId = "", forceRefresh = false } = {}) => {
+// What the inbox can show for a customer before (or without) asking Meta: whatever the
+// database already holds. Never blanks a value the message already carries.
+const applyCachedMetaProfileToMessage = (message = {}, cached = null) => ({
+  ...message,
+  customer_name: text(cached?.name) || text(message.customer_name),
+  display_name: text(cached?.name) || text(message.display_name),
+  customer_username: text(cached?.username) || text(message.customer_username),
+  customer_avatar_url: text(cached?.profile_pic) || text(message.customer_avatar_url),
+  customer_profile_id: cached?.profile_id || message.customer_profile_id || null,
+  raw: { ...(message.raw || {}), messenger_profile: cached || message.raw?.messenger_profile || null },
+});
+
+// Copy the identity fields a finished fetch produced onto another caller's message
+// (two messages from the same customer share one Graph call).
+const applyEnrichedMetaProfileToMessage = (message = {}, enriched = {}) => ({
+  ...message,
+  customer_name: text(enriched.customer_name) || text(message.customer_name),
+  display_name: text(enriched.display_name || enriched.customer_name) || text(message.display_name),
+  customer_username: text(enriched.customer_username) || text(message.customer_username),
+  customer_avatar_url: text(enriched.customer_avatar_url) || text(message.customer_avatar_url),
+  customer_profile_id: enriched.customer_profile_id || message.customer_profile_id || null,
+  updated_rows: Number(enriched.updated_rows || 0),
+  raw: {
+    ...(message.raw || {}),
+    messenger_profile: enriched.raw?.messenger_profile || message.raw?.messenger_profile || null,
+    ...(enriched.raw?.instagram_profile ? { instagram_profile: enriched.raw.instagram_profile } : {}),
+  },
+});
+
+const profileFetchSignal = () =>
+  typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(META_PROFILE_FETCH_TIMEOUT_MS)
+    : undefined;
+
+// Entry point for every profile lookup (webhook, manual refresh, backfill, history sync).
+//   cacheOnly     — answer from the database and report whether Meta should be asked
+//   forceRefresh  — ask Meta even when the stored profile is fresh (manual refresh)
+// Otherwise the stored profile is used while it is fresh, an incomplete one is retried
+// on a schedule rather than per message, a recent failure is respected, and one Graph
+// call is shared by every caller that asks for the same customer at the same time.
+export const enrichMessengerProfile = async ({
+  message,
+  config,
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+  forceRefresh = false,
+  cacheOnly = false,
+} = {}) => {
   const channel = message?.channel;
   const normalizedChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
   if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel)) return message;
@@ -3396,22 +3529,64 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
     conversationId: message.external_conversation_id,
     psid,
   }).catch(() => null);
-  const cachedIsFresh = Boolean(cached?.name && cached?.profile_pic && isFreshMessengerProfileCache(cached));
-  if (!forceRefresh && cachedIsFresh) {
+  const coordinatorKey = metaProfileCoordinator.key({ tenantId: config.tenant_id, channel: normalizedChannel, externalCustomerId: psid });
+  const decision = resolveMetaProfileRefreshDecision({
+    cached,
+    failure: metaProfileCoordinator.getFailure(coordinatorKey),
+    forceRefresh,
+  });
+  if (cacheOnly || !decision.refresh) {
     return {
-      ...message,
-      customer_name: cached.name,
-      customer_avatar_url: cached.profile_pic,
-      customer_profile_id: cached.profile_id || null,
-      raw: { ...(message.raw || {}), messenger_profile: cached },
+      ...applyCachedMetaProfileToMessage(message, cached),
+      profile_refresh_pending: Boolean(cacheOnly && decision.refresh),
+      profile_refresh_reason: decision.reason,
     };
   }
+  const { promise, shared } = metaProfileCoordinator.run(coordinatorKey, () =>
+    fetchAndPersistMetaProfile({
+      message,
+      config,
+      facebookPageId,
+      instagramBusinessAccountId,
+      normalizedChannel,
+      psid,
+      cached,
+      coordinatorKey,
+      reason: decision.reason,
+    })
+  );
+  if (shared) {
+    console.log("meta_profile_fetch_shared", {
+      tenant_id: config.tenant_id,
+      channel: normalizedChannel,
+      scoped_user_id: maskIdForLog(psid),
+      conversation_id: message.external_conversation_id,
+    });
+  }
+  const enriched = await promise;
+  return shared ? applyEnrichedMetaProfileToMessage(message, enriched) : enriched;
+};
+
+// The Graph call itself plus persistence. Only reached through enrichMessengerProfile,
+// which owns the cache policy and the in-flight dedupe.
+const fetchAndPersistMetaProfile = async ({
+  message,
+  config,
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+  normalizedChannel,
+  psid,
+  cached = null,
+  coordinatorKey = "",
+  reason = "",
+} = {}) => {
   if (normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
     console.log("instagram_profile_fetch_start", {
       tenant_id: config.tenant_id,
       config_id: config.id || null,
       scoped_user_id: maskIdForLog(psid),
       has_conversation_ref: Boolean(message.external_conversation_id),
+      reason,
     });
     try {
       const tokenResolution = await resolveMetaSendConfig({
@@ -3431,8 +3606,8 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
       // versa). Field set is identical: name,username,profile_pic.
       const igFields = "name,username,profile_pic";
       const igEndpoint = `/${encodeURIComponent(psid)}`;
-      const fetchViaInstagram = () => callInstagramGraph({ endpoint: igEndpoint, token, params: { fields: igFields } });
-      const fetchViaFacebook = () => callMetaGet({ endpoint: igEndpoint, token, params: { fields: igFields } });
+      const fetchViaInstagram = () => callInstagramGraph({ endpoint: igEndpoint, token, params: { fields: igFields }, signal: profileFetchSignal() });
+      const fetchViaFacebook = () => callMetaGet({ endpoint: igEndpoint, token, params: { fields: igFields }, signal: profileFetchSignal() });
       const hasUsableProfile = (p) => Boolean(p && (text(p.name) || text(p.username) || text(p.profile_pic)));
       let payload = {};
       let profileVia = instagramBusinessLogin ? "graph.instagram.com" : "graph.facebook.com";
@@ -3458,12 +3633,13 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         has_profile_pic: Boolean(text(payload?.profile_pic)),
       });
       const displayName = text(payload.name || payload.username);
+      const normalizedInstagramProfile = normalizeMetaProfilePayload({ channel: AI_AGENT_CHANNELS.INSTAGRAM, payload });
       const profile = {
         first_name: displayName,
         last_name: "",
         name: displayName,
-        username: text(payload.username),
-        profile_pic: text(payload.profile_pic),
+        username: normalizedInstagramProfile.username,
+        profile_pic: normalizedInstagramProfile.profile_pic,
       };
       const resolvedInstagramAccountId = text(
         resolvedConfig?.instagram_business_account_id || instagramBusinessAccountId || config.instagram_business_account_id
@@ -3483,13 +3659,16 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         scoped_user_id: maskIdForLog(psid),
         has_conversation_ref: Boolean(message.external_conversation_id),
         has_name: Boolean(persisted?.name || displayName),
+        has_username: Boolean(persisted?.username || profile.username),
         has_profile_pic: Boolean(persisted?.profile_pic || profile.profile_pic),
         profile_id: persisted?.id || null,
       });
+      metaProfileCoordinator.clearFailure(coordinatorKey);
       return {
         ...message,
         customer_name: persisted?.name || displayName || cached?.name || "",
         display_name: persisted?.display_name || persisted?.name || displayName || cached?.display_name || cached?.name || "",
+        customer_username: persisted?.username || profile.username || cached?.username || "",
         customer_avatar_url: persisted?.profile_pic || profile.profile_pic || cached?.profile_pic || "",
         customer_profile_id: persisted?.id || cached?.profile_id || null,
         updated_rows: persisted?.updated_rows || 0,
@@ -3501,20 +3680,28 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         },
       };
     } catch (error) {
+      // The message is already stored by the time this runs; a refused lookup only
+      // means the inbox keeps whatever it already knew about this customer.
+      const classified = metaProfileCoordinator.noteFailure(coordinatorKey, error);
+      await markMetaProfileSyncFailure({ tenantId: config.tenant_id, channel: normalizedChannel, psid, classified });
       console.warn("instagram_profile_fetch_failed", {
         tenant_id: config.tenant_id,
         config_id: config.id || null,
         scoped_user_id: maskIdForLog(psid),
         has_conversation_ref: Boolean(message.external_conversation_id),
         graph_fields: "name,username,profile_pic",
-        message: error?.message || "Instagram profile lookup failed",
-        code: error?.code || "",
-        status: error?.status || null,
+        message: classified.message || "Instagram profile lookup failed",
+        error_kind: classified.kind,
+        meta_code: classified.code || null,
+        meta_subcode: classified.subcode || null,
+        status: classified.status || null,
+        retryable: classified.retryable,
       });
       return {
         ...message,
         customer_name: cached?.name || message.customer_name || "",
         display_name: cached?.display_name || cached?.name || "",
+        customer_username: cached?.username || message.customer_username || "",
         customer_avatar_url: cached?.profile_pic || message.customer_avatar_url || "",
         customer_profile_id: cached?.profile_id || null,
         updated_rows: 0,
@@ -3531,6 +3718,7 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
     config_id: config.id || null,
     psid: maskIdForLog(psid),
     conversation_id: message.external_conversation_id,
+    reason,
   });
   try {
     const resolvedFacebookPageId = await resolveMessengerProfileFetchPageId({
@@ -3566,17 +3754,20 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
       endpoint: `/${encodeURIComponent(psid)}`,
       token,
       params: { fields: "first_name,last_name,name,profile_pic" },
+      signal: profileFetchSignal(),
     });
+    // Presence flags only: no name, picture URL or token value reaches the logs.
     console.log("messenger_profile_graph_response", {
       tenant_id: config.tenant_id,
       config_id: resolvedConfig?.id || config.id || null,
       token_source: tokenSource || "",
       psid: maskIdForLog(psid),
       conversation_id: message.external_conversation_id,
-      first_name: text(payload.first_name),
-      last_name: text(payload.last_name),
-      name: text(payload.name),
-      profile_pic: text(payload.profile_pic),
+      response_keys: Object.keys(payload || {}),
+      has_first_name: Boolean(text(payload.first_name)),
+      has_last_name: Boolean(text(payload.last_name)),
+      has_name: Boolean(text(payload.name)),
+      has_profile_pic: Boolean(text(payload.profile_pic)),
     });
     if (!text(payload.profile_pic)) {
       console.warn("avatar_missing_from_meta_response", {
@@ -3584,16 +3775,10 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
         config_id: config.id || null,
         psid: maskIdForLog(psid),
         conversation_id: message.external_conversation_id,
-        first_name: text(payload.first_name),
-        last_name: text(payload.last_name),
+        has_name: Boolean(text(payload.name) || text(payload.first_name)),
       });
     }
-    const profile = {
-      first_name: text(payload.first_name),
-      last_name: text(payload.last_name),
-      name: text(payload.name),
-      profile_pic: text(payload.profile_pic),
-    };
+    const profile = normalizeMetaProfilePayload({ channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, payload });
     const persisted = await persistMessengerProfile({
       tenantId: config.tenant_id,
       channel: normalizedChannel,
@@ -3612,6 +3797,7 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
       has_profile_pic: Boolean(persisted?.profile_pic),
       profile_id: persisted?.id || null,
     });
+    metaProfileCoordinator.clearFailure(coordinatorKey);
     return {
       ...message,
       customer_name: persisted?.name || cached?.name || "",
@@ -3624,15 +3810,22 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
       raw: { ...(message.raw || {}), messenger_profile: persisted || profile },
     };
   } catch (error) {
+    // Stored message + stored conversation stay exactly as they are; only the lookup
+    // failed, and the next attempt waits out the backoff the classification decides.
+    const classified = metaProfileCoordinator.noteFailure(coordinatorKey, error);
+    await markMetaProfileSyncFailure({ tenantId: config.tenant_id, channel: normalizedChannel, psid, classified });
     console.warn("messenger_profile_fetch_failed", {
       tenant_id: config.tenant_id,
       config_id: config.id || null,
       psid: maskIdForLog(psid),
       conversation_id: message.external_conversation_id,
       graph_fields: "first_name,last_name,name,profile_pic",
-      message: error?.message || "Messenger profile lookup failed",
-      code: error?.code || "",
-      status: error?.status || null,
+      message: classified.message || "Messenger profile lookup failed",
+      error_kind: classified.kind,
+      meta_code: classified.code || null,
+      meta_subcode: classified.subcode || null,
+      status: classified.status || null,
+      retryable: classified.retryable,
     });
     return {
       ...message,
@@ -3650,6 +3843,80 @@ export const enrichMessengerProfile = async ({ message, config, facebookPageId =
       raw: { ...(message.raw || {}), messenger_profile: cached || null },
     };
   }
+};
+
+// Called once the inbound message and its conversation row are stored. Asks Meta for
+// the profile (through the shared policy: fresh cache ⇒ no call, in-flight ⇒ shared,
+// recent failure ⇒ skipped), waits a bounded moment so the first reply can still greet
+// by name, and lets anything slower finish in the background — a finished background
+// fetch writes the rows itself and tells the open inbox to refresh.
+export const hydrateStoredMetaCustomerProfile = async ({
+  message,
+  config,
+  facebookPageId = "",
+  instagramBusinessAccountId = "",
+  waitMs = META_PROFILE_WEBHOOK_WAIT_MS,
+} = {}) => {
+  if (!message || !config?.tenant_id) return { settled: false, refreshed: false };
+  const psid = text(message.raw?.sender_psid || message.external_customer_id);
+  if (!psid) return { settled: false, refreshed: false };
+  const before = {
+    name: text(message.customer_name),
+    avatar: text(message.customer_avatar_url),
+    username: text(message.customer_username),
+  };
+  const conversationId = text(message.external_conversation_id);
+  const tenantId = numberOrNull(config.tenant_id);
+  const started = Date.now();
+  const fetchPromise = enrichMessengerProfile({
+    message,
+    config,
+    facebookPageId,
+    instagramBusinessAccountId,
+  }).catch((error) => {
+    console.warn("meta_profile_hydrate_failed", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message: text(error?.message).slice(0, 200),
+    });
+    return null;
+  });
+  const applyResult = (enriched) => {
+    if (!enriched) return false;
+    Object.assign(message, applyEnrichedMetaProfileToMessage(message, enriched));
+    return (
+      text(message.customer_name) !== before.name ||
+      text(message.customer_avatar_url) !== before.avatar ||
+      text(message.customer_username) !== before.username
+    );
+  };
+  const outcome = await waitAtMost(fetchPromise, waitMs);
+  if (outcome.settled) {
+    const changed = applyResult(outcome.value);
+    return { settled: true, refreshed: changed, waited_ms: Date.now() - started };
+  }
+  console.log("meta_profile_hydrate_deferred", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    channel: text(message.channel),
+    scoped_user_id: maskIdForLog(psid),
+    wait_ms: waitMs,
+  });
+  void fetchPromise.then((enriched) => {
+    if (!enriched) return;
+    const changed =
+      text(enriched.customer_name) !== before.name ||
+      text(enriched.customer_avatar_url) !== before.avatar ||
+      text(enriched.customer_username) !== before.username;
+    if (!changed || !tenantId) return;
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: conversationId,
+      reason: "meta_profile_refreshed",
+      at: nowIso(),
+    });
+  });
+  return { settled: false, refreshed: false, waited_ms: Date.now() - started };
 };
 
 export const repairMessengerProfileCaptures = async ({
@@ -3789,6 +4056,95 @@ export const repairMessengerProfileCaptures = async ({
   };
 };
 
+// Instagram twin of the Messenger sync below: there is no page id to resolve, the
+// token resolver picks the connected Instagram account and the endpoint host follows
+// the token type. Writes the same rows persistMessengerProfile writes, refreshes the
+// conversation mapping, and tells the open inbox.
+const syncInstagramProfileForConversation = async ({
+  tenantId,
+  conversationId = "",
+  psid = "",
+  channelMetadata = {},
+  dryRun = false,
+  source = "manual_sync",
+} = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  const safePsid = text(psid);
+  const metadata = channelMetadata && typeof channelMetadata === "object" ? channelMetadata : {};
+  const instagramBusinessAccountId = text(metadata.instagram_business_account_id || metadata.account_id || "");
+  console.log("instagram_profile_manual_sync_start", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    scoped_user_id: maskIdForLog(safePsid),
+    instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+    source,
+    dry_run: Boolean(dryRun),
+  });
+  if (dryRun) {
+    return { dry_run: true, instagram_business_account_id: instagramBusinessAccountId, updated_rows: 0 };
+  }
+  const message = await enrichMessengerProfile({
+    message: {
+      channel: AI_AGENT_CHANNELS.INSTAGRAM,
+      external_conversation_id: safeConversationId,
+      external_customer_id: safePsid,
+      raw: { sender_psid: safePsid, customer_psid: safePsid, metadata },
+    },
+    config: { tenant_id: scopedTenantId, instagram_business_account_id: instagramBusinessAccountId },
+    instagramBusinessAccountId,
+    forceRefresh: true,
+  });
+  const customerName = text(message.customer_name || message.display_name);
+  const customerUsername = text(message.customer_username);
+  const customerAvatarUrl = text(message.customer_avatar_url);
+  await upsertChannelConversationMapping({
+    tenantId: scopedTenantId,
+    channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    externalConversationId: safeConversationId,
+    externalCustomerId: safePsid,
+    customerName,
+    customerAvatarUrl,
+    customerProfileId: message.customer_profile_id || null,
+    metadata: {
+      ...metadata,
+      messenger_profile: message.raw?.messenger_profile || metadata.messenger_profile || null,
+    },
+  }).catch((error) => {
+    console.warn("instagram_profile_manual_sync_mapping_failed", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      message: text(error?.message).slice(0, 200),
+    });
+    return null;
+  });
+  emitToRooms([`tenant:${scopedTenantId}`], "ai_inbox:refresh", {
+    tenant_id: scopedTenantId,
+    session_id: safeConversationId,
+    reason: "instagram_profile_manual_sync",
+    at: nowIso(),
+  });
+  console.log("instagram_profile_manual_sync_success", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    scoped_user_id: maskIdForLog(safePsid),
+    has_name: Boolean(customerName),
+    has_username: Boolean(customerUsername),
+    has_profile_pic: Boolean(customerAvatarUrl),
+    profile_id: message.customer_profile_id || null,
+    source,
+  });
+  return {
+    customer_name: customerName,
+    graph_name: text(message.raw?.messenger_profile?.name || ""),
+    customer_username: customerUsername,
+    customer_avatar_url: customerAvatarUrl,
+    customer_profile_id: message.customer_profile_id || null,
+    updated_rows: Number(message.updated_rows || 0),
+    instagram_business_account_id: instagramBusinessAccountId,
+  };
+};
+
 export const syncMessengerProfileForConversation = async ({ tenantId, conversationId = "", externalCustomerId = "" } = {}) => {
   const scopedTenantId = numberOrNull(tenantId);
   const safeConversationId = text(conversationId);
@@ -3819,12 +4175,34 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
     throw Object.assign(new Error("Conversation not found"), { status: 404, code: "CONVERSATION_NOT_FOUND" });
   }
   const channel = row.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
-  if (adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
-    throw Object.assign(new Error("Messenger profile sync is only available for Facebook Messenger conversations."), { status: 400, code: "NOT_MESSENGER_CONVERSATION" });
+  const syncChannel = adapterChannel(channelAlias(channel) === "instagram" || channel === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook");
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(syncChannel)) {
+    throw Object.assign(new Error("Profile sync is only available for Messenger and Instagram conversations."), { status: 400, code: "NOT_MESSENGER_CONVERSATION" });
   }
   const psid = text(row.external_customer_id);
   if (!psid) {
     throw Object.assign(new Error("Messenger PSID is missing for this conversation."), { status: 400, code: "MESSENGER_PSID_MISSING" });
+  }
+  if (syncChannel === AI_AGENT_CHANNELS.INSTAGRAM) {
+    const synced = await syncInstagramProfileForConversation({
+      tenantId: scopedTenantId,
+      conversationId: safeConversationId,
+      psid,
+      channelMetadata: row.channel_metadata || {},
+      source: "manual_sync",
+    });
+    return {
+      success: Boolean(synced.customer_name || synced.customer_username || synced.customer_avatar_url),
+      conversation_id: safeConversationId,
+      external_customer_id: psid,
+      customer_name: synced.customer_name || "",
+      display_name: synced.customer_name || "",
+      customer_username: synced.customer_username || "",
+      customer_avatar_url: synced.customer_avatar_url || "",
+      customer_profile_id: synced.customer_profile_id || null,
+      updated_rows: synced.updated_rows || 0,
+      instagram_business_account_id: synced.instagram_business_account_id || "",
+    };
   }
   const configuredPageId = text(row.channel_metadata?.page_id || row.channel_metadata?.resolved_page_id || row.channel_metadata?.account_id);
   const facebookPageId = await resolveMessengerProfileFetchPageId({
@@ -24110,12 +24488,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
       facebookPageId: pageIds[0] || "",
       tenantId: config.tenant_id,
     });
+    // Identity from the database only: the message is stored before Meta is asked
+    // for anything, so a slow or refused profile lookup can never hold up (or lose)
+    // the message. hydrateStoredMetaCustomerProfile does the Graph call further down.
     const message = await enrichMessengerProfile({
       message: incomingMessage,
       config,
       facebookPageId: resolvedPageId || pageIds[0] || "",
       instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
-    });
+      cacheOnly: true,
+    }).catch(() => incomingMessage);
     // Meta hands us a signed CDN link that expires. Re-host it before anything
     // downstream (inbox transcript, AI vision, debug events) captures the url.
     message.attachments = await materializeInboundAttachments({
@@ -24347,6 +24729,17 @@ export const processMetaWebhook = async ({ req } = {}) => {
       },
       lastMessageAt: message.timestamp,
     }).catch(() => {});
+    // Message and conversation rows exist now: ask Meta for the name and picture.
+    // Bounded wait, so the reply below can greet by name when Meta answers quickly;
+    // otherwise the fetch finishes in the background and refreshes the inbox itself.
+    if (message.profile_refresh_pending) {
+      await hydrateStoredMetaCustomerProfile({
+        message,
+        config,
+        facebookPageId: resolvedPageId || pageIds[0] || "",
+        instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
+      });
+    }
     if (channelAlias(message.channel) === "facebook") {
       const finalAvatarStorage = await loadMessengerProfileAvatarStorage({
         tenantId: config.tenant_id,

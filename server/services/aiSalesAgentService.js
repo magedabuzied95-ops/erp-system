@@ -2507,6 +2507,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.customer_name AS session_customer_name,
       c.customer_name AS channel_customer_name,
       p.display_name AS profile_display_name,
+      p.username AS profile_username,
       p.customer_name AS profile_customer_name,
       p.first_name AS profile_first_name,
       p.last_name AS profile_last_name,
@@ -2894,6 +2895,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         customer_profile: {
           id: validatedSystemCustomer?.id || null,
           name: customerName,
+          username: text(conversation.profile_username || existingChannelMetadata.messenger_profile?.username || ""),
           avatar_url: customerAvatarUrl,
           phone: text(conversation.profile_phone || existingChannelMetadata.resolved_phone || existingChannelMetadata.phone || conversation.external_customer_id || ""),
           external_customer_id: conversation.external_customer_id || "",

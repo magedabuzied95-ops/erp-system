@@ -199,3 +199,8 @@ server/scripts/timestamptz-fingerprint.json
 # do not exist.
 !server/services/whatsappCloudCryptoService.js
 !server/services/whatsappEmbeddedSignupService.js
+
+# Meta customer profile policy (Business Asset User Profile Access). server/services/* above
+# ignores the whole directory, so without this line the deploy ships an import of a file that
+# does not exist.
+!server/services/metaCustomerProfileService.js

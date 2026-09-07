@@ -56,6 +56,8 @@ import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AIInboxAnalysisPanel from "../components/AIInboxAnalysisPanel.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
+import CustomerAvatar from "../components/CustomerAvatar.jsx";
+import { resolveMetaCustomerIdentity } from "../lib/customerIdentity.js";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
@@ -1714,9 +1716,14 @@ const conversationName = (conversation = {}) =>
       if ((isMessengerConversation(conversation) || isInstagramDmConversation(conversation)) && isLikelyMessengerExternalId(value)) return false;
       return true;
     });
-    // Instagram Direct: if no real name resolved, show a safe label instead of
-    // the scoped user id (Meta may withhold the sender profile — see backend).
-    if (!resolved && isInstagramDmConversation(conversation)) return "مستخدم Instagram";
+    // Messenger / Instagram Direct with no real name: @username when Meta gave one,
+    // else the tail of the scoped user id — never the full id, never a bare label
+    // that makes two nameless customers look identical.
+    if (!resolved && (isMessengerConversation(conversation) || isInstagramDmConversation(conversation))) {
+      const identity = resolveMetaCustomerIdentity(conversation);
+      if (identity.name) return identity.name;
+      return isInstagramDmConversation(conversation) ? "مستخدم Instagram" : "مستخدم ماسنجر";
+    }
     return clean(resolved || customerIdentifier(
       conversation.external_customer_id,
       conversation.phone,
@@ -4655,10 +4662,12 @@ export default function AiInboxPwa() {
 
   const syncMessengerProfile = useCallback(
     async (conversation, { silent = false } = {}) => {
-      if (!conversation?.session_id || !isMessengerConversation(conversation)) return false;
+      if (!conversation?.session_id || !(isMessengerConversation(conversation) || isInstagramDmConversation(conversation))) return false;
       const sessionId = normalizeConversationSessionId(conversation.session_id, conversation.channel || conversation.source || conversation.provider || conversation.platform || "");
       if (!sessionId) return false;
-      const currentName = clean(conversation.customer_name || conversation.customer_profile?.name || conversationName(conversation));
+      // Stored names only: the derived label (@username / id tail) is not a reason to
+      // skip the fetch that could replace it with the real name.
+      const currentName = clean(conversation.customer_name || conversation.customer_profile?.name);
       if (currentName && !isGenericCustomerName(currentName) && !isLikelyMessengerExternalId(currentName) && !looksLikeMessageName(currentName)) return false;
       const externalCustomerId = clean(conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "");
       if (!externalCustomerId) return false;
@@ -4778,8 +4787,8 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (!selectedConversation || tab !== "conversations") return;
-    if (!isMessengerConversation(selectedConversation)) return;
-    const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name || conversationName(selectedConversation));
+    if (!(isMessengerConversation(selectedConversation) || isInstagramDmConversation(selectedConversation))) return;
+    const currentName = clean(selectedConversation.customer_name || selectedConversation.customer_profile?.name);
     if (currentName && !isGenericCustomerName(currentName) && !isLikelyMessengerExternalId(currentName) && !looksLikeMessageName(currentName)) return;
     void syncMessengerProfile(selectedConversation, { silent: true });
   }, [selectedConversation, syncMessengerProfile, tab]);
@@ -6619,11 +6628,12 @@ export default function AiInboxPwa() {
                       className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-cyan-300/40"
                       aria-label={t("aiSupport.inbox.pwa.openCustomerDetails")}
                     >
-                      <img
-                        src={selectedAvatar}
-                        alt={isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
-                        className="h-10 w-10 shrink-0 rounded-full object-cover"
-                        loading="lazy"
+                      <CustomerAvatar
+                        url={selectedAvatar}
+                        name={isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
+                        className="h-10 w-10 shrink-0 rounded-full"
+                        imgClassName="object-cover"
+                        fallbackClassName="bg-slate-200 text-slate-600"
                       />
                     </button>
                   </AvatarZoom>
