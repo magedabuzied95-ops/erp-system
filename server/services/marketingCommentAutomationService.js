@@ -558,7 +558,10 @@ const buildSocialCommentMessengerElement = ({
 
 // One card per in-stock colour, each with its own photo, its own sizes and a link that opens the
 // storefront on that exact colour. Messenger renders these as a horizontal swipe.
+// image_aspect_ratio is a MESSENGER-only field: Instagram's template reference does not carry it,
+// so the Instagram caller passes "" and gets a payload without it.
 export const buildSocialCommentMessengerCarouselPayload = ({
+  imageAspectRatio = "square",
   commentId = "",
   colorCards = [],
   productName = "",
@@ -590,7 +593,14 @@ export const buildSocialCommentMessengerCarouselPayload = ({
     message: {
       attachment: {
         type: "template",
-        payload: { template_type: "generic", elements },
+        // Square, like the AI Inbox carousel. Messenger defaults to "horizontal", which crops a
+        // shoe into a thin letterbox strip — the reason these comment cards arrived small while the
+        // manually sent ones looked full size.
+        payload: {
+          template_type: "generic",
+          ...(trimString(imageAspectRatio) ? { image_aspect_ratio: trimString(imageAspectRatio) } : {}),
+          elements,
+        },
       },
     },
   };
@@ -634,6 +644,7 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
   const colorCards = Array.isArray(normalizedContext?.colorCards) ? normalizedContext.colorCards : [];
   if (normalizedContext?.carouselEligible && colorCards.length) {
     const carousel = buildSocialCommentMessengerCarouselPayload({
+      imageAspectRatio: "",
       commentId,
       colorCards,
       productName: safeName,
@@ -649,6 +660,7 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
     mode: "product_card",
     elements: 1,
     payload: buildSocialCommentMessengerProductCardPayload({
+      imageAspectRatio: "",
       commentId,
       productName: safeName,
       productImageUrl,
@@ -661,6 +673,7 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
 };
 
 export const buildSocialCommentMessengerProductCardPayload = ({
+  imageAspectRatio = "square",
   commentId = "",
   productName = "",
   productImageUrl = "",
@@ -690,6 +703,7 @@ export const buildSocialCommentMessengerProductCardPayload = ({
         type: "template",
         payload: {
           template_type: "generic",
+          ...(trimString(imageAspectRatio) ? { image_aspect_ratio: trimString(imageAspectRatio) } : {}),
           elements: [
             buildSocialCommentMessengerElement({
               title: trimString(productName) || "Product",

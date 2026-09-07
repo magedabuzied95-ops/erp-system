@@ -16090,6 +16090,10 @@ const buildSocialCommentAddressCardPayload = ({
         type: "template",
         payload: {
           template_type: "generic",
+          // Without this Messenger defaults to "horizontal" and crops the shoe into a thin
+          // letterbox strip. The colour carousel already ships square, which is why those cards
+          // look big and sharp and this one did not.
+          image_aspect_ratio: "square",
           elements: [
             {
               title: title || "بيانات الشحن",
@@ -16371,6 +16375,7 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
       color,
       sku,
       barcode,
+      image_url,
       COALESCE(stock, 0) AS stock,
       ${SOCIAL_COMMENT_PRICE_COLUMNS}
     FROM product_variants
@@ -16452,7 +16457,8 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     variant,
     unitPrice,
     productName: product.name || "المنتج",
-    productImageUrl: text(product.image_url || ""),
+    // The chosen colour's own photo, not the product's cover: the card is about THIS variant.
+    productImageUrl: text(variantRow.image_url || product.image_url || ""),
     productLink: "",
     selectedPriceText: text(resolvedPrice?.selected_display_price || ""),
     selectedPriceField: text(resolvedPrice?.selected_field || ""),
@@ -18227,12 +18233,26 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       const nextStep = addressLink ? "awaiting_address_link" : "awaiting_customer_data";
       // The card carries the button; the text beside it explains it. If Meta refuses the card the
       // same URL still ships as a tappable link, so the flow never dead-ends on a template error.
+      // The card must show the price of THIS colour and size, and that colour's own photo — the
+      // product roll-up quotes one number and one cover picture for every colour.
+      const confirmVariantData = addressLink
+        ? await resolveSocialCommentSalesFlowDraftOrderData({
+            tenantId: config.tenant_id,
+            productId,
+            selectedSize,
+            selectedColor,
+          }).catch(() => null)
+        : null;
       const addressCardSent = addressLink
         ? await sendSocialCommentAddressCard({
             config,
             message,
             addressUrl: addressLink,
-            productData,
+            productData: {
+              productName: text(confirmVariantData?.productName || productData?.productName || ""),
+              priceUsed: text(confirmVariantData?.selectedPriceText || productData?.priceUsed || ""),
+              productImageUrl: text(confirmVariantData?.productImageUrl || productData?.productImageUrl || ""),
+            },
             selectedColor,
             selectedSize,
           })

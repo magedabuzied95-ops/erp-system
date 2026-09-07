@@ -195,7 +195,19 @@ const normalizePriceText = (value = null) => {
   return Number.isInteger(amount) ? String(amount) : String(amount.toFixed(2)).replace(/\.?0+$/g, "");
 };
 
-const SOCIAL_PRICE_FIELDS = ["sale_price", "selling_price", "price"];
+// The Phase 1 pricing contract, in its own order: an active manual override, then the
+// purchase-invoice-derived price, then the legacy columns. This list used to hold only the three
+// legacy fields, so for every product whose price lives in purchase_selling_price — a large part
+// of this catalogue — the social resolver found NOTHING and quoted zero. That is what put 0.00 on
+// INV-1215 while the storefront, which does follow the contract, was showing 900.
+const SOCIAL_PRICE_FIELDS = ["sale_price", "manual_selling_price", "purchase_selling_price", "selling_price", "price", "regular_price"];
+// A manual price counts only while its override flag is on; the column keeps its last value after
+// the override is switched off, so reading it unconditionally would resurrect a retired price.
+const socialPriceFieldIsUsable = (entity = {}, field = "") => {
+  if (field !== "manual_selling_price") return true;
+  const flag = entity?.manual_price_override_active;
+  return flag === true || flag === 1 || String(flag ?? "").trim().toLowerCase() === "true";
+};
 const normalizedSocialPriceCandidate = ({
   source = "",
   field = "",
@@ -219,6 +231,7 @@ const collectObjectPriceCandidates = ({ source = "", entity = null } = {}) => {
   if (!safeEntity) return [];
   return SOCIAL_PRICE_FIELDS
     .filter((field) => safeEntity[field] !== undefined && safeEntity[field] !== null && String(safeEntity[field]).trim() !== "")
+    .filter((field) => socialPriceFieldIsUsable(safeEntity, field))
     .map((field) => normalizedSocialPriceCandidate({
       source,
       field,
@@ -233,6 +246,7 @@ const collectVariantPriceCandidates = ({ source = "", variants = [] } = {}) =>
     if (!safeVariant) return [];
     return SOCIAL_PRICE_FIELDS
       .filter((field) => safeVariant[field] !== undefined && safeVariant[field] !== null && String(safeVariant[field]).trim() !== "")
+      .filter((field) => socialPriceFieldIsUsable(safeVariant, field))
       .map((field) => normalizedSocialPriceCandidate({
         source,
         field,
@@ -252,9 +266,12 @@ const traceCandidateList = (candidates = []) =>
   }));
 
 export const selectPreferredSocialPriceCandidate = ({ candidates = [], saleModeEnabled = false } = {}) => {
+  // Contract order after the sale price: an active manual override, then the purchase-derived
+  // price, then the legacy columns. Ranking purchase_selling_price above selling_price is what
+  // makes a catalogue whose legacy columns are all zero quote a real number.
   const preferredFields = saleModeEnabled
-    ? ["sale_price", "selling_price", "price"]
-    : ["selling_price", "price"];
+    ? ["sale_price", "manual_selling_price", "purchase_selling_price", "selling_price", "price", "regular_price"]
+    : ["manual_selling_price", "purchase_selling_price", "selling_price", "price", "regular_price"];
   for (const field of preferredFields) {
     const match = candidates.find(
       (candidate) => candidate?.field === field && candidate.normalized_value !== null
@@ -277,7 +294,7 @@ const loadSocialProductPriceDbFallback = async ({ tenantId = null, productId = n
   const [productResult, variantResult] = await Promise.all([
     db.query(
       `
-      SELECT id, sale_price, selling_price, price
+      SELECT id, sale_price, selling_price, price, regular_price, purchase_selling_price, manual_selling_price, manual_price_override_active
       FROM products
       WHERE id = $1
         AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
@@ -287,7 +304,7 @@ const loadSocialProductPriceDbFallback = async ({ tenantId = null, productId = n
     ).catch(() => ({ rows: [] })),
     db.query(
       `
-      SELECT id, product_id, sale_price, selling_price, price
+      SELECT id, product_id, sale_price, selling_price, price, regular_price, purchase_selling_price, manual_selling_price, manual_price_override_active
       FROM product_variants
       WHERE product_id = $1
         AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)

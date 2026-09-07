@@ -61,6 +61,56 @@ assert.match(
   /webview_height_ratio: "tall"/,
   "without webview_height_ratio the button throws the customer out to a browser"
 );
+// Messenger defaults a generic template to "horizontal", which crops a shoe into a letterbox
+// strip — the difference between the small card the owner saw and the full-size ones.
+assert.match(
+  cardBody,
+  /image_aspect_ratio: "square"/,
+  "the card must ship square or Messenger crops the photo into a thin strip"
+);
+assert.match(cardBody, /priceUsed/, "the card must carry a price");
+
+// The comment→DM cards go out from a different service and were the ones arriving small. They
+// default to square for Messenger — but image_aspect_ratio is a MESSENGER-only field, so the
+// Instagram caller must opt out of it or Instagram's template reference refuses the payload.
+const { buildSocialCommentMessengerCarouselPayload, buildSocialCommentInstagramPrivateReplyPayload } = await import(
+  "../services/marketingCommentAutomationService.js"
+);
+const colorCards = ["Black", "White"].map((color, index) => ({
+  color,
+  colorLabel: color,
+  productName: "Test",
+  imageUrl: `https://cdn.example.com/${index}.jpg`,
+  productLink: "https://shop.example.com/p",
+  sizes: ["41", "42"],
+}));
+const messengerCarousel = buildSocialCommentMessengerCarouselPayload({
+  commentId: "123",
+  colorCards,
+  productName: "Test",
+  productPrice: "900",
+});
+assert.equal(
+  messengerCarousel?.message?.attachment?.payload?.image_aspect_ratio,
+  "square",
+  "a comment→DM Messenger carousel must ship square or the photo arrives cropped small"
+);
+const instagramPlan = buildSocialCommentInstagramPrivateReplyPayload({
+  commentId: "123",
+  normalizedContext: { carouselEligible: true, colorCards, productName: "Test", priceUsed: "900" },
+});
+assert.equal(
+  "image_aspect_ratio" in (instagramPlan?.payload?.message?.attachment?.payload || {}),
+  false,
+  "image_aspect_ratio is Messenger-only; Instagram's template must not carry it"
+);
+
+// The card prices and pictures the exact variant, not the product roll-up.
+assert.match(
+  confirmBody,
+  /resolveSocialCommentSalesFlowDraftOrderData\(\{[\s\S]{0,200}selectedColor,/,
+  "the confirm card must price the chosen colour and size, not the product roll-up"
+);
 
 // ── 3. The submit registers the order, carrying Bosta's ids ───────────────────────────────────
 assert.match(

@@ -125,6 +125,45 @@ assert.equal(
   "the price contract must find a variant-level price when the legacy columns are all zero"
 );
 
+// Selecting the columns is only half of it: the SOCIAL price resolver had its own three-field
+// list ("sale_price", "selling_price", "price") and knew nothing about the contract, so it
+// reported candidate_fields_found: [] and quoted nothing even once the rows carried the values.
+const { selectPreferredSocialPriceCandidate } = await import("../utils/customerDisplayPrice.js");
+const candidate = (field, value) => ({ field, value, normalized_value: Number(value) });
+assert.equal(
+  selectPreferredSocialPriceCandidate({
+    candidates: [candidate("purchase_selling_price", 900)],
+    saleModeEnabled: false,
+  })?.normalized_value,
+  900,
+  "the social resolver must accept a purchase-derived price"
+);
+assert.equal(
+  selectPreferredSocialPriceCandidate({
+    candidates: [candidate("purchase_selling_price", 900), candidate("manual_selling_price", 950)],
+    saleModeEnabled: false,
+  })?.normalized_value,
+  950,
+  "an active manual override outranks the purchase-derived price"
+);
+// Sale Mode must keep behaving exactly as before: OFF never quotes a dormant sale price.
+assert.equal(
+  selectPreferredSocialPriceCandidate({
+    candidates: [candidate("sale_price", 700), candidate("selling_price", 600)],
+    saleModeEnabled: false,
+  })?.normalized_value,
+  600,
+  "Sale Mode off must still ignore a dormant sale price"
+);
+assert.equal(
+  selectPreferredSocialPriceCandidate({
+    candidates: [candidate("sale_price", 700), candidate("selling_price", 600)],
+    saleModeEnabled: true,
+  })?.normalized_value,
+  700,
+  "Sale Mode on must still take the sale price"
+);
+
 for (const column of ["purchase_selling_price", "manual_selling_price", "manual_price_override_active", "regular_price"]) {
   assert.ok(
     new RegExp("^\\s*" + column + "[,`;]*\\s*$", "m").test(metaService),
