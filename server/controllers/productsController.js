@@ -4244,35 +4244,24 @@ export const getProducts = async (req, res) => {
   }
 };
 
-// Fields a product CARD never renders (cost/margin, supplier, description, SEO).
-// Stripping them for the AI Inbox picker shrinks the payload and keeps cost data
-// off the inbox client, WITHOUT touching any display/pricing field. Note the
-// pricing candidates purchase_sale_price / purchase_invoice_sale_price /
-// last_piece_sale_price are deliberately NOT listed here.
-const PICKER_COMPACT_STRIP_FIELDS = new Set([
-  "cost_price", "purchase_price", "last_purchase_cost", "last_purchase_price",
-  "average_cost", "wholesale_price", "tax_rate", "supplier_id", "manufacturer_id",
-  "description", "description_ar", "description_en",
-  "meta_title", "seo_description", "seo_keywords",
-]);
-const stripPickerFields = (obj) => {
-  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
-  const out = {};
-  for (const key of Object.keys(obj)) {
-    if (PICKER_COMPACT_STRIP_FIELDS.has(key)) continue;
-    out[key] = obj[key];
-  }
-  return out;
-};
-const projectCompactPickerProducts = (products, compactFlag) => {
-  const compact = ["1", "true", "yes", "on"].includes(String(compactFlag || "").toLowerCase());
-  if (!compact || !Array.isArray(products)) return products;
-  return products.map((product) => {
-    const projected = stripPickerFields(product);
-    if (Array.isArray(projected.variants)) projected.variants = projected.variants.map(stripPickerFields);
-    return projected;
-  });
-};
+// `?compact=1` was the AI Inbox picker's own projection: a DENYLIST of ~19 fields
+// (cost/margin, supplier, description, SEO). It never paid off — the response it
+// trimmed was still dominated by the ~100 product and ~62 variant fields nothing
+// reads — so the picker moved to the ?pos=1 allowlist below, which is exactly the
+// read-set of the pipeline it shares with the POS
+// (tests/ai-inbox-picker-projection-parity.test.js pins that they normalize alike).
+//
+// The denylist is gone, but the PARAMETER is kept as an alias for ?pos=1, because a
+// browser still running a pre-`feebe62` bundle keeps sending ?compact=1 — and dropping
+// the flag would hand exactly those clients the full ~56MB response. Aliasing gives
+// them the lean one instead, so the rollout can only make them faster.
+// Returns a BOOLEAN, and both call sites use it. The colour-image gate used to test
+// `req.query.pos` for truthiness while the projection parsed the value, so `?pos=0`
+// skipped the colour build without projecting — a lean-cost response with full-fat
+// fields. One resolved flag makes that disagreement unrepresentable.
+const LEAN_CATALOG_TRUTHY = ["1", "true", "yes", "on"];
+export const isLeanCatalogRequest = (query = {}) =>
+  LEAN_CATALOG_TRUTHY.includes(String(query.pos ?? query.compact ?? "").trim().toLowerCase());
 
 // POS-specific lean projection (opt-in via ?pos=1). The full /products/with-variants
 // response is ~56MB for this tenant (673 products / 8205 variants, 120 product + 82
@@ -4391,6 +4380,10 @@ export const getPosCatalogVersion = async (req, res) => {
 
 export const getProductsWithVariants = async (req, res) => {
   const scope = resolveProductRequestScope(req);
+  // Resolved once: it gates both the projection AND the grouped-colour-image build,
+  // and those two must never disagree — the projection drops color_images, so building
+  // them for a lean caller is pure wasted CPU on the hot path.
+  const leanCatalog = isLeanCatalogRequest(req.query);
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma", "no-cache");
   res.set("Expires", "0");
@@ -4698,7 +4691,7 @@ export const getProductsWithVariants = async (req, res) => {
       });
       // The POS projection drops color_images, so skip the (expensive) grouped-color-image
       // build entirely for ?pos=1 — it is pure wasted CPU on the POS hot path.
-      const colorImages = req.query.pos
+      const colorImages = leanCatalog
         ? []
         : attachGroupedColorImages(
             deriveColorGroupsFromVariants(variants),
@@ -4738,15 +4731,9 @@ export const getProductsWithVariants = async (req, res) => {
     const preserveSearchVariants =
       String(req.query.preserveSearchVariants ?? req.query.preserve_search_variants ?? "").trim().toLowerCase() === "true";
     const withSearchMeta = aiEnrichedProducts.map((product) => attachVariantSearchMetadata(product, searchTerm, { preserveVariants: preserveSearchVariants }));
-    // Compact projection for the AI Inbox product-card picker (opt-in via ?compact=1;
-    // the default POS/admin response is unchanged). Strips only cost/margin, supplier
-    // and description/SEO fields that a product card never renders — keeping every
-    // display/pricing field (selling/regular/sale/compare, purchase_sale_price, stock,
-    // colour, size, image) so client-side pricing stays byte-identical. Also keeps
-    // sensitive cost data off the inbox client.
-    const projectedProducts = req.query.pos
-      ? projectPosCatalogProducts(withSearchMeta, req.query.pos)
-      : projectCompactPickerProducts(withSearchMeta, req.query.compact);
+    // Lean catalog projection, opt-in via ?pos=1 (or the legacy ?compact=1 alias).
+    // The default POS/admin response is unchanged.
+    const projectedProducts = projectPosCatalogProducts(withSearchMeta, leanCatalog);
     const payload = normalizeResponse(projectedProducts);
     // Additive pagination metadata for paginated callers (the AI Inbox picker).
     // Existing consumers read `products`/`data` and are unaffected.

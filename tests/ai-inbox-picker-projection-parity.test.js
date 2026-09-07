@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { readFileSync } from "node:fs";
 import { register } from "node:module";
 
-import { projectPosCatalogProducts } from "../server/controllers/productsController.js";
+import { isLeanCatalogRequest, projectPosCatalogProducts } from "../server/controllers/productsController.js";
 
 // posProductsApi pulls the HTTP client through productsApi, which Node cannot load
 // directly — the same test-only loader the POS tests use stubs that module and adds
@@ -180,4 +181,53 @@ test("the picker asks for the POS allowlist, not the compact denylist", async ()
   const params = buildPickerParams({ search: "nike" });
   assert.equal(params.pos, 1);
   assert.equal("compact" in params, false);
+});
+
+// ---- the legacy ?compact=1 flag ------------------------------------------
+//
+// The denylist projection is deleted, but the PARAMETER survives as an alias. A phone
+// still running a pre-`feebe62` bundle keeps sending ?compact=1, and if the server
+// stopped recognising it those clients would get the FULL response — the rollout would
+// make exactly the users we were fixing slower.
+
+test("a stale client still sending ?compact=1 gets the lean payload, not the full one", () => {
+  assert.equal(isLeanCatalogRequest({ compact: "1" }), true);
+  assert.equal(isLeanCatalogRequest({ compact: 1 }), true);
+  assert.equal(isLeanCatalogRequest({ compact: "true" }), true);
+});
+
+test("?pos=1 still selects the lean payload", () => {
+  assert.equal(isLeanCatalogRequest({ pos: "1" }), true);
+  assert.equal(isLeanCatalogRequest({ pos: true }), true);
+});
+
+test("the POS and admin default response is untouched", () => {
+  assert.equal(isLeanCatalogRequest({}), false);
+  assert.equal(isLeanCatalogRequest({ limit: "24" }), false);
+});
+
+test("an explicitly-off flag is off, so the colour build and the projection agree", () => {
+  // The colour-image gate used to test req.query.pos for truthiness while the
+  // projection parsed the value: ?pos=0 skipped the (expensive) colour build without
+  // projecting, i.e. a response that paid nothing and kept everything.
+  for (const off of ["0", "false", "no", "off", ""]) {
+    assert.equal(isLeanCatalogRequest({ pos: off }), false, `pos=${off} must not be lean`);
+    assert.equal(isLeanCatalogRequest({ compact: off }), false, `compact=${off} must not be lean`);
+  }
+});
+
+test("the resolved boolean drives the projection the same way the string did", () => {
+  assert.deepEqual(
+    projectPosCatalogProducts(rawProducts(), isLeanCatalogRequest({ compact: "1" })),
+    projectPosCatalogProducts(rawProducts(), "1")
+  );
+  assert.equal(projectPosCatalogProducts(rawProducts(), isLeanCatalogRequest({})).length, rawProducts().length);
+  assert.ok("description" in projectPosCatalogProducts(rawProducts(), isLeanCatalogRequest({}))[0]);
+});
+
+test("the compact denylist is gone, not merely unused", () => {
+  const controller = readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
+  for (const dead of ["PICKER_COMPACT_STRIP_FIELDS", "stripPickerFields", "projectCompactPickerProducts"]) {
+    assert.equal(controller.includes(dead), false, `${dead} should have been deleted`);
+  }
 });
