@@ -1352,6 +1352,11 @@ const TRACED_INK_LEVEL_PALE = 150;
 // Ink islands smaller than this share of the canvas are dropped from an
 // illustrated label: mesh dots and stroke fragments read as dirt on paper.
 const DIFFUSION_SPECKLE_FLOOR_RATIO = 0.0005;
+// The page is read this many ink points below the setting: the service draws
+// every crease of a textured shoe, and at the plain level half of that came
+// through as scratches. Twenty keeps the panels, the pillars and the swoosh;
+// forty starts breaking the outline.
+const DIFFUSION_PAGE_INK_DROP = 20;
 
 const tracedBinarize = async (gray, width, height, background, { inkOffset = 0, level: levelOverride = 0, speckleFloor = 0 } = {}) => {
   const upscale = 2;
@@ -1590,7 +1595,14 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       const postStyle = darkProduct && modelAvailable ? "lineart" : "traced";
       // singleItem off for the page: it already shows one shoe, and the box
       // prompt over a lone shoe keeps only its lower half.
-      const traced = await renderThermalArtwork(page, { ...options, style: postStyle, tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE, singleItem: false, speckleFloor: Math.round(options.canvas * options.canvas * DIFFUSION_SPECKLE_FLOOR_RATIO) });
+      const traced = await renderThermalArtwork(page, {
+        ...options,
+        style: postStyle,
+        tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE,
+        singleItem: false,
+        speckleFloor: Math.round(options.canvas * options.canvas * DIFFUSION_SPECKLE_FLOOR_RATIO),
+        inkLevel: clamp(options.inkLevel - DIFFUSION_PAGE_INK_DROP, 0, 100),
+      });
       return {
         buffer: traced.buffer,
         svg: traced.svg,
