@@ -38,7 +38,7 @@ const senderForOffset = (offset) => {
   return sender;
 };
 
-const intentPattern = /detectedIntent:\s*"(social_comment_sales_flow_[a-z0-9_]+)"/g;
+const intentPattern = /detectedIntent:\s*"(social_comment_[a-z0-9_]+)"/g;
 const offenders = [];
 let seen = 0;
 let hit = null;

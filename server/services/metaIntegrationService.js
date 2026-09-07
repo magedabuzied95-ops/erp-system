@@ -71,11 +71,14 @@ import {
   buildSocialCommentOrderReviewMessage,
   buildSocialCommentOrderSummaryMessage,
   buildSocialCommentOrderSummaryMessageV2,
+  buildSocialCommentProductQuickReplies,
   buildSocialCommentSalesFlowQuickReplies,
   buildSocialCommentSizeQuickReplies,
   ensureAbsoluteSocialProductLink,
+  matchSocialCommentColorInput,
   parseSocialCommentColorQuickReplyPayload,
   parseSocialCommentOrderActionQuickReplyPayload,
+  parseSocialCommentProductQuickReplyPayload,
   parseSocialCommentSizeQuickReplyPayload,
   normalizeSocialCommentColorDisplay,
   sortSocialCommentAvailableSizes,
@@ -16020,6 +16023,7 @@ const socialCommentSalesFlowActionFromText = (value = "") => {
 const socialCommentQuickReplyPrefixes = new Set([
   "SOCIAL_SIZE_SELECT::",
   "SOCIAL_COLOR_SELECT::",
+  "SOCIAL_PRODUCT_SELECT::",
   "SOCIAL_ORDER_ACTION::",
   "ORDER_CONFIRM",
   "CHANGE_SIZE",
@@ -16280,6 +16284,15 @@ const createSocialCommentDraftOrder = async ({
   if (!tenantId || !conversationId || !productId) {
     throw Object.assign(new Error("Missing social comment draft order context"), { status: 400 });
   }
+  // The single door to an order from this flow, so the colour/size gate lives here rather than in
+  // any one caller. Without it a flow that skipped the colour question still produced an order and
+  // the variant resolver silently picked one — that is how INV-1203 got a colour nobody chose.
+  if (!text(selectedColor)) {
+    throw Object.assign(new Error("Colour was never chosen"), { status: 409, code: "MISSING_SELECTED_COLOR" });
+  }
+  if (!text(selectedSize)) {
+    throw Object.assign(new Error("Size was never chosen"), { status: 409, code: "MISSING_SELECTED_SIZE" });
+  }
   const idempotencyKey = [
     conversationId,
     text(commentId || ""),
@@ -16499,15 +16512,20 @@ const buildSocialCommentDraftOrderEligibility = ({
   const customerAddress = text(mergedInfo?.customerAddress || salesFlow?.customer_address || "");
   const hasShippingData = Boolean(customerName && governorate && customerAddress);
   const hasProductId = Boolean(Number(productId || 0) > 0);
+  // The colour is as much a part of the order as the size. It used to be unchecked, so a flow
+  // that never asked for one still produced an order and the warehouse got whichever variant the
+  // resolver happened to match. Missing colour is now a hard stop, exactly like a missing size.
   const reasonIfNotEligible = !conversationId
     ? "missing_conversation_id"
     : !hasProductId
       ? "missing_product_id"
-      : !text(selectedSize || salesFlow?.selected_size || "")
-        ? "missing_selected_size"
-        : !hasShippingData
-          ? "missing_shipping_data"
-          : "";
+      : !text(selectedColor || salesFlow?.selected_color || "")
+        ? "missing_selected_color"
+        : !text(selectedSize || salesFlow?.selected_size || "")
+          ? "missing_selected_size"
+          : !hasShippingData
+            ? "missing_shipping_data"
+            : "";
   return {
     conversation_id: conversationId,
     sales_flow_step: salesFlowStep,
@@ -16555,6 +16573,55 @@ const uniqueSocialCommentColors = (rows = []) =>
     .map((row) => text(row?.color || ""))
     .filter(Boolean)
     .filter((value, index, array) => array.indexOf(value) === index);
+
+// The models already put in front of THIS customer, newest first. When several were sent, a bare
+// "الأسود" belongs to one of these and to nothing else, so this is the only set worth matching a
+// typed colour against.
+const socialCommentRecentProducts = (memory = {}) => {
+  const cards = [
+    ...(Array.isArray(memory?.lastProductCards) ? memory.lastProductCards : []),
+    ...(Array.isArray(memory?.last_product_cards) ? memory.last_product_cards : []),
+  ];
+  const seen = new Set();
+  return cards
+    .map((card) => ({
+      product_id: Number(card?.product_id || card?.id || 0) || null,
+      name: text(card?.name || card?.product_name || card?.title || ""),
+    }))
+    .filter((card) => {
+      if (!card.product_id || seen.has(card.product_id)) return false;
+      seen.add(card.product_id);
+      return true;
+    })
+    .slice(0, 6);
+};
+
+// One grouped query rather than one per product: this runs on ordinary inbound text, so it must
+// not turn a five-product conversation into five round trips.
+const loadSocialCommentColorsForProducts = async ({ tenantId = null, productIds = [] } = {}) => {
+  const ids = asArray(productIds).map((value) => Number(value || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  if (!ids.length) return new Map();
+  const result = await db.query(
+    `
+    SELECT product_id, color
+    FROM product_variants
+    WHERE product_id = ANY($1::bigint[])
+      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      AND COALESCE(stock, 0) > 0
+      AND COALESCE(color, '') <> ''
+    GROUP BY product_id, color
+    `,
+    [ids, Number(tenantId || 0)]
+  ).catch(() => ({ rows: [] }));
+  const byProduct = new Map();
+  for (const row of asArray(result.rows)) {
+    const productId = Number(row?.product_id || 0);
+    if (!productId) continue;
+    if (!byProduct.has(productId)) byProduct.set(productId, []);
+    byProduct.get(productId).push(text(row?.color || ""));
+  }
+  return byProduct;
+};
 
 const persistSocialCommentSalesFlowState = async ({
   config,
@@ -16862,10 +16929,41 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     }
   }
   const sizePayload = parseSocialCommentSizeQuickReplyPayload(rawPayload);
-  const colorPayload = parseSocialCommentColorQuickReplyPayload(rawPayload);
+  const productPayload = parseSocialCommentProductQuickReplyPayload(rawPayload);
+  // A tap on a carousel card's own "اطلب اللون ده ✅" button arrives as choose_color:<variant_id>.
+  // It used to be rewritten into a sentence for the AI brain only, which left the deterministic
+  // sales flow with no colour at all — the tap was a colour choice that nothing recorded. Resolve
+  // the variant here so the card tap enters the same colour step as a colour quick reply.
+  const cardColorTap = rawPayload.match(/^choose_color:(\d+)$/);
+  let cardColorPayload = null;
+  if (cardColorTap) {
+    const variantRow = await db.query(
+      `SELECT v.id, v.color, v.product_id FROM product_variants v WHERE v.id = $1 LIMIT 1`,
+      [Number(cardColorTap[1])]
+    ).catch(() => ({ rows: [] }));
+    const picked = variantRow.rows?.[0];
+    if (picked?.product_id && text(picked.color)) {
+      cardColorPayload = {
+        color: text(picked.color),
+        size: "",
+        product_id: Number(picked.product_id),
+        post_id: "",
+        comment_id: "",
+        conversation_id: text(message?.external_conversation_id || ""),
+      };
+      console.log("SOCIAL_COMMENT_CARD_COLOR_TAP", {
+        tenant_id: config?.tenant_id || null,
+        conversation_id: text(message?.external_conversation_id || ""),
+        variant_id: Number(cardColorTap[1]),
+        product_id: Number(picked.product_id),
+        color: text(picked.color),
+      });
+    }
+  }
+  const colorPayload = parseSocialCommentColorQuickReplyPayload(rawPayload) || cardColorPayload;
   const actionPayload = parseSocialCommentOrderActionQuickReplyPayload(rawPayload);
   const resolvedAction = text(actionPayload?.action || "") || legacyActionFromPayload || socialCommentSalesFlowActionFromText(rawPayload) || socialCommentSalesFlowActionFromText(messageText);
-  if (rawPayload && !sizePayload && !colorPayload && !actionPayload) {
+  if (rawPayload && !sizePayload && !colorPayload && !actionPayload && !productPayload) {
     console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
       conversation_id: text(message?.external_conversation_id || ""),
       sender_id: text(message?.raw?.event?.sender?.id || message?.raw?.sender_psid || message?.external_customer_id || ""),
@@ -16984,6 +17082,105 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     return reviewResult;
   };
 
+  // Colour settled → offer the sizes THAT COLOUR actually has. Every button carries the colour,
+  // so the size that comes back can only ever belong to the colour the customer just chose.
+  const presentSizeOptions = async ({
+    productId = null,
+    selectedColor = "",
+    productData = null,
+    postId = "",
+    commentId = "",
+    leadText = "",
+  } = {}) => {
+    const sizeRows = await loadSocialCommentSalesFlowVariantRows({
+      tenantId: config.tenant_id,
+      productId,
+      selectedColor,
+    });
+    const availableSizes = sortSocialCommentAvailableSizes(
+      sizeRows.map((row) => text(row?.size || "")).filter(Boolean)
+    );
+    const colorLabel = normalizeSocialCommentColorDisplay(selectedColor) || selectedColor;
+    if (!availableSizes.length) {
+      const allColors = uniqueSocialCommentColors(await loadSocialCommentSalesFlowVariantRows({
+        tenantId: config.tenant_id,
+        productId,
+      }));
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: `اللون ${colorLabel} خلص من كل المقاسات حالياً. اختار لون تاني من الأزرار بالأسفل.`,
+        detectedIntent: "social_comment_color_unavailable",
+        metadata: {
+          selected_color: selectedColor,
+          selected_product_id: productId,
+          social_comment_quick_reply: true,
+        },
+        quickReplies: buildSocialCommentColorQuickReplies({
+          productId,
+          colors: allColors,
+          postId,
+          commentId,
+          conversationId: message.external_conversation_id,
+        }),
+        inboundKey,
+        inboundMetaMid,
+        fallbackContext: { productId, size: "", color: selectedColor, step: "awaiting_color" },
+      });
+      return { handled: true, reason: "social_comment_color_sold_out" };
+    }
+    await persistSocialCommentSalesFlowState({
+      config,
+      message,
+      productId,
+      selectedSize: "",
+      selectedColor,
+      step: "awaiting_size",
+      extra: {
+        post_id: text(postId),
+        comment_id: text(commentId),
+        available_sizes: availableSizes,
+        product_name: text(productData?.productName || ""),
+        product_link: text(productData?.productLink || ""),
+        price_used: text(productData?.priceUsed || ""),
+      },
+      reason: "social_comment_sales_flow_size_options",
+      callsite: "COLOR_SELECTED_SIZE_OPTIONS",
+    });
+    console.log("SOCIAL_COMMENT_SIZE_OPTIONS_SENT", {
+      tenant_id: config.tenant_id,
+      platform: text(message.channel || ""),
+      conversation_id: message.external_conversation_id,
+      session_id: message.external_conversation_id,
+      product_id: Number(productId || 0) || null,
+      color: selectedColor,
+      available_sizes: availableSizes,
+      step: "awaiting_size",
+    });
+    await sendSocialCommentSalesFlowText({
+      config,
+      message,
+      text: `${text(leadText) || `✅ تمام، اللون ${colorLabel}.`}\n\nاختار المقاس المتاح في اللون ده:`,
+      detectedIntent: "social_comment_size_options",
+      metadata: {
+        selected_color: selectedColor,
+        selected_product_id: Number(productId || 0) || null,
+        social_comment_quick_reply: true,
+      },
+      quickReplies: buildSocialCommentSizeQuickReplies({
+        productContext: { product_id: productId, available_sizes: availableSizes },
+        selectedColor,
+        postId,
+        commentId,
+        conversationId: message.external_conversation_id,
+      }),
+      inboundKey,
+      inboundMetaMid,
+      fallbackContext: { productId, size: "", color: selectedColor, step: "awaiting_size" },
+    });
+    return { handled: true, reason: "social_comment_size_options_sent" };
+  };
+
   const presentColorOptions = async ({
     productId = null,
     selectedSize = "",
@@ -17029,7 +17226,9 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: `✅ ممتاز\nالمقاس ${text(selectedSize)} متوفر.\n\nاختار اللون المناسب:`,
+        text: text(selectedSize)
+          ? `✅ ممتاز\nالمقاس ${text(selectedSize)} متوفر.\n\nاختار اللون المناسب:`
+          : `${text(productData?.productName || "") ? `${text(productData.productName)}\n\n` : ""}اختار اللون الأول 👇`,
         detectedIntent: "social_comment_color_options",
         metadata: {
           selected_size: text(selectedSize),
@@ -17055,6 +17254,8 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       });
       return { handled: true, reason: "social_comment_color_options_sent" };
     }
+    // Exactly one colour in stock: nothing to choose between, so the flow picks it — but it SAYS
+    // so, in the next message, instead of letting the colour appear out of nowhere in the summary.
     const autoColor = availableColors.length === 1 ? availableColors[0] : "";
     if (autoColor) {
       console.log("SOCIAL_COMMENT_COLOR_SELECTED", {
@@ -17065,8 +17266,36 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         product_id: Number(productId || 0) || null,
         size: text(selectedSize),
         color: autoColor,
-        step: "awaiting_order_confirmation",
+        auto_selected: true,
+        step: text(selectedSize) ? "awaiting_order_confirmation" : "awaiting_size",
       });
+      if (!text(selectedSize)) {
+        return presentSizeOptions({
+          productId,
+          selectedColor: autoColor,
+          productData,
+          postId,
+          commentId,
+          leadText: `المتاح حالياً اللون ${normalizeSocialCommentColorDisplay(autoColor) || autoColor} بس.`,
+        });
+      }
+    }
+    // No colour at all means no stock behind this product; the summary would be a lie.
+    if (!autoColor) {
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: "المنتج ده خلص من المخزن حالياً. ابعتلنا وهنرشحلك بدائل قريبة منه ❤️",
+        detectedIntent: "social_comment_product_out_of_stock",
+        metadata: {
+          selected_product_id: Number(productId || 0) || null,
+          social_comment_quick_reply: true,
+        },
+        inboundKey,
+        inboundMetaMid,
+        fallbackContext: { productId, size: selectedSize, color: "", step: "" },
+      });
+      return { handled: true, reason: "social_comment_product_out_of_stock" };
     }
     await sendOrderSummary({
       productId,
@@ -17076,8 +17305,90 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       postId,
       commentId,
     });
-    return { handled: true, reason: autoColor ? "social_comment_single_color_auto_selected" : "social_comment_order_summary_sent" };
+    return { handled: true, reason: "social_comment_single_color_auto_selected" };
   };
+
+  // ── Which model? ────────────────────────────────────────────────────────────────────────────
+  // A tap on a model button settles it outright and starts the colour question for that product.
+  if (productPayload) {
+    const pickedProductId = Number(productPayload.product_id || 0) || null;
+    const pickedProductData = await resolveSocialCommentSalesFlowProductData({
+      tenantId: config.tenant_id,
+      productId: pickedProductId,
+    });
+    console.log("SOCIAL_COMMENT_PRODUCT_SELECTED", {
+      tenant_id: config?.tenant_id || null,
+      platform: text(message?.channel || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+      product_id: pickedProductId,
+      product_name: text(pickedProductData?.productName || ""),
+      source: "product_quick_reply",
+    });
+    return presentColorOptions({
+      productId: pickedProductId,
+      selectedSize: "",
+      productData: pickedProductData,
+      postId: text(productPayload.post_id || ""),
+      commentId: text(productPayload.comment_id || ""),
+    });
+  }
+
+  // No flow running yet and the customer typed a colour instead of pressing a button. Match it
+  // against the models actually sent into this conversation: one match carries on, several ask
+  // which model, none falls through to the AI as before.
+  const typedColorCandidate = messageText && messageText.length <= 60 && !rawPayload && !Number(salesFlow?.product_id || 0);
+  if (typedColorCandidate) {
+    const recentProducts = socialCommentRecentProducts(memory);
+    if (recentProducts.length) {
+      const colorsByProduct = await loadSocialCommentColorsForProducts({
+        tenantId: config.tenant_id,
+        productIds: recentProducts.map((product) => product.product_id),
+      });
+      const matches = recentProducts
+        .map((product) => ({
+          ...product,
+          color: matchSocialCommentColorInput(messageText, colorsByProduct.get(product.product_id) || []),
+        }))
+        .filter((product) => Boolean(product.color));
+      console.log("SOCIAL_COMMENT_TYPED_COLOR_MATCH", {
+        tenant_id: config?.tenant_id || null,
+        conversation_id: text(message?.external_conversation_id || ""),
+        message_text: messageText,
+        recent_product_ids: recentProducts.map((product) => product.product_id),
+        matched: matches.map((product) => ({ product_id: product.product_id, color: product.color })),
+      });
+      if (matches.length === 1) {
+        const matched = matches[0];
+        const matchedProductData = await resolveSocialCommentSalesFlowProductData({
+          tenantId: config.tenant_id,
+          productId: matched.product_id,
+        });
+        return presentSizeOptions({
+          productId: matched.product_id,
+          selectedColor: matched.color,
+          productData: matchedProductData,
+          leadText: `✅ تمام، ${text(matched.name) || text(matchedProductData?.productName || "")} باللون ${normalizeSocialCommentColorDisplay(matched.color) || matched.color}.`,
+        });
+      }
+      if (matches.length > 1) {
+        await sendSocialCommentSalesFlowText({
+          config,
+          message,
+          text: "اللون ده متاح في أكتر من موديل 👇\nاختار الموديل اللي تقصده:",
+          detectedIntent: "social_comment_product_disambiguation",
+          metadata: { social_comment_quick_reply: true },
+          quickReplies: buildSocialCommentProductQuickReplies({
+            products: matches,
+            conversationId: message.external_conversation_id,
+          }),
+          inboundKey,
+          inboundMetaMid,
+          fallbackContext: { productId: null, size: "", color: "", step: "" },
+        });
+        return { handled: true, reason: "social_comment_product_disambiguation" };
+      }
+    }
+  }
 
   if (sizePayload || (socialCommentSalesFlowStepFromMemory(memory) === "awaiting_size" && messageText && Number(salesFlow?.product_id || 0) > 0)) {
     console.log("SOCIAL_COMMENT_SALES_FLOW_DISPATCH", {
@@ -17099,6 +17410,10 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     });
     const productId = Number(sizePayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(sizePayload?.size || messageText);
+    // The colour the size belongs to: from the button's own payload first, then the flow state.
+    // A size with no colour behind it is exactly the hole INV-1203 fell through, so instead of
+    // guessing, the flow goes back and asks for the colour — the size is remembered meanwhile.
+    const sizeSelectedColor = text(sizePayload?.color || salesFlow?.selected_color || "");
     const [productData, variantRows] = await Promise.all([
       resolveSocialCommentSalesFlowProductData({
         tenantId: config.tenant_id,
@@ -17108,6 +17423,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         tenantId: config.tenant_id,
         productId,
         selectedSize,
+        selectedColor: sizeSelectedColor,
       }),
     ]);
     const variant = variantRows[0] || null;
@@ -17121,22 +17437,27 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       post_id: text(sizePayload?.post_id || salesFlow?.post_id || ""),
       product_id: productId,
       size: selectedSize,
-      color: "",
-      step: available ? "awaiting_color" : "awaiting_size",
+      color: sizeSelectedColor,
+      step: available ? (sizeSelectedColor ? "awaiting_order_confirmation" : "awaiting_color") : "awaiting_size",
       available,
     });
     if (!available) {
       const allSizeRows = await loadSocialCommentSalesFlowVariantRows({
         tenantId: config.tenant_id,
         productId,
+        selectedColor: sizeSelectedColor,
       });
+      const colorLabel = normalizeSocialCommentColorDisplay(sizeSelectedColor) || sizeSelectedColor;
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: `المقاس ${selectedSize} غير متوفر حالياً. لو تحب اختار مقاس تاني من الأزرار أو ابعتلنا المقاس المطلوب ونراجع التوفر فوراً.`,
+        text: sizeSelectedColor
+          ? `المقاس ${selectedSize} مش متوفر في اللون ${colorLabel}. اختار مقاس تاني من الأزرار بالأسفل.`
+          : `المقاس ${selectedSize} غير متوفر حالياً. لو تحب اختار مقاس تاني من الأزرار أو ابعتلنا المقاس المطلوب ونراجع التوفر فوراً.`,
         detectedIntent: "social_comment_size_unavailable",
         metadata: {
           selected_size: selectedSize,
+          selected_color: sizeSelectedColor,
           selected_product_id: productId,
           social_comment_quick_reply: true,
         },
@@ -17145,6 +17466,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
             product_id: productId,
             available_sizes: sortSocialCommentAvailableSizes(allSizeRows.map((row) => text(row?.size || "")).filter(Boolean)),
           },
+          selectedColor: sizeSelectedColor,
           postId: text(sizePayload?.post_id || salesFlow?.post_id || ""),
           commentId: text(sizePayload?.comment_id || salesFlow?.comment_id || ""),
           conversationId: message.external_conversation_id,
@@ -17154,7 +17476,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         fallbackContext: {
           productId,
           size: selectedSize,
-          color: "",
+          color: sizeSelectedColor,
           step: "awaiting_size",
         },
       });
@@ -17165,8 +17487,8 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       message,
       productId,
       selectedSize,
-      selectedColor: "",
-      step: "awaiting_color",
+      selectedColor: sizeSelectedColor,
+      step: sizeSelectedColor ? "awaiting_order_confirmation" : "awaiting_color",
       extra: {
         post_id: text(sizePayload?.post_id || salesFlow?.post_id || ""),
         comment_id: text(sizePayload?.comment_id || salesFlow?.comment_id || ""),
@@ -17177,6 +17499,19 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         reason: "social_comment_quick_reply_size_selected",
         callsite: "SIZE_SELECTED",
       });
+    // Colour already settled → straight to the summary. Otherwise the customer skipped ahead
+    // (typed a size, or pressed an old size button), and the colour question comes now.
+    if (sizeSelectedColor) {
+      await sendOrderSummary({
+        productId,
+        productData,
+        selectedSize,
+        selectedColor: sizeSelectedColor,
+        postId: text(sizePayload?.post_id || salesFlow?.post_id || ""),
+        commentId: text(sizePayload?.comment_id || salesFlow?.comment_id || ""),
+      });
+      return { handled: true, reason: "social_comment_size_selected" };
+    }
     return presentColorOptions({
       productId,
       selectedSize,
@@ -17197,7 +17532,16 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     });
     const productId = Number(colorPayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(colorPayload?.size || salesFlow?.selected_size || "");
-    const selectedColor = text(colorPayload?.color || messageText);
+    // A typed colour has to be resolved against what the catalog actually spells, otherwise
+    // "ابيض" never matches the row stored as "White".
+    const rawColorInput = text(colorPayload?.color || messageText);
+    const allColorRows = await loadSocialCommentSalesFlowVariantRows({
+      tenantId: config.tenant_id,
+      productId,
+    });
+    const selectedColor = colorPayload?.color
+      ? text(colorPayload.color)
+      : (matchSocialCommentColorInput(rawColorInput, uniqueSocialCommentColors(allColorRows)) || rawColorInput);
     const colorRows = await loadSocialCommentSalesFlowVariantRows({
       tenantId: config.tenant_id,
       productId,
@@ -17209,7 +17553,9 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: `اللون ${selectedColor} غير متوفر حالياً للمقاس ${selectedSize}. اختار لون تاني من الأزرار بالأسفل.`,
+        text: selectedSize
+          ? `اللون ${selectedColor} غير متوفر حالياً للمقاس ${selectedSize}. اختار لون تاني من الأزرار بالأسفل.`
+          : `اللون ${rawColorInput} مش متوفر حالياً. اختار لون من الأزرار بالأسفل 👇`,
         detectedIntent: "social_comment_color_unavailable",
         metadata: {
           selected_size: selectedSize,
@@ -17252,8 +17598,19 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       product_id: productId,
       size: selectedSize,
       color: selectedColor,
-      step: "awaiting_order_confirmation",
+      step: selectedSize ? "awaiting_order_confirmation" : "awaiting_size",
     });
+    // Colour first, size second. Only a customer who already named a size (changed colour after
+    // the summary) skips ahead; everyone else gets the sizes that exist in this colour.
+    if (!selectedSize) {
+      return presentSizeOptions({
+        productId,
+        selectedColor,
+        productData,
+        postId: text(colorPayload?.post_id || salesFlow?.post_id || ""),
+        commentId: text(colorPayload?.comment_id || salesFlow?.comment_id || ""),
+      });
+    }
     await sendOrderSummary({
       productId,
       productData,
@@ -17716,9 +18073,12 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     }
 
     if (resolvedAction === "change_size") {
+      // Changing the size must not discard the colour the customer already settled — clearing it
+      // dropped the flow back into a state where a size could arrive with no colour behind it.
       const sizeRows = await loadSocialCommentSalesFlowVariantRows({
         tenantId: config.tenant_id,
         productId,
+        selectedColor,
       });
       const availableSizes = sortSocialCommentAvailableSizes(sizeRows.map((row) => text(row?.size || "")).filter(Boolean));
       await persistSocialCommentSalesFlowState({
@@ -17726,7 +18086,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         message,
         productId,
         selectedSize: "",
-        selectedColor: "",
+        selectedColor,
         step: "awaiting_size",
         extra: {
           post_id: postId,
@@ -17740,10 +18100,13 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "اختار المقاس المناسب من الأزرار بالأسفل.",
+        text: selectedColor
+          ? `اختار المقاس المناسب في اللون ${normalizeSocialCommentColorDisplay(selectedColor) || selectedColor} من الأزرار بالأسفل.`
+          : "اختار المقاس المناسب من الأزرار بالأسفل.",
         detectedIntent: "social_comment_sales_flow_change_size",
         metadata: {
           selected_product_id: productId,
+          selected_color: selectedColor,
           social_comment_quick_reply: true,
         },
         quickReplies: buildSocialCommentSizeQuickReplies({
@@ -17751,6 +18114,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
             product_id: productId,
             available_sizes: availableSizes,
           },
+          selectedColor,
           postId,
           commentId,
           conversationId: message.external_conversation_id,
@@ -17760,7 +18124,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         fallbackContext: {
           productId,
           size: "",
-          color: "",
+          color: selectedColor,
           step: "awaiting_size",
         },
       });
@@ -25383,6 +25747,91 @@ export const processMetaWebhook = async ({ req } = {}) => {
         ...draftOrderEligibility,
         reason_if_not_eligible: draftOrderEligibility.reason_if_not_eligible || "draft_order_not_created_fallback_to_review",
       });
+      // Shipping data arrived but the variant was never settled. The order review would show a
+      // colour or size nobody picked, so the missing answer is asked for instead — the address is
+      // already saved on the flow state, so nothing the customer typed is lost.
+      if (draftOrderEligibility.reason_if_not_eligible === "missing_selected_color" || draftOrderEligibility.reason_if_not_eligible === "missing_selected_size") {
+        const missingColor = draftOrderEligibility.reason_if_not_eligible === "missing_selected_color";
+        const openVariantRows = await loadSocialCommentSalesFlowVariantRows({
+          tenantId: config.tenant_id,
+          productId: shippingProductId,
+          selectedColor: missingColor ? "" : shippingSelectedColor,
+        });
+        await sendSocialCommentSalesFlowText({
+          config,
+          message,
+          text: missingColor
+            ? "استلمت بيانات الشحن ✅\nفاضل نحدد اللون قبل ما نسجل الأوردر، اختار من الأزرار تحت 👇"
+            : "استلمت بيانات الشحن ✅\nفاضل نحدد المقاس قبل ما نسجل الأوردر، اختار من الأزرار تحت 👇",
+          detectedIntent: missingColor ? "social_comment_color_options" : "social_comment_size_options",
+          metadata: {
+            selected_product_id: shippingProductId,
+            selected_color: shippingSelectedColor,
+            social_comment_quick_reply: true,
+          },
+          quickReplies: missingColor
+            ? buildSocialCommentColorQuickReplies({
+                productId: shippingProductId,
+                colors: uniqueSocialCommentColors(openVariantRows),
+                postId: shippingPostId,
+                commentId: shippingCommentId,
+                conversationId: message.external_conversation_id,
+              })
+            : buildSocialCommentSizeQuickReplies({
+                productContext: {
+                  product_id: shippingProductId,
+                  available_sizes: sortSocialCommentAvailableSizes(openVariantRows.map((row) => text(row?.size || "")).filter(Boolean)),
+                },
+                selectedColor: shippingSelectedColor,
+                postId: shippingPostId,
+                commentId: shippingCommentId,
+                conversationId: message.external_conversation_id,
+              }),
+          inboundKey,
+          inboundMetaMid: message.external_message_id || messageId,
+          fallbackContext: {
+            productId: shippingProductId,
+            size: shippingSelectedSize,
+            color: shippingSelectedColor,
+            step: missingColor ? "awaiting_color" : "awaiting_size",
+          },
+        });
+        await persistSocialCommentSalesFlowState({
+          config,
+          message,
+          productId: shippingProductId,
+          selectedSize: missingColor ? shippingSelectedSize : "",
+          selectedColor: shippingSelectedColor,
+          step: missingColor ? "awaiting_color" : "awaiting_size",
+          extra: {
+            ...socialCommentCurrentSalesFlow,
+            post_id: shippingPostId,
+            comment_id: shippingCommentId,
+            customer_name: text(shippingMergedInfo.customerName || ""),
+            customer_phone: text(shippingMergedInfo.customerPhone || ""),
+            governorate: text(shippingMergedInfo.governorate || ""),
+            customer_address: text(shippingMergedInfo.customerAddress || ""),
+          },
+          reason: `social_comment_sales_flow_${draftOrderEligibility.reason_if_not_eligible}`,
+          callsite: "SHIPPING_PARSER_VARIANT_INCOMPLETE",
+        });
+        markMessageProcessingStatus(messageId, "sent");
+        await storeProcessedInboundKey({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          inboundKey,
+          status: "sent",
+        });
+        results.push({
+          channel: alias,
+          external_user_id: message.external_customer_id,
+          stored: true,
+          sent: true,
+          reason: `social_comment_sales_flow_${draftOrderEligibility.reason_if_not_eligible}`,
+        });
+        continue;
+      }
       if (socialCommentCurrentSalesFlowStep !== "awaiting_customer_data") {
         console.log("SOCIAL_COMMENT_REVIEW_INVALID_CALL", {
           tenant_id: config?.tenant_id || null,

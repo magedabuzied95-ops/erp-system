@@ -20,6 +20,9 @@ export const GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY = "تم الرد على حضر
 export const SOCIAL_COMMENT_SIZE_QUICK_REPLY_PREFIX = "SOCIAL_SIZE_SELECT::";
 export const SOCIAL_COMMENT_COLOR_QUICK_REPLY_PREFIX = "SOCIAL_COLOR_SELECT::";
 export const SOCIAL_COMMENT_ORDER_ACTION_QUICK_REPLY_PREFIX = "SOCIAL_ORDER_ACTION::";
+// Several products in one conversation make a bare "الأسود" ambiguous. These buttons name the
+// model, so the tap says which product before the colour and size questions start.
+export const SOCIAL_COMMENT_PRODUCT_QUICK_REPLY_PREFIX = "SOCIAL_PRODUCT_SELECT::";
 
 export const sortSocialCommentAvailableSizes = (values = []) =>
   asArray(values)
@@ -63,6 +66,9 @@ const absolutizeRelativeShopLinks = (value = "") =>
   });
 
 const DEFAULT_SIZE_FALLBACK = "ابعتلنا المقاس المطلوب وهنراجع التوفر لحضرتك فورًا.";
+// Used when the colour buttons could not ride the message (Instagram, or a failed visual): the
+// customer still has to name a colour before a size, so the ask survives as plain text.
+const DEFAULT_COLOR_THEN_SIZE_FALLBACK = "ابعتلنا اللون المطلوب الأول وبعدين المقاس وهنراجع التوفر لحضرتك فورًا.";
 const DEFAULT_COLOR_LABEL = "غير محدد";
 
 const normalizeSocialCommentColorPart = (value = "") => {
@@ -101,6 +107,49 @@ export const normalizeSocialCommentColorDisplay = (value = "") => {
     .filter(Boolean);
   if (parts.length > 1) return parts.join(" / ");
   return normalizeSocialCommentColorPart(raw) || raw;
+};
+
+// A typed colour has to be resolved back to the string the catalog stores, or the variant lookup
+// misses: the customer writes "الابيض", the row says "White". Both sides are pushed through the
+// same display normaliser (which already maps English → Arabic), stripped of the definite article
+// and of diacritic-ish alef variants, then compared exactly before falling back to containment.
+const colorMatchKey = (value = "") =>
+  normalizeSocialCommentColorDisplay(value)
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\bال(?=\p{L})/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// "ابيض واسود" writes the joining "و" onto the next word, so the key comes out as
+// "ابيض واسود" while the catalog key is "ابيض اسود". Dropping a leading "و" off each token
+// repairs that — but a real colour can start with one ("وردي" → "ردي"), so the stripped form is
+// only ever accepted on an EXACT key match, never on containment.
+const colorMatchKeyWithoutJoiners = (key = "") =>
+  key.split(" ").map((token) => (token.length > 2 && token.startsWith("و") ? token.slice(1) : token)).join(" ");
+
+export const matchSocialCommentColorInput = (input = "", catalogColors = []) => {
+  const needle = colorMatchKey(input);
+  if (!needle) return "";
+  const candidates = asArray(catalogColors).map(text).filter(Boolean);
+  const keyed = candidates.map((color) => ({ color, key: colorMatchKey(color) }));
+  const exact = keyed.find((entry) => entry.key && entry.key === needle);
+  if (exact) return exact.color;
+  const dejoined = colorMatchKeyWithoutJoiners(needle);
+  if (dejoined !== needle) {
+    const dejoinedExact = keyed.find((entry) => entry.key && entry.key === dejoined);
+    if (dejoinedExact) return dejoinedExact.color;
+  }
+  // "عايز الأسود" — the colour is a word inside the sentence. Longest catalog key first so
+  // "White & Black" wins over "White" when the customer typed both.
+  const contained = keyed
+    .filter((entry) => entry.key && (needle.includes(entry.key) || entry.key.includes(needle)))
+    .sort((left, right) => right.key.length - left.key.length);
+  return contained.length === 1 || (contained.length > 1 && contained[0].key.length > contained[1].key.length)
+    ? contained[0].color
+    : "";
 };
 
 const normalizePriceText = (value = "") => {
@@ -410,12 +459,19 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     productLink,
   });
   const carouselEligible = socialCommentCarouselEligible(colorCards);
+  // The exact colour STRINGS the catalog stores, in stock, deduplicated. These are what the
+  // colour buttons carry and what the variant lookup matches on, so they must not be prettified.
+  const availableColors = availableVariantRows
+    .map((variant) => text(variant?.color || ""))
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
   return {
     hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
     productId,
     productName,
     availableSizes,
     availableSizesLabel: availableSizes.length ? availableSizes.join(" | ") : DEFAULT_SIZE_FALLBACK,
+    availableColors,
     availableVariantsCount: availableVariantRows.length,
     availableVariantRows,
     colorCards,
@@ -434,14 +490,21 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
 const CAROUSEL_BROWSE_LINE = "عشان تشوف الألوان والمقاسات المتاحة من كل لون دوس يمين وشمال على الكروت،";
 const SINGLE_CARD_BROWSE_LINE = "عشان تشوف المقاسات المتاحة بصّ على الكارت فوق،";
 const PICK_SIZE_LINE = "واختار مقاسك من الأزرار تحت 👇";
+// Colour first, then size. Asking for a size while several colours are on screen is what let a
+// customer press "40" without ever saying which colour he meant — the flow then picked one for
+// him. The size buttons only come back once the colour is settled.
+const PICK_COLOR_LINE = "واختار اللون الأول من الأزرار تحت 👇";
 
 // Messenger sometimes refuses a message that carries quick replies, and the sender then retries
 // with plain text. Pointing at buttons that were dropped on the retry reads as a broken message,
 // so the ask becomes a plain question instead.
 export const swapSizeButtonsCtaForPlainAsk = (message = "") => {
   const normalized = String(message || "");
-  if (!normalized.includes(PICK_SIZE_LINE)) return normalized;
-  return normalized.split(PICK_SIZE_LINE).join(DEFAULT_SIZE_FALLBACK);
+  const withoutColorCta = normalized.includes(PICK_COLOR_LINE)
+    ? normalized.split(PICK_COLOR_LINE).join(DEFAULT_COLOR_THEN_SIZE_FALLBACK)
+    : normalized;
+  if (!withoutColorCta.includes(PICK_SIZE_LINE)) return withoutColorCta;
+  return withoutColorCta.split(PICK_SIZE_LINE).join(DEFAULT_SIZE_FALLBACK);
 };
 
 // The card lines only make sense when a card actually arrived. When the text is all that goes
@@ -467,11 +530,12 @@ const buildProductReplySections = ({ customerName = "", normalizedContext = {} }
   const hasSizes = Array.isArray(normalizedContext.availableSizes)
     ? normalizedContext.availableSizes.length > 0
     : Boolean(normalizedContext.availableSizesLabel) && normalizedContext.availableSizesLabel !== DEFAULT_SIZE_FALLBACK;
+  const hasColorChoice = Array.isArray(normalizedContext.availableColors) && normalizedContext.availableColors.length > 1;
   return [
     text(customerName) ? `أهلاً بحضرتك يا ${text(customerName)} ✨` : "أهلاً بحضرتك ✨",
     "",
     normalizedContext.carouselEligible ? CAROUSEL_BROWSE_LINE : SINGLE_CARD_BROWSE_LINE,
-    hasSizes ? PICK_SIZE_LINE : DEFAULT_SIZE_FALLBACK,
+    hasColorChoice ? PICK_COLOR_LINE : hasSizes ? PICK_SIZE_LINE : DEFAULT_SIZE_FALLBACK,
     "",
     "متاح شحن لجميع المحافظات",
     "متاح الدفع عند الاستلام ❤️",
@@ -492,6 +556,7 @@ export const buildPolishedSocialCommentProductReply = ({
         availableSizes: sortSocialCommentAvailableSizes(productContext?.available_sizes || []),
         availableSizesLabel: sortSocialCommentAvailableSizes(productContext?.available_sizes || []).join(" | ") || DEFAULT_SIZE_FALLBACK,
         productLink: ensureAbsoluteSocialProductLink(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || ""),
+        availableColors: asArray(productContext?.available_colors).map(text).filter(Boolean),
         carouselEligible: Boolean(productContext?.carousel_eligible),
       };
   return buildProductReplySections({ customerName, normalizedContext }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -556,8 +621,12 @@ const sanitizeRenderedPrivateReplyMessage = ({
   return tidyGreetingText(compacted.join("\n").replace(/\n{3,}/g, "\n\n").trim());
 };
 
+// The colour is chosen first, so a size button carries the colour it belongs to: pressing "42"
+// after picking White can never be read back as "42 in Black". `selectedColor` is empty only on
+// the single-colour path, where there is nothing to confuse it with.
 export const buildSocialCommentSizeQuickReplies = ({
   productContext = null,
+  selectedColor = "",
   postId = "",
   commentId = "",
   conversationId = "",
@@ -570,6 +639,7 @@ export const buildSocialCommentSizeQuickReplies = ({
     title: size.slice(0, 20),
     payload: `${SOCIAL_COMMENT_SIZE_QUICK_REPLY_PREFIX}${JSON.stringify({
       size,
+      color: text(selectedColor),
       product_id: safeProductId,
       post_id: text(postId),
       comment_id: text(commentId),
@@ -578,6 +648,10 @@ export const buildSocialCommentSizeQuickReplies = ({
   }));
 };
 
+// Colour comes BEFORE size now, so these buttons have to build with no size in hand — the old
+// builder required one and silently returned [], which is why the first message could only ever
+// offer sizes. A size is still carried when one is already known (the customer changed colour
+// after picking a size), so the flow can skip straight back to the summary.
 export const buildSocialCommentColorQuickReplies = ({
   productId = null,
   selectedSize = "",
@@ -593,7 +667,7 @@ export const buildSocialCommentColorQuickReplies = ({
     .filter(Boolean)
     .filter((value, index, array) => array.indexOf(value) === index)
     .slice(0, 11);
-  if (!safeProductId || !safeSelectedSize || !normalizedColors.length) return [];
+  if (!safeProductId || !normalizedColors.length) return [];
   return normalizedColors.map((color) => ({
     content_type: "text",
     title: color.slice(0, 20),
@@ -606,6 +680,39 @@ export const buildSocialCommentColorQuickReplies = ({
       conversation_id: text(conversationId),
     })}`,
   }));
+};
+
+// One button per model, for the moment a typed colour or size could belong to any of several
+// products already sent into this conversation.
+export const buildSocialCommentProductQuickReplies = ({
+  products = [],
+  postId = "",
+  commentId = "",
+  conversationId = "",
+} = {}) => {
+  const seen = new Set();
+  return asArray(products)
+    .map((product) => ({
+      productId: Number(product?.product_id || product?.id || 0) || null,
+      name: text(product?.name || product?.product_name || product?.title || ""),
+    }))
+    .filter((product) => {
+      if (!product.productId || !product.name) return false;
+      if (seen.has(product.productId)) return false;
+      seen.add(product.productId);
+      return true;
+    })
+    .slice(0, 11)
+    .map((product) => ({
+      content_type: "text",
+      title: product.name.slice(0, 20),
+      payload: `${SOCIAL_COMMENT_PRODUCT_QUICK_REPLY_PREFIX}${JSON.stringify({
+        product_id: product.productId,
+        post_id: text(postId),
+        comment_id: text(commentId),
+        conversation_id: text(conversationId),
+      })}`,
+    }));
 };
 
 export const buildSocialCommentOrderActionQuickReplies = ({
@@ -647,6 +754,7 @@ export const parseSocialCommentSizeQuickReplyPayload = (value = "") => {
     if (!size || !productId) return null;
     return {
       size,
+      color: text(parsed?.color || ""),
       product_id: productId,
       post_id: text(parsed?.post_id || ""),
       comment_id: text(parsed?.comment_id || ""),
@@ -669,7 +777,8 @@ export const parseSocialCommentColorQuickReplyPayload = (value = "") => {
     const color = text(parsed?.color || "");
     const size = text(parsed?.size || "");
     const productId = Number(parsed?.product_id || 0) || null;
-    if (!color || !size || !productId) return null;
+    // No size required: the colour is now the FIRST question, so most colour taps carry none.
+    if (!color || !productId) return null;
     return {
       color,
       size,
@@ -681,6 +790,28 @@ export const parseSocialCommentColorQuickReplyPayload = (value = "") => {
   } catch {
     console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
       kind: "color",
+      payload: payload.slice(0, 500),
+    });
+    return null;
+  }
+};
+
+export const parseSocialCommentProductQuickReplyPayload = (value = "") => {
+  const payload = text(value);
+  if (!payload.startsWith(SOCIAL_COMMENT_PRODUCT_QUICK_REPLY_PREFIX)) return null;
+  try {
+    const parsed = JSON.parse(payload.slice(SOCIAL_COMMENT_PRODUCT_QUICK_REPLY_PREFIX.length));
+    const productId = Number(parsed?.product_id || 0) || null;
+    if (!productId) return null;
+    return {
+      product_id: productId,
+      post_id: text(parsed?.post_id || ""),
+      comment_id: text(parsed?.comment_id || ""),
+      conversation_id: text(parsed?.conversation_id || ""),
+    };
+  } catch {
+    console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
+      kind: "product",
       payload: payload.slice(0, 500),
     });
     return null;
@@ -934,6 +1065,7 @@ export const buildSocialCommentPrivateReplyMessage = async ({
         priceUsed: normalizedContext.priceUsed,
         availableSizes: normalizedContext.availableSizes,
         availableSizesLabel: normalizedContext.availableSizesLabel,
+        availableColors: normalizedContext.availableColors,
         productLink: normalizedContext.productLink,
         carouselEligible: normalizedContext.carouselEligible,
       },
@@ -984,14 +1116,25 @@ export const buildSocialCommentPrivateReplyMessage = async ({
     hasProductContext: normalizedContext.hasProductContext,
     normalizedProductContext: normalizedContext,
     templateContext,
-    messengerQuickReplies: buildSocialCommentSizeQuickReplies({
-      productContext: {
-        product_id: normalizedContext.productId,
-        available_sizes: normalizedContext.availableSizes,
-      },
-      postId,
-      commentId,
-    }),
+    // Colour first: while the product has more than one colour in stock, the buttons under this
+    // first message are COLOURS. Sizes only follow once a colour is settled, so a tap can never
+    // be a size with no colour attached to it.
+    messengerQuickReplies: normalizedContext.availableColors.length > 1
+      ? buildSocialCommentColorQuickReplies({
+          productId: normalizedContext.productId,
+          colors: normalizedContext.availableColors,
+          postId,
+          commentId,
+        })
+      : buildSocialCommentSizeQuickReplies({
+          productContext: {
+            product_id: normalizedContext.productId,
+            available_sizes: normalizedContext.availableSizes,
+          },
+          selectedColor: normalizedContext.availableColors[0] || "",
+          postId,
+          commentId,
+        }),
   };
 };
 

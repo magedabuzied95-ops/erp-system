@@ -3,6 +3,7 @@ import { getPublishingAccessToken, validateMetaToken } from "./metaTokenService.
 import ensureMarketingSchema from "../utils/marketingSchema.js";
 import {
   GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
+  buildSocialCommentColorQuickReplies,
   buildSocialCommentPrivateReplyMessage,
   buildSocialCommentSizeQuickReplies,
   normalizeSocialCommentProductContext,
@@ -1332,14 +1333,27 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     const productImageUrl = trimString(normalizedProductContext.productImageUrl || "");
     const productName = trimString(normalizedProductContext.productName || "");
     const productLink = trimString(normalizedProductContext.productLink || "");
-    const quickReplies = buildSocialCommentSizeQuickReplies({
-      productContext: {
-        product_id: normalizedProductContext.productId,
-        available_sizes: normalizedProductContext.availableSizes,
-      },
-      postId: trimString(options?.postId || ""),
-      commentId: graphCommentId,
-    });
+    // Colour before size, same as the other comment→DM path: while more than one colour is in
+    // stock these buttons are colours, so a tap can never be a size with no colour attached.
+    const availableColors = Array.isArray(normalizedProductContext.availableColors)
+      ? normalizedProductContext.availableColors
+      : [];
+    const quickReplies = availableColors.length > 1
+      ? buildSocialCommentColorQuickReplies({
+          productId: normalizedProductContext.productId,
+          colors: availableColors,
+          postId: trimString(options?.postId || ""),
+          commentId: graphCommentId,
+        })
+      : buildSocialCommentSizeQuickReplies({
+          productContext: {
+            product_id: normalizedProductContext.productId,
+            available_sizes: normalizedProductContext.availableSizes,
+          },
+          selectedColor: availableColors[0] || "",
+          postId: trimString(options?.postId || ""),
+          commentId: graphCommentId,
+        });
     const requestBody = {
       recipient: {
         comment_id: graphCommentId,
