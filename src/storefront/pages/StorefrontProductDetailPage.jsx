@@ -970,7 +970,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         {descriptionParagraphs.length ? (
           <section
             aria-labelledby="sf-product-description-title"
-            className="sf-product-description rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0b0b0b_0%,#111111_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-6"
+            className="sf-product-description sf-product-option-card rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)] md:p-6"
           >
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
             <h2 id="sf-product-description-title" className="mt-2 text-xl font-black md:text-2xl">{sfText("storefront.products.productDetails", "Product details")}</h2>
