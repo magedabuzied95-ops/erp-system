@@ -1357,6 +1357,9 @@ const DIFFUSION_SPECKLE_FLOOR_RATIO = 0.0005;
 // through as scratches. Twenty keeps the panels, the pillars and the swoosh;
 // forty starts breaking the outline.
 const DIFFUSION_PAGE_INK_DROP = 20;
+// How far the illustration may depart from the photo it starts from
+// (0 = untouched photo, 1 = drawn from the line map alone).
+const DIFFUSION_INIT_STRENGTH = 0.6;
 
 const tracedBinarize = async (gray, width, height, background, { inkOffset = 0, level: levelOverride = 0, speckleFloor = 0 } = {}) => {
   const upscale = 2;
@@ -1571,9 +1574,25 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       }
 
       const { drawFromLineart } = await import("./thermalDrawingClient.js");
+      // The photo itself (the isolated crop on white) goes along as the
+      // starting image. Drawn from the line map alone the service invented
+      // the tones — one run filled the Samba's stripes, the next outlined
+      // them — and every change to the map redrew everything. Anchored to
+      // the photo it keeps the product's own blacks and greys.
+      const initPng = await sharp(rawBuffer(croppedRgb), { raw: { width: padded.width, height: padded.height, channels: 3 } })
+        .resize({ width: control.width, height: control.height, fit: "fill", kernel: sharp.kernel.lanczos3 })
+        .png({ compressionLevel: 6 })
+        .toBuffer();
+      if (process.env.THERMAL_DEBUG_CONTROL_DIR) {
+        const fs = await import("node:fs/promises");
+        await fs.writeFile(`${process.env.THERMAL_DEBUG_CONTROL_DIR}/init-${Date.now()}.png`, initPng);
+      }
+
       const { LIGHT_PRODUCT_PROMPT, LIGHT_PRODUCT_NEGATIVE } = await import("./thermalDrawingClient.js");
       const drawn = await drawFromLineart({
         controlPng,
+        initPng,
+        strength: DIFFUSION_INIT_STRENGTH,
         seed: 1,
         // The service's own defaults are the "no fill" wording for dark
         // products; a pale product keeps its black accents filled.

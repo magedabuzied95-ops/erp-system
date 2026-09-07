@@ -65,13 +65,19 @@ export const drawingServiceStatus = () => ({ ...healthCache, url: drawingService
  * @param {Buffer} options.controlPng  PNG of the line map, black lines on white
  * @returns {Promise<{ png: Buffer, width: number, height: number, ms: number }>}
  */
-export const drawFromLineart = async ({ controlPng, prompt, negativePrompt, steps, guidance, controlnetScale, seed = 1, maxSide } = {}) => {
+export const drawFromLineart = async ({ controlPng, initPng, strength, prompt, negativePrompt, steps, guidance, controlnetScale, seed = 1, maxSide } = {}) => {
   if (!controlPng?.length) throw new Error("drawing service needs a control image");
   const body = {
     control: Buffer.from(controlPng).toString("base64"),
     seed,
     invert_control: true,
   };
+  // With a starting photo the service runs img2img: the drawing keeps the
+  // product's own blacks and tones instead of inventing them.
+  if (initPng?.length) {
+    body.init = Buffer.from(initPng).toString("base64");
+    if (strength !== undefined) body.strength = strength;
+  }
   if (prompt) body.prompt = prompt;
   if (negativePrompt) body.negative_prompt = negativePrompt;
   if (steps) body.steps = steps;

@@ -53,12 +53,21 @@ app = FastAPI(title="thermal-artwork-drawing")
 _state = {"loaded": False, "loading": False, "error": "", "load_ms": 0}
 _lock = threading.Lock()
 _pipe = None
+# img2img twin of the pipeline, built on the same weights: when the caller
+# sends the photo as the starting image the drawing keeps the product's own
+# blacks and tones instead of inventing them from the line map alone.
+_pipe_img2img = None
 
 
 def _load_pipeline():
-    global _pipe
+    global _pipe, _pipe_img2img
     import torch
-    from diffusers import ControlNetModel, LCMScheduler, StableDiffusionControlNetPipeline
+    from diffusers import (
+        ControlNetModel,
+        LCMScheduler,
+        StableDiffusionControlNetImg2ImgPipeline,
+        StableDiffusionControlNetPipeline,
+    )
 
     torch.set_num_threads(THREADS)
     dtype = torch.bfloat16 if DTYPE in ("bf16", "bfloat16") else torch.float32
@@ -77,6 +86,9 @@ def _load_pipeline():
     pipe.to("cpu")
     pipe.set_progress_bar_config(disable=True)
     _pipe = pipe
+    img2img = StableDiffusionControlNetImg2ImgPipeline(**pipe.components)
+    img2img.set_progress_bar_config(disable=True)
+    _pipe_img2img = img2img
     _state["load_ms"] = int((time.time() - started) * 1000)
 
 
@@ -142,6 +154,11 @@ class DrawRequest(BaseModel):
     # ControlNet 1.1 Lineart was trained on white lines over black; the
     # annotator output people look at is the opposite. Inverted by default.
     invert_control: bool = True
+    # Optional starting image (base64 PNG, the product photo on white). With
+    # it the run is img2img: `strength` is how far the drawing may depart from
+    # the photo (0 = untouched, 1 = ignore it).
+    init: str | None = None
+    strength: float = Field(0.6, ge=0.05, le=1.0)
 
 
 def _decode(data: str) -> Image.Image:
@@ -176,15 +193,29 @@ def draw(req: DrawRequest):
     generator = torch.Generator(device="cpu").manual_seed(int(req.seed))
     started = time.time()
     with _lock:
-        result = pipe(
-            prompt=req.prompt,
-            negative_prompt=req.negative_prompt,
-            image=control,
-            num_inference_steps=req.steps,
-            guidance_scale=req.guidance,
-            controlnet_conditioning_scale=req.controlnet_scale,
-            generator=generator,
-        )
+        if req.init:
+            init = _decode(req.init).convert("RGB").resize(control.size, Image.LANCZOS)
+            result = _pipe_img2img(
+                prompt=req.prompt,
+                negative_prompt=req.negative_prompt,
+                image=init,
+                control_image=control,
+                strength=req.strength,
+                num_inference_steps=req.steps,
+                guidance_scale=req.guidance,
+                controlnet_conditioning_scale=req.controlnet_scale,
+                generator=generator,
+            )
+        else:
+            result = pipe(
+                prompt=req.prompt,
+                negative_prompt=req.negative_prompt,
+                image=control,
+                num_inference_steps=req.steps,
+                guidance_scale=req.guidance,
+                controlnet_conditioning_scale=req.controlnet_scale,
+                generator=generator,
+            )
     image = result.images[0].convert("L")
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", optimize=True)
@@ -195,4 +226,5 @@ def draw(req: DrawRequest):
         "ms": int((time.time() - started) * 1000),
         "seed": req.seed,
         "steps": req.steps,
+        "mode": "img2img" if req.init else "txt2img",
     }
