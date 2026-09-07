@@ -4,7 +4,7 @@ import iconv from "iconv-lite";
 
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl } from "../utils/publicUrl.js";
+import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl, absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import { emitToRooms } from "../utils/socket.js";
 import { emitMetaReviewerInboundEvent, normalizeMetaReviewerChannel } from "./metaReviewerAccessService.js";
@@ -11895,7 +11895,7 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
 
 const buildMessengerGenericTemplatePayload = ({ recipientId = "", product = {} } = {}) => {
   const title = text(product.name || product.title || product.product_name || "");
-  const imageUrl = text(product.image_url || product.image || product.main_image || "");
+  const imageUrl = absolutePublicUploadUrl(text(product.image_url || product.image || product.main_image || ""));
   const availableSizes = [...new Set([
     ...asArray(product.available_sizes),
     ...asArray(product.sizes),
@@ -11950,7 +11950,10 @@ const buildMessengerGenericTemplatePayload = ({ recipientId = "", product = {} }
 // buttons too; without one it keeps the "عرض المنتج" web_url.
 const buildMetaCarouselElement = (product = {}) => {
   const title = text(product.color || product.name || product.title || product.product_name || "");
-  const imageUrl = text(product.image_url || product.image || product.main_image || "");
+  // Meta fetches this URL itself, so it has to be absolute AND has to be served by the backend.
+  // A relative path is refused outright and an app-origin path returns index.html with a 200 —
+  // both cost the whole template, and a lost template is one text link per colour.
+  const imageUrl = absolutePublicUploadUrl(text(product.image_url || product.image || product.main_image || ""));
   const availableSizes = [...new Set([
     ...asArray(product.available_sizes),
     ...asArray(product.sizes),
@@ -24478,6 +24481,18 @@ export const sendMetaInboxOutboundMessage = async ({
   if (cards.length >= 2 && metaCarouselChannels.includes(normalizedChannel) && text(token)) {
     try {
       const elements = cards.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons);
+      // Dropping down to the per-card loop is a real degradation on Instagram — each colour leaves
+      // as its own text line with a link — and until now it happened without a word in the log.
+      if (elements.length < cards.length) {
+        console.warn("[meta] carousel elements dropped", {
+          tenant_id: scopedTenantId,
+          channel: normalizedChannel,
+          cards: cards.length,
+          elements: elements.length,
+          without_absolute_image: cards.filter((card) => !absolutePublicUploadUrl(text(card.image_url || card.image || card.main_image || ""))).length,
+          public_backend_url_configured: Boolean(getPublicBackendUrl()),
+        });
+      }
       if (elements.length >= 2) {
         // The lead line ("... اختار اللون اللي يعجبك 👇") introduces the carousel, so it must land
         // ABOVE the cards, not after them. The general message body is otherwise sent last (below);
@@ -24548,7 +24563,7 @@ export const sendMetaInboxOutboundMessage = async ({
         });
         let imageMessageId = "";
         const productTitle = text(product.name || product.title || product.product_name || "");
-        const productImageUrl = text(product.image_url || product.image || product.main_image || "");
+        const productImageUrl = absolutePublicUploadUrl(text(product.image_url || product.image || product.main_image || ""));
         const productUrl = text(product.product_url || product.url || product.storefront_url || product.share_url || "");
         if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
           console.info("messenger_product_card_payload", {

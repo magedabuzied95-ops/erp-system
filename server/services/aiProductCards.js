@@ -84,7 +84,12 @@ export const resolvePublicProductImageUrl = (
   if (/^https?:\/\//i.test(raw)) return raw;
   const path = trimSlashes(raw);
   if (!path) return "";
-  const publicAssetBaseUrl = text(assetBaseUrl || baseUrl).replace(/\/+$/g, "");
+  // An upload belongs to the BACKEND origin and to no other. Falling back to the app origin —
+  // which is what happened whenever PUBLIC_BACKEND_URL was unset — produced a URL that looks
+  // perfectly valid and returns HTTP 200, because the storefront SPA answers every unknown path
+  // with index.html. Meta received HTML where it expected a JPEG: the colour carousel was refused
+  // and each colour left as its own text link instead. A page path still belongs to the app.
+  const publicAssetBaseUrl = text(assetBaseUrl).replace(/\/+$/g, "");
   const publicPageBaseUrl = text(baseUrl).replace(/\/+$/g, "");
   if (uploads && !path.startsWith("uploads/") && !path.startsWith("shop/")) {
     if (path.startsWith("products/")) {

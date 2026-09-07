@@ -158,6 +158,20 @@ if (Number.isInteger(configuredTrustProxyHops) && configuredTrustProxyHops > 0) 
   app.set("trust proxy", configuredTrustProxyHops);
 }
 
+// Learn the public origin this backend is reached on, so an /uploads URL sent to Meta or WhatsApp
+// carries the host that actually serves the file. PUBLIC_BACKEND_URL still wins whenever it is set;
+// this only keeps a missing env var from silently addressing uploads to the storefront, which
+// answers them with index.html and a 200.
+const { rememberPublicBackendOrigin } = await import("./utils/publicUrl.js");
+app.use((req, _res, next) => {
+  const forwardedProto = String(req.get("x-forwarded-proto") || "").split(",")[0].trim();
+  const forwardedHost = String(req.get("x-forwarded-host") || "").split(",")[0].trim();
+  const host = forwardedHost || req.get("host") || "";
+  const protocol = forwardedProto || req.protocol || "";
+  if (host && protocol === "https") rememberPublicBackendOrigin(`https://${host}`);
+  next();
+});
+
 const REQUEST_TIMEOUT_MS = Math.max(Number(process.env.REQUEST_TIMEOUT_MS || 60_000), 5_000);
 const SLOW_REQUEST_MS = Math.max(Number(process.env.SLOW_REQUEST_MS || 2_000), 250);
 const SHUTDOWN_TIMEOUT_MS = Math.max(Number(process.env.SHUTDOWN_TIMEOUT_MS || 10_000), 1_000);

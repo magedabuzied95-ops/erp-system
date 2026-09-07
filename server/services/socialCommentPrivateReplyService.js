@@ -56,8 +56,10 @@ export const ensureAbsoluteSocialAssetUrl = (value = "") => {
   if (!normalized) return "";
   if (isAbsoluteHttpUrl(normalized)) return normalized;
   const path = normalized.startsWith("/") ? normalized : `/${normalized}`;
+  // No app-origin fallback for an upload. That fallback is what made this fix inert wherever
+  // PUBLIC_BACKEND_URL was unset: the URL came out absolute, looked right, and still served HTML.
   const assetBaseUrl = /^\/uploads\//i.test(path)
-    ? text(getPublicBackendUrl()).replace(/\/+$/g, "") || publicAppBaseUrl()
+    ? text(getPublicBackendUrl()).replace(/\/+$/g, "")
     : publicAppBaseUrl();
   if (!assetBaseUrl) return normalized;
   return `${assetBaseUrl}${path}`;
