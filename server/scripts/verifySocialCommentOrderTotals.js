@@ -2,8 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-process.env.PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://shop.example.com";
-process.env.PUBLIC_BACKEND_URL = process.env.PUBLIC_BACKEND_URL || "https://api.example.com";
+// Pinned, not defaulted: run inside a deployed container these would otherwise inherit the real
+// origins and the assertions would compare production config against itself.
+process.env.PUBLIC_APP_URL = "https://shop.example.com";
+process.env.PUBLIC_BACKEND_URL = "https://api.example.com";
+for (const key of [
+  // getPublicAppUrl reads these BEFORE PUBLIC_APP_URL
+  "STOREFRONT_URL", "PUBLIC_STOREFRONT_URL", "VITE_STOREFRONT_URL", "FRONTEND_URL", "VITE_PUBLIC_APP_URL",
+  // getPublicBackendUrl reads these AFTER PUBLIC_BACKEND_URL, but clear them anyway
+  "BACKEND_PUBLIC_URL", "API_PUBLIC_URL", "PUBLIC_API_URL", "VITE_API_URL",
+]) {
+  delete process.env[key];
+}
 
 const { ensureAbsoluteSocialAssetUrl, ensureAbsoluteSocialProductLink } = await import(
   "../services/socialCommentPrivateReplyService.js"
