@@ -81,9 +81,18 @@ const readWithFieldFallback = async ({ node, fields, token }) => {
   const all = await graph({ path: `/${node}?fields=${encodeURIComponent(fields.join(","))}`, token });
   if (all.ok) return { values: all.body, supported: fields, unsupported: [], probed: false };
 
-  // A permissions or identity failure is not about fields, so do not waste a probe per field on it.
+  /*
+   * Only a TOKEN-level failure justifies giving up on the batch: 190 is a bad token and 102 is
+   * the wrong kind of token, and neither changes per field.
+   *
+   * 10 and 200 deliberately do NOT short-circuit, and this was learned the hard way on the real
+   * account: reading the WABA node with every field returned code 10 ("requires that the Business
+   * that owns this App is a Business Solution Provider"), which reads like the whole node is
+   * closed — but 13 of the 14 fields were readable one at a time and only primary_funding_id
+   * actually needed BSP. Treating that as a node-level refusal hid every field behind one of them.
+   */
   const code = Number(all.error?.code ?? 0);
-  if (code === 190 || code === 102 || code === 10 || code === 200) {
+  if (code === 190 || code === 102) {
     return { values: null, supported: [], unsupported: [], probed: false, error: all.error, status: all.status };
   }
 
