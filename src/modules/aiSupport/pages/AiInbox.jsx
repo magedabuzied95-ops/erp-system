@@ -1,5 +1,5 @@
 import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -2037,6 +2037,40 @@ function InboxChannelSidebar({
 }) {
   const { t } = useTranslation();
   const [configMenuAnchor, setConfigMenuAnchor] = useState(null);
+  const configMenuRef = useRef(null);
+  // The gear sits at the BOTTOM of the rail, so a menu pinned to the trigger's own top
+  // ran past the bottom of the viewport and the last items were unreachable. Measure the
+  // rendered menu and flip/clamp it into view; `null` means "not placed yet" (kept hidden
+  // for that one frame so the unplaced position never flashes).
+  const [configMenuPlacement, setConfigMenuPlacement] = useState(null);
+  useLayoutEffect(() => {
+    if (!configMenuAnchor) {
+      setConfigMenuPlacement(null);
+      return undefined;
+    }
+    const place = () => {
+      const node = configMenuRef.current;
+      if (!node) return;
+      const menu = node.getBoundingClientRect();
+      const margin = 8;
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      let left = configMenuAnchor.right + margin;
+      if (left + menu.width > viewportWidth - margin) left = configMenuAnchor.left - margin - menu.width;
+      left = Math.max(margin, Math.min(left, viewportWidth - margin - menu.width));
+      let top = configMenuAnchor.top;
+      if (top + menu.height > viewportHeight - margin) top = configMenuAnchor.bottom - menu.height;
+      top = Math.max(margin, Math.min(top, viewportHeight - margin - menu.height));
+      setConfigMenuPlacement({ top, left, maxHeight: Math.max(120, viewportHeight - margin * 2) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [configMenuAnchor]);
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
@@ -2133,7 +2167,7 @@ function InboxChannelSidebar({
             onClick={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
               // Fixed placement: the rail's ancestors clip overflow, so an absolute menu would be cut off.
-              setConfigMenuAnchor((current) => (current ? null : { top: rect.top, left: rect.right + 8 }));
+              setConfigMenuAnchor((current) => (current ? null : { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }));
             }}
             title={t("aiSupport.inbox.rail.config")}
             aria-label={t("aiSupport.inbox.rail.config")}
@@ -2148,10 +2182,16 @@ function InboxChannelSidebar({
             <>
               <div className="fixed inset-0 z-[250]" onClick={() => setConfigMenuAnchor(null)} />
               <div
+                ref={configMenuRef}
                 dir="rtl"
                 role="menu"
-                style={{ top: configMenuAnchor.top, left: configMenuAnchor.left }}
-                className="fixed z-[251] w-56 overflow-hidden rounded-2xl border border-[#d8cba9] bg-[#f8f4eb] py-1.5 shadow-[0_24px_60px_rgba(47,35,12,0.28)] dark:border-amber-300/15 dark:bg-[#181a18] dark:shadow-black/50"
+                style={{
+                  top: configMenuPlacement ? configMenuPlacement.top : configMenuAnchor.top,
+                  left: configMenuPlacement ? configMenuPlacement.left : configMenuAnchor.right + 8,
+                  maxHeight: configMenuPlacement ? configMenuPlacement.maxHeight : undefined,
+                  visibility: configMenuPlacement ? "visible" : "hidden",
+                }}
+                className="fixed z-[251] w-56 overflow-y-auto overscroll-contain rounded-2xl border border-[#d8cba9] bg-[#f8f4eb] py-1.5 shadow-[0_24px_60px_rgba(47,35,12,0.28)] dark:border-amber-300/15 dark:bg-[#181a18] dark:shadow-black/50"
               >
                 {[
                   { key: "quick_replies", label: t("aiSupport.quickReplies.title"), icon: Zap, onSelect: onOpenQuickReplies },
