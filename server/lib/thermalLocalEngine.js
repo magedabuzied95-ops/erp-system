@@ -1601,7 +1601,10 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
         tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE,
         singleItem: false,
         speckleFloor: Math.round(options.canvas * options.canvas * DIFFUSION_SPECKLE_FLOOR_RATIO),
-        inkLevel: clamp(options.inkLevel - DIFFUSION_PAGE_INK_DROP, 0, 100),
+        // Dark products only: their page goes through the line-drawing model
+        // and needs the lighter read. A pale product's page is cut directly
+        // at its own level, which already gave the drawing the owner approved.
+        inkLevel: darkProduct ? clamp(options.inkLevel - DIFFUSION_PAGE_INK_DROP, 0, 100) : options.inkLevel,
       });
       return {
         buffer: traced.buffer,
