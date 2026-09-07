@@ -98,7 +98,8 @@ import { moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilter
 // addresses) is retired — see components/InboxOrderComposer.jsx.
 import InboxOrderComposer from "../components/InboxOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
-import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
+import { loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
+import { clearAllCatalogSnapshots, readCatalogSnapshot } from "../services/inboxCatalogSnapshot";
 import {
   WEAK_CONVERSATION_CHANNELS,
   backendChannelFilter,
@@ -3603,17 +3604,34 @@ export default function AiInboxPwa() {
   // row, on every open. It now paints the persisted snapshot first (no network at
   // all) and revalidates behind it, so an open with a warm snapshot is instant and
   // the multi-MB download only happens when the catalog watermark actually moved.
+  // The product sheet used to await the WHOLE catalog before it rendered a single
+  // row, on every open. It now paints the persisted snapshot first (no network at
+  // all) and revalidates behind it, so an open with a warm snapshot is instant and
+  // the multi-MB download only happens when the catalog watermark actually moved.
   const loadProducts = useCallback(async ({ force = false } = {}) => {
-    if (productCatalogRef.current.loading || (!force && productCatalogRef.current.products.length)) return;
+    if (productCatalogRef.current.loading) return;
     productCatalogRef.current.loading = true;
-    setProductLoading(true);
+    const hadProducts = productCatalogRef.current.products.length > 0;
+    if (hadProducts) setProducts(productCatalogRef.current.products);
+    setProductLoading(!hadProducts);
     try {
-      const { products: nextProducts } = await loadCustomerProductCatalog({ headers });
-      const normalizedProducts = asArray(nextProducts);
-      productCatalogRef.current.products = normalizedProducts;
-      setProducts(normalizedProducts);
+      await loadCustomerProductCatalogWarm({
+        headers,
+        force,
+        onSnapshot: ({ products: nextProducts }) => {
+          const normalizedProducts = asArray(nextProducts);
+          if (!normalizedProducts.length) return;
+          productCatalogRef.current.products = normalizedProducts;
+          setProducts(normalizedProducts);
+          setProductLoading(false);
+        },
+      });
     } catch (loadError) {
-      toast.error(loadError?.message || "Failed to load products");
+      // A failed revalidation behind a painted snapshot is not worth a toast --
+      // the operator already has a usable list.
+      if (!productCatalogRef.current.products.length) {
+        toast.error(loadError?.message || "Failed to load products");
+      }
     } finally {
       productCatalogRef.current.loading = false;
       setProductLoading(false);
@@ -4224,6 +4242,34 @@ export default function AiInboxPwa() {
   }, []);
 
 
+  // Prewarm the product sheet at idle. Deliberately snapshot-ONLY: the catalog
+  // fetch used to compete with conversation loading on every inbox open, so this
+  // touches IndexedDB and nothing else. The network revalidation still waits for
+  // the sheet to actually open.
+  useEffect(() => {
+    let cancelled = false;
+    const prewarm = () => {
+      if (cancelled || productCatalogRef.current.products.length) return;
+      void readCatalogSnapshot()
+        .then((snapshot) => {
+          if (cancelled || !snapshot?.products?.length) return;
+          if (productCatalogRef.current.products.length) return;
+          productCatalogRef.current.products = snapshot.products;
+          setProducts(snapshot.products);
+        })
+        .catch(() => null);
+    };
+    const idle = typeof window !== "undefined" && typeof window.requestIdleCallback === "function"
+      ? window.requestIdleCallback(prewarm, { timeout: 4000 })
+      : window.setTimeout(prewarm, 2000);
+    return () => {
+      cancelled = true;
+      if (typeof window === "undefined") return;
+      if (typeof window.cancelIdleCallback === "function" && typeof window.requestIdleCallback === "function") window.cancelIdleCallback(idle);
+      else window.clearTimeout(idle);
+    };
+  }, []);
+
   useEffect(() => {
     if (!productSheetOpen) return;
     void loadProducts();
@@ -4663,8 +4709,12 @@ export default function AiInboxPwa() {
   // so a prior user's cached conversations can never reach the next user.
   useEffect(() => {
     inboxCache.sweep();
-    const onAuthUser = (event) => { if (!event?.detail?.user) inboxCache.clearAllCache(); };
-    const onAuthExpired = () => inboxCache.clearAllCache();
+    const wipe = () => {
+      inboxCache.clearAllCache();
+      void clearAllCatalogSnapshots().catch(() => null);
+    };
+    const onAuthUser = (event) => { if (!event?.detail?.user) wipe(); };
+    const onAuthExpired = () => wipe();
     window.addEventListener("erp:auth-user-updated", onAuthUser);
     window.addEventListener("erp:auth-expired", onAuthExpired);
     return () => {

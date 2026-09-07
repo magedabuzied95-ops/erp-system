@@ -90,7 +90,18 @@ test("AI Inbox and PWA load the same persisted Sale setting as POS before buildi
   // same persisted POS sale setting. A second requestOptions arg (compact picker
   // projection) is allowed and does not affect the sale mode.
   assert.match(catalogSource, /getPosSellableProducts\(saleModeSettings[,)]/);
-  assert.match(pwaSource, /loadCustomerProductCatalog\(\{ headers \}\)/);
+  // The PWA sheet paints a persisted snapshot before the network answers, so it
+  // goes through the warm wrapper instead of calling the loader directly. Two
+  // things must stay true for the sale setting: the wrapper's authoritative
+  // refresh still runs through loadCustomerProductCatalog, and a CACHED page is
+  // re-priced against the live persisted settings before it is served — a
+  // snapshot carries whatever rule was live when it was written, and serving it
+  // untouched would show a price the current rule would not produce.
+  assert.match(pwaSource, /loadCustomerProductCatalogWarm\(\{/);
+  assert.doesNotMatch(pwaSource, /getPosSellableProducts\(/);
+  assert.match(catalogSource, /export const loadCustomerProductCatalogWarm/);
+  assert.match(catalogSource, /await loadCustomerProductCatalog\(\{ headers \}\)/);
+  assert.match(catalogSource, /repricePosCatalogProducts\(snapshot\.products, servedSaleMode\)/);
   assert.match(pickerSource, /loadCustomerProductCatalog\(\)/);
   assert.doesNotMatch(pickerSource, /getPosSellableProducts\(\)/);
 });

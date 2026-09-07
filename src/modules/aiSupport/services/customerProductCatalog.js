@@ -1,7 +1,15 @@
 import { api } from "../../../shared/api/api";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
-import { getPosSellableProducts, normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
+import { getPosSellableProducts, normalizePosCatalogProduct, normalizePosSellableProducts, repricePosCatalogProducts } from "../../pos/services/posProductsApi";
+import { getPosCatalogVersion } from "../../products/services/productsApi";
 import { PICKER_PAGE_SIZE, buildPickerParams, pickerQueryKey } from "./pickerQuery";
+import {
+  SNAPSHOT_FRESH_MS,
+  readCatalogSnapshot,
+  snapshotAgeMs,
+  touchCatalogSnapshot,
+  writeCatalogSnapshot,
+} from "./inboxCatalogSnapshot";
 
 const readSettings = (payload = {}) =>
   payload?.settings && typeof payload.settings === "object" ? payload.settings : payload;
@@ -145,6 +153,91 @@ export const loadCustomerProductCatalog = async ({ headers } = {}) => {
   } finally {
     catalogRequest = null;
   }
+};
+
+const asProducts = (value) => (Array.isArray(value) ? value : []);
+
+// ---- Warm-open catalog: paint from the persistent snapshot, then revalidate ---
+//
+// loadCustomerProductCatalog() downloads the WHOLE catalog (no limit param means
+// the server emits no LIMIT clause). Its module-level 5-minute cache dies with the
+// JS context, which on a phone happens every time the PWA is backgrounded - so the
+// inbox product sheet paid the full multi-MB download, parse and normalize on
+// practically every open. This wraps it in the same stale-while-revalidate shape
+// the POS terminal uses:
+//
+//   1. paint the IndexedDB snapshot immediately (no network at all),
+//   2. re-price it against the live sale-mode settings, so a cached page can never
+//      show a price the current pricing rule would not produce,
+//   3. only then ask the ~80-byte /products/pos-catalog-version watermark, and skip
+//      the multi-MB download entirely when nothing sellable changed.
+//
+// `onSnapshot` fires once per improvement (cached -> re-priced -> fresh), so the
+// caller can render the first one and drop its spinner.
+export const loadCustomerProductCatalogWarm = async ({ headers, onSnapshot, force = false } = {}) => {
+  const emit = (products, meta) => {
+    if (typeof onSnapshot !== "function") return;
+    if (!Array.isArray(products) || !products.length) return;
+    try {
+      onSnapshot({ products, ...meta });
+    } catch {
+      // A render error in the consumer must never abort the revalidation.
+    }
+  };
+
+  const snapshot = force ? null : await readCatalogSnapshot().catch(() => null);
+  let servedProducts = null;
+  let servedSaleMode = null;
+  // Read the watermark at most once per call: asking twice could straddle a
+  // mutation and store a version that does not describe the payload we saved.
+  let versionRead = false;
+  let version = "";
+  const readVersion = async () => {
+    if (versionRead) return version;
+    versionRead = true;
+    version = await getPosCatalogVersion().catch(() => "");
+    return version;
+  };
+
+  if (snapshot) {
+    servedProducts = snapshot.products;
+    emit(servedProducts, { fromCache: true, stale: true });
+
+    // The watermark covers a sale-mode SETTINGS change but not a change to the
+    // pricing rule itself, and it can also fail. Re-pricing the snapshot in memory
+    // is cheap and makes the cached page obey whatever rule is live right now.
+    servedSaleMode = await loadSaleModeSettings({ headers }).catch(() => null);
+    if (servedSaleMode) {
+      servedProducts = repricePosCatalogProducts(snapshot.products, servedSaleMode);
+      emit(servedProducts, { fromCache: true, stale: true, saleModeSettings: servedSaleMode });
+    }
+
+    if (snapshotAgeMs(snapshot) < SNAPSHOT_FRESH_MS) {
+      return { products: servedProducts, saleModeSettings: servedSaleMode, fromCache: true, refreshed: false };
+    }
+
+    const cachedVersion = await readVersion();
+    if (cachedVersion && cachedVersion === snapshot.catalog_version) {
+      await touchCatalogSnapshot(snapshot).catch(() => null);
+      return { products: servedProducts, saleModeSettings: servedSaleMode, fromCache: true, refreshed: false };
+    }
+  }
+
+  // Capture the watermark BEFORE the download, so a mutation landing mid-download
+  // leaves the snapshot looking stale rather than falsely current.
+  const freshVersion = await readVersion();
+  const fresh = await loadCustomerProductCatalog({ headers });
+  const products = asProducts(fresh?.products);
+  if (products.length) {
+    await writeCatalogSnapshot(products, freshVersion).catch(() => null);
+    emit(products, { fromCache: false, stale: false, saleModeSettings: fresh?.saleModeSettings });
+    return { ...fresh, products, fromCache: false, refreshed: true };
+  }
+  // An empty refresh must not blank a good cached page.
+  if (servedProducts) {
+    return { products: servedProducts, saleModeSettings: servedSaleMode, fromCache: true, refreshed: false };
+  }
+  return { ...fresh, products, fromCache: false, refreshed: true };
 };
 
 export default loadCustomerProductCatalog;
