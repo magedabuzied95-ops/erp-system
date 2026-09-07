@@ -15,10 +15,30 @@ import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { getSetting } from "./settingsService.js";
+import {
+  WHATSAPP_AUTOMATION_SETTING_KEY,
+  whatsappAutomationEnabled,
+} from "../../shared/whatsappAutomationDefaults.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
 import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount } from "../utils/orderConfirmationMessage.js";
 import { summariseItems } from "./whatsappTemplates.js";
+
+/*
+ * The shop's master switch for one automatic message (see shared/whatsappAutomationDefaults.js).
+ *
+ * A settings read that fails answers "on". Losing the settings row must not silence the receipt a
+ * customer is waiting for - the failure mode of a wrong "on" is one message the shop did not want,
+ * and the failure mode of a wrong "off" is a customer who never hears from us at all.
+ */
+const automationSwitchOn = async (name) => {
+  try {
+    return whatsappAutomationEnabled(await getSetting(WHATSAPP_AUTOMATION_SETTING_KEY, undefined), name);
+  } catch (error) {
+    console.warn("[whatsapp:automation-switch-unavailable]", { automation: name, message: error?.message || String(error) });
+    return true;
+  }
+};
 
 const STOREFRONT_SOURCES = new Set(["storefront", "website", "web"]);
 const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_transfer", "shipping_confirmation", "transfer"]);
@@ -805,23 +825,29 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       : !ORDER_CONFIRMATION_ACTIONABLE_STATUSES.has(status)
         ? "status_not_confirmable"
         : "";
+  // The shop's switch, checked before anything about this particular order: an automation the shop
+  // has turned off is not "skipped for this order", it is not running. A manual send never reaches
+  // this branch.
+  const automationOn = isManualSend ? true : await automationSwitchOn("order_confirmation");
   const reason = !current?.id
     ? "order_missing"
     : isManualSend
       ? manualBlockReason
-      : !STOREFRONT_SOURCES.has(sourceOf(current))
-        ? "not_storefront_order"
-        : !isCodPayment(current)
-          ? "not_cod_order"
-          : isShippingProofOrder(current)
-            ? "shipping_proof_order_excluded"
-            : text(current.status).toLowerCase() !== "pending_confirmation"
-              ? "not_pending_confirmation"
-              : current.whatsapp_confirmation_sent_at
-                ? "already_sent"
-                : !phone
-                  ? "missing_phone"
-                  : "";
+      : !automationOn
+        ? "automation_disabled"
+        : !STOREFRONT_SOURCES.has(sourceOf(current))
+          ? "not_storefront_order"
+          : !isCodPayment(current)
+            ? "not_cod_order"
+            : isShippingProofOrder(current)
+              ? "shipping_proof_order_excluded"
+              : text(current.status).toLowerCase() !== "pending_confirmation"
+                ? "not_pending_confirmation"
+                : current.whatsapp_confirmation_sent_at
+                  ? "already_sent"
+                  : !phone
+                    ? "missing_phone"
+                    : "";
   const shouldSend = !reason;
   console.info("[whatsapp:order-confirmation-check]", {
     manual: isManualSend,
@@ -833,6 +859,7 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
     payment_status: current?.payment_status || "",
     status: current?.status || "",
     customer_phone: current?.customer_phone || current?.phone || "",
+    automation_enabled: automationOn,
     should_send: shouldSend,
     ...(shouldSend ? {} : { reason }),
   });
@@ -1217,6 +1244,10 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
   // What it cannot clear is a message we are unable to build - no phone, no invoice
   // number, no link - or an invoice that no longer stands.
   const isManualResend = options.force === true;
+  // The shop's switch for the invoice receipt, covering both the POS receipt and the storefront
+  // one. The POS-only flag below still stands on top of it: a shop that switched the till's
+  // receipt off from the POS settings page keeps that answer.
+  const automationOn = isManualResend ? true : await automationSwitchOn("invoice");
   const posAutoSendEnabled = !isPosInvoice || isManualResend
     ? true
     : options.autoSendEnabled !== undefined
@@ -1236,23 +1267,25 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
       ? ["cancelled", "canceled"].includes(status)
         ? "cancelled_order"
         : missingPieceReason
-      : isPosInvoice && !posAutoSendEnabled
-        ? "setting_disabled"
-        : isPosInvoice && ["cancelled", "canceled"].includes(status)
-          ? "cancelled_order"
-          : isPosInvoice
-            ? source !== "pos"
-              ? "not_pos_order"
-              : current.whatsapp_invoice_sent_at
-                ? "already_sent"
-                : missingPieceReason
-            : !STOREFRONT_SOURCES.has(source)
-              ? "not_storefront_order"
-              : isCodPayment(current) && status === "pending_confirmation"
-                ? "cod_pending_confirmation"
+      : !automationOn
+        ? "automation_disabled"
+        : isPosInvoice && !posAutoSendEnabled
+          ? "setting_disabled"
+          : isPosInvoice && ["cancelled", "canceled"].includes(status)
+            ? "cancelled_order"
+            : isPosInvoice
+              ? source !== "pos"
+                ? "not_pos_order"
                 : current.whatsapp_invoice_sent_at
                   ? "already_sent"
-                  : missingPieceReason;
+                  : missingPieceReason
+              : !STOREFRONT_SOURCES.has(source)
+                ? "not_storefront_order"
+                : isCodPayment(current) && status === "pending_confirmation"
+                  ? "cod_pending_confirmation"
+                  : current.whatsapp_invoice_sent_at
+                    ? "already_sent"
+                    : missingPieceReason;
   const shouldSend = !reason;
   const checkPayload = {
     order_id: current?.id || null,
@@ -1261,6 +1294,7 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
     channel: current?.channel || "",
     source: current?.source || "",
     status: current?.status || "",
+    automation_enabled: automationOn,
     auto_send_pos_invoice_whatsapp: isPosInvoice ? Boolean(posAutoSendEnabled) : undefined,
     customer_phone: current?.customer_phone || current?.phone || "",
     manual_resend: isManualResend,

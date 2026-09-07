@@ -89,6 +89,49 @@ export function FieldRow({ label, value, fallback = "—" }) {
   );
 }
 
+/*
+ * An on/off row: title, one line of explanation, and the switch.
+ *
+ * The whole row is the button. A switch this consequential — it decides whether a few hundred
+ * customers a day hear from the shop — is easier to hit and harder to miss than a 44px track, and
+ * the disabled state is real: it is held while the save is in flight so a double tap cannot send
+ * two contradictory writes.
+ */
+export function ToggleRow({ icon: Icon, title, description, checked = false, disabled = false, busy = false, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled || busy}
+      onClick={() => onChange?.(!checked)}
+      className={`flex w-full items-start gap-3 rounded-2xl border px-3.5 py-3 text-start transition disabled:opacity-60 ${
+        checked ? "border-emerald-300/25 bg-emerald-400/[0.07] hover:bg-emerald-400/10" : "border-white/10 bg-slate-950/40 hover:bg-white/[0.05]"
+      }`}
+    >
+      {Icon ? (
+        <span className={`mt-0.5 shrink-0 ${checked ? "text-emerald-200" : "text-slate-500"}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      ) : null}
+      <span className="min-w-0 flex-1">
+        <span dir="auto" className="block text-[13px] font-black text-white">{title}</span>
+        {description ? <span dir="auto" className="mt-1 block text-[11px] leading-5 text-slate-400">{description}</span> : null}
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition ${checked ? "bg-emerald-400/80" : "bg-white/15"}`}
+      >
+        {busy ? (
+          <Loader2 className="mx-auto h-3 w-3 animate-spin text-slate-950" />
+        ) : (
+          <span className={`absolute h-4 w-4 rounded-full bg-white shadow transition-all ${checked ? "start-[18px]" : "start-0.5"}`} />
+        )}
+      </span>
+    </button>
+  );
+}
+
 export function CheckRow({ ok, label }) {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2 text-xs text-slate-300">

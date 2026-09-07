@@ -686,6 +686,7 @@ const { ensureInvoiceTemplateSchema } = await import("./services/invoiceTemplate
 const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGateway.js");
 const { default: whatsappDebugRoutes } = await import("./routes/whatsappDebug.js");
 const { default: whatsappQueueRoutes } = await import("./routes/whatsappQueue.js");
+const { default: whatsappAutomationsRoutes } = await import("./routes/whatsappAutomations.js");
 const { startWhatsappQueueWorker } = await import("./services/whatsappQueue/worker.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
 const { ensureOrdersSchema, ensurePosCheckoutSchema } = await import("./controllers/ordersController.js");
@@ -1971,8 +1972,10 @@ app.use("/api/roles", rolesRoutes);
 app.use("/api/notifications", notificationsRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/invoice-templates", invoiceTemplateRoutes);
-// Mounted before the gateway router so /api/whatsapp/queue/* is not swallowed by it.
+// Mounted before the gateway router so /api/whatsapp/queue/* and /api/whatsapp/automations are
+// not swallowed by it.
 app.use("/api/whatsapp/queue", whatsappQueueRoutes);
+app.use("/api/whatsapp/automations", whatsappAutomationsRoutes);
 app.use("/api/whatsapp", whatsappGatewayRoutes);
 app.use("/api/debug/whatsapp", whatsappDebugRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);

@@ -12,13 +12,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Gauge, LayoutGrid, Music2, Plug, RefreshCw, X } from "lucide-react";
+import { Gauge, LayoutGrid, Music2, Plug, Power, RefreshCw, X } from "lucide-react";
 import { FaFacebookF, FaInstagram, FaWhatsapp } from "react-icons/fa";
 
 import { api } from "../../../../shared/api/api";
 import MetaIntegrationPanel from "./MetaIntegrationPanel.jsx";
 import TikTokIntegrationPanel from "./TikTokIntegrationPanel.jsx";
 import WhatsAppIntegrationPanel from "./WhatsAppIntegrationPanel.jsx";
+import WhatsAppAutomationsPanel from "./WhatsAppAutomationsPanel.jsx";
 import WhatsAppQueuePanel from "./WhatsAppQueuePanel.jsx";
 import { ActionButton, PanelSection, StatusPill, clean, stateLabel } from "./integrationsUi.jsx";
 
@@ -28,6 +29,7 @@ const navLabel = (t, key) => {
   if (key === "whatsapp") return t("aiSupport.integrations.nav.whatsapp");
   if (key === "tiktok") return t("aiSupport.integrations.nav.tiktok");
   if (key === "queue") return t("aiSupport.integrations.nav.queue");
+  if (key === "automations") return t("aiSupport.integrations.nav.automations");
   return t("aiSupport.integrations.nav.overview");
 };
 
@@ -35,7 +37,7 @@ const SUPPRESSED = { suppressErrorStatuses: [400, 403, 404, 409, 500] };
 
 // Keep in sync with INTEGRATION_TAB_KEYS in AiInbox.jsx, which validates the
 // `?integrations=` deep link before this component is even loaded.
-const INTEGRATION_TABS = ["overview", "meta", "whatsapp", "queue", "tiktok"];
+const INTEGRATION_TABS = ["overview", "meta", "whatsapp", "automations", "queue", "tiktok"];
 
 const MetaGlyph = () => (
   <span className="relative inline-flex h-4 w-5 items-center" aria-hidden="true">
@@ -50,6 +52,7 @@ const TAB_ICON = {
   whatsapp: () => <FaWhatsapp className="h-4 w-4 text-emerald-300" aria-hidden="true" />,
   tiktok: () => <Music2 className="h-4 w-4 text-slate-200" aria-hidden="true" />,
   queue: () => <Gauge className="h-4 w-4 text-cyan-300" aria-hidden="true" />,
+  automations: () => <Power className="h-4 w-4 text-emerald-300" aria-hidden="true" />,
 };
 
 // Deliberately coarse. The panels compute the exact, actionable state; the rail
@@ -221,6 +224,7 @@ export default function IntegrationsCenter({ open, onClose, headers, initialTab 
             ) : null}
             {tab === "meta" ? <MetaIntegrationPanel onStatusChange={patchState.meta} /> : null}
             {tab === "whatsapp" ? <WhatsAppIntegrationPanel headers={headers} onStatusChange={patchState.whatsapp} /> : null}
+            {tab === "automations" ? <WhatsAppAutomationsPanel headers={headers} /> : null}
             {tab === "queue" ? <WhatsAppQueuePanel headers={headers} /> : null}
             {tab === "tiktok" ? <TikTokIntegrationPanel /> : null}
           </div>

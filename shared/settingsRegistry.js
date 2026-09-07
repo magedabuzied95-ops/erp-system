@@ -4,6 +4,7 @@ import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barco
 import { THERMAL_ARTWORK_DEFAULTS } from "./thermalArtworkSettings.js";
 import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.js";
 import { ABANDONED_CART_DEFAULTS } from "./abandonedCartDefaults.js";
+import { WHATSAPP_AUTOMATION_SWITCH_DEFAULTS } from "./whatsappAutomationDefaults.js";
 import { DEFAULT_SITE_DESIGN } from "./siteDesign.js";
 import {
   WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS,
@@ -152,6 +153,11 @@ const definitions = [
   ["orders.shipment_notifications", "shipping", "json", SHIPMENT_NOTIFICATION_DEFAULTS, "Shipment WhatsApp notifications", "رسائل الشحن على واتساب", "Per-status message templates and on/off switches. Edited from the gear in the Shipping Center.", "قوالب رسائل الشحن وتشغيلها أو إيقافها لكل حالة. تُعدَّل من ترس الإعدادات في مركز الشحن.", { usedBy: ["Shipping", "WhatsApp"] }],
   ["marketing.abandoned_cart_reminder", "ai_channels", "json", ABANDONED_CART_DEFAULTS, "Abandoned cart WhatsApp reminder", "تذكير السلة المتروكة على واتساب", "One carousel per abandonment: the saved cart's products as cards with a complete-order button. enabled / delay_minutes / max_cards / body / button_text.", "رسالة واحدة لكل سلة متروكة: منتجات السلة ككروت مع زر أكمل الطلب. التشغيل، مدة الانتظار بالدقائق، عدد الكروت، نص الرسالة ونص الزر.", { usedBy: ["Marketing", "WhatsApp"] }],
   ["orders.whatsapp_order_confirmation_template", "orders", "textarea", "تم استلام طلبك رقم {{order_number}}.", "WhatsApp order confirmation template", "رسالة تأكيد الطلب واتساب", "Template for order confirmation messages.", "قالب رسالة تأكيد الطلب."],
+
+  // The master on/off for each automatic WhatsApp message. Read together with the automation's
+  // own precondition (the POS auto-send flag, the reminder's `enabled`), never instead of it —
+  // see shared/whatsappAutomationDefaults.js. Manual sends bypass all of this.
+  ["whatsapp.automations", "ai_channels", "json", WHATSAPP_AUTOMATION_SWITCH_DEFAULTS, "Automatic WhatsApp messages", "رسائل واتساب التلقائية", "One switch per automatic message: invoice / order_confirmation / abandoned_cart. Off means the automation is not queued at all; a human can still send that message by hand from the order page. Edited from the AI Inbox gear, under Integrations.", "مفتاح تشغيل لكل رسالة تلقائية: الفاتورة، تأكيد الطلب، السلة المتروكة. الإيقاف يمنع إرسال الرسالة تلقائياً تماماً، ويظل بإمكان الموظف إرسالها يدوياً من صفحة الطلب. تُعدَّل من ترس صندوق الوارد، قسم التكاملات.", { usedBy: ["WhatsApp", "Orders", "POS", "Marketing"] }],
 
   // The WhatsApp outbound queue. Nothing here is a number this code claims WhatsApp considers
   // safe — every one of them is the operator's decision, which is exactly why they are settings

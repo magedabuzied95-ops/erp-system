@@ -7,6 +7,10 @@ import { summariseItems } from "./whatsappTemplates.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ABANDONED_CART_DEFAULTS } from "../../shared/abandonedCartDefaults.js";
+import {
+  WHATSAPP_AUTOMATION_SETTING_KEY,
+  whatsappAutomationEnabled,
+} from "../../shared/whatsappAutomationDefaults.js";
 import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 
@@ -176,6 +180,19 @@ const claimCart = async (row) => {
 };
 
 export const runAbandonedCartReminderTick = async () => {
+  /*
+   * Two answers, both the shop's, and both have to be yes.
+   *
+   * `whatsapp.automations.abandoned_cart` is the switch on the automations panel; `enabled` is the
+   * reminder's own flag, which predates the panel and which a shop may have set from the settings
+   * screen. The panel writes them together so they never disagree when edited there - reading both
+   * is what keeps an older answer from being silently overridden.
+   */
+  const switchOn = whatsappAutomationEnabled(
+    await getSetting(WHATSAPP_AUTOMATION_SETTING_KEY, undefined).catch(() => undefined),
+    "abandoned_cart"
+  );
+  if (!switchOn) return { sent: 0, reason: "automation_disabled" };
   const config = normalizeAbandonedCartConfig(await getSetting(ABANDONED_CART_SETTING_KEY, undefined));
   if (!config.enabled) return { sent: 0, reason: "disabled" };
   await ensureAbandonedCartSchema();
