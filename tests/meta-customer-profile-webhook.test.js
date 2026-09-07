@@ -89,6 +89,30 @@ test("storage: username and sync status are persisted, and no column upsert can 
   assert.match(source, /ADD COLUMN IF NOT EXISTS profile_sync_status TEXT NOT NULL DEFAULT ''/);
 });
 
+test("a Graph-sourced name is judged structurally, never by the chat-message heuristics", () => {
+  // persistMessengerProfile and the cache read must use the Graph filter; the
+  // message-capture filter (isUnsafeMessengerStoredName) belongs to chat text only.
+  const persistStart = source.indexOf("const persistMessengerProfile = async");
+  const persistSource = source.slice(persistStart, source.indexOf("\n};", persistStart));
+  assert.match(persistSource, /const name = isPlausibleMetaProfileName\(candidateName\) \? candidateName : "";/);
+  assert.doesNotMatch(persistSource, /isUnsafeMessengerStoredName\(candidateName\)/);
+  assert.match(source, /const safeName = isPlausibleMetaProfileName\(fullName\) \? fullName : "";/);
+  // the cached read prefers the Graph name once the row carries a sync timestamp
+  assert.match(source, /const graphSourced = Boolean\(row\.last_profile_sync_at/);
+  assert.match(source, /graphSourced && isPlausibleMetaProfileName\(graphName\)/);
+
+  const inbox = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
+  assert.match(inbox, /import \{ isPlausibleMetaProfileName \} from "\.\/metaCustomerProfileService\.js"/);
+  assert.match(inbox, /if \(isMessenger && graphSourced\) \{/);
+  assert.match(inbox, /if \(!isPlausibleMetaProfileName\(name\) \|\| idCandidates\.includes\(name\.replace\(\/\\s\+\/g, ""\)\)\) continue;/);
+  assert.match(inbox, /p\.last_profile_sync_at AS profile_last_sync_at,/);
+  assert.match(inbox, /customerProfile: conversation\.profile_last_sync_at/);
+
+  const ui = fs.readFileSync(new URL("../src/modules/aiSupport/lib/customerIdentity.js", import.meta.url), "utf8");
+  assert.match(ui, /export const isPlausibleProfileName = \(value = ""\) => \{/);
+  assert.match(ui, /candidates\.find\(\(candidate\) => isPlausibleProfileName\(candidate\)\)/);
+});
+
 test("manual refresh + sync accept Instagram conversations (not Messenger-only any more)", () => {
   assert.match(source, /const syncInstagramProfileForConversation = async/);
   assert.match(source, /if \(refreshChannel === AI_AGENT_CHANNELS\.INSTAGRAM\)/);

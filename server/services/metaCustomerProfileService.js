@@ -56,6 +56,20 @@ export const normalizeMetaProfileChannel = (channel = "") => {
 
 export const isMetaScopedUserId = (value = "") => /^\d{5,}$/.test(text(value));
 
+// A name Meta itself returned is authoritative. It only has to look like a name
+// structurally (bounded, printable, has a letter, not a bare id). The message-fragment
+// heuristics that guard names captured from chat text ("ممكن صور…") must NOT run on
+// it: "هايدي", "شيفين", "Mohamed A." and "Ahmed 2020" are real people, and the
+// substring/digit/punctuation rules threw their Graph names away.
+export const isPlausibleMetaProfileName = (value = "") => {
+  const candidate = text(value).replace(/\s+/g, " ");
+  if (!candidate || candidate.length > 80) return false;
+  if (/\p{Cc}/u.test(candidate)) return false;
+  if (isMetaScopedUserId(candidate.replace(/\s+/g, ""))) return false;
+  if (!/\p{L}/u.test(candidate)) return false;
+  return true;
+};
+
 // Which host + fields + token answer for a channel. Instagram is the only channel
 // whose host depends on the token type.
 export const resolveMetaProfileRequest = ({ channel = "", externalCustomerId = "", instagramBusinessLogin = false } = {}) => {

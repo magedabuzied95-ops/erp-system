@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   META_PROFILE_CHANNELS,
   classifyMetaProfileError,
+  isPlausibleMetaProfileName,
   createMetaProfileCoordinator,
   mergeMetaProfile,
   normalizeMetaProfilePayload,
@@ -66,6 +67,30 @@ test("Messenger payload keeps first/last name and builds a full name; Instagram 
     payload: { id: "2", name: "Maged", username: "@maged.store", profile_pic: "https://cdn.example/b.jpg" },
   });
   assert.deepEqual(instagram, { first_name: "Maged", last_name: "", name: "Maged", username: "maged.store", profile_pic: "https://cdn.example/b.jpg" });
+});
+
+// ---------------------------------------------------------------------------
+// A name Meta returned is authoritative: the chat-text heuristics must not eat it.
+// ---------------------------------------------------------------------------
+test("real customer names Meta returns are kept, including ones the message heuristics rejected", () => {
+  for (const name of [
+    "هايدي",
+    "شيفين",
+    "عبد العزيز البغدادي",
+    "Ahmed 2020",            // digits: a message-fragment rule threw this away
+    "Mohamed A.",            // a full stop: same
+    "محمد احمد على حسن ابراهيم", // five words: same
+    "فين مصطفى",             // contains "فين", an intent token
+    "اهلاً سيد",             // contains "اهلا"
+  ]) {
+    assert.equal(isPlausibleMetaProfileName(name), true, `${name} must survive as a profile name`);
+  }
+});
+
+test("a scoped id, an empty value, an over-long string or a name with no letter is still rejected", () => {
+  for (const name of ["", "   ", "5036593356360590", "123 456", "x".repeat(81), "!!!"]) {
+    assert.equal(isPlausibleMetaProfileName(name), false, `${JSON.stringify(name)} must not become a name`);
+  }
 });
 
 // ---------------------------------------------------------------------------

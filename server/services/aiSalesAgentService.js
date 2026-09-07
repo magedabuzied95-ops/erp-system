@@ -4,6 +4,7 @@ import { getPerfContext } from "../utils/perfDebug.js";
 import { resolveConversationChannel, resolvedConversationChannelSql } from "../utils/inboxChannelIdentity.js";
 import { emitToRooms } from "../utils/socket.js";
 import { resolveAiProductUrl } from "./aiProductEligibilityService.js";
+import { isPlausibleMetaProfileName } from "./metaCustomerProfileService.js";
 // Phase 11.2 — canonical helpers to enrich a grounded card into a send-ready product card (image/url/price/sizes).
 import { resolvePublicProductUrl, resolvePublicProductImageUrl, resolveProductImageFromRecord, availableProductSizes } from "./aiProductCards.js";
 import {
@@ -1407,45 +1408,53 @@ export const resolveConversationDisplayName = ({ conversation = {}, customerProf
   const messengerProfile = conversation.channel_metadata?.messenger_profile || conversation.channel_metadata?.customer_profile || profile?.messenger_profile || {};
   const sessionId = text(conversation.session_id || conversation.conversation_key || "");
   const externalConversationId = text(conversation.external_conversation_id || "");
+  // [value, graphSourced]. Names Meta itself returned (the profile row's display
+  // columns and the messenger_profile blob) are checked structurally only; every
+  // other candidate may be a chat capture and goes through the message heuristics.
   const candidates = [
-    profile.name,
-    profile.display_name,
-    profile.facebook_name,
-    profile.messenger_name,
-    profile.full_name,
-    profile.sender_name,
-    profile.profile_name,
-    profile.contact_name,
-    [profile.first_name, profile.last_name].filter(Boolean).join(" "),
-    messengerProfile.name,
-    messengerProfile.display_name,
-    messengerProfile.facebook_name,
-    messengerProfile.messenger_name,
-    messengerProfile.full_name,
-    messengerProfile.sender_name,
-    messengerProfile.profile_name,
-    messengerProfile.contact_name,
-    [messengerProfile.first_name, messengerProfile.last_name].filter(Boolean).join(" "),
-    conversation.channel_customer_name,
-    conversation.session_customer_name,
-    customerName,
-    conversation.customer_name,
-    conversation.customer?.name,
-    conversation.display_name,
-    conversation.participant_name,
-    conversation.facebook_name,
-    conversation.messenger_name,
-    conversation.sender_name,
-    conversation.profile_name,
-    conversation.contact_name,
-    [conversation.first_name, conversation.last_name].filter(Boolean).join(" "),
+    [profile.display_name, true],
+    [profile.facebook_name, true],
+    [profile.messenger_name, true],
+    [messengerProfile.name, true],
+    [messengerProfile.display_name, true],
+    [messengerProfile.facebook_name, true],
+    [messengerProfile.messenger_name, true],
+    [[messengerProfile.first_name, messengerProfile.last_name].filter(Boolean).join(" "), true],
+    [profile.name, false],
+    [profile.full_name, false],
+    [profile.sender_name, false],
+    [profile.profile_name, false],
+    [profile.contact_name, false],
+    [[profile.first_name, profile.last_name].filter(Boolean).join(" "), false],
+    [messengerProfile.full_name, false],
+    [messengerProfile.sender_name, false],
+    [messengerProfile.profile_name, false],
+    [messengerProfile.contact_name, false],
+    [conversation.channel_customer_name, false],
+    [conversation.session_customer_name, false],
+    [customerName, false],
+    [conversation.customer_name, false],
+    [conversation.customer?.name, false],
+    [conversation.display_name, false],
+    [conversation.participant_name, false],
+    [conversation.facebook_name, false],
+    [conversation.messenger_name, false],
+    [conversation.sender_name, false],
+    [conversation.profile_name, false],
+    [conversation.contact_name, false],
+    [[conversation.first_name, conversation.last_name].filter(Boolean).join(" "), false],
   ];
   if (!isMessenger) {
-    candidates.push(conversation.external_customer_id, conversation.phone);
+    candidates.push([conversation.external_customer_id, false], [conversation.phone, false]);
   }
-  for (const candidate of candidates) {
+  const idCandidates = [sessionId, externalConversationId].map((item) => extractMessengerPsidFromIdentity(item)).filter(Boolean);
+  for (const [candidate, graphSourced] of candidates) {
     const name = text(candidate);
     if (!name) continue;
+    if (isMessenger && graphSourced) {
+      if (!isPlausibleMetaProfileName(name) || idCandidates.includes(name.replace(/\s+/g, ""))) continue;
+      return name;
+    }
     if (isMessenger && !isHumanReadableDisplayName(name, { sessionId, externalConversationId })) continue;
     if (!isMessenger) {
       const normalized = lower(name);
@@ -2508,6 +2517,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       c.customer_name AS channel_customer_name,
       p.display_name AS profile_display_name,
       p.username AS profile_username,
+      p.last_profile_sync_at AS profile_last_sync_at,
       p.customer_name AS profile_customer_name,
       p.first_name AS profile_first_name,
       p.last_name AS profile_last_name,
@@ -2766,6 +2776,16 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ? text(readableCommenterName || "مستخدم فيسبوك")
       : resolveConversationDisplayName({
           conversation,
+          // The profile row's display columns are what Meta returned, but only once
+          // the row carries a sync timestamp; before that they are an old capture.
+          customerProfile: conversation.profile_last_sync_at
+            ? {
+                display_name: text(conversation.profile_display_name),
+                facebook_name: text(conversation.profile_display_name),
+                first_name: text(conversation.profile_first_name),
+                last_name: text(conversation.profile_last_name),
+              }
+            : {},
           customerName: text(
             conversation.profile_display_name ||
             conversation.profile_customer_name ||

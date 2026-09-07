@@ -123,6 +123,7 @@ import {
   INSTAGRAM_PROFILE_FIELDS,
   MESSENGER_PROFILE_FIELDS,
   classifyMetaProfileError,
+  isPlausibleMetaProfileName,
   metaProfileCoordinator,
   normalizeMetaProfileChannel,
   normalizeMetaProfilePayload,
@@ -2592,7 +2593,8 @@ const messengerDisplayName = ({ firstName = "", lastName = "", fallback = "" } =
   [text(firstName), text(lastName)].filter(Boolean).join(" ") || text(fallback);
 const normalizeMessengerProfileRecord = ({ firstName = "", lastName = "", displayName = "", externalCustomerId = "", profilePic = "", profileFetchedAt = "", username = "" } = {}) => {
   const fullName = messengerDisplayName({ firstName, lastName, fallback: displayName });
-  const safeName = isUnsafeMessengerStoredName(fullName) ? "" : fullName;
+  // Graph-sourced: structural check only (see isPlausibleMetaProfileName).
+  const safeName = isPlausibleMetaProfileName(fullName) ? fullName : "";
   const safeUsername = text(username).replace(/^@/, "");
   return {
     first_name: text(firstName),
@@ -2977,7 +2979,15 @@ const getCachedMessengerProfile = async ({ tenantId, channel, conversationId, ps
   const profileFetchedAt = resolveMessengerProfileFetchedAt(row)?.toISOString() || "";
   const firstName = text(row.first_name || profilePayload.first_name || metadataProfile.first_name);
   const lastName = text(row.last_name || profilePayload.last_name || metadataProfile.last_name);
-  const name = safeMessengerDisplayName({
+  // A profile Meta answered (sync timestamp present) is read back with the structural
+  // check only; otherwise the stored name is treated as a chat capture and filtered.
+  const graphSourced = Boolean(row.last_profile_sync_at || profilePayload.profile_fetched_at || metadataProfile.profile_fetched_at);
+  const graphName = messengerDisplayName({
+    firstName,
+    lastName,
+    fallback: text(row.display_name || profilePayload.name || profilePayload.display_name || metadataProfile.name || metadataProfile.display_name || ""),
+  });
+  const name = graphSourced && isPlausibleMetaProfileName(graphName) ? graphName : safeMessengerDisplayName({
     firstName,
     lastName,
     fallback: resolveMessengerConversationDisplayName({
@@ -3039,7 +3049,9 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     lastName,
     fallback: text(profile.name || profile.display_name || profile.facebook_name || profile.messenger_name || ""),
   });
-  const name = isUnsafeMessengerStoredName(candidateName) ? "" : candidateName;
+  // The name came from Graph, so only the structural check applies; the chat-text
+  // heuristics (isUnsafeMessengerStoredName) are for names captured from messages.
+  const name = isPlausibleMetaProfileName(candidateName) ? candidateName : "";
   const profilePic = text(profile.profile_pic);
   const username = text(profile.username).replace(/^@/, "");
   if (!tenantId || !psid || (!name && !profilePic && !username)) return null;

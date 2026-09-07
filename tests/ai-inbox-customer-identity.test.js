@@ -58,6 +58,17 @@ test("last resort is the tail of the Meta user id — never the full id, never t
   assert.equal(metaCustomerDisplayName({ channel: "instagram", customer_name: "", external_customer_id: "1044077131364783" }).includes("1044077131364783"), false);
 });
 
+test("a name that came from the Meta profile is shown even when it trips the chat-text rules", () => {
+  for (const name of ["Ahmed 2020", "Mohamed A.", "هايدي", "فين مصطفى", "محمد احمد على حسن ابراهيم"]) {
+    const identity = resolveMetaCustomerIdentity({
+      channel: "facebook_messenger",
+      external_customer_id: "5036593356360590",
+      customer_profile: { display_name: name },
+    });
+    assert.deepEqual(identity, { name, source: "profile", kind: "messenger" }, `${name} must render as the customer name`);
+  }
+});
+
 test("a stored name that is really a message, an id or a generic label is not usable", () => {
   assert.equal(isUsableStoredName("ممكن صور جوردن فور"), false);
   assert.equal(isUsableStoredName("5036593356360590"), false);

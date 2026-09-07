@@ -57,6 +57,18 @@ export const isUsableStoredName = (value = "") => {
   return true;
 };
 
+// A name Meta returned is authoritative: it only has to look like a name, not pass
+// the message-fragment heuristics that guard names captured from chat text. Those
+// rules reject real people ("Ahmed 2020", "Mohamed A.", a five-word Arabic name).
+export const isPlausibleProfileName = (value = "") => {
+  const candidate = clean(value).replace(/\s+/g, " ");
+  if (!candidate || candidate.length > 80) return false;
+  if (/[\r\n\t]/.test(candidate)) return false;
+  if (isMetaScopedUserId(candidate.replace(/\s+/g, ""))) return false;
+  if (isGenericMetaCustomerName(candidate)) return false;
+  return /\p{L}/u.test(candidate);
+};
+
 export const metaChannelKind = (conversation = {}) => {
   const raw = clean(conversation?.channel || conversation?.source || conversation?.provider || conversation?.platform).toLowerCase();
   const threadKind = clean(conversation?.thread_kind || conversation?.channel_metadata?.thread_kind).toLowerCase();
@@ -113,7 +125,7 @@ export const metaCustomerProfileName = (conversation = {}) => {
     conversation?.facebook_name,
     conversation?.messenger_name,
   ];
-  return clean(candidates.find((candidate) => isUsableStoredName(candidate)) || "");
+  return clean(candidates.find((candidate) => isPlausibleProfileName(candidate)) || "");
 };
 
 export const metaCustomerStoredName = (conversation = {}) => {
