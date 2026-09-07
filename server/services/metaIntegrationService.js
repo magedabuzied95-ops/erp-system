@@ -16055,10 +16055,53 @@ const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
   return step;
 };
 
-const resolveSocialCommentSalesFlowPrice = async ({ tenantId = null, product = {} } = {}) => {
+// The Phase 1 pricing contract is manual override → purchase_selling_price → legacy columns, and
+// for a large part of this catalogue the purchase-derived price is the ONLY one that exists — the
+// legacy product columns are 0. So the price lives on the VARIANT and the variants must be handed
+// to the resolver, or it reads 0 from an empty product row and quotes nothing.
+const SOCIAL_COMMENT_PRICE_COLUMNS = `
+  selling_price,
+  sale_price,
+  price,
+  regular_price,
+  purchase_selling_price,
+  manual_selling_price,
+  manual_price_override_active`;
+
+const loadSocialCommentPricedVariantRows = async ({ tenantId = null, productId = null, selectedSize = "", selectedColor = "" } = {}) => {
+  const safeProductId = Number(productId || 0);
+  if (!Number.isFinite(safeProductId) || safeProductId <= 0) return [];
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      product_id,
+      size,
+      color,
+      sku,
+      barcode,
+      COALESCE(stock, 0) AS stock,
+      ${SOCIAL_COMMENT_PRICE_COLUMNS}
+    FROM product_variants
+    WHERE product_id = $1
+      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      AND COALESCE(stock, 0) > 0
+      AND ($3::text = '' OR LOWER(TRIM(COALESCE(size, ''))) = LOWER(TRIM($3::text)))
+      AND ($4::text = '' OR LOWER(TRIM(COALESCE(color, ''))) = LOWER(TRIM($4::text)))
+    ORDER BY id ASC
+    `,
+    [safeProductId, Number(tenantId || 0), text(selectedSize), text(selectedColor)]
+  ).catch(() => ({ rows: [] }));
+  return Array.isArray(result.rows) ? result.rows : [];
+};
+
+const resolveSocialCommentSalesFlowPrice = async ({ tenantId = null, product = {}, variants = [] } = {}) => {
+  const pricedVariants = asArray(variants);
   const resolved = await resolveSocialProductDisplayPrice({
     tenantId,
     product: product || {},
+    variants: pricedVariants,
+    availableVariants: pricedVariants,
     context: {
       product_id: product?.id || product?.product_id || null,
       product_name: product?.name || product?.product_name || "",
@@ -16110,9 +16153,7 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
           slug,
           canonical_slug,
           image_url,
-          selling_price,
-          sale_price,
-          price
+          ${SOCIAL_COMMENT_PRICE_COLUMNS}
         FROM products
         WHERE id = $1
           AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
@@ -16122,6 +16163,7 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
       ).catch(() => ({ rows: [] }));
       const product = productResult.rows?.[0] || null;
       if (!product) return null;
+      const pricedVariants = await loadSocialCommentPricedVariantRows({ tenantId: safeTenantId, productId: safeProductId });
       const [resolvedLink, priceUsed] = await Promise.all([
         resolveStorefrontProductLink({
           tenantId: safeTenantId,
@@ -16133,7 +16175,7 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
             canonical_slug: product.canonical_slug || "",
           },
         }).catch(() => null),
-        resolveSocialCommentSalesFlowPrice({ tenantId: safeTenantId, product }),
+        resolveSocialCommentSalesFlowPrice({ tenantId: safeTenantId, product, variants: pricedVariants }),
       ]);
       return {
         productId: Number(product.id || 0) || null,
@@ -16163,9 +16205,7 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
       slug,
       canonical_slug,
       image_url,
-      selling_price,
-      sale_price,
-      price
+      ${SOCIAL_COMMENT_PRICE_COLUMNS}
     FROM products
     WHERE id = $1
       AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
@@ -16185,9 +16225,7 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
       sku,
       barcode,
       COALESCE(stock, 0) AS stock,
-      price,
-      sale_price,
-      selling_price
+      ${SOCIAL_COMMENT_PRICE_COLUMNS}
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
@@ -16220,9 +16258,15 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     slug: text(productRow.slug || ""),
     canonical_slug: text(productRow.canonical_slug || ""),
     image_url: text(productRow.image_url || ""),
+    // The Phase 1 contract fields travel with the row or the resolver silently reads 0: for much
+    // of this catalogue the purchase-derived price is the ONLY price that exists.
     price: moneyNumberOrZero(productRow.price),
     sale_price: moneyNumberOrZero(productRow.sale_price),
     selling_price: moneyNumberOrZero(productRow.selling_price),
+    regular_price: moneyNumberOrZero(productRow.regular_price),
+    purchase_selling_price: moneyNumberOrZero(productRow.purchase_selling_price),
+    manual_selling_price: moneyNumberOrZero(productRow.manual_selling_price),
+    manual_price_override_active: productRow.manual_price_override_active === true,
     confidence: 1,
   };
   const variant = {
@@ -16238,6 +16282,10 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     price: moneyNumberOrZero(variantRow.price),
     sale_price: moneyNumberOrZero(variantRow.sale_price),
     selling_price: moneyNumberOrZero(variantRow.selling_price),
+    regular_price: moneyNumberOrZero(variantRow.regular_price),
+    purchase_selling_price: moneyNumberOrZero(variantRow.purchase_selling_price),
+    manual_selling_price: moneyNumberOrZero(variantRow.manual_selling_price),
+    manual_price_override_active: variantRow.manual_price_override_active === true,
   };
   const resolvedPrice = await resolveSocialProductDisplayPrice({
     tenantId: safeTenantId,
@@ -16999,11 +17047,23 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     commentId = "",
   } = {}) => {
     const normalizedColor = text(selectedColor || "");
+    // Price the EXACT variant once colour and size are settled: on this catalogue the price lives
+    // on the variant (manual override / purchase-derived), so two colours of one product can be
+    // worth different money and a product-level figure would quote the wrong one.
+    const summaryVariantData = selectedSize && normalizedColor
+      ? await resolveSocialCommentSalesFlowDraftOrderData({
+          tenantId: config.tenant_id,
+          productId,
+          selectedSize,
+          selectedColor: normalizedColor,
+        }).catch(() => null)
+      : null;
+    const summaryPriceUsed = text(summaryVariantData?.selectedPriceText || "") || text(productData?.priceUsed || "");
     const summaryMessage = buildSocialCommentOrderSummaryMessageV2({
       productName: productData?.productName || "",
       selectedSize,
       selectedColor: normalizedColor,
-      priceUsed: productData?.priceUsed || "",
+      priceUsed: summaryPriceUsed,
     });
     const quickReplies = [
       {
@@ -17029,7 +17089,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         comment_id: text(commentId),
         product_name: text(productData?.productName || ""),
         product_link: text(productData?.productLink || ""),
-        price_used: text(productData?.priceUsed || ""),
+        price_used: summaryPriceUsed,
       },
       reason: "social_comment_sales_flow_summary",
       callsite: "sendOrderSummary",
@@ -17042,7 +17102,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       product_id: Number(productId || 0) || null,
       size: text(selectedSize),
       color: normalizeSocialCommentColorDisplay(selectedColor),
-      price_used: text(productData?.priceUsed || ""),
+      price_used: summaryPriceUsed,
       text_preview: text(summaryMessage).slice(0, 500),
     });
     console.log("SOCIAL_COMMENT_ORDER_SUMMARY_OUTBOUND_PAYLOAD", {

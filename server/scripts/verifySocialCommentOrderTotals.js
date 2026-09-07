@@ -109,7 +109,37 @@ assert.match(
   "the order line must record its colour"
 );
 
-// ── 3. An unpriced product stops the order ────────────────────────────────────────────────────
+// ── 3. The flow reads the price where the price actually lives ────────────────────────────────
+// Phase 1 contract: manual override → purchase_selling_price → legacy columns. For much of this
+// catalogue the purchase-derived price is the ONLY price, and it sits on the VARIANT. The social
+// flow selected `selling_price, sale_price, price` only, so it read 0 for product 769 and
+// invoiced INV-1215 at 0.00 while the storefront was correctly showing 900.
+const { resolveCurrentSellingPrice } = await import("../../src/shared/lib/currentSellingPrice.js");
+const emptyProduct = { selling_price: 0, price: 0, regular_price: 0 };
+assert.equal(
+  resolveCurrentSellingPrice({
+    product: emptyProduct,
+    variant: { selling_price: 0, price: 0, purchase_selling_price: 900, manual_selling_price: 900, manual_price_override_active: true },
+  }).value,
+  900,
+  "the price contract must find a variant-level price when the legacy columns are all zero"
+);
+
+for (const column of ["purchase_selling_price", "manual_selling_price", "manual_price_override_active", "regular_price"]) {
+  assert.ok(
+    new RegExp("^\\s*" + column + "[,`;]*\\s*$", "m").test(metaService),
+    `the social flow must SELECT ${column} — the price contract reads 0 without it`
+  );
+}
+// Selecting the columns is useless if they are dropped when the row is reshaped for the resolver.
+const draftDataStart = metaService.indexOf("const resolveSocialCommentSalesFlowDraftOrderData = async");
+assert.ok(draftDataStart > 0, "the draft-order data resolver is gone");
+const draftDataBody = metaService.slice(draftDataStart, metaService.indexOf("const createSocialCommentDraftOrder", draftDataStart));
+for (const field of ["purchase_selling_price: moneyNumberOrZero(variantRow.purchase_selling_price)", "manual_price_override_active: variantRow.manual_price_override_active === true"]) {
+  assert.ok(draftDataBody.includes(field), `the resolved variant must carry ${field.split(":")[0]}`);
+}
+
+// ── 4. An unpriced product stops the order ────────────────────────────────────────────────────
 assert.match(
   metaService,
   /code: "MISSING_PRODUCT_PRICE"/,
