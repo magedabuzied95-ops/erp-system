@@ -25196,7 +25196,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         callsite: "AWAITING_CUSTOMER_DATA_SHIPPING_PARSER",
       });
       if (shippingMissingFields.length) {
-        await sendAndLogMetaText({
+        await sendSocialCommentSalesFlowText({
           config,
           message,
           text: "استلمت رسالتك ✅\nبرجاء إرسال البيانات بهذا الترتيب:\nالاسم\nرقم الهاتف\nالمحافظة\nالعنوان بالتفصيل",
@@ -25275,7 +25275,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           "",
           "شكراً لاختيارك M1 Store",
         ].join("\n");
-        const ackResult = await sendAndLogMetaText({
+        const ackResult = await sendSocialCommentSalesFlowText({
           config,
           message,
           text: successText,
@@ -25405,7 +25405,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         price_used: text(shippingProductData?.priceUsed || socialCommentCurrentSalesFlow.price_used || ""),
         text_preview: text(reviewMessage).slice(0, 500),
       });
-      const reviewResult = await sendAndLogMetaText({
+      const reviewResult = await sendSocialCommentSalesFlowText({
         config,
         message,
         text: reviewMessage,
