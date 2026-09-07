@@ -7237,7 +7237,24 @@ const deriveCommentId = ({ platform = "", postId = "", parentCommentId = "", com
   return `comment:${crypto.createHash("sha256").update(source).digest("hex")}`;
 };
 
-const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, tenantId = null } = {}) => {
+// Every id that IS us on this webhook: the page/IG account the change belongs to
+// (`entry.id`), whatever the change names as its own page, and the ids on the
+// tenant's connected account. A comment whose author matches one of these was
+// written by the page itself, not by a customer.
+const buildSocialCommentSelfActorIds = ({ entry = {}, value = {}, extraIds = [] } = {}) =>
+  new Set(
+    [
+      entry?.id,
+      value?.page_id,
+      value?.metadata?.page_id,
+      value?.account_id,
+      ...asArray(extraIds),
+    ]
+      .map((id) => text(id))
+      .filter(Boolean)
+  );
+
+const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, tenantId = null, selfActorIds = [] } = {}) => {
   const value = change.value || {};
   const platform = normalizedPlatform(body);
   const channel = normalizedChannel(platform);
@@ -7285,12 +7302,19 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   const commentUrl = postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "";
   const classification = classifySocialCommentIntent(originalCommentText);
   const pageId = firstText(entry.id, value.page_id, value.metadata?.page_id, value.account_id);
+  // The page's own public reply comes straight back as a `feed`/`comments` change
+  // with from.id === the page id. Treated as a customer comment it made the page
+  // answer itself, and that answer fired the next webhook — an endless loop of the
+  // page greeting itself by name. Mark it here; the store refuses to automate it.
+  const selfActors = buildSocialCommentSelfActorIds({ entry, value, extraIds: selfActorIds });
+  const isPageAuthored = Boolean(commenterId && selfActors.has(commenterId));
   console.log("[COMMENT_EVENT_PARSED]", {
     platform,
     page_id: pageId,
     post_id: postId,
     comment_id: commentId,
     from_id: commenterId,
+    is_page_authored: isPageAuthored,
     text_length: originalCommentText.length,
   });
   console.info("SOCIAL_COMMENT_POST_IDENTITY_TRACE", {
@@ -7326,6 +7350,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     tenant_id: tenantId,
     platform,
     channel,
+    is_page_authored: isPageAuthored,
     attachments: commentAttachments,
     post_id: postId,
     post_permalink: postPermalink,
@@ -7355,6 +7380,8 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
       source: "meta_webhook",
       body_object: body.object || "",
       entry_id: entry.id || "",
+      page_id: pageId,
+      is_page_authored: isPageAuthored,
       field: change.field || "",
       item: value.item || "",
       verb: value.verb || "",
@@ -7374,7 +7401,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   };
 };
 
-export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null } = {}) => {
+export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null, selfActorIds = [] } = {}) => {
   const events = [];
   asArray(body.entry).forEach((entry) => {
     asArray(entry.changes).forEach((change) => {
@@ -7410,8 +7437,18 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
         object: text(body.object || ""),
         entry_id: entry.id || "",
       });
-      const normalized = normalizeCommentWebhookChange({ body, entry, change, tenantId });
+      const normalized = normalizeCommentWebhookChange({ body, entry, change, tenantId, selfActorIds });
       if (!normalized.comment_id) return;
+      if (normalized.is_page_authored) {
+        console.log("SOCIAL_COMMENT_WEBHOOK_PAGE_AUTHORED", {
+          tenant_id: tenantId,
+          platform: normalized.platform,
+          post_id: normalized.post_id,
+          comment_id: normalized.comment_id,
+          from_id: normalized.commenter_id,
+          from_name: normalized.commenter_name,
+        });
+      }
       events.push(normalized);
     });
   });
@@ -7422,6 +7459,9 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
   await ensureSocialCommentAutomationSchema();
   const stored = [];
   for (const event of asArray(events)) {
+    // The page is never a customer. Its own comments are kept as thread history and
+    // nothing else: no automation, and no lead conversation carrying the page's name.
+    const pageAuthored = event.is_page_authored === true || event.raw_payload?.is_page_authored === true;
     const webhookReceivedAt = normalizeTimestampForDb(
       event.webhook_received_at ||
       event.raw_payload?.webhook_received_at ||
@@ -7628,6 +7668,17 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         source: text(storedRow.raw_payload?.source || event.raw_payload?.source || "meta_webhook"),
       });
       emitSocialCommentNew(storedRow);
+    }
+    if (pageAuthored) {
+      console.log("SOCIAL_COMMENT_PAGE_AUTHORED_NOT_AUTOMATED", {
+        tenant_id: Number(storedRow.tenant_id || 0) || null,
+        platform: text(storedRow.platform || ""),
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        from_id: text(storedRow.commenter_id || ""),
+      });
+      stored.push(storedRow);
+      continue;
     }
     if (skipAutomation) {
       const materialization = await materializeSocialCommentInboxConversation({

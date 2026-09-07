@@ -8960,7 +8960,7 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
       });
       await storeSocialCommentAutomationRuns({
         tenantId: safeTenantId,
-        events: [event],
+        events: [{ ...event, is_page_authored: isPageOwnedComment }],
         skipAutomation: isPageOwnedComment,
       });
       commentsSaved += 1;
@@ -9286,7 +9286,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
 
             await storeSocialCommentAutomationRuns({
               tenantId: safeTenantId,
-              events: [event],
+              events: [{ ...event, is_page_authored: isPageOwnedComment }],
               skipAutomation: isPageOwnedComment,
             });
             totals.comments_saved += 1;
@@ -24573,7 +24573,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
     has_messaging: Array.isArray(payload.entry) ? payload.entry.some((entry) => Array.isArray(entry?.messaging) && entry.messaging.length > 0) : false,
   });
   await markMetaWebhookSeen({ tenantId: config.tenant_id, receivedAt: webhookReceivedAt });
-  const commentEvents = extractSocialCommentWebhookEvents({ body: payload, tenantId: config.tenant_id }).map((event) => ({
+  // The ids that are US. `instagramBusinessAccountIds` is deliberately NOT in this
+  // list: webhookAccountIdsFromBody folds every Instagram commenter's from.id into
+  // it, so using it here would brand real customers as the page.
+  const selfActorIds = [
+    config.facebook_page_id,
+    config.page_id,
+    config.instagram_business_account_id,
+    config.instagram_account_id,
+  ].map(text).filter(Boolean);
+  const commentEvents = extractSocialCommentWebhookEvents({ body: payload, tenantId: config.tenant_id, selfActorIds }).map((event) => ({
     ...event,
     webhook_received_at: webhookReceivedAt,
     detected_at: webhookReceivedAt,
