@@ -199,7 +199,10 @@ const floodBackground = (gray, width, height, threshold, inset = 0) => {
  */
 const SINGLE_ITEM_KEEP_MIN = 0.3;
 const SINGLE_ITEM_KEEP_MAX = 0.85;
-const SINGLE_ITEM_MIN_IOU = 0.75;
+// The Shox pair scored just under 0.75 on the production (WebAssembly) runtime
+// and was left as a pair; the share and position guards below are what
+// actually protect the product, so the confidence bar can sit lower.
+const SINGLE_ITEM_MIN_IOU = 0.65;
 // The segmentation model sees the photo decoded fresh at this size, not the
 // label canvas upscaled: fed the 448 px canvas it lumped the pair together
 // with the front shoe, fed a clean 512 px decode it separates them.
