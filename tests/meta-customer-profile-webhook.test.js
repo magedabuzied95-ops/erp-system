@@ -106,12 +106,14 @@ test("the backfill script goes through the production enrichment with forceRefre
   const script = fs.readFileSync(new URL("../server/scripts/backfillMetaCustomerProfiles.js", import.meta.url), "utf8");
   assert.match(script, /import \{ enrichMessengerProfile \} from "\.\.\/services\/metaIntegrationService\.js"/);
   assert.match(script, /forceRefresh: true/);
-  assert.match(script, /isGraphRateLimitError\(error\)/);
-  assert.match(script, /shouldDeferBackgroundGraphWork\(\)/);
-  assert.match(script, /recentlyDone\(state, key\)/);
-  assert.match(script, /rememberedUnavailable\(state, key\)/);
+  assert.match(script, /isRateLimitError: isGraphRateLimitError/);
+  assert.match(script, /shouldDefer: shouldDeferBackgroundGraphWork/);
+  assert.match(script, /runMetaProfileBackfill\(\{/);
   assert.match(script, /--probe/);
   assert.doesNotMatch(script, /console\.log\([^)]*token/i);
+  const runner = fs.readFileSync(new URL("../server/scripts/lib/metaProfileBackfillRunner.js", import.meta.url), "utf8");
+  assert.match(runner, /recentlyDone\(\{ state, key, skipHours, force, now \}\)/);
+  assert.match(runner, /rememberedUnavailable\(\{ state, key, force, now, unavailableRetryMs \}\)/);
 });
 
 test("the new service file is allow-listed past the server/services ignore rule", () => {
