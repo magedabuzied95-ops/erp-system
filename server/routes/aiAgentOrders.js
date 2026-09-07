@@ -1643,6 +1643,9 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
         sourcePath: "whatsapp_cloud_webhook",
         insertSource: "whatsapp_cloud_webhook",
         resolvedPhone: message.external_customer_id,
+        // Which of our numbers this arrived on. Without it the reply falls back to the global
+        // default transport, which is Evolution — a different, and currently dead, number.
+        whatsappInstance: metadata?.phone_number_id ? `cloud:${metadata.phone_number_id}` : "",
       }).catch((error) => {
         console.warn("[ai-agent:whatsapp] inbound persistence failed", { tenantId, conversationId: message.external_conversation_id, message: error?.message });
         return null;
@@ -6204,11 +6207,22 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
         meta: { mocked: true, channel, reason: "regression_mock_delivery" },
       };
     } else if (isWhatsAppConversation) {
+      /*
+       * Answer from the number the customer actually wrote to.
+       *
+       * The conversation's own metadata is the first answer, but it is only set for conversations
+       * that arrived after the mapping existed. resolveWhatsappConversationInstance is the second:
+       * it falls back to the newest message row carrying an instance, which is how a thread that
+       * predates this still routes correctly. Empty means "use the environment default", which is
+       * what every automation continues to do.
+       */
+      const conversationInstance = envText(conversation?.channel_metadata?.whatsapp_instance || conversation?.channel_metadata?.instance)
+        || envText(await resolveWhatsappConversationInstance({ tenantId, conversationId }).catch(() => ""));
       sendResult = await sendWhatsAppCloudReply({
         to: recipientId,
         reply: { text: messageText },
         messageText,
-        instance: envText(conversation?.channel_metadata?.whatsapp_instance || conversation?.channel_metadata?.instance),
+        instance: conversationInstance,
       });
       deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
       if (deliveryStatus === "stored_only") {

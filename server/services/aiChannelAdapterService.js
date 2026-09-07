@@ -1681,7 +1681,23 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
   const config = whatsappConfig();
   logWhatsAppConfig("[whatsapp-cloud-send][config]", config);
   const recipient = toText(to);
-  const selectedTransport = config.provider === "cloud" ? "cloud" : "evolution";
+  /*
+   * The conversation decides, not the environment.
+   *
+   * WHATSAPP_PROVIDER is the DEFAULT for automations, and it stays "evolution" until the
+   * templates are approved. But a customer who wrote to the Cloud number has to be answered from
+   * that number: routing their reply by the global default sent it to the Evolution session
+   * instead, which is dead, and the employee got "Connection Closed" on a conversation that had
+   * just arrived perfectly well.
+   *
+   * The instance carries the answer, in the same form the gateway already understands:
+   * "cloud:<phone_number_id>" is the Cloud number, a bare name is an Evolution instance, and
+   * empty still means "whatever the environment says".
+   */
+  const selectedInstance = toText(instance);
+  const instanceIsCloud = selectedInstance.toLowerCase().startsWith("cloud:");
+  const selectedTransport = instanceIsCloud || config.provider === "cloud" ? "cloud" : "evolution";
+  if (instanceIsCloud) config.phoneNumberId = selectedInstance.slice("cloud:".length) || config.phoneNumberId;
   const missing = whatsappMissingCredentials(config).filter((item) => item !== "WHATSAPP_ENABLED");
   const buildResult = (overrides = {}) => ({
     sent: overrides.sent === true,

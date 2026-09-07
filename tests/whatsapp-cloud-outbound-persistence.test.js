@@ -111,3 +111,32 @@ test("the status path never touches Messenger, Instagram or the Evolution automa
   // And the transport default is still whatever it was; nothing here flips it.
   assert.ok(!cloudStatusBlock.includes("WHATSAPP_GATEWAY_PROVIDER"));
 });
+
+test("a reply leaves from the number the customer wrote to, not the global default", () => {
+  /*
+   * The live failure this exists to prevent: a customer wrote to the Cloud number, the reply was
+   * routed by WHATSAPP_PROVIDER (still "evolution", correctly, because the automations have not
+   * moved yet), and the employee got "Connection Closed" from a dead session on a conversation
+   * that had just arrived perfectly well.
+   */
+  const adapter = read("../server/services/aiChannelAdapterService.js");
+  assert.match(adapter, /const instanceIsCloud = selectedInstance\.toLowerCase\(\)\.startsWith\("cloud:"\)/);
+  assert.match(adapter, /const selectedTransport = instanceIsCloud \|\| config\.provider === "cloud" \? "cloud" : "evolution"/);
+  // The number to send from travels with the instance, so two Cloud numbers stay distinct.
+  assert.match(adapter, /if \(instanceIsCloud\) config\.phoneNumberId = selectedInstance\.slice\("cloud:"\.length\)/);
+
+  // Inbound has to stamp which number it arrived on, or there is nothing to route by.
+  assert.match(inboxRouteSource, /whatsappInstance: metadata\?\.phone_number_id \? `cloud:\$\{metadata\.phone_number_id\}` : ""/);
+
+  // And the send route must consult it, with the message-row fallback for threads that predate it.
+  assert.match(inboxSendHandler, /conversation\?\.channel_metadata\?\.whatsapp_instance \|\| conversation\?\.channel_metadata\?\.instance/);
+  assert.match(inboxSendHandler, /resolveWhatsappConversationInstance\(\{ tenantId, conversationId \}\)/);
+});
+
+test("an empty instance still means the environment default, so automations do not move", () => {
+  // Every order confirmation, receipt and shipping notice passes no instance. They must keep
+  // going out over Evolution until the templates are approved.
+  const adapter = read("../server/services/aiChannelAdapterService.js");
+  assert.ok(!adapter.includes(`const selectedTransport = "cloud"`), "the transport must never be hardcoded");
+  assert.match(adapter, /config\.provider === "cloud" \? "cloud" : "evolution"/);
+});
