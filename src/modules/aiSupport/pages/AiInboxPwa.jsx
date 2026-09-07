@@ -2138,13 +2138,19 @@ const deadAvatarUrls = new Set();
 const avatarRefreshRequested = new Set();
 const reportDeadAvatar = (conversation, url) => {
   deadAvatarUrls.add(url);
+  // WhatsApp and Meta both hand out signed picture urls that expire, so a picture
+  // that stopped loading is a reason to ask the provider again, once per session.
   const channel = String(conversation?.channel || conversation?.source || "").toLowerCase();
-  if (channel !== "whatsapp") return;
+  const refreshable = channel === "whatsapp"
+    || channel.includes("instagram")
+    || channel.includes("messenger")
+    || channel.includes("facebook");
+  if (!refreshable) return;
   const { sessionId, conversationId } = conversationIdentifiers(conversation);
   const target = conversationId || sessionId;
   if (!target || avatarRefreshRequested.has(target)) return;
   avatarRefreshRequested.add(target);
-  api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), {}).catch(() => {});
+  api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
 };
 
 function ConversationListItem({ conversation, active, onSelect }) {

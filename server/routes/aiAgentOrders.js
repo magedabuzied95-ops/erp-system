@@ -13,6 +13,7 @@ import {
   enrichStoryAttachments,
   getAiInboxConversationDebug,
   refreshMessengerProfileForConversation,
+  refreshMetaConversationAvatar,
   sendInstagramInboxReaction,
   sendMessengerInboxReaction,
   sendMetaInboxOutboundMessage,
@@ -4042,18 +4043,26 @@ router.post("/conversations/:conversationId/refresh-avatar", protect, inboxView(
     for (const [k, at] of avatarRefreshRecent) if (now - at > AVATAR_REFRESH_COOLDOWN_MS) avatarRefreshRecent.delete(k);
   }
   try {
-    const result = await refreshWhatsappConversationAvatar({ tenantId, conversationId });
+    // Meta signs its picture urls and they expire, exactly like the WhatsApp ones:
+    // a dead link means "ask the provider again", not "this customer has no picture".
+    const isMeta = String(req.body?.channel || "").toLowerCase().includes("instagram")
+      || String(req.body?.channel || "").toLowerCase().includes("facebook")
+      || String(req.body?.channel || "").toLowerCase().includes("messenger")
+      || /^(facebook_messenger|facebook|messenger|instagram):/i.test(conversationId);
+    const result = isMeta
+      ? await refreshMetaConversationAvatar({ tenantId, conversationId })
+      : await refreshWhatsappConversationAvatar({ tenantId, conversationId });
     if (result.updated) {
       emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
         tenant_id: tenantId,
-        reason: "whatsapp_avatar_refreshed",
+        reason: isMeta ? "meta_avatar_refreshed" : "whatsapp_avatar_refreshed",
         conversation_id: conversationId,
         at: new Date().toISOString(),
       });
     }
     return res.json({ success: true, throttled: false, ...result });
   } catch (error) {
-    return sendError(res, error, "Could not refresh WhatsApp avatar");
+    return sendError(res, error, "Could not refresh the customer avatar");
   }
 });
 

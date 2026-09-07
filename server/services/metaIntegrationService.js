@@ -3933,6 +3933,78 @@ export const hydrateStoredMetaCustomerProfile = async ({
   return { settled: false, refreshed: false, waited_ms: Date.now() - started };
 };
 
+// The inbox calls this when a stored picture fails to load. A Meta CDN link is
+// signed and expires, so a dead link means "ask Meta again", not "this customer has
+// no picture". Forces one refresh and reports whether the stored url actually
+// changed. Never throws at the caller: a failed refresh leaves the row untouched.
+export const refreshMetaConversationAvatar = async ({ tenantId = null, conversationId = "" } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  if (!scopedTenantId || !safeConversationId) return { found: false, updated: false, avatar_url: "" };
+  await ensureMessengerProfileStorage();
+  const lookup = await db.query(
+    `
+    SELECT channel, external_customer_id, customer_avatar_url, metadata
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND channel IN ('facebook_messenger', 'facebook', 'messenger', 'instagram')
+    LIMIT 1
+    `,
+    [scopedTenantId, safeConversationId]
+  ).catch(() => ({ rows: [] }));
+  const row = lookup.rows[0];
+  if (!row) return { found: false, updated: false, avatar_url: "" };
+  const previous = text(row.customer_avatar_url);
+  const normalizedChannel = adapterChannel(channelAlias(row.channel) === "instagram" ? "instagram" : "facebook");
+  const psid = text(row.external_customer_id);
+  if (!psid) return { found: true, updated: false, avatar_url: previous };
+  // Force past the cache and the failure backoff: the picture is known to be dead.
+  const key = metaProfileCoordinator.key({ tenantId: scopedTenantId, channel: normalizedChannel, externalCustomerId: psid });
+  metaProfileCoordinator.clearFailure(key);
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+  const refreshed = await enrichMessengerProfile({
+    message: {
+      channel: normalizedChannel,
+      external_conversation_id: safeConversationId,
+      external_customer_id: psid,
+      raw: { sender_psid: psid, customer_psid: psid, page_id: text(metadata.page_id || metadata.resolved_page_id || ""), metadata },
+    },
+    config: {
+      tenant_id: scopedTenantId,
+      facebook_page_id: text(metadata.page_id || metadata.resolved_page_id || ""),
+      instagram_business_account_id: text(metadata.instagram_business_account_id || metadata.account_id || ""),
+    },
+    facebookPageId: text(metadata.page_id || metadata.resolved_page_id || ""),
+    instagramBusinessAccountId: text(metadata.instagram_business_account_id || metadata.account_id || ""),
+    forceRefresh: true,
+  }).catch((error) => {
+    console.warn("meta_avatar_refresh_failed", {
+      tenant_id: scopedTenantId,
+      conversation_id: safeConversationId,
+      channel: normalizedChannel,
+      message: text(error?.message).slice(0, 200),
+    });
+    return null;
+  });
+  const avatarUrl = text(refreshed?.customer_avatar_url);
+  console.log("meta_avatar_refresh", {
+    tenant_id: scopedTenantId,
+    conversation_id: safeConversationId,
+    channel: normalizedChannel,
+    scoped_user_id: maskIdForLog(psid),
+    had_stored_avatar: Boolean(previous),
+    has_fresh_avatar: Boolean(avatarUrl),
+    changed: Boolean(avatarUrl && avatarUrl !== previous),
+  });
+  return {
+    found: true,
+    updated: Boolean(avatarUrl && avatarUrl !== previous),
+    avatar_url: avatarUrl || previous,
+    channel: normalizedChannel,
+  };
+};
+
 export const repairMessengerProfileCaptures = async ({
   tenantId,
   limit = 100,

@@ -104,6 +104,23 @@ import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
 import { isMetaDmConversation, metaCustomerDisplayName } from "../lib/customerIdentity.js";
+
+// A WhatsApp or Meta picture url is signed and expires. When one stops loading, ask
+// the backend to fetch the current one — once per conversation per session, and only
+// for the channels that can actually answer.
+const avatarRefreshRequested = new Set();
+const requestFreshAvatar = (conversation = {}) => {
+  const channel = clean(conversation?.channel || conversation?.source).toLowerCase();
+  const refreshable = channel === "whatsapp"
+    || channel.includes("instagram")
+    || channel.includes("messenger")
+    || channel.includes("facebook");
+  if (!refreshable) return;
+  const target = clean(conversation?.conversation_key || conversation?.session_id || conversation?.external_conversation_id);
+  if (!target || avatarRefreshRequested.has(target)) return;
+  avatarRefreshRequested.add(target);
+  api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
+};
 import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -1867,7 +1884,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                 aria-label={`Open customer details for ${customerName || "customer"}`}
               >
                 <div className="relative h-11 w-11 overflow-hidden rounded-2xl">
-                  <CustomerAvatar url={avatarUrl} name={customerName} className="h-full w-full" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
+                  <CustomerAvatar url={avatarUrl} onDead={() => requestFreshAvatar(item)} name={customerName} className="h-full w-full" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
                   {isCommentThread ? (
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
                   ) : null}
@@ -2269,7 +2286,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
                 className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
                 aria-label={`Open customer details for ${customerName || "customer"}`}
               >
-                <CustomerAvatar url={avatarUrl} name={customerName} className="h-11 w-11 rounded-2xl" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
+                <CustomerAvatar url={avatarUrl} onDead={() => requestFreshAvatar(item)} name={customerName} className="h-11 w-11 rounded-2xl" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
               </button>
             </AvatarZoom>
           ) : (
@@ -2556,7 +2573,7 @@ function InboxChatHeader({
                 className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/40"
                 aria-label={`Open customer details for ${name || "customer"}`}
               >
-                <CustomerAvatar url={avatarUrl} name={name} className="h-9 w-9 shrink-0 rounded-full" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" iconClassName="h-4 w-4" />
+                <CustomerAvatar url={avatarUrl} onDead={() => requestFreshAvatar(conversation)} name={name} className="h-9 w-9 shrink-0 rounded-full" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" iconClassName="h-4 w-4" />
               </button>
             </AvatarZoom>
           ) : (
@@ -4609,7 +4626,7 @@ function CustomerContextCard({ conversation = {} }) {
   return (
     <div className="mb-4 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
       <div className="mb-3 flex items-center gap-3">
-        {avatarUrl ? <AvatarZoom url={avatarUrl} name={identityName}><CustomerAvatar url={avatarUrl} name={identityName} className="h-12 w-12 rounded-2xl ring-1 ring-white/10" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" /></AvatarZoom> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
+        {avatarUrl ? <AvatarZoom url={avatarUrl} name={identityName}><CustomerAvatar url={avatarUrl} onDead={() => requestFreshAvatar(conversation)} name={identityName} className="h-12 w-12 rounded-2xl ring-1 ring-white/10" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" /></AvatarZoom> : <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>}
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{t("aiSupport.inbox.panel.customerContext")}</div>
           <div className="mt-1 text-lg font-black text-white">{displayFallback(identityName, "No CRM match yet")}</div>
@@ -4996,7 +5013,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
           <div className="flex flex-row-reverse items-start gap-2.5">
             {avatarUrl ? (
               <AvatarZoom url={avatarUrl} name={identityName}>
-                <CustomerAvatar url={avatarUrl} name={identityName} className="h-10 w-10 shrink-0 rounded-2xl ring-1 ring-white/10" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
+                <CustomerAvatar url={avatarUrl} onDead={() => requestFreshAvatar(conversation)} name={identityName} className="h-10 w-10 shrink-0 rounded-2xl ring-1 ring-white/10" imgClassName="object-cover" fallbackClassName="bg-white/[0.07] text-slate-200" />
               </AvatarZoom>
             ) : (
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">

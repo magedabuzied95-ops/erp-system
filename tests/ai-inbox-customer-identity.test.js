@@ -146,6 +146,29 @@ test("/inbox (PWA) names Meta DMs through the shared order and guards the header
   assert.match(page, /const currentName = clean\(conversation\.customer_name \|\| conversation\.customer_profile\?\.name\);/);
 });
 
+test("a picture that stops loading asks the backend for a fresh one, on Meta channels as well as WhatsApp", () => {
+  const page = read("../src/modules/aiSupport/pages/AiInbox.jsx");
+  assert.match(page, /const requestFreshAvatar = \(conversation = \{\}\) => \{/);
+  assert.match(page, /channel\.includes\("instagram"\)/);
+  assert.match(page, /avatarRefreshRequested\.has\(target\)/, "one request per conversation per session");
+  assert.equal((page.match(/onDead=\{\(\) => requestFreshAvatar\(/g) || []).length, 5, "every conversation avatar reports a dead picture");
+
+  const pwa = read("../src/modules/aiSupport/pages/AiInboxPwa.jsx");
+  assert.match(pwa, /const refreshable = channel === "whatsapp"/);
+  assert.match(pwa, /\|\| channel\.includes\("instagram"\)/);
+  assert.doesNotMatch(pwa, /if \(channel !== "whatsapp"\) return;/, "the WhatsApp-only gate is gone");
+
+  const service = read("../server/services/metaIntegrationService.js");
+  assert.match(service, /export const refreshMetaConversationAvatar = async/);
+  assert.match(service, /metaProfileCoordinator\.clearFailure\(key\)/, "a known-dead picture forces past the backoff");
+  assert.match(service, /forceRefresh: true/);
+
+  const routes = read("../server/routes/aiAgentOrders.js");
+  assert.match(routes, /refreshMetaConversationAvatar,/);
+  assert.match(routes, /\? await refreshMetaConversationAvatar\(\{ tenantId, conversationId \}\)/);
+  assert.match(routes, /reason: isMeta \? "meta_avatar_refreshed" : "whatsapp_avatar_refreshed"/);
+});
+
 test("Customer 360 drawer guards its avatar too", () => {
   const drawer = read("../src/modules/aiSupport/components/Customer360Drawer.jsx");
   assert.match(drawer, /<CustomerAvatar url=\{profileData\.avatar_url\}/);
