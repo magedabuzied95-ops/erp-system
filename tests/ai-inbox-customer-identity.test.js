@@ -162,6 +162,10 @@ test("a picture that stops loading asks the backend for a fresh one, on Meta cha
   assert.match(service, /export const refreshMetaConversationAvatar = async/);
   assert.match(service, /metaProfileCoordinator\.clearFailure\(key\)/, "a known-dead picture forces past the backoff");
   assert.match(service, /forceRefresh: true/);
+  // the one deliberate clear: a url proven dead, with nothing to replace it
+  assert.match(service, /const stillDead = !avatarUrl \|\| isMetaAvatarExpired\(avatarUrl\);/);
+  assert.match(service, /SET customer_avatar_url = '', updated_at = NOW\(\) WHERE tenant_id = \$1 AND external_conversation_id = \$2/);
+  assert.match(service, /meta_avatar_cleared_dead_link/);
 
   const routes = read("../server/routes/aiAgentOrders.js");
   assert.match(routes, /refreshMetaConversationAvatar,/);

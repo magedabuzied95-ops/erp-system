@@ -40,7 +40,7 @@ import { fileURLToPath } from "node:url";
 import db from "../database/db.js";
 import { enrichMessengerProfile } from "../services/metaIntegrationService.js";
 import { isGraphRateLimitError, shouldDeferBackgroundGraphWork, runGraphRequest, getMetaGraphBudgetSnapshot } from "../services/metaGraphRateLimiter.js";
-import { classifyMetaProfileError, normalizeMetaProfileChannel } from "../services/metaCustomerProfileService.js";
+import { classifyMetaProfileError, normalizeMetaProfileChannel, parseMetaAvatarExpiry as avatarExpiry } from "../services/metaCustomerProfileService.js";
 import {
   EXIT_CODES,
   acquireBackfillLock,
@@ -236,19 +236,6 @@ const runProbe = async () => {
 // stored picture — which CDN host it points at and when its signature expires.
 // Answers "the picture is missing: was it never returned, has the link died, or is
 // the link fine and the browser is not loading it?" without calling Meta at all.
-const avatarExpiry = (url = "") => {
-  try {
-    const parsed = new URL(url);
-    // fbsbx/lookaside signs with ?ext=<unix>, fbcdn/cdninstagram with ?oe=<hex unix>
-    const ext = Number(parsed.searchParams.get("ext"));
-    if (Number.isFinite(ext) && ext > 0) return new Date(ext * 1000);
-    const oe = parsed.searchParams.get("oe");
-    if (oe && /^[0-9a-f]+$/i.test(oe)) return new Date(parseInt(oe, 16) * 1000);
-    return null;
-  } catch {
-    return null;
-  }
-};
 const avatarHost = (url = "") => {
   try {
     return new URL(url).hostname;

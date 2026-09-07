@@ -33,6 +33,9 @@ export const META_PROFILE_TTL_MS = envNumber("META_PROFILE_TTL_MS", 24 * 60 * 60
 // A profile Meta answered but left incomplete (name without a picture, or the other way
 // round) is asked about again after this long, not on every message.
 export const META_PROFILE_MISSING_RETRY_MS = envNumber("META_PROFILE_MISSING_RETRY_MS", 30 * 60 * 1000);
+// A customer whose NAME is known but whose picture Meta declined to send is a cosmetic
+// gap, and asking again every half hour spends the app's hourly Graph budget on it.
+export const META_PROFILE_MISSING_PICTURE_RETRY_MS = envNumber("META_PROFILE_MISSING_PICTURE_RETRY_MS", 6 * 60 * 60 * 1000);
 // After a failed Graph call the customer is left alone for this long.
 export const META_PROFILE_FAILURE_BACKOFF_MS = envNumber("META_PROFILE_FAILURE_BACKOFF_MS", 15 * 60 * 1000);
 // A permission/"not available" answer is not going to change in a minute.
@@ -131,6 +134,35 @@ export const normalizeMetaProfilePayload = ({ channel = "", payload = {} } = {})
   };
 };
 
+// Meta signs every picture url with an expiry: lookaside/fbsbx carries ?ext=<unix>,
+// the fbcdn and cdninstagram hosts carry ?oe=<hex unix>. A stored url past that
+// moment is a dead link, whatever the profile cache thinks — so it is worth one
+// refresh rather than a broken image the viewer has to look at.
+export const parseMetaAvatarExpiry = (url = "") => {
+  const raw = text(url);
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const ext = Number(parsed.searchParams.get("ext"));
+    if (Number.isFinite(ext) && ext > 0) return new Date(ext * 1000);
+    const oe = parsed.searchParams.get("oe");
+    if (oe && /^[0-9a-f]+$/i.test(oe)) {
+      const seconds = parseInt(oe, 16);
+      if (Number.isFinite(seconds) && seconds > 0) return new Date(seconds * 1000);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
+// Unsigned or unparseable urls are never called expired: only a signature that has
+// demonstrably run out counts.
+export const isMetaAvatarExpired = (url = "", now = Date.now()) => {
+  const expiry = parseMetaAvatarExpiry(url);
+  return Boolean(expiry) && expiry.getTime() <= now;
+};
+
 export const hasUsableMetaProfile = (profile = {}) =>
   Boolean(profile && (text(profile.name) || text(profile.username) || text(profile.profile_pic) || text(profile.first_name)));
 
@@ -165,12 +197,16 @@ export const resolveMetaProfileRefreshDecision = ({
   forceRefresh = false,
   ttlMs = META_PROFILE_TTL_MS,
   missingRetryMs = META_PROFILE_MISSING_RETRY_MS,
+  missingPictureRetryMs = META_PROFILE_MISSING_PICTURE_RETRY_MS,
   failureBackoffMs = META_PROFILE_FAILURE_BACKOFF_MS,
   unavailableBackoffMs = META_PROFILE_UNAVAILABLE_BACKOFF_MS,
 } = {}) => {
   if (forceRefresh) return { refresh: true, reason: "forced" };
   const hasName = Boolean(text(cached?.name));
-  const hasPicture = Boolean(text(cached?.profile_pic));
+  const storedPicture = text(cached?.profile_pic);
+  const pictureExpired = Boolean(storedPicture) && isMetaAvatarExpired(storedPicture, now);
+  // A signed url past its expiry is a dead link, so it does not count as a picture.
+  const hasPicture = Boolean(storedPicture) && !pictureExpired;
   const fetchedAt = parseTimestamp(cached?.profile_fetched_at);
   const ageMs = fetchedAt ? now - fetchedAt.getTime() : Number.POSITIVE_INFINITY;
 
@@ -185,8 +221,17 @@ export const resolveMetaProfileRefreshDecision = ({
     return { refresh: true, reason: "stale" };
   }
   if (!fetchedAt) return { refresh: true, reason: hasName || hasPicture ? "incomplete_never_fetched" : "missing" };
-  if (ageMs < missingRetryMs) return { refresh: false, reason: "incomplete_recently_fetched" };
-  return { refresh: true, reason: "incomplete" };
+  if (pictureExpired) {
+    // Worth one refresh as soon as the signature runs out, but not on every read.
+    if (ageMs < missingRetryMs) return { refresh: false, reason: "avatar_expired_recently_fetched" };
+    return { refresh: true, reason: "avatar_expired" };
+  }
+  // Name known, picture withheld by Meta: cosmetic, so it waits far longer than a
+  // profile that is missing outright. Otherwise every such customer would spend the
+  // app's hourly Graph budget twice an hour, forever.
+  const retryMs = hasName ? missingPictureRetryMs : missingRetryMs;
+  if (ageMs < retryMs) return { refresh: false, reason: hasName ? "picture_withheld_recently_fetched" : "incomplete_recently_fetched" };
+  return { refresh: true, reason: hasName ? "picture_withheld" : "incomplete" };
 };
 
 // Sort a Graph failure into something the backoff and the operator can act on.

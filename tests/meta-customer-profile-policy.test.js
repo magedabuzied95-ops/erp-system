@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   META_PROFILE_CHANNELS,
   classifyMetaProfileError,
+  isMetaAvatarExpired,
   isPlausibleMetaProfileName,
+  parseMetaAvatarExpiry,
   createMetaProfileCoordinator,
   mergeMetaProfile,
   normalizeMetaProfilePayload,
@@ -145,11 +147,19 @@ test("a complete profile older than the TTL is refreshed", () => {
 
 test("an incomplete profile Meta answered recently is NOT re-asked on the next message", () => {
   const now = Date.now();
-  const cached = { name: "Hend", profile_pic: "", profile_fetched_at: new Date(now - 5 * 60 * 1000).toISOString() };
-  assert.equal(resolveMetaProfileRefreshDecision({ cached, now }).refresh, false);
-  const later = resolveMetaProfileRefreshDecision({ cached, now: now + 45 * 60 * 1000 });
+  // No name and no picture: the short cycle applies, because the customer is nameless
+  // in the inbox until Meta answers.
+  const nameless = { name: "", profile_pic: "", profile_fetched_at: new Date(now - 5 * 60 * 1000).toISOString() };
+  assert.equal(resolveMetaProfileRefreshDecision({ cached: nameless, now }).refresh, false);
+  const later = resolveMetaProfileRefreshDecision({ cached: nameless, now: now + 45 * 60 * 1000 });
   assert.equal(later.refresh, true);
   assert.equal(later.reason, "incomplete");
+
+  // Name known, picture withheld: the same message must not trigger a call either,
+  // and the retry sits on the long cycle (see the picture_withheld test).
+  const named = { name: "Hend", profile_pic: "", profile_fetched_at: new Date(now - 5 * 60 * 1000).toISOString() };
+  assert.equal(resolveMetaProfileRefreshDecision({ cached: named, now }).refresh, false);
+  assert.equal(resolveMetaProfileRefreshDecision({ cached: named, now: now + 45 * 60 * 1000 }).refresh, false);
 });
 
 test("a recent failure holds the customer back; an unavailable/permission answer holds longer", () => {
@@ -161,6 +171,51 @@ test("a recent failure holds the customer back; an unavailable/permission answer
   assert.equal(afterBackoff.refresh, true);
   const unavailable = resolveMetaProfileRefreshDecision({ cached: null, failure: { at: now - 2 * HOUR, kind: "unavailable" }, now });
   assert.equal(unavailable.refresh, false);
+});
+
+// ---------------------------------------------------------------------------
+// Picture links are signed and expire. A dead link is not a picture.
+// ---------------------------------------------------------------------------
+test("the expiry is read from the signature on both Meta CDN shapes, and an unsigned url never counts as expired", () => {
+  // fbsbx/lookaside: ?ext=<unix seconds>. fbcdn/cdninstagram: ?oe=<hex unix seconds>.
+  assert.equal(parseMetaAvatarExpiry("https://platform-lookaside.fbsbx.com/platform/profilepic/?ext=1791372823").getTime(), 1791372823 * 1000);
+  assert.equal(parseMetaAvatarExpiry("https://scontent-fra5-2.cdninstagram.com/v/a.jpg?oe=6AC60E19").getTime(), 0x6AC60E19 * 1000);
+  assert.equal(parseMetaAvatarExpiry("https://scontent.example/a.jpg"), null);
+  assert.equal(parseMetaAvatarExpiry(""), null);
+  assert.equal(isMetaAvatarExpired("https://scontent.example/a.jpg"), false, "unsigned urls are left alone");
+  assert.equal(isMetaAvatarExpired("https://scontent-fra5-2.cdninstagram.com/v/a.jpg?oe=68000000"), true);
+});
+
+test("an expired picture is refreshed once the last sync is old enough, and never on every read", () => {
+  const now = Date.now();
+  const dead = "https://scontent-fra5-2.cdninstagram.com/v/a.jpg?oe=68000000";
+  const soon = resolveMetaProfileRefreshDecision({
+    cached: { name: "Hager", profile_pic: dead, profile_fetched_at: new Date(now - 5 * 60 * 1000).toISOString() },
+    now,
+  });
+  assert.deepEqual(soon, { refresh: false, reason: "avatar_expired_recently_fetched" });
+  const later = resolveMetaProfileRefreshDecision({
+    cached: { name: "Hager", profile_pic: dead, profile_fetched_at: new Date(now - 2 * HOUR).toISOString() },
+    now,
+  });
+  assert.deepEqual(later, { refresh: true, reason: "avatar_expired" });
+  // a live signature inside the TTL is still served from cache
+  const live = resolveMetaProfileRefreshDecision({
+    cached: { name: "Hager", profile_pic: "https://scontent-fra5-2.cdninstagram.com/v/a.jpg?oe=7FFFFFFF", profile_fetched_at: new Date(now - 2 * HOUR).toISOString() },
+    now,
+  });
+  assert.deepEqual(live, { refresh: false, reason: "fresh" });
+});
+
+test("a customer whose name is known but whose picture Meta withholds is retried on a long cycle, not every half hour", () => {
+  const now = Date.now();
+  const cached = { name: "Nada elgohr", profile_pic: "", profile_fetched_at: new Date(now - HOUR).toISOString() };
+  assert.deepEqual(resolveMetaProfileRefreshDecision({ cached, now }), { refresh: false, reason: "picture_withheld_recently_fetched" });
+  const after = resolveMetaProfileRefreshDecision({ cached: { ...cached, profile_fetched_at: new Date(now - 7 * HOUR).toISOString() }, now });
+  assert.deepEqual(after, { refresh: true, reason: "picture_withheld" });
+  // a profile with no name either is still retried on the short cycle
+  const nameless = { name: "", profile_pic: "", profile_fetched_at: new Date(now - 45 * 60 * 1000).toISOString() };
+  assert.deepEqual(resolveMetaProfileRefreshDecision({ cached: nameless, now }), { refresh: true, reason: "incomplete" });
 });
 
 test("forceRefresh (manual refresh, backfill) ignores the cache and the backoff", () => {

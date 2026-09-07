@@ -123,6 +123,7 @@ import {
   INSTAGRAM_PROFILE_FIELDS,
   MESSENGER_PROFILE_FIELDS,
   classifyMetaProfileError,
+  isMetaAvatarExpired,
   isPlausibleMetaProfileName,
   metaProfileCoordinator,
   normalizeMetaProfileChannel,
@@ -3988,6 +3989,34 @@ export const refreshMetaConversationAvatar = async ({ tenantId = null, conversat
     return null;
   });
   const avatarUrl = text(refreshed?.customer_avatar_url);
+  // The caller only asks when the stored picture is known to be dead. If Meta has no
+  // picture to give, drop the dead url rather than serving it again: this is the one
+  // place a stored value is deliberately cleared, and only because it is provably
+  // broken. Everywhere else a blank answer leaves what is stored alone.
+  if (!avatarUrl || avatarUrl === previous) {
+    const stillDead = !avatarUrl || isMetaAvatarExpired(avatarUrl);
+    if (previous && stillDead) {
+      await db.query(
+        `UPDATE ai_channel_conversations SET customer_avatar_url = '', updated_at = NOW() WHERE tenant_id = $1 AND external_conversation_id = $2`,
+        [scopedTenantId, safeConversationId]
+      ).catch(() => {});
+      await db.query(
+        `UPDATE ai_support_sessions SET customer_avatar_url = '', updated_at = NOW() WHERE tenant_id = $1 AND session_id = $2`,
+        [scopedTenantId, safeConversationId]
+      ).catch(() => {});
+      await db.query(
+        `UPDATE ai_customer_profiles SET profile_pic_url = '', updated_at = NOW() WHERE tenant_id = $1 AND phone = $2`,
+        [scopedTenantId, `meta:${normalizedChannel}:${psid}`]
+      ).catch(() => {});
+      console.log("meta_avatar_cleared_dead_link", {
+        tenant_id: scopedTenantId,
+        conversation_id: safeConversationId,
+        channel: normalizedChannel,
+        scoped_user_id: maskIdForLog(psid),
+      });
+      return { found: true, updated: true, avatar_url: "", cleared: true, channel: normalizedChannel };
+    }
+  }
   console.log("meta_avatar_refresh", {
     tenant_id: scopedTenantId,
     conversation_id: safeConversationId,
