@@ -129,3 +129,30 @@ which happened (`OLLAMA`, `LLM`, `OPENAI` or `LOCAL_FALLBACK`).
 
 Image analysis (`/products/generate-ai-data`) still uses OpenAI vision; Gemma 3
 is multimodal, so the same Ollama service can take that over as a follow-up.
+
+## Regenerating every product (backfill)
+
+`server/scripts/backfillProductContent.js` rewrites description_ar,
+description_en, meta_title, seo_description and seo_keywords for every
+storefront product with the configured provider. Slugs are never touched. It
+writes a product only when the model answered (rate-limited or timed-out
+products stay pending and are picked up by the next run), keeps progress and
+the previous values in `/app/uploads/ai-content-backfill.json` (the uploads
+volume, so it survives restarts), and `--restore` puts the old values back.
+
+```
+# preview three products, nothing written
+docker exec erp-backend node server/scripts/backfillProductContent.js --dry-run --limit 3
+# run everything in the background and follow the log
+docker exec -d erp-backend sh -c "node server/scripts/backfillProductContent.js >> /app/uploads/ai-content-backfill.log 2>&1"
+tail -f /opt/erp/uploads/ai-content-backfill.log
+# stop / resume / undo
+docker exec erp-backend pkill -f backfillProductContent
+docker exec -d erp-backend sh -c "node server/scripts/backfillProductContent.js >> /app/uploads/ai-content-backfill.log 2>&1"
+docker exec erp-backend node server/scripts/backfillProductContent.js --restore
+```
+
+Groq's free tier allows 1000 requests per day and the script needs two per
+product, so ~670 products take two days; the state file makes the second run
+continue where the first stopped. `--only-missing` limits the run to products
+with an empty field, `--ids 774,25` to specific products.
