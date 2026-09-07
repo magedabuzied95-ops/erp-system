@@ -351,6 +351,26 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
     console.warn("[address-request] thread note failed", { message: error?.message });
   }
 
+  // A Messenger sales flow that is waiting on this address has nothing left to ask: the submit
+  // is the last step, so the order registers now and the customer gets the confirmation in the
+  // chat without going back to type anything. Failure-isolated on purpose — an order that cannot
+  // be created must never cost the customer the address they just filled in.
+  try {
+    const { completeSocialCommentOrderFromAddressRequest } = await import("./metaIntegrationService.js");
+    await completeSocialCommentOrderFromAddressRequest({
+      tenantId: row.tenant_id,
+      sessionId: row.session_id,
+      address,
+      customerName,
+      customerPhone,
+    });
+  } catch (error) {
+    console.warn("[address-request] social comment order completion failed", {
+      session_id: row.session_id,
+      message: error?.message || String(error),
+    });
+  }
+
   try {
     emitToRooms([`tenant:${row.tenant_id}`], "ai_inbox:refresh", {
       tenant_id: row.tenant_id,

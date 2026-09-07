@@ -84,6 +84,10 @@ import {
   sortSocialCommentAvailableSizes,
 } from "./socialCommentPrivateReplyService.js";
 import {
+  buildAddressRequestPublicUrl,
+  createAddressRequest,
+} from "./conversationAddressRequestService.js";
+import {
   normalizeProductCards,
   productCardReplyText,
   instagramProductShareText,
@@ -16058,6 +16062,146 @@ const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
   return step;
 };
 
+// A card with the order on it and ONE button that opens the address form. `webview_height_ratio`
+// is what makes Messenger render the page as a sheet inside the app instead of throwing the
+// customer out to a browser — the same page, the same submit, but the customer never leaves the
+// conversation. Only Messenger has this; Instagram gets the plain link.
+const buildSocialCommentAddressCardPayload = ({
+  recipientId = "",
+  addressUrl = "",
+  productName = "",
+  selectedColor = "",
+  selectedSize = "",
+  priceUsed = "",
+  imageUrl = "",
+} = {}) => {
+  const colorLabel = normalizeSocialCommentColorDisplay(selectedColor) || text(selectedColor);
+  const priceText = text(priceUsed) ? `${text(priceUsed)} جنيه` : "";
+  const title = [text(productName) || "طلبك", priceText].filter(Boolean).join(" — ").slice(0, 80);
+  const subtitle = [
+    colorLabel ? `اللون: ${colorLabel}` : "",
+    text(selectedSize) ? `المقاس: ${text(selectedSize)}` : "",
+  ].filter(Boolean).join(" · ").slice(0, 80);
+  return {
+    recipient: { id: recipientId },
+    messaging_type: "RESPONSE",
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          elements: [
+            {
+              title: title || "بيانات الشحن",
+              ...(text(imageUrl) ? { image_url: text(imageUrl) } : {}),
+              ...(subtitle ? { subtitle } : {}),
+              buttons: [
+                {
+                  type: "web_url",
+                  url: addressUrl,
+                  title: "إملا بيانات الشحن 📦",
+                  webview_height_ratio: "tall",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
+const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", productData = null, selectedColor = "", selectedSize = "" } = {}) => {
+  if (text(message?.channel || "") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return false;
+  const recipientId = text(message?.external_customer_id || "");
+  if (!recipientId || !text(addressUrl)) return false;
+  try {
+    const { token } = await resolveMetaSendConfig({
+      tenantId: Number(config?.tenant_id || 0) || null,
+      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      facebookPageId: text(config?.facebook_page_id || ""),
+      preferredConfigId: config?.id || null,
+    });
+    if (!text(token)) return false;
+    const payload = buildSocialCommentAddressCardPayload({
+      recipientId,
+      addressUrl,
+      productName: text(productData?.productName || ""),
+      selectedColor,
+      selectedSize,
+      priceUsed: text(productData?.priceUsed || ""),
+      // A relative /uploads path renders a blank card; the backend origin is what serves the file.
+      imageUrl: absolutePublicUploadUrl(text(productData?.productImageUrl || "")),
+    });
+    const response = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: json(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.warn("SOCIAL_COMMENT_ADDRESS_CARD_FAILED", {
+        tenant_id: config?.tenant_id || null,
+        conversation_id: text(message?.external_conversation_id || ""),
+        status: response.status,
+        error: result?.error?.message || "",
+      });
+      return false;
+    }
+    console.log("SOCIAL_COMMENT_ADDRESS_CARD_SENT", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      message_id: result?.message_id || "",
+      address_url: addressUrl,
+    });
+    return true;
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_ADDRESS_CARD_FAILED", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      message: error?.message || String(error),
+    });
+    return false;
+  }
+};
+
+// The one live address link for this conversation. createAddressRequest already reuses a pending
+// code rather than minting a second, so re-confirming hands back the same URL the customer may
+// already have open. Never throws: a link that cannot be built falls back to the text ask.
+const buildSocialCommentAddressLink = async ({ config, message, customerName = "", customerPhone = "" } = {}) => {
+  const conversationId = text(message?.external_conversation_id || "");
+  if (!conversationId) return "";
+  try {
+    const request = await createAddressRequest({
+      tenantId: Number(config?.tenant_id || 0) || null,
+      sessionId: conversationId,
+      channel: text(message?.channel || ""),
+      customerName: text(customerName),
+      customerPhone: text(customerPhone),
+    });
+    const url = text(request?.url || buildAddressRequestPublicUrl(request?.code || ""));
+    // A relative path is not something a customer can tap inside Messenger.
+    if (!/^https?:\/\//i.test(url)) {
+      console.warn("SOCIAL_COMMENT_ADDRESS_LINK_NOT_ABSOLUTE", { conversation_id: conversationId, url });
+      return "";
+    }
+    console.log("SOCIAL_COMMENT_ADDRESS_LINK_SENT", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: conversationId,
+      code: text(request?.code || ""),
+      reused: Boolean(request?.reused),
+    });
+    return url;
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_ADDRESS_LINK_FAILED", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: conversationId,
+      message: error?.message || String(error),
+    });
+    return "";
+  }
+};
+
 // The Phase 1 pricing contract is manual override → purchase_selling_price → legacy columns, and
 // for a large part of this catalogue the purchase-derived price is the ONLY one that exists — the
 // legacy product columns are 0. So the price lives on the VARIANT and the variants must be handed
@@ -16327,6 +16471,10 @@ const createSocialCommentDraftOrder = async ({
   postId = "",
   commentId = "",
   shippingProductData = null,
+  // The Bosta-shaped address from the address link: city/zone/district ids plus the building,
+  // floor and apartment. Without these the shipment form opens empty and someone has to retype
+  // the whole address off the chat before Bosta will accept it.
+  structuredAddress = null,
 } = {}) => {
   const tenantId = Number(config?.tenant_id || 0);
   const conversationId = text(message?.external_conversation_id || "");
@@ -16416,6 +16564,17 @@ const createSocialCommentDraftOrder = async ({
       customer_address: customerAddress,
       governorate,
       city_area: area,
+      // Bosta's own identifiers, straight from the validated address link. createAiOrderDraft
+      // already reads every one of these keys off the payload; nothing used to supply them.
+      shipping_provider: text(structuredAddress?.shipping_provider || ""),
+      shipping_city_id: text(structuredAddress?.shipping_city_id || ""),
+      shipping_zone_id: text(structuredAddress?.shipping_zone_id || ""),
+      shipping_district_id: text(structuredAddress?.shipping_district_id || ""),
+      street_address: text(structuredAddress?.street_address || customerAddress),
+      building_number: text(structuredAddress?.building_number || ""),
+      floor_number: text(structuredAddress?.floor_number || ""),
+      apartment_number: text(structuredAddress?.apartment_number || ""),
+      landmark: text(structuredAddress?.landmark || ""),
       allow_missing_phone: true,
       allow_out_of_stock_draft: true,
       product: draftData.product,
@@ -17735,6 +17894,53 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     return { handled: true, reason: "social_comment_order_summary_recovered" };
   }
 
+  // Waiting on the address link and the customer typed their address into the chat instead. The
+  // chat cannot produce a Bosta city, zone and district, so the link is re-sent rather than the
+  // text parsed. Only address-shaped text is intercepted — a question at this step still reaches
+  // the AI, and re-sending the link hands back the SAME code, so nothing the customer already
+  // filled in is lost.
+  if (
+    socialCommentSalesFlowStepFromMemory(memory) === "awaiting_address_link" &&
+    messageText &&
+    Number(salesFlow?.product_id || 0) > 0 &&
+    !resolvedAction &&
+    (/\d{5,}/.test(messageText) || messageText.split("\n").filter((line) => text(line)).length >= 2)
+  ) {
+    const resentLink = text(salesFlow?.address_link || "") || await buildSocialCommentAddressLink({
+      config,
+      message,
+      customerName: text(salesFlow?.customer_name || ""),
+      customerPhone: text(salesFlow?.customer_phone || ""),
+    });
+    console.log("SOCIAL_COMMENT_ADDRESS_LINK_RESENT", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      had_stored_link: Boolean(text(salesFlow?.address_link || "")),
+      inbound_preview: messageText.slice(0, 120),
+    });
+    if (resentLink) {
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: `عشان الشحن يوصلك صح، إملا العنوان من اللينك ده ودوس تأكيد 👇\n\n${resentLink}`,
+        detectedIntent: "social_comment_address_link_resent",
+        metadata: {
+          selected_product_id: Number(salesFlow?.product_id || 0) || null,
+          social_comment_quick_reply: true,
+        },
+        inboundKey,
+        inboundMetaMid,
+        fallbackContext: {
+          productId: Number(salesFlow?.product_id || 0) || null,
+          size: text(salesFlow?.selected_size || ""),
+          color: text(salesFlow?.selected_color || ""),
+          step: "awaiting_address_link",
+        },
+      });
+      return { handled: true, reason: "social_comment_address_link_resent" };
+    }
+  }
+
   if (socialCommentSalesFlowStepFromMemory(memory) === "awaiting_customer_data" && messageText && Number(salesFlow?.product_id || 0) > 0) {
     const productId = Number(salesFlow?.product_id || 0) || null;
     const selectedSize = text(salesFlow?.selected_size || "");
@@ -18008,10 +18214,38 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     }
 
     if (resolvedAction === "confirm") {
+      // Bosta needs a city, a zone, a district and a building number — none of which a line of
+      // free text reliably yields. The address link asks for exactly those, with Bosta's own
+      // pickers, and validates that the district really sits inside the claimed zone and city.
+      // So the confirm hands over the link instead of asking the customer to type an address.
+      const addressLink = await buildSocialCommentAddressLink({
+        config,
+        message,
+        customerName: text(salesFlow?.customer_name || ""),
+        customerPhone: text(salesFlow?.customer_phone || ""),
+      });
+      const nextStep = addressLink ? "awaiting_address_link" : "awaiting_customer_data";
+      // The card carries the button; the text beside it explains it. If Meta refuses the card the
+      // same URL still ships as a tappable link, so the flow never dead-ends on a template error.
+      const addressCardSent = addressLink
+        ? await sendSocialCommentAddressCard({
+            config,
+            message,
+            addressUrl: addressLink,
+            productData,
+            selectedColor,
+            selectedSize,
+          })
+        : false;
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "ممتاز ✅\n\nلإتمام الطلب برجاء إرسال بيانات الشحن:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
+        text: addressLink
+          ? (addressCardSent
+              ? "ممتاز ✅\n\nفاضل بيانات الشحن بس — دوس على «إملا بيانات الشحن 📦» فوق، إملا العنوان واختار المدينة والمنطقة والحي، ودوس تأكيد.\n\nأول ما تبعتها هيوصلك تأكيد الطلب فورًا ❤️"
+              : `ممتاز ✅\n\nفاضل بيانات الشحن بس. افتح اللينك ده، إملا بياناتك واختار المدينة والمنطقة والحي، ودوس تأكيد 👇\n\n${addressLink}\n\nأول ما تبعتها هيوصلك تأكيد الطلب فورًا ❤️`)
+          // Only when no public URL is configured: the old text path is the fallback, never the plan.
+          : "ممتاز ✅\n\nلإتمام الطلب برجاء إرسال بيانات الشحن:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
         detectedIntent: "social_comment_sales_flow_confirm",
         metadata: {
           selected_size: selectedSize,
@@ -18019,6 +18253,8 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           selected_product_id: productId,
           social_comment_quick_reply: true,
           no_real_order_created: true,
+          address_link_sent: Boolean(addressLink),
+          address_card_sent: addressCardSent,
         },
         inboundKey,
         inboundMetaMid,
@@ -18026,7 +18262,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           productId,
           size: selectedSize,
           color: selectedColor,
-          step: "awaiting_customer_data",
+          step: nextStep,
         },
       });
       await persistSocialCommentSalesFlowState({
@@ -18035,13 +18271,14 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         productId,
         selectedSize,
         selectedColor,
-        step: "awaiting_customer_data",
+        step: nextStep,
         extra: {
           post_id: postId,
           comment_id: commentId,
           product_name: text(productData?.productName || ""),
           product_link: text(productData?.productLink || ""),
           price_used: text(productData?.priceUsed || ""),
+          address_link: text(addressLink),
         },
         reason: "social_comment_sales_flow_confirmed",
         callsite: "ORDER_CONFIRM",
@@ -18052,7 +18289,8 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         conversation_id: text(message?.external_conversation_id || ""),
         comment_id: commentId,
         product_id: productId,
-        step: "awaiting_customer_data",
+        step: nextStep,
+        address_link_sent: Boolean(addressLink),
       });
       return { handled: true, reason: "social_comment_sales_flow_confirmed" };
     }
@@ -18288,6 +18526,170 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   }
 
   return null;
+};
+
+/* ======================================================
+   THE ADDRESS LINK CLOSES THE ORDER
+   ------------------------------------------------------
+   The customer confirms on Messenger, fills the address link, and presses submit. That submit is
+   the last thing the order was waiting for, so it registers the order there and then and sends
+   the confirmation back into the chat — the customer never returns to Messenger to type anything.
+
+   Called from conversationAddressRequestService AFTER the address row is committed, and failure
+   isolated by that caller: a broken order must never lose the address the customer just typed.
+====================================================== */
+export const completeSocialCommentOrderFromAddressRequest = async ({
+  tenantId = null,
+  sessionId = "",
+  address = {},
+  customerName = "",
+  customerPhone = "",
+} = {}) => {
+  const conversationId = text(sessionId);
+  if (!conversationId) return { handled: false, reason: "missing_conversation_id" };
+  const memory = getConversationMemory(conversationId) || {};
+  const salesFlow = memory.sales_flow && typeof memory.sales_flow === "object"
+    ? memory.sales_flow
+    : (memory.salesFlow && typeof memory.salesFlow === "object" ? memory.salesFlow : {});
+  const step = socialCommentSalesFlowStepFromMemory(memory);
+  const productId = Number(salesFlow?.product_id || 0) || null;
+  const selectedSize = text(salesFlow?.selected_size || "");
+  const selectedColor = text(salesFlow?.selected_color || "");
+  // Only a flow that is actually waiting on an address, with a variant already settled, may turn
+  // a submitted address into an order. Anything else is a seller-sent link on a normal chat.
+  const waitingForAddress = step === "awaiting_address_link" || step === "awaiting_customer_data";
+  console.log("SOCIAL_COMMENT_ADDRESS_LINK_SUBMITTED", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    step,
+    product_id: productId,
+    selected_size: selectedSize,
+    selected_color: selectedColor,
+    waiting_for_address: waitingForAddress,
+  });
+  if (!waitingForAddress || !productId || !selectedColor || !selectedSize) {
+    return { handled: false, reason: "no_pending_social_comment_order" };
+  }
+  const config = await getMetaIntegrationConfig({ tenantId }).catch(() => null);
+  if (!config) return { handled: false, reason: "missing_meta_config" };
+  const senderId = conversationId.includes(":") ? conversationId.split(":").pop() : conversationId;
+  const channel = conversationId.startsWith(AI_AGENT_CHANNELS.INSTAGRAM)
+    ? AI_AGENT_CHANNELS.INSTAGRAM
+    : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  const message = {
+    channel,
+    external_conversation_id: conversationId,
+    external_customer_id: senderId,
+    message_text: "",
+    raw: { sender_psid: senderId },
+    external_message_id: "",
+  };
+  const mergedInfo = {
+    customerName: text(customerName || salesFlow?.customer_name || ""),
+    customerPhone: text(customerPhone || salesFlow?.customer_phone || ""),
+    governorate: text(address?.governorate || ""),
+    customerAddress: text(address?.street_address || ""),
+    area: text(address?.city_area || ""),
+  };
+  const shippingProductData = await resolveSocialCommentSalesFlowProductData({
+    tenantId,
+    productId,
+  }).catch(() => null);
+  const draftOrderResult = await createSocialCommentDraftOrder({
+    config,
+    message,
+    salesFlow,
+    mergedInfo,
+    productId,
+    selectedSize,
+    selectedColor,
+    postId: text(salesFlow?.post_id || ""),
+    commentId: text(salesFlow?.comment_id || ""),
+    shippingProductData,
+    structuredAddress: address,
+  }).catch((error) => {
+    console.warn("SOCIAL_COMMENT_ADDRESS_LINK_ORDER_FAILED", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      code: text(error?.code || ""),
+      message: error?.message || String(error),
+    });
+    return { failureCode: text(error?.code || "draft_order_create_failed") };
+  });
+  if (!draftOrderResult?.order) {
+    // The price is the only failure the customer can be told something useful about; everything
+    // else is ours to fix, and the address is already safely stored either way.
+    const priceMissing = draftOrderResult?.failureCode === "MISSING_PRODUCT_PRICE";
+    await sendSocialCommentSalesFlowText({
+      config,
+      message,
+      text: priceMissing
+        ? "استلمت عنوانك ✅\nفاضل نأكدلك سعر المنتج ده من الاستور، وهيتواصل معاك فريق خدمة العملاء حالاً ❤️"
+        : "استلمت عنوانك ✅\nفريق خدمة العملاء هيتواصل معاك حالاً لتأكيد الطلب ❤️",
+      detectedIntent: "social_comment_address_received_pending_review",
+      metadata: {
+        selected_product_id: productId,
+        selected_size: selectedSize,
+        selected_color: selectedColor,
+        social_comment_quick_reply: true,
+      },
+      fallbackContext: { productId, size: selectedSize, color: selectedColor, step: "awaiting_price_confirmation" },
+    }).catch(() => null);
+    return { handled: true, reason: "address_received_order_not_created" };
+  }
+  await sendSocialCommentSalesFlowText({
+    config,
+    message,
+    text: [
+      "✅ تم تأكيد طلبك بنجاح",
+      "",
+      "طلبك اتسجل عندنا، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
+      "",
+      "شكراً لاختيارك M1 Store",
+    ].join("\n"),
+    detectedIntent: "social_comment_sales_flow_draft_order_created",
+    metadata: {
+      selected_size: selectedSize,
+      selected_color: normalizeSocialCommentColorDisplay(selectedColor),
+      selected_product_id: productId,
+      order_id: draftOrderResult.order?.id || null,
+      customer_id: draftOrderResult.customer?.id || null,
+      social_comment_quick_reply: true,
+      social_comment_draft_order_created: true,
+      bypass_outbound_dedupe: Boolean(draftOrderResult.duplicate),
+    },
+    fallbackContext: { productId, size: selectedSize, color: selectedColor, step: "completed_pending_staff_review" },
+  }).catch(() => null);
+  await persistSocialCommentSalesFlowState({
+    config,
+    message,
+    productId,
+    selectedSize,
+    selectedColor,
+    step: "completed_pending_staff_review",
+    extra: {
+      ...salesFlow,
+      customer_name: mergedInfo.customerName,
+      customer_phone: mergedInfo.customerPhone,
+      governorate: mergedInfo.governorate,
+      customer_address: mergedInfo.customerAddress,
+      draft_order_id: draftOrderResult.order?.id || null,
+      order_id: draftOrderResult.order?.id || null,
+    },
+    reason: "social_comment_sales_flow_draft_order_created",
+    callsite: "ADDRESS_LINK_SUBMITTED",
+  }).catch(() => null);
+  console.log("SOCIAL_COMMENT_ADDRESS_LINK_ORDER_CREATED", {
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    order_id: draftOrderResult.order?.id || null,
+    duplicate: Boolean(draftOrderResult.duplicate),
+    shipping_city_id: text(address?.shipping_city_id || ""),
+    shipping_zone_id: text(address?.shipping_zone_id || ""),
+    shipping_district_id: text(address?.shipping_district_id || ""),
+    building_number: text(address?.building_number || ""),
+  });
+  return { handled: true, reason: "social_comment_order_created_from_address_link", order_id: draftOrderResult.order?.id || null };
 };
 
 export const dispatchSocialCommentMessengerQuickReplySelection = async ({
