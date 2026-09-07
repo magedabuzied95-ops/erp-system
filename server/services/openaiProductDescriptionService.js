@@ -470,6 +470,18 @@ const sortSizesForCopy = (sizes = []) => {
   return numeric ? [...sizes].sort((a, b) => Number(a) - Number(b)) : sizes;
 };
 
+/* True when the product name already carries the brand, including a brand
+ * that is misspelt in one of the two fields ("Alexander Maqueen" vs
+ * "Alexander Mcqueen Sneakers"): the first brand word is enough. */
+const brandInName = (brand = "", name = "") => {
+  const b = cleanText(brand).toLowerCase();
+  const n = cleanText(name).toLowerCase();
+  if (!b || !n) return false;
+  if (n.includes(b)) return true;
+  const firstWord = b.split(/\s+/)[0];
+  return firstWord.length >= 4 && n.split(/[^a-z0-9\u0600-\u06ff]+/i).includes(firstWord);
+};
+
 /* Facts a small open model can copy verbatim. Gemma/Qwen at 4B guess the
  * Arabic product type and audience from English fields and get them wrong
  * ("شنطة ... رجالي" for women's sneakers), so the words are handed over ready. */
@@ -500,20 +512,24 @@ const TRANSLITERATED_ARABIC = /\b(kutchi|kotchi|koutchi|kotshi|shanta|shantah|ha
 
 const AUDIENCE_WORDS = ["رجالي", "حريمي", "نسائي", "أطفال", "اطفال"];
 // SEO_TYPE_AR is declared further down; resolve the words on first use.
-const typeWords = () => SEO_TYPE_AR.map(([, word]) => word);
+const EXCLUSIVE_TYPE_WORDS = ["كروكس", "شنطة ظهر", "شنطة", "بوت", "سليبر", "صندل", "كوتشي"];
+const typeWords = () => EXCLUSIVE_TYPE_WORDS;
 
 /* True when the text names a different audience or product type than the
  * facts. A wrong audience on a listing is worse than a template sentence. */
-const contradictsFacts = (text = "", facts = {}) => {
+const contradictsFacts = (text = "", facts = {}, { scope = "strict" } = {}) => {
   const value = cleanText(text);
   if (!value) return false;
+  // A description opens with what the product is; a wrong type there is a
+  // contradiction, a bag or boot mentioned later is an outfit pairing.
+  const typeScope = scope === "lead" ? value.slice(0, 40) : value;
   if (facts.audience_ar) {
     const wrongAudience = AUDIENCE_WORDS.filter((word) => word !== facts.audience_ar && !(facts.audience_ar === "أطفال" && word === "اطفال"));
     if (wrongAudience.some((word) => value.includes(word))) return true;
   }
   if (facts.type_ar) {
     const wrongTypes = typeWords().filter((word) => word !== facts.type_ar && !word.includes(facts.type_ar) && !facts.type_ar.includes(word));
-    if (wrongTypes.some((word) => value.includes(word))) return true;
+    if (wrongTypes.some((word) => typeScope.includes(word))) return true;
   }
   return false;
 };
@@ -523,7 +539,7 @@ const guardGeneratedDescriptions = (generated = {}, fallback = {}, context = {})
   const arabic = cleanText(generated.arabic_description);
   return {
     ...generated,
-    arabic_description: arabic && contradictsFacts(arabic, facts) ? fallback.arabic_description : egyptianiseSearchWords(generated.arabic_description),
+    arabic_description: arabic && contradictsFacts(arabic, facts, { scope: "lead" }) ? fallback.arabic_description : egyptianiseSearchWords(generated.arabic_description),
   };
 };
 
@@ -537,7 +553,7 @@ const fallbackDescription = (context = {}) => {
   const tone = cleanText(context.selling_vibe || context.tone).toLowerCase();
   const gender = cleanText(context.gender);
   const material = cleanText(context.material);
-  const brandPrefix = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "";
+  const brandPrefix = brand && !brandInName(brand, name) ? brand : "";
   const displayName = [brandPrefix, name].filter(Boolean).join(" ");
   const typeAr = seoTypeAr({ product_type: context.product_type, category, product_name: name });
   const typeEn = seoTypeEn({ product_type: context.product_type, category, product_name: name });
@@ -1265,7 +1281,7 @@ export const buildSeoFallback = (context = {}) => {
   const typeEn = seoTypeEn(context);
   const genderAr = seoGenderAr(context.gender);
   const genderEn = seoGenderEn(context.gender);
-  const nameHasBrand = Boolean(brand) && name.toLowerCase().includes(brand.toLowerCase());
+  const nameHasBrand = brandInName(brand, name);
   const displayName = [nameHasBrand ? "" : brand, name].filter(Boolean).join(" ");
   const colorsAr = normalizeList(context.colors).map(localizeColorName).filter(Boolean).slice(0, 4);
   const sizes = normalizeList(context.sizes).slice(0, 6);
@@ -1321,8 +1337,7 @@ const buildCompactSeoPrompt = (context = {}) => {
   const facts = localizedFacts(context);
   const brand = cleanText(context.brand);
   const name = cleanText(context.product_name);
-  const brandInName = Boolean(brand) && name.toLowerCase().includes(brand.toLowerCase());
-  const subject = [facts.type_ar, brandInName ? "" : brand, name, facts.audience_ar].filter(Boolean).join(" ");
+  const subject = [facts.type_ar, brandInName(brand, name) ? "" : brand, name, facts.audience_ar].filter(Boolean).join(" ");
   return [
     "أنت متخصص SEO لمتجر M1 Store (أحذية وشنط في مصر). أرجع JSON فقط بالمفاتيح meta_title, meta_description, keywords, slug.",
     "الحقائق:",
@@ -1384,7 +1399,7 @@ export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => 
   const metaTitle = titleAgrees ? titleCandidate : fallback.meta_title || titleCandidate || "";
 
   const descriptionCandidate = clipAtWord(egyptianiseSearchWords(raw.meta_description || raw.seo_description || raw.description || ""), SEO_DESCRIPTION_MAX);
-  const descriptionAgrees = descriptionCandidate.length >= 60 && !contradictsFacts(descriptionCandidate, facts);
+  const descriptionAgrees = descriptionCandidate.length >= 60 && !contradictsFacts(descriptionCandidate, facts, { scope: "lead" });
   const metaDescription = descriptionAgrees ? descriptionCandidate : fallback.meta_description || descriptionCandidate || "";
 
   const rawKeywords = Array.isArray(raw.keywords) ? raw.keywords : String(raw.keywords || "").split(/[,،\n]/);

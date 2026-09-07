@@ -43,6 +43,7 @@ const IDS = option("ids", "").split(",").map((value) => Number(value.trim())).fi
 const TENANT_ID = Number(option("tenant", process.env.STOREFRONT_TENANT_ID || "1")) || 1;
 const PACE_MS = Number(option("pace-ms", "2000")) || 0;
 const MAX_ATTEMPTS = 6;
+const TONES = ["premium", "friendly", "sales", "luxury", "sport"];
 const RATE_LIMIT_SLEEP_MS = 65_000;
 const STATE_FILE =
   option("state-file", "") ||
@@ -190,8 +191,11 @@ const main = async () => {
       continue;
     }
 
+    // Rotate the house tone per product so six hundred listings do not open
+    // with the same sentence.
+    const tone = TONES[row.id % TONES.length];
     const description = await askModel("description", () =>
-      generateProductDescription({ target: "all", current: { ...context, name: context.product_name } })
+      generateProductDescription({ target: "all", prompt_customization: tone, current: { ...context, name: context.product_name, selling_vibe: tone } })
     );
     const seo = description
       ? await askModel("seo", () => generateProductSeoMetadata({ current: { ...context, name: context.product_name, description_ar: description.arabic_description, description_en: description.english_description } }))

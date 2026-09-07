@@ -385,3 +385,23 @@ test("a per-minute rate limit is waited out once, then the same request is retri
   assert.equal(parsed.meta_title, "x");
   assert.equal(calls, 2);
 });
+
+test("outfit pairings and misspelt brands no longer trip the guard", async () => {
+  const { buildSeoFallback, normalizeSeoGenerated } = await import("../../server/services/openaiProductDescriptionService.js");
+  const context = { product_name: "Alexander Mcqueen Sneakers", brand: "Alexander Maqueen", product_type: "sneakers", gender: "men" };
+  const fallback = buildSeoFallback(context);
+  assert.equal(fallback.meta_title, "كوتشي Alexander Mcqueen Sneakers رجالي");
+  assert.equal(fallback.slug, "alexander-mcqueen-sneakers-men");
+  const merged = normalizeSeoGenerated(
+    {
+      meta_title: "كوتشي Alexander Mcqueen رجالي أبيض",
+      meta_description: "كوتشي رجالي Alexander Mcqueen بشكل مرتب يتلبس مع البنطلون أو الشورت، ومع شنطة كروس للخروج. اطلبه الآن من M1 Store.",
+      keywords: ["كوتشي رجالي", "Alexander Mcqueen", "شنطة كروس"],
+      slug: "alexander-mcqueen-sneakers-men",
+    },
+    fallback,
+    context
+  );
+  assert.match(merged.meta_description, /البنطلون/);
+  assert.equal(merged.keywords.includes("شنطة كروس"), false);
+});
