@@ -190,15 +190,29 @@ test("an outbound echo from the Business app is not read as a customer writing i
   assert.equal(isCloudOwnEcho({ from: "" }, { display_phone_number: "" }), false);
 });
 
-test("the webhook acknowledges before it processes", () => {
+test("the webhook hands Meta's delivery to the one real inbound pipeline", () => {
+  /*
+   * This used to assert that a 200 was written before ANY work began, and that was right while
+   * the handler only logged. It is no longer the shape of the code, and the change was the point:
+   * acknowledging first is worthless if the message is then dropped, which is exactly what the
+   * old handler did — it answered 200 and never wrote the message anywhere.
+   *
+   * The delivery now goes to the pipeline that persists it, and that pipeline sends the response
+   * itself, so the ack lands after persistence rather than before it. That is the same ordering
+   * the pipeline has always had on its own URL, and it is safely inside Meta's retry window;
+   * a retry would in any case be absorbed by the dedupe on the provider message id.
+   *
+   * What still must hold is that OUR diagnostic pass cannot delay the response.
+   */
   const handler = routesSource.slice(
     routesSource.indexOf("export const handleWhatsappCloudWebhookEvent"),
     routesSource.indexOf(`router.get("/webhook"`)
   );
-  const ackIndex = handler.indexOf("res.status(200)");
-  const processIndex = handler.indexOf("processWhatsappCloudWebhook(body)");
-  assert.ok(ackIndex > -1 && processIndex > ackIndex, "Meta must be acknowledged before any work starts");
-  assert.match(handler, /setImmediate/);
+  assert.match(handler, /handleWhatsappCloudWebhookRequest\(req, res\)/, "the delivery must reach the real pipeline");
+  const delegateIndex = handler.indexOf("handleWhatsappCloudWebhookRequest(req, res)");
+  const diagnosticIndex = handler.indexOf("processWhatsappCloudWebhook(body)");
+  assert.ok(delegateIndex > -1 && diagnosticIndex > delegateIndex, "the diagnostic pass must not run ahead of the pipeline");
+  assert.match(handler, /setImmediate/, "the diagnostic pass must stay detached from the response");
 });
 
 test("the browser never exchanges the code and never sees a token", () => {

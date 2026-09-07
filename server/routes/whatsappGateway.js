@@ -20,6 +20,7 @@ import {
 import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 import { handleInboundMessageIntake } from "../services/aiInboundIntakeService.js";
 import { handleWhatsappCloudWebhookRequest } from "./aiAgentOrders.js";
+import { updateAiSupportMessageDeliveryStatus } from "../services/aiSupportLogService.js";
 import {
   completeEmbeddedSignup,
   consumeSignupState,
@@ -149,14 +150,53 @@ export const processWhatsappCloudWebhook = async (body = {}) => {
 
       for (const status of Array.isArray(value.statuses) ? value.statuses : []) {
         const name = String(status?.status || "").toLowerCase();
+        const wamid = String(status?.id || "");
+        const recipient = String(status?.recipient_id || "");
+        /*
+         * Move the outbound row the employee already sees, rather than writing anything new.
+         *
+         * updateAiSupportMessageDeliveryStatus matches on the wamid and only ever moves the
+         * status FORWARD — that rank rule is what makes a duplicate webhook, or a "sent" that
+         * arrives after "read", harmless. Meta redelivers freely and does not order these.
+         */
+        let updated = null;
+        if (wamid && CLOUD_DELIVERY_STATUSES.has(name)) {
+          updated = await updateAiSupportMessageDeliveryStatus({
+            tenantId: Number(integration?.tenant_id ?? process.env.WHATSAPP_TENANT_ID ?? 1) || 1,
+            sessionId: recipient ? `whatsapp:${recipient}` : "",
+            providerMessageId: wamid,
+            externalMessageId: wamid,
+            deliveryStatus: name,
+            deliveryError: String(status?.errors?.[0]?.title || status?.errors?.[0]?.message || ""),
+            errorCode: String(status?.errors?.[0]?.code ?? ""),
+            resolvedPhone: recipient,
+            sourcePath: "whatsapp_cloud_status_webhook",
+            insertSource: "whatsapp_cloud_status_webhook",
+          }).catch((error) => {
+            console.warn("[whatsapp:cloud-status-update-failed]", { message_id: wamid, status: name, message: error?.message || String(error) });
+            return null;
+          });
+          if (updated) {
+            // So the ticks move in an open inbox without a reload, the same way Evolution's do.
+            emitToRooms([`tenant:${updated.tenant_id || integration?.tenant_id || 1}`], "ai_inbox:message", {
+              tenant_id: updated.tenant_id || integration?.tenant_id || 1,
+              session_id: updated.session_id || (recipient ? `whatsapp:${recipient}` : ""),
+              message: updated,
+              at: new Date().toISOString(),
+            });
+          }
+        }
         console.info("[whatsapp:cloud-delivery-status]", {
           integration_id: integration?.id || null,
           phone_number_id: phoneNumberId,
-          message_id: String(status?.id || ""),
+          message_id: wamid,
           status: name,
           known_status: CLOUD_DELIVERY_STATUSES.has(name),
-          recipient_suffix: String(status?.recipient_id || "").slice(-4),
+          recipient_suffix: recipient.slice(-4),
           error_code: status?.errors?.[0]?.code ?? null,
+          row_updated: Boolean(updated),
+          ai_support_message_id: updated?.id || null,
+          resulting_status: updated?.delivery_status || "",
         });
       }
 
