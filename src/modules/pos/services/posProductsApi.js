@@ -540,7 +540,9 @@ export const repricePosCatalogProducts = (products = [], saleModeSettings = {}) 
   });
 
 export const getPosSellableProducts = async (saleModeSettings = {}, { requestOptions } = {}) => {
-  // requestOptions lets callers (e.g. the AI Inbox picker) request the compact
-  // projection (?compact=1) without affecting POS, which calls with no options.
+  // requestOptions lets callers (e.g. the AI Inbox picker) opt into a projection —
+  // it asks for the same ?pos=1 allowlist this pipeline was built around — without
+  // affecting POS itself, which calls with no options and gets the flag from its own
+  // request. Parity: tests/ai-inbox-picker-projection-parity.test.js.
   return normalizePosSellableProducts(await getProductsWithVariants(requestOptions), saleModeSettings).map((product) => normalizePosCatalogProduct(product));
 };

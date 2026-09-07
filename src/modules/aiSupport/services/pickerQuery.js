@@ -39,7 +39,14 @@ export const SERVER_FILTER_KEYS = ["brand", "manufacturer", "gender", "product_t
 export const MULTI_SELECT_FILTER_KEYS = ["brand", "manufacturer"];
 
 export const buildPickerParams = ({ search = "", filters = {}, page = 1, limit = PICKER_PAGE_SIZE } = {}) => {
-  const params = { compact: 1, limit, page };
+  // `pos: 1`, not the old `compact: 1`. ?compact=1 is a DENYLIST of ~19 fields
+  // (cost/description/SEO), which left a payload still dominated by the ~100 product
+  // and ~62 variant fields nothing reads. ?pos=1 is the ALLOWLIST built for the exact
+  // pipeline this picker runs (getPosSellableProducts -> normalizePosSellableProducts
+  // -> normalizePosCatalogProduct), so the normalized products are byte-identical while
+  // the payload drops by roughly 5x — and the server skips its grouped-colour-image
+  // build too. Parity is pinned by tests/ai-inbox-picker-projection-parity.test.js.
+  const params = { pos: 1, limit, page };
   if (clean(search)) params.search = clean(search);
   for (const key of SERVER_FILTER_KEYS) {
     const values = selectedValues(filters?.[key]);

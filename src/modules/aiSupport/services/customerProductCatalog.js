@@ -138,11 +138,14 @@ export const loadCustomerProductCatalog = async ({ headers } = {}) => {
       .catch(() => api.get("/settings/public", requestConfig))
       .catch(() => ({ settings: { sale_mode_enabled: false } }));
     const saleModeSettings = normalizeSaleModeSettings(readSettings(settingsPayload));
-    // Use the compact picker projection: same normalization/pricing, but the API
-    // omits cost/margin/supplier/description/SEO fields the card never uses. Keeps
-    // sensitive cost data off the inbox client and trims the payload.
+    // Ask for the POS allowlist projection (?pos=1), not the old ?compact=1 denylist.
+    // This is the full-catalog path — the one the inbox sheet still uses — so the
+    // payload size IS the wait. compact stripped ~19 fields; pos keeps only the fields
+    // this exact pipeline reads, which is why the normalized result is unchanged (see
+    // tests/ai-inbox-picker-projection-parity.test.js) while the download shrinks by
+    // roughly 5x. It also keeps cost data off the inbox client, as compact did.
     const products = await getPosSellableProducts(saleModeSettings, {
-      requestOptions: { params: { compact: 1 }, headers: { ...(headers || {}), "Cache-Control": "no-cache", Pragma: "no-cache" } },
+      requestOptions: { params: { pos: 1 }, headers: { ...(headers || {}), "Cache-Control": "no-cache", Pragma: "no-cache" } },
     });
     const value = { products, saleModeSettings };
     catalogCache = { loadedAt: Date.now(), value };

@@ -57,7 +57,7 @@ test("an absent limit is exactly what made the server return everything", () => 
 test("the bounded path reuses the SAME pipeline, so pricing cannot drift", () => {
   // Same endpoint, same normaliser: no new price formula anywhere.
   assert.match(service, /normalizePosSellableProducts\(rows, saleModeSettings\)\.map\(\(product\) => normalizePosCatalogProduct\(product\)\)/);
-  assert.match(query, /const params = \{ compact: 1, limit, page \};/);
+  assert.match(query, /const params = \{ pos: 1, limit, page \};/);
   assert.doesNotMatch(service, /by-size/, "the by-size projection uses a raw column price — not authoritative");
 });
 
