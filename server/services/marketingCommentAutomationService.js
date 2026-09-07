@@ -3,6 +3,7 @@ import { getPublishingAccessToken, validateMetaToken } from "./metaTokenService.
 import ensureMarketingSchema from "../utils/marketingSchema.js";
 import {
   GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
+  SOCIAL_COMMENT_COLOR_QUICK_REPLY_PREFIX,
   buildSocialCommentColorQuickReplies,
   buildSocialCommentPrivateReplyMessage,
   buildSocialCommentSizeQuickReplies,
@@ -536,24 +537,46 @@ const buildSocialCommentCardTitle = ({ productName = "", colorLabel = "", price 
   return fitMessengerField(withoutName || full || safeName || "Product");
 };
 
+// The SAME payload shape the colour quick replies use, so a tap on a card and a tap on a button
+// land in exactly one handler. Built here rather than imported to keep this module free of a
+// dependency on the sales-flow service.
+const buildSocialCommentColorSelectPayload = ({ productId = null, color = "", postId = "", commentId = "" } = {}) => {
+  const safeProductId = Number(productId || 0) || null;
+  const safeColor = trimString(color);
+  if (!safeProductId || !safeColor) return "";
+  const payload = `${SOCIAL_COMMENT_COLOR_QUICK_REPLY_PREFIX}${JSON.stringify({
+    color: safeColor,
+    size: "",
+    product_id: safeProductId,
+    post_id: trimString(postId),
+    comment_id: trimString(commentId),
+    conversation_id: "",
+  })}`;
+  // Meta caps a postback payload at 1000 characters.
+  return payload.length <= 1000 ? payload : "";
+};
+
 const buildSocialCommentMessengerElement = ({
   title = "",
   subtitle = "",
   imageUrl = "",
   productUrl = "",
+  colorSelectPayload = "",
 } = {}) => ({
   title: fitMessengerField(title) || "Product",
   image_url: trimString(imageUrl),
   ...(trimString(subtitle) ? { subtitle: fitMessengerField(subtitle) } : {}),
-  buttons: trimString(productUrl)
-    ? [
-        {
-          type: "web_url",
-          url: trimString(productUrl),
-          title: "عرض المنتج",
-        },
-      ]
-    : [],
+  // The colour choice rides the CARD, not a quick reply. Quick replies are ephemeral — Messenger
+  // only ever shows them under the newest message, so a card arriving after the text wipes them
+  // and the customer is left with no way to pick a colour. A postback button stays on the card.
+  buttons: [
+    ...(trimString(colorSelectPayload)
+      ? [{ type: "postback", title: "✅ اطلب اللون ده", payload: trimString(colorSelectPayload) }]
+      : []),
+    ...(trimString(productUrl)
+      ? [{ type: "web_url", url: trimString(productUrl), title: "عرض المنتج" }]
+      : []),
+  ],
 });
 
 // One card per in-stock colour, each with its own photo, its own sizes and a link that opens the
@@ -563,6 +586,8 @@ const buildSocialCommentMessengerElement = ({
 export const buildSocialCommentMessengerCarouselPayload = ({
   imageAspectRatio = "square",
   commentId = "",
+  postId = "",
+  productId = null,
   colorCards = [],
   productName = "",
   productPrice = "",
@@ -583,6 +608,12 @@ export const buildSocialCommentMessengerCarouselPayload = ({
         subtitle: buildSizesSubtitle(card?.sizes || []),
         imageUrl,
         productUrl: trimString(card?.productLink || card?.product_link || ""),
+        colorSelectPayload: buildSocialCommentColorSelectPayload({
+          productId,
+          color: trimString(card?.color || card?.colorLabel || ""),
+          postId,
+          commentId,
+        }),
       });
     })
     .filter(Boolean)
@@ -646,6 +677,7 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
     const carousel = buildSocialCommentMessengerCarouselPayload({
       imageAspectRatio: "",
       commentId,
+      productId: null,
       colorCards,
       productName: safeName,
       productPrice: normalizedContext?.priceUsed,
@@ -1417,6 +1449,8 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       if (normalizedProductContext.carouselEligible && carouselCards.length) {
         const carouselPayload = buildSocialCommentMessengerCarouselPayload({
           commentId: graphCommentId,
+          postId: trimString(options?.postId || ""),
+          productId: normalizedProductContext.productId,
           colorCards: carouselCards,
           productName,
           productPrice: normalizedProductContext.priceUsed,

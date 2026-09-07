@@ -86,6 +86,8 @@ const colorCards = ["Black", "White"].map((color, index) => ({
 }));
 const messengerCarousel = buildSocialCommentMessengerCarouselPayload({
   commentId: "123",
+  postId: "P1",
+  productId: 769,
   colorCards,
   productName: "Test",
   productPrice: "900",
@@ -94,6 +96,27 @@ assert.equal(
   messengerCarousel?.message?.attachment?.payload?.image_aspect_ratio,
   "square",
   "a comment→DM Messenger carousel must ship square or the photo arrives cropped small"
+);
+
+// The colour choice must live ON the card. Quick replies are ephemeral — Messenger shows them
+// only under the newest message, so any card or message arriving after the text wipes them and
+// the customer is left with no way to pick a colour at all.
+const firstElement = messengerCarousel?.message?.attachment?.payload?.elements?.[0] || {};
+const colorButton = (firstElement.buttons || []).find((button) => button?.type === "postback");
+assert.ok(colorButton, "every colour card needs its own postback button to choose that colour");
+assert.ok(
+  colorButton.payload.startsWith("SOCIAL_COLOR_SELECT::"),
+  "the card button must carry the same payload the colour quick replies use, so one handler serves both"
+);
+assert.deepEqual(
+  JSON.parse(colorButton.payload.slice("SOCIAL_COLOR_SELECT::".length)),
+  { color: "Black", size: "", product_id: 769, post_id: "P1", comment_id: "123", conversation_id: "" },
+  "the card button must name its colour and product"
+);
+assert.ok(colorButton.payload.length <= 1000, "Meta caps a postback payload at 1000 characters");
+assert.ok(
+  [...colorButton.title].length <= 20,
+  "Meta caps a button title at 20 characters"
 );
 const instagramPlan = buildSocialCommentInstagramPrivateReplyPayload({
   commentId: "123",
