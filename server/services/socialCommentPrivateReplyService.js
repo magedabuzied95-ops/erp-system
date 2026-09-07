@@ -259,7 +259,16 @@ const loadAvailableVariantRows = async ({ tenantId = null, productId = null } = 
       id,
       size,
       color,
-      COALESCE(stock, 0) AS stock
+      COALESCE(stock, 0) AS stock,
+      -- The Phase 1 pricing contract lives on these columns. Without them the price resolver sees
+      -- only zeros and the colour cards go out with no price on them at all.
+      sale_price,
+      selling_price,
+      price,
+      regular_price,
+      purchase_selling_price,
+      manual_selling_price,
+      manual_price_override_active
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
