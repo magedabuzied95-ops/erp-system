@@ -83,6 +83,9 @@ export const normalizeThermalLocalOptions = (options = {}) => {
     tracedLevel: clamp(Math.round(numberOr(options.tracedLevel, 0)), 0, 255),
     // Keep only the front shoe when a second one stands behind it.
     singleItem: options.singleItem !== false && String(options.singleItem ?? "").toLowerCase() !== "false",
+    // Internal: smallest ink island (in artwork pixels) a drawing style keeps;
+    // 0 = each style's own default. The illustration path raises it.
+    speckleFloor: clamp(Math.round(numberOr(options.speckleFloor, 0)), 0, 5000),
   };
 };
 
@@ -361,7 +364,20 @@ const isolateFrontItem = async (input, rgb, gray, width, height, background, bou
     // and goes with the rest.
     const kept = new Uint8Array(background.length);
     for (let index = 0; index < kept.length; index += 1) kept[index] = !background[index] && keep[index] ? 1 : 0;
-    const largest = largestComponent(kept, width, height);
+    let largest = largestComponent(kept, width, height);
+
+    // The seam where the shoe behind was cut away is a staircase, and the
+    // drawing step traces staircases faithfully. Growing the removed region
+    // by a few pixels into the front shoe rounds that seam off; what it takes
+    // from the front shoe was hidden behind the pair anyway, and the
+    // illustration step redraws the collar.
+    const seamReach = Math.max(4, Math.round(bounds.height * 0.03));
+    const gone = new Uint8Array(background.length);
+    for (let index = 0; index < gone.length; index += 1) gone[index] = !background[index] && !largest[index] ? 1 : 0;
+    const grown = dilateInk(gone, width, height, seamReach);
+    const trimmed = new Uint8Array(largest.length);
+    for (let index = 0; index < trimmed.length; index += 1) trimmed[index] = largest[index] && !grown[index] ? 1 : 0;
+    largest = largestComponent(trimmed, width, height);
 
     let removed = 0;
     for (let index = 0; index < background.length; index += 1) {
@@ -1194,7 +1210,7 @@ const LINEART_MODEL_STRIDE = 8;
 const LINEART_INK_CUT = 0.56;
 const LINEART_STROKE_WEIGHT = 3;
 
-const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 } = {}) => {
+const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0, speckleFloor = 0 } = {}) => {
   const { result, modelWidth, modelHeight } = await computeLineartMap(rgb, width, height);
 
   // Ink level moves the cut: heavier keeps the model's fainter strokes.
@@ -1248,7 +1264,7 @@ const lineartBinarize = async (rgb, width, height, background, { inkOffset = 0 }
     for (let index = 0; index < ink.length; index += 1) {
       if (!background[index] && plane[index] < 150) ink[index] = 1;
     }
-    ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02)), 8);
+    ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02), speckleFloor), 8);
     return { ink, svg };
   };
 
@@ -1333,8 +1349,11 @@ const hollowSolidRegions = (ink, width, height, halfWidth, minArea = 0) => {
 // The level the first accepted Samba drawing was cut at: strokes plus the
 // solid accents, and the gum sole's hatching kept as tone.
 const TRACED_INK_LEVEL_PALE = 150;
+// Ink islands smaller than this share of the canvas are dropped from an
+// illustrated label: mesh dots and stroke fragments read as dirt on paper.
+const DIFFUSION_SPECKLE_FLOOR_RATIO = 0.0005;
 
-const tracedBinarize = async (gray, width, height, background, { inkOffset = 0, level: levelOverride = 0 } = {}) => {
+const tracedBinarize = async (gray, width, height, background, { inkOffset = 0, level: levelOverride = 0, speckleFloor = 0 } = {}) => {
   const upscale = 2;
   const bigWidth = width * upscale;
   const bigHeight = height * upscale;
@@ -1375,7 +1394,7 @@ const tracedBinarize = async (gray, width, height, background, { inkOffset = 0, 
   for (let index = 0; index < ink.length; index += 1) {
     if (!background[index] && plane[index] < 150) ink[index] = 1;
   }
-  ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02)), 8);
+  ink = despeckleInk(ink, width, height, Math.max(8, Math.round(Math.min(width, height) * 0.02), speckleFloor), 8);
   return { ink, svg };
 };
 
@@ -1571,7 +1590,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       const postStyle = darkProduct && modelAvailable ? "lineart" : "traced";
       // singleItem off for the page: it already shows one shoe, and the box
       // prompt over a lone shoe keeps only its lower half.
-      const traced = await renderThermalArtwork(page, { ...options, style: postStyle, tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE, singleItem: false });
+      const traced = await renderThermalArtwork(page, { ...options, style: postStyle, tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE, singleItem: false, speckleFloor: Math.round(options.canvas * options.canvas * DIFFUSION_SPECKLE_FLOOR_RATIO) });
       return {
         buffer: traced.buffer,
         svg: traced.svg,
@@ -1602,7 +1621,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
 
   if (style === "traced") {
     // A clean drawing on white: cut it directly and trace the strokes.
-    const traced = await tracedBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset, level: options.tracedLevel });
+    const traced = await tracedBinarize(stretched, artWidth, artHeight, scaledBackground, { inkOffset, level: options.tracedLevel, speckleFloor: options.speckleFloor });
     lineart = { ink: traced.ink, svg: traced.svg, runtime: "traced", durationMs: 0, modelWidth: artWidth, modelHeight: artHeight };
     ink = traced.ink;
   }
@@ -1621,7 +1640,7 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
         artRgb[(index * 3) + 1] = artRgbData[(index * artChannels) + 1];
         artRgb[(index * 3) + 2] = artRgbData[(index * artChannels) + 2];
       }
-      lineart = await lineartBinarize(artRgb, artWidth, artHeight, scaledBackground, { inkOffset });
+      lineart = await lineartBinarize(artRgb, artWidth, artHeight, scaledBackground, { inkOffset, speckleFloor: options.speckleFloor });
       ink = lineart.ink;
     } catch (error) {
       lineartError = error?.message || String(error);
