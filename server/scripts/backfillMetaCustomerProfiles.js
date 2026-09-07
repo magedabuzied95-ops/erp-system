@@ -71,6 +71,7 @@ const BATCH_PAUSE_MS = Math.max(0, Number(option("batch-pause-ms", "3000")) || 0
 const SKIP_HOURS = Math.max(0, Number(option("skip-hours", "24")) || 0);
 const CHANNEL = normalizeMetaProfileChannel(option("channel", "")) || "";
 const PROBE = option("probe", "");
+const AUDIT = flag("audit");
 const MAX_CALLS = Math.max(0, Number(option("max-calls", "0")) || 0);
 const MAX_WAIT_MS = Math.max(0, Number(option("max-wait-ms", String(envNumber("META_PROFILE_BACKFILL_MAX_WAIT_MS", 15 * 60 * 1000)))) || 0);
 const MAX_PAUSE_MS = Math.max(5000, envNumber("META_PROFILE_BACKFILL_MAX_PAUSE_MS", 60 * 1000));
@@ -231,8 +232,96 @@ const runProbe = async () => {
   }
 };
 
+// Read-only: what identity is actually STORED for each conversation, and — for a
+// stored picture — which CDN host it points at and when its signature expires.
+// Answers "the picture is missing: was it never returned, has the link died, or is
+// the link fine and the browser is not loading it?" without calling Meta at all.
+const avatarExpiry = (url = "") => {
+  try {
+    const parsed = new URL(url);
+    // fbsbx/lookaside signs with ?ext=<unix>, fbcdn/cdninstagram with ?oe=<hex unix>
+    const ext = Number(parsed.searchParams.get("ext"));
+    if (Number.isFinite(ext) && ext > 0) return new Date(ext * 1000);
+    const oe = parsed.searchParams.get("oe");
+    if (oe && /^[0-9a-f]+$/i.test(oe)) return new Date(parseInt(oe, 16) * 1000);
+    return null;
+  } catch {
+    return null;
+  }
+};
+const avatarHost = (url = "") => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+};
+
+const runAudit = async () => {
+  const params = [TENANT_ID];
+  const where = ["c.tenant_id = $1", "c.channel IN ('facebook_messenger', 'instagram')", "COALESCE(c.thread_kind, 'dm') NOT IN ('comment', 'post')"];
+  if (CHANNEL) {
+    params.push(CHANNEL);
+    where.push(`c.channel = $${params.length}`);
+  }
+  const result = await db.query(
+    `
+    SELECT
+      c.channel,
+      c.external_customer_id,
+      c.customer_name,
+      c.customer_avatar_url,
+      p.display_name AS profile_display_name,
+      p.username AS profile_username,
+      p.profile_pic_url,
+      p.profile_sync_status,
+      p.last_profile_sync_at
+    FROM ai_channel_conversations c
+    LEFT JOIN ai_customer_profiles p
+      ON p.tenant_id = c.tenant_id
+      AND (p.id = c.customer_profile_id OR (c.customer_profile_id IS NULL AND p.phone = 'meta:' || c.channel || ':' || c.external_customer_id))
+    WHERE ${where.join(" AND ")}
+    ORDER BY c.last_message_at DESC NULLS LAST, c.id DESC
+    ${LIMIT ? `LIMIT ${LIMIT}` : ""}
+    `,
+    params
+  );
+  const now = Date.now();
+  const totals = {};
+  const hosts = {};
+  for (const row of result.rows) {
+    const key = row.channel;
+    totals[key] = totals[key] || { total: 0, named: 0, avatar_stored: 0, avatar_live: 0, avatar_expired: 0, avatar_unknown_expiry: 0, synced: 0, never_synced: 0 };
+    const bucket = totals[key];
+    bucket.total += 1;
+    if (text(row.customer_name) || text(row.profile_display_name)) bucket.named += 1;
+    if (row.last_profile_sync_at) bucket.synced += 1;
+    else bucket.never_synced += 1;
+    const url = text(row.customer_avatar_url || row.profile_pic_url);
+    if (!url) continue;
+    bucket.avatar_stored += 1;
+    const host = avatarHost(url);
+    hosts[host] = (hosts[host] || 0) + 1;
+    const expiry = avatarExpiry(url);
+    if (!expiry) bucket.avatar_unknown_expiry += 1;
+    else if (expiry.getTime() < now) bucket.avatar_expired += 1;
+    else bucket.avatar_live += 1;
+  }
+  log("stored identity per channel", totals);
+  log("avatar CDN hosts", hosts);
+  const sample = result.rows.filter((row) => text(row.customer_name || row.profile_display_name) && !text(row.customer_avatar_url || row.profile_pic_url)).slice(0, 10);
+  if (sample.length) {
+    log(`named but no picture stored (${sample.length} shown):`);
+    for (const row of sample) {
+      log(`  ${row.channel}:${mask(row.external_customer_id)} synced=${row.last_profile_sync_at ? new Date(row.last_profile_sync_at).toISOString().slice(0, 16) : "never"} status=${text(row.profile_sync_status) || "-"} username=${text(row.profile_username) ? "yes" : "no"}`);
+    }
+  }
+  return EXIT_CODES.OK;
+};
+
 const main = async () => {
   if (tried.length) log(`state dir: ${BACKFILL_DIR} (skipped: ${tried.map((entry) => `${entry.dir} [${entry.error}]`).join(", ")})`);
+  if (AUDIT) return runAudit();
   if (PROBE) return runProbe();
 
   const lock = acquireBackfillLock({ dir: BACKFILL_DIR, staleMs: LOCK_STALE_MS });
