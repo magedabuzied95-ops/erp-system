@@ -1545,15 +1545,17 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
     try {
       if (!modelAvailable) throw new Error("the drawing model is needed to guide the illustration service");
       const { result: control } = await computeLineartMap(croppedRgb, padded.width, padded.height);
-      // The soft map for every product: its greys carry the gum sole's tone,
-      // the leather's texture and, on a dark shoe, the mesh and the eyelets
-      // that a cut to confident strokes threw away. With the pair removed and
-      // the "every surface left white" wording, a dark shoe no longer comes
-      // back as a dark textured shoe from the soft map — that only happened
-      // when the standing pair's tread filled the frame with hatching.
+      // A pale product gets the soft map: its greys carry the gum sole's tone
+      // and the leather's texture, which the drawing keeps as hatching. A dark
+      // product gets confident strokes only — with the pair in the frame its
+      // soft map is a field of grey hatching that the diffusion model reads
+      // as "draw a dark textured shoe". (With the pair removed the soft map
+      // served dark products better; that step is off by the owner's choice.)
       const controlPlane = new Uint8Array(control.width * control.height);
       for (let index = 0; index < controlPlane.length; index += 1) {
-        controlPlane[index] = Math.round(control.map[index] * 255);
+        controlPlane[index] = darkProduct && !singleItem.applied
+          ? (control.map[index] < LINEART_INK_CUT ? 0 : 255)
+          : Math.round(control.map[index] * 255);
       }
       const controlPng = await sharp(rawBuffer(controlPlane), { raw: { width: control.width, height: control.height, channels: 1 } })
         .png({ compressionLevel: 6 })
@@ -1589,10 +1591,12 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       }
 
       const { LIGHT_PRODUCT_PROMPT, LIGHT_PRODUCT_NEGATIVE } = await import("./thermalDrawingClient.js");
+      // The starting photo is only sent when the pair has been removed: it
+      // anchored the single-shoe drawing, but the approved pair drawings were
+      // made from the line map alone and a photo start flattened them.
       const drawn = await drawFromLineart({
         controlPng,
-        initPng,
-        strength: DIFFUSION_INIT_STRENGTH,
+        ...(singleItem.applied ? { initPng, strength: DIFFUSION_INIT_STRENGTH } : {}),
         seed: 1,
         // The service's own defaults are the "no fill" wording for dark
         // products; a pale product keeps its black accents filled.
@@ -1620,10 +1624,10 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
         tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE,
         singleItem: false,
         speckleFloor: Math.round(options.canvas * options.canvas * DIFFUSION_SPECKLE_FLOOR_RATIO),
-        // Dark products only: their page goes through the line-drawing model
-        // and needs the lighter read. A pale product's page is cut directly
-        // at its own level, which already gave the drawing the owner approved.
-        inkLevel: darkProduct ? clamp(options.inkLevel - DIFFUSION_PAGE_INK_DROP, 0, 100) : options.inkLevel,
+        // The lighter read was tuned on single-shoe pages; with the pair in
+        // the frame the page is read at the setting itself, which is the
+        // drawing the owner approved.
+        inkLevel: darkProduct && singleItem.applied ? clamp(options.inkLevel - DIFFUSION_PAGE_INK_DROP, 0, 100) : options.inkLevel,
       });
       return {
         buffer: traced.buffer,

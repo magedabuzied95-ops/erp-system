@@ -19,7 +19,9 @@ export const THERMAL_ARTWORK_DEFAULTS = Object.freeze({
   engine: "local",
   style: "auto",
   inkLevel: 50,
-  singleItem: true,
+  // Off: the owner prefers the pair drawn as photographed. The step stays
+  // available as a setting.
+  singleItem: false,
 });
 
 export const THERMAL_ARTWORK_SETTING_KEYS = Object.freeze({
