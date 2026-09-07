@@ -618,8 +618,15 @@ const buildCompactPrompt = (context = {}, target = "all") => {
     context.tone ? `النبرة المطلوبة: ${context.tone}` : "",
   ].filter(Boolean);
   const ctaAr = facts.audience_en === "women" ? "اطلبيه الآن قبل نفاد المقاسات." : "اطلبه الآن قبل نفاد المقاسات.";
+  const addressRule =
+    facts.audience_en === "women"
+      ? "المنتج حريمي: خاطب العميلة بصيغة المؤنث في كل الأفعال (اختاري، اطلبيه، هتحبيه) ولا تستخدم صيغة المذكر أبدًا."
+      : facts.audience_en === "kids"
+        ? "المنتج أطفال: خاطب ولي الأمر (اطلبه لطفلك)."
+        : "";
   return [
     "أنت كاتب محتوى لمتجر M1 Store (أحذية وشنط في مصر).",
+    addressRule,
     COMPACT_VOICE_RULES,
     "الحقائق:",
     ...factLines,
