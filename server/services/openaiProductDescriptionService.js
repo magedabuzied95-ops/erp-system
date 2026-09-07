@@ -152,6 +152,21 @@ const chatCompletionJson = async (client, { model, timeout, instructions, prompt
   return extractJsonObject(completion?.choices?.[0]?.message?.content || "");
 };
 
+const MAX_RATE_LIMIT_WAIT_MS = 30_000;
+
+/* Seconds the provider asks us to wait, from the Retry-After header or from
+ * the message ("try again in 12.3s"); 0 when it names nothing usable. */
+export const rateLimitWaitMs = (error = {}) => {
+  const headers = error?.headers;
+  const headerValue =
+    typeof headers?.get === "function" ? headers.get("retry-after") : headers?.["retry-after"] ?? headers?.["Retry-After"];
+  const fromHeader = Number(headerValue);
+  const fromMessage = Number((String(error?.message || "").match(/try again in ([\d.]+)\s*s/i) || [])[1]);
+  const seconds = Number.isFinite(fromHeader) && fromHeader > 0 ? fromHeader : Number.isFinite(fromMessage) && fromMessage > 0 ? fromMessage : 0;
+  if (!seconds) return 0;
+  return Math.min(Math.ceil(seconds * 1000) + 500, MAX_RATE_LIMIT_WAIT_MS);
+};
+
 /* One JSON object from whichever provider is configured. OpenAI keeps the
  * Responses API with a strict schema. Compatible servers get Chat Completions:
  * json_schema first (Ollama >= 0.5, vLLM, Groq), then json_object, then a
@@ -195,12 +210,27 @@ export const requestStructuredJson = async ({
     null,
   ];
   let lastError = null;
-  for (const responseFormat of formats) {
+  let rateLimitWaits = 0;
+  for (let index = 0; index < formats.length; index += 1) {
+    const responseFormat = formats[index];
     try {
       return await chatCompletionJson(chat, { ...provider, instructions, prompt, schema, responseFormat, maxTokens });
     } catch (error) {
       lastError = error;
       const status = Number(error?.status || error?.response?.status || 0);
+      // Free hosted tiers meter output tokens per minute. When the provider says
+      // how long the window is, wait it out once (bounded so the HTTP route,
+      // cut at 95 s, still answers) and retry the same request format.
+      if (status === 429 && rateLimitWaits < 1) {
+        const waitMs = rateLimitWaitMs(error);
+        if (waitMs > 0) {
+          rateLimitWaits += 1;
+          console.warn(`[${label}] rate limited; waiting before retry`, { requestId, waitMs });
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          index -= 1;
+          continue;
+        }
+      }
       const retryable = status === 400 || status === 404 || status === 422 || error?.code === "INVALID_JSON";
       console.warn(`[${label}] structured output attempt failed`, {
         requestId,
@@ -982,7 +1012,7 @@ export const generateProductDescription = async (input = {}) => {
       schemaName: "product_descriptions",
       schema: productDescriptionSchema,
       verbosity: "medium",
-      maxTokens: 520,
+      maxTokens: 420,
     });
     console.log("[product-description] text provider request end", {
       requestId,
@@ -1052,7 +1082,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
       schemaName: "social_caption",
       schema: socialCaptionSchema,
       verbosity: "medium",
-      maxTokens: 400,
+      maxTokens: 300,
     });
     const generated = normalizeSocialCaptionGenerated(parsed, fallback);
     console.log("[social-caption] text provider request end", {
@@ -1400,7 +1430,7 @@ export const generateProductSeoMetadata = async (input = {}) => {
       schemaName: "product_seo_metadata",
       schema: seoMetadataSchema,
       verbosity: "low",
-      maxTokens: 320,
+      maxTokens: 260,
     });
     console.log("[product-seo] text provider request end", { requestId, durationMs: Date.now() - startedAt });
     return { ...normalizeSeoGenerated(parsed, fallback, context), source: provider.label };

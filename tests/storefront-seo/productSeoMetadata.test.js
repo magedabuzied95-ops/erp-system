@@ -357,3 +357,31 @@ test("a description that names the wrong audience is replaced by the template", 
     if (previousUrl === undefined) delete process.env.AI_TEXT_BASE_URL; else process.env.AI_TEXT_BASE_URL = previousUrl;
   }
 });
+
+test("a per-minute rate limit is waited out once, then the same request is retried", async () => {
+  const { requestStructuredJson, rateLimitWaitMs } = await import("../../server/services/openaiProductDescriptionService.js");
+  assert.equal(rateLimitWaitMs({ headers: { "retry-after": "2" } }), 2500);
+  assert.equal(rateLimitWaitMs({ message: "Please try again in 1.2s." }), 1700);
+  assert.equal(rateLimitWaitMs({ message: "rate limited" }), 0);
+  assert.equal(rateLimitWaitMs({ headers: { "retry-after": "600" } }), 30000);
+  let calls = 0;
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          calls += 1;
+          if (calls === 1) {
+            const error = new Error("429 Request too large ... Please try again in 0.05s.");
+            error.status = 429;
+            throw error;
+          }
+          return { choices: [{ message: { content: '{"meta_title":"x","meta_description":"y","keywords":["a"],"slug":"s"}' } }] };
+        },
+      },
+    },
+  };
+  const provider = { kind: "compatible", label: "LLM", model: "m", timeout: 1000, baseUrl: "http://x/v1", apiKey: "k" };
+  const parsed = await requestStructuredJson({ provider, client, prompt: "p", schema: { properties: { meta_title: {} } } });
+  assert.equal(parsed.meta_title, "x");
+  assert.equal(calls, 2);
+});

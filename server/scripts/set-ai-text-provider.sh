@@ -73,5 +73,6 @@ if [ "$PROVIDER" != "ollama" ] && docker ps --format '{{.Names}}' | grep -q '^er
   docker stop erp-ollama >/dev/null
 fi
 
+echo "== note: this recreates the container with new env only. If the code changed (git pull), run bash /opt/erp/deploy-production.sh to rebuild the image."
 echo "== sample output from the new provider"
 docker exec erp-backend node server/scripts/aiTextProviderSmoke.js
