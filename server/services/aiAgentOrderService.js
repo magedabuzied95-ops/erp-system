@@ -852,6 +852,26 @@ export const createAiOrderDraft = async (payload = {}) => {
   const safeQuantity = Math.max(1, integer(quantity, 1));
   const safeUnitPrice = numeric(unitPrice, 0);
   const safeSubtotal = numeric(subtotal, 0);
+  // Shipping was never quoted here, so every single-product draft — the Messenger sales flow
+  // included — invoiced the goods alone and the delivery fee simply vanished. The multi-line
+  // composer has always gone through resolveAiOrderShipping; this path now uses the same
+  // authority, so the same governorate is charged the same price whichever door the order came in.
+  const { cost: draftShippingCost, quote: draftShippingQuote, source: draftShippingSource } = await resolveAiOrderShipping({
+    ...payload,
+    net_subtotal: safeSubtotal,
+  });
+  const safeShippingCost = numeric(draftShippingCost, 0);
+  const safeOrderTotal = numeric(safeSubtotal + safeShippingCost, 0);
+  console.log("AI_AGENT_DRAFT_SHIPPING_QUOTE", {
+    conversation_id: conversationId,
+    governorate: text(payload.governorate),
+    city_area: text(payload.city_area || payload.area),
+    subtotal: safeSubtotal,
+    shipping_cost: safeShippingCost,
+    shipping_source: draftShippingSource,
+    zone: text(draftShippingQuote?.zone_name || ""),
+    order_total: safeOrderTotal,
+  });
   const idempotencyKey = text(
     payload.idempotency_key ||
       payload.idempotencyKey ||
@@ -917,9 +937,11 @@ export const createAiOrderDraft = async (payload = {}) => {
         payment_status: "unpaid",
         payment_method: "pending",
         subtotal: safeSubtotal,
-        total_amount: safeSubtotal,
-        total_price: safeSubtotal,
-        total: safeSubtotal,
+        shipping_cost: safeShippingCost,
+        shipping_fee: safeShippingCost,
+        total_amount: safeOrderTotal,
+        total_price: safeOrderTotal,
+        total: safeOrderTotal,
         paid_amount: 0,
         customer_address: text(payload.customer_address || payload.address),
         governorate: text(payload.governorate),
@@ -964,6 +986,11 @@ export const createAiOrderDraft = async (payload = {}) => {
         variant_id: safeVariantId,
         product_name: product.name,
         variant_name: selectedVariant.name || [selectedVariant.size, selectedVariant.color].filter(Boolean).join(" / "),
+        // The line carried only a joined variant_name, so order_items.size and .color stayed
+        // empty and anything reading the columns — pickers, exports — saw a sizeless, colourless
+        // line even when the customer had chosen both.
+        size: text(selectedVariant.size || payload.size || ""),
+        color: text(selectedVariant.color || payload.color || ""),
         sku: selectedVariant.sku || "",
         barcode: selectedVariant.barcode || "",
         quantity: safeQuantity,

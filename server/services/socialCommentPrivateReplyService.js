@@ -1,6 +1,6 @@
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { getPublicAppUrl, getPublicBackendUrl } from "../utils/publicUrl.js";
 import { tidyGreetingText } from "../utils/greetingText.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -42,13 +42,21 @@ export const sortSocialCommentAvailableSizes = (values = []) =>
 
 const publicAppBaseUrl = () => text(getPublicAppUrl()).replace(/\/+$/g, "");
 
+// Uploaded files are served by the BACKEND, not by the storefront. Sending `/uploads/...` to the
+// app origin does not 404 — the SPA answers every unknown path with index.html and a 200 — so
+// Meta fetched HTML where it expected a JPEG and rendered every carousel card without a picture,
+// with nothing logged anywhere. Products migrated to Cloudinary store an absolute URL and were
+// unaffected, which is why only newly uploaded products lost their images.
 export const ensureAbsoluteSocialAssetUrl = (value = "") => {
   const normalized = text(value);
   if (!normalized) return "";
   if (isAbsoluteHttpUrl(normalized)) return normalized;
-  const publicUrl = publicAppBaseUrl();
-  if (!publicUrl) return normalized;
-  return `${publicUrl}${normalized.startsWith("/") ? normalized : `/${normalized}`}`;
+  const path = normalized.startsWith("/") ? normalized : `/${normalized}`;
+  const assetBaseUrl = /^\/uploads\//i.test(path)
+    ? text(getPublicBackendUrl()).replace(/\/+$/g, "") || publicAppBaseUrl()
+    : publicAppBaseUrl();
+  if (!assetBaseUrl) return normalized;
+  return `${assetBaseUrl}${path}`;
 };
 
 export const ensureAbsoluteSocialProductLink = (value = "") => {

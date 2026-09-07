@@ -16335,6 +16335,23 @@ const createSocialCommentDraftOrder = async ({
     if (!draftData?.product || !draftData?.variant) {
       throw Object.assign(new Error("Unable to resolve draft order product variant"), { status: 409, code: "DRAFT_VARIANT_NOT_FOUND" });
     }
+    // A product with no price in the catalog produced an order for 0.00 (INV-1215, product 769):
+    // the summary quoted nothing, the invoice charged nothing, and only a human reading the paper
+    // would notice. An unpriced product is a catalog gap, not a free sale, so it stops here and a
+    // human is asked to price it.
+    if (!(draftData.unitPrice > 0)) {
+      console.warn("SOCIAL_COMMENT_DRAFT_ORDER_PRICE_MISSING", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        product_id: Number(productId || 0) || null,
+        product_name: text(draftData.productName || ""),
+        variant_id: draftData.variant?.id || null,
+        selected_size: text(selectedSize || ""),
+        selected_color: text(selectedColor || ""),
+        price_trace: draftData.priceTrace || null,
+      });
+      throw Object.assign(new Error("Product has no price in the catalog"), { status: 409, code: "MISSING_PRODUCT_PRICE" });
+    }
     const payload = {
       tenant_id: tenantId,
       channel: platform,
@@ -25619,6 +25636,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         source: "messenger_sales_flow_after_shipping_parser",
         ...draftOrderEligibility,
       });
+      let draftOrderFailureCode = "";
       const draftOrderResult = await createSocialCommentDraftOrder({
         config,
         message,
@@ -25638,8 +25656,69 @@ export const processMetaWebhook = async ({ req } = {}) => {
           ...draftOrderEligibility,
           reason_if_not_eligible: text(error?.code || error?.message || "draft_order_create_failed"),
         });
+        draftOrderFailureCode = text(error?.code || "");
         return null;
       });
+      // An unpriced product must not quietly become a 0.00 order, and it must not read to the
+      // customer as a failure either — the sale is real, only the price is missing from the
+      // catalog. Hand it to a human with everything already collected.
+      if (draftOrderFailureCode === "MISSING_PRODUCT_PRICE") {
+        await sendSocialCommentSalesFlowText({
+          config,
+          message,
+          text: "استلمت بياناتك ✅\nفاضل نأكدلك سعر المنتج ده من الاستور، وهيتواصل معاك فريق خدمة العملاء حالاً يأكد الطلب والشحن ❤️",
+          detectedIntent: "social_comment_price_confirmation_pending",
+          metadata: {
+            selected_product_id: shippingProductId,
+            selected_size: shippingSelectedSize,
+            selected_color: shippingSelectedColor,
+            social_comment_quick_reply: true,
+          },
+          inboundKey,
+          inboundMetaMid: message.external_message_id || messageId,
+          fallbackContext: {
+            productId: shippingProductId,
+            size: shippingSelectedSize,
+            color: shippingSelectedColor,
+            step: "awaiting_price_confirmation",
+          },
+        });
+        await persistSocialCommentSalesFlowState({
+          config,
+          message,
+          productId: shippingProductId,
+          selectedSize: shippingSelectedSize,
+          selectedColor: shippingSelectedColor,
+          step: "awaiting_price_confirmation",
+          extra: {
+            ...socialCommentCurrentSalesFlow,
+            post_id: shippingPostId,
+            comment_id: shippingCommentId,
+            customer_name: text(shippingMergedInfo.customerName || ""),
+            customer_phone: text(shippingMergedInfo.customerPhone || ""),
+            governorate: text(shippingMergedInfo.governorate || ""),
+            customer_address: text(shippingMergedInfo.customerAddress || ""),
+          },
+          reason: "social_comment_sales_flow_missing_product_price",
+          callsite: "SHIPPING_PARSER_PRICE_MISSING",
+        });
+        markMessageProcessingStatus(messageId, "sent");
+        await storeProcessedInboundKey({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          inboundKey,
+          status: "sent",
+        });
+        results.push({
+          channel: alias,
+          external_user_id: message.external_customer_id,
+          stored: true,
+          sent: true,
+          reason: "social_comment_sales_flow_missing_product_price",
+        });
+        continue;
+      }
       if (draftOrderResult?.order) {
         const successText = [
           "✅ تم تأكيد طلبك بنجاح",
