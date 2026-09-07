@@ -1,6 +1,7 @@
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { filterAiEligibleProducts, resolveAiProductUrl } from "./aiProductEligibilityService.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { resolveCurrentSellingPrice } from "../../src/shared/lib/currentSellingPrice.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import db from "../database/db.js";
 
@@ -254,6 +255,33 @@ export const resolveCardPrice = (product = {}, variant = {}, selectedVariant = n
   return null;
 };
 
+// The price this ONE variant row owns, with the product row deliberately out of the picture. Used
+// to decide which variant represents a colour: a colour must be represented by a variant that
+// carries its own price, otherwise the card silently falls back to the product's price and every
+// colour prints the same number.
+const variantOwnSellingPrice = (variant = {}) =>
+  numericPrice(resolveCurrentSellingPrice({ product: {}, variant: variant || {} }).value);
+
+// The canonical customer price for ONE colour — the same rule POS charges by, resolved with the
+// colour's own variant row (variant beats product at every tier).
+//
+// `resolveCardPrice` cannot do this job: it consults the PRODUCT row's loose
+// display/final/price fields FIRST, so any product whose `products.price` is set stamped that one
+// number on every colour card. Owner screenshot 2026-09-08: an Air Force whose colours are priced
+// 1200 / 850 / 1200 in the system went out on Messenger as "1,850 جنيه" on all four cards.
+//
+// Deliberately NOT `{ ...product, ...variant }`: a variant row carries NULL in the columns it does
+// not use, and spreading it would blank the product's own price columns before the resolver ever
+// sees them — turning "fall back to the product price" into "no price at all".
+const canonicalColorCardPrice = (product = {}, variant = {}, saleModeSettings = null) => {
+  if (!variant || typeof variant !== "object" || !Object.keys(variant).length) return null;
+  const resolved = resolveCustomerDisplayPrice(
+    { ...product, product, variant, selected_variant: variant, matched_variant: variant },
+    { saleModeSettings }
+  );
+  return numericPrice(resolved?.display_price);
+};
+
 const normalizeColorName = (value = "") =>
   text(value)
     .replace(/\s*[/|,+]\s*/g, "/")
@@ -411,16 +439,34 @@ const colorGroupKey = (product = {}, color = "", imageUrl = "") => {
 const canonicalVariantForGroup = (product = {}, variants = []) => {
   const inStock = asArray(variants).filter(variantIsInStock);
   const candidatePool = inStock.length ? inStock : asArray(variants);
-  const sorted = [...candidatePool].sort((left, right) => {
-    const leftPrice = numericPrice(left.final_price) || numericPrice(left.sale_price) || numericPrice(left.price) || numericPrice(left.product_price) || 0;
-    const rightPrice = numericPrice(right.final_price) || numericPrice(right.sale_price) || numericPrice(right.price) || numericPrice(right.product_price) || 0;
+  // A colour is represented by a variant that OWNS a price whenever one exists. The old ordering
+  // read only final/sale/price/product_price, so a colour whose sizes are priced through
+  // `purchase_selling_price` or a manual override scored 0 on every row and could elect a priceless
+  // variant — the card then fell through to the product's price and printed the same number as
+  // every other colour.
+  const scored = candidatePool.map((variant) => ({
+    variant,
+    ownPrice: variantOwnSellingPrice(variant) || 0,
+    loosePrice:
+      numericPrice(variant.final_price) ||
+      numericPrice(variant.sale_price) ||
+      numericPrice(variant.price) ||
+      numericPrice(variant.product_price) ||
+      0,
+  }));
+  const sorted = [...scored].sort((left, right) => {
+    const leftPriced = left.ownPrice > 0 || left.loosePrice > 0;
+    const rightPriced = right.ownPrice > 0 || right.loosePrice > 0;
+    if (leftPriced !== rightPriced) return leftPriced ? -1 : 1;
+    const leftPrice = left.ownPrice || left.loosePrice;
+    const rightPrice = right.ownPrice || right.loosePrice;
     if (leftPrice !== rightPrice) return leftPrice - rightPrice;
-    const leftStock = numeric(left.stock ?? left.quantity, 0);
-    const rightStock = numeric(right.stock ?? right.quantity, 0);
+    const leftStock = numeric(left.variant.stock ?? left.variant.quantity, 0);
+    const rightStock = numeric(right.variant.stock ?? right.variant.quantity, 0);
     if (leftStock !== rightStock) return rightStock - leftStock;
-    return String(left.id || left.variant_id || "").localeCompare(String(right.id || right.variant_id || ""));
+    return String(left.variant.id || left.variant.variant_id || "").localeCompare(String(right.variant.id || right.variant.variant_id || ""));
   });
-  return sorted[0] || product?.selected_variant || product?.matched_variant || asArray(product.variants)[0] || {};
+  return sorted[0]?.variant || product?.selected_variant || product?.matched_variant || asArray(product.variants)[0] || {};
 };
 
 export const debugProductColorExpansion = (product = {}, { limit = 6 } = {}) => {
@@ -769,7 +815,7 @@ const buildBaseCard = (product = {}, overrides = {}) => {
   };
 };
 
-const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavailableCards = false } = {}) => {
+const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavailableCards = false, saleModeSettings = null } = {}) => {
   const expansionDebug = debugProductColorExpansion(product, { limit });
   const colorGroups = new Map();
   for (const group of expansionDebug.color_groups || []) {
@@ -790,9 +836,13 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavaila
   const sourceGroups = preserveUnavailableCards ? (expansionDebug.color_groups || []) : (expansionDebug.color_groups || []).filter((group) => group.sent);
   const cards = sourceGroups.map((group) => {
     const firstVariant = group.canonical_variant || {};
+    // The canonical per-colour price FIRST. `resolveCardPrice` stays as the fallback for card
+    // shapes that carry a price only in the loose fields (an API projection, a re-normalized flat
+    // card) — but it must never outrank the colour's own variant row, which is what made every
+    // colour of a product print the product's single price.
     const cardPrice = safePriceNumber(
+      canonicalColorCardPrice(product, firstVariant, saleModeSettings),
       resolveCardPrice(product, firstVariant, firstVariant),
-      resolveCustomerDisplayPrice({ ...product, ...firstVariant, product, variant: firstVariant, selected_variant: firstVariant }).display_price,
       firstVariant.final_price,
       firstVariant.price,
       firstVariant.sale_price,
@@ -858,10 +908,10 @@ const colorVariantCardsForProduct = (product = {}, { limit = 6, preserveUnavaila
 
 export const normalizeProductCards = (products = [], options = {}) =>
   (() => {
-    const { limit = 6, preserveUnavailableCards = false } = options || {};
+    const { limit = 6, preserveUnavailableCards = false, saleModeSettings = null } = options || {};
     productUrlCache.clear();
     const eligible = filterAiEligibleProducts(asArray(products), { requireProductUrl: false });
-    const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit, preserveUnavailableCards }));
+    const expanded = eligible.flatMap((product) => colorVariantCardsForProduct(product, { limit, preserveUnavailableCards, saleModeSettings }));
     const beforeCount = expanded.length;
     const seen = new Set();
     const deduped = [];

@@ -1,5 +1,9 @@
 import db from "../database/db.js";
-import { resolveCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
+import {
+  loadTenantSaleModeSettings,
+  resolveCustomerDisplayPrice,
+  resolveSocialProductDisplayPrice,
+} from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getPublicBackendUrl } from "../utils/publicUrl.js";
 import { tidyGreetingText } from "../utils/greetingText.js";
 
@@ -287,7 +291,26 @@ const loadColorCardRows = async ({ tenantId = null, productId = null } = {}) => 
       MIN(TRIM(COALESCE(pv.color, ''))) AS color_label,
       MIN(COALESCE(pv.color_sort_order, 0)) AS color_sort_order,
       COALESCE(MAX(NULLIF(TRIM(COALESCE(pvi.image_url, '')), '')), '') AS gallery_image_url,
-      COALESCE(MAX(NULLIF(TRIM(COALESCE(pv.image_url, '')), '')), '') AS variant_image_url
+      COALESCE(MAX(NULLIF(TRIM(COALESCE(pv.image_url, '')), '')), '') AS variant_image_url,
+      -- The RAW price columns of this colour's in-stock variants, never a COALESCE over them: the
+      -- canonical resolver decides which one is the customer price (a hand-rolled COALESCE is how
+      -- purchase_selling_price kept getting lost). One card per colour means one PRICE per colour.
+      COALESCE(
+        JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'id', pv.id,
+            'manual_price_override_active', pv.manual_price_override_active,
+            'manual_selling_price', pv.manual_selling_price,
+            'purchase_selling_price', pv.purchase_selling_price,
+            'selling_price', pv.selling_price,
+            'price', pv.price,
+            'regular_price', pv.regular_price,
+            'sale_price', pv.sale_price,
+            'sale_price_enabled', pv.sale_price_enabled
+          ) ORDER BY pv.id
+        ),
+        '[]'::json
+      ) AS price_variants
     FROM product_variants pv
     LEFT JOIN LATERAL (
       SELECT i.image_url
@@ -334,11 +357,37 @@ const buildColorProductLink = (baseLink = "", color = "") => {
   }
 };
 
+// The customer price of ONE colour, resolved from that colour's own variant rows by the canonical
+// authority. Returns null when the colour owns no price of its own — the card then keeps the
+// product-level price, exactly as before.
+const resolveColorRowPrice = (row = {}, saleModeSettings = null) => {
+  const variants = asArray(row?.price_variants).filter((variant) => variant && typeof variant === "object");
+  for (const variant of variants) {
+    const resolved = resolveCustomerDisplayPrice(
+      { product: {}, variant, selected_variant: variant },
+      { saleModeSettings }
+    );
+    const price = toFiniteNumber(resolved?.display_price);
+    if (Number.isFinite(price) && price > 0) return price;
+  }
+  return null;
+};
+
+// Colours that really are priced differently must card differently. When every colour resolves to
+// the same number — the normal case — the cards keep the single product-level price they already
+// used, so this can only ever split a price that was WRONG, never move one that was right.
+const applyDistinctColorPrices = (cards = []) => {
+  const distinct = new Set(cards.map((card) => card.price).filter((price) => Number.isFinite(price) && price > 0));
+  if (distinct.size < 2) return cards.map((card) => ({ ...card, price: null, priceText: "" }));
+  return cards;
+};
+
 export const buildSocialCommentColorCards = ({
   variantRows = [],
   colorRows = [],
   productName = "",
   productLink = "",
+  saleModeSettings = null,
 } = {}) => {
   const sizesByColor = new Map();
   for (const variant of asArray(variantRows)) {
@@ -350,7 +399,7 @@ export const buildSocialCommentColorCards = ({
     const sizes = sizesByColor.get(key);
     if (!sizes.includes(size)) sizes.push(size);
   }
-  return asArray(colorRows)
+  const cards = asArray(colorRows)
     .map((row) => {
       const colorKey = colorGroupKey(row?.color_key || row?.color_label || "");
       const colorValue = text(row?.color_label || row?.color_key || "");
@@ -358,6 +407,7 @@ export const buildSocialCommentColorCards = ({
         text(row?.gallery_image_url || "") || text(row?.variant_image_url || "")
       );
       if (!colorKey || !imageUrl) return null;
+      const price = resolveColorRowPrice(row, saleModeSettings);
       return {
         colorKey,
         color: colorValue,
@@ -366,10 +416,13 @@ export const buildSocialCommentColorCards = ({
         imageUrl,
         productLink: buildColorProductLink(productLink, colorValue),
         sizes: sortSocialCommentAvailableSizes(sizesByColor.get(colorKey) || []),
+        price,
+        priceText: normalizePriceText(price),
       };
     })
     .filter(Boolean)
     .filter((card, index, cards) => cards.findIndex((item) => item.colorKey === card.colorKey) === index);
+  return applyDistinctColorPrices(cards);
 };
 
 // A carousel earns its place only when it shows something a single card cannot: two or more
@@ -460,11 +513,18 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
         return [];
       })
     : [];
+  // The per-colour price is resolved by the canonical authority, which needs the GLOBAL Sale Mode
+  // state; without it every colour fails safe to the normal price. Only loaded when there are
+  // colour rows to price.
+  const saleModeSettings = colorRows.length
+    ? await loadTenantSaleModeSettings({ tenantId }).catch(() => ({ sale_mode_enabled: false }))
+    : null;
   const colorCards = buildSocialCommentColorCards({
     variantRows: availableVariantRows,
     colorRows,
     productName,
     productLink,
+    saleModeSettings,
   });
   const carouselEligible = socialCommentCarouselEligible(colorCards);
   // The exact colour STRINGS the catalog stores, in stock, deduplicated. These are what the

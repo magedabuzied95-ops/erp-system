@@ -572,7 +572,10 @@ export const buildSocialCommentMessengerCarouselPayload = ({
         title: buildSocialCommentCardTitle({
           productName: trimString(card?.productName || productName),
           colorLabel: trimString(card?.colorLabel || card?.color || ""),
-          price: productPrice,
+          // A colour that is priced differently from the rest carries its OWN price; the shared
+          // product price is only the fallback. One number on every card is how a 1200 colour, an
+          // 850 colour and a 1200 colour all went out at 1,850.
+          price: trimString(card?.priceText) || productPrice,
         }),
         subtitle: buildSizesSubtitle(card?.sizes || []),
         imageUrl,

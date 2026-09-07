@@ -6501,6 +6501,11 @@ router.post("/conversations/:conversationId/send", protect, inboxReply(), async 
 // new reason a card fails to send.
 const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
   const expanded = [];
+  // The per-colour price is resolved by the canonical authority, and that rule needs the GLOBAL
+  // Sale Mode state — without it every card fails safe to the normal price and a running sale
+  // would be quoted higher than POS charges.
+  const { loadTenantSaleModeSettings } = await import("../utils/customerDisplayPrice.js");
+  const saleModeSettings = await loadTenantSaleModeSettings({ tenantId }).catch(() => ({ sale_mode_enabled: false }));
   for (const card of cards) {
     const productId = Number(card?.product_id || card?.id || 0);
     if (!Number.isFinite(productId) || productId <= 0) {
@@ -6538,7 +6543,7 @@ const expandProductCardsByColor = async ({ tenantId, cards = [] }) => {
       );
       const colorCards = normalizeProductCards(
         [{ ...product, variants: variantsResult.rows, storefront_url: card.storefront_url || card.product_url || "" }],
-        { limit: 30 }
+        { limit: 30, saleModeSettings }
       );
       if (colorCards.length >= 2) {
         for (const colorCard of colorCards) {
