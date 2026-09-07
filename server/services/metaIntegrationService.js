@@ -3180,10 +3180,12 @@ const persistMessengerProfile = async ({ tenantId, channel, conversationId, psid
     conversation_id: text(conversationId),
     psid: maskIdForLog(psid),
     profile_id: profileId,
-    graph_profile_pic: profilePic,
-    ai_customer_profiles_profile_pic_url: storedProfilePicUrl,
-    ai_support_sessions_customer_avatar_url: text(sessionResult.rows[0]?.customer_avatar_url),
-    ai_channel_conversations_customer_avatar_url: text(channelConversationResult.rows[0]?.customer_avatar_url),
+    // Presence only: the signed CDN url is a credential-shaped value, not for the logs.
+    has_graph_profile_pic: Boolean(profilePic),
+    has_username: Boolean(storedUsername),
+    stored_ai_customer_profiles: Boolean(storedProfilePicUrl),
+    stored_ai_support_sessions: Boolean(text(sessionResult.rows[0]?.customer_avatar_url)),
+    stored_ai_channel_conversations: Boolean(text(channelConversationResult.rows[0]?.customer_avatar_url)),
   });
   linkCommentIdentitiesAfterProfileLearned({ tenantId, psid });
   return {
@@ -4320,12 +4322,12 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
         tenant_id: scopedTenantId,
         conversation_id: safeConversationId,
         psid: maskIdForLog(psid),
-        channel_customer_name: text(debugRows.rows[0]?.channel_customer_name),
-        channel_customer_avatar_url: text(debugRows.rows[0]?.channel_customer_avatar_url),
-        session_customer_name: text(debugRows.rows[0]?.session_customer_name),
-        session_customer_avatar_url: text(debugRows.rows[0]?.session_customer_avatar_url),
-        channel_metadata_messenger_profile_name: text(debugRows.rows[0]?.channel_metadata?.messenger_profile?.name),
-        channel_metadata_messenger_profile_avatar: text(debugRows.rows[0]?.channel_metadata?.messenger_profile?.profile_pic || debugRows.rows[0]?.channel_metadata?.messenger_profile?.profile_pic_url || ""),
+        has_channel_customer_name: Boolean(text(debugRows.rows[0]?.channel_customer_name)),
+        has_channel_customer_avatar: Boolean(text(debugRows.rows[0]?.channel_customer_avatar_url)),
+        has_session_customer_name: Boolean(text(debugRows.rows[0]?.session_customer_name)),
+        has_session_customer_avatar: Boolean(text(debugRows.rows[0]?.session_customer_avatar_url)),
+        has_channel_metadata_messenger_profile_name: Boolean(text(debugRows.rows[0]?.channel_metadata?.messenger_profile?.name)),
+        has_channel_metadata_messenger_profile_avatar: Boolean(text(debugRows.rows[0]?.channel_metadata?.messenger_profile?.profile_pic || debugRows.rows[0]?.channel_metadata?.messenger_profile?.profile_pic_url || "")),
       });
     }
     console.log("messenger_profile_avatar_saved", {
@@ -4333,21 +4335,22 @@ export const syncMessengerProfileForConversation = async ({ tenantId, conversati
       conversation_id: safeConversationId,
       psid: maskIdForLog(psid),
       profile_id: message.customer_profile_id || channelConversation?.customer_profile_id || null,
-      graph_profile_pic: text(message.raw?.messenger_profile?.profile_pic),
-      ai_customer_profiles_profile_pic_url: finalAvatarStorage.ai_customer_profiles_profile_pic_url,
-      ai_support_sessions_customer_avatar_url: finalAvatarStorage.ai_support_sessions_customer_avatar_url,
-      ai_channel_conversations_customer_avatar_url: finalAvatarStorage.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
+      has_graph_profile_pic: Boolean(text(message.raw?.messenger_profile?.profile_pic)),
+      stored_ai_customer_profiles: Boolean(finalAvatarStorage.ai_customer_profiles_profile_pic_url),
+      stored_ai_support_sessions: Boolean(finalAvatarStorage.ai_support_sessions_customer_avatar_url),
+      stored_ai_channel_conversations: Boolean(finalAvatarStorage.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url)),
       source: "manual_sync_final",
     });
     console.log("messenger_profile_manual_sync_final_avatar_url", {
       tenant_id: scopedTenantId,
       conversation_id: safeConversationId,
       psid: maskIdForLog(psid),
-      final_customer_avatar_url:
+      has_final_customer_avatar: Boolean(
         finalAvatarStorage.ai_channel_conversations_customer_avatar_url ||
         finalAvatarStorage.ai_support_sessions_customer_avatar_url ||
         finalAvatarStorage.ai_customer_profiles_profile_pic_url ||
-        text(message.customer_avatar_url),
+        text(message.customer_avatar_url)
+      ),
     });
     emitToRooms([`tenant:${scopedTenantId}`], "ai_inbox:refresh", {
       tenant_id: scopedTenantId,
@@ -4631,12 +4634,12 @@ export const debugMessengerProfileForConversation = async ({ tenantId, conversat
     conversation_id: safeConversationId,
     psid: maskIdForLog(psid),
     profile_id: persisted?.id || channelConversation?.customer_profile_id || row.customer_profile_id || null,
-    graph_profile_pic: profile.profile_pic,
-    ai_customer_profiles_profile_pic_url: stored.ai_customer_profiles_profile_pic_url,
-    ai_support_sessions_customer_avatar_url: stored.ai_support_sessions_customer_avatar_url,
-    ai_channel_conversations_customer_avatar_url: stored.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
-    channel_metadata_profile_pic: stored.channel_metadata_profile_pic,
-    customer_profile_profile_pic: stored.channel_metadata_customer_profile_profile_pic,
+    has_graph_profile_pic: Boolean(profile.profile_pic),
+    stored_ai_customer_profiles: Boolean(stored.ai_customer_profiles_profile_pic_url),
+    stored_ai_support_sessions: Boolean(stored.ai_support_sessions_customer_avatar_url),
+    stored_ai_channel_conversations: Boolean(stored.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url)),
+    has_channel_metadata_profile_pic: Boolean(stored.channel_metadata_profile_pic),
+    has_customer_profile_profile_pic: Boolean(stored.channel_metadata_customer_profile_profile_pic),
     source: "debug_endpoint_final",
   });
   return {
@@ -24753,10 +24756,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
         conversation_id: message.external_conversation_id,
         psid: maskIdForLog(message.external_customer_id),
         profile_id: message.customer_profile_id || channelConversation?.customer_profile_id || null,
-        graph_profile_pic: text(message.raw?.messenger_profile?.profile_pic),
-        ai_customer_profiles_profile_pic_url: finalAvatarStorage.ai_customer_profiles_profile_pic_url,
-        ai_support_sessions_customer_avatar_url: finalAvatarStorage.ai_support_sessions_customer_avatar_url,
-        ai_channel_conversations_customer_avatar_url: finalAvatarStorage.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url),
+        has_graph_profile_pic: Boolean(text(message.raw?.messenger_profile?.profile_pic)),
+        stored_ai_customer_profiles: Boolean(finalAvatarStorage.ai_customer_profiles_profile_pic_url),
+        stored_ai_support_sessions: Boolean(finalAvatarStorage.ai_support_sessions_customer_avatar_url),
+        stored_ai_channel_conversations: Boolean(finalAvatarStorage.ai_channel_conversations_customer_avatar_url || text(channelConversation?.customer_avatar_url)),
         source: "webhook_mapping_final",
       });
     }
