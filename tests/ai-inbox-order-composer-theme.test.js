@@ -12,11 +12,11 @@ import fs from "node:fs";
 // protects the Product Link modal opened from the same conversation.
 
 const source = fs.readFileSync(
-  new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url),
+  new URL("../src/modules/aiSupport/components/InboxOrderComposer.jsx", import.meta.url),
   "utf8"
 );
 const styles = fs.readFileSync(
-  new URL("../src/modules/aiSupport/pages/AiInboxOrderComposer.m1.css", import.meta.url),
+  new URL("../src/modules/aiSupport/components/AiInboxOrderComposer.m1.css", import.meta.url),
   "utf8"
 );
 

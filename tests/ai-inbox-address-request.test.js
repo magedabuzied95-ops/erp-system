@@ -10,8 +10,10 @@ const gitignore = readFileSync(new URL("../.gitignore", import.meta.url), "utf8"
 const appRoutes = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
 const publicPage = readFileSync(new URL("../src/storefront/pages/CustomerAddressPage.jsx", import.meta.url), "utf8");
 const inbox = readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
-const pwaComposer = readFileSync(new URL("../src/modules/aiSupport/components/PwaOrderComposer.jsx", import.meta.url), "utf8");
 const pwaInbox = readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+// There is ONE order composer now: the desktop workspace and the PWA render the
+// same component, so the address-link guard reads it once and covers both.
+const orderComposer = readFileSync(new URL("../src/modules/aiSupport/components/InboxOrderComposer.jsx", import.meta.url), "utf8");
 const arLocale = readFileSync(new URL("../src/locales/ar/aiSupport.json", import.meta.url), "utf8");
 const enLocale = readFileSync(new URL("../src/locales/en/aiSupport.json", import.meta.url), "utf8");
 
@@ -66,20 +68,17 @@ test("the public page is routed at /addr/:code and drives the Bosta pickers", ()
   assert.match(publicPage, /street_address: text\(streetAddress\)/);
 });
 
-test("both order composers send the link through the chat and absorb the reply", () => {
-  for (const source of [inbox, pwaComposer]) {
-    assert.match(source, /address-request/);
-    assert.match(source, /applyAddressRequest/);
-    assert.match(source, /addressLinkBusy/);
-    assert.match(source, /aiSupport\.inbox\.order\.addressLinkSend/);
-    assert.match(source, /aiSupport\.inbox\.order\.addressLinkUse/);
-  }
-  // The link message travels through the existing manual send path.
+test("the one order composer sends the link through the chat and absorbs the reply", () => {
+  assert.match(orderComposer, /address-request/);
+  assert.match(orderComposer, /applyAddressRequest/);
+  assert.match(orderComposer, /addressLinkBusy/);
+  assert.match(orderComposer, /aiSupport\.inbox\.order\.addressLinkSend/);
+  assert.match(orderComposer, /aiSupport\.inbox\.order\.addressLinkUse/);
+  // The link message travels through each surface's own manual send path.
   assert.match(inbox, /onSendMessage=\{sendManualReply\}/);
   assert.match(pwaInbox, /onSendMessage=\{sendManualReply\}/);
   // Auto-fill fires only on the pending→submitted transition seen while open.
-  assert.match(inbox, /previous\?\.status === "pending"/);
-  assert.match(pwaComposer, /previous\?\.status === "pending"/);
+  assert.match(orderComposer, /previous\?\.status === "pending"/);
 });
 
 test("address-link locale keys exist in both dictionaries", () => {

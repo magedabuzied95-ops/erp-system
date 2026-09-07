@@ -9,7 +9,7 @@ import {
   normalizeAiInboxConversationLabels,
 } from "../shared/aiInboxConversationLabels.js";
 
-const desktopSource = readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8");
+const desktopSource = readFileSync("src/modules/aiSupport/components/ConversationLabelsModal.jsx", "utf8") + readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8") + readFileSync("src/modules/aiSupport/pages/AiInboxPwa.jsx", "utf8");
 const routeSource = readFileSync("server/routes/aiAgentOrders.js", "utf8");
 
 test("default conversation labels replace the single lead-status selector", () => {

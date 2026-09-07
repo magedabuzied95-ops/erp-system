@@ -11,7 +11,10 @@ import { instagramProductShareText, productCardReplyText } from "../../server/se
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(path.join(here, "../../", rel), "utf8");
 const metaSrc = read("server/services/metaIntegrationService.js");
-const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx");
+// The preview lives in the suggested-reply card, which is now ONE component
+// shared by the desktop workspace and the /inbox PWA — so this guard covers both
+// surfaces instead of only the desktop one.
+const inboxSrc = read("src/modules/aiSupport/components/AiSuggestionCard.jsx");
 
 // A grounded card carrying EVERYTHING the formatter must be able to see but must NOT emit.
 const CARD = {

@@ -40,10 +40,16 @@ test("each channel's own page still fits inside the cache row cap", () => {
   }
 });
 
-test("the PWA's page size still exceeds any single ERP channel window", () => {
-  // Parity sanity: ERP must never request more per channel than the PWA does overall.
-  const pwaLimit = Number((pwa.match(/limit:\s*(\d+),\s*\n\s*message_limit/) || [])[1]);
-  assert.ok(pwaLimit >= Math.max(...AI_INBOX_MESSAGE_CHANNELS.map(channelWindow)));
+test("the PWA fetches per channel, with the same fair windows the ERP uses", () => {
+  // It used to ask for ONE unscoped page of 200 rows, which is exactly the shape
+  // that let 197 WhatsApp threads evict every Messenger conversation. Both
+  // surfaces now issue one bounded request per channel and merge client-side.
+  assert.match(pwa, /channelsForFilter\(messagePlatformFilter\)/);
+  assert.match(pwa, /limit: channelWindow\(backendChannel\)/);
+  assert.match(pwa, /mergeConversationPages\(channelPages, conversationKey\)/);
+  assert.doesNotMatch(pwa, /limit: 200,\s*\n\s*message_limit/);
+  // And the window it asks for is a real one from the shared table.
+  assert.ok(Math.max(...AI_INBOX_MESSAGE_CHANNELS.map(channelWindow)) > 0);
 });
 
 test("a low page size truncates a whole channel — the exact production shape", async () => {

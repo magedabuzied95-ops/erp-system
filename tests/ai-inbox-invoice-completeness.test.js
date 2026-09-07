@@ -10,7 +10,7 @@ const routes = readFileSync(new URL("../server/routes/aiAgentOrders.js", import.
 const orderService = readFileSync(new URL("../server/services/aiAgentOrderService.js", import.meta.url), "utf8");
 const ordersController = readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
 const invoiceCard = readFileSync(new URL("../src/shared/components/invoices/OrderInvoiceCard.jsx", import.meta.url), "utf8");
-const inbox = readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+const inbox = readFileSync(new URL("../src/modules/aiSupport/components/InboxOrderComposer.jsx", import.meta.url), "utf8") + readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8") + readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
 
 // The cart branch of the create-draft-order route: the object it hands to
 // createAiOrderDraftLines. A field absent from THIS object is a field the

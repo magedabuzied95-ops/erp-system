@@ -11,8 +11,12 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8");
-const cardBlock = inboxSrc.slice(inboxSrc.indexOf("function AiSuggestionCard"), inboxSrc.indexOf("function ManualReplyComposer"));
+// The card is ONE shared component now, rendered by /admin/ai-inbox and by the
+// /inbox PWA, so these contracts cover both surfaces at once.
+const cardSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/components/AiSuggestionCard.jsx"), "utf8");
+const pwaSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInboxPwa.jsx"), "utf8");
+const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8") + pwaSrc + cardSrc;
+const cardBlock = cardSrc.slice(cardSrc.indexOf("function AiSuggestionCard"));
 
 test("the card no longer renders the technical grounding-facts block or context-provenance chip", () => {
   assert.doesNotMatch(cardBlock, /حقائق الاستناد/);
@@ -48,10 +52,14 @@ test("the three operator actions remain: edit, approve & send, dismiss", () => {
 });
 
 test("cross-channel: ONE shared card renders for all channels; channel is a prop, not a fork", () => {
-  // a single call site in the shared composer, parameterised by channelName + deliveryFormat
-  const callSites = inboxSrc.match(/<AiSuggestionCard/g) || [];
-  assert.equal(callSites.length, 1, "there must be exactly one AiSuggestionCard call site (shared across channels)");
-  assert.match(inboxSrc, /channelName=\{channelLabel\(conversation\?\.channel \|\| conversation\?\.source\)\}/);
+  // ONE component, and exactly ONE call site per surface — never a per-channel
+  // fork. The desktop mounts it inside the manual composer; the PWA mounts it
+  // above its own composer. Both pass the channel in as a prop.
+  const desktopSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8");
+  assert.equal((desktopSrc.match(/<AiSuggestionCard/g) || []).length, 1, "the desktop must have exactly one AiSuggestionCard call site");
+  assert.equal((pwaSrc.match(/<AiSuggestionCard/g) || []).length, 1, "the PWA must have exactly one AiSuggestionCard call site");
+  assert.match(desktopSrc, /channelName=\{channelLabel\(conversation\?\.channel \|\| conversation\?\.source\)\}/);
+  assert.match(pwaSrc, /channelName=\{selectedMetaLabel\}/);
 });
 
 test("lifecycle preserved: a completed suggestion still disappears (card gates on aiSuggestionVisible)", () => {

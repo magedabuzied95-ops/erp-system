@@ -1485,6 +1485,32 @@
       "noMatchingComments": "No matching comments."
     },
     "pwa": {
+      "quickRepliesHint": "Ready-made replies sent in one tap",
+      "commentsSettings": "Comment settings",
+      "commentsSettingsHint": "Automatic replies to Facebook and Instagram comments",
+      "receiptMessages": "Receipt message wordings",
+      "receiptMessagesHint": "The wordings sent with a WhatsApp invoice",
+      "integrations": "Integrations centre",
+      "integrationsHint": "Connect WhatsApp, Facebook, Instagram and TikTok",
+      "labels": "Labels",
+      "labelsSaved": "Customer labels saved",
+      "labelsSaveFailed": "Could not update the customer labels",
+      "correctionSaved": "Correction saved",
+      "correctionSaveFailed": "Could not save the correction",
+      "pickProductBeforeSend": "More than one product matches — choose the right one or remove it before sending",
+      "pickColorsBeforeSend": "Pick the colours to send before sending",
+      "pickColorBeforeSend": "This size comes in several colours — pick one before sending",
+      "addFavorite": "Add to favourites",
+      "removeFavorite": "Remove from favourites",
+      "favoriteFailed": "Could not update the favourite state.",
+      "markReadFailed": "Could not mark the conversation as read.",
+      "markUnreadFailed": "Could not mark the conversation as unread.",
+      "syncMeta": "Sync Meta",
+      "syncMetaHint": "Pull current and older Messenger and Instagram threads from Meta",
+      "metaSyncStarted": "Meta sync started in the background — conversations will appear as they arrive",
+      "metaSyncAlreadyRunning": "A Meta sync is already running — wait for the result",
+      "metaSyncFailed": "Could not sync Meta conversations",
+      "metaSyncDone": "Synced {{facebook}} Facebook and {{instagram}} Instagram conversations",
       "allMessages": "All messages",
       "messenger": "Messenger",
       "instagram": "Instagram",
@@ -1822,7 +1848,8 @@
       "meta": "Facebook & Instagram",
       "whatsapp": "WhatsApp",
       "tiktok": "TikTok",
-      "queue": "WhatsApp queue"
+      "queue": "WhatsApp queue",
+      "automations": "Automatic messages"
     },
     "overview": {
       "title": "Connection overview",
@@ -2141,6 +2168,31 @@
         "failure_threshold": "Too many sends failed in a short window."
       },
       "thresholdOff": "Off"
+    },
+    "automations": {
+      "menuTitle": "Automatic messages",
+      "title": "Automatic WhatsApp messages",
+      "subtitle": "The messages the shop sends on its own over WhatsApp. Switch any of them off here without touching its wording.",
+      "onCount": "{{on}} of {{total}} on",
+      "unavailable": "The automatic message settings could not be read.",
+      "saveFailed": "The change was not saved.",
+      "turnedOn": "Turned on: {{name}}",
+      "turnedOff": "Turned off: {{name}}",
+      "manualHint": "Off stops the automatic send only. Staff can still send the same message by hand from the order page, and anything already queued goes out as it is.",
+      "items": {
+        "invoice": {
+          "title": "Invoice message after saving",
+          "description": "The invoice link reaches the customer on WhatsApp once a POS invoice or a storefront order is saved."
+        },
+        "order_confirmation": {
+          "title": "Order confirmation message",
+          "description": "The confirm-or-cancel request a COD customer gets after a storefront order is placed."
+        },
+        "abandoned_cart": {
+          "title": "Abandoned cart message",
+          "description": "One reminder carrying the saved cart's products, after it has sat untouched for the configured delay."
+        }
+      }
     }
   }
 }

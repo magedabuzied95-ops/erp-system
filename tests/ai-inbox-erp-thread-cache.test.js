@@ -82,7 +82,14 @@ test("social comments cannot hold the refresh state open", () => {
   // detached from the awaited path
   assert.match(src, /void \(async \(\) => \{\s*\n\s*try \{\s*\n\s*const \[postsPayload, settingsPayload\] = await Promise\.all\(/);
   // the refresh lifecycle no longer waits on it
-  const finallyBlock = src.slice(src.indexOf("} finally {\n      if (seq === requestSeqRef.current && !silent) setLoading(false);"), src.indexOf("}, [channelFilter, debouncedSearch, filter, headers, tenantId]);"));
+  // Anchored on loadAll's real closing dependency array. Both anchors are matched
+  // line-ending agnostically: the previous spelling used a literal "\n" and a
+  // stale dep list, so on a CRLF checkout it sliced nothing and asserted nothing.
+  const finallyStart = src.search(/\}\s*finally\s*\{\s*[\r\n]+\s*if \(seq === requestSeqRef\.current && !silent\) setLoading\(false\);/);
+  const finallyEnd = src.search(/\}, \[channelFilter, debouncedSearch, filter, headers, readFilter, reviewerMode, tenantId\]\);/);
+  assert.ok(finallyStart > 0, "loadAll's finally block not found");
+  assert.ok(finallyEnd > finallyStart, "loadAll's closing dependency array not found");
+  const finallyBlock = src.slice(finallyStart, finallyEnd);
   assert.doesNotMatch(finallyBlock, /social/i);
 });
 

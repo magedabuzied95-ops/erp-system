@@ -21,7 +21,7 @@ import {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const read = (rel) => readFileSync(path.join(here, "../../", rel), "utf8");
-const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx");
+const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx") + read("src/modules/aiSupport/components/AiSuggestionCard.jsx");
 const gateSrc = read("server/services/aiInboxGroundingGate.js");
 const salesSrc = read("server/services/aiSalesAgentService.js");
 

@@ -13,7 +13,7 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const routeSrc = readFileSync(path.join(here, "../../server/routes/aiAgentOrders.js"), "utf8");
-const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8");
+const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8") + readFileSync(path.join(here, "../../src/modules/aiSupport/components/AiSuggestionCard.jsx"), "utf8");
 
 test("server: assisted approval is validated against a REAL current draft (not a bare browser boolean)", () => {
   assert.match(routeSrc, /const hasCurrentDraft = aiReplyDraft\?\.status === "not_sent" && Boolean\(envText\(aiReplyDraft\?\.text\)\)/);

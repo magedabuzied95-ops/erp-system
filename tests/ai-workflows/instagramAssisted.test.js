@@ -18,7 +18,7 @@ const read = (rel) => readFileSync(path.join(here, "../../", rel), "utf8");
 const intakeSrc = read("server/services/aiInboundIntakeService.js");
 const metaSrc = read("server/services/metaIntegrationService.js");
 const adapterSrc = read("server/services/aiChannelAdapterService.js");
-const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx");
+const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx") + read("src/modules/aiSupport/components/AiSuggestionCard.jsx");
 const routeSrc = read("server/routes/aiAgentOrders.js");
 
 test("intake: instagram is a first-class assisted channel (not a bolted-on brain)", () => {

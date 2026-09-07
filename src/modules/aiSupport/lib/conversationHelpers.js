@@ -198,3 +198,10 @@ export const transcriptDayLabel = (value) => {
 
 export const transcriptRowTime = (row = {}) =>
   row.created_at || row.createdAt || row.timestamp || row.sent_at || row.message_created_at || row.created || row.time || "";
+
+// A WhatsApp or Meta picture url is signed and expires. When one stops loading
+// the backend is asked for the current one — once per conversation per session.
+// The set lives here so BOTH inbox surfaces share the same "already asked"
+// ledger: opening the same thread on the desktop and then on the PWA in one tab
+// is one ask, not two.
+export const avatarRefreshRequested = new Set();

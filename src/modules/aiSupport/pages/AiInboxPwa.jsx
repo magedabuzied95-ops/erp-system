@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -29,6 +29,9 @@ import {
   ShoppingCart,
   SlidersHorizontal,
   Sparkles,
+  Star,
+  Tag,
+  Mail as MailIcon,
   Sun,
   Moon,
   UserRound,
@@ -67,15 +70,44 @@ import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from ".
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import IntegrationsCenter from "../components/integrations/lazyIntegrationsCenter";
+// The suggested-reply card is shared with the desktop workspace, so resolving an
+// ambiguous product, picking a colour or ticking a batch works the same in both.
+import AiSuggestionCard from "../components/AiSuggestionCard";
+import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/ReplyCorrectionModal";
+import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
+import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
+import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
+import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
+import {
+  MAX_BATCH_PRODUCTS,
+  SELECTION_MODES,
+  maxBatchReachedText,
+  maxVariantBatchReachedText,
+  productSelectionKey,
+  selectionModeFromSemantics,
+  toggleProductSelection,
+} from "../lib/productSelection.js";
 import inboxCache from "../services/inboxCache/inboxCache";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType, normalizeClassificationValue } from "../../products/lib/productClassifications";
 import { moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
-import EnhancedPwaOrderComposer from "../components/PwaOrderComposer";
+// One composer for both surfaces. The phone-only PwaOrderComposer (single
+// product, no cart, no discount, no payment method, no shipping quote, no saved
+// addresses) is retired — see components/InboxOrderComposer.jsx.
+import InboxOrderComposer from "../components/InboxOrderComposer";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
-import { WEAK_CONVERSATION_CHANNELS, channelFromConversationSessionId } from "../services/inboxChannels";
+import {
+  WEAK_CONVERSATION_CHANNELS,
+  backendChannelFilter,
+  channelFromConversationSessionId,
+  channelWindow,
+  channelsForFilter,
+  conversationAccountKey,
+  mergeConversationPages,
+} from "../services/inboxChannels";
 import "./AiInboxPwa.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
@@ -87,6 +119,7 @@ import {
   aiInboxConversationEndpoint,
   aiReplyCorrectionEndpoint,
   asArray,
+  avatarRefreshRequested,
   buildClientRequestId,
   clean,
   encodeConversationId,
@@ -106,6 +139,10 @@ import {
   transcriptDayLabel,
   transcriptRowTime,
 } from "../lib/conversationHelpers";
+
+// Heavy and rarely opened: kept out of the inbox's critical path, exactly as the
+// desktop workspace loads it.
+
 
 const isWhatsappChannel = (value = "") => clean(value).toLowerCase().includes("whatsapp");
 const SOCIAL_COMMENTS_CACHE_PREFIX = "m1:ai-inbox-pwa:social-posts";
@@ -137,183 +174,10 @@ const writeSocialCommentsCache = (tenantId = "", items = []) => {
 // the backend messenger-name-repair heuristic. False positives only cost one extra profile
 // fetch (gated per conversation), so this can be a little aggressive.
 // Day separators for the chat transcript ("اليوم" / "أمس" / "12 ديسمبر 2026").
-/*
- * Order composition is owned by EnhancedPwaOrderComposer below. The two former
- * inline implementations duplicated the same UI, were unreachable, and kept a
- * second Arabic-only copy outside the canonical i18n path.
- */
-/* c8 ignore start */
-function PwaOrderComposerLegacy_REMOVED() {
-  return null;
-}
-/* c8 ignore stop */
-/*
-function PwaOrderComposerLegacy({ open, conversation = {}, products = [], loading = false, busy = false, onClose, onSubmit }) {
-  const profile = conversation?.customer_profile || {};
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [size, setSize] = useState("");
-  const [color, setColor] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
-  const [governorate, setGovernorate] = useState("");
-  const [cityArea, setCityArea] = useState("");
-  const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    const firstProduct = asArray(products)[0] || null;
-    setProductId(clean(firstProduct?.product_id || firstProduct?.id));
-    setQuantity(1);
-    setSize(clean(conversation?.channel_metadata?.last_size || profile.preferred_size || ""));
-    setColor(clean(conversation?.channel_metadata?.last_color || ""));
-    setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
-    setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
-    setCustomerAddress(clean(profile.address || conversation?.customer_address || ""));
-    setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
-    setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
-    setNotes("");
-  }, [conversation?.session_id, open, products]);
-
-  if (!open || typeof document === "undefined") return null;
-  const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
-  const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
-  const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? selectedProduct?.available_stock ?? 0) || 0;
-  const safeQuantity = Math.max(1, Number(quantity) || 1);
-  const canSubmit = Boolean(selectedProduct) && safeQuantity <= stock && !busy;
-
-  return createPortal(
-    <div className="ai-pwa-order-composer fixed inset-0 z-[200] flex items-end bg-slate-950/70 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
-      <section dir="rtl" className="ai-pwa-order-composer__panel max-h-[94dvh] w-full overflow-y-auto rounded-t-[30px] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl">
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">AI Inbox Order</div>
-            <h2 className="mt-1 text-xl font-black text-slate-950">إنشاء طلب من المحادثة</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.</p>
-          </div>
-          <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-black text-slate-700" aria-label="إغلاق">×</button>
-        </div>
-
-        <div className="mt-4 space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-3 text-sm font-black text-slate-900">بيانات العميل</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="اسم العميل" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="رقم الهاتف" inputMode="tel" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المنطقة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} placeholder="العنوان بالتفصيل" className="col-span-2 min-h-20 rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none" />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-3 text-sm font-black text-slate-900">المنتج والمخزون</div>
-            <select value={productId} onChange={(event) => setProductId(event.target.value)} disabled={loading} className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none disabled:opacity-60">
-              <option value="">{loading ? "جاري تحميل المنتجات..." : "اختر المنتج"}</option>
-              {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0}</option>)}
-            </select>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="المقاس" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
-              <input value={color} onChange={(event) => setColor(event.target.value)} placeholder="اللون" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
-              <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
-            </div>
-            {selectedProduct ? <div className={`mt-3 rounded-xl p-3 text-xs font-black ${safeQuantity <= stock ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}><div className="flex justify-between gap-2"><span>المتاح: {stock} — المطلوب: {safeQuantity}</span><span>الإجمالي: {formatCurrency(unitPrice * safeQuantity)}</span></div>{safeQuantity > stock ? <div className="mt-1">الكمية المطلوبة أكبر من المخزون المتاح.</div> : null}</div> : null}
-          </div>
-
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm outline-none" />
-          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, { quantity: safeQuantity, size, color, customer_name: customerName, customer_phone: customerPhone, customer_address: customerAddress, governorate, city_area: cityArea, notes })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
-        </div>
-      </section>
-    </div>,
-    document.body
-  );
-}
-
-function PwaOrderComposer({ open, conversation = {}, products = [], loading = false, busy = false, onClose, onSubmit }) {
-  const profile = conversation?.customer_profile || {};
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [size, setSize] = useState("");
-  const [color, setColor] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerAddress, setCustomerAddress] = useState("");
-  const [governorate, setGovernorate] = useState("");
-  const [cityArea, setCityArea] = useState("");
-  const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    const firstProduct = asArray(products)[0] || null;
-    setProductId(clean(firstProduct?.product_id || firstProduct?.id));
-    setQuantity(1);
-    setSize(clean(conversation?.channel_metadata?.last_size || profile.preferred_size || ""));
-    setColor(clean(conversation?.channel_metadata?.last_color || ""));
-    setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
-    setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
-    setCustomerAddress(clean(profile.address || conversation?.customer_address || ""));
-    setGovernorate(clean(profile.governorate || conversation?.governorate || ""));
-    setCityArea(clean(profile.city_area || profile.area || conversation?.city_area || ""));
-    setNotes("");
-  }, [conversation?.session_id, open, products]);
-
-  if (!open || typeof document === "undefined") return null;
-  const selectedProduct = asArray(products).find((item) => clean(item.product_id || item.id) === clean(productId)) || null;
-  const unitPrice = Number(selectedProduct?.final_price || selectedProduct?.price || selectedProduct?.sale_price || 0) || 0;
-  const stock = Number(selectedProduct?.total_stock ?? selectedProduct?.stock ?? selectedProduct?.available_stock ?? 0) || 0;
-  const safeQuantity = Math.max(1, Number(quantity) || 1);
-  const canSubmit = Boolean(selectedProduct) && safeQuantity <= stock && !busy;
-
-  return createPortal(
-    <div className="ai-pwa-order-composer fixed inset-0 z-[200] flex items-end bg-slate-950/70 backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
-      <section dir="rtl" className="ai-pwa-order-composer__panel max-h-[94dvh] w-full overflow-y-auto rounded-t-[30px] bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 shadow-2xl">
-        <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-200" />
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">AI Inbox Order</div>
-            <h2 className="mt-1 text-xl font-black text-slate-950">إنشاء طلب من المحادثة</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">راجع البيانات أولًا. الطلب سيُحفظ كمسودة ولن يُخصم المخزون قبل التأكيد.</p>
-          </div>
-          <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-100 text-xl font-black text-slate-700" aria-label="إغلاق">×</button>
-        </div>
-
-        <div className="mt-4 space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-3 text-sm font-black text-slate-900">بيانات العميل</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="اسم العميل" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} placeholder="رقم الهاتف" inputMode="tel" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <input value={governorate} onChange={(event) => setGovernorate(event.target.value)} placeholder="المحافظة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <input value={cityArea} onChange={(event) => setCityArea(event.target.value)} placeholder="المنطقة" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none" />
-              <textarea value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} placeholder="العنوان بالتفصيل" className="col-span-2 min-h-20 rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none" />
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-            <div className="mb-3 text-sm font-black text-slate-900">المنتج والمخزون</div>
-            <select value={productId} onChange={(event) => setProductId(event.target.value)} disabled={loading} className="h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold outline-none disabled:opacity-60">
-              <option value="">{loading ? "جاري تحميل المنتجات..." : "اختر المنتج"}</option>
-              {asArray(products).map((product) => <option key={product.product_id || product.id} value={product.product_id || product.id}>{product.name || product.title} — المتاح {Number(product.total_stock ?? product.stock ?? product.available_stock ?? 0) || 0}</option>)}
-            </select>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <input value={size} onChange={(event) => setSize(event.target.value)} placeholder="المقاس" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
-              <input value={color} onChange={(event) => setColor(event.target.value)} placeholder="اللون" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
-              <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))} min="1" type="number" placeholder="الكمية" className="h-11 min-w-0 rounded-xl border border-slate-200 bg-white px-2 text-sm outline-none" />
-            </div>
-            {selectedProduct ? <div className={`mt-3 rounded-xl p-3 text-xs font-black ${safeQuantity <= stock ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}><div className="flex justify-between gap-2"><span>المتاح: {stock} — المطلوب: {safeQuantity}</span><span>الإجمالي: {formatCurrency(unitPrice * safeQuantity)}</span></div>{safeQuantity > stock ? <div className="mt-1">الكمية المطلوبة أكبر من المخزون المتاح.</div> : null}</div> : null}
-          </div>
-
-          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="ملاحظات الطلب" className="min-h-20 w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm outline-none" />
-          <button type="button" disabled={!canSubmit} onClick={() => onSubmit?.(selectedProduct, { quantity: safeQuantity, size, color, customer_name: customerName, customer_phone: customerPhone, customer_address: customerAddress, governorate, city_area: cityArea, notes })} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-white shadow-lg disabled:opacity-40"><ShoppingCart className="h-5 w-5" />إنشاء مسودة الطلب</button>
-        </div>
-      </section>
-    </div>,
-    document.body
-  );
-}
-*/
+// Order composition is owned by the SHARED InboxOrderComposer, the same component
+// the desktop workspace renders. Two inline phone-only implementations used to sit
+// here: unreachable, duplicating the same UI, and holding a second Arabic-only copy
+// outside the canonical i18n path. Both are gone.
 const customerIdentifier = (...values) => {
   const value = values.map((item) => clean(item)).find(Boolean) || "";
   return value
@@ -2135,7 +1999,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
 // a broken-image glyph. Remember dead URLs for the session so a re-render does
 // not retry them, and ask the backend once to fetch the current URL.
 const deadAvatarUrls = new Set();
-const avatarRefreshRequested = new Set();
+
 const reportDeadAvatar = (conversation, url) => {
   deadAvatarUrls.add(url);
   // WhatsApp and Meta both hand out signed picture urls that expire, so a picture
@@ -2153,7 +2017,7 @@ const reportDeadAvatar = (conversation, url) => {
   api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
 };
 
-function ConversationListItem({ conversation, active, onSelect }) {
+function ConversationListItem({ conversation, active, accountLabel = "", onSelect, onToggleFavorite, onToggleRead }) {
   const { t, i18n } = useTranslation();
   const [, forceAvatarFallback] = useState(0);
   const isSocialComment = isSocialCommentThread(conversation);
@@ -2184,12 +2048,22 @@ function ConversationListItem({ conversation, active, onSelect }) {
     });
   }
   const postTime = isCommentThread ? commentThreadPostTime(conversation) : "";
-  const unread = unreadCount > 0;
+  const unread = unreadCount > 0 || conversation?.manually_unread === true;
+  const isFavorite = conversation?.is_favorite === true || clean(conversation?.is_favorite).toLowerCase() === "true";
   return (
-    <button
-      type="button"
+    // A div, not a button: the star and the read toggle are real buttons and a
+    // button cannot legally contain another one.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(conversation)}
-      className={`flex w-full items-start gap-3 rounded-2xl px-2 py-2 text-left transition ${
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(conversation);
+        }
+      }}
+      className={`flex w-full cursor-pointer items-start gap-3 rounded-2xl px-2 py-2 text-left transition ${
         active
           ? "bg-slate-900 text-white"
           : unread
@@ -2242,11 +2116,18 @@ function ConversationListItem({ conversation, active, onSelect }) {
             ) : (
               <>
                 <div className={`line-clamp-2 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{title}</div>
-                <div className="mt-1 flex items-center gap-1.5">
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
                     <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
                     {sourceLabel}
                   </span>
+                  {/* Which WhatsApp number / page this thread belongs to. Only
+                      rendered when the tenant actually has more than one. */}
+                  {accountLabel ? (
+                    <span className={`inline-flex max-w-[9rem] items-center truncate rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
+                      {accountLabel}
+                    </span>
+                  ) : null}
                   {needsHumanAttention(conversation) ? (
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
                       {t("aiSupport.inbox.ui.needsHuman")}
@@ -2259,6 +2140,40 @@ function ConversationListItem({ conversation, active, onSelect }) {
           <div className="flex shrink-0 flex-col items-end gap-1">
             <div className={`text-[11px] font-medium ${active ? "text-slate-300" : "text-slate-500"}`}>
               {lastActivity}
+            </div>
+            <div className="flex items-center gap-0.5">
+              {onToggleRead ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleRead(conversation);
+                  }}
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${
+                    active ? "text-slate-300 hover:bg-white/10" : unread ? "text-emerald-600 hover:bg-emerald-50" : "text-slate-400 hover:bg-slate-100"
+                  }`}
+                  aria-label={unread ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
+                  title={unread ? t("aiSupport.inbox.ui.markRead") : t("aiSupport.inbox.ui.markUnread")}
+                >
+                  {unread ? <CheckCheck className="h-4 w-4" /> : <MailIcon className="h-4 w-4" />}
+                </button>
+              ) : null}
+              {onToggleFavorite ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleFavorite(conversation);
+                  }}
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${
+                    isFavorite ? "text-amber-500 hover:bg-amber-50" : active ? "text-slate-300 hover:bg-white/10" : "text-slate-400 hover:bg-slate-100"
+                  }`}
+                  aria-label={isFavorite ? t("aiSupport.inbox.pwa.removeFavorite") : t("aiSupport.inbox.pwa.addFavorite")}
+                  title={isFavorite ? t("aiSupport.inbox.pwa.removeFavorite") : t("aiSupport.inbox.pwa.addFavorite")}
+                >
+                  <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
+                </button>
+              ) : null}
             </div>
             {unreadCount > 0 ? (
               <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${active ? "bg-white text-slate-900" : "bg-emerald-500 text-white"}`}>
@@ -2282,7 +2197,7 @@ function ConversationListItem({ conversation, active, onSelect }) {
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -2388,6 +2303,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onPrivateMessage,
   onReact,
   onEditMessage,
+  onOpenCorrection,
   reactionOptions,
 }) {
   const { t } = useTranslation();
@@ -2472,6 +2388,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
               onEditMessage={onEditMessage}
+              onOpenCorrection={onOpenCorrection}
               reactionOptions={reactionOptions}
             />
           </Fragment>
@@ -3201,6 +3118,46 @@ function SmartphoneIcon() {
   return <MessageCircleMore className="h-5 w-5 text-slate-700" />;
 }
 
+// The settings the desktop reaches from its channel rail. On a phone there is no
+// rail, so they live behind the Config tab as one sheet.
+function SettingsSheet({ open, onClose, items = [] }) {
+  const { t } = useTranslation();
+  if (!open) return null;
+  return createPortal(
+    <div className="fixed inset-0 z-[9997] flex items-end bg-slate-950/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="max-h-[80dvh] w-full overflow-y-auto rounded-t-[28px] bg-white p-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-18px_40px_rgba(15,23,42,0.24)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+        <div className="px-1 pb-2 text-[15px] font-semibold text-slate-900">{t("aiSupport.quickReplies.config")}</div>
+        <div className="space-y-2">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={item.onClick}
+              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-sm"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600">
+                  <item.icon className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{item.label}</span>
+                  {item.hint ? <span className="block truncate text-xs text-slate-500">{item.hint}</span> : null}
+                </span>
+              </span>
+              <ChevronLeft className="h-4 w-4 shrink-0 rotate-180 text-slate-400" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
   const { t } = useTranslation();
   const [menuStyle, setMenuStyle] = useState(null);
@@ -3295,11 +3252,34 @@ export default function AiInboxPwa() {
   const [filter, setFilter] = useState("all");
   const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
   const lastRequestedMessagePlatformRef = useRef("all");
+  // Parity with /admin/ai-inbox. Read state and the star are filtered in SQL, not
+  // over the page this client already holds: the fetch below is "the newest N per
+  // channel", so a quiet unread thread — or a starred one older than the window —
+  // never arrives, and a client-side filter could only ever report "nothing".
+  const [readFilter, setReadFilter] = useState("all"); // all | unread | read
+  const [favoriteFilter, setFavoriteFilter] = useState("all"); // all | favorites
+  // Which specific WhatsApp number / Facebook page / Instagram account owns the
+  // thread. Filtered on the client because the account key is stamped into the
+  // conversation metadata the list already carries.
+  const [accountFilter, setAccountFilter] = useState("all");
+  const [channelAccounts, setChannelAccounts] = useState([]);
+  // Where each channel's page ended, so the list can continue past its window.
+  // Without a cursor the window IS the inbox — see AI_INBOX_CHANNEL_WINDOW.
+  const [listCursors, setListCursors] = useState({});
+  const [loadingMoreConversations, setLoadingMoreConversations] = useState(false);
+  const loadingMoreRef = useRef(false);
+  const [metaHistorySyncing, setMetaHistorySyncing] = useState(false);
   const [leadFilter, setLeadFilter] = useState("new");
   const canReply = usePermission("ai_inbox_messenger.reply");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
+  // The settings the desktop workspace hides behind its channel rail: comment
+  // automation, the WhatsApp receipt wordings, and the integrations centre.
+  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
+  const [commentsSettingsOpen, setCommentsSettingsOpen] = useState(false);
+  const [invoiceMessagesOpen, setInvoiceMessagesOpen] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
 
   useEffect(() => {
     const handleCustomerAction = (event) => {
@@ -3332,7 +3312,18 @@ export default function AiInboxPwa() {
   }, []);
   const [isFullscreenConversation, setIsFullscreenConversation] = useState(false);
   const [editingAiDraft, setEditingAiDraft] = useState(false);
+  // The inline edit lives INSIDE the suggestion card, so it never disturbs the
+  // manual composer sitting underneath it.
+  const [aiSuggestionEditText, setAiSuggestionEditText] = useState("");
+  // The operator's product decisions on the suggestion: dropped, swapped for a
+  // picked catalogue product, or a ticked multi-select batch.
+  const [suggestionProductRemoved, setSuggestionProductRemoved] = useState(false);
+  const [suggestionChosenCard, setSuggestionChosenCard] = useState(null);
+  const [suggestionRecommendationCards, setSuggestionRecommendationCards] = useState([]);
   const [dismissedAiSuggestionKey, setDismissedAiSuggestionKey] = useState("");
+  const [correctionModal, setCorrectionModal] = useState({ open: false, draft: buildReplyCorrectionDraft() });
+  const [correctionSaving, setCorrectionSaving] = useState(false);
+  const [labelsOpen, setLabelsOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -3342,7 +3333,13 @@ export default function AiInboxPwa() {
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [orderComposerBusy, setOrderComposerBusy] = useState(false);
   const [productSending, setProductSending] = useState(false);
-  const [availableBySizePickerConfig, setAvailableBySizePickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false });
+  // orderMode: picked models go into the order composer's cart instead of being
+  // sent to the customer.
+  const [availableBySizePickerConfig, setAvailableBySizePickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: false, restockMode: false });
+  const [composerPicks, setComposerPicks] = useState(null);
+  // A batch of variants to watch for a back-in-stock request, handed to the
+  // Customer 360 drawer.
+  const [restockPick, setRestockPick] = useState(null);
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
   const [productLoading, setProductLoading] = useState(false);
   const [products, setProducts] = useState([]);
@@ -3371,6 +3368,10 @@ export default function AiInboxPwa() {
   const [selectedSocialTemplate, setSelectedSocialTemplate] = useState({ template: null, loading: false, error: "" });
   const [socialMobileDetailOpen, setSocialMobileDetailOpen] = useState(false);
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
+  // Facebook and Instagram posts arrive in one list; these narrow it, and narrow
+  // the comments inside an open thread, the same way the desktop workspace does.
+  const [socialPostsPlatformFilter, setSocialPostsPlatformFilter] = useState("all");
+  const [socialThreadPlatformFilter, setSocialThreadPlatformFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [productLinksPost, setProductLinksPost] = useState(null);
   const [socialActionLoading, setSocialActionLoading] = useState("");
@@ -3502,6 +3503,106 @@ export default function AiInboxPwa() {
     );
   }, []);
 
+  // ---------------------------------------------------------------------
+  // Conversation list actions — ported from /admin/ai-inbox so the two
+  // surfaces agree on what a star, a read toggle and a page boundary mean.
+  // ---------------------------------------------------------------------
+
+  const toggleConversationFavorite = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    const conversationIdentifier = clean(item?.conversation_key || sessionId);
+    if (!sessionId || !conversationIdentifier) return;
+    const previousFavorite = item?.is_favorite === true || clean(item?.is_favorite).toLowerCase() === "true";
+    const nextFavorite = !previousFavorite;
+    // The server writes the conversation row on this call. A request that carries
+    // no channel leaves it defaulting to web_chat — one star was enough to
+    // relabel a WhatsApp thread "Web Chat".
+    const channel = clean(item?.channel || item?.source || "");
+    patchConversation(conversationIdentifier, (conversation) => ({ ...conversation, is_favorite: nextFavorite }));
+    try {
+      const payload = await api.patch(
+        aiAgentInboxEndpoint(sessionId, "/favorite"),
+        { tenant_id: tenantId, is_favorite: nextFavorite, ...(channel ? { channel } : {}) },
+        { headers, perfComponent: "AiInboxPwa.toggleFavorite" }
+      );
+      const updatedConversation = payload?.conversation || {};
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        ...updatedConversation,
+        is_favorite: updatedConversation.is_favorite === undefined ? nextFavorite : Boolean(updatedConversation.is_favorite),
+      }));
+    } catch (err) {
+      patchConversation(conversationIdentifier, (conversation) => ({ ...conversation, is_favorite: previousFavorite }));
+      toast.error(err?.message || t("aiSupport.inbox.pwa.favoriteFailed"));
+    }
+  }, [headers, patchConversation, t, tenantId]);
+
+  // Marking read reuses the same /read endpoint the auto-mark-on-open effect
+  // uses; marking unread persists a manually_unread flag on the server so it
+  // survives the next refetch.
+  const toggleConversationRead = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    const conversationIdentifier = clean(item?.conversation_key || sessionId);
+    if (!sessionId || !conversationIdentifier) return;
+    const previousUnreadCount = Number(item?.unread_count || item?.unread || 0);
+    const previousManuallyUnread = item?.manually_unread === true;
+    const currentlyUnread = previousUnreadCount > 0 || previousManuallyUnread;
+    const channel = clean(item?.channel || item?.source || "");
+    if (currentlyUnread) {
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        unread_count: 0,
+        unseen_count: 0,
+        pending_count: 0,
+        unread: false,
+        manually_unread: false,
+        read_at: new Date().toISOString(),
+      }));
+      try {
+        await api.post(
+          aiInboxConversationEndpoint(sessionId, "/read"),
+          { tenant_id: tenantId, conversation_id: sessionId, channel },
+          { headers, perfComponent: "AiInboxPwa.markReadManual" }
+        );
+      } catch (err) {
+        patchConversation(conversationIdentifier, (conversation) => ({
+          ...conversation,
+          unread_count: previousUnreadCount,
+          unread: previousUnreadCount > 0 || previousManuallyUnread,
+          manually_unread: previousManuallyUnread,
+        }));
+        toast.error(err?.message || t("aiSupport.inbox.pwa.markReadFailed"));
+      }
+      return;
+    }
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      unread_count: 1,
+      unread: true,
+      manually_unread: true,
+      read_at: null,
+    }));
+    try {
+      await api.post(
+        aiInboxConversationEndpoint(sessionId, "/unread"),
+        { tenant_id: tenantId, conversation_id: sessionId, channel },
+        { headers, perfComponent: "AiInboxPwa.markUnread" }
+      );
+    } catch (err) {
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        unread_count: previousUnreadCount,
+        unread: previousUnreadCount > 0 || previousManuallyUnread,
+        manually_unread: previousManuallyUnread,
+      }));
+      toast.error(err?.message || t("aiSupport.inbox.pwa.markUnreadFailed"));
+    }
+  }, [headers, patchConversation, t, tenantId]);
+
+  // The product sheet used to await the WHOLE catalog before it rendered a single
+  // row, on every open. It now paints the persisted snapshot first (no network at
+  // all) and revalidates behind it, so an open with a warm snapshot is instant and
+  // the multi-MB download only happens when the catalog watermark actually moved.
   const loadProducts = useCallback(async ({ force = false } = {}) => {
     if (productCatalogRef.current.loading || (!force && productCatalogRef.current.products.length)) return;
     productCatalogRef.current.loading = true;
@@ -3667,29 +3768,51 @@ export default function AiInboxPwa() {
       if (!silent) setLoading(true);
       setError("");
       try {
-        const payload = await api.get("/ai-inbox/conversations", {
-          params: {
-            tenant_id: tenantId,
-            search: debouncedSearch,
-            channel_filter:
-              messagePlatformFilter === "messenger"
-                ? "facebook_messenger"
-                : messagePlatformFilter === "instagram"
-                  ? "instagram"
-                  : messagePlatformFilter === "telegram"
-                    ? "telegram"
-                  : messagePlatformFilter === "whatsapp"
-                    ? "whatsapp"
-                    : messagePlatformFilter === "web"
-                      ? "web_chat"
-                      : "",
-            limit: 200,
-            message_limit: conversationParam ? 50 : 20,
-          },
-          headers,
-          timeoutMs: 20000,
-          perfComponent: "AiInboxPwa.conversations",
+        // Fair per-channel retrieval, same rule the desktop workspace uses. One
+        // global limit lets the largest channel evict the others: 197 WhatsApp
+        // threads filled a 200-row page in production and the 2nd Messenger
+        // conversation never reached the client at all. Each channel gets its own
+        // guaranteed window and the pages merge here. A selected tab is exactly
+        // one request — never fetch-all-and-filter.
+        //
+        // A refresh also restarts paging: the filters that define the result set
+        // may have changed, so a cursor taken against the previous set would page
+        // into a list that no longer exists.
+        const requestedChannels = channelsForFilter(messagePlatformFilter);
+        setListCursors({});
+        const settled = await Promise.allSettled(requestedChannels.map((backendChannel) =>
+          api.get("/ai-inbox/conversations", {
+            params: {
+              tenant_id: tenantId,
+              search: debouncedSearch,
+              channel_filter: backendChannel,
+              limit: channelWindow(backendChannel),
+              message_limit: conversationParam ? 50 : 20,
+              read_filter: readFilter,
+              ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+            },
+            headers,
+            timeoutMs: 20000,
+            perfComponent: `AiInboxPwa.conversations.${backendChannel}`,
+          }).then((channelPayload) => {
+            setListCursors((current) => ({
+              ...current,
+              [backendChannel]: channelPayload?.has_more ? channelPayload?.next_cursor || null : null,
+            }));
+            return asArray(channelPayload?.conversations);
+          })
+        ));
+        if (seq !== requestSeqRef.current) return;
+        // Failure isolation: one bad channel must not blank the inbox.
+        const channelPages = settled.map((result, index) => {
+          if (result.status === "fulfilled") return result.value;
+          console.warn("[ai-inbox-pwa] channel page failed", requestedChannels[index], result.reason?.message || result.reason);
+          return [];
         });
+        if (settled.every((result) => result.status === "rejected") && settled.length) {
+          throw settled[0].reason;
+        }
+        const payload = { conversations: mergeConversationPages(channelPages, conversationKey) };
 
         const nextConversations = asArray(payload.conversations)
           .map((conversation) => ({
@@ -3794,7 +3917,7 @@ export default function AiInboxPwa() {
         }
       }
     },
-    [conversationParam, debouncedSearch, headers, loadSocialComments, messagePlatformFilter, pageVisible, tab, tenantId, updateUrlState]
+    [conversationParam, debouncedSearch, favoriteFilter, headers, loadSocialComments, messagePlatformFilter, pageVisible, readFilter, tab, tenantId, updateUrlState]
   );
 
   const requestRefresh = useCallback(
@@ -3868,11 +3991,193 @@ export default function AiInboxPwa() {
     };
   }, [requestRefresh]);
 
+  // Unread means "waiting for a reply", so this button discards the whole work
+  // queue. Two things follow: it must SAY what it is about to clear, and it must
+  // clear only what the operator can actually see — firing it while a channel tab
+  // is selected used to wipe every other channel too.
+  const markAllConversationsRead = useCallback(async () => {
+    const readAt = new Date().toISOString();
+    const previousConversations = conversations;
+    const scopeChannel = backendChannelFilter(messagePlatformFilter);
+    const inScope = (conversation) =>
+      !scopeChannel || backendChannelFilter(normalizeConversationChannel(conversation)) === scopeChannel;
+    const isUnread = (conversation) =>
+      Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
+    const targets = previousConversations.filter((conversation) => inScope(conversation) && isUnread(conversation));
+    if (!targets.length) return;
+
+    const scopeLabel = scopeChannel ? t(channelMeta(scopeChannel).labelKey) : t("aiSupport.inbox.ui.markAllReadScopeAll");
+    if (!window.confirm(t("aiSupport.inbox.ui.markAllReadConfirm", { count: targets.length, scope: scopeLabel }))) return;
+
+    const targetKeys = new Set(targets.map((conversation) => conversationKey(conversation)));
+    setConversations((current) =>
+      current.map((conversation) =>
+        targetKeys.has(conversationKey(conversation))
+          ? {
+            ...conversation,
+            unread_count: 0,
+            unseen_count: 0,
+            pending_count: 0,
+            unread: false,
+            manually_unread: false,
+            read_at: readAt,
+          }
+          : conversation
+      )
+    );
+    try {
+      await api.post(
+        "/ai-inbox/conversations/read-all",
+        { tenant_id: tenantId, ...(scopeChannel ? { channel: scopeChannel } : {}) },
+        { headers, perfComponent: "AiInboxPwa.markAllRead" }
+      );
+      toast.success(t("aiSupport.inbox.ui.markAllReadDone", { count: targets.length }));
+    } catch (err) {
+      setConversations(previousConversations);
+      toast.error(err?.message || t("aiSupport.inbox.ui.markAllReadFailed"));
+    }
+  }, [conversations, headers, messagePlatformFilter, t, tenantId]);
+
+  const hasMoreConversations = useMemo(
+    () => channelsForFilter(messagePlatformFilter).some((backendChannel) => clean(listCursors?.[backendChannel]?.session_id)),
+    [listCursors, messagePlatformFilter]
+  );
+
+  // One request per channel that still has a cursor, so a channel that has run
+  // out does not keep asking. Pages merge through mergeConversationPages — the
+  // same function the first load uses — so a conversation that moved between
+  // pages collapses instead of appearing twice.
+  const loadMoreConversations = useCallback(async () => {
+    if (loadingMoreRef.current) return;
+    const channels = channelsForFilter(messagePlatformFilter)
+      .filter((backendChannel) => clean(listCursors?.[backendChannel]?.session_id));
+    if (!channels.length) return;
+    loadingMoreRef.current = true;
+    setLoadingMoreConversations(true);
+    try {
+      const pages = await Promise.all(channels.map((backendChannel) => api.get("/ai-inbox/conversations", {
+        params: {
+          tenant_id: tenantId,
+          channel_filter: backendChannel,
+          search: debouncedSearch,
+          limit: channelWindow(backendChannel),
+          read_filter: readFilter,
+          ...(favoriteFilter === "all" ? {} : { favorite_only: 1 }),
+          before_activity_at: listCursors[backendChannel].activity_at,
+          before_session_id: listCursors[backendChannel].session_id,
+        },
+        headers,
+        perfComponent: `AiInboxPwa.conversationsPage.${backendChannel}`,
+      }).then((payload) => {
+        setListCursors((current) => ({ ...current, [backendChannel]: payload?.has_more ? payload?.next_cursor || null : null }));
+        return asArray(payload?.conversations);
+      }).catch((err) => {
+        // One channel running out of pages must not stop the others.
+        console.warn("[ai-inbox-pwa] next page failed", backendChannel, err?.message || err);
+        setListCursors((current) => ({ ...current, [backendChannel]: null }));
+        return [];
+      })));
+      setConversations((current) => sortConversationsByActivity(
+        mergeConversationPages([current, ...pages], conversationKey).map((item) => ({
+          ...item,
+          session_id: normalizeConversationSessionId(
+            item.session_id || item.external_conversation_id || item.conversation_id || item.id,
+            item.channel || item.source || item.provider || item.platform || ""
+          ),
+          conversation_key: item.conversation_key || conversationKey(item),
+          messages: uniqueMessages(item.messages),
+          conversationHydrated: item.conversationHydrated ?? conversationHydrationState(item),
+        }))
+      ));
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMoreConversations(false);
+    }
+  }, [debouncedSearch, favoriteFilter, headers, listCursors, messagePlatformFilter, readFilter, tenantId]);
+
+  // Historical Meta sync — webhooks only carry new events, so this asks the
+  // backend to pull the page's existing Messenger + Instagram DM threads from the
+  // Graph API into the inbox (safe to re-run; deduped by Meta message id).
+  const syncMetaConversations = useCallback(async () => {
+    if (metaHistorySyncing) return;
+    setMetaHistorySyncing(true);
+    try {
+      const payload = await api.post(
+        "/ai-inbox/sync-meta-conversations",
+        { tenant_id: tenantId, conversation_limit: 200 },
+        { headers, perfComponent: "AiInboxPwa.syncMetaConversations" }
+      );
+      if (payload?.success === false) {
+        toast.error(payload?.message || t("aiSupport.inbox.pwa.metaSyncFailed"));
+        setMetaHistorySyncing(false);
+        return;
+      }
+      if (payload?.already_running) {
+        // Keep the spinner: the running sync's done event will clear it.
+        toast(t("aiSupport.inbox.pwa.metaSyncAlreadyRunning"));
+        return;
+      }
+      toast.success(t("aiSupport.inbox.pwa.metaSyncStarted"));
+    } catch (err) {
+      toast.error(err?.message || t("aiSupport.inbox.pwa.metaSyncFailed"));
+      setMetaHistorySyncing(false);
+    }
+  }, [headers, metaHistorySyncing, t, tenantId]);
+
+  // Completion of the background Meta sync (and a safety valve: never let the
+  // spinner outlive a lost socket event by more than 8 minutes).
+  useEffect(() => {
+    const onMetaSyncDone = (payload = {}) => {
+      setMetaHistorySyncing(false);
+      const facebook = payload?.facebook || {};
+      const instagram = payload?.instagram || {};
+      toast.success(t("aiSupport.inbox.pwa.metaSyncDone", {
+        facebook: Number(facebook.conversations_synced || 0),
+        instagram: Number(instagram.conversations_synced || 0),
+      }));
+      requestRefreshRef.current?.("meta-sync-done", { silent: true, force: true });
+    };
+    return subscribeRealtime("ai_inbox:meta_sync_done", onMetaSyncDone);
+  }, [t]);
+  useEffect(() => {
+    if (!metaHistorySyncing) return undefined;
+    const timer = window.setTimeout(() => setMetaHistorySyncing(false), 8 * 60 * 1000);
+    return () => window.clearTimeout(timer);
+  }, [metaHistorySyncing]);
+
+  // The account registry is not needed to render conversations, so it loads once
+  // out of band. A tenant with a single number per platform never sees it.
+  useEffect(() => {
+    if (!tenantId) return;
+    let cancelled = false;
+    api.get("/ai-agent/channel-accounts", {
+      params: { tenant_id: tenantId },
+      headers,
+      perfComponent: "AiInboxPwa.channelAccounts",
+    })
+      .then((payload) => {
+        if (!cancelled) setChannelAccounts(asArray(payload?.accounts));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [headers, tenantId]);
+
   useEffect(() => {
     if (lastRequestedMessagePlatformRef.current === messagePlatformFilter) return;
     lastRequestedMessagePlatformRef.current = messagePlatformFilter;
+    setAccountFilter("all");
     requestRefresh("platform_filter", { silent: false, force: true });
   }, [messagePlatformFilter, requestRefresh]);
+
+  // read_filter and favorite_only are server-side clauses, so changing either has
+  // to refetch — the rows that match may not be in the page currently held.
+  const lastRequestedListFiltersRef = useRef("all|all");
+  useEffect(() => {
+    const signature = `${readFilter}|${favoriteFilter}`;
+    if (lastRequestedListFiltersRef.current === signature) return;
+    lastRequestedListFiltersRef.current = signature;
+    requestRefresh("list_filter", { silent: false, force: true });
+  }, [favoriteFilter, readFilter, requestRefresh]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
@@ -3897,7 +4202,7 @@ export default function AiInboxPwa() {
     if (!("serviceWorker" in navigator)) return undefined;
     // `?v=` must move with VERSION inside inbox-sw.js, or clients keep running the
     // old worker and the cache-first `/assets/` rule strands them on a stale bundle.
-    navigator.serviceWorker.register("/inbox-sw.js?v=15", { scope: "/inbox" }).catch(() => null);
+    navigator.serviceWorker.register("/inbox-sw.js?v=16", { scope: "/inbox" }).catch(() => null);
     return undefined;
   }, []);
 
@@ -3918,14 +4223,15 @@ export default function AiInboxPwa() {
     return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   }, []);
 
+
   useEffect(() => {
     if (!productSheetOpen) return;
-    void loadProducts({ force: true });
+    void loadProducts();
   }, [loadProducts, productSheetOpen]);
 
   useEffect(() => {
     if (!orderComposerOpen) return;
-    void loadProducts({ force: true });
+    void loadProducts();
   }, [loadProducts, orderComposerOpen]);
 
   useEffect(() => {
@@ -4138,6 +4444,90 @@ export default function AiInboxPwa() {
     };
   }, []);
 
+  // Multi-account: active registry rows grouped by platform. The account badge
+  // and sub-filter only appear for a platform with MORE than one account — a
+  // single-number tenant sees exactly the inbox it had before.
+  const accountsByPlatform = useMemo(() => {
+    const grouped = new Map();
+    for (const account of asArray(channelAccounts)) {
+      if (account?.is_active === false) continue;
+      const platform = clean(account?.platform).toLowerCase();
+      if (!platform) continue;
+      if (!grouped.has(platform)) grouped.set(platform, []);
+      grouped.get(platform).push(account);
+    }
+    return grouped;
+  }, [channelAccounts]);
+  // account key (instance name / page id / IG id) -> display label, per platform.
+  const accountDirectory = useMemo(() => {
+    const directory = new Map();
+    for (const account of asArray(channelAccounts)) {
+      const platform = clean(account?.platform).toLowerCase();
+      const label = clean(account?.display_name) || clean(account?.external_account_id);
+      if (!platform || !label) continue;
+      for (const key of [clean(account?.external_account_id), clean(account?.metadata?.page_id)]) {
+        if (key) directory.set(`${platform}:${key}`, label);
+      }
+    }
+    return directory;
+  }, [channelAccounts]);
+  const conversationAccountLabel = useCallback((conversation = {}) => {
+    const platform = normalizeConversationChannel(conversation);
+    if ((accountsByPlatform.get(platform) || []).length < 2) return "";
+    const key = conversationAccountKey(conversation);
+    if (!key) return "";
+    return accountDirectory.get(`${platform}:${key}`) || key;
+  }, [accountDirectory, accountsByPlatform]);
+  const accountFilterOptions = useMemo(() => {
+    const platform = backendChannelFilter(messagePlatformFilter);
+    const accounts = accountsByPlatform.get(platform) || [];
+    return accounts.length > 1
+      ? accounts.map((account) => ({ id: String(account.id), label: clean(account.display_name) || clean(account.external_account_id) }))
+      : [];
+  }, [accountsByPlatform, messagePlatformFilter]);
+  // The keys this filter accepts: the account's own id plus its page id, so an
+  // Instagram thread stamped with either identifier still matches.
+  const selectedAccountKeys = useMemo(() => {
+    if (accountFilter === "all") return null;
+    const account = asArray(channelAccounts).find((row) => String(row?.id) === accountFilter);
+    if (!account) return null;
+    const keys = new Set([clean(account.external_account_id), clean(account.metadata?.page_id)].filter(Boolean));
+    return keys.size ? keys : null;
+  }, [accountFilter, channelAccounts]);
+
+  // Per-channel counts for the platform chips, so the operator can see where the
+  // waiting customers actually are without switching tab by tab.
+  const channelSummaries = useMemo(() => {
+    const messageConversations = conversations.filter((conversation) => !isSocialCommentThread(conversation));
+    const unreadOf = (conversation) =>
+      Number(conversation.unread_count || conversation.unread || 0) ||
+      (conversation.manually_unread === true ? 1 : 0);
+    const buckets = new Map();
+    let totalUnread = 0;
+    for (const conversation of messageConversations) {
+      const key = normalizeConversationChannel(conversation);
+      const unread = unreadOf(conversation);
+      totalUnread += unread;
+      const existing = buckets.get(key) || { key, count: 0, unread: 0 };
+      existing.count += 1;
+      existing.unread += unread;
+      buckets.set(key, existing);
+    }
+    return { all: { count: messageConversations.length, unread: totalUnread }, byChannel: buckets };
+  }, [conversations]);
+  // MESSAGE_PLATFORM_FILTERS keys are UI names ("messenger", "web"); the buckets
+  // above are keyed by the normalized channel. Map one onto the other so a chip
+  // badge cannot silently read zero.
+  const platformFilterUnread = useCallback((filterKey = "all") => {
+    if (filterKey === "all") return channelSummaries.all.unread;
+    const wanted = backendChannelFilter(filterKey);
+    let unread = 0;
+    for (const [channel, bucket] of channelSummaries.byChannel) {
+      if (backendChannelFilter(channel) === wanted) unread += bucket.unread;
+    }
+    return unread;
+  }, [channelSummaries]);
+
   const filteredConversations = useMemo(() => {
     const normalized = debouncedSearch.toLowerCase();
     return conversations.filter((conversation) => {
@@ -4152,6 +4542,18 @@ export default function AiInboxPwa() {
         .some((item) => item.includes(normalized));
       if (!matchesSearch) return false;
       if (!matchesMessagePlatform(conversation, messagePlatformFilter)) return false;
+      if (selectedAccountKeys && !selectedAccountKeys.has(conversationAccountKey(conversation))) return false;
+      // read_filter and favorite_only are already applied server-side; this
+      // second pass keeps the list honest between a local toggle and the
+      // refetch that follows it.
+      if (favoriteFilter !== "all") {
+        const isFavorite = conversation?.is_favorite === true || clean(conversation?.is_favorite).toLowerCase() === "true";
+        if (!isFavorite) return false;
+      }
+      if (readFilter !== "all") {
+        const isUnread = Number(conversation?.unread_count || conversation?.unread || 0) > 0 || conversation?.manually_unread === true;
+        if (readFilter === "unread" ? !isUnread : isUnread) return false;
+      }
       if (filter === "needs_reply") {
         const status = clean(
           conversation.needs_human ||
@@ -4168,7 +4570,7 @@ export default function AiInboxPwa() {
       }
       return true;
     });
-  }, [conversations, debouncedSearch, filter, messagePlatformFilter]);
+  }, [conversations, debouncedSearch, favoriteFilter, filter, messagePlatformFilter, readFilter, selectedAccountKeys]);
 
   const selectedConversation = useMemo(() => {
     if (!conversationParam) return null;
@@ -4321,9 +4723,12 @@ export default function AiInboxPwa() {
   const visibleSocialPosts = useMemo(() => {
     if (!isSocialMode) return [];
     return [...socialPosts]
+      .filter((item) => socialPostsPlatformFilter === "all"
+        || asArray(item.platforms).includes(socialPostsPlatformFilter)
+        || normalizedSocialPlatform(item) === socialPostsPlatformFilter)
       .filter((item) => socialPostMatchesFilter(item, socialCommentsFilter))
       .sort((a, b) => socialPostSortValue(b) - socialPostSortValue(a));
-  }, [isSocialMode, socialCommentsFilter, socialPosts]);
+  }, [isSocialMode, socialCommentsFilter, socialPosts, socialPostsPlatformFilter]);
   const selectedSocialPost = useMemo(() => {
     if (!isSocialMode) return null;
     if (socialPostParam) {
@@ -4561,12 +4966,73 @@ export default function AiInboxPwa() {
     [selectedConversation?.ai_reply_draft, selectedConversation?.last_ai_reply_draft]
   );
   const activeAiSuggestionText = useMemo(() => clean(activeAiReplyDraft?.text || ""), [activeAiReplyDraft?.text]);
+  const suggestionSourceId = Number(activeAiReplyDraft?.metadata?.source_message_id) || 0;
+  // A suggestion composed against an older inbound is stale: the customer has
+  // said something since, and approving would answer the wrong message.
+  const latestCustomerMessageId = useMemo(() => {
+    let maxId = 0;
+    for (const message of asArray(selectedConversation?.messages)) {
+      const id = Number(message?.id) || 0;
+      if (!isFromMeMessage(message) && clean(message?.customer_message) && id > maxId) maxId = id;
+    }
+    return maxId;
+  }, [selectedConversation?.messages]);
+  const suggestionStale = latestCustomerMessageId > 0 && suggestionSourceId > 0 && latestCustomerMessageId > suggestionSourceId;
   const activeAiSuggestionKey = useMemo(() => {
     if (!selectedConversation?.session_id || !activeAiSuggestionText) return "";
     const stamp = selectedConversation?.last_ai_reply_draft_updated_at || activeAiReplyDraft?.updated_at || activeAiReplyDraft?.metadata?.updated_at || "";
-    return `${selectedConversation.session_id}:${stamp || activeAiSuggestionText.length}`;
-  }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id]);
-  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && dismissedAiSuggestionKey !== activeAiSuggestionKey;
+    // Keyed by source_message_id so a new draft (new inbound) is a NEW suggestion:
+    // not dismissed, and it resets the inline edit / product selection below.
+    return `${selectedConversation.session_id}:${suggestionSourceId || 0}:${stamp || activeAiSuggestionText.length}`;
+  }, [activeAiReplyDraft?.metadata?.updated_at, activeAiReplyDraft?.updated_at, activeAiSuggestionText, selectedConversation?.last_ai_reply_draft_updated_at, selectedConversation?.session_id, suggestionSourceId]);
+  // A completed/cleared TOMBSTONE (status "sent"/"cleared") is never actionable,
+  // even if a stale payload still carried text.
+  const draftCompleted = ["sent", "cleared"].includes(String(activeAiReplyDraft?.status || "").toLowerCase());
+  const aiSuggestionVisible = Boolean(activeAiSuggestionText) && !draftCompleted && !suggestionStale && dismissedAiSuggestionKey !== activeAiSuggestionKey;
+
+  // The grounded product attachment on the suggestion. The single enriched card
+  // (unambiguous) is the draft's first product_card; ambiguous choices + delivery
+  // format come from metadata.send_package.
+  const suggestionDraftCard = useMemo(() => {
+    const cards = asArray(activeAiReplyDraft?.product_cards);
+    return cards.length ? cards[0] : null;
+  }, [activeAiReplyDraft]);
+  const suggestionSendPackage = activeAiReplyDraft?.metadata?.send_package || activeAiReplyDraft?.send_package || null;
+  const effectiveSuggestionCard = suggestionProductRemoved ? null : (suggestionChosenCard || suggestionDraftCard);
+  // Recommendation (multi-select) vs identity disambiguation (single-select). The
+  // mode comes from the grounded send_package, never inferred from card count.
+  const suggestionSelectionSemantics = suggestionSendPackage?.selection_semantics || null;
+  const isRecommendationSuggestion = selectionModeFromSemantics(suggestionSelectionSemantics) === SELECTION_MODES.RECOMMENDATION;
+  // Grounded VARIANT OPTIONS of one identified product (size asked, no colour
+  // asked, >1 in-stock colour). Decided from the package, not the persisted
+  // label, so a draft written before this shipped still becomes selectable.
+  const variantOptionsEligible = useMemo(() => {
+    const choices = asArray(suggestionSendPackage?.color_choices);
+    if (!suggestionSendPackage?.color_choice_required || choices.length <= 1) return false;
+    return new Set(choices.map((choice) => String(choice?.product_id ?? choice?.id ?? ""))).size === 1;
+  }, [suggestionSendPackage]);
+  const isVariantOptionsSuggestion = variantOptionsEligible && !isRecommendationSuggestion;
+  const isMultiSelectSuggestion = isRecommendationSuggestion || isVariantOptionsSuggestion;
+  const suggestionRecommendationKeys = useMemo(
+    () => new Set(suggestionRecommendationCards.map(productSelectionKey)),
+    [suggestionRecommendationCards]
+  );
+  const suggestionDeliveryFormat = useMemo(() => {
+    const channel = String(selectedConversation?.channel || selectedConversation?.source || "").toLowerCase();
+    if (channel.includes("messenger") || channel === "facebook") return { labelKey: "aiSupport.inbox.ui.fmtRichCard" };
+    if (channel.includes("whatsapp")) return { labelKey: "aiSupport.inbox.ui.fmtImageLink" };
+    if (channel.includes("instagram")) return { labelKey: "aiSupport.inbox.ui.fmtTextLink" };
+    return { labelKey: "aiSupport.inbox.ui.fmtLink" };
+  }, [selectedConversation?.channel, selectedConversation?.source]);
+  // Reset the operator's product + text edits whenever a FRESH suggestion
+  // arrives — never mid-edit of the same one.
+  useEffect(() => {
+    setSuggestionProductRemoved(false);
+    setSuggestionChosenCard(null);
+    setSuggestionRecommendationCards([]);
+    setEditingAiDraft(false);
+    setAiSuggestionEditText("");
+  }, [activeAiSuggestionKey]);
   const activeAiReplyValidation = useMemo(
     () => normalizeValidationSummary(
       selectedConversation?.last_ai_reply_validation ||
@@ -4984,8 +5450,8 @@ export default function AiInboxPwa() {
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
     const message = cleanMessageText(explicitText || composerText);
-    if (!selectedConversation?.session_id || !message) return;
-    if (manualSendInFlightRef.current) return; // double-click / in-flight guard
+    if (!selectedConversation?.session_id || !message) return { ok: false, skipped: true };
+    if (manualSendInFlightRef.current) return { ok: false, skipped: true }; // double-click / in-flight guard
     manualSendInFlightRef.current = true;
     const clientRequestId = buildClientRequestId();
     const canonicalSessionId = selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
@@ -5030,7 +5496,7 @@ export default function AiInboxPwa() {
     });
     if (composerMode !== "note" && warningCount > 0) {
       const confirmed = window.confirm(sendWarnings.join("\n"));
-      if (!confirmed) { manualSendInFlightRef.current = false; return; }
+      if (!confirmed) { manualSendInFlightRef.current = false; return { ok: false, cancelled: true }; }
     }
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
     const correctionMetadata = options.correctionMetadata || {};
@@ -5213,6 +5679,11 @@ export default function AiInboxPwa() {
       setEditingAiDraft(false);
       setComposerText("");
       if (composerMode === "note") setComposerMode("reply");
+      // The caller needs to know whether the customer actually received this.
+      // An assisted approval sends the reply text FIRST and the product cards
+      // second; sending cards after a failed text is how a customer gets a
+      // carousel with no message attached to it.
+      return { ok: payload?.delivery_status !== "failed", message: payload?.message || null };
     } catch (sendError) {
       // Mark the optimistic message failed (with retry affordance) — never leave it
       // looking sent, and never claim success without a server acknowledgement.
@@ -5225,52 +5696,234 @@ export default function AiInboxPwa() {
         ),
       }));
       toast.error(sendError?.responseBody?.delivery_error || sendError?.responseBody?.message || sendError?.message || "فشل الإرسال");
+      return { ok: false, error: sendError?.message || "" };
     } finally {
       manualSendInFlightRef.current = false;
       setSending(false);
     }
   }, [composerMode, composerText, editingAiDraft, headers, patchConversation, selectedConversation, tenantId]);
 
+  // The inline edit lives inside the suggestion card and does NOT touch the
+  // manual composer; Approve & Send uses the edited text.
   const handleEditAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionText) return;
     trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Manual Override");
-    setComposerMode("reply");
     setEditingAiDraft(true);
     setDismissedAiSuggestionKey("");
-    setComposerText(activeAiSuggestionText);
-  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, activeAiSuggestionText, trackAIRecommendation]);
+    setAiSuggestionEditText(activeAiSuggestionText);
+  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, activeAiSuggestionText, t, trackAIRecommendation]);
 
-  const handleApproveAiSuggestion = useCallback(() => {
+  const handleCancelEditAiSuggestion = useCallback(() => {
+    setEditingAiDraft(false);
+    setAiSuggestionEditText("");
+  }, []);
+
+  // Labels drive the lead status the whole pipeline reads, so the phone has to
+  // be able to set them too — not just display whatever the desk decided.
+  const conversationLabels = useMemo(
+    () => aiInboxLabelsFromConversation(selectedConversation || {}),
+    [selectedConversation]
+  );
+  const updateConversationLabels = useCallback(async (nextLabels) => {
+    if (!selectedConversation?.session_id) return false;
+    const labels = normalizeAiInboxConversationLabels(nextLabels);
+    const sessionId = selectedConversation.session_id;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    setLeadActionLoading("labels");
+    try {
+      const payload = await api.patch(
+        aiAgentInboxEndpoint(sessionId, "/labels"),
+        { tenant_id: tenantId, labels },
+        { headers, timeoutMs: 12000, perfComponent: "AiInboxPwa.updateConversationLabels" }
+      );
+      const returned = payload.conversation || {};
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        ...returned,
+        conversation_labels: payload.labels || returned.conversation_labels || labels,
+        lead_status: payload.lead_status || returned.lead_status || conversation.lead_status,
+        channel_metadata: {
+          ...(conversation.channel_metadata || {}),
+          ...(returned.channel_metadata || {}),
+          conversation_labels: payload.labels || returned.conversation_labels || labels,
+          lead_status: payload.lead_status || returned.lead_status || conversation.channel_metadata?.lead_status,
+        },
+        customer_profile: {
+          ...(conversation.customer_profile || {}),
+          ...(returned.customer_profile || {}),
+          conversation_labels: payload.labels || returned.conversation_labels || labels,
+        },
+      }));
+      toast.success(t("aiSupport.inbox.pwa.labelsSaved"));
+      return true;
+    } catch (err) {
+      toast.error(err?.message || t("aiSupport.inbox.pwa.labelsSaveFailed"));
+      return false;
+    } finally {
+      setLeadActionLoading("");
+    }
+  }, [headers, patchConversation, selectedConversation, t, tenantId]);
+
+  // "This answer was wrong" — the correction the AI learns from. Reachable from
+  // any AI message in the transcript, the same as on the desktop.
+  const openReplyCorrection = useCallback((message = {}) => {
+    if (!selectedConversation?.session_id) return;
+    setCorrectionModal({ open: true, draft: buildReplyCorrectionDraft({ conversation: selectedConversation, message }) });
+  }, [selectedConversation]);
+  const closeReplyCorrection = useCallback(() => {
+    setCorrectionModal({ open: false, draft: buildReplyCorrectionDraft() });
+  }, []);
+  const patchReplyCorrection = useCallback((patch = {}) => {
+    setCorrectionModal((current) => ({ ...current, draft: { ...current.draft, ...patch } }));
+  }, []);
+  const saveReplyCorrection = useCallback(async () => {
+    if (!selectedConversation?.session_id || !correctionModal.draft.messageId || !clean(correctionModal.draft.employeeCorrectAnswer)) return;
+    setCorrectionSaving(true);
+    try {
+      await api.post(
+        aiReplyCorrectionEndpoint(selectedConversation.session_id, correctionModal.draft.messageId),
+        {
+          tenant_id: tenantId,
+          customer_question: correctionModal.draft.customerQuestion,
+          ai_wrong_answer: correctionModal.draft.aiWrongAnswer,
+          employee_correct_answer: correctionModal.draft.employeeCorrectAnswer,
+          correction_type: correctionModal.draft.correctionType,
+          product_id: correctionModal.draft.productId || null,
+          channel: correctionModal.draft.channel || selectedConversation.channel || selectedConversation.source || "",
+        },
+        { headers, perfComponent: "AiInboxPwa.saveCorrection" }
+      );
+      toast.success(t("aiSupport.inbox.pwa.correctionSaved"));
+      closeReplyCorrection();
+    } catch (err) {
+      toast.error(err?.message || t("aiSupport.inbox.pwa.correctionSaveFailed"));
+    } finally {
+      setCorrectionSaving(false);
+    }
+  }, [closeReplyCorrection, correctionModal.draft, headers, selectedConversation, t, tenantId]);
+
+  const handleRemoveSuggestionProduct = useCallback(() => {
+    setSuggestionProductRemoved(true);
+    setSuggestionChosenCard(null);
+  }, []);
+  const handleChangeSuggestionProduct = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: true, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: true, restockMode: false });
+  }, []);
+  const handleChooseSuggestionProduct = useCallback((choice) => {
+    if (!choice) return;
+    setSuggestionChosenCard(choice);
+    setSuggestionProductRemoved(false);
+  }, []);
+  // Toggle a grounded product in the multi-select batch (ordered, max 5).
+  // Blocking the 6th selection surfaces the limit — never a silent drop.
+  const handleToggleRecommendationCard = useCallback((choice) => {
+    if (!choice) return;
+    setSuggestionRecommendationCards((current) => {
+      const { list, blocked } = toggleProductSelection(current, choice, { max: MAX_BATCH_PRODUCTS });
+      if (blocked) toast(isVariantOptionsSuggestion ? maxVariantBatchReachedText() : maxBatchReachedText());
+      return list;
+    });
+  }, [isVariantOptionsSuggestion]);
+
+  // PACKAGE Approve & Send: the (approved/edited) TEXT first — stale-guarded —
+  // then the approved grounded PRODUCT CARDS. One operator action. If the text
+  // send is stale or fails, the cards are NOT sent (the whole package is
+  // blocked) and the suggestion stays actionable.
+  // A plain async function, NOT a useCallback: it closes over sendProductCards,
+  // which is declared further down this component. A hook dependency on a const
+  // that is still uninitialised is a temporal-dead-zone crash on first render.
+  const handleApproveAiSuggestion = async () => {
     if (!activeAiSuggestionText) return;
+    // Identity disambiguation stays single-select: an ambiguous match still
+    // requires picking exactly one product, or removing it.
+    if (!isMultiSelectSuggestion && suggestionSendPackage?.product_ambiguous && !suggestionChosenCard && !suggestionProductRemoved) {
+      toast(t("aiSupport.inbox.pwa.pickProductBeforeSend"));
+      return;
+    }
+    // Ticking a colour never sends, so approving with nothing ticked would
+    // promise options and deliver none.
+    if (isVariantOptionsSuggestion && !suggestionRecommendationCards.length && !suggestionProductRemoved) {
+      toast(t("aiSupport.inbox.pwa.pickColorsBeforeSend"));
+      return;
+    }
+    if (!isMultiSelectSuggestion && suggestionSendPackage?.color_choice_required && !suggestionChosenCard && !suggestionProductRemoved) {
+      toast(t("aiSupport.inbox.pwa.pickColorBeforeSend"));
+      return;
+    }
     trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Suggestion Accepted");
+
+    const recommendationCards = isMultiSelectSuggestion ? suggestionRecommendationCards : [];
+    const cardsToSend = recommendationCards.length ? recommendationCards : (effectiveSuggestionCard ? [effectiveSuggestionCard] : []);
+    const disposition = suggestionProductRemoved
+      ? "removed"
+      : (recommendationCards.length
+        ? (isVariantOptionsSuggestion ? "variant_options_batch" : "recommendation_batch")
+        : (suggestionChosenCard ? "changed" : (suggestionDraftCard ? "kept" : "none")));
+
+    // A variant-options suggestion's text lists every colour with its sizes,
+    // price and link — exactly what the carousel is about to show as cards.
+    // Sending both makes the customer read the same catalogue twice, so the text
+    // leg shrinks to a one-line lead. A manual edit still wins: edited words are
+    // deliberate.
+    const editedText = editingAiDraft && clean(aiSuggestionEditText) ? clean(aiSuggestionEditText) : "";
+    const variantOptionsLead = isVariantOptionsSuggestion && cardsToSend.length >= 2
+      ? `${clean(cardsToSend[0]?.product_name || cardsToSend[0]?.name || "المنتج")} متوفر بالألوان دي — اختار اللي يعجبك 👇`
+      : "";
+    const textToSend = editedText || variantOptionsLead || activeAiSuggestionText;
+
     setComposerMode("reply");
-    // A colour-options suggestion's text lists every colour with its sizes, price and link — which
-    // is exactly what the carousel is about to show as cards. Sending the full text alongside the
-    // carousel made the customer read the same catalogue twice (the long "اللون: ... المتاح: ..."
-    // block). Mirror the desktop: shrink the text leg to a one-line lead for a colour batch.
-    const colorChoices = Array.isArray(activeAiReplyDraft?.send_package?.color_choices)
-      ? activeAiReplyDraft.send_package.color_choices
-      : [];
-    const firstChoiceName = clean(colorChoices[0]?.product_name || colorChoices[0]?.name || "المنتج");
-    const approvalText = colorChoices.length >= 2
-      ? `${firstChoiceName} متوفر بالألوان دي — اختار اللي يعجبك 👇`
-      : activeAiSuggestionText;
-    setComposerText(approvalText);
-    void sendManualReply(approvalText, {
+    const result = await sendManualReply(textToSend, {
       allowSameTextCorrection: true,
+      flow: "approve",
+      assistedApproval: true,
       correctionMetadata: {
         source: "ai_suggestion_approved",
         approved_ai_reply: true,
+        product_disposition: disposition,
+        selection_semantics: suggestionSelectionSemantics || null,
+        product_id: cardsToSend[0]?.product_id || cardsToSend[0]?.id || null,
+        variant_id: cardsToSend[0]?.variant_id || null,
+        product_count: cardsToSend.length,
       },
     });
-  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, activeAiSuggestionText, sendManualReply, trackAIRecommendation]);
+    // Text failed, was cancelled, or was stale (409) → keep the suggestion
+    // actionable and never send the cards on their own.
+    if (!result?.ok) return;
+
+    if (cardsToSend.length) await sendProductCards(cardsToSend);
+
+    // A successful assisted approval CONSUMES the suggestion: drop the card at
+    // once and reset the local state so it can never be re-approved. The backend
+    // already cleared the draft; writing the tombstone here means no refetch or
+    // cache race can bring the completed suggestion back.
+    setDismissedAiSuggestionKey(activeAiSuggestionKey);
+    setEditingAiDraft(false);
+    setAiSuggestionEditText("");
+    setSuggestionProductRemoved(false);
+    setSuggestionChosenCard(null);
+    setSuggestionRecommendationCards([]);
+    const completedTombstone = {
+      status: "sent",
+      text: "",
+      source_message_id: suggestionSourceId || null,
+      metadata: { source_message_id: suggestionSourceId || null },
+      updated_at: new Date().toISOString(),
+    };
+    patchConversation(selectedConversation?.conversation_key || selectedConversation?.session_id, (conversation) => ({
+      ...conversation,
+      ai_reply_draft: completedTombstone,
+      last_ai_reply_draft: completedTombstone,
+      last_ai_reply_draft_updated_at: completedTombstone.updated_at,
+    }));
+  };
 
   const handleDismissAiSuggestion = useCallback(() => {
     if (!activeAiSuggestionKey) return;
     trackAIRecommendation({ id: activeAiSuggestionKey, title: t("aiSupport.inbox.pwa.aiReplyDraft"), confidence: activeAiReplyConfidence.score }, "Suggestion Rejected");
     setEditingAiDraft(false);
+    setAiSuggestionEditText("");
     setDismissedAiSuggestionKey(activeAiSuggestionKey);
-  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, trackAIRecommendation]);
+  }, [activeAiReplyConfidence.score, activeAiSuggestionKey, t, trackAIRecommendation]);
 
   const sendProductCards = useCallback(
     async (cards = []) => {
@@ -5424,58 +6077,124 @@ export default function AiInboxPwa() {
     [headers, patchConversation, selectedConversation, tenantId]
   );
 
-  const createDraftOrder = useCallback(async (product, options = {}) => {
-    if (!selectedConversation?.session_id || !product) return;
+  // The shared composer hands back ONE payload for the whole cart — lines,
+  // discount, payment method, shipping override, address — and `confirm: true`
+  // when the operator chose "save invoice" rather than "draft". Same call the
+  // desktop workspace makes, so an order written from the phone is the same
+  // order written at the desk.
+  const submitComposerOrder = useCallback(async (payload = {}) => {
+    if (!selectedConversation?.session_id) return;
+    const confirmed = payload.confirm === true;
     setOrderComposerBusy(true);
     try {
-      const payload = await api.post(
+      const response = await api.post(
         aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/create-draft-order"),
-        {
-          tenant_id: tenantId,
-          product_id: product.product_id || product.id,
-          product,
-          quantity: options.quantity || 1,
-          size: options.size || "",
-          color: options.color || "",
-          customer_name: options.customer_name || "",
-          customer_phone: options.customer_phone || "",
-          customer_address: options.customer_address || "",
-          governorate: options.governorate || "",
-          city_area: options.city_area || "",
-          variant_id: options.variant_id || "",
-          shipping_provider: options.shipping_provider || "",
-          shipping_city_id: options.shipping_city_id || "",
-          shipping_zone_id: options.shipping_zone_id || "",
-          shipping_district_id: options.shipping_district_id || "",
-          district_id: options.district_id || "",
-          street_address: options.street_address || "",
-          building_number: options.building_number || "",
-          floor_number: options.floor_number || "",
-          apartment_number: options.apartment_number || "",
-          landmark: options.landmark || "",
-          notes: options.notes || "",
-          reserve: false,
-          reserve_minutes: 20,
-        },
+        { tenant_id: tenantId, ...payload },
         { headers, perfComponent: "AiInboxPwa.createDraftOrder" }
       );
+      const order = response?.order || {};
+      const number = order.public_order_number || order.invoice_number || order.id || "";
+      if (confirmed) {
+        const invoiceUrl = clean(response?.invoice_url);
+        if (invoiceUrl) {
+          try {
+            // Customer-facing text stays Arabic on purpose: the shopper reads
+            // it, not whoever set the ERP interface language.
+            await api.post(
+              aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/send"),
+              { tenant_id: tenantId, message: `تم تأكيد طلبك ✅\nرقم الفاتورة: ${number}\n\n🧾 الفاتورة:\n${invoiceUrl}` },
+              { headers, perfComponent: "AiInboxPwa.sendInvoiceLink" }
+            );
+            toast.success(t("aiSupport.inbox.order.invoiceSaved", { number }));
+          } catch (sendError) {
+            toast.error(t("aiSupport.inbox.order.invoiceSavedSendFailed", { number, reason: sendError?.message || "" }));
+          }
+        } else {
+          toast.error(t("aiSupport.inbox.order.invoiceSavedNoLink", { number }));
+        }
+      } else {
+        toast.success(t("aiSupport.inbox.order.draftCreated", { number }));
+      }
       setOrderComposerOpen(false);
-      toast.success(`تم إنشاء مسودة الطلب ${payload?.order?.invoice_number || payload?.order?.id || ""}`.trim());
-      void requestRefresh("manual", { silent: true });
+      setComposerPicks([]);
+      void requestRefresh("order-created", { silent: true, force: true });
     } catch (createError) {
-      toast.error(createError?.responseBody?.message || createError?.message || "تعذر إنشاء مسودة الطلب");
+      const outOfStock = asArray(createError?.responseBody?.out_of_stock);
+      toast.error(outOfStock.length
+        ? t("aiSupport.inbox.order.outOfStockLines", { lines: outOfStock.map((item) => `${item.product_name} ${item.variant_name} (${item.available})`).join("، ") })
+        : createError?.responseBody?.message || createError?.message || t("aiSupport.inbox.order.saveFailed"));
     } finally {
       setOrderComposerBusy(false);
     }
-  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, t, tenantId]);
 
   const openAvailableBySizePicker = useCallback(() => {
-    setAvailableBySizePickerConfig({ open: true, sizeMode: true, allowMultiple: true });
+    setAvailableBySizePickerConfig({ open: true, sizeMode: true, allowMultiple: true, orderMode: false, selectMode: false, restockMode: false });
+  }, []);
+
+  const openOrderCartPicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: true, sizeMode: false, allowMultiple: true, orderMode: true, selectMode: false, restockMode: false });
+  }, []);
+
+  const openRestockPicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: true, sizeMode: false, allowMultiple: true, orderMode: false, selectMode: false, restockMode: true });
   }, []);
 
   const closeAvailableBySizePicker = useCallback(() => {
-    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false });
+    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: false, restockMode: false });
   }, []);
+
+  // The picker does NOT always carry a variant_id — the multi-select path builds
+  // its card before a colour/size is chosen — so colour+size travel with the line
+  // and the server resolves the variant. Filtering on variant_id here silently
+  // emptied the cart on the desktop once.
+  const normalizeChosenCartCard = (card = {}) => ({
+    product_id: card.product_id || card.id || null,
+    id: card.product_id || card.id || null,
+    variant_id: card.variant_id || null,
+    product_name: card.product_name || card.name || "",
+    name: card.product_name || card.name || "",
+    image_url: card.image_url || card.image || card.thumbnail_url || "",
+    storefront_url: card.storefront_url || card.product_url || card.url || "",
+    product_url: card.storefront_url || card.product_url || card.url || "",
+    color: card.color || "",
+    size: card.size || "",
+    price: card.price ?? card.display_price ?? null,
+    display_price: card.display_price ?? card.price ?? null,
+    available_sizes: card.available_sizes || card.sizes || [],
+    grounded: false,
+    in_stock: true,
+  });
+
+  // Each hand-over carries a batch id: the composer appends a batch once and
+  // never has to clear this shared state (clearing it raced the append).
+  const handleOrderCartPickerSubmit = useCallback((cards = []) => {
+    const picked = asArray(cards).map(normalizeChosenCartCard).filter((card) => card.product_id);
+    // Each restock pick names a variant to watch for a back-in-stock request; a
+    // fresh object every time, because the drawer keys its "picks arrived"
+    // effect on identity and appends (re-picking the same variant must register).
+    if (availableBySizePickerConfig.restockMode) {
+      if (picked.length) setRestockPick({ batch: performance.now(), cards: picked });
+      closeAvailableBySizePicker();
+      return Promise.resolve();
+    }
+    // "Change product" on a suggestion resolves ONE identity and never sends.
+    if (availableBySizePickerConfig.selectMode) {
+      const [first] = picked;
+      if (first) {
+        setSuggestionChosenCard(first);
+        setSuggestionProductRemoved(false);
+      }
+      closeAvailableBySizePicker();
+      return Promise.resolve();
+    }
+    setComposerPicks({
+      batch: `${picked.length}:${picked.map((card) => `${card.product_id}-${card.variant_id || ""}-${card.color}-${card.size}`).join("|")}:${performance.now()}`,
+      cards: picked,
+    });
+    closeAvailableBySizePicker();
+    return Promise.resolve();
+  }, [availableBySizePickerConfig.restockMode, availableBySizePickerConfig.selectMode, closeAvailableBySizePicker]);
 
   const sendAvailableBySizeCards = useCallback(
     async ({ message = "" } = {}) => {
@@ -6236,6 +6955,25 @@ export default function AiInboxPwa() {
               </div>
             </div>
 
+            {/* Facebook and Instagram posts arrive in one list; this narrows it
+                to one platform, the same control the desktop workspace has. */}
+            <div className="flex gap-2 overflow-x-auto px-1 pb-1 pt-1">
+              {[
+                { key: "all", label: t("aiSupport.inbox.filters.all") },
+                { key: "facebook", label: t("aiSupport.inbox.pwa.messenger") },
+                { key: "instagram", label: t("aiSupport.inbox.pwa.instagram") },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setSocialPostsPlatformFilter(item.key)}
+                  className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-black ${socialPostsPlatformFilter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
             <div className="min-h-0 overflow-hidden lg:mt-2">
               <SocialCommentsPanel
                 items={visibleSocialPosts}
@@ -6481,6 +7219,24 @@ export default function AiInboxPwa() {
                     </div>
                     {selectedSocialThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-500" /> : null}
                   </div>
+                  {/* A reel and its cross-posted copy land in one thread, so the
+                      operator needs to be able to answer one platform at a time. */}
+                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                    {[
+                      { key: "all", label: t("aiSupport.inbox.filters.all") },
+                      { key: "facebook", label: t("aiSupport.inbox.pwa.messenger") },
+                      { key: "instagram", label: t("aiSupport.inbox.pwa.instagram") },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setSocialThreadPlatformFilter(item.key)}
+                        className={`whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-black ${socialThreadPlatformFilter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                   {selectedSocialThread.error ? (
                     <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{selectedSocialThread.error}</div>
                   ) : null}
@@ -6499,7 +7255,13 @@ export default function AiInboxPwa() {
                         {t("aiSupport.inbox.pwa.noSocialComments")}
                       </div>
                     ) : null}
-                    {selectedSocialThread.comments.map((comment, index) => {
+                    {selectedSocialThread.comments.filter((comment) => {
+                      if (socialThreadPlatformFilter === "all") return true;
+                      const platform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook").toLowerCase();
+                      return socialThreadPlatformFilter === "instagram"
+                        ? platform.includes("instagram")
+                        : !platform.includes("instagram");
+                    }).map((comment, index) => {
                       const commentPlatform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
                       if (import.meta.env.DEV && index === 0 && commentPlatform.toLowerCase().includes("facebook")) {
                         console.log({
@@ -6686,6 +7448,21 @@ export default function AiInboxPwa() {
                     ) : null}
                     <span className="truncate">{selectedLastSeen}</span>
                   </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {conversationLabels.slice(0, 3).map((label) => (
+                      <span key={label.id} className={`inline-flex h-5 items-center rounded-md border px-1.5 text-[10px] font-black ${conversationLabelClass(label.color)}`}>
+                        {label.name}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setLabelsOpen(true)}
+                      className="inline-flex h-5 items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 text-[10px] font-black text-slate-500"
+                    >
+                      <Tag className="h-3 w-3" />
+                      {conversationLabels.length > 3 ? `+${conversationLabels.length - 3}` : t("aiSupport.inbox.pwa.labels")}
+                    </button>
+                  </div>
                   {lastOrder ? (
                     <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       <PwaChip tone={confirmationMeta.tone}>{t(confirmationMeta.labelKey)}</PwaChip>
@@ -6752,6 +7529,17 @@ export default function AiInboxPwa() {
                   <button type="button" onClick={() => { setComposerMode("note"); setMenuOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100">
                     <Sparkles className="h-4 w-4" />
                     {t("aiSupport.inbox.pwa.internalNote")}
+                  </button>
+                  {/* Turn the chat contact into a real customer record. The
+                      handler existed here for months with no button on it. */}
+                  <button
+                    type="button"
+                    onClick={() => { void createLeadCustomer(); setMenuOpen(false); }}
+                    disabled={leadActionLoading === "create_customer"}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    {leadActionLoading === "create_customer" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserRound className="h-4 w-4" />}
+                    {t("aiSupport.inbox.pwa.createCustomer")}
                   </button>
                   <button
                     type="button"
@@ -6837,6 +7625,20 @@ export default function AiInboxPwa() {
               <div className="flex items-center justify-between gap-3">
                 <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">{t("aiSupport.inbox.kpi.socialCenter")}</h1>
                 <div className="flex shrink-0 items-center gap-2">
+                  {tab === "conversations" ? (
+                    // Webhooks only carry new events. This pulls the page's
+                    // existing Messenger + Instagram threads out of the Graph API.
+                    <button
+                      type="button"
+                      onClick={() => void syncMetaConversations()}
+                      disabled={metaHistorySyncing}
+                      className="ai-pwa-icon-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-sky-600 shadow-sm ring-1 ring-slate-200 disabled:opacity-50"
+                      aria-label={t("aiSupport.inbox.pwa.syncMeta")}
+                      title={t("aiSupport.inbox.pwa.syncMetaHint")}
+                    >
+                      {metaHistorySyncing ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <FaFacebookMessenger className="h-4.5 w-4.5" />}
+                    </button>
+                  ) : null}
                   <InboxNotificationBell surface="/inbox" />
                   <button
                     type="button"
@@ -6870,14 +7672,75 @@ export default function AiInboxPwa() {
               ) : null}
               {tab === "conversations" ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {MESSAGE_PLATFORM_FILTERS.map((item) => (
+                  {MESSAGE_PLATFORM_FILTERS.map((item) => {
+                    const unread = platformFilterUnread(item.key);
+                    const activeChip = messagePlatformFilter === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setMessagePlatformFilter(item.key)}
+                        className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-black ${activeChip ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
+                      >
+                        {t(item.labelKey)}
+                        {unread > 0 ? (
+                          <span className={`inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black ${activeChip ? "bg-white/20 text-white" : "bg-emerald-500 text-white"}`}>
+                            {unread > 99 ? "99+" : unread}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+              {tab === "conversations" ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1">
+                    {[["all", t("aiSupport.inbox.ui.readFilterAll")], ["unread", t("aiSupport.inbox.ui.readFilterUnread")], ["read", t("aiSupport.inbox.ui.readFilterRead")]].map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setReadFilter(key)}
+                        aria-pressed={readFilter === key}
+                        className={`min-w-0 flex-1 truncate rounded-xl px-2 py-1.5 text-[11px] font-black transition ${readFilter === key ? "bg-slate-900 text-white" : "text-slate-500"}`}
+                      >
+                        {label}{key === "unread" && channelSummaries.all.unread > 0 ? ` (${channelSummaries.all.unread})` : ""}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFavoriteFilter(favoriteFilter === "favorites" ? "all" : "favorites")}
+                    aria-pressed={favoriteFilter === "favorites"}
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl border transition ${favoriteFilter === "favorites" ? "border-amber-300 bg-amber-50 text-amber-600" : "border-slate-200 bg-white text-slate-400"}`}
+                    aria-label={t("aiSupport.inbox.ui.favorites")}
+                    title={t("aiSupport.inbox.ui.favorites")}
+                  >
+                    <Star className={`h-4 w-4 ${favoriteFilter === "favorites" ? "fill-current" : ""}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void markAllConversationsRead()}
+                    disabled={!channelSummaries.all.unread}
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl border transition ${channelSummaries.all.unread ? "border-emerald-300 bg-emerald-50 text-emerald-600" : "border-slate-200 bg-white text-slate-300"}`}
+                    aria-label={t("aiSupport.inbox.ui.markAllRead")}
+                    title={t("aiSupport.inbox.ui.markAllRead")}
+                  >
+                    <CheckCheck className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : null}
+              {tab === "conversations" && accountFilterOptions.length ? (
+                <div className="flex items-center gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1">
+                  {[{ id: "all", label: t("aiSupport.inbox.ui.accountFilterAll") }, ...accountFilterOptions].map((option) => (
                     <button
-                      key={item.key}
+                      key={option.id}
                       type="button"
-                      onClick={() => setMessagePlatformFilter(item.key)}
-                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-black ${messagePlatformFilter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
+                      onClick={() => setAccountFilter(option.id)}
+                      aria-pressed={accountFilter === option.id}
+                      className={`shrink-0 truncate rounded-xl px-2.5 py-1.5 text-[11px] font-black transition ${accountFilter === option.id ? "bg-slate-900 text-white" : "text-slate-500"}`}
                     >
-                      {t(item.labelKey)}
+                      {option.label}
                     </button>
                   ))}
                 </div>
@@ -6916,6 +7779,7 @@ export default function AiInboxPwa() {
                   onPrivateMessage={sendLeadPrivateMessage}
                   onReact={["whatsapp", "instagram", "messenger"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
                   onEditMessage={normalizeConversationChannel(selectedConversation || {}) === "whatsapp" ? editMessage : null}
+                  onOpenCorrection={openReplyCorrection}
                   reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : normalizeConversationChannel(selectedConversation || {}) === "messenger" ? MESSENGER_MESSAGE_REACTIONS : undefined}
                 />
               </>
@@ -6933,11 +7797,27 @@ export default function AiInboxPwa() {
                       <ConversationListItem
                         conversation={conversation}
                         active={false}
+                        accountLabel={conversationAccountLabel(conversation)}
                         onSelect={openConversation}
+                        onToggleFavorite={toggleConversationFavorite}
+                        onToggleRead={toggleConversationRead}
                       />
                     </div>
                   );
                 })}
+                {hasMoreConversations ? (
+                  <div className="flex justify-center py-3">
+                    <button
+                      type="button"
+                      onClick={() => void loadMoreConversations()}
+                      disabled={loadingMoreConversations}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-[12px] font-semibold text-slate-700 shadow-sm disabled:opacity-60"
+                    >
+                      {loadingMoreConversations ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />}
+                      {loadingMoreConversations ? t("aiSupport.inbox.ui.loadingMore") : t("aiSupport.inbox.ui.loadMore")}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : loading ? (
               <div className="grid min-h-60 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -6999,22 +7879,33 @@ export default function AiInboxPwa() {
                 </div>
               ) : null}
               {aiSuggestionVisible ? (
-                <div className={`mb-2 rounded-2xl border p-3 ${editingAiDraft ? "border-violet-300/30 bg-violet-400/10" : "border-cyan-300/15 bg-cyan-300/8"}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.pwa.aiSuggestion")}</div>
-                      <div className="mt-2 max-h-40 overflow-auto rounded-xl border border-white/10 bg-slate-950/75 p-3 text-sm leading-7 text-slate-100">
-                        {activeAiSuggestionText}
-                      </div>
-                    </div>
-                    {editingAiDraft ? <span className="shrink-0 rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">{t("aiSupport.inbox.composer.editing")}</span> : null}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button type="button" onClick={handleEditAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100 transition hover:bg-violet-400/15">✏️ {t("aiSupport.inbox.pwa.editReply")}</button>
-                    <button type="button" onClick={handleApproveAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-400/15">✅ {t("aiSupport.inbox.pwa.approveAndSend")}</button>
-                    <button type="button" onClick={handleDismissAiSuggestion} className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-200 transition hover:bg-white/[0.08]">❌ {t("aiSupport.inbox.pwa.dismiss")}</button>
-                  </div>
-                </div>
+                <AiSuggestionCard
+                  text={activeAiSuggestionText}
+                  editing={editingAiDraft}
+                  editText={aiSuggestionEditText}
+                  onEditTextChange={setAiSuggestionEditText}
+                  onCancelEdit={handleCancelEditAiSuggestion}
+                  onEdit={handleEditAiSuggestion}
+                  onApprove={handleApproveAiSuggestion}
+                  onDismiss={handleDismissAiSuggestion}
+                  reviewNeeded={activeAiReplyValidation.violationsCount > 0 || activeAiReplyConfidence.decision === "high_risk"}
+                  productCard={effectiveSuggestionCard}
+                  productChoices={suggestionSendPackage?.card_choices || []}
+                  productAmbiguous={Boolean(suggestionSendPackage?.product_ambiguous)}
+                  colorChoices={suggestionSendPackage?.color_choices || []}
+                  colorRequired={Boolean(suggestionSendPackage?.color_choice_required)}
+                  productRemoved={suggestionProductRemoved}
+                  recommendationMode={isRecommendationSuggestion}
+                  variantOptionsMode={isVariantOptionsSuggestion}
+                  recommendationSelectedKeys={suggestionRecommendationKeys}
+                  onToggleRecommendation={handleToggleRecommendationCard}
+                  onRemoveProduct={handleRemoveSuggestionProduct}
+                  onChangeProduct={handleChangeSuggestionProduct}
+                  onChooseProduct={handleChooseSuggestionProduct}
+                  deliveryFormat={suggestionDeliveryFormat?.labelKey ? t(suggestionDeliveryFormat.labelKey) : ""}
+                  channelName={selectedMetaLabel}
+                  instagramDelivery={normalizeConversationChannel(selectedConversation || {}) === "instagram"}
+                />
               ) : null}
               <QuickRepliesPicker
                 replies={quickRepliesStore.quickReplies}
@@ -7100,7 +7991,7 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={() => {
                     if (item.key === "config") {
-                      setQuickRepliesConfigOpen(true);
+                      setSettingsSheetOpen(true);
                       return;
                     }
                     if (item.key === "social_comments") setSocialMobileDetailOpen(false);
@@ -7130,22 +8021,97 @@ export default function AiInboxPwa() {
           sending={productSending}
           selectedConversation={selectedConversation}
         />
-        <EnhancedPwaOrderComposer
+        <InboxOrderComposer
           open={orderComposerOpen}
           conversation={selectedConversation || {}}
           busy={orderComposerBusy}
           headers={headers}
           onClose={() => setOrderComposerOpen(false)}
-          onSubmit={createDraftOrder}
+          onSubmit={submitComposerOrder}
           onSendMessage={sendManualReply}
+          picks={composerPicks}
+          onRequestPick={openOrderCartPicker}
         />
         <ProductCardPicker
           open={availableBySizePickerConfig.open}
           onClose={closeAvailableBySizePicker}
-          onSubmitLink={sendAvailableBySizeCards}
+          onSubmit={availableBySizePickerConfig.sizeMode ? undefined : handleOrderCartPickerSubmit}
+          onSubmitLink={availableBySizePickerConfig.sizeMode ? sendAvailableBySizeCards : undefined}
           sizeMode={availableBySizePickerConfig.sizeMode}
           allowMultiple={availableBySizePickerConfig.allowMultiple}
+          orderMode={availableBySizePickerConfig.orderMode}
+          restockMode={availableBySizePickerConfig.restockMode}
           mode="inlineFullscreen"
+        />
+        <SettingsSheet
+          open={settingsSheetOpen}
+          onClose={() => setSettingsSheetOpen(false)}
+          items={[
+            {
+              key: "quick_replies",
+              icon: MessageSquareText,
+              label: t("aiSupport.quickReplies.config"),
+              hint: t("aiSupport.inbox.pwa.quickRepliesHint"),
+              onClick: () => { setSettingsSheetOpen(false); setQuickRepliesConfigOpen(true); },
+            },
+            {
+              key: "comments_settings",
+              icon: MessageCircleMore,
+              label: t("aiSupport.inbox.pwa.commentsSettings"),
+              hint: t("aiSupport.inbox.pwa.commentsSettingsHint"),
+              onClick: () => { setSettingsSheetOpen(false); setCommentsSettingsOpen(true); },
+            },
+            {
+              key: "invoice_messages",
+              icon: FaWhatsapp,
+              label: t("aiSupport.inbox.pwa.receiptMessages"),
+              hint: t("aiSupport.inbox.pwa.receiptMessagesHint"),
+              onClick: () => { setSettingsSheetOpen(false); setInvoiceMessagesOpen(true); },
+            },
+            {
+              key: "integrations",
+              icon: Settings,
+              label: t("aiSupport.inbox.pwa.integrations"),
+              hint: t("aiSupport.inbox.pwa.integrationsHint"),
+              onClick: () => { setSettingsSheetOpen(false); setIntegrationsOpen(true); },
+            },
+          ]}
+        />
+        <CommentsSettingsModal
+          open={commentsSettingsOpen}
+          onClose={() => setCommentsSettingsOpen(false)}
+          selectedPost={selectedSocialPost}
+          postToolsEnabled={isSocialMode}
+        />
+        <WhatsappMessageVariantsModal
+          open={invoiceMessagesOpen}
+          onClose={() => setInvoiceMessagesOpen(false)}
+          initialType="invoice_receipt"
+        />
+        {integrationsOpen ? (
+          <Suspense fallback={null}>
+            <IntegrationsCenter
+              open
+              initialTab="overview"
+              headers={headers}
+              onClose={() => setIntegrationsOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        <ConversationLabelsModal
+          open={labelsOpen}
+          labels={conversationLabels}
+          saving={leadActionLoading === "labels"}
+          onClose={() => setLabelsOpen(false)}
+          onSave={updateConversationLabels}
+        />
+        <ReplyCorrectionModal
+          open={correctionModal.open}
+          draft={correctionModal.draft}
+          saving={correctionSaving}
+          onClose={closeReplyCorrection}
+          onChange={patchReplyCorrection}
+          onSave={saveReplyCorrection}
         />
         <Customer360Drawer
           open={customerDrawer.open}
@@ -7155,6 +8121,9 @@ export default function AiInboxPwa() {
           context={customerDrawer.context}
           aiAnalysis={customerDrawerAnalysis}
           title={t("aiSupport.inbox.ui.customer360")}
+          restockPick={restockPick}
+          onRequestRestockPick={openRestockPicker}
+          onClearRestockPick={() => setRestockPick(null)}
         />
       </div>
     </div>

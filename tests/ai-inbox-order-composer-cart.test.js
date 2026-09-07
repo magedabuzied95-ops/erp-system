@@ -6,7 +6,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 const service = read("../server/services/aiAgentOrderService.js");
 const route = read("../server/routes/aiAgentOrders.js");
-const inbox = read("../src/modules/aiSupport/pages/AiInbox.jsx");
+const inbox = read("../src/modules/aiSupport/components/InboxOrderComposer.jsx") + read("../src/modules/aiSupport/pages/AiInbox.jsx") + read("../src/modules/aiSupport/pages/AiInboxPwa.jsx");
 const picker = read("../src/modules/aiSupport/components/ProductCardPicker.jsx");
 
 test("the multi-line draft resolves variants by id instead of fuzzy matching", () => {

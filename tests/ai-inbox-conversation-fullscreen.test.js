@@ -9,6 +9,7 @@ import test from "node:test";
 const src = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
 const pickerSrc = fs.readFileSync(new URL("../src/modules/aiSupport/components/ProductCardPicker.jsx", import.meta.url), "utf8");
 const customerDrawerSrc = fs.readFileSync(new URL("../src/modules/aiSupport/components/Customer360Drawer.jsx", import.meta.url), "utf8");
+const orderComposerSrc = fs.readFileSync(new URL("../src/modules/aiSupport/components/InboxOrderComposer.jsx", import.meta.url), "utf8");
 
 test("expanding requests real browser fullscreen", () => {
   assert.match(src, /const requestConversationFullscreen = useCallback\(/);
@@ -85,5 +86,7 @@ test("commerce dialogs render inside the browser fullscreen element", () => {
   assert.match(pickerSrc, /createPortal\(sizeContent, portalTarget \|\| document\.body\)/);
   assert.match(pickerSrc, /createPortal\(content, portalTarget \|\| document\.body\)/);
   assert.match(customerDrawerSrc, /createPortal\(content, portalTarget\)/);
-  assert.match(src, /function InboxOrderComposer\([\s\S]*?createPortal\(content, portalTarget\)/);
+  // The composer moved into its own shared component (the PWA renders the same
+  // one); the portal-target contract it has to honour is unchanged.
+  assert.match(orderComposerSrc, /function InboxOrderComposer\([\s\S]*?createPortal\(content, portalTarget\)/);
 });

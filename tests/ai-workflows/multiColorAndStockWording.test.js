@@ -9,7 +9,7 @@ import path from "node:path";
 import * as G from "../../server/services/aiInboxGroundingGate.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8");
+const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8") + readFileSync(path.join(here, "../../src/modules/aiSupport/components/AiSuggestionCard.jsx"), "utf8");
 const salesSrc = readFileSync(path.join(here, "../../server/services/aiSalesAgentService.js"), "utf8");
 
 const P = { id: 359, name: "Adidas Adistar22", product_type: "sneakers" };

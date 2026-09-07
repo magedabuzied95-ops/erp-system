@@ -16,7 +16,7 @@ const gwRoute = read("server/routes/whatsappGateway.js");
 const gwSvc = read("server/services/whatsappGatewayService.js");
 const intakeSrc = read("server/services/aiInboundIntakeService.js");
 const orderRoute = read("server/routes/aiAgentOrders.js");
-const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx");
+const inboxSrc = read("src/modules/aiSupport/pages/AiInbox.jsx") + read("src/modules/aiSupport/components/AiSuggestionCard.jsx");
 
 test("safety: WHATSAPP_AI_AUTO_REPLY=false hard-blocks the autonomous path (first gate, returns sent:false)", () => {
   assert.match(gwSvc, /export const triggerWhatsappAiAutoReply = async[\s\S]{0,200}?if \(String\(process\.env\.WHATSAPP_AI_AUTO_REPLY\)\.toLowerCase\(\) === "false"\) \{[\s\S]{0,120}?return \{ triggered: false, sent: false, reason: "ai_auto_reply_disabled" \};/);

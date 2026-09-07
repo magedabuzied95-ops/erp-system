@@ -9,7 +9,7 @@ import { useProductClassifications } from "../../products/hooks/useProductClassi
 import { classificationGroupsToFieldOptions } from "../../products/lib/productClassifications";
 // The create form reuses the order composer's products section (ai-order__*),
 // the thumbnail hover-zoom lives in the drawer stylesheet.
-import "../pages/AiInboxOrderComposer.m1.css";
+import "./AiInboxOrderComposer.m1.css";
 import "./Customer360Drawer.css";
 
 const clean = (value = "") => String(value ?? "").trim();

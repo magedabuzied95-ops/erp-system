@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8");
+const inboxSrc = readFileSync(path.join(here, "../../src/modules/aiSupport/pages/AiInbox.jsx"), "utf8") + readFileSync(path.join(here, "../../src/modules/aiSupport/components/AiSuggestionCard.jsx"), "utf8");
 
 test("validation panel is gated on aiSuggestionVisible and derives ONLY from the authoritative draft", () => {
   assert.match(inboxSrc, /const activeAiReplyValidation = useMemo\(\s*\(\) => normalizeValidationSummary\(\s*aiSuggestionVisible \? \(activeAiReplyDraft\?\.validation \|\| activeAiReplyDraft\?\.metadata\?\.validation \|\| \{\}\) : \{\}\s*\),/);

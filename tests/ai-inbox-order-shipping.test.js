@@ -4,7 +4,9 @@ import test from "node:test";
 
 import { resolveAiOrderShipping } from "../server/services/aiAgentOrderService.js";
 
-const inboxSource = fs.readFileSync("src/modules/aiSupport/pages/AiInbox.jsx", "utf8");
+// The composer is ONE component now, rendered by both /admin/ai-inbox and the
+// /inbox PWA, so this guard covers the shipping UI on both surfaces at once.
+const inboxSource = fs.readFileSync("src/modules/aiSupport/components/InboxOrderComposer.jsx", "utf8");
 const routeSource = fs.readFileSync("server/routes/aiAgentOrders.js", "utf8");
 const serviceSource = fs.readFileSync("server/services/aiAgentOrderService.js", "utf8");
 const arabic = JSON.parse(fs.readFileSync("src/locales/ar/aiSupport.json", "utf8"));
@@ -13,7 +15,7 @@ const english = JSON.parse(fs.readFileSync("src/locales/en/aiSupport.json", "utf
 const composerSource = () => {
   const start = inboxSource.indexOf("function InboxOrderComposer(");
   assert.ok(start >= 0, "InboxOrderComposer not found");
-  return inboxSource.slice(start, inboxSource.indexOf("\nfunction SalesCloserPanel(", start));
+  return inboxSource.slice(start);
 };
 
 test("a typed shipping price wins over the zone price list", async () => {
