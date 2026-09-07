@@ -1497,7 +1497,9 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
       // over the page, which gives continuous strokes where a cut of their
       // soft grey outlines left dashes.
       const postStyle = darkProduct && modelAvailable ? "lineart" : "traced";
-      const traced = await renderThermalArtwork(page, { ...options, style: postStyle, tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE });
+      // singleItem off for the page: it already shows one shoe, and the box
+      // prompt over a lone shoe keeps only its lower half.
+      const traced = await renderThermalArtwork(page, { ...options, style: postStyle, tracedLevel: darkProduct ? 0 : TRACED_INK_LEVEL_PALE, singleItem: false });
       return {
         buffer: traced.buffer,
         svg: traced.svg,
