@@ -1574,7 +1574,7 @@ router.get("/channels/whatsapp/webhook", (req, res) => {
   return res.status(403).send("Forbidden");
 });
 
-router.post("/channels/whatsapp/webhook", async (req, res) => {
+export const handleWhatsappCloudWebhookRequest = async (req, res) => {
   try {
     if (!whatsappEnabled()) {
       console.warn("[ai-agent:whatsapp] webhook received while disabled");
@@ -1871,7 +1871,9 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
     console.error("[ai-agent:whatsapp] webhook error", { message: error?.message, stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined });
     return res.status(200).json({ success: false, message: "WhatsApp webhook handled with errors" });
   }
-});
+};
+
+router.post("/channels/whatsapp/webhook", handleWhatsappCloudWebhookRequest);
 
 router.get("/channels/meta/webhook", (req, res) => {
   const mode = envText(req.query?.["hub.mode"]);

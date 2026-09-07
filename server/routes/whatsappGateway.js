@@ -19,6 +19,7 @@ import {
 } from "../services/whatsappGatewayService.js";
 import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
 import { handleInboundMessageIntake } from "../services/aiInboundIntakeService.js";
+import { handleWhatsappCloudWebhookRequest } from "./aiAgentOrders.js";
 import {
   completeEmbeddedSignup,
   consumeSignupState,
@@ -192,13 +193,22 @@ export const handleWhatsappCloudWebhookEvent = (req, res) => {
     // A malformed body must still be acknowledged, or Meta retries it forever.
     console.warn("[whatsapp:cloud-webhook-log-failed]", { message: error?.message || String(error) });
   }
-  res.status(200).json({ success: true, received: true });
-  setImmediate(() => {
-    processWhatsappCloudWebhook(body).catch((error) => {
-      console.error("[whatsapp:cloud-webhook-processing-failed]", { message: error?.message || String(error) });
+  /*
+   * Hand the delivery to the pipeline that already owns Cloud inbound: it verifies Meta's
+   * signature, resolves the tenant from metadata.phone_number_id, re-hosts media the webhook only
+   * references by id, and writes into the SAME ai_support_messages the inbox reads. Writing a
+   * second implementation here is exactly how a duplicate inbox happens.
+   *
+   * It answers the request itself and does so quickly; the diagnostic pass below runs after, so
+   * the integration lookup and status logging cannot delay Meta's acknowledgement.
+   */
+  return handleWhatsappCloudWebhookRequest(req, res).finally(() => {
+    setImmediate(() => {
+      processWhatsappCloudWebhook(body).catch((error) => {
+        console.error("[whatsapp:cloud-webhook-processing-failed]", { message: error?.message || String(error) });
+      });
     });
   });
-  return res;
 };
 
 router.get("/webhook", handleWhatsappCloudWebhookVerification);
