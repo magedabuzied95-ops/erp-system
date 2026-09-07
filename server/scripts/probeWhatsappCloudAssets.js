@@ -24,6 +24,7 @@
 
 import db from "../database/db.js";
 import {
+  classifyCoexistence,
   findIntegrationByWabaId,
   integrationAccessToken,
 } from "../services/whatsappEmbeddedSignupService.js";
@@ -64,6 +65,20 @@ const PHONE_FIELDS = [
   "search_visibility",
   "health_status",
   "last_onboarded_time",
+  /*
+   * is_on_biz_app is THE coexistence field, and leaving it out of this list is what made the
+   * script report a number that is live on the operator's phone as cloud_api_only.
+   * The rest were found by probing candidate names against the live account; every other name
+   * tried (business_app_state, coexistence, registration_type, onboarding_status, smb_app_data,
+   * migration_status, …) is rejected with code 100 and does not exist on this Graph version.
+   */
+  "is_on_biz_app",
+  "is_preverified_number",
+  "quality_score",
+  "country_dial_code",
+  "eligibility_for_api_business_global_search",
+  "webhook_configuration",
+  "business_profile",
 ];
 
 const graph = async ({ path, token }) => {
@@ -178,20 +193,21 @@ const main = async () => {
 
     /*
      * The one line the operator actually wants: is this number still on the phone, or has it moved
-     * onto the platform only. platform_type is Meta's own answer; anything we do not recognise is
-     * reported verbatim rather than guessed at.
+     * onto the platform only.
+     *
+     * The rule lives in the service so the probe and the connect flow can never disagree about
+     * what a number is. It reads is_on_biz_app FIRST, and that ordering is not academic: this
+     * script originally decided on platform_type alone and reported a live coexistence number as
+     * cloud_api_only. A coexistence number returns platform_type CLOUD_API exactly like a
+     * platform-only one — the field describes which API reaches the number, not whether the phone
+     * still holds it — so deciding on it alone tells the operator their WhatsApp Business app is
+     * gone while it is still running.
      */
-    const platformType = String(phone.values?.platform_type || "").toUpperCase();
-    const coexistence = platformType === "CLOUD_API"
-      ? "cloud_api_only"
-      : platformType === "SMB_APP" || platformType === "BUSINESS_APP"
-        ? "business_app_coexistence"
-        : platformType === "ON_PREMISE"
-          ? "on_premise"
-          : platformType
-            ? `unrecognised:${platformType.toLowerCase()}`
-            : "unknown";
-    console.log(`\ncoexistence: ${coexistence} (platform_type=${platformType || "-"})`);
+    const coexistence = classifyCoexistence(phone.values || {});
+    console.log(
+      `\ncoexistence: ${coexistence}`
+      + ` (platform_type=${phone.values?.platform_type || "-"}, is_on_biz_app=${phone.values?.is_on_biz_app ?? "-"})`
+    );
   }
 };
 
