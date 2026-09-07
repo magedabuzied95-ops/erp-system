@@ -1678,6 +1678,17 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
           phone_number_id: metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
           display_phone_number: metadata.display_phone_number || "",
           channel: AI_AGENT_CHANNELS.WHATSAPP,
+          /*
+           * The latest number the customer used wins, which is the rule the multi-number work
+           * already states — and the CONVERSATION is where the reply path looks first.
+           *
+           * Stamping only the message row was not enough: a thread that has ever been served by
+           * Evolution carries that instance on the conversation, and it kept winning. A customer
+           * who has now written to the Cloud number was still being answered on the old one,
+           * which is dead. The upsert merges with the new value taking precedence, so this moves
+           * the thread across — and moves it back if they write to the Evolution number again.
+           */
+          whatsapp_instance: metadata.phone_number_id ? `cloud:${metadata.phone_number_id}` : "",
         },
         lastMessageAt: message.timestamp,
       }).catch((error) => {

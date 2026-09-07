@@ -140,3 +140,21 @@ test("an empty instance still means the environment default, so automations do n
   assert.ok(!adapter.includes(`const selectedTransport = "cloud"`), "the transport must never be hardcoded");
   assert.match(adapter, /config\.provider === "cloud" \? "cloud" : "evolution"/);
 });
+
+test("the conversation itself follows the number the customer last used", () => {
+  /*
+   * Stamping the message row alone was not enough, and the live test proved it: a thread that had
+   * ever been served by Evolution carried "m1_business_v237" on the CONVERSATION, the reply path
+   * reads the conversation first, and so a customer who had just written to the Cloud number was
+   * still answered on the dead one. Four replies failed that way before this.
+   */
+  const mapping = inboxRouteSource.slice(
+    inboxRouteSource.indexOf("await upsertChannelConversationMapping({"),
+    inboxRouteSource.indexOf("[ai-agent:whatsapp] mapping upsert skipped")
+  );
+  assert.match(mapping, /whatsapp_instance: metadata\.phone_number_id \? `cloud:\$\{metadata\.phone_number_id\}` : ""/);
+  // The upsert merges with the incoming value winning, which is what lets the thread move across
+  // — and move back if the customer writes to the Evolution number again.
+  const adapter = read("../server/services/aiChannelAdapterService.js");
+  assert.match(adapter, /metadata = ai_channel_conversations\.metadata \|\| EXCLUDED\.metadata/);
+});
