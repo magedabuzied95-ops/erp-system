@@ -1510,6 +1510,12 @@ export const renderThermalArtwork = async (input, rawOptions = {}) => {
           autoDarkShare: auto ? Number(auto.darkShare.toFixed(4)) : null,
           modelAvailable,
           serviceReady,
+          // The page render reports its own (switched-off) isolation; what
+          // matters is what happened to the photo.
+          singleItem: singleItem.applied,
+          singleItemReason: singleItem.reason || "",
+          singleItemKeepShare: singleItem.keepShare !== undefined ? Number(singleItem.keepShare.toFixed(3)) : null,
+          singleItemMs: singleItem.durationMs ?? null,
           diffusionServiceMs: drawn.ms,
           diffusionControlSize: `${control.width}x${control.height}`,
           diffusionError: "",
