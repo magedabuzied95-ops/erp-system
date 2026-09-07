@@ -614,12 +614,32 @@ const getSelectedPublicProductImage = ({ product = {}, variants = [], colorImage
   return firstPublicImageCandidate(imageCandidates);
 };
 
+// The share page lives on the API host (and the storefront's /share/product/*
+// rewrite proxies to it). Its only job is to give link scrapers OG tags and
+// then hand the visitor to the real product page on the storefront. The target
+// must therefore be built from the storefront origin, never from the request
+// URL: the request URL IS the share page, and sending the visitor back to it
+// loops "Opening product page..." forever.
+const SHARE_PRODUCT_FORWARDED_PARAMS = ["variant", "color", "size", "edition"];
+export const buildProductShareTargetUrl = (product = {}, query = {}) => {
+  const identifier = String(product.slug || product.canonical_slug || product.id || "").trim();
+  const params = new URLSearchParams();
+  SHARE_PRODUCT_FORWARDED_PARAMS.forEach((key) => {
+    const raw = query?.[key];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (value !== undefined && value !== null && String(value).trim() !== "") params.set(key, String(value).trim());
+  });
+  const pathname = `/product/${encodeURIComponent(identifier)}${params.toString() ? `?${params.toString()}` : ""}`;
+  const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
+  return new URL(pathname, publicBaseUrl).toString();
+};
+
 const renderProductShareHtml = async ({ req, product, imageUrl, description }) => {
   const title = escapeHtml(firstText(product.meta_title, product.seo_title, product.name, "Product"));
   const descriptionText = escapeHtml(description || firstText(product.seo_description, product.description_en, product.description_ar, product.description, product.name));
-  const absoluteUrl = escapeHtml(buildAbsolutePublicUrl(req, req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`));
+  const absoluteUrl = escapeHtml(buildProductShareTargetUrl(product, req.query || {}));
   const absoluteImage = escapeHtml((imageUrl || "").replace(/^http:\/\//i, "https://"));
-  const productPath = escapeHtml(req.originalUrl || req.url || `/shop/product/${product.slug || product.canonical_slug || product.id || ""}`);
+  const productPath = absoluteUrl;
   return `<!doctype html>
 <html lang="en">
   <head>
