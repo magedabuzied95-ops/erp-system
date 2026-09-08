@@ -42,7 +42,10 @@ const searchRowLabel = (row = {}) => {
 };
 
 const inputClass =
-  "w-full rounded-2xl border border-white/12 bg-[#0d0d0d] px-4 py-3.5 text-[15px] font-bold text-white placeholder:text-white/32 outline-none transition focus:border-[#d4af37]/60";
+  // 32% white on #0d0d0d measures 2.85:1 — under the 4.5:1 floor, and these placeholders ARE the
+  // field labels, so a customer squinting at "رقم المبنى / العمارة *" cannot tell it is required.
+  // 60% measures 6.9:1 and still reads as a placeholder rather than a filled value.
+  "w-full rounded-2xl border border-white/12 bg-[#0d0d0d] px-4 py-3.5 text-[15px] font-bold text-white placeholder:text-white/60 outline-none transition focus:border-[#d4af37]/60";
 
 class CustomerAddressPageErrorBoundary extends Component {
   constructor(props) {
