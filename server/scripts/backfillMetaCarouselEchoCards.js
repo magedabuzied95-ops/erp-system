@@ -14,7 +14,11 @@
  *
  *   1. Our own send path ALSO logged a row carrying `product_cards`, seconds
  *      apart in the same session. The echo is then a duplicate that renders as
- *      a photo beside the real cards. Those are the rows this script removes.
+ *      a photo beside the real cards. Those are removed — but only the ones
+ *      carrying NO text. A carousel's echo never does (the lead sentence goes
+ *      out as its own message), so text on the row means a person wrote it, and
+ *      a three-minute pairing window is not evidence enough to delete a real
+ *      photo someone sent. Taking those needs --include-captioned, said aloud.
  *   2. No sibling row carries the cards. Nothing on the row, in the session, or
  *      in the media files identifies which colours went out — a re-hosted
  *      `/uploads/inbox-media/facebook/m_<meta-id>.webp` has no link back to the
