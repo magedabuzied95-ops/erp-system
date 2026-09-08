@@ -387,6 +387,7 @@ function CartSidebar({
   paymobTerminalLoading = false,
   checkoutLoading,
   offlineSyncPendingCount = 0,
+  onOpenOfflineQueue,
   // Online-order mode: the till collects nothing, so every payment control is replaced by a
   // cash-on-delivery statement and the collection checks stop applying.
   onlineMode = false,
@@ -1094,9 +1095,18 @@ function CartSidebar({
         </div>
 
         {offlineSyncPendingCount > 0 ? (
-          <div className="mb-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[10px] font-bold text-amber-100">
+          // A count with nowhere to go is not information. This opens the queue,
+          // where the cashier can see each held invoice, retry it, or reprint it.
+          <button
+            type="button"
+            onClick={() => onOpenOfflineQueue?.()}
+            className="mb-2 w-full rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-start text-[10px] font-bold text-amber-100 transition hover:border-amber-300/50"
+          >
             {posLabel("cart.offlinePending", "Invoices awaiting sync: {{count}}", { count: offlineSyncPendingCount })}
-          </div>
+            <span className="ms-1 underline decoration-dotted">
+              {posLabel("cart.offlinePendingAction", "View")}
+            </span>
+          </button>
         ) : null}
         <div className={`pos-checkout-actions sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur ${onlineMode ? "" : "sm:grid-cols-3"}`}>
           <button

@@ -8,6 +8,7 @@ import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
 import toast from "react-hot-toast";
 import {
   AlertTriangle,
+  CloudOff,
   Camera,
   X,
   LogOut,
@@ -73,8 +74,11 @@ import {
 } from "../lib/posUtils";
 import {
   clearCachedActivePosShift,
+  createOfflinePosShiftId,
+  isOfflinePosShiftId,
   isPosOfflineNetworkError,
   readCachedActivePosShift,
+  toServerPosShiftId,
   validateCachedActivePosShiftForContext,
   writeCachedActivePosShift,
 } from "../lib/posShiftCache";
@@ -94,14 +98,23 @@ import {
 } from "../lib/posQuickFilterLogic";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, repricePosCatalogProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
+  createOfflineInvoiceReference,
   createOfflineOrderIdempotencyKey,
-  listOfflineOrders,
-  markOfflineOrderFailed,
-  markOfflineOrderSynced,
-  retryPendingOfflineOrders,
+  deleteOfflineOrder,
+  requeueOfflineOrder,
   saveOfflineOrderDraft,
   shouldStoreOfflineOrderDraft,
+  subscribeToOfflineOrderChanges,
 } from "../lib/posOfflineOrders";
+import {
+  listOfflineCustomers,
+  saveOfflineCustomer,
+  toPosCustomerRow,
+  toServerCustomerId,
+} from "../lib/posOfflineCustomers";
+import { countOpenOfflineWork, createOfflineSyncScheduler } from "../lib/posOfflineSync";
+import { API_BASE_URL } from "../../../shared/constants/app.js";
+import PosOfflineQueueModal from "../components/PosOfflineQueueModal";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
@@ -1823,6 +1836,19 @@ function POSPro() {
   const [error, setError] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [offlinePendingSyncCount, setOfflinePendingSyncCount] = useState(0);
+  const [offlineNeedsReviewCount, setOfflineNeedsReviewCount] = useState(0);
+  // Invoices only. A customer still waiting to sync is money-neutral, so it must
+  // not be what blocks a shift close.
+  const [offlineOrdersPendingCount, setOfflineOrdersPendingCount] = useState(0);
+  const [offlineQueueOpen, setOfflineQueueOpen] = useState(false);
+  const [offlineSyncing, setOfflineSyncing] = useState(false);
+  // The till's own read on the connection. `navigator.onLine` seeds it, but the
+  // sync scheduler's reachability probe is what keeps it honest -- shop Wi-Fi
+  // with a dead uplink reports online and would otherwise show a green pill
+  // over a queue that is going nowhere.
+  const [posBackendOnline, setPosBackendOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine !== false
+  );
   const [selectedProduct, setSelectedProduct] = useState(null);
   // Holds the colour GROUP key (see getVariantColorKey), not the colour name — a
   // product can carry several groups sharing one name.
@@ -1923,7 +1949,11 @@ function POSPro() {
   const posShiftBranchRef = useRef(null);
   const posShiftSourceRef = useRef("server");
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
-  const offlineSyncInFlightRef = useRef(false);
+  const posOfflineSchedulerRef = useRef(null);
+  // Held in a ref because the sync scheduler effect runs far above the callback
+  // in this file; capturing it directly would put a later const in the effect's
+  // dependency list and re-create the scheduler on every render.
+  const ensureServerPosShiftRef = useRef(null);
   const deferredSearch = useDeferredValue(search);
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const resolvedPosBranchId = useMemo(
@@ -2031,59 +2061,81 @@ function POSPro() {
     posShiftSourceRef.current = posShiftSource;
   }, [posShiftSource]);
 
+  // The queue drains on a scheduler rather than on the `online` event alone.
+  // That event never fires when the outage was the backend rather than the link,
+  // and a till left open overnight can miss it entirely -- which used to mean a
+  // day of invoices sat in IndexedDB until someone reloaded the page.
   useEffect(() => {
     let active = true;
 
-    const refreshOfflinePendingCount = async () => {
-      try {
-        const orders = await listOfflineOrders();
-        if (!active) return;
-        const pendingCount = orders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length;
-        setOfflinePendingSyncCount(pendingCount);
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.debug("[pos-offline-orders] count refresh failed", error?.message || error);
-        }
-      }
+    const applyWork = (work) => {
+      if (!active || !work) return;
+      setOfflinePendingSyncCount(Number(work.orders || 0) + Number(work.customers || 0));
+      setOfflineOrdersPendingCount(Number(work.orders || 0));
+      setOfflineNeedsReviewCount(Number(work.needsReview || 0));
     };
 
-    const syncPendingOfflineOrders = async () => {
-      if (offlineSyncInFlightRef.current) return;
-      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-      offlineSyncInFlightRef.current = true;
-      try {
-        const result = await retryPendingOfflineOrders();
+    const scheduler = createOfflineSyncScheduler({
+      tenantId: customerCacheTenantId,
+      apiBaseUrl: API_BASE_URL,
+      onResult: ({ work, result }) => {
+        applyWork(work);
         if (!active) return;
-        const orders = await listOfflineOrders();
+        // The probe, not the outcome of the sends, is what the pill reflects:
+        // a pass can legitimately sync nothing (an empty queue) and a pass can
+        // fail per-record for reasons that are not connectivity.
+        if (result?.reachable === true) {
+          setPosBackendOnline(true);
+          // The line is back: register a shift that was opened offline before
+          // the next sale needs a real shift id.
+          void ensureServerPosShiftRef.current?.();
+        } else if (result?.reachable === false) {
+          setPosBackendOnline(false);
+        }
+        if (import.meta.env.DEV && (result?.orders?.synced?.length || result?.customers?.synced?.length)) {
+          console.debug("[pos-offline-sync] pass complete", result);
+        }
+      },
+    });
+    posOfflineSchedulerRef.current = scheduler;
+
+    // A save made in this tab (or another one) refreshes the badge immediately
+    // instead of waiting for the next scheduled pass.
+    const unsubscribe = subscribeToOfflineOrderChanges(() => {
+      void countOpenOfflineWork({ tenantId: customerCacheTenantId }).then(applyWork).catch(() => {});
+    });
+
+    // Customers captured offline are part of the till's customer list, not a
+    // separate thing the cashier has to remember. A phone taken yesterday during
+    // an outage is still searchable and selectable today.
+    void listOfflineCustomers({ tenantId: customerCacheTenantId })
+      .then((records) => {
         if (!active) return;
-        const pendingCount = orders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length;
-        setOfflinePendingSyncCount(pendingCount);
-        if (import.meta.env.DEV && (result.synced?.length || 0) > 0) {
-          console.debug("[pos-offline-orders] sync complete", result);
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) {
-          console.debug("[pos-offline-orders] sync failed", error?.message || error);
-        }
-      } finally {
-        offlineSyncInFlightRef.current = false;
-      }
+        const pendingRows = records
+          .filter((record) => String(record.status || "") !== "synced")
+          .map((record) => normalizePosCustomer(toPosCustomerRow(record)));
+        if (pendingRows.length === 0) return;
+        setCustomers((prev) => {
+          const safePrev = Array.isArray(prev) ? prev : [];
+          const pendingIds = new Set(pendingRows.map((row) => String(row.id)));
+          return [...pendingRows, ...safePrev.filter((item) => !pendingIds.has(String(item?.id || item?.customer_id)))];
+        });
+      })
+      .catch(() => {});
+
+    const handleOffline = () => {
+      if (active) setPosBackendOnline(false);
     };
-
-    refreshOfflinePendingCount();
-    syncPendingOfflineOrders();
-
-    if (typeof window !== "undefined") {
-      window.addEventListener("online", syncPendingOfflineOrders);
-    }
+    if (typeof window !== "undefined") window.addEventListener("offline", handleOffline);
 
     return () => {
       active = false;
-      if (typeof window !== "undefined") {
-        window.removeEventListener("online", syncPendingOfflineOrders);
-      }
+      unsubscribe();
+      scheduler.stop();
+      posOfflineSchedulerRef.current = null;
+      if (typeof window !== "undefined") window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [customerCacheTenantId]);
 
   // Design-system scope hook. POS renders outside `.m1-shell-root`, and six of
   // its surfaces (cart sheet, recent-operations drawer, customer create, shift
@@ -3025,6 +3077,17 @@ function POSPro() {
       const nextShift = response?.shift || null;
       const nextBranch = response?.branch || null;
       setPosShiftNetworkUnavailable(false);
+
+      // The server answered, and it has no shift for this cashier -- but this
+      // device is holding one it opened offline. Registering it here is what
+      // stops the reconnect from silently dropping a shift that is mid-trade
+      // and bouncing the cashier back to the gate.
+      const heldOfflineShift = activePosShiftRef.current;
+      if (!nextShift?.id && heldOfflineShift?.id && isOfflinePosShiftId(heldOfflineShift.id)) {
+        const promoted = await ensureServerPosShiftRef.current?.();
+        if (promoted?.id && !isOfflinePosShiftId(promoted.id)) return response;
+      }
+
       setPosShiftSource("server");
       setActivePosShift(nextShift);
       setPosShiftBranch(nextBranch);
@@ -5701,6 +5764,63 @@ function POSPro() {
       toast.success(t("pos.toasts.customerCreated"));
       return true;
     } catch (err) {
+      // Losing the connection must not lose the phone number. The customer is
+      // written to this device, selected for the sale exactly like a server one,
+      // and POSTed when the line returns -- and even if that POST never happens,
+      // the invoice itself carries the name and the phone, so the server creates
+      // the account from the sale.
+      if (isPosOfflineNetworkError(err) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+        try {
+          const offlineRecord = await saveOfflineCustomer(
+            {
+              name,
+              phone: normalizedPhone,
+              source: sourceKey,
+              customer_source: sourceKey,
+              lead_source: sourceKey,
+              registration_source: sourceKey,
+              marketing_source: customerSource.marketing_source || sourceKey,
+              marketing_platform: customerSource.marketing_platform || "",
+              attribution_type: customerSource.attribution_type || sourceKey,
+              allow_personal_transactions: Boolean(quickCustomer.allow_personal_transactions),
+            },
+            { tenantId: customerCacheTenantId }
+          );
+          if (offlineRecord) {
+            const offlineRow = normalizePosCustomer(toPosCustomerRow(offlineRecord));
+            setCustomers((prev) => {
+              const safePrev = Array.isArray(prev) ? prev : [];
+              const withoutDuplicate = safePrev.filter(
+                (item) => String(item?.id || item?.customer_id) !== String(offlineRecord.local_id)
+              );
+              return [offlineRow, ...withoutDuplicate];
+            });
+            setSelectedCustomerId(offlineRecord.local_id);
+            setCustomerSearch(`${offlineRow.name || ""} ${offlineRow.phone || ""}`.trim());
+            setQuickCustomer(defaultState.quickCustomer);
+            setPosBackendOnline(false);
+            void countOpenOfflineWork({ tenantId: customerCacheTenantId })
+              .then((work) => {
+                setOfflinePendingSyncCount(Number(work.orders || 0) + Number(work.customers || 0));
+                setOfflineOrdersPendingCount(Number(work.orders || 0));
+                setOfflineNeedsReviewCount(Number(work.needsReview || 0));
+              })
+              .catch(() => {});
+            toast.success(
+              t(
+                "pos.toasts.savedOfflineCustomer",
+                "Customer saved on this device. It will sync when the connection returns."
+              )
+            );
+            return true;
+          }
+        } catch (offlineCustomerError) {
+          console.error(
+            "[pos-offline-customers] failed to save customer",
+            offlineCustomerError?.message || offlineCustomerError
+          );
+        }
+      }
       const message = getErrorMessage(err, t("pos.toasts.customerCreateFailed"));
       console.error("[pos] failed to create customer:", message, err);
       toast.error(message);
@@ -5722,9 +5842,157 @@ function POSPro() {
     t,
   ]);
 
+  // A shift that exists only on this device, so the shop can open and sell on a
+  // dead line. Sales queue against it; each one resolves to whichever shift is
+  // genuinely open when it syncs, which is exactly what the server does with a
+  // replay whose own shift has closed. It can never be *closed* offline -- the
+  // close is a settlement, and that needs the server's numbers.
+  const openOfflinePosShift = useCallback(() => {
+    const offlineShift = {
+      id: createOfflinePosShiftId(),
+      branch_id: resolvedPosBranchId || posShiftBranch?.id || currentUser?.branch_id || null,
+      user_id: currentUser?.id || null,
+      cashier_user_id: currentUser?.id || null,
+      tenant_id: currentUser?.tenant_id || null,
+      opening_cash: Number(openingCash || 0),
+      opened_at: new Date().toISOString(),
+      status: "open",
+      offline_pending: true,
+    };
+    const nextBranch = posShiftBranch || null;
+    setActivePosShift(offlineShift);
+    setPosShiftBranch(nextBranch);
+    setPosShiftSource("offline");
+    cacheActiveShiftSnapshot(offlineShift, nextBranch);
+    setOpeningCash("");
+    setSelectedSalespersonId("");
+    setPosBackendOnline(false);
+    toast.success(
+      t("pos.shift.openedOffline", "Shift opened on this device. It registers with the system when the connection returns.")
+    );
+    return offlineShift;
+  }, [
+    cacheActiveShiftSnapshot,
+    currentUser,
+    openingCash,
+    posShiftBranch,
+    resolvedPosBranchId,
+    setOpeningCash,
+    setSelectedSalespersonId,
+    t,
+  ]);
+
+  // Turns a device-local shift into a real one the moment the server is
+  // reachable again. Without this, the connection could return mid-shift and the
+  // very next sale would go out online carrying no shift id, be refused with
+  // "open a shift first", and -- being a plain 400 -- not even be queued.
+  const ensureServerPosShift = useCallback(async () => {
+    const current = activePosShiftRef.current;
+    if (!current?.id || !isOfflinePosShiftId(current.id)) return current;
+    try {
+      const response = await api.post("/pos/shifts/open", {
+        branch_id: current.branch_id || resolvedPosBranchId || null,
+        opening_cash: Number(current.opening_cash || 0),
+      });
+      const promoted = response?.shift || null;
+      if (!promoted?.id) return current;
+      const nextBranch = response?.branch || posShiftBranchRef.current || null;
+      setActivePosShift(promoted);
+      setPosShiftBranch(nextBranch);
+      setPosShiftSource("server");
+      setPosShiftNetworkUnavailable(false);
+      cacheActiveShiftSnapshot(promoted, nextBranch);
+      console.info("[pos] promoted an offline shift to a server shift", {
+        offline_shift_id: current.id,
+        shift_id: promoted.id,
+      });
+      return promoted;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.debug("[pos] offline shift promotion deferred", error?.message || error);
+      }
+      return current;
+    }
+  }, [cacheActiveShiftSnapshot, resolvedPosBranchId]);
+
+  useEffect(() => {
+    ensureServerPosShiftRef.current = ensureServerPosShift;
+  }, [ensureServerPosShift]);
+
+  const refreshOfflineWorkCounts = useCallback(async () => {
+    const work = await countOpenOfflineWork({ tenantId: customerCacheTenantId }).catch(() => null);
+    if (!work) return null;
+    setOfflinePendingSyncCount(Number(work.orders || 0) + Number(work.customers || 0));
+    setOfflineOrdersPendingCount(Number(work.orders || 0));
+    setOfflineNeedsReviewCount(Number(work.needsReview || 0));
+    return work;
+  }, [customerCacheTenantId]);
+
+  const handleOfflineSyncNow = useCallback(async () => {
+    setOfflineSyncing(true);
+    try {
+      // A manual sync attempts the send even when the probe says the server is
+      // unreachable -- the cashier pressing the button is a better signal than
+      // any heuristic, and the per-record errors say plainly what happened. The
+      // probe still decides the connection label.
+      const result = await posOfflineSchedulerRef.current?.syncNow?.();
+      const work = await refreshOfflineWorkCounts();
+      if (result && result.reachable) {
+        setPosBackendOnline(true);
+        await ensureServerPosShift();
+      } else if (result) {
+        setPosBackendOnline(false);
+      }
+      const syncedCount = Number(result?.orders?.synced?.length || 0);
+      if (syncedCount > 0) {
+        toast.success(
+          t("pos.toasts.offlineSyncDone", "{{count}} invoices synced", { count: syncedCount })
+        );
+      } else if (work && work.total > 0) {
+        toast.error(t("pos.toasts.offlineSyncStillPending", "Still no connection to the server"));
+      }
+      return result;
+    } finally {
+      setOfflineSyncing(false);
+    }
+  }, [ensureServerPosShift, refreshOfflineWorkCounts, t]);
+
+  const handleRetryOfflineOrder = useCallback(
+    async (order) => {
+      if (!order?.local_id) return;
+      // A parked invoice goes back into the automatic queue first, so a manager
+      // who has just fixed the stock does not have to retry it twice.
+      await requeueOfflineOrder(order.local_id);
+      await handleOfflineSyncNow();
+    },
+    [handleOfflineSyncNow]
+  );
+
+  const handleDiscardOfflineOrder = useCallback(
+    async (order) => {
+      if (!order?.local_id) return;
+      await deleteOfflineOrder(order.local_id);
+      await refreshOfflineWorkCounts();
+      toast.success(t("pos.toasts.offlineInvoiceDiscarded", "Invoice removed from the queue"));
+    },
+    [refreshOfflineWorkCounts, t]
+  );
+
+  // Deliberately not memoized: it calls `handlePrint`, which is rebuilt every
+  // render over live cart and settings state. A memoized wrapper would freeze a
+  // stale one and reprint against yesterday's context.
+  const handleReprintOfflineOrder = (order) => {
+    const receipt = order?.receipt_order;
+    if (!receipt) {
+      toast.error(t("pos.toasts.offlineReceiptUnavailable", "No stored receipt for this invoice"));
+      return;
+    }
+    void handlePrint(receipt, { silent: false }).catch(() => {});
+  };
+
   const handleOpenShift = async () => {
     if (posShiftNetworkUnavailable) {
-      toast.error(tt("pos.posPro.toasts.offlineOpenShift"));
+      openOfflinePosShift();
       return;
     }
     try {
@@ -5751,6 +6019,13 @@ function POSPro() {
       });
     } catch (err) {
       console.error("[pos] failed to open shift:", err);
+      // The request itself proved the line is down. Falling back to a local
+      // shift is what keeps the shop trading instead of stopping at the gate.
+      if (isPosOfflineNetworkError(err)) {
+        setPosShiftNetworkUnavailable(true);
+        openOfflinePosShift();
+        return;
+      }
       toast.error(err?.message || t("pos.shift.noBranchMessage"));
     } finally {
       setAttendanceLoading(false);
@@ -5762,8 +6037,23 @@ function POSPro() {
       toast.error(tt("pos.posPro.toasts.noOpenShift"));
       return;
     }
-    if (posShiftSource === "cache" || posShiftNetworkUnavailable) {
+    if (posShiftSource === "cache" || posShiftSource === "offline" || posShiftNetworkUnavailable) {
       toast.error(tt("pos.posPro.toasts.offlineCloseShift"));
+      return;
+    }
+    // Closing is a settlement. Doing it while invoices are still queued would
+    // count a drawer against a shift the server has not seen in full, so the
+    // close waits for the queue -- the cashier gets a "sync now" instead.
+    if (offlineOrdersPendingCount > 0) {
+      toast.error(
+        t(
+          "pos.toasts.closeShiftBlockedByQueue",
+          "{{count}} invoices have not synced yet. Sync them before closing the shift.",
+          { count: offlineOrdersPendingCount }
+        )
+      );
+      setOfflineQueueOpen(true);
+      void posOfflineSchedulerRef.current?.syncNow?.();
       return;
     }
 
@@ -5958,7 +6248,15 @@ function POSPro() {
       return null;
     }
 
-    const checkoutBranchId = activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || null;
+    // If this till is still holding a shift it opened offline, register it now
+    // rather than at the moment the sale is posted -- an online checkout with no
+    // real shift is refused with a plain 400, which is not queueable.
+    const checkoutShift =
+      isOfflinePosShiftId(activePosShift?.id) && posBackendOnline
+        ? (await ensureServerPosShift()) || activePosShift
+        : activePosShift;
+
+    const checkoutBranchId = checkoutShift?.branch_id || activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || null;
     if (!checkoutBranchId) {
       toast.error(t("pos.shift.employeeNoBranch"));
       return null;
@@ -6105,6 +6403,12 @@ function POSPro() {
       // instead of silently replacing it with Walk-in Customer.
       const invoiceCustomer = customer || (editingOrder?.id ? customerSnapshotFromOrder(editingOrder) : null) || WALK_IN_CUSTOMER;
       const customerId = invoiceCustomer.id || invoiceCustomer.customer_id || null;
+      // A customer captured while the till was offline has a local string id and
+      // no row on the server yet. `customers.id` is a bigint, so sending that id
+      // would make Postgres throw on the lookup and turn a replayable invoice
+      // into a permanent failure. The name and the phone are enough: checkout
+      // resolves or creates the account from the phone on the server side.
+      const serverCustomerId = toServerCustomerId(customerId);
 
       if (customer && !customerId) {
         console.error("[pos] selected customer is missing id/customer_id at checkout:", customer);
@@ -6255,7 +6559,7 @@ function POSPro() {
       });
       const payload = {
         customer_name: invoiceCustomer.name,
-        customer_id: customerId || null,
+        customer_id: serverCustomerId,
         customer_phone: invoiceCustomer.phone || invoiceCustomer.customer_phone || "",
         payment_method: isPersonalTransaction ? "personal" : ((creditSaleCheckout || partialCreditCheckout) ? "credit_sale" : (paymobTerminalConfirmed ? "card" : paymentMode)),
         payment_transaction_id: paymobTerminalConfirmed ? options?.paymobTerminalTransactionId || null : null,
@@ -6309,7 +6613,10 @@ function POSPro() {
         new_order_total: cartTotals.total,
         exchange_difference: exchangeDifference,
         exchange_invoice_number: exchangeState?.invoiceNumber || "",
-        shift_id: activePosShift.id,
+        // Null when the shift itself was opened offline: `shift_id` is a bigint
+        // on the server, and the replay resolves to the shift that is genuinely
+        // open at sync time rather than to a placeholder this device invented.
+        shift_id: toServerPosShiftId(checkoutShift?.id),
         seller_user_id: resolvedSellerUserId,
         seller_id: resolvedSalesEmployeeId,
         seller_name: resolvedSellerName,
@@ -6375,20 +6682,82 @@ function POSPro() {
         idempotency_key: idempotencyKey,
       };
       if (!editingOrder?.id) {
+        const offlineTotals = {
+          subtotal: cartTotals.subtotal,
+          discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
+          service_fee: cartTotals.serviceFee,
+          total: cartTotals.total,
+          paid_amount: checkoutPaymentSummary.paidAmount,
+          change_amount: checkoutPaymentSummary.changeAmount,
+          amount_due_now: amountDueNow,
+        };
+        // Built here, while every checkout local is still in scope, so that the
+        // catch below can open the success modal and print a real receipt
+        // without re-deriving any of it. Before this, an offline sale cleared
+        // the cart and gave the customer nothing to walk out with.
+        const offlineReference = createOfflineInvoiceReference();
         offlineCheckoutSnapshot = {
           idempotencyKey,
-          checkoutPayload,
+          checkoutPayload: { ...checkoutPayload, offline_reference: offlineReference },
+          offlineReference,
           paymentMethod: payload.payment_method,
           customerName: invoiceCustomer.name || "",
           cartItems: [...cart],
-          totals: {
-            subtotal: cartTotals.subtotal,
-            discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
-            service_fee: cartTotals.serviceFee,
+          totals: offlineTotals,
+          receiptOrder: {
+            id: null,
+            order_id: null,
+            offline_pending: true,
+            offline_reference: offlineReference,
+            invoice_number: offlineReference,
+            invoiceNumber: offlineReference,
+            created_at: new Date().toISOString(),
+            customerName: invoiceCustomer.name || "",
+            customer_name: invoiceCustomer.name || "",
+            customerPhone: normalizeReceiptPhone(invoiceCustomer.phone || "") || invoiceCustomer.phone || "",
+            customer_phone: invoiceCustomer.phone || "",
             total: cartTotals.total,
-            paid_amount: checkoutPaymentSummary.paidAmount,
-            change_amount: checkoutPaymentSummary.changeAmount,
+            totals: cartTotals,
+            cart: [...cart],
+            items: [...cart],
+            paymentStatus: checkoutPaymentSummary.paymentStatus,
+            payment_status: checkoutPaymentSummary.paymentStatus,
+            payment_method: payload.payment_method,
+            payment_breakdown: parsePaymentBreakdownRows(paymentBreakdown),
+            exchange_mode: Boolean(exchangeState?.active),
+            exchange_invoice_number: exchangeState?.invoiceNumber || "",
+            exchange_credit_amount: exchangeCreditAmount,
+            new_order_total: cartTotals.total,
             amount_due_now: amountDueNow,
+            exchange_difference: exchangeDifference,
+            salesperson_name: resolvedSellerName,
+            seller_name: resolvedSellerName,
+            cashier_name: currentUser?.name || currentUser?.full_name || currentUser?.email || "",
+            branch_id: checkoutBranchId,
+            shift_id: activePosShift?.id || null,
+            payment: {
+              method: payload.payment_method,
+              paymentStatus: checkoutPaymentSummary.paymentStatus,
+              paidAmount: checkoutPaymentSummary.paidAmount,
+              dueAmount: checkoutPaymentSummary.dueAmount,
+              changeAmount: checkoutPaymentSummary.changeAmount,
+              paymentBreakdown: parsePaymentBreakdownRows(paymentBreakdown),
+              cashAmount: payloadCashAmount,
+              cardAmount: payloadCardAmount,
+              companyWalletAmount: payloadWalletAmount,
+              customerWalletAmount: payloadCustomerWalletAmount,
+              exchangeMode: Boolean(exchangeState?.active),
+              exchangeInvoiceNumber: exchangeState?.invoiceNumber || "",
+              exchangeCreditAmount,
+              newOrderTotal: cartTotals.total,
+              amountDueNow,
+              exchangeDifference,
+            },
+            // Loyalty and the public invoice link are server-side facts. Offline
+            // they are simply absent rather than guessed at, so the receipt never
+            // promises points or a link that does not exist yet.
+            loyalty: null,
+            public_invoice_url: "",
           },
         };
       }
@@ -6763,13 +7132,25 @@ function POSPro() {
             payment_method: offlineCheckoutSnapshot.paymentMethod,
             totals: offlineCheckoutSnapshot.totals,
             checkout_payload: offlineCheckoutSnapshot.checkoutPayload,
+            invoice_number: offlineCheckoutSnapshot.offlineReference,
+            offline_reference: offlineCheckoutSnapshot.offlineReference,
+            // The shift the sale actually happened in, kept so the replay can be
+            // routed back to it rather than to whatever is open on sync day. A
+            // shift this device opened offline has no server id to route to, so
+            // it stays null and the replay lands in the open shift instead.
+            shift_id: toServerPosShiftId(checkoutShift?.id),
+            branch_id: checkoutBranchId || null,
+            receipt_order: offlineCheckoutSnapshot.receiptOrder,
             sync_endpoint: "/orders",
             status: "pending_sync",
           });
-          const pendingOrders = await listOfflineOrders();
-          setOfflinePendingSyncCount(
-            pendingOrders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length
-          );
+          const pendingWork = await countOpenOfflineWork({ tenantId: customerCacheTenantId }).catch(() => null);
+          if (pendingWork) {
+            setOfflinePendingSyncCount(Number(pendingWork.orders || 0) + Number(pendingWork.customers || 0));
+            setOfflineOrdersPendingCount(Number(pendingWork.orders || 0));
+            setOfflineNeedsReviewCount(Number(pendingWork.needsReview || 0));
+          }
+          setPosBackendOnline(false);
           setProducts((current) => applySoldItemsToCatalog(current, offlineCheckoutSnapshot.cartItems));
           writePosSaleStats(offlineCheckoutSnapshot.cartItems);
           setCart([]);
@@ -6789,6 +7170,27 @@ function POSPro() {
           setServiceFee(0);
           setLoyaltyRedeemPoints(0);
           handleClearSelectedCustomer();
+
+          // The sale is complete as far as the counter is concerned, so it ends
+          // the way an online sale ends: the success screen opens on a real
+          // receipt carrying the offline reference, and the printer fires if
+          // automatic printing is on. Only the loyalty and the public link are
+          // missing, because those are the server's to mint.
+          const offlineReceipt = offlineCheckoutSnapshot.receiptOrder;
+          if (offlineReceipt) {
+            setLastOrder(offlineReceipt);
+            setLastShareContext(offlineReceipt);
+            setCheckoutSuccessOpen(true);
+            if (receiptRuntimeSettings.printReceiptAutomatically) {
+              void handlePrint(offlineReceipt, { silent: true }).catch((automaticPrintError) => {
+                console.error("[pos] automatic offline receipt print failed", automaticPrintError);
+              });
+            }
+          }
+          handleCloseInvoiceTab(activeInvoiceTabId, { completed: true });
+          setInvoiceNumber(generateInvoiceNumber());
+          handleRemoveCoupon();
+
           toast.success(
             t(
               "pos.toasts.savedOfflineInvoice",
@@ -8158,6 +8560,23 @@ function POSPro() {
                 <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-400">{mobileSelectedCustomerLabel}</div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {!posBackendOnline || offlinePendingSyncCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setOfflineQueueOpen(true)}
+                    aria-label={t("pos.offlineQueue.title", "Offline invoices")}
+                    className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-1 rounded-2xl border px-2.5 text-[11px] font-black ${
+                      offlineNeedsReviewCount > 0
+                        ? "border-rose-300/40 bg-rose-400/10 text-rose-100"
+                        : "border-amber-300/30 bg-amber-400/10 text-amber-100"
+                    }`}
+                  >
+                    <CloudOff className="h-4 w-4 shrink-0" />
+                    {offlinePendingSyncCount > 0 ? (
+                      <span className="tabular-nums">{offlinePendingSyncCount}</span>
+                    ) : null}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
@@ -8224,6 +8643,28 @@ function POSPro() {
             ) : null}
           </div>
           <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
+          {/* Silent while everything is reaching the server. It appears the
+              moment the till is working offline or holding invoices, because
+              that is the only time the cashier needs to know. */}
+          {!posBackendOnline || offlinePendingSyncCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setOfflineQueueOpen(true)}
+              title={t("pos.offlineQueue.title", "Offline invoices")}
+              className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-black transition ${
+                offlineNeedsReviewCount > 0
+                  ? "border-rose-300/40 bg-rose-400/10 text-rose-100 hover:border-rose-200/60"
+                  : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/55"
+              }`}
+            >
+              <CloudOff className="h-4 w-4" />
+              {offlinePendingSyncCount > 0 ? (
+                <span className="tabular-nums">{offlinePendingSyncCount}</span>
+              ) : (
+                <span>{t("pos.offlineQueue.pill.offline", "Offline")}</span>
+              )}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={handleToggleFullscreen}
@@ -8693,6 +9134,7 @@ function POSPro() {
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
+            onOpenOfflineQueue={() => setOfflineQueueOpen(true)}
             onlineMode={isOnlineInvoiceMode}
             checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
@@ -8844,6 +9286,7 @@ function POSPro() {
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
             offlineSyncPendingCount={offlinePendingSyncCount}
+            onOpenOfflineQueue={() => setOfflineQueueOpen(true)}
             onlineMode={isOnlineInvoiceMode}
             checkoutLabel={isOnlineInvoiceMode ? t("pos.onlineOrder.checkoutLabel") : editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
@@ -9248,6 +9691,19 @@ function POSPro() {
           </div>
         ) : null}
 
+        {offlineQueueOpen ? (
+          <PosOfflineQueueModal
+            open
+            online={posBackendOnline}
+            syncing={offlineSyncing}
+            onClose={() => setOfflineQueueOpen(false)}
+            onSyncNow={handleOfflineSyncNow}
+            onRetryOrder={handleRetryOfflineOrder}
+            onDiscardOrder={handleDiscardOfflineOrder}
+            onPrintOrder={handleReprintOfflineOrder}
+          />
+        ) : null}
+
         {restockModalOpen ? (
           <Suspense fallback={null}>
             <PosRestockModal open customers={customers} initialCustomer={customer} onClose={() => setRestockModalOpen(false)} />
@@ -9466,10 +9922,11 @@ function ShiftGate({
       ""
   ).trim();
   const hasBranch = Boolean(resolvedBranchId);
+  // Being offline no longer disables the gate. A shop whose line is down at
+  // opening time still has to trade: the shift is opened on the device, sales
+  // queue against it, and it registers with the server on reconnect.
   const disabledReason = !hasBranch
     ? "missing_branch"
-    : posShiftNetworkUnavailable
-      ? "offline_unavailable"
     : attendanceLoading
       ? "opening_shift"
       : posShiftLoading
@@ -9545,14 +10002,25 @@ function ShiftGate({
             </div>
           ) : null}
 
+          {posShiftNetworkUnavailable && hasBranch ? (
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">
+              {t(
+                "pos.shift.offlineOpenNotice",
+                "No connection. The shift opens on this device and registers with the system as soon as the connection returns."
+              )}
+            </div>
+          ) : null}
+
           <button
             type="button"
             onClick={onOpenShift}
-            disabled={attendanceLoading || posShiftLoading || posShiftNetworkUnavailable || !hasBranch}
+            disabled={attendanceLoading || posShiftLoading || !hasBranch}
             className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {attendanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-            فتح الشيفت
+            {posShiftNetworkUnavailable
+              ? t("pos.shift.openShiftOffline", "Open the shift on this device")
+              : t("pos.shift.openShift")}
           </button>
         </div>
       </section>

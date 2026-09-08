@@ -373,7 +373,8 @@
     "closeInvoice": "إغلاق الفاتورة",
     "note": "ملاحظة",
     "optional": "اختياري",
-    "invoiceTotal": "إجمالي الفاتورة"
+    "invoiceTotal": "إجمالي الفاتورة",
+    "offlinePendingAction": "اعرض"
   },
   "saleMode": {
     "existingSalePrices": "أسعار العروض الحالية",
@@ -416,7 +417,10 @@
     "employeeNoBranch": "الموظف المحدد غير مرتبط بفرع",
     "selectSalesperson": "اختر مسؤول البيع قبل الدفع",
     "failedClose": "تعذر إغلاق الشفت",
-    "selectNextOpening": "اختر من سيفتح الشفت التالي"
+    "selectNextOpening": "اختر من سيفتح الشفت التالي",
+    "openShiftOffline": "فتح الوردية على الجهاز",
+    "openedOffline": "تم فتح الوردية على الجهاز. هيتسجلها في النظام أول ما الاتصال يرجع.",
+    "offlineOpenNotice": "مفيش اتصال. الوردية هتتفتح على الجهاز وهتتسجل في النظام أول ما الاتصال يرجع."
   },
   "receipt": {
     "unavailable": "غير محدد",
@@ -469,7 +473,13 @@
     "checkoutFailedWithMessage": "فشل الدفع: {{message}}",
     "popupBlocked": "تم حظر النافذة المنبثقة",
     "printFailed": "تعذر تجهيز الفاتورة للطباعة",
-    "savedOfflineInvoice": "تم حفظ الفاتورة دون اتصال. ستتم المزامنة تلقائيًا عند عودة الاتصال."
+    "savedOfflineInvoice": "تم حفظ الفاتورة دون اتصال. ستتم المزامنة تلقائيًا عند عودة الاتصال.",
+    "savedOfflineCustomer": "تم حفظ العميل على الجهاز. هيتزامن أول ما الاتصال يرجع.",
+    "closeShiftBlockedByQueue": "فيه {{count}} فاتورة لسه ماتزامنتش. زامنها قبل قفل الوردية.",
+    "offlineSyncDone": "تمت مزامنة {{count}} فاتورة",
+    "offlineSyncStillPending": "لسه مفيش اتصال بالسيرفر",
+    "offlineInvoiceDiscarded": "تم حذف الفاتورة من الطابور",
+    "offlineReceiptUnavailable": "مفيش إيصال محفوظ للفاتورة دي"
   },
   "personal": {
     "noCashImpact": " - لا تؤثر على الكاش",
@@ -752,6 +762,48 @@
       "repriced": "الإجمالي اتحسب بأسعار الموقع، فمختلف عن تقدير الكاشير",
       "whatsapp": "رسالة تأكيد الطلب في طريقها للعميل على واتساب",
       "done": "تمام"
+    }
+  },
+  "offlineQueue": {
+    "title": "فواتير أوفلاين",
+    "subtitle": {
+      "online": "متصل. أي فاتورة في الطابور بتتبعت دلوقتي.",
+      "offline": "مفيش اتصال. المبيعات بتتحفظ على الجهاز وبتتبعت لوحدها."
+    },
+    "pill": {
+      "offline": "أوفلاين"
+    },
+    "summary": {
+      "pending": "في انتظار المزامنة",
+      "value": "قيمة معلقة",
+      "needsReview": "محتاجة مراجعة"
+    },
+    "customersPending": "عملاء محفوظين على الجهاز في انتظار المزامنة: {{count}}",
+    "itemsCount": "{{count}} صنف",
+    "empty": {
+      "title": "مفيش حاجة معلقة",
+      "body": "كل فاتورة اتعملت على الجهاز ده وصلت للسيرفر."
+    },
+    "status": {
+      "pending": "في انتظار المزامنة",
+      "failed": "بيعيد المحاولة",
+      "needsReview": "محتاجة مراجعة",
+      "synced": "تمت المزامنة"
+    },
+    "reason": {
+      "stockConflict": "مخزون الفاتورة دي مبقاش متاح. عدّل المخزون وبعدين أعد المحاولة.",
+      "noOpenShift": "في انتظار وردية مفتوحة.",
+      "rejected": "السيرفر رفض الفاتورة دي. لازم مدير يشوفها.",
+      "serverUnavailable": "السيرفر لسه مابيردش."
+    },
+    "actions": {
+      "syncNow": "زامن دلوقتي",
+      "retry": "أعد المحاولة",
+      "print": "طباعة الإيصال",
+      "discard": "حذف",
+      "confirmDiscard": "احذف نهائيًا",
+      "cancel": "إلغاء",
+      "close": "إغلاق"
     }
   }
 }

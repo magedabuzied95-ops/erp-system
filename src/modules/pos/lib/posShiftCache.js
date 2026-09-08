@@ -1,6 +1,32 @@
 import { safeSetLocalStorage, safeSetSessionStorage } from "../../../utils/safeStorage.js";
 
 const ACTIVE_SHIFT_STORAGE_KEY = "erp.pos.active_shift";
+
+const OFFLINE_SHIFT_ID_PREFIX = "offline-shift-";
+
+/**
+ * A shift the cashier opened while the till could not reach the server -- the
+ * shop opened on a dead line. It is a real, usable shift for the device: sales
+ * queue against it and print receipts. It is not a row on the server, so its id
+ * must never be sent as `shift_id` (that column is a bigint), and the queued
+ * invoices resolve to whichever shift is open when they finally sync.
+ */
+export const createOfflinePosShiftId = () => {
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${OFFLINE_SHIFT_ID_PREFIX}${random}`;
+};
+
+export const isOfflinePosShiftId = (value) => String(value ?? "").startsWith(OFFLINE_SHIFT_ID_PREFIX);
+
+/** The shift id that is safe to put on an order payload. */
+export const toServerPosShiftId = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw || isOfflinePosShiftId(raw)) return null;
+  return raw;
+};
 const isPosShiftCacheDebugEnabled = () =>
   Boolean(
     import.meta.env?.DEV ||

@@ -506,6 +506,14 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_excluded_product_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS salesperson_excluded_category_ids JSONB NOT NULL DEFAULT '[]'::jsonb`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS shift_id BIGINT`);
+  // An invoice the till completed while it was offline. `offline_created_at` is
+  // when the customer actually paid, which is not `created_at` -- that is when
+  // the queue drained -- and `offline_original_shift_id` survives the reroute
+  // when the sale's own shift had already closed.
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS offline_origin BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS offline_created_at TIMESTAMPTZ`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS offline_original_shift_id BIGINT`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS offline_reference TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'pending'`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS payment_status VARCHAR(50) NOT NULL DEFAULT 'unpaid'`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50)`);
@@ -1004,6 +1012,13 @@ const toFiniteNumber = (value, fallback = 0) => {
 
 const firstValue = (...values) => values.find((value) => value !== undefined && value !== null && value !== "");
 
+/** A bigint-safe id, or null. Anything non-numeric (a POS local id) becomes null. */
+const toPositiveIntegerOrNull = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
 const firstFiniteMoney = (...values) => {
   for (const value of values) {
     if (value === undefined || value === null || value === "") continue;
@@ -1110,14 +1125,23 @@ const normalizeCreateOrderPayload = (body = {}) => {
     salesperson_id: firstValue(body.salesperson_id, body.salespersonId, body.sales_employee_id, body.salesEmployeeId, body.assigned_seller_id, body.assignedSellerId, body.seller_employee_id, body.sellerEmployeeId, body.seller_id, body.sellerId) || null,
     assigned_seller_id: firstValue(body.assigned_seller_id, body.assignedSellerId, body.sales_employee_id, body.salesEmployeeId, body.salesperson_id, body.salespersonId, body.seller_employee_id, body.sellerEmployeeId, body.seller_id, body.sellerId) || null,
     seller_employee_id: firstValue(body.seller_employee_id, body.sellerEmployeeId, body.sales_employee_id, body.salesEmployeeId, body.salesperson_id, body.salespersonId, body.assigned_seller_id, body.assignedSellerId, body.seller_id, body.sellerId) || null,
-    shift_id: firstValue(body.shift_id, body.shiftId) || null,
+    // Same coercion as `offline_shift_id` below, for the same reason: this value
+    // is written straight into a BIGINT column.
+    shift_id: toPositiveIntegerOrNull(firstValue(body.shift_id, body.shiftId)),
     // An invoice the POS already handed to a customer while it was offline. The
     // sale is finished in the real world by the time it arrives here, so the
     // checkout must never answer it with a plain refusal -- see the replay
     // branches around the shift and stock guards below.
     offline_origin: Boolean(body.offline_origin ?? body.offlineOrigin ?? false),
     offline_created_at: firstValue(body.offline_created_at, body.offlineCreatedAt) || null,
-    offline_shift_id: firstValue(body.offline_shift_id, body.offlineShiftId, body.shift_id, body.shiftId) || null,
+    // Coerced to a number here rather than trusted: a till that queued a sale
+    // against a shift it opened offline holds a local string id, and letting
+    // that reach `COALESCE($n::bigint, ...)` would fail the cast and turn a
+    // replayable invoice into a permanent 500.
+    offline_shift_id: toPositiveIntegerOrNull(
+      firstValue(body.offline_shift_id, body.offlineShiftId, body.shift_id, body.shiftId)
+    ),
+    offline_reference: firstValue(body.offline_reference, body.offlineReference) || null,
     attendance_log_id: firstValue(body.attendance_log_id, body.attendanceLogId) || null,
     subtotal: firstValue(body.subtotal, body.sub_total),
     discount_amount: firstValue(body.discount_amount, body.discountAmount, body.discount),
@@ -2902,6 +2926,7 @@ export const createOrder = async (req, res) => {
       offline_origin = false,
       offline_created_at = null,
       offline_shift_id = null,
+      offline_reference = null,
       attendance_log_id = null,
       marketing_source = null,
       marketing_platform = null,
@@ -3265,6 +3290,20 @@ export const createOrder = async (req, res) => {
         const resolvedStock = await resolveOrderLinesStockBatch(client, { tenantId, items });
         resolvedStock.forEach((stockLine, key) => stockByLineKey.set(key, stockLine));
       } catch (error) {
+        // A replay whose stock has since been sold elsewhere is not a bad
+        // request: those goods physically left the shop. It is answered with a
+        // distinct code so the till parks the invoice for a manager instead of
+        // marking it permanently failed and dropping it.
+        if (offline_origin && String(error.message || "").toLowerCase().includes("not enough stock")) {
+          return {
+            status: 409,
+            body: {
+              success: false,
+              code: "OFFLINE_REPLAY_STOCK_CONFLICT",
+              message: error.message || "Not enough stock for a deferred POS invoice",
+            },
+          };
+        }
         return {
           status: error.status || 400,
           body: {
@@ -3676,6 +3715,25 @@ export const createOrder = async (req, res) => {
     });
 
     let order = orderResult.rows[0];
+
+    // Stamped separately rather than threaded through the insert's positional
+    // parameter list, which is long enough that adding to it is its own risk.
+    if (offline_origin && order?.id) {
+      const offlineStamp = await client.query(
+        `
+        UPDATE orders
+        SET offline_origin = TRUE,
+            offline_created_at = COALESCE($2::timestamptz, offline_created_at),
+            offline_original_shift_id = COALESCE($3::bigint, offline_original_shift_id),
+            offline_reference = COALESCE(NULLIF($4::text, ''), offline_reference)
+        WHERE id = $1
+        RETURNING offline_origin, offline_created_at, offline_original_shift_id, offline_reference
+        `,
+        [order.id, offline_created_at || null, offlineReplayOriginalShiftId || null, offline_reference || ""]
+      );
+      if (offlineStamp.rows[0]) order = { ...order, ...offlineStamp.rows[0] };
+    }
+
     const linkedTerminalTransactionId = payment_transaction_id || paymob_terminal_transaction_id || null;
     if (linkedTerminalTransactionId) {
       const terminalTransactionResult = await client.query(

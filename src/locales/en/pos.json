@@ -373,7 +373,8 @@
     "closeInvoice": "Close the invoice",
     "note": "Note",
     "optional": "Optional",
-    "invoiceTotal": "Invoice total"
+    "invoiceTotal": "Invoice total",
+    "offlinePendingAction": "View"
   },
   "saleMode": {
     "existingSalePrices": "Existing sale prices",
@@ -416,7 +417,10 @@
     "employeeNoBranch": "Selected employee has no branch assigned",
     "selectSalesperson": "Select a salesperson before checkout",
     "failedClose": "Failed to close shift",
-    "selectNextOpening": "Select who will open the next shift"
+    "selectNextOpening": "Select who will open the next shift",
+    "openShiftOffline": "Open the shift on this device",
+    "openedOffline": "Shift opened on this device. It registers with the system when the connection returns.",
+    "offlineOpenNotice": "No connection. The shift opens on this device and registers with the system as soon as the connection returns."
   },
   "receipt": {
     "unavailable": "Unavailable",
@@ -469,7 +473,13 @@
     "checkoutFailedWithMessage": "Checkout failed: {{message}}",
     "popupBlocked": "Popup blocked",
     "printFailed": "Unable to prepare the invoice for printing",
-    "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns."
+    "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns.",
+    "savedOfflineCustomer": "Customer saved on this device. It will sync when the connection returns.",
+    "closeShiftBlockedByQueue": "{{count}} invoices have not synced yet. Sync them before closing the shift.",
+    "offlineSyncDone": "{{count}} invoices synced",
+    "offlineSyncStillPending": "Still no connection to the server",
+    "offlineInvoiceDiscarded": "Invoice removed from the queue",
+    "offlineReceiptUnavailable": "No stored receipt for this invoice"
   },
   "personal": {
     "noCashImpact": " - does not affect cash",
@@ -749,6 +759,48 @@
       "repriced": "The total was priced from the website, so it differs from the till estimate",
       "whatsapp": "The confirmation message is on its way to the customer on WhatsApp",
       "done": "Done"
+    }
+  },
+  "offlineQueue": {
+    "title": "Offline invoices",
+    "subtitle": {
+      "online": "Connected. Anything queued is being sent now.",
+      "offline": "No connection. Sales are saved on this device and sent automatically."
+    },
+    "pill": {
+      "offline": "Offline"
+    },
+    "summary": {
+      "pending": "Awaiting sync",
+      "value": "Value held",
+      "needsReview": "Needs review"
+    },
+    "customersPending": "Customers saved on this device, waiting to sync: {{count}}",
+    "itemsCount": "{{count}} items",
+    "empty": {
+      "title": "Nothing is waiting",
+      "body": "Every invoice made on this device has reached the server."
+    },
+    "status": {
+      "pending": "Waiting to sync",
+      "failed": "Retrying",
+      "needsReview": "Needs review",
+      "synced": "Synced"
+    },
+    "reason": {
+      "stockConflict": "The stock for this invoice is no longer available. Adjust the stock, then retry.",
+      "noOpenShift": "Waiting for an open shift.",
+      "rejected": "The server refused this invoice. A manager needs to look at it.",
+      "serverUnavailable": "The server is not answering yet."
+    },
+    "actions": {
+      "syncNow": "Sync now",
+      "retry": "Retry",
+      "print": "Print receipt",
+      "discard": "Discard",
+      "confirmDiscard": "Delete for good",
+      "cancel": "Cancel",
+      "close": "Close"
     }
   }
 }
