@@ -998,21 +998,20 @@ export const buildSocialCommentOrderSummaryMessageV2 = ({
   selectedColor = "",
   priceUsed = "",
 } = {}) => {
+  // One labelled line per fact instead of a label and its value on separate lines. The old shape
+  // spent eleven lines on four facts, so the summary filled a phone screen and the confirm
+  // question fell below the fold.
   const sections = [
-    "️ ملخص طلبك",
+    "✨ تفاصيل طلبك",
     "",
-    text(productName) || "المنتج",
-    "",
-    "المقاس:",
-    text(selectedSize) || "-",
-    "",
-    "اللون:",
-    normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
+    `👟 ${text(productName) || "المنتج"}`,
+    `📏 المقاس: ${text(selectedSize) || "-"}`,
+    `🎨 اللون: ${normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL}`,
   ];
   if (hasUsablePriceValue(priceUsed)) {
-    sections.push("", "السعر:", `${normalizePriceText(priceUsed)} جنيه`);
+    sections.push(`💵 السعر: ${normalizePriceText(priceUsed)} جنيه`);
   }
-  sections.push("", "━━━━━━━━━━━━", "", "هل ترغب في إتمام الطلب؟");
+  sections.push("", "────────────", "", "📦 طلبك جاهز للتأكيد", "هل ترغب في إتمام الطلب؟ ✅");
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
 
