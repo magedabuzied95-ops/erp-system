@@ -16904,6 +16904,50 @@ const socialCommentRecentProducts = (memory = {}) => {
     .slice(0, 6);
 };
 
+/*
+ * The product this customer actually commented on.
+ *
+ * The comment→DM reply is the ONLY thing an Instagram customer sees before they answer, and it
+ * carries no colour button: Instagram allows a single private reply per comment and its template
+ * takes no postback. So the colour arrives as TEXT, and matching it needs to know which product
+ * the conversation is about — which the DM itself never says.
+ *
+ * The link is the commenter id: a commenter's `from.id` IS their page-scoped messaging id, the
+ * same value the DM arrives under (see the identity work that named 128→171 comments from the
+ * inbox). So the automation run that answered the comment names the product.
+ *
+ * Bounded to a week and to six products: an id reused across months of comments must not drag an
+ * ancient product into today's conversation.
+ */
+const loadCommentedProductsForCustomer = async ({ tenantId = null, platform = "", externalCustomerId = "" } = {}) => {
+  const customerId = text(externalCustomerId);
+  if (!customerId) return [];
+  const result = await db.query(
+    `
+    SELECT DISTINCT ON (r.resolved_product_id)
+      r.resolved_product_id AS product_id,
+      p.name AS name,
+      r.created_at
+    FROM social_comment_automation_runs r
+    JOIN products p ON p.id = r.resolved_product_id
+    WHERE r.tenant_id = $1::bigint
+      AND r.commenter_id = $2::text
+      AND r.resolved_product_id IS NOT NULL
+      AND ($3::text = '' OR LOWER(COALESCE(r.platform, '')) = $3::text)
+      AND r.created_at > NOW() - INTERVAL '7 days'
+    ORDER BY r.resolved_product_id, r.created_at DESC
+    LIMIT 6
+    `,
+    [Number(tenantId || 0), customerId, text(platform).toLowerCase()]
+  ).catch((error) => {
+    console.warn("SOCIAL_COMMENT_COMMENTED_PRODUCTS_FAILED", { tenant_id: tenantId, message: error?.message || String(error) });
+    return { rows: [] };
+  });
+  return asArray(result.rows)
+    .map((row) => ({ product_id: Number(row.product_id || 0) || null, name: text(row.name || "") }))
+    .filter((row) => row.product_id);
+};
+
 // One grouped query rather than one per product: this runs on ordinary inbound text, so it must
 // not turn a five-product conversation into five round trips.
 const loadSocialCommentColorsForProducts = async ({ tenantId = null, productIds = [] } = {}) => {
@@ -17669,7 +17713,19 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   // which model, none falls through to the AI as before.
   const typedColorCandidate = messageText && messageText.length <= 60 && !rawPayload && !Number(salesFlow?.product_id || 0);
   if (typedColorCandidate) {
-    const recentProducts = socialCommentRecentProducts(memory);
+    // Products this conversation has actually been shown. On Messenger that is usually the cards
+    // in memory; on Instagram the comment→DM reply carries no buttons and leaves no cards, so the
+    // product comes from the comment the customer wrote — otherwise a typed colour has nothing to
+    // resolve against and the Instagram flow can never start.
+    const memoryProducts = socialCommentRecentProducts(memory);
+    const commentedProducts = memoryProducts.length
+      ? []
+      : await loadCommentedProductsForCustomer({
+          tenantId: config.tenant_id,
+          platform: text(message?.channel || "") === AI_AGENT_CHANNELS.INSTAGRAM ? "instagram" : "facebook",
+          externalCustomerId: text(message?.external_customer_id || ""),
+        });
+    const recentProducts = memoryProducts.length ? memoryProducts : commentedProducts;
     if (recentProducts.length) {
       const colorsByProduct = await loadSocialCommentColorsForProducts({
         tenantId: config.tenant_id,
@@ -17686,6 +17742,9 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         conversation_id: text(message?.external_conversation_id || ""),
         message_text: messageText,
         recent_product_ids: recentProducts.map((product) => product.product_id),
+        // Which source named the products — "commented" means the customer never saw a card, so
+        // this is the Instagram path that had nothing to resolve against before.
+        product_source: memoryProducts.length ? "conversation_cards" : "commented_products",
         matched: matches.map((product) => ({ product_id: product.product_id, color: product.color })),
       });
       if (matches.length === 1) {

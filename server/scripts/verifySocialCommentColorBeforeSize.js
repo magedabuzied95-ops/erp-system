@@ -124,4 +124,35 @@ assert.doesNotMatch(
   "the old ||-chain silently inherits a stale size behind an empty payload"
 );
 
+// ── Instagram: a typed colour has something to resolve against ────────────────────────────────
+// Instagram allows ONE private reply per comment and its template takes no postback button, so
+// the customer's first answer is always typed. Matching it needs the product, which the DM never
+// names — the link is the commenter id, which IS the same page-scoped id the DM arrives under.
+assert.match(
+  metaSource,
+  /const loadCommentedProductsForCustomer = async/,
+  "a typed colour on Instagram must be able to find the product the customer commented on"
+);
+assert.match(
+  metaSource,
+  /FROM social_comment_automation_runs r[\s\S]{0,400}r\.commenter_id = \$2::text/,
+  "the comment is joined to the DM by the commenter id"
+);
+assert.match(
+  metaSource,
+  /r\.created_at > NOW\(\) - INTERVAL '7 days'/,
+  "an id reused across months of comments must not drag an ancient product into today's chat"
+);
+// Cards the conversation really showed still win; the commented product is the fallback.
+assert.match(
+  metaSource,
+  /const recentProducts = memoryProducts\.length \? memoryProducts : commentedProducts;/,
+  "products the customer was actually shown must outrank the commented one"
+);
+assert.match(
+  metaSource,
+  /memoryProducts\.length\s*\?\s*\[\]\s*:\s*await loadCommentedProductsForCustomer/,
+  "the lookup must not run when the conversation already has cards — it is on the ordinary text path"
+);
+
 console.log("social comment colour-before-size OK");
