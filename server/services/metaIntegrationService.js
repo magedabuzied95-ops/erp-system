@@ -16074,7 +16074,11 @@ const buildSocialCommentAddressCardPayload = ({
   selectedSize = "",
   priceUsed = "",
   imageUrl = "",
+  // Instagram's template reference carries neither image_aspect_ratio nor webview_height_ratio,
+  // so its card is the same card with a plain link button.
+  channel = AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
 } = {}) => {
+  const isMessenger = text(channel) === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
   const colorLabel = normalizeSocialCommentColorDisplay(selectedColor) || text(selectedColor);
   const priceText = text(priceUsed) ? `${text(priceUsed)} جنيه` : "";
   const title = [text(productName) || "طلبك", priceText].filter(Boolean).join(" — ").slice(0, 80);
@@ -16093,7 +16097,7 @@ const buildSocialCommentAddressCardPayload = ({
           // Without this Messenger defaults to "horizontal" and crops the shoe into a thin
           // letterbox strip. The colour carousel already ships square, which is why those cards
           // look big and sharp and this one did not.
-          image_aspect_ratio: "square",
+          ...(isMessenger ? { image_aspect_ratio: "square" } : {}),
           elements: [
             {
               title: title || "بيانات الشحن",
@@ -16104,7 +16108,9 @@ const buildSocialCommentAddressCardPayload = ({
                   type: "web_url",
                   url: addressUrl,
                   title: "إملا بيانات الشحن 📦",
-                  webview_height_ratio: "tall",
+                  // Opens the form as a sheet INSIDE Messenger. Instagram has no such field and
+                  // rejects the payload if it is sent, so there the button is a plain link.
+                  ...(isMessenger ? { webview_height_ratio: "tall" } : {}),
                 },
               ],
             },
@@ -16116,17 +16122,20 @@ const buildSocialCommentAddressCardPayload = ({
 };
 
 const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", productData = null, selectedColor = "", selectedSize = "" } = {}) => {
-  if (text(message?.channel || "") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return false;
+  const channel = text(message?.channel || "");
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) return false;
   const recipientId = text(message?.external_customer_id || "");
   if (!recipientId || !text(addressUrl)) return false;
   try {
-    const { token } = await resolveMetaSendConfig({
+    const sendConfig = await resolveMetaSendConfig({
       tenantId: Number(config?.tenant_id || 0) || null,
-      channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      channel,
       facebookPageId: text(config?.facebook_page_id || ""),
+      instagramBusinessAccountId: text(config?.instagram_business_account_id || ""),
       preferredConfigId: config?.id || null,
     });
-    if (!text(token)) return false;
+    const token = text(sendConfig?.token || "");
+    if (!token) return false;
     const payload = buildSocialCommentAddressCardPayload({
       recipientId,
       addressUrl,
@@ -16136,22 +16145,32 @@ const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", 
       priceUsed: text(productData?.priceUsed || ""),
       // A relative /uploads path renders a blank card; the backend origin is what serves the file.
       imageUrl: absolutePublicUploadUrl(text(productData?.productImageUrl || "")),
+      channel,
     });
-    const response = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: json(payload),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    // Instagram Business Login sends through graph.instagram.com against the IG account id, not
+    // /me/messages on the page — the shared helper is the only thing that knows which.
+    const result = await postMetaMessageWithThreadControl({
+      token,
+      recipientId,
+      body: payload,
+      sendContext: {
+        channel,
+        instagram_business_login: sendConfig?.instagramBusinessLogin === true,
+        resolved_instagram_account_id: text(
+          sendConfig?.config?.instagram_business_account_id || config?.instagram_business_account_id || ""
+        ),
+      },
+    }).catch((error) => {
       console.warn("SOCIAL_COMMENT_ADDRESS_CARD_FAILED", {
         tenant_id: config?.tenant_id || null,
+        channel,
         conversation_id: text(message?.external_conversation_id || ""),
-        status: response.status,
-        error: result?.error?.message || "",
+        status: error?.status || "",
+        error: error?.message || String(error),
       });
-      return false;
-    }
+      return null;
+    });
+    if (!result) return false;
     console.log("SOCIAL_COMMENT_ADDRESS_CARD_SENT", {
       tenant_id: config?.tenant_id || null,
       conversation_id: text(message?.external_conversation_id || ""),
@@ -17112,7 +17131,9 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   inboundKey = "",
   inboundMetaMid = "",
 } = {}) => {
-  if (text(message?.channel || "") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return null;
+  // Instagram rides the same webhook and its DM endpoint takes the same message body, quick
+  // replies included — the flow was refusing it on the channel name alone.
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(text(message?.channel || ""))) return null;
   const rawPayload = socialCommentQuickReplyPayloadFromMessage(message);
   const messageText = text(message?.message_text || message?.raw?.event?.message?.text || "");
   const memory = getConversationMemory(message.external_conversation_id) || {};
@@ -18737,13 +18758,19 @@ export const dispatchSocialCommentMessengerQuickReplySelection = async ({
   postbackPayload = "",
   messageText = "",
 } = {}) => {
+  // The Instagram webhook uses the SAME entry[].messaging[] shape, so a tap from an Instagram DM
+  // reaches here too — hard-coding Messenger built it a facebook_messenger conversation id and the
+  // flow then looked up state that belongs to another thread entirely.
+  const dispatchChannel = String(body?.object || "").toLowerCase().includes("instagram")
+    ? AI_AGENT_CHANNELS.INSTAGRAM
+    : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
   const rawPayload = text(quickReplyPayload || postbackPayload || event?.message?.quick_reply?.payload || event?.postback?.payload || "");
   if (!rawPayload) return { handled: false, reason: "missing_quick_reply_payload" };
   if (rawPayload.startsWith("ORDER_CONFIRM")) {
     console.log("SOCIAL_COMMENT_ORDER_CONFIRM_DISPATCH", {
       tenant_id: tenantId || null,
-      platform: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
-      conversation_id: `${AI_AGENT_CHANNELS.FACEBOOK_MESSENGER}:${text(event?.sender?.id || "")}`,
+      platform: dispatchChannel,
+      conversation_id: `${dispatchChannel}:${text(event?.sender?.id || "")}`,
       comment_id: "",
       product_id: null,
       quick_reply_payload: rawPayload,
@@ -18754,8 +18781,8 @@ export const dispatchSocialCommentMessengerQuickReplySelection = async ({
   const config = await getMetaIntegrationConfig({ tenantId }).catch(() => null);
   if (!config) return { handled: false, reason: "missing_meta_config" };
   const message = {
-    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
-    external_conversation_id: `${AI_AGENT_CHANNELS.FACEBOOK_MESSENGER}:${senderId}`,
+    channel: dispatchChannel,
+    external_conversation_id: `${dispatchChannel}:${senderId}`,
     external_customer_id: senderId,
     message_text: text(messageText || event?.message?.text || ""),
     raw: {

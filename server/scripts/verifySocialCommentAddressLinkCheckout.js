@@ -197,4 +197,51 @@ assert.match(
   "a quick-reply tap must never be mistaken for a typed address"
 );
 
+// ── 5. Instagram runs the same flow ───────────────────────────────────────────────────────────
+// Instagram rides the same webhook and its DM endpoint takes the same message body, quick replies
+// included. The flow used to refuse it on the channel name alone, and the dispatcher hard-coded
+// Messenger — which built a facebook_messenger conversation id for an Instagram thread and then
+// looked up state belonging to a different conversation entirely.
+assert.match(
+  metaService,
+  /if \(!\[AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS\.INSTAGRAM\]\.includes\(text\(message\?\.channel \|\| ""\)\)\) return null;/,
+  "the sales flow must accept Instagram, not only Messenger"
+);
+assert.match(
+  metaService,
+  /const dispatchChannel = String\(body\?\.object \|\| ""\)[\s\S]{0,120}AI_AGENT_CHANNELS\.INSTAGRAM/,
+  "the quick-reply dispatcher must derive its channel from the webhook, not hard-code Messenger"
+);
+const dispatchStart = metaService.indexOf("export const dispatchSocialCommentMessengerQuickReplySelection");
+const dispatchBody = metaService.slice(dispatchStart, metaService.indexOf("const result = await handleSocialCommentMessengerQuickReplySelection", dispatchStart));
+assert.doesNotMatch(
+  dispatchBody,
+  /channel: AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER|\$\{AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER\}:/,
+  "no part of the dispatcher may still stamp Messenger onto an Instagram tap"
+);
+
+// Messenger-only template fields must not ship to Instagram, which rejects the payload.
+const cardIgBody = metaService.slice(cardStart, metaService.indexOf("const buildSocialCommentAddressLink", cardStart));
+assert.match(
+  cardIgBody,
+  /\.\.\.\(isMessenger \? \{ image_aspect_ratio: "square" \} : \{\}\)/,
+  "image_aspect_ratio is Messenger-only and must be conditional"
+);
+assert.match(
+  cardIgBody,
+  /\.\.\.\(isMessenger \? \{ webview_height_ratio: "tall" \} : \{\}\)/,
+  "webview_height_ratio is Messenger-only and must be conditional"
+);
+// Instagram Business Login sends through graph.instagram.com, not /me/messages on the page.
+assert.match(
+  cardIgBody,
+  /postMetaMessageWithThreadControl\(/,
+  "the address card must send through the helper that knows the Instagram endpoint"
+);
+assert.doesNotMatch(
+  cardIgBody,
+  /\$\{GRAPH_BASE_URL\}\/me\/messages/,
+  "a raw /me/messages POST cannot reach an Instagram thread"
+);
+
 console.log("social comment address-link checkout OK");
