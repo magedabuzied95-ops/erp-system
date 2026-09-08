@@ -6,6 +6,7 @@ import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl, absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
+import { buildPublicInvoiceUrl } from "../utils/whatsapp.js";
 import { emitToRooms } from "../utils/socket.js";
 import { emitMetaReviewerInboundEvent, normalizeMetaReviewerChannel } from "./metaReviewerAccessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
@@ -16551,6 +16552,12 @@ const createSocialCommentDraftOrder = async ({
   const tenantId = Number(config?.tenant_id || 0);
   const conversationId = text(message?.external_conversation_id || "");
   const platform = text(message?.channel || "");
+  // The order has to say which channel it actually came from. This was hard-coded to
+  // social_comment_messenger, so every WhatsApp and Instagram order filed itself as a Messenger
+  // one and every report counting by source was wrong.
+  const orderSource = platform === AI_AGENT_CHANNELS.WHATSAPP
+    ? "whatsapp_sales_flow"
+    : (platform === AI_AGENT_CHANNELS.INSTAGRAM ? "social_comment_instagram" : "social_comment_messenger");
   const normalizedCustomerPhone = normalizeEgyptPhone(mergedInfo?.customerPhone || salesFlow?.customer_phone || "");
   if (!tenantId || !conversationId || !productId) {
     throw Object.assign(new Error("Missing social comment draft order context"), { status: 400 });
@@ -16626,7 +16633,7 @@ const createSocialCommentDraftOrder = async ({
     const payload = {
       tenant_id: tenantId,
       channel: platform,
-      source: "social_comment_messenger",
+      source: orderSource,
       conversation_id: conversationId,
       session_id: conversationId,
       external_customer_id: text(message?.external_customer_id || ""),
@@ -16658,7 +16665,7 @@ const createSocialCommentDraftOrder = async ({
       original_customer_message: text(message?.message_text || ""),
       idempotency_key: idempotencyKey,
       metadata: {
-        source: "social_comment_messenger",
+        source: orderSource,
         status: "pending_staff_review",
         payment_method: "cash_on_delivery",
         payment_status: "unpaid",
@@ -16718,7 +16725,7 @@ const createSocialCommentDraftOrder = async ({
           customerAddress,
           governorate,
           area,
-          "social_comment_messenger",
+          orderSource,
           text(message?.channel || ""),
           orderStatus,
           "unpaid",
@@ -16726,7 +16733,7 @@ const createSocialCommentDraftOrder = async ({
           orderStatus,
           json({
             social_comment_messenger: true,
-            social_comment_source: "social_comment_messenger",
+            social_comment_source: orderSource,
             draft_order_id: orderId,
             customer_id: customer?.id || null,
             customer_name: customerName,
@@ -16745,7 +16752,7 @@ const createSocialCommentDraftOrder = async ({
             payment_method: "cash_on_delivery",
             payment_status: "unpaid",
             status: "pending_staff_review",
-            source: "social_comment_messenger",
+            source: orderSource,
             unit_price: draftData.unitPrice > 0 ? draftData.unitPrice : null,
             duplicate: Boolean(draft?.duplicate),
           }),
@@ -18774,13 +18781,33 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     }).catch(() => null);
     return { handled: true, reason: "address_received_order_not_created" };
   }
-  const successText = [
-    "✅ تم تأكيد طلبك بنجاح",
-    "",
-    "طلبك اتسجل عندنا، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
-    "",
-    "شكراً لاختيارك M1 Store",
-  ].join("\n");
+  /*
+   * The confirmation carries the INVOICE, not just a promise. The customer has just paid nothing
+   * and handed over an address; the invoice number, what it comes to and a link they can open is
+   * what makes the order feel real — and it is the same page the store looks at, so there is one
+   * version of the order rather than two.
+   *
+   * Every line is dropped rather than printed empty: an order with no resolved total must not go
+   * out saying "الإجمالي: 0 جنيه".
+   */
+  const orderRow = draftOrderResult.order || {};
+  const invoiceNumber = text(orderRow.invoice_number || "");
+  const money = (value) => {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount > 0 ? Math.round(amount).toLocaleString("en-US") : "";
+  };
+  const goodsText = money(orderRow.subtotal);
+  const shippingText = money(orderRow.shipping_cost);
+  const totalText = money(orderRow.total_amount);
+  const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(invoiceNumber) : "";
+  const successLines = ["✅ تم تأكيد طلبك بنجاح", ""];
+  if (invoiceNumber) successLines.push(`🧾 رقم الفاتورة: ${invoiceNumber}`);
+  if (goodsText) successLines.push(`👟 المنتج: ${goodsText} جنيه`);
+  if (shippingText) successLines.push(`🚚 الشحن: ${shippingText} جنيه`);
+  if (totalText) successLines.push(`💵 الإجمالي: ${totalText} جنيه`);
+  if (invoiceUrl) successLines.push("", "تقدر تشوف فاتورتك من هنا 👇", invoiceUrl);
+  successLines.push("", "هيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️", "", "شكراً لاختيارك M1 Store");
+  const successText = successLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   if (isWhatsapp) await sendConfirmation(successText);
   else await sendSocialCommentSalesFlowText({
     config,
