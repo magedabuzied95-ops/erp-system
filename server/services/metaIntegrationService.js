@@ -18675,12 +18675,28 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   if (!waitingForAddress || !productId || !selectedColor || !selectedSize) {
     return { handled: false, reason: "no_pending_social_comment_order" };
   }
-  const config = await getMetaIntegrationConfig({ tenantId }).catch(() => null);
-  if (!config) return { handled: false, reason: "missing_meta_config" };
   const senderId = conversationId.includes(":") ? conversationId.split(":").pop() : conversationId;
-  const channel = conversationId.startsWith(AI_AGENT_CHANNELS.INSTAGRAM)
-    ? AI_AGENT_CHANNELS.INSTAGRAM
-    : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  const isWhatsapp = conversationId.startsWith(`${AI_AGENT_CHANNELS.WHATSAPP}:`);
+  // WhatsApp has no Meta config and its confirmation goes out through Evolution, but the ORDER is
+  // built by the same code — only the send differs.
+  const config = isWhatsapp
+    ? { tenant_id: tenantId }
+    : await getMetaIntegrationConfig({ tenantId }).catch(() => null);
+  if (!config) return { handled: false, reason: "missing_meta_config" };
+  const channel = isWhatsapp
+    ? AI_AGENT_CHANNELS.WHATSAPP
+    : (conversationId.startsWith(AI_AGENT_CHANNELS.INSTAGRAM)
+      ? AI_AGENT_CHANNELS.INSTAGRAM
+      : AI_AGENT_CHANNELS.FACEBOOK_MESSENGER);
+  // One sender for the rest of this function: Evolution for WhatsApp, the Meta pipeline otherwise.
+  const sendConfirmation = async (messageText) => {
+    if (!isWhatsapp) return null;
+    const { sendTextMessage } = await import("./whatsappGatewayService.js");
+    return sendTextMessage({ phone: senderId, message: text(messageText) }).catch((error) => {
+      console.warn("WHATSAPP_ORDER_CONFIRMATION_SEND_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
+      return null;
+    });
+  };
   const message = {
     channel,
     external_conversation_id: conversationId,
@@ -18725,6 +18741,15 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     // The price is the only failure the customer can be told something useful about; everything
     // else is ours to fix, and the address is already safely stored either way.
     const priceMissing = draftOrderResult?.failureCode === "MISSING_PRODUCT_PRICE";
+    const pendingText = priceMissing
+      ? "استلمت عنوانك ✅
+فاضل نأكدلك سعر المنتج ده من الاستور، وهيتواصل معاك فريق خدمة العملاء حالاً ❤️"
+      : "استلمت عنوانك ✅
+فريق خدمة العملاء هيتواصل معاك حالاً لتأكيد الطلب ❤️";
+    if (isWhatsapp) {
+      await sendConfirmation(pendingText);
+      return { handled: true, reason: "address_received_order_not_created" };
+    }
     await sendSocialCommentSalesFlowText({
       config,
       message,
@@ -18742,7 +18767,16 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     }).catch(() => null);
     return { handled: true, reason: "address_received_order_not_created" };
   }
-  await sendSocialCommentSalesFlowText({
+  const successText = [
+    "✅ تم تأكيد طلبك بنجاح",
+    "",
+    "طلبك اتسجل عندنا، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
+    "",
+    "شكراً لاختيارك M1 Store",
+  ].join("
+");
+  if (isWhatsapp) await sendConfirmation(successText);
+  else await sendSocialCommentSalesFlowText({
     config,
     message,
     text: [
@@ -25592,6 +25626,12 @@ export const processMetaWebhook = async ({ req } = {}) => {
       instagramBusinessAccountId: instagramBusinessAccountIds[0] || "",
       cacheOnly: true,
     }).catch(() => incomingMessage);
+    // Read the carousel out of the payload BEFORE anything downstream rewrites
+    // it. materializeInboundAttachments leaves templates alone now, but this is
+    // the shape the echo row needs and it should not depend on the order two
+    // unrelated steps happen to run in — that ordering is exactly what made the
+    // first version of this fix do nothing.
+    const echoTemplateCards = metaTemplateProductCards(message.attachments || []);
     // Meta hands us a signed CDN link that expires. Re-host it before anything
     // downstream (inbox transcript, AI vision, debug events) captures the url.
     message.attachments = await materializeInboundAttachments({
@@ -25617,7 +25657,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       // Our own carousel comes back here as a template attachment. Read its
       // elements back into cards so the row says "product card" rather than
       // storing the first colour's photo and calling it an image message.
-      const echoProductCards = metaTemplateProductCards(message.attachments || []);
+      const echoProductCards = echoTemplateCards.length ? echoTemplateCards : metaTemplateProductCards(message.attachments || []);
       const echoText = echoProductCards.length
         ? text(message.message_text)
         : text(message.message_text) || inboundAttachmentLabel(message.attachments) || "[attachment]";

@@ -206,6 +206,12 @@ export const materializeInboundAttachments = async ({
   // timeout window rather than one per file.
   return Promise.all(list.map(async (attachment, index) => {
     const raw = attachment && typeof attachment === "object" ? attachment : {};
+    // A generic template is a card set, and Meta echoes our own carousels back
+    // through here. Re-hosting it means walking into its elements, pulling one
+    // product photo out and returning THAT as the attachment — the card set is
+    // destroyed before anything downstream can read it, and the file we save is
+    // a copy of a product image we already serve. Left exactly as it arrived.
+    if (text(raw.type).toLowerCase() === "template") return raw;
     const type = inboundAttachmentType(raw);
     const remoteUrl = inboundAttachmentUrl(raw);
     const mediaId = inboundAttachmentMediaId(raw);
