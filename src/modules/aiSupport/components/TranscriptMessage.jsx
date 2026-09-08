@@ -856,16 +856,26 @@ function TranscriptMessage({
    * bubble behind it. `cardMode` carries that difference. */
   if (safeRow.kind === "product_card") {
     const standalone = chrome.cardMode === "standalone";
+    // A reply that carries cards almost always carries the sentence that
+    // introduces them ("اختار اللون…"). It used to be dropped on the floor,
+    // because the row's kind decided the whole render.
+    const caption = bodyText(clean(message.ai_answer) || clean(message.staff_message) || clean(message.message_text) || clean(message.text));
     return shell(
       <ChatRow side="out" align="right" variant={variant}>
         {standalone ? (
-          <div data-ai-message-bubble="true" className="flex max-w-full flex-col items-end">
+          <div data-ai-message-bubble="true" className="flex max-w-full flex-col items-end gap-1.5">
+            {clean(caption) ? (
+              <ChatBubble skin={skin} radius={chrome.radius} side="out">
+                <LinkifiedText text={caption} className={textClass} linkColor={skin.link} />
+              </ChatBubble>
+            ) : null}
             <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
             <BubbleStamp skin={skin} time={clock} status={message.delivery_status} showTicks={showTicks} />
           </div>
         ) : (
           <ChatBubble skin={skin} radius={chrome.radius} side="out" style={{ width: chrome.cardWidth }}>
             <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
+            {clean(caption) ? <LinkifiedText text={caption} className={`${textClass} mt-1.5`} linkColor={skin.link} /> : null}
             {stampFor()}
           </ChatBubble>
         )}
@@ -971,11 +981,9 @@ function TranscriptMessage({
         ) : null}
         {sourceComment ? <div className={authorLabel ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
         <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkColor={skin.link} />
-        {isAi && message.suggested_products?.length ? (
-          <div className="mt-2">
-            <ProductCardMessage message={message} cards={message.suggested_products} compact platform={platform} variant={variant} chrome={chrome} />
-          </div>
-        ) : null}
+        {/* `suggested_products` now promotes the row to a product-card message in
+            both transcripts, so the cards and their caption are drawn by that
+            branch and never reach this one. */}
         {/* visual_attachments already feed messageMediaGroups — rendering them
             separately here painted every AI image twice. */}
         {attachments(flush ? "" : "mt-1.5")}

@@ -78,6 +78,7 @@ import AiSuggestionCard from "../components/AiSuggestionCard";
 import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/ReplyCorrectionModal";
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
 import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
+import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
 import {
@@ -467,19 +468,11 @@ const normalizeConversationChannel = (conversation = {}) => {
 
 const conversationKey = (conversation = {}) => conversationIdentifiers(conversation).conversationKey;
 
-const normalizeMessageProductCards = (message = {}) =>
-  normalizeProductCardsValue(
-    message.product_cards ||
-      message.productCards ||
-      message.suggested_products ||
-      message.suggestedProducts ||
-      []
-  );
+// One lookup for both transcripts — see messageProductCards in conversationHelpers.
+const normalizeMessageProductCards = (message = {}) => messageProductCards(message);
 
-const isProductCardMessage = (message = {}) => {
-  const messageType = clean(message.message_type || message.messageType || "").toLowerCase();
-  return messageType === "product_card" || messageType === "product_cards" || normalizeMessageProductCards(message).length > 0;
-};
+const isProductCardMessage = (message = {}) =>
+  isProductCardMessageType(message) || normalizeMessageProductCards(message).length > 0;
 
 const messageDisplayText = (message = {}) => {
   const candidates = [
@@ -6085,7 +6078,7 @@ export default function AiInboxPwa() {
             }
           : null;
         const normalizedReturnedMessage = normalizeInboxMessage(returnedMessage || {});
-        const returnedCards = normalizeProductCardsValue(normalizedReturnedMessage?.product_cards || normalizedReturnedMessage?.productCards);
+        const returnedCards = messageProductCards(normalizedReturnedMessage || {});
         const normalizedCards = returnedCards.length
           ? returnedCards.map((card, index) => {
               const fallbackCard = sentCards[index] || sentCards[0] || {};

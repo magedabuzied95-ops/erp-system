@@ -171,6 +171,8 @@ import {
   looksLikeMessageName,
   messageIdentityKeys,
   normalizeProductCardsValue,
+  messageProductCards,
+  isProductCardMessageType,
   normalizeValidationSummary,
   transcriptDayKey,
   transcriptDayLabel,
@@ -6416,8 +6418,8 @@ export default function AiInbox({ reviewerMode = false }) {
     return messages
       .filter((message) => clean(message.message_type).toLowerCase() !== "reaction")
       .map((normalizedMessage) => {
-        const productCards = normalizeProductCardsValue(normalizedMessage.product_cards || normalizedMessage.productCards);
-        const isProductCardMessage = normalizedMessage.message_type === "product_card" || productCards.length > 0;
+        const productCards = messageProductCards(normalizedMessage);
+        const isProductCardMessage = isProductCardMessageType(normalizedMessage) || productCards.length > 0;
         const isCommentMessage =
           normalizedMessage.message_type === "comment_inbound" ||
           (normalizedMessage.thread_kind === "comment" && (normalizedMessage.sender_type === "customer" || normalizedMessage.sender_type === "user" || normalizedMessage.direction === "inbound"));

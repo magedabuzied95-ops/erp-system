@@ -112,6 +112,29 @@ export const normalizeProductCardsValue = (value) => {
   return [];
 };
 
+// The cards a message carries. The column the sender used is not stable: the
+// orchestrator writes `product_cards`, the sales agent writes `suggested_products`,
+// and some adapters leave them on the channel metadata. The desktop transcript
+// read only the first of those, so a Messenger colour carousel logged under
+// `suggested_products` lost its cards and fell back to rendering the bare
+// product photo that happened to be attached — a card message that looked like
+// someone had sent a picture.
+export const messageProductCards = (message = {}) =>
+  normalizeProductCardsValue(
+    message.product_cards ||
+      message.productCards ||
+      message.suggested_products ||
+      message.suggestedProducts ||
+      message.metadata?.product_cards ||
+      message.channel_metadata?.product_cards ||
+      []
+  );
+
+export const isProductCardMessageType = (message = {}) => {
+  const type = String(message.message_type || message.messageType || "").trim().toLowerCase();
+  return type === "product_card" || type === "product_cards";
+};
+
 export const encodeConversationId = (value = "") => {
   const raw = clean(value);
   try {
