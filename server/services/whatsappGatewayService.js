@@ -1634,6 +1634,34 @@ const sendEvolutionButtonsMessage = async ({
           return safe;
         })()
       : null;
+    /*
+     * A CAROUSEL keeps its buttons inside each card, not on the message. Everything above reads
+     * the message level only, so a carousel always logged `firstButtonParamsJson: {"", ""}` and
+     * `nativeFlowButtonNames: []` — which reads exactly like "Evolution dropped the buttons" and
+     * is really just this log looking in the wrong place. Report what the cards actually carry,
+     * so a dead carousel button can be told apart from a blind diagnostic.
+     */
+    const carouselCards = responseMessage?.interactiveMessage?.carouselMessage?.cards
+      || responseMessage?.interactiveMessage?.carouselMessage?.Cards
+      || [];
+    const carouselCardButtons = Array.isArray(carouselCards)
+      ? carouselCards.map((card, index) => {
+          const buttons = card?.nativeFlowMessage?.buttons || card?.interactiveMessage?.nativeFlowMessage?.buttons || card?.buttons || [];
+          const first = Array.isArray(buttons) ? buttons[0] || {} : {};
+          let params = {};
+          try {
+            params = typeof first?.buttonParamsJson === "string" ? JSON.parse(first.buttonParamsJson) : (first?.buttonParamsJson || {});
+          } catch { params = {}; }
+          return {
+            card: index,
+            button_count: Array.isArray(buttons) ? buttons.length : 0,
+            name: first?.name || "",
+            display_text: params?.display_text || params?.displayText || first?.displayText || "",
+            id: params?.id || first?.id || "",
+          };
+        })
+      : [];
+    const carouselButtonsUsable = carouselCardButtons.length > 0 && carouselCardButtons.every((card) => card.button_count > 0 && (card.id || card.display_text));
     console.info("[evolution:send-buttons-success-body]", {
       file: "server/services/whatsappGatewayService.js",
       function: functionName,
@@ -1649,6 +1677,9 @@ const sendEvolutionButtonsMessage = async ({
       hasNativeFlowMessage: Boolean(responseMessage?.interactiveMessage?.nativeFlowMessage),
       nativeFlowButtonNames,
       firstButtonParamsJson,
+      carousel_card_count: Array.isArray(carouselCards) ? carouselCards.length : 0,
+      carousel_card_buttons: carouselCardButtons,
+      carousel_buttons_usable: carouselButtonsUsable,
       warning: data?.warning || data?.warnings || "",
       error: data?.error || data?.errors || "",
     });
