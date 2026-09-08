@@ -15,10 +15,12 @@
  *   1. Our own send path ALSO logged a row carrying `product_cards`, seconds
  *      apart in the same session. The echo is then a duplicate that renders as
  *      a photo beside the real cards. Those are removed — but only the ones
- *      carrying NO text. A carousel's echo never does (the lead sentence goes
- *      out as its own message), so text on the row means a person wrote it, and
- *      a three-minute pairing window is not evidence enough to delete a real
- *      photo someone sent. Taking those needs --include-captioned, said aloud.
+ *      carrying no words of their own. A carousel's echo never has any (the
+ *      lead sentence goes out as its own message; what sits on the row is the
+ *      machine's attachment label, "📎 مرفق" and friends). Anything else means
+ *      a person wrote it, and a three-minute pairing window is not evidence
+ *      enough to delete a real photo someone sent — that needs
+ *      --include-captioned, said aloud.
  *   2. No sibling row carries the cards. Nothing on the row, in the session, or
  *      in the media files identifies which colours went out — a re-hosted
  *      `/uploads/inbox-media/facebook/m_<meta-id>.webp` has no link back to the
@@ -50,6 +52,29 @@ const INCLUDE_CAPTIONED = flag("include-captioned");
 const SIBLING_WINDOW = "3 minutes";
 
 const cardCount = (value) => (Array.isArray(value) ? value.length : 0);
+
+// An attachment-only row is not stored blank: the echo handler stamps it with a
+// label from inboundAttachmentLabel so the conversation list has something to
+// show. Those strings are the machine talking, not a person, so they do not
+// count as "someone wrote this" — the first dry run found all 36 rows carrying
+// "📎 مرفق" (the fallback label, which is itself the tell: a real photo echo
+// would have said "📷 صورة") and refused to touch any of them.
+const GENERATED_LABELS = new Set([
+  "[attachment]",
+  "📎 مرفق",
+  "📷 صورة",
+  "🌟 ملصق",
+  "🎥 فيديو",
+  "🎤 رسالة صوتية",
+  "📍 موقع",
+  "📸 منشن في استوري",
+  "📸 رد على استوري",
+]);
+
+const isWrittenText = (value) => {
+  const trimmed = String(value || "").trim();
+  return Boolean(trimmed) && !GENERATED_LABELS.has(trimmed);
+};
 
 const run = async () => {
   const client = await db.connect();
@@ -92,24 +117,25 @@ const run = async () => {
 
     const paired = candidates.rows.filter((row) => cardCount(row.sibling_cards) > 0);
     const orphans = candidates.rows.filter((row) => cardCount(row.sibling_cards) === 0);
-    // The carousel's own echo carries no text — the lead sentence goes out as a
-    // separate message. A row that DOES carry text is a message someone wrote,
+    // The carousel's own echo carries no words of its own — the lead sentence
+    // goes out as a separate message, and what sits on the row is the machine's
+    // attachment label. A row carrying anything ELSE is a message someone wrote,
     // and the three-minute pairing window is not evidence enough to delete it:
     // a real photo sent to a customer minutes after a carousel would look
     // identical to this query. Those need --include-captioned, said out loud.
-    const removable = paired.filter((row) => !String(row.message_text || "").trim());
-    const captioned = paired.filter((row) => String(row.message_text || "").trim());
+    const removable = paired.filter((row) => !isWrittenText(row.message_text));
+    const captioned = paired.filter((row) => isWrittenText(row.message_text));
     const doomed = INCLUDE_CAPTIONED ? paired : removable;
 
     console.log(`echo image rows examined : ${candidates.rows.length}`);
     console.log(`  paired with a card row               : ${paired.length}`);
-    console.log(`    of those, no text — removable      : ${removable.length}`);
-    console.log(`    of those, carry text — kept        : ${captioned.length}${INCLUDE_CAPTIONED ? " (INCLUDED by --include-captioned)" : ""}`);
+    console.log(`    of those, label only — removable   : ${removable.length}`);
+    console.log(`    of those, someone wrote text — kept: ${captioned.length}${INCLUDE_CAPTIONED ? " (INCLUDED by --include-captioned)" : ""}`);
     console.log(`  no cards anywhere (left alone)       : ${orphans.length}`);
 
     for (const row of doomed.slice(0, 20)) {
       console.log(
-        `  DEL  id=${row.id} ${row.channel} ${row.session_id} ${new Date(row.created_at).toISOString()} ` +
+        `  DEL  id=${row.id} ${row.channel} ${row.session_id} ${new Date(row.created_at).toISOString()} "${String(row.message_text || "").slice(0, 20)}" ` +
           `attachments=${row.attachment_count} cards_on_sibling=${cardCount(row.sibling_cards)}`
       );
     }
