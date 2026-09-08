@@ -1111,6 +1111,13 @@ const normalizeCreateOrderPayload = (body = {}) => {
     assigned_seller_id: firstValue(body.assigned_seller_id, body.assignedSellerId, body.sales_employee_id, body.salesEmployeeId, body.salesperson_id, body.salespersonId, body.seller_employee_id, body.sellerEmployeeId, body.seller_id, body.sellerId) || null,
     seller_employee_id: firstValue(body.seller_employee_id, body.sellerEmployeeId, body.sales_employee_id, body.salesEmployeeId, body.salesperson_id, body.salespersonId, body.assigned_seller_id, body.assignedSellerId, body.seller_id, body.sellerId) || null,
     shift_id: firstValue(body.shift_id, body.shiftId) || null,
+    // An invoice the POS already handed to a customer while it was offline. The
+    // sale is finished in the real world by the time it arrives here, so the
+    // checkout must never answer it with a plain refusal -- see the replay
+    // branches around the shift and stock guards below.
+    offline_origin: Boolean(body.offline_origin ?? body.offlineOrigin ?? false),
+    offline_created_at: firstValue(body.offline_created_at, body.offlineCreatedAt) || null,
+    offline_shift_id: firstValue(body.offline_shift_id, body.offlineShiftId, body.shift_id, body.shiftId) || null,
     attendance_log_id: firstValue(body.attendance_log_id, body.attendanceLogId) || null,
     subtotal: firstValue(body.subtotal, body.sub_total),
     discount_amount: firstValue(body.discount_amount, body.discountAmount, body.discount),
@@ -2892,6 +2899,9 @@ export const createOrder = async (req, res) => {
       assigned_seller_id = null,
       seller_employee_id = null,
       shift_id = null,
+      offline_origin = false,
+      offline_created_at = null,
+      offline_shift_id = null,
       attendance_log_id = null,
       marketing_source = null,
       marketing_platform = null,
@@ -3110,6 +3120,45 @@ export const createOrder = async (req, res) => {
       status: openShift?.status || null,
       matched: Boolean(openShift),
     });
+
+    // An offline replay carries the id of the shift the sale actually happened
+    // in. That shift is very often already closed by the time the connection
+    // returns, and `resolveActiveUserPosShift` answers null for it -- which used
+    // to become a 400 and burn a real invoice. The sale is routed to whatever
+    // shift is open now instead, keeping the original id on the record so the
+    // trail stays honest. Closing a shift with queued invoices is blocked at the
+    // till, so this path is the "device came back a day later" case, not the
+    // everyday one.
+    let offlineReplayOriginalShiftId = null;
+    if (!openShift && offline_origin) {
+      const currentShift = await getCurrentCashDrawerShift(client, {
+        tenantId,
+        userId: resolvedCashierUserId,
+        branchId: requestedBranchId,
+      });
+      if (currentShift) {
+        offlineReplayOriginalShiftId = offline_shift_id || resolvedShiftId || null;
+        openShift = currentShift;
+        resolvedShiftId = currentShift.id;
+        console.warn("[orders] offline replay rerouted to the open shift", {
+          tenant_id: tenantId,
+          original_shift_id: offlineReplayOriginalShiftId,
+          resolved_shift_id: currentShift.id,
+          offline_created_at: offline_created_at || null,
+        });
+      } else {
+        // Nothing is open to receive it. Refusing would be wrong -- the money is
+        // real -- so answer with a code the till reads as "hold, retry later"
+        // rather than as a rejection.
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(409).json({
+          success: false,
+          code: "OFFLINE_REPLAY_NO_OPEN_SHIFT",
+          message: "لا توجد وردية مفتوحة لاستقبال الفاتورة المؤجلة. افتح وردية وسيتم رفعها تلقائيًا",
+        });
+      }
+    }
 
     if (!openShift) {
       await client.query("ROLLBACK");
@@ -4583,6 +4632,14 @@ export const getOrders = async (req, res) => {
     const requestedLimit = Number(req.query.limit);
     const limit = Math.min(Math.max(1, Number.isFinite(requestedLimit) ? requestedLimit : 250), 500);
     const offset = (page - 1) * limit;
+    // The dashboard and the reports read rows, never line items, and the lines are
+    // the heaviest part of this response by far: one wide row per line, joined to
+    // variants, products and the returns aggregate. They ask for them to be left
+    // out; every other caller keeps the payload it has today.
+    const includeItems = !["0", "false", "no"].includes(String(req.query.include_items ?? "").trim().toLowerCase());
+    // Turned off again if the summary query fails, so a list page can never go dark
+    // over an optimisation: it falls back to the full lines it used to send.
+    let leanList = !includeItems;
     const params = tenantId === null ? [limit, offset] : [tenantId, limit, offset];
     const tenantWhere = tenantId === null
       ? "WHERE o.deleted_at IS NULL"
@@ -4665,6 +4722,7 @@ export const getOrders = async (req, res) => {
     const orderIds = result.rows.map((order) => Number(order.id)).filter((id) => Number.isFinite(id) && id > 0);
     const itemsByOrder = new Map();
     const returnsByOrder = new Map();
+    const itemSummaryByOrder = new Map();
 
     if (orderIds.length) {
       const returnsResult = await db.query(
@@ -4710,65 +4768,99 @@ export const getOrders = async (req, res) => {
         returnsByOrder.set(String(returnRecord.order_id), returnRecord);
       }
 
-      const itemsResult = await db.query(
-        `
-        SELECT
-          oi.id,
-          oi.order_id,
-          oi.product_id,
-          oi.variant_id,
-          oi.product_name,
-          oi.sku,
-          oi.barcode,
-          COALESCE(pv.color, '') AS color,
-          COALESCE(pv.size, '') AS size,
-          CONCAT_WS(' / ', NULLIF(pv.color, ''), NULLIF(pv.size, '')) AS variant_label,
-          oi.quantity,
-          COALESCE(returned_item.returned_quantity, oi.returned_quantity, 0) AS returned_quantity,
-          COALESCE(returned_item.refund_amount, 0)::numeric AS refund_amount,
-          oi.sale_price AS unit_price,
-          oi.price AS stored_price,
-          oi.sale_price AS price,
-          oi.sale_price AS sale_price,
-          oi.total_amount AS line_total,
-          oi.total_amount AS subtotal,
-          oi.total_amount AS item_total,
-          pv.price AS variant_price,
-          pv.sale_price AS variant_sale_price,
-          p.price AS product_price,
-          p.sale_price AS product_sale_price
-        FROM order_items oi
-        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
-        LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
-        LEFT JOIN (
-          SELECT
-            ri.order_item_id,
-            COALESCE(SUM(ri.quantity), 0)::integer AS returned_quantity,
-            COALESCE(SUM(ri.refund_amount), 0)::numeric AS refund_amount
-          FROM return_items ri
-          JOIN returns r ON r.id = ri.return_id
-          WHERE r.order_id = ANY($1::bigint[])
-            AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint)
-          GROUP BY ri.order_item_id
-        ) returned_item ON returned_item.order_item_id = oi.id
-        WHERE oi.order_id = ANY($1::bigint[])
-          AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
-        ORDER BY oi.order_id DESC, oi.id ASC
-        `,
-        [orderIds, tenantId]
-      );
+      if (leanList) {
+        // One row per order carrying the two things the list actually reads: the
+        // quantity badge, and the text the client search matches product names,
+        // SKUs, barcodes, colours and sizes against.
+        try {
+          const summaryResult = await db.query(
+            `
+            SELECT
+              oi.order_id,
+              COALESCE(SUM(oi.quantity), 0)::integer AS total_quantity,
+              STRING_AGG(
+                DISTINCT CONCAT_WS(' ', NULLIF(oi.product_name, ''), NULLIF(oi.sku, ''), NULLIF(oi.barcode, ''), NULLIF(pv.color, ''), NULLIF(pv.size, '')),
+                ' '
+              ) AS items_search
+            FROM order_items oi
+            LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+            WHERE oi.order_id = ANY($1::bigint[])
+              AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
+            GROUP BY oi.order_id
+            `,
+            [orderIds, tenantId]
+          );
+          for (const row of summaryResult.rows) itemSummaryByOrder.set(String(row.order_id), row);
+        } catch (error) {
+          console.warn("[orders-list] lean item summary failed, falling back to full lines", error);
+          leanList = false;
+        }
+      }
 
-      for (const item of itemsResult.rows) {
-        const key = String(item.order_id);
-        const current = itemsByOrder.get(key) || [];
-        current.push(item);
-        itemsByOrder.set(key, current);
+      if (!leanList) {
+        const itemsResult = await db.query(
+          `
+          SELECT
+            oi.id,
+            oi.order_id,
+            oi.product_id,
+            oi.variant_id,
+            oi.product_name,
+            oi.sku,
+            oi.barcode,
+            COALESCE(pv.color, '') AS color,
+            COALESCE(pv.size, '') AS size,
+            CONCAT_WS(' / ', NULLIF(pv.color, ''), NULLIF(pv.size, '')) AS variant_label,
+            oi.quantity,
+            COALESCE(returned_item.returned_quantity, oi.returned_quantity, 0) AS returned_quantity,
+            COALESCE(returned_item.refund_amount, 0)::numeric AS refund_amount,
+            oi.sale_price AS unit_price,
+            oi.price AS stored_price,
+            oi.sale_price AS price,
+            oi.sale_price AS sale_price,
+            oi.total_amount AS line_total,
+            oi.total_amount AS subtotal,
+            oi.total_amount AS item_total,
+            pv.price AS variant_price,
+            pv.sale_price AS variant_sale_price,
+            p.price AS product_price,
+            p.sale_price AS product_sale_price
+          FROM order_items oi
+          LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+          LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+          LEFT JOIN (
+            SELECT
+              ri.order_item_id,
+              COALESCE(SUM(ri.quantity), 0)::integer AS returned_quantity,
+              COALESCE(SUM(ri.refund_amount), 0)::numeric AS refund_amount
+            FROM return_items ri
+            JOIN returns r ON r.id = ri.return_id
+            WHERE r.order_id = ANY($1::bigint[])
+              AND ($2::bigint IS NULL OR r.tenant_id = $2::bigint)
+            GROUP BY ri.order_item_id
+          ) returned_item ON returned_item.order_item_id = oi.id
+          WHERE oi.order_id = ANY($1::bigint[])
+            AND ($2::bigint IS NULL OR oi.tenant_id = $2::bigint OR oi.tenant_id IS NULL)
+          ORDER BY oi.order_id DESC, oi.id ASC
+          `,
+          [orderIds, tenantId]
+        );
+
+        for (const item of itemsResult.rows) {
+          const key = String(item.order_id);
+          const current = itemsByOrder.get(key) || [];
+          current.push(item);
+          itemsByOrder.set(key, current);
+        }
       }
     }
 
     const payload = result.rows.map((order) => {
-        const items = normalizeReturnedOrderItems(order, itemsByOrder.get(String(order.id)) || []);
-        const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+        const summary = itemSummaryByOrder.get(String(order.id));
+        const items = leanList ? [] : normalizeReturnedOrderItems(order, itemsByOrder.get(String(order.id)) || []);
+        const totalQuantity = leanList
+          ? Number(summary?.total_quantity || 0)
+          : items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
         return withPaymentProofAliases({
           ...order,
           ...(returnsByOrder.get(String(order.id)) || {}),
@@ -4776,6 +4868,7 @@ export const getOrders = async (req, res) => {
           total_items: totalQuantity,
           item_count: totalQuantity,
           items,
+          ...(leanList ? { items_search: summary?.items_search || "" } : {}),
         });
       });
     if (POS_DEBUG) console.log("[orders-list-timing]", { count: payload.length, total_ms: nowMs() - startedAt });

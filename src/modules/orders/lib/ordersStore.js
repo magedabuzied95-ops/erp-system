@@ -296,6 +296,9 @@ export const buildSearchText = (order) => {
     )
     .join(" ");
 
+  // A list fetched without its line items carries the same text pre-joined by the
+  // server, so searching by product, SKU or barcode keeps working on a page that
+  // never downloaded a single line.
   return [
     order.invoice_number,
     order.public_order_number,
@@ -315,6 +318,7 @@ export const buildSearchText = (order) => {
     order.channel,
     order.branch,
     itemText,
+    order.items_search,
   ]
     .filter(Boolean)
     .join(" ")

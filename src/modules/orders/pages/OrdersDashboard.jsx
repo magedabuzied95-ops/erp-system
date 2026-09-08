@@ -83,6 +83,14 @@ const SOURCE_LABELS = {
 };
 
 const uniqueValues = (items) => Array.from(new Set(items.filter(Boolean)));
+// Pages arrive after the first rows are already on screen, and a socket may have
+// pushed a brand new order in between, so an incoming page is appended by id
+// rather than concatenated.
+const appendOrders = (previous, incoming) => {
+  const known = new Set(previous.map((order) => String(order.id)));
+  const fresh = incoming.filter((order) => !known.has(String(order.id)));
+  return fresh.length ? [...previous, ...fresh] : previous;
+};
 const text = (value = "") => String(value ?? "").trim();
 const tt = (t, key, fallback, options) => {
   const value = t(key, options);
@@ -701,6 +709,10 @@ function OrdersDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [ordersTruncated, setOrdersTruncated] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // Only the newest walk may write rows: a refresh started while an older one is
+  // still streaming pages must not have those pages land on top of it.
+  const loadRequestRef = useRef(0);
   const [workspace] = useState("table");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -726,25 +738,51 @@ function OrdersDashboard() {
   const [permanentDeleting, setPermanentDeleting] = useState(false);
 
   const loadOrders = useCallback(async () => {
+    const requestId = loadRequestRef.current + 1;
+    loadRequestRef.current = requestId;
+    const isCurrent = () => loadRequestRef.current === requestId;
     try {
       setLoading(true);
+      setLoadingMore(true);
       setError("");
 
-      const { orders: baseOrders, truncated } = await fetchAllOrders();
+      /* The walk hands each page over as it lands, and painting the first one ends
+         the spinner: the table is on screen after one request instead of after the
+         whole history has been downloaded, and the remaining pages are appended
+         underneath while the operator is already reading. Item lines are left out
+         of the list entirely -- every path that prints or opens an order hydrates
+         it from /orders/:id first, and the row only ever showed a quantity. */
+      let received = 0;
+      const { truncated } = await fetchAllOrders({
+        includeItems: false,
+        onPage: (rows) => {
+          if (!isCurrent()) return;
+          const enriched = rows.map((order) => normalizeOrder(order, {
+            items: Array.isArray(order.items) ? order.items : [],
+            total: order.total ?? order.total_amount ?? order.total_price,
+          }));
+          const isFirstPage = received === 0;
+          received += enriched.length;
+          setOrders((prev) => (isFirstPage ? enriched : appendOrders(prev, enriched)));
+          setLastUpdated(new Date());
+          setLoading(false);
+        },
+      });
+      if (!isCurrent()) return;
       setOrdersTruncated(truncated);
-      const enriched = baseOrders.map((order) => normalizeOrder(order, {
-        items: Array.isArray(order.items) ? order.items : [],
-        total: order.total ?? order.total_amount ?? order.total_price,
-      }));
-      setOrders(enriched.length ? enriched : mockOrders());
+      if (!received) setOrders(mockOrders());
       setLastUpdated(new Date());
     } catch (err) {
       console.log(err);
+      if (!isCurrent()) return;
       setOrders(mockOrders());
       setError(t("common.noData"));
       toast.error(t("common.noData"));
     } finally {
-      setLoading(false);
+      if (isCurrent()) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [t]);
 
@@ -1156,11 +1194,12 @@ function OrdersDashboard() {
             {loading
               ? t("orders.header.loading")
               : t("orders.header.showing", { shown: formatCount(filteredOrders.length), total: formatCount(orders.length) })}
+            {!loading && loadingMore ? ` · ${t("orders.header.loadingMore")}` : ""}
             {lastUpdated && !loading ? ` · ${t("orders.header.updated", { time: shortClock(lastUpdated, i18n.language) })}` : ""}
           </p>
         </div>
         <div className="m1-orders-header-actions">
-          <HeaderButton onClick={() => { void loadOrders(); }} disabled={loading} icon={<RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />} label={t("orders.header.refresh")} />
+          <HeaderButton onClick={() => { void loadOrders(); }} disabled={loading || loadingMore} icon={<RefreshCw className={`h-4 w-4 ${loading || loadingMore ? "animate-spin" : ""}`} />} label={t("orders.header.refresh")} />
           <HeaderButton onClick={exportSelected} disabled={!filteredOrders.length} icon={<Download className="h-4 w-4" />} label={t("orders.header.export")} title={t("orders.header.exportHint")} />
           <Link
             to="/create-order"

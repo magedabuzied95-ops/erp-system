@@ -10,6 +10,7 @@
     "summary": "{{orders}} طلب • {{paid}} مدفوع • {{pending}} معلق • {{revenue}} إيرادات",
     "newReturn": "+ مرتجع",
     "loading": "جارٍ تحميل الطلبات…",
+    "loadingMore": "جارٍ تحميل باقي الطلبات…",
     "showing": "معروض {{shown}} من {{total}} طلب",
     "updated": "آخر تحديث {{time}}",
     "refresh": "تحديث",

@@ -19,7 +19,8 @@ function Reports() {
     const fetchReports = async () => {
       try {
         setLoading(true);
-        const { orders: allOrders } = await fetchAllOrders();
+        // Nothing here reads a line item, so the rows come without them.
+        const { orders: allOrders } = await fetchAllOrders({ includeItems: false });
         setOrders(allOrders);
       } catch (error) {
         console.log(error);

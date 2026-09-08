@@ -10,6 +10,7 @@
     "summary": "{{orders}} orders • {{paid}} paid • {{pending}} pending • {{revenue}} revenue",
     "newReturn": "+ Return",
     "loading": "Loading orders…",
+    "loadingMore": "Loading the rest of the orders…",
     "showing": "Showing {{shown}} of {{total}} orders",
     "updated": "Updated {{time}}",
     "refresh": "Refresh",
