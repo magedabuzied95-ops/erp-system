@@ -1948,6 +1948,78 @@ const hasProcessedInboundKey = async ({ tenantId, channel = "", conversationId =
   return recentMetaArray(metadata, "ai_processed_inbound_keys").some((item) => text(item?.key || item) === inboundKey);
 };
 
+/*
+ * ONE TAP, ONE ANSWER.
+ *
+ * A single confirm on Instagram sent the address card twice and the "بيانات الشحن" message
+ * twice, 11 ms apart, each with its own Meta message id. Three callers can reach the sales-flow
+ * handler and every guard in front of it is per-request: the routed flag lives on one webhook's
+ * event object, and hasProcessedInboundKey above reads before it writes, so two deliveries
+ * arriving together both read "not seen" and both answer.
+ *
+ * This claim is a single conditional UPDATE, so PostgreSQL settles the race for us: the second
+ * caller blocks on the row, re-checks the WHERE once the first commits, matches nothing and
+ * stops. Returns true when the tap is ours to act on.
+ *
+ * A claim that cannot be made — no conversation row yet, a failing query — lets the tap
+ * through. Losing a customer's tap is far worse than answering it twice.
+ */
+const claimSocialCommentTap = async ({ tenantId = null, conversationId = "", tapKey = "" } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeConversationId = text(conversationId);
+  const safeKey = text(tapKey);
+  if (!safeTenantId || !safeConversationId || !safeKey) return true;
+  const claimed = await db.query(
+    `
+    UPDATE ai_channel_conversations
+       SET metadata = jsonb_set(
+             COALESCE(metadata, '{}'::jsonb),
+             '{ai_sales_flow_tap_keys}',
+             (
+               SELECT COALESCE(jsonb_agg(recent.value), '[]'::jsonb)
+               FROM (
+                 SELECT value, ord
+                 FROM jsonb_array_elements(
+                        COALESCE(metadata->'ai_sales_flow_tap_keys', '[]'::jsonb) || jsonb_build_array($3::text)
+                      ) WITH ORDINALITY AS entry(value, ord)
+                 ORDER BY ord DESC
+                 LIMIT 50
+               ) recent
+             ),
+             true
+           ),
+           updated_at = NOW()
+     WHERE tenant_id = $1
+       AND external_conversation_id = $2
+       AND NOT jsonb_exists(COALESCE(metadata->'ai_sales_flow_tap_keys', '[]'::jsonb), $3::text)
+    `,
+    [safeTenantId, safeConversationId, safeKey]
+  ).catch((error) => {
+    console.warn("[social-comment-tap] claim failed", {
+      tenant_id: safeTenantId,
+      conversation_id: safeConversationId,
+      message: error?.message || "failed",
+    });
+    return null;
+  });
+  if (!claimed) return true;
+  if (Number(claimed.rowCount || 0) > 0) return true;
+  // Nothing was updated. Either another delivery holds the key, or there is no conversation row
+  // to hold it — and only the first of those is a duplicate.
+  const held = await db.query(
+    `
+    SELECT 1
+    FROM ai_channel_conversations
+    WHERE tenant_id = $1
+      AND external_conversation_id = $2
+      AND jsonb_exists(COALESCE(metadata->'ai_sales_flow_tap_keys', '[]'::jsonb), $3::text)
+    LIMIT 1
+    `,
+    [safeTenantId, safeConversationId, safeKey]
+  ).catch(() => ({ rows: [] }));
+  return held.rows.length === 0;
+};
+
 const storeProcessedInboundKey = async ({ tenantId, channel = "", conversationId = "", inboundKey = "", status = "sent" } = {}) => {
   if (!tenantId || !conversationId || !inboundKey) return null;
   const metadata = await loadConversationMetadata({ tenantId, channel, conversationId });
@@ -17334,6 +17406,30 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       postback_payload: text(message?.raw?.event?.postback?.payload || ""),
       message_text: messageText,
     });
+  }
+
+  // The tap is claimed before a single message goes out, and only once it is clear this really
+  // is a sales-flow tap — a payload we parsed, or a confirm/cancel we recognised. Anything else
+  // falls through untouched to the ordinary reply pipeline.
+  const tapIdentity = text(inboundMetaMid || message?.external_message_id || inboundKey || "");
+  const isActionableTap = Boolean(sizePayload || colorPayload || actionPayload || productPayload || resolvedAction);
+  if (isActionableTap && tapIdentity) {
+    const claimedTap = await claimSocialCommentTap({
+      tenantId: config?.tenant_id,
+      conversationId: message?.external_conversation_id,
+      tapKey: `tap:${tapIdentity}`,
+    });
+    if (!claimedTap) {
+      console.log("SOCIAL_COMMENT_TAP_DUPLICATE_SUPPRESSED", {
+        tenant_id: config?.tenant_id || null,
+        platform: text(message?.channel || ""),
+        conversation_id: text(message?.external_conversation_id || ""),
+        quick_reply_payload: rawPayload,
+        resolved_action: resolvedAction || "",
+        tap_key: tapIdentity.slice(0, 60),
+      });
+      return { handled: true, reason: "social_comment_tap_duplicate_suppressed" };
+    }
   }
 
   const sendOrderSummary = async ({

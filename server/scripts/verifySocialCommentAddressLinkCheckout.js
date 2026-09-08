@@ -282,4 +282,52 @@ assert.match(
   "the WhatsApp confirm step must store the variant with the link"
 );
 
+// ── One tap, one answer ───────────────────────────────────────────────────────────────────────
+// A single confirm on Instagram sent the address card twice and the shipping message twice, 11 ms
+// apart, each with its own Meta message id. Three callers reach the sales-flow handler and every
+// guard in front of it was per-request: the routed flag lives on one webhook's event object, and
+// hasProcessedInboundKey reads before it writes, so two deliveries landing together both read
+// "not seen" and both answered. The claim is a conditional UPDATE, which PostgreSQL settles.
+const claimStart = metaService.indexOf("const claimSocialCommentTap = async");
+assert.ok(claimStart > 0, "the tap claim is gone — a doubled webhook answers the customer twice");
+const claimBody = metaService.slice(claimStart, metaService.indexOf("const storeProcessedInboundKey", claimStart));
+assert.match(
+  claimBody,
+  /AND NOT jsonb_exists\(COALESCE\(metadata->'ai_sales_flow_tap_keys'/,
+  "the claim must be the UPDATE's own condition — a separate read-then-write is the race itself"
+);
+assert.doesNotMatch(
+  claimBody,
+  /await db\.query\[\s\S]{0,200}SELECT[\s\S]{0,400}ai_sales_flow_tap_keys[\s\S]{0,400}UPDATE ai_channel_conversations/,
+  "reading first and updating after leaves exactly the window this exists to close"
+);
+assert.match(
+  claimBody,
+  /if \(!claimed\) return true;/,
+  "a failed claim must let the tap through — losing a tap is worse than answering twice"
+);
+assert.match(
+  claimBody,
+  /return held\.rows\.length === 0;/,
+  "no conversation row to claim against is not a duplicate"
+);
+// The claim has to run BEFORE anything is sent, or it dedupes nothing.
+const handlerStart = metaService.indexOf("const handleSocialCommentMessengerQuickReplySelection = async");
+const handlerHead = metaService.slice(handlerStart, metaService.indexOf("const sendOrderSummary = async", handlerStart));
+assert.match(
+  handlerHead,
+  /const claimedTap = await claimSocialCommentTap\(/,
+  "the tap must be claimed before the handler sends anything"
+);
+assert.match(
+  handlerHead,
+  /return \{ handled: true, reason: "social_comment_tap_duplicate_suppressed" };/,
+  "a duplicate must be swallowed as handled, not fall through to the AI"
+);
+assert.match(
+  handlerHead,
+  /isActionableTap && tapIdentity/,
+  "only a tap we recognise is claimed; ordinary text must reach the normal pipeline untouched"
+);
+
 console.log("social comment address-link checkout OK");
