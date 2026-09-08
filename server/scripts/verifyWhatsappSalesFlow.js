@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { whatsappConversationId } from "../services/whatsappSalesFlowService.js";
+import { buildSizeRowId, parseSizeRowId, whatsappConversationId } from "../services/whatsappSalesFlowService.js";
 
 /* ======================================================
    THE SAME SALE, ON WHATSAPP
@@ -94,6 +94,49 @@ assert.match(
   completeBody,
   /const config = isWhatsapp\s*\?\s*\{ tenant_id: tenantId \}/,
   "WhatsApp has no Meta config; requiring one would drop every WhatsApp order"
+);
+
+// ── 6. Sizes are a LIST, and a row identifies its variant on its own ──────────────────────────
+// Reply buttons cap at three; a shoe has five to eight sizes, so buttons would silently drop the
+// rest. A list holds ten. Each row id has to name the product, the colour AND the size — a bare
+// "42" coming back would be exactly as ambiguous as the typed reply the list replaces.
+const rowId = buildSizeRowId({ productId: 315, color: "White & Brown", size: "32" });
+assert.deepEqual(parseSizeRowId(rowId), { product_id: 315, color: "White & Brown", size: "32" });
+assert.ok(rowId.length <= 200, "WhatsApp caps a list row id at 200 characters");
+assert.equal(parseSizeRowId("choose_color:5507"), null, "a colour tap must not parse as a size row");
+assert.equal(parseSizeRowId(""), null);
+// A colour with a colon in it must still round-trip.
+assert.deepEqual(
+  parseSizeRowId(buildSizeRowId({ productId: 7, color: "Red: Special", size: "41.5" })),
+  { product_id: 7, color: "Red: Special", size: "41.5" }
+);
+
+assert.match(
+  flowSource,
+  /await sendChoiceListMessage\(\{/,
+  "the size step must offer a list, not ask the customer to type"
+);
+assert.match(
+  flowSource,
+  /rowId: buildSizeRowId\(\{ productId, color, size \}\)/,
+  "every size row must carry its own product and colour"
+);
+// The list is an upgrade, never a new way to lose the sale: the sizes stay in the text and a
+// typed size still works.
+assert.match(
+  flowSource,
+  /fallbackText: `\$\{bodyText\}/,
+  "the list must carry a text fallback naming the sizes"
+);
+const gatewaySource = read("../services/whatsappGatewayService.js");
+const listStart = gatewaySource.indexOf("export const sendChoiceListMessage");
+assert.ok(listStart > 0, "the generic list sender is gone");
+const listBody = gatewaySource.slice(listStart, listStart + 3000);
+assert.match(listBody, /\.slice\(0, 10\)/, "WhatsApp caps a list at ten rows");
+assert.match(
+  listBody,
+  /catch \(error\)[\s\S]{0,400}sendTextMessage\(/,
+  "a list that will not send must still reach the customer as text"
 );
 
 console.log("whatsapp sales flow OK");

@@ -9,7 +9,7 @@ import {
 } from "./socialCommentPrivateReplyService.js";
 import { createAddressRequest } from "./conversationAddressRequestService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { sendCtaUrlMessage, sendTextMessage } from "./whatsappGatewayService.js";
+import { sendChoiceListMessage, sendCtaUrlMessage, sendTextMessage } from "./whatsappGatewayService.js";
 
 /* ======================================================
    THE SAME SALE, ON WHATSAPP
@@ -20,9 +20,11 @@ import { sendCtaUrlMessage, sendTextMessage } from "./whatsappGatewayService.js"
 
      colour  → the existing colour carousel's per-card button (choose_color:<variant_id>), which
                already ships; only the TAP was going nowhere useful.
-     size    → typed. Evolution caps reply buttons at three and a shoe routinely has five to eight
-               sizes, so a button row would silently drop the rest. The sizes are listed and the
-               reply is matched against the ones that colour actually has.
+     size    → an interactive LIST. Reply buttons cap at three and a shoe routinely has five to
+               eight sizes, so a button row would silently drop the rest; a list holds ten, and the
+               sizes are already narrowed to the chosen colour. Each row id names the product, the
+               colour and the size, so a tap is unambiguous on its own. A typed size still works,
+               and the sizes are named in the text too, so nothing is lost if the list fails.
      confirm → typed "تأكيد", matched the same way the Meta flow matches its confirm button.
      address → sendCtaUrlMessage: one real URL button, the proven interactive control here.
 
@@ -119,6 +121,27 @@ const uniqueColors = (rows = []) =>
   asArray(rows).map((row) => text(row?.color || "")).filter(Boolean)
     .filter((value, index, array) => array.indexOf(value) === index);
 
+// A list row id has to survive a round trip through WhatsApp and come back naming exactly one
+// variant, so it carries the product and the colour with the size — a bare "42" would be as
+// ambiguous as the typed reply it replaces. Kept well under WhatsApp's 200-character row id cap.
+export const SIZE_ROW_PREFIX = "size:";
+export const buildSizeRowId = ({ productId, color = "", size = "" }) =>
+  `${SIZE_ROW_PREFIX}${Number(productId || 0)}:${encodeURIComponent(text(color))}:${encodeURIComponent(text(size))}`;
+
+export const parseSizeRowId = (value = "") => {
+  const raw = text(value);
+  if (!raw.startsWith(SIZE_ROW_PREFIX)) return null;
+  const parts = raw.slice(SIZE_ROW_PREFIX.length).split(":");
+  if (parts.length < 3) return null;
+  const productId = Number(parts[0] || 0) || null;
+  if (!productId) return null;
+  try {
+    return { product_id: productId, color: decodeURIComponent(parts[1] || ""), size: decodeURIComponent(parts.slice(2).join(":")) };
+  } catch {
+    return null;
+  }
+};
+
 const send = async ({ phone, message }) =>
   sendTextMessage({ phone, message: text(message) }).catch((error) => {
     console.warn("WHATSAPP_SALES_FLOW_SEND_FAILED", { phone_suffix: text(phone).slice(-4), message: error?.message || String(error) });
@@ -147,9 +170,30 @@ const presentSizes = async ({ tenantId, phone, conversationId, productId, color,
     step: "awaiting_size",
     extra: { product_name: text(product?.name || ""), available_sizes: sizes },
   });
-  await send({
+  const lead = text(leadText) || `✅ تمام، اللون ${colorLabel}.`;
+  // A list, not buttons: WhatsApp reply buttons cap at three and a shoe has five to eight sizes.
+  // The sizes are already narrowed to this colour, so ten rows covers essentially everything; the
+  // text still names every size, so nothing is hidden even when the list is truncated or fails.
+  const listed = sizes.slice(0, 10);
+  const overflow = sizes.length > listed.length ? sizes.slice(listed.length) : [];
+  const bodyText = `${lead}\n\nالمقاسات المتاحة في اللون ده:\n${sizes.join(" · ")}`;
+  await sendChoiceListMessage({
     phone,
-    message: `${text(leadText) || `✅ تمام، اللون ${colorLabel}.`}\n\nالمقاسات المتاحة في اللون ده:\n${sizes.join(" · ")}\n\nاكتبلي المقاس اللي محتاجه 👟`,
+    title: text(product?.name || "اختار المقاس"),
+    description: `${bodyText}\n\nاضغط «اختار المقاس» وحدد مقاسك 👟`,
+    buttonText: "اختار المقاس",
+    sectionTitle: `مقاسات ${colorLabel}`.slice(0, 24),
+    footer: overflow.length ? `ومقاسات كمان: ${overflow.join(" · ")}` : "M1 Store",
+    rows: listed.map((size) => ({
+      title: size,
+      description: `${colorLabel} — مقاس ${size}`,
+      rowId: buildSizeRowId({ productId, color, size }),
+    })),
+    // Whatever happens to the list, the sizes still arrive and a typed reply still works.
+    fallbackText: `${bodyText}\n\nاكتبلي المقاس اللي محتاجه 👟`,
+  }).catch(async (error) => {
+    console.warn("WHATSAPP_SIZE_LIST_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
+    await send({ phone, message: `${bodyText}\n\nاكتبلي المقاس اللي محتاجه 👟` });
   });
   return { handled: true, reason: "whatsapp_size_options_sent" };
 };
@@ -265,9 +309,25 @@ export const handleWhatsappSalesFlow = async ({
     return presentSizes({ tenantId, phone, conversationId, productId, color, product });
   }
 
+  // ── size, chosen from the list ──────────────────────────────────────────────────────────────
+  // The row id names the product, the colour and the size, so it is unambiguous on its own and
+  // does not depend on the conversation still holding the right state.
+  const sizeRow = parseSizeRowId(tap);
+  if (sizeRow) {
+    const product = await loadProduct({ tenantId, productId: sizeRow.product_id });
+    if (!product) return { handled: false, reason: "product_not_found" };
+    const available = await loadVariants({ tenantId, productId: sizeRow.product_id, color: sizeRow.color, size: sizeRow.size });
+    if (!available.length) {
+      await send({ phone, message: `المقاس ${sizeRow.size} خلص من اللون ${normalizeSocialCommentColorDisplay(sizeRow.color) || sizeRow.color}. اختار مقاس تاني 👟` });
+      return presentSizes({ tenantId, phone, conversationId, productId: sizeRow.product_id, color: sizeRow.color, product });
+    }
+    console.log("WHATSAPP_SALES_FLOW_SIZE_SELECTED", { conversation_id: conversationId, ...sizeRow, source: "list_row" });
+    return sendSummary({ tenantId, phone, conversationId, productId: sizeRow.product_id, color: sizeRow.color, size: sizeRow.size, product });
+  }
+
   if (!body) return { handled: false, reason: "no_text" };
 
-  // ── size ────────────────────────────────────────────────────────────────────────────────────
+  // ── size, typed ─────────────────────────────────────────────────────────────────────────────
   if (step === "awaiting_size" && Number(flow?.product_id || 0) > 0) {
     const productId = Number(flow.product_id);
     const color = text(flow.selected_color || "");

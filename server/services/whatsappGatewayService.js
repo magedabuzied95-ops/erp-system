@@ -1887,6 +1887,78 @@ export const sendOrderConfirmationListMessage = async ({ phone, title = "", text
   });
 };
 
+/*
+ * A LIST, not a row of buttons. WhatsApp reply buttons cap at THREE, and a shoe routinely has
+ * five to eight sizes — a button row silently drops the rest, which is why the size step had to
+ * ask the customer to type. A list holds ten rows, and the sizes are already narrowed to the
+ * colour the customer picked, so ten covers essentially everything we sell. Anything past ten is
+ * named in the text rather than vanishing.
+ *
+ * Evolution only. Cloud API has its own interactive list with a different payload; pretending
+ * otherwise would fail at send time instead of falling back to text.
+ */
+export const sendChoiceListMessage = async ({
+  phone,
+  title = "",
+  description = "",
+  footer = "",
+  buttonText = "اختار",
+  sectionTitle = "",
+  rows = [],
+  fallbackText = "",
+} = {}) => {
+  if (provider() !== "evolution") {
+    throw gatewayError("Interactive list is only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const safeRows = (Array.isArray(rows) ? rows : [])
+    .map((row) => ({
+      title: text(row?.title).slice(0, 24),
+      description: text(row?.description).slice(0, 72),
+      rowId: text(row?.rowId),
+    }))
+    .filter((row) => row.title && row.rowId)
+    .slice(0, 10);
+  if (!safeRows.length) throw gatewayError("A list needs at least one row", "WHATSAPP_LIST_EMPTY", 400);
+  const current = requireEvolutionConfig();
+  const payload = {
+    number: normalizedPhone,
+    title: text(title).slice(0, 60),
+    description: text(description).slice(0, 1024),
+    buttonText: text(buttonText).slice(0, 20),
+    footerText: text(footer).slice(0, 60),
+    sections: [{ title: text(sectionTitle || title).slice(0, 24), rows: safeRows }],
+  };
+  const logBase = {
+    order_id: null,
+    phoneSuffix: normalizedPhone.slice(-4),
+    rowIds: safeRows.map((row) => row.rowId),
+  };
+  // sendEvolutionListMessage takes no fallback of its own, so the guarantee is made here: a list
+  // that will not send must still reach the customer as text, or the flow dead-ends in silence.
+  try {
+    return await sendEvolutionListMessage({
+      current,
+      endpoint: `/message/sendList/${encodeURIComponent(current.instanceName)}`,
+      requestBody: JSON.stringify(payload),
+      requestTimeoutMs: 9000,
+      logBase,
+      phone: normalizedPhone,
+    });
+  } catch (error) {
+    console.warn("[whatsapp:choice-list-fallback]", {
+      phoneSuffix: normalizedPhone.slice(-4),
+      rows: safeRows.length,
+      message: error?.message || String(error),
+    });
+    return sendTextMessage({
+      phone: normalizedPhone,
+      message: text(fallbackText) || text(description),
+    });
+  }
+};
+
 export const sendOrderConfirmationInteractiveMessage = async ({ phone, title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3, templateValues = null } = {}) => {
   if (isCloudTransport()) {
     if (!templateValues) {
