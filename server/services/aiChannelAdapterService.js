@@ -1677,6 +1677,30 @@ const visualAttachmentImageUrls = (reply = {}) =>
     .filter((url) => /^https?:\/\//i.test(url))
     .slice(0, 6);
 
+/*
+ * EVERY TRANSPORT PUTS ITS MESSAGE ID SOMEWHERE ELSE.
+ *
+ * Cloud answers { messages: [{ id: wamid }] }. Evolution answers
+ * { success, instanceName, result: <baileys response> }, with the id at result.key.id — and the
+ * reader knew only the Cloud shapes, so EVERY Evolution send (text, image, carousel) recorded
+ * its transcript row with an empty provider id.
+ *
+ * That is the WhatsApp duplicate, and nothing was ever sent twice. A row we cannot correlate to
+ * the echo coming back is a row delivery reconciliation has never seen, so it inserts our own
+ * message a second time a second or two later. Ten rows in a week, every one of them a message
+ * the customer received exactly once.
+ */
+export const providerMessageIdFromSendResponse = (response = null) => toText(
+  response?.message_id
+  || response?.messages?.[0]?.id
+  || response?.result?.key?.id
+  || response?.result?.message_id
+  || response?.result?.messageId
+  || response?.key?.id
+  || response?.id
+  || ""
+);
+
 export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "", instance = "" } = {}) => {
   const config = whatsappConfig();
   logWhatsAppConfig("[whatsapp-cloud-send][config]", config);
@@ -1771,7 +1795,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
   const productCards = normalizedProductCardBatches.flat();
   const productCardTexts = productCards.map((product) => toText(productCardReplyText(product))).filter(Boolean);
   const trackSuccess = (kind, response) => {
-    const messageId = response?.message_id || response?.messages?.[0]?.id || response?.id || "";
+    const messageId = providerMessageIdFromSendResponse(response);
     results.push({ kind, ok: true, message_id: messageId, response });
     return messageId;
   };
