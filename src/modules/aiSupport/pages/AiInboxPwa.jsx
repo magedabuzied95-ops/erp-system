@@ -2218,7 +2218,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
   // desktop workspace, so a bubble is never judged against the ERP panel.
   const canvas = platformCanvas(resolveMessagePlatform({}, threadChannel), "light");
   return (
-    <div dir="rtl" className={`-mx-2 space-y-2.5 px-2 pb-3 ${canvas}`}>
+    <div dir="rtl" style={canvas ? { background: canvas } : undefined} className="-mx-2 space-y-2.5 px-2 pb-3">
       {conversation?.older_messages_available ? (
         <div className="flex justify-center">
           <button

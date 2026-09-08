@@ -13,6 +13,16 @@
  * WhatsApp sends the card as a bubble (image, caption, a link row under a
  * hairline), while Meta's generic template is a white card that sits on the
  * transcript background outside any bubble.
+ *
+ * These are VALUES, not Tailwind classes, and the bubbles apply them as inline
+ * styles. Twice now the class route has failed silently on production: once
+ * because Tailwind does not generate a three-digit arbitrary hex (`text-[#fff]`
+ * emitted nothing at all, so every bubble ran with no ink), and once because a
+ * global `html[data-theme]` rule re-points whole families of colour utilities at
+ * the theme tokens with `!important`. A brand colour is data — WhatsApp green is
+ * WhatsApp green in every theme — so it must not travel through a layer whose
+ * job is to make colours follow the theme, and it must not depend on a scanner
+ * having noticed the string. An inline style cannot be dropped by either.
  */
 
 const clean = (value = "") => String(value ?? "").trim().toLowerCase();
@@ -28,183 +38,124 @@ export const resolveMessagePlatform = (message = {}, fallbackChannel = "") => {
   return "web";
 };
 
-// `cardMode: "bubble"` — the product card is part of the outbound bubble and
-// wears its colour (WhatsApp). `"standalone"` — the card is its own surface on
-// the transcript background, the way Meta draws a generic template.
+/*
+ * Per platform, per canvas:
+ *   canvas        the conversation wallpaper the app itself uses
+ *   inBg/outBg    bubble fill (any CSS background value — Instagram's is a gradient)
+ *   inInk/outInk  text colour on that bubble
+ *   inDark/outDark  true when the ink is dark, i.e. the bubble is a light one.
+ *                   Everything drawn inside the bubble — a link, a voice player,
+ *                   a failure mark — reads this rather than the page theme.
+ *   inMeta/outMeta  the timestamp row
+ *   inLink/outLink  link colour ON that side (Messenger keeps a blue bubble in
+ *                   light mode, so its outgoing link stays white there)
+ *   card*         the product card, which is part of the bubble on WhatsApp and
+ *                 a free-standing white template on Meta
+ */
 const CHROME = {
   whatsapp: {
-    radius: "rounded-[10px]",
-    inbound: "bg-[#202c33] text-[#ffffff]",
-    outbound: "bg-[#005c4b] text-[#ffffff]",
-    inboundMeta: "text-white/45",
-    outboundMeta: "text-white/60",
-    linkLightInk: "decoration-white/40 text-[#53bdeb]",
-    linkDarkInk: "text-[#027eb5] decoration-[#027eb5]/40",
+    radius: "10px",
     cardMode: "bubble",
-    cardWidth: "w-[286px]",
-    cardSurface: "bg-[#005c4b] text-[#ffffff]",
-    cardRadius: "rounded-[10px]",
-    cardTitle: "text-[#ffffff]",
-    cardMuted: "text-white/65",
-    cardHairline: "bg-white/15",
-    cardAction: "text-[#53bdeb]",
-    cardImageBg: "bg-white",
+    cardWidth: "286px",
+    dark: {
+      canvas: "#0b141a",
+      inBg: "#202c33", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.45)", inLink: "#53bdeb",
+      outBg: "#005c4b", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.6)", outLink: "#53bdeb",
+      cardBg: "#005c4b", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.65)", cardLine: "rgba(255,255,255,0.15)", cardAction: "#53bdeb", cardImageBg: "#ffffff",
+    },
+    light: {
+      canvas: "#efeae2",
+      inBg: "#ffffff", inInk: "#111b21", inDark: true, inMeta: "#667781", inLink: "#027eb5",
+      outBg: "#d9fdd3", outInk: "#111b21", outDark: true, outMeta: "#667781", outLink: "#027eb5",
+      cardBg: "#d9fdd3", cardInk: "#111b21", cardMuted: "#667781", cardLine: "rgba(17,27,33,0.1)", cardAction: "#027eb5", cardImageBg: "#ffffff",
+    },
   },
   messenger: {
-    radius: "rounded-[18px]",
-    inbound: "bg-[#303030] text-[#ffffff]",
-    outbound: "bg-[#0084ff] text-[#ffffff]",
-    inboundMeta: "text-white/50",
-    outboundMeta: "text-white/75",
-    linkLightInk: "decoration-white/60 text-[#ffffff]",
-    linkDarkInk: "text-[#0064d1] decoration-[#0064d1]/40",
+    radius: "18px",
     cardMode: "standalone",
-    cardWidth: "w-[248px]",
-    cardSurface: "bg-white text-[#050505]",
-    cardRadius: "rounded-[18px]",
-    cardTitle: "text-[#050505]",
-    cardMuted: "text-[#65676b]",
-    cardHairline: "bg-[#dadde1]",
-    cardAction: "text-[#0084ff]",
-    cardImageBg: "bg-[#f0f2f5]",
+    cardWidth: "248px",
+    dark: {
+      canvas: "#0a0a0a",
+      inBg: "#303030", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.5)", inLink: "#ffffff",
+      outBg: "#0084ff", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
+      cardBg: "#ffffff", cardInk: "#050505", cardMuted: "#65676b", cardLine: "#dadde1", cardAction: "#0084ff", cardImageBg: "#f0f2f5",
+    },
+    light: {
+      canvas: "#ffffff",
+      inBg: "#e4e6eb", inInk: "#050505", inDark: true, inMeta: "#65676b", inLink: "#0064d1",
+      outBg: "#0084ff", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
+      cardBg: "#ffffff", cardInk: "#050505", cardMuted: "#65676b", cardLine: "#dadde1", cardAction: "#0084ff", cardImageBg: "#f0f2f5",
+    },
   },
   instagram: {
-    radius: "rounded-[20px]",
-    inbound: "bg-[#262626] text-[#ffffff]",
-    outbound: "bg-[linear-gradient(135deg,#4f5bd5,#962fbf_55%,#d62976)] text-[#ffffff]",
-    inboundMeta: "text-white/50",
-    outboundMeta: "text-white/75",
-    linkLightInk: "decoration-white/60 text-[#ffffff]",
-    linkDarkInk: "text-[#00376b] decoration-[#00376b]/40",
+    radius: "20px",
     cardMode: "standalone",
-    cardWidth: "w-[240px]",
-    cardSurface: "bg-white text-[#0f0f0f]",
-    cardRadius: "rounded-[20px]",
-    cardTitle: "text-[#0f0f0f]",
-    cardMuted: "text-[#737373]",
-    cardHairline: "bg-[#dbdbdb]",
-    cardAction: "text-[#0095f6]",
-    cardImageBg: "bg-[#fafafa]",
+    cardWidth: "240px",
+    dark: {
+      canvas: "#000000",
+      inBg: "#262626", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.5)", inLink: "#ffffff",
+      outBg: "linear-gradient(135deg,#4f5bd5,#962fbf 55%,#d62976)", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
+      cardBg: "#ffffff", cardInk: "#0f0f0f", cardMuted: "#737373", cardLine: "#dbdbdb", cardAction: "#0095f6", cardImageBg: "#fafafa",
+    },
+    light: {
+      canvas: "#ffffff",
+      inBg: "#efefef", inInk: "#0f0f0f", inDark: true, inMeta: "#737373", inLink: "#00376b",
+      outBg: "linear-gradient(135deg,#4f5bd5,#962fbf 55%,#d62976)", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
+      cardBg: "#ffffff", cardInk: "#0f0f0f", cardMuted: "#737373", cardLine: "#dbdbdb", cardAction: "#0095f6", cardImageBg: "#fafafa",
+    },
   },
   telegram: {
-    radius: "rounded-[12px]",
-    inbound: "bg-[#182533] text-[#ffffff]",
-    outbound: "bg-[#2b5278] text-[#ffffff]",
-    inboundMeta: "text-white/45",
-    outboundMeta: "text-white/60",
-    linkLightInk: "decoration-white/40 text-[#62bcf9]",
-    linkDarkInk: "text-[#168acd] decoration-[#168acd]/40",
+    radius: "12px",
     cardMode: "bubble",
-    cardWidth: "w-[286px]",
-    cardSurface: "bg-[#2b5278] text-[#ffffff]",
-    cardRadius: "rounded-[12px]",
-    cardTitle: "text-[#ffffff]",
-    cardMuted: "text-white/65",
-    cardHairline: "bg-white/15",
-    cardAction: "text-[#62bcf9]",
-    cardImageBg: "bg-white",
+    cardWidth: "286px",
+    dark: {
+      canvas: "#0e1621",
+      inBg: "#182533", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.45)", inLink: "#62bcf9",
+      outBg: "#2b5278", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.6)", outLink: "#62bcf9",
+      cardBg: "#2b5278", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.65)", cardLine: "rgba(255,255,255,0.15)", cardAction: "#62bcf9", cardImageBg: "#ffffff",
+    },
+    light: {
+      canvas: "#e6ebee",
+      inBg: "#ffffff", inInk: "#111b21", inDark: true, inMeta: "#707579", inLink: "#168acd",
+      outBg: "#effdde", outInk: "#111b21", outDark: true, outMeta: "#4fae4e", outLink: "#168acd",
+      cardBg: "#effdde", cardInk: "#111b21", cardMuted: "#707579", cardLine: "rgba(17,27,33,0.1)", cardAction: "#168acd", cardImageBg: "#ffffff",
+    },
   },
   tiktok: {
-    radius: "rounded-[16px]",
-    inbound: "bg-[#2a2a2a] text-[#ffffff]",
-    outbound: "bg-[#fe2c55] text-[#ffffff]",
-    inboundMeta: "text-white/50",
-    outboundMeta: "text-white/75",
-    linkLightInk: "decoration-white/60 text-[#ffffff]",
-    linkDarkInk: "text-[#fe2c55] decoration-[#fe2c55]/40",
+    radius: "16px",
     cardMode: "standalone",
-    cardWidth: "w-[240px]",
-    cardSurface: "bg-white text-[#161823]",
-    cardRadius: "rounded-[16px]",
-    cardTitle: "text-[#161823]",
-    cardMuted: "text-[#6b7280]",
-    cardHairline: "bg-[#e5e7eb]",
-    cardAction: "text-[#fe2c55]",
-    cardImageBg: "bg-[#f4f4f5]",
+    cardWidth: "240px",
+    dark: {
+      canvas: "#121212",
+      inBg: "#2a2a2a", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.5)", inLink: "#ffffff",
+      outBg: "#fe2c55", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
+      cardBg: "#ffffff", cardInk: "#161823", cardMuted: "#6b7280", cardLine: "#e5e7eb", cardAction: "#fe2c55", cardImageBg: "#f4f4f5",
+    },
+    light: {
+      canvas: "#ffffff",
+      inBg: "#f1f1f2", inInk: "#161823", inDark: true, inMeta: "#6b7280", inLink: "#fe2c55",
+      outBg: "#fe2c55", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
+      cardBg: "#ffffff", cardInk: "#161823", cardMuted: "#6b7280", cardLine: "#e5e7eb", cardAction: "#fe2c55", cardImageBg: "#f4f4f5",
+    },
   },
+  // Web chat has no app of its own to imitate, so it borrows the house green and
+  // leaves the transcript on the workspace surface.
   web: {
-    radius: "rounded-[14px]",
-    inbound: "bg-white/[0.09] text-[#ffffff]",
-    outbound: "bg-emerald-800/70 text-[#ffffff]",
-    inboundMeta: "text-white/45",
-    outboundMeta: "text-white/60",
-    linkLightInk: "decoration-white/40 text-cyan-200",
-    linkDarkInk: "text-emerald-700 decoration-emerald-700/40",
+    radius: "14px",
     cardMode: "bubble",
-    cardWidth: "w-[286px]",
-    cardSurface: "bg-emerald-800/70 text-[#ffffff]",
-    cardRadius: "rounded-[14px]",
-    cardTitle: "text-[#ffffff]",
-    cardMuted: "text-white/65",
-    cardHairline: "bg-white/15",
-    cardAction: "text-cyan-200",
-    cardImageBg: "bg-white",
-  },
-};
-
-// The light canvas — the PWA transcript always, and the desktop workspace
-// whenever the ERP is in a light theme. These are the same apps in light mode,
-// not the dark ones with the page turned up: WhatsApp and Telegram are genuinely
-// a different pair of bubbles there (pale mint on white, dark ink), while
-// Messenger, Instagram and TikTok keep the same brand colour on the outgoing
-// side and only their neutral half moves.
-//
-// `ink` says which way the text runs on that side, because an attachment drawn
-// inside the bubble has to be painted in the same ink as the words above it.
-const LIGHT_OVERRIDES = {
-  whatsapp: {
-    inbound: "bg-white text-[#111b21]",
-    inboundMeta: "text-[#667781]",
-    inboundInk: "dark",
-    outbound: "bg-[#d9fdd3] text-[#111b21]",
-    outboundMeta: "text-[#667781]",
-    outboundInk: "dark",
-    cardSurface: "bg-[#d9fdd3] text-[#111b21]",
-    cardTitle: "text-[#111b21]",
-    cardMuted: "text-[#667781]",
-    cardHairline: "bg-[#111b21]/10",
-    cardAction: "text-[#027eb5]",
-  },
-  telegram: {
-    inbound: "bg-white text-[#111b21]",
-    inboundMeta: "text-[#707579]",
-    inboundInk: "dark",
-    outbound: "bg-[#effdde] text-[#111b21]",
-    outboundMeta: "text-[#4fae4e]",
-    outboundInk: "dark",
-    cardSurface: "bg-[#effdde] text-[#111b21]",
-    cardTitle: "text-[#111b21]",
-    cardMuted: "text-[#707579]",
-    cardHairline: "bg-[#111b21]/10",
-    cardAction: "text-[#168acd]",
-  },
-  messenger: {
-    inbound: "bg-[#e4e6eb] text-[#050505]",
-    inboundMeta: "text-[#65676b]",
-    inboundInk: "dark",
-  },
-  instagram: {
-    inbound: "bg-[#efefef] text-[#0f0f0f]",
-    inboundMeta: "text-[#737373]",
-    inboundInk: "dark",
-  },
-  tiktok: {
-    inbound: "bg-[#f1f1f2] text-[#161823]",
-    inboundMeta: "text-[#6b7280]",
-    inboundInk: "dark",
-  },
-  web: {
-    inbound: "bg-white text-slate-900",
-    inboundMeta: "text-slate-500",
-    inboundInk: "dark",
-    outbound: "bg-emerald-100 text-slate-900",
-    outboundMeta: "text-emerald-800/70",
-    outboundInk: "dark",
-    cardSurface: "bg-emerald-100 text-slate-900",
-    cardTitle: "text-slate-900",
-    cardMuted: "text-slate-500",
-    cardHairline: "bg-slate-900/10",
-    cardAction: "text-emerald-700",
+    cardWidth: "286px",
+    dark: {
+      canvas: "",
+      inBg: "rgba(255,255,255,0.09)", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.45)", inLink: "#a5f3fc",
+      outBg: "#155e4b", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.6)", outLink: "#a5f3fc",
+      cardBg: "#155e4b", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.65)", cardLine: "rgba(255,255,255,0.15)", cardAction: "#a5f3fc", cardImageBg: "#ffffff",
+    },
+    light: {
+      canvas: "",
+      inBg: "#ffffff", inInk: "#0f172a", inDark: true, inMeta: "#64748b", inLink: "#047857",
+      outBg: "#d1fae5", outInk: "#0f172a", outDark: true, outMeta: "#047857", outLink: "#047857",
+      cardBg: "#d1fae5", cardInk: "#0f172a", cardMuted: "#64748b", cardLine: "rgba(15,23,42,0.1)", cardAction: "#047857", cardImageBg: "#ffffff",
+    },
   },
 };
 
@@ -214,28 +165,13 @@ const LIGHT_OVERRIDES = {
  * desktop workspace follows the ERP theme and the PWA is always light.
  */
 export const platformChrome = (platform = "web", mode = "dark") => {
-  const base = { inboundInk: "light", outboundInk: "light", ...(CHROME[platform] || CHROME.web) };
-  if (mode !== "light") return base;
-  return { ...base, ...(LIGHT_OVERRIDES[platform] || LIGHT_OVERRIDES.web) };
+  const base = CHROME[platform] || CHROME.web;
+  const palette = base[mode === "light" ? "light" : "dark"];
+  return { radius: base.radius, cardMode: base.cardMode, cardWidth: base.cardWidth, ...palette };
 };
 
-// The wallpaper the conversation runs on. WhatsApp's bubbles were drawn against
-// its own warm near-black (#0b141a) and its beige paper (#efeae2); dropping the
-// same teal onto the workspace's navy panel is what makes a correct bubble read
-// as muddy. One canvas per platform, so the thread looks like the app it came
-// from before a single bubble is painted.
-const CANVAS = {
-  whatsapp: { dark: "bg-[#0b141a]", light: "bg-[#efeae2]" },
-  messenger: { dark: "bg-[#0a0a0a]", light: "bg-[#ffffff]" },
-  instagram: { dark: "bg-[#000000]", light: "bg-[#ffffff]" },
-  telegram: { dark: "bg-[#0e1621]", light: "bg-[#e6ebee]" },
-  tiktok: { dark: "bg-[#121212]", light: "bg-[#ffffff]" },
-  web: { dark: "", light: "" },
-};
-
-/** The transcript wallpaper for a conversation, as a background class (may be ""). */
-export const platformCanvas = (platform = "web", mode = "dark") =>
-  (CANVAS[platform] || CANVAS.web)[mode === "light" ? "light" : "dark"] || "";
+/** The transcript wallpaper for a conversation (may be "" for web chat). */
+export const platformCanvas = (platform = "web", mode = "dark") => platformChrome(platform, mode).canvas;
 
 /**
  * Which canvas the bubbles are being painted on. The PWA transcript is a light
@@ -245,6 +181,18 @@ export const platformCanvas = (platform = "web", mode = "dark") =>
  */
 export const chromeModeFor = (variant = "desktop", themeMode = "") =>
   variant === "pwa" || String(themeMode).toLowerCase() === "light" ? "light" : "dark";
+
+/** The side of one message, resolved to the values that side is drawn in. */
+export const bubbleSkin = (chrome = {}, side = "in") => {
+  const isIn = side === "in";
+  return {
+    background: isIn ? chrome.inBg : chrome.outBg,
+    ink: isIn ? chrome.inInk : chrome.outInk,
+    meta: isIn ? chrome.inMeta : chrome.outMeta,
+    link: isIn ? chrome.inLink : chrome.outLink,
+    darkInk: Boolean(isIn ? chrome.inDark : chrome.outDark),
+  };
+};
 
 // "1:03 ص" — the only stamp a chat bubble carries. The day it belongs to is the
 // separator above it, exactly as WhatsApp and Messenger do it, so the full

@@ -205,11 +205,12 @@ function ProductCardMessage({
         alt={name}
         loading="lazy"
         decoding="async"
-        className={`aspect-square w-full object-contain ${chrome.cardImageBg}`}
+        style={{ background: chrome.cardImageBg }}
+        className="aspect-square w-full object-contain"
       />
     ) : (
-      <div className={`grid aspect-square w-full place-items-center ${chrome.cardImageBg}`}>
-        <ShoppingBag className={`h-8 w-8 ${chrome.cardMuted}`} />
+      <div style={{ background: chrome.cardImageBg }} className="grid aspect-square w-full place-items-center">
+        <ShoppingBag style={{ color: chrome.cardMuted }} className="h-8 w-8" />
       </div>
     );
 
@@ -217,21 +218,23 @@ function ProductCardMessage({
       return (
         <article
           key={cardKey}
-          className={`${chrome.cardWidth} ${strip ? "shrink-0 snap-start" : ""} overflow-hidden ${chrome.cardRadius} ${chrome.cardSurface} shadow-[0_1px_3px_rgba(0,0,0,0.25)]`}
+          style={{ width: chrome.cardWidth, background: chrome.cardBg, color: chrome.cardInk, borderRadius: chrome.radius }}
+          className={`${strip ? "shrink-0 snap-start" : ""} overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.25)]`}
         >
           {picture}
           <div className="px-3 py-2.5" dir="auto">
-            <p className={`truncate text-[14px] font-semibold leading-5 ${chrome.cardTitle}`}>{name}</p>
-            {subtitle ? <p className={`mt-0.5 truncate text-[12.5px] leading-4 ${chrome.cardMuted}`}>{subtitle}</p> : null}
+            <p style={{ color: chrome.cardInk }} className="truncate text-[14px] font-semibold leading-5">{name}</p>
+            {subtitle ? <p style={{ color: chrome.cardMuted }} className="mt-0.5 truncate text-[12.5px] leading-4">{subtitle}</p> : null}
           </div>
           {storefrontUrl ? (
             <>
-              <span aria-hidden="true" className={`block h-px w-full ${chrome.cardHairline}`} />
+              <span aria-hidden="true" style={{ background: chrome.cardLine }} className="block h-px w-full" />
               <a
                 href={storefrontUrl}
                 target="_blank"
                 rel="noreferrer"
-                className={`block px-3 py-2.5 text-center text-[14px] font-semibold ${chrome.cardAction}`}
+                style={{ color: chrome.cardAction }}
+                className="block px-3 py-2.5 text-center text-[14px] font-semibold"
               >
                 {action}
               </a>
@@ -248,17 +251,18 @@ function ProductCardMessage({
       <div key={cardKey} className={strip ? "w-[190px] shrink-0 snap-start" : "w-full"}>
         <div className="overflow-hidden rounded-[8px]">{picture}</div>
         <div className="px-0.5 pt-1.5" dir="auto">
-          <p className={`text-[14px] font-semibold leading-5 ${chrome.cardTitle}`}>{name}</p>
-          {subtitle ? <p className={`mt-0.5 text-[12.5px] leading-4 ${chrome.cardMuted}`}>{subtitle}</p> : null}
+          <p style={{ color: chrome.cardInk }} className="text-[14px] font-semibold leading-5">{name}</p>
+          {subtitle ? <p style={{ color: chrome.cardMuted }} className="mt-0.5 text-[12.5px] leading-4">{subtitle}</p> : null}
         </div>
         {storefrontUrl ? (
           <>
-            <span aria-hidden="true" className={`my-1.5 block h-px w-full ${chrome.cardHairline}`} />
+            <span aria-hidden="true" style={{ background: chrome.cardLine }} className="my-1.5 block h-px w-full" />
             <a
               href={storefrontUrl}
               target="_blank"
               rel="noreferrer"
-              className={`flex items-center justify-center gap-1.5 py-1 text-[13.5px] font-semibold ${chrome.cardAction}`}
+              style={{ color: chrome.cardAction }}
+              className="flex items-center justify-center gap-1.5 py-1 text-[13.5px] font-semibold"
             >
               <ArrowUpRight className="h-3.5 w-3.5" />
               {action}

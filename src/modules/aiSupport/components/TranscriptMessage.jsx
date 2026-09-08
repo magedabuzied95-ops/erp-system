@@ -8,7 +8,7 @@ import ProductCardMessage from "./ProductCardMessage";
 import MessageMedia, { messageMediaGroups, messageStoryContext } from "./MessageMedia.jsx";
 import DeliveryTicks, { isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
-import { bubbleClock, chromeModeFor, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+import { bubbleClock, bubbleSkin, chromeModeFor, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
 // The context, not the hook: this component also renders in the message
 // previews and the pinned bar, and useTheme throws outside a provider.
 import { ThemeContext } from "../../../theme/themeContext";
@@ -514,7 +514,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   );
 }
 
-function LinkifiedText({ text = "", className = "", linkClassName = "font-black text-cyan-100 decoration-cyan-300/50" }) {
+function LinkifiedText({ text = "", className = "", linkColor = "" }) {
   const value = String(text || "");
   if (!value.trim()) return null;
   const parts = value.split(/(https?:\/\/[^\s]+)/g);
@@ -523,7 +523,7 @@ function LinkifiedText({ text = "", className = "", linkClassName = "font-black 
       {parts.map((part, index) => {
         if (!/^https?:\/\//i.test(part)) return <span key={`${index}-${part.slice(0, 8)}`}>{part}</span>;
         return (
-          <a key={`${index}-${part}`} href={part} target="_blank" rel="noopener noreferrer" className={`underline underline-offset-4 ${linkClassName}`}>
+          <a key={`${index}-${part}`} href={part} target="_blank" rel="noopener noreferrer" style={linkColor ? { color: linkColor } : undefined} className="font-bold underline underline-offset-4 [text-decoration-color:currentColor]">
             {part}
           </a>
         );
@@ -540,15 +540,26 @@ function LinkifiedText({ text = "", className = "", linkClassName = "font-black 
  * channel lives in the colours the bubble is painted in.
  * ------------------------------------------------------------------------- */
 
-function ChatBubble({ chrome, side, flush = false, className = "", children }) {
-  const tone = side === "in" ? chrome.inbound : chrome.outbound;
-  // The tail sits on the top corner nearest the edge the bubble is anchored to.
-  // Logical corners keep that true whichever direction the transcript runs in.
-  const tail = side === "in" ? "rounded-ss-[4px]" : "rounded-se-[4px]";
+// The fill and the ink are inline, not utilities: a brand colour is data, and
+// twice it has been silently lost on the way to production — once to a hex
+// Tailwind never generated a class for, once to the theme layer re-pointing
+// whole colour families with `!important`. Inline survives both.
+function ChatBubble({ skin, radius, side, flush = false, className = "", style = null, children }) {
   return (
     <div
       data-ai-message-bubble="true"
-      className={`relative max-w-full overflow-hidden ${chrome.radius} ${tail} ${tone} ${flush ? "p-[3px]" : "px-2.5 py-1.5"} shadow-[0_1px_2px_rgba(0,0,0,0.22)] ${className}`}
+      style={{
+        ...(style || {}),
+        background: skin.background,
+        color: skin.ink,
+        borderRadius: radius,
+        // The tail sits on the top corner nearest the edge the bubble is anchored
+        // to. Logical corners keep that true whichever direction the transcript
+        // runs in — and they have to be inline too, or the shorthand above (which
+        // is inline, so it outranks any class) would round all four.
+        ...(side === "in" ? { borderStartStartRadius: "4px" } : { borderStartEndRadius: "4px" }),
+      }}
+      className={`relative max-w-full overflow-hidden ${flush ? "p-[3px]" : "px-2.5 py-1.5"} shadow-[0_1px_2px_rgba(0,0,0,0.22)] ${className}`}
     >
       {children}
     </div>
@@ -558,13 +569,13 @@ function ChatBubble({ chrome, side, flush = false, className = "", children }) {
 // The stamp: the time, then the delivery marks, at the bottom-end of the bubble.
 // Over a photo it becomes the same translucent pill the platforms float on the
 // image itself.
-function BubbleStamp({ chrome, side, time, status, showTicks = false, floating = false, leading = null, trailing = null }) {
-  const meta = side === "in" ? chrome.inboundMeta : chrome.outboundMeta;
+function BubbleStamp({ skin, time, status, showTicks = false, floating = false, leading = null, trailing = null }) {
   return (
     <div
+      style={floating ? { background: "rgba(0,0,0,0.55)", color: "rgba(255,255,255,0.9)" } : { color: skin.meta }}
       className={floating
-        ? "absolute bottom-2 end-2 z-10 flex items-center gap-1 rounded-full bg-black/[0.55] px-1.5 py-0.5 text-[10.5px] font-medium leading-4 text-white/90 backdrop-blur-sm"
-        : `mt-0.5 flex items-center justify-end gap-1 text-[10.5px] font-medium leading-4 ${meta}`}
+        ? "absolute bottom-2 end-2 z-10 flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium leading-4 backdrop-blur-sm"
+        : "mt-0.5 flex items-center justify-end gap-1 text-[10.5px] font-medium leading-4"}
     >
       {leading}
       {time ? <span className="tabular-nums">{time}</span> : null}
@@ -786,10 +797,9 @@ function TranscriptMessage({
   // page's: a link, a failure mark and a media player on a WhatsApp-light
   // outgoing bubble are all dark on mint, while the same three on Messenger's
   // blue stay white whichever theme the ERP is in.
-  const darkInk = (side === "in" ? chrome.inboundInk : chrome.outboundInk) === "dark";
-  const mediaTone = darkInk ? "onLight" : "onDark";
-  const linkClass = darkInk ? chrome.linkDarkInk : chrome.linkLightInk;
-  const dangerClass = darkInk ? "text-rose-600" : "text-rose-200";
+  const skin = bubbleSkin(chrome, side);
+  const mediaTone = skin.darkInk ? "onLight" : "onDark";
+  const dangerColor = skin.darkInk ? "#be123c" : "#fecdd3";
   const failed = clean(message.delivery_status).toLowerCase() === "failed";
   const isInternalNote = clean(message.message_type).toLowerCase() === "internal_note";
   const showTicks = side === "out" && !isInternalNote && isTickableDeliveryStatus(message.delivery_status);
@@ -797,12 +807,11 @@ function TranscriptMessage({
 
   const stampFor = (options = {}) => (
     <BubbleStamp
-      chrome={chrome}
-      side={side}
+      skin={skin}
       time={clock}
       status={message.delivery_status}
       showTicks={showTicks}
-      leading={failed ? <span className={`font-black ${dangerClass}`}>!</span> : options.leading || null}
+      leading={failed ? <span style={{ color: dangerColor }} className="font-black">!</span> : options.leading || null}
       trailing={options.trailing || null}
       floating={Boolean(options.floating)}
     />
@@ -852,10 +861,10 @@ function TranscriptMessage({
         {standalone ? (
           <div data-ai-message-bubble="true" className="flex max-w-full flex-col items-end">
             <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
-            <BubbleStamp chrome={chrome} side="out" time={clock} status={message.delivery_status} showTicks={showTicks} />
+            <BubbleStamp skin={skin} time={clock} status={message.delivery_status} showTicks={showTicks} />
           </div>
         ) : (
-          <ChatBubble chrome={chrome} side="out" className={chrome.cardWidth}>
+          <ChatBubble skin={skin} radius={chrome.radius} side="out" style={{ width: chrome.cardWidth }}>
             <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
             {stampFor()}
           </ChatBubble>
@@ -870,9 +879,9 @@ function TranscriptMessage({
     const flush = visualOnly(text);
     return shell(
       <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName} showAvatar={showAvatar}>
-        <ChatBubble chrome={chrome} side="in" flush={flush}>
+        <ChatBubble skin={skin} radius={chrome.radius} side="in" flush={flush}>
           {story ? <StoryContext story={story} variant={variant} /> : null}
-          <LinkifiedText text={text} className={textClass} linkClassName={linkClass} />
+          <LinkifiedText text={text} className={textClass} linkColor={skin.link} />
           {attachments(flush ? "" : "mt-1.5")}
           {stampFor({ floating: flush })}
         </ChatBubble>
@@ -885,11 +894,11 @@ function TranscriptMessage({
     const text = bodyText(message.customer_message || message.message_text || message.text || message.body);
     return shell(
       <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName || commenterName} showAvatar={showAvatar}>
-        <ChatBubble chrome={chrome} side="in">
+        <ChatBubble skin={skin} radius={chrome.radius} side="in">
           {commenterName ? (
-            <div dir="auto" className={`text-[12.5px] font-bold leading-4 ${chrome.cardAction}`}>{commenterName}</div>
+            <div dir="auto" style={{ color: chrome.cardAction }} className="text-[12.5px] font-bold leading-4">{commenterName}</div>
           ) : null}
-          <LinkifiedText text={text} className={`${textClass} ${commenterName ? "mt-0.5" : ""}`} linkClassName={linkClass} />
+          <LinkifiedText text={text} className={`${textClass} ${commenterName ? "mt-0.5" : ""}`} linkColor={skin.link} />
           {attachments()}
           {(message.comment_id && onReplyComment) || (message.commenter_id && onPrivateMessage) ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -953,15 +962,15 @@ function TranscriptMessage({
 
   return shell(
     <ChatRow side="out" align="right" variant={variant}>
-      <ChatBubble chrome={chrome} side="out" flush={flush} className={failed ? "ring-1 ring-rose-400/70" : ""}>
+      <ChatBubble skin={skin} radius={chrome.radius} side="out" flush={flush} className={failed ? "ring-1 ring-rose-400/70" : ""}>
         {authorLabel ? (
-          <div className={`flex items-center gap-1 text-[11.5px] font-bold leading-4 ${chrome.outboundMeta}`}>
+          <div style={{ color: skin.meta }} className="flex items-center gap-1 text-[11.5px] font-bold leading-4">
             <AuthorIcon className="h-3 w-3" />
             {authorLabel}
           </div>
         ) : null}
         {sourceComment ? <div className={authorLabel ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
-        <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkClassName={linkClass} />
+        <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkColor={skin.link} />
         {isAi && message.suggested_products?.length ? (
           <div className="mt-2">
             <ProductCardMessage message={message} cards={message.suggested_products} compact platform={platform} variant={variant} chrome={chrome} />
@@ -971,7 +980,7 @@ function TranscriptMessage({
             separately here painted every AI image twice. */}
         {attachments(flush ? "" : "mt-1.5")}
         {failed && message.delivery_error ? (
-          <p className={`mt-1 text-[11px] font-bold leading-4 ${dangerClass}`}>{message.delivery_error}</p>
+          <p style={{ color: dangerColor }} className="mt-1 text-[11px] font-bold leading-4">{message.delivery_error}</p>
         ) : null}
         {stampFor({ floating: flush, trailing: correctReply })}
       </ChatBubble>

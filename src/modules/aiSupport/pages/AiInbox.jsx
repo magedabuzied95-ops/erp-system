@@ -5432,7 +5432,7 @@ export default function AiInbox({ reviewerMode = false }) {
       ? (selectedConversationThread || visibleConversations[0] || null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
-  const transcriptCanvasClass = platformCanvas(
+  const transcriptCanvas = platformCanvas(
     resolveMessagePlatform({}, selectedConversation?.channel || selectedConversation?.source || ""),
     chromeModeFor("desktop", activeTheme?.mode)
   );
@@ -9392,7 +9392,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     </button>
                   </div>
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
-                    <div ref={transcriptScrollRef} className={`min-h-0 flex-1 overflow-y-auto p-4 ${transcriptCanvasClass}`}>
+                    <div ref={transcriptScrollRef} style={transcriptCanvas ? { background: transcriptCanvas } : undefined} className="min-h-0 flex-1 overflow-y-auto p-4">
                       <Transcript
                         conversation={selectedConversation}
                         rows={selectedTranscriptRows}
@@ -9917,7 +9917,7 @@ export default function AiInbox({ reviewerMode = false }) {
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
-                        <div ref={transcriptScrollRef} className={`min-h-0 flex-1 overflow-y-auto pr-1 ${transcriptCanvasClass}`}>
+                        <div ref={transcriptScrollRef} style={transcriptCanvas ? { background: transcriptCanvas } : undefined} className="min-h-0 flex-1 overflow-y-auto pr-1">
                           <Transcript
                             conversation={selectedConversation}
                             rows={selectedTranscriptRows}
