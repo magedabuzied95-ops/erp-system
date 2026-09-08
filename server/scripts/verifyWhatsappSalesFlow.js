@@ -139,4 +139,22 @@ assert.match(
   "a list that will not send must still reach the customer as text"
 );
 
+// ── 7. An explicit step is never overwritten by carried-forward state ─────────────────────────
+// Callers pass a spread of the previous flow to carry the rest of the state forward, and that
+// object still holds the PREVIOUS step. Spreading it AFTER the explicit fields recorded the
+// address step as awaiting_order_confirmation, so the submitted address found no flow waiting for
+// it and no order was ever created — proven live on WhatsApp before this was fixed.
+for (const [label, source] of [["whatsapp", flowSource], ["meta", metaService]]) {
+  assert.match(
+    source,
+    /delete carried\[field\]/,
+    `${label}: the flow writer must strip the explicit fields out of the carried state`
+  );
+  assert.doesNotMatch(
+    source,
+    /step: text\(step\),\r?\n\s*source: \w+,\r?\n\s*\.\.\./,
+    `${label}: carried state must not be spread after the explicit fields`
+  );
+}
+
 console.log("whatsapp sales flow OK");

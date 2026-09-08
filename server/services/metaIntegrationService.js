@@ -16946,13 +16946,22 @@ const persistSocialCommentSalesFlowState = async ({
     activeColor: text(selectedColor),
     last_selected_size: text(selectedSize),
     last_selected_color: text(selectedColor),
+    // The ARGUMENTS win over `extra`. Several callers pass `extra: { ...salesFlow }` to carry the
+    // rest of the state forward, and that object still holds the PREVIOUS step — spreading it last
+    // silently overwrote the step being set. Proven on WhatsApp: the address step was recorded as
+    // `awaiting_order_confirmation`, so the submitted address found no flow waiting for it and no
+    // order was created. Same shape here, same fix.
     sales_flow: {
+      ...(() => {
+        const carried = (extra && typeof extra === "object" && !Array.isArray(extra)) ? { ...extra } : {};
+        for (const field of ["product_id", "selected_size", "selected_color", "step", "source"]) delete carried[field];
+        return carried;
+      })(),
       product_id: Number(productId || 0) || null,
       selected_size: text(selectedSize),
       selected_color: text(selectedColor) || null,
       step: text(step),
       source: SOCIAL_COMMENT_SALES_FLOW_SOURCE,
-      ...((extra && typeof extra === "object" && !Array.isArray(extra)) ? extra : {}),
     },
   });
   persistAiConversationMemory({

@@ -49,18 +49,27 @@ const salesFlowFromMemory = (conversationId = "") => {
   return { memory, flow, step: text(flow.step || "") };
 };
 
+// The fields named as ARGUMENTS always win over `extra`. Callers pass `extra: { ...flow }` to
+// carry the rest of the state forward, and `flow` still holds the PREVIOUS step — spreading it
+// last silently overwrote the step being set. That is what left the address step recorded as
+// `awaiting_order_confirmation`, so the submitted address found no flow waiting for it and the
+// order was never created.
+const EXPLICIT_FLOW_FIELDS = ["product_id", "selected_size", "selected_color", "step", "source"];
+
 const persistFlow = ({ conversationId, productId, selectedSize = "", selectedColor = "", step = "", extra = {} }) => {
   if (!conversationId) return;
+  const carried = extra && typeof extra === "object" && !Array.isArray(extra) ? { ...extra } : {};
+  for (const field of EXPLICIT_FLOW_FIELDS) delete carried[field];
   updateConversationMemory(conversationId, {
     selectedSize: text(selectedSize),
     selectedColor: text(selectedColor),
     sales_flow: {
+      ...carried,
       product_id: Number(productId || 0) || null,
       selected_size: text(selectedSize),
       selected_color: text(selectedColor) || null,
       step: text(step),
       source: WHATSAPP_SALES_FLOW_SOURCE,
-      ...(extra && typeof extra === "object" && !Array.isArray(extra) ? extra : {}),
     },
   });
   console.log("WHATSAPP_SALES_FLOW_STATE", {
