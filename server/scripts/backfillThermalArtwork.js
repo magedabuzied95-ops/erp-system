@@ -1,297 +1,262 @@
+/**
+ * Draw the thermal label artwork for the whole catalogue.
+ *
+ * One drawing per product colour (the label prints the colour, not the size
+ * row), newest product first so the shelves that are being labelled today get
+ * their artwork before last year's stock. The run is resumable: every colour
+ * is marked ready the moment its file is written, and a re-run with the same
+ * `--refresh-before` skips what is already done, so a container restart in
+ * the middle costs at most the colour that was in flight.
+ *
+ *   node server/scripts/backfillThermalArtwork.js [--refresh-before=<ISO time>] [--limit=<n>] [--dry-run]
+ *
+ * Without `--refresh-before` only colours with no artwork are drawn. With it,
+ * artwork drawn before that moment is redrawn as well — the way to move the
+ * catalogue onto a new version of the engine without touching the colours
+ * the owner already approved.
+ */
 import process from "node:process";
 
 import db from "../database/db.js";
 import { generateThermalArtwork } from "../services/thermalArtworkService.js";
 import { syncThermalImageToVariantGroup } from "../services/thermalColorJobPlanner.js";
 
-const DEFAULT_BATCH_SIZE = 25;
-const MAX_BATCH_SIZE = 50;
+const argValue = (name) => {
+  const arg = process.argv.find((entry) => entry.startsWith(`--${name}=`));
+  return arg ? arg.slice(name.length + 3) : "";
+};
+const hasFlag = (name) => process.argv.includes(`--${name}`);
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-const parseBatchSize = () => {
-  const cliArg = process.argv.find((arg) => arg.startsWith("--batch-size="));
-  const envValue = process.env.THERMAL_BACKFILL_BATCH_SIZE;
-  const raw = cliArg ? cliArg.split("=").slice(1).join("=") : envValue;
-  const parsed = Number(raw || DEFAULT_BATCH_SIZE);
-  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_BATCH_SIZE;
-  return clamp(Math.round(parsed), 1, MAX_BATCH_SIZE);
+export const parseRefreshBefore = (raw) => {
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`--refresh-before is not a date: ${raw}`);
+  return parsed.toISOString();
 };
 
-const batchSize = parseBatchSize();
+const refreshBefore = parseRefreshBefore(argValue("refresh-before") || process.env.THERMAL_BACKFILL_REFRESH_BEFORE || "");
+const limit = Math.max(0, Number(argValue("limit") || process.env.THERMAL_BACKFILL_LIMIT || 0) || 0);
+const dryRun = hasFlag("dry-run");
 
-const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
+// The colour's photo: the colour's primary gallery image, else the row's own.
+const COLOUR_IMAGE_SQL = "COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''))";
+const COLOUR_KEY_SQL = "LOWER(TRIM(COALESCE(v.color, '')))";
+const ROW_READY_SQL =
+  "LOWER(COALESCE(NULLIF(v.thermal_image_status, ''), 'pending')) = 'ready' AND COALESCE(NULLIF(v.thermal_image_url, ''), '') <> ''";
+const PRODUCT_READY_SQL =
+  "LOWER(COALESCE(NULLIF(p.thermal_image_status, ''), 'pending')) = 'ready' AND COALESCE(NULLIF(p.thermal_image_url, ''), '') <> ''";
 
-const countCandidates = async (tableName) => {
-  if (tableName === "product_variants") {
-    const result = await db.query(
-      `
-      SELECT COUNT(*)::int AS count
-      FROM (
-        SELECT
-          v.product_id,
-          LOWER(TRIM(COALESCE(v.color, ''))) AS color_key,
-          COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) AS primary_image_url
-        FROM product_variants v
-        LEFT JOIN LATERAL (
-          SELECT pvi.image_url
-          FROM product_variant_images pvi
-          WHERE pvi.product_id = v.product_id
-            AND LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
-          ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
-          LIMIT 1
-        ) pvi ON TRUE
-        WHERE COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) IS NOT NULL
-        GROUP BY v.product_id, color_key, primary_image_url
-        HAVING NOT BOOL_OR(
-          LOWER(COALESCE(NULLIF(v.thermal_image_status, ''), 'pending')) = 'ready'
-          AND COALESCE(
-            NULLIF(v.thermal_image_url, ''),
-            NULLIF(v.variant_color_thermal_image_url, ''),
-            NULLIF(v.color_thermal_image_url, ''),
-            NULLIF(v.product_thermal_image_url, '')
-          ) <> ''
-        )
-      ) grouped
-      `
-    );
-    return Number(result.rows[0]?.count || 0);
-  }
-  const result = await db.query(
-    `
-    SELECT COUNT(*)::int AS count
-    FROM ${tableName}
-    WHERE COALESCE(NULLIF(image_url, ''), '') <> ''
-      AND (
-        COALESCE(NULLIF(thermal_image_url, ''), '') = ''
-        OR LOWER(COALESCE(NULLIF(thermal_image_status, ''), 'pending')) <> 'ready'
-      )
-    `
-  );
+/**
+ * "Done" means ready artwork that is new enough. Without a cutoff any ready
+ * artwork counts; with one, only artwork generated at or after it. Artwork
+ * from before the column existed has no timestamp: it is old, not unknown,
+ * so the comparison must read false rather than NULL — a NULL inside
+ * BOOL_OR would make the whole colour vanish from the queue.
+ */
+export const doneClause = (readySql, generatedAtSql, cutoff = refreshBefore) =>
+  cutoff ? `(${readySql} AND COALESCE(${generatedAtSql} >= $1::timestamptz, false))` : `(${readySql})`;
 
-  return Number(result.rows[0]?.count || 0);
-};
+const cutoffParams = () => (refreshBefore ? [refreshBefore] : []);
 
-const fetchProductBatch = async (lastId = 0) => {
-  const result = await db.query(
-    `
-    SELECT id, tenant_id, name, image_url, thermal_image_url, thermal_image_status
-    FROM products
-    WHERE id > $1
-      AND COALESCE(NULLIF(image_url, ''), '') <> ''
-      AND (
-        COALESCE(NULLIF(thermal_image_url, ''), '') = ''
-        OR LOWER(COALESCE(NULLIF(thermal_image_status, ''), 'pending')) <> 'ready'
-      )
-    ORDER BY id ASC
-    LIMIT $2
-    `,
-    [lastId, batchSize]
-  );
-
-  return result.rows;
-};
-
-const fetchVariantBatch = async (lastId = 0) => {
-  const result = await db.query(
-    `
+export const colourQueueSql = (cutoff = refreshBefore) => `
     SELECT
       v.product_id,
-      v.tenant_id,
-      p.name AS product_name,
-      LOWER(TRIM(COALESCE(v.color, ''))) AS color_key,
-      COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) AS primary_image_url,
-      MIN(v.id) AS id,
+      MAX(v.tenant_id) AS tenant_id,
+      MAX(p.name) AS product_name,
+      MAX(v.color) AS color,
+      ${COLOUR_KEY_SQL} AS color_key,
+      ${COLOUR_IMAGE_SQL} AS primary_image_url,
       ARRAY_AGG(v.id ORDER BY v.id ASC) AS variant_ids,
       MIN(v.id) AS representative_variant_id,
-      MAX(COALESCE(NULLIF(v.thermal_image_url, ''), NULLIF(v.variant_color_thermal_image_url, ''), NULLIF(v.color_thermal_image_url, ''), NULLIF(v.product_thermal_image_url, ''))) AS existing_thermal_url
+      MAX(v.thermal_image_url) FILTER (WHERE ${ROW_READY_SQL}) AS existing_thermal_url,
+      MAX(v.thermal_image_generated_at) AS generated_at,
+      MAX(p.created_at) AS product_created_at
     FROM product_variants v
-    LEFT JOIN products p ON p.id = v.product_id
+    JOIN products p ON p.id = v.product_id
     LEFT JOIN LATERAL (
       SELECT pvi.image_url
       FROM product_variant_images pvi
       WHERE pvi.product_id = v.product_id
-        AND LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
+        AND LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) = ${COLOUR_KEY_SQL}
+        AND COALESCE(NULLIF(pvi.image_url, ''), '') <> ''
       ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
       LIMIT 1
     ) pvi ON TRUE
-    WHERE v.id > $1
-      AND COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) IS NOT NULL
-    GROUP BY v.product_id, v.tenant_id, p.name, color_key, primary_image_url
-    HAVING NOT BOOL_OR(
-      LOWER(COALESCE(NULLIF(v.thermal_image_status, ''), 'pending')) = 'ready'
-      AND COALESCE(
-        NULLIF(v.thermal_image_url, ''),
-        NULLIF(v.variant_color_thermal_image_url, ''),
-        NULLIF(v.color_thermal_image_url, ''),
-        NULLIF(v.product_thermal_image_url, '')
-      ) <> ''
-    )
-    ORDER BY MIN(v.id) ASC
-    LIMIT $2
-    `,
-    [lastId, batchSize]
-  );
+    WHERE ${COLOUR_IMAGE_SQL} IS NOT NULL
+    GROUP BY v.product_id, color_key, primary_image_url
+    HAVING NOT BOOL_OR(${doneClause(ROW_READY_SQL, "v.thermal_image_generated_at", cutoff)})
+    ORDER BY MAX(p.created_at) DESC, v.product_id DESC, color_key ASC
+`;
 
+export const fetchColourQueue = async () => {
+  const result = await db.query(colourQueueSql(), cutoffParams());
   return result.rows;
 };
 
-const processBatch = async ({ entityType, rows, counters }) => {
-  const batchRows = rows;
-  for (const row of batchRows) {
-    try {
-      if (entityType === "variant" && row.existing_thermal_url) {
-        counters.cached += 1;
-        console.log("THERMAL_COLOR_JOB_SKIPPED_EXISTING", {
-          entityType,
-          productId: row.product_id || null,
-          color: row.color || row.color_key || "",
-          sourceImageUrl: row.primary_image_url || "",
-          thermalImageUrl: row.existing_thermal_url,
-          variantIds: row.variant_ids || [],
-        });
-        await syncThermalImageToVariantGroup({
-          productId: row.product_id || null,
-          tenantId: row.tenant_id,
-          variantIds: row.variant_ids || [],
-          thermalImageUrl: row.existing_thermal_url,
-          thermalImageStatus: "ready",
-          thermalImageGeneratedAt: new Date().toISOString(),
-        });
-      } else {
-        const result = await generateThermalArtwork({
-          entityType,
-          tenantId: row.tenant_id,
-          productId: entityType === "variant" ? row.product_id : row.id,
-          variantId: entityType === "variant" ? row.representative_variant_id || row.id : null,
-          sourceImageUrl: row.primary_image_url || row.image_url || "",
-          existingThermalImageUrl: row.existing_thermal_url || row.thermal_image_url || "",
-          regenerate: false,
-          productName:
-            entityType === "variant"
-              ? row.product_name || row.color || row.sku || row.article_code || `variant-${row.representative_variant_id || row.id}`
-              : row.name || `product-${row.id}`,
-        });
+/**
+ * Product-level artwork only matters where no colour carries a photo (a
+ * simple product, or one whose photos live on the product alone); everywhere
+ * else the label reads the colour's artwork, and drawing the product as well
+ * would double the run for nothing.
+ */
+export const productQueueSql = (cutoff = refreshBefore) => `
+    SELECT p.id, p.tenant_id, p.name, p.image_url, p.thermal_image_url, p.created_at
+    FROM products p
+    WHERE COALESCE(NULLIF(p.image_url, ''), '') <> ''
+      AND NOT ${doneClause(PRODUCT_READY_SQL, "p.thermal_image_generated_at", cutoff)}
+      AND NOT EXISTS (
+        SELECT 1
+        FROM product_variants v
+        LEFT JOIN product_variant_images pvi
+          ON pvi.product_id = v.product_id
+         AND LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) = ${COLOUR_KEY_SQL}
+        WHERE v.product_id = p.id
+          AND ${COLOUR_IMAGE_SQL} IS NOT NULL
+      )
+    ORDER BY p.created_at DESC, p.id DESC
+`;
 
-        if (result?.success) {
-          if (result?.cached) {
-            counters.cached += 1;
-          } else {
-            counters.generated += 1;
-          }
-          if (entityType === "variant" && result?.thermal_image_url) {
-            await syncThermalImageToVariantGroup({
-              productId: row.product_id,
-              tenantId: row.tenant_id,
-              variantIds: row.variant_ids || [row.representative_variant_id || row.id],
-              thermalImageUrl: result.thermal_image_url,
-              thermalImageStatus: "ready",
-              thermalImageGeneratedAt: new Date().toISOString(),
-            });
-          }
-        } else {
-          counters.failed += 1;
-          console.error("THERMAL_BACKFILL_ITEM_FAILED", {
-            entityType,
-            id: row.id,
-            productId: entityType === "variant" ? row.product_id : row.id,
-            tenantId: row.tenant_id,
-            message: result?.error || "Thermal generation returned failure",
-          });
-        }
-      }
+export const fetchProductQueue = async () => {
+  const result = await db.query(productQueueSql(), cutoffParams());
+  return result.rows;
+};
+
+const formatDuration = (ms) => {
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 90) return `${minutes} min`;
+  return `${(minutes / 60).toFixed(1)} h`;
+};
+
+const drawColour = async (row) => {
+  const result = await generateThermalArtwork({
+    entityType: "variant",
+    tenantId: row.tenant_id,
+    productId: row.product_id,
+    variantId: row.representative_variant_id,
+    sourceImageUrl: row.primary_image_url,
+    existingThermalImageUrl: "",
+    // Old artwork is being replaced, so the cached file under the old key
+    // must not be served back.
+    regenerate: Boolean(row.existing_thermal_url),
+    productName: row.product_name || row.color || `variant-${row.representative_variant_id}`,
+  });
+  if (!result?.success || !result?.thermal_image_url) {
+    throw new Error(result?.error || "Thermal generation returned failure");
+  }
+  await syncThermalImageToVariantGroup({
+    productId: row.product_id,
+    tenantId: row.tenant_id,
+    variantIds: row.variant_ids || [row.representative_variant_id],
+    thermalImageUrl: result.thermal_image_url,
+    thermalImageStatus: "ready",
+    thermalImageGeneratedAt: new Date().toISOString(),
+  });
+  return result;
+};
+
+const drawProduct = async (row) => {
+  const result = await generateThermalArtwork({
+    entityType: "product",
+    tenantId: row.tenant_id,
+    productId: row.id,
+    sourceImageUrl: row.image_url,
+    existingThermalImageUrl: "",
+    regenerate: Boolean(row.thermal_image_url),
+    productName: row.name || `product-${row.id}`,
+  });
+  if (!result?.success || !result?.thermal_image_url) {
+    throw new Error(result?.error || "Thermal generation returned failure");
+  }
+  return result;
+};
+
+const runQueue = async ({ entityType, rows, draw, describe, counters, startedAt, totalPlanned }) => {
+  for (const row of rows) {
+    if (limit && counters.processed >= limit) break;
+    const label = describe(row);
+    const itemStarted = Date.now();
+    if (dryRun) {
+      console.log("THERMAL_BACKFILL_WOULD_DRAW", { entityType, ...label });
+      counters.processed += 1;
+      continue;
+    }
+    try {
+      const result = await draw(row);
+      counters[result?.cached ? "cached" : "generated"] += 1;
+      console.log("THERMAL_BACKFILL_ITEM_DONE", {
+        entityType,
+        ...label,
+        thermalImageUrl: result.thermal_image_url,
+        cached: Boolean(result?.cached),
+        ms: Date.now() - itemStarted,
+      });
     } catch (error) {
       counters.failed += 1;
-      console.error("THERMAL_BACKFILL_ITEM_FAILED", {
-        entityType,
-        id: row.id,
-        productId: entityType === "variant" ? row.product_id : row.id,
-        tenantId: row.tenant_id,
-        message: error?.message,
-        stack: error?.stack,
-      });
+      console.error("THERMAL_BACKFILL_ITEM_FAILED", { entityType, ...label, message: error?.message });
     } finally {
       counters.processed += 1;
+      const elapsed = Date.now() - startedAt;
+      const perItem = elapsed / counters.processed;
+      console.log("THERMAL_BACKFILL_PROGRESS", {
+        processed: counters.processed,
+        total: totalPlanned,
+        generated: counters.generated,
+        cached: counters.cached,
+        failed: counters.failed,
+        elapsed: formatDuration(elapsed),
+        eta: formatDuration(perItem * Math.max(0, totalPlanned - counters.processed)),
+      });
     }
   }
 };
 
-const runEntityBackfill = async ({ entityType, fetchBatch, total }) => {
-  const counters = {
-    processed: 0,
-    generated: 0,
-    cached: 0,
-    failed: 0,
-  };
-
-  let lastId = 0;
-  while (true) {
-    const rows = await fetchBatch(lastId);
-    if (!rows.length) break;
-
-    await processBatch({ entityType, rows, counters });
-    lastId = rows[rows.length - 1].id;
-
-    console.log("THERMAL_BACKFILL_PROGRESS", {
-      entityType,
-      processed: counters.processed,
-      total,
-      generated: counters.generated,
-      cached: counters.cached,
-      failed: counters.failed,
-      batchSize,
-      lastId,
-    });
-
-    await sleep(0);
-  }
-
-  return counters;
-};
-
 const main = async () => {
   const startedAt = Date.now();
-  const [productsTotal, variantsTotal] = await Promise.all([
-    countCandidates("products"),
-    countCandidates("product_variants"),
-  ]);
-
+  const [colours, products] = await Promise.all([fetchColourQueue(), fetchProductQueue()]);
+  const totalPlanned = limit ? Math.min(limit, colours.length + products.length) : colours.length + products.length;
   console.log("THERMAL_BACKFILL_STARTED", {
-    batchSize,
-    productsTotal,
-    variantsTotal,
-    total: productsTotal + variantsTotal,
+    refreshBefore,
+    limit: limit || null,
+    dryRun,
+    colours: colours.length,
+    products: products.length,
+    redraws: colours.filter((row) => row.existing_thermal_url).length + products.filter((row) => row.thermal_image_url).length,
+    first: colours[0] ? { productId: colours[0].product_id, name: colours[0].product_name, color: colours[0].color } : null,
     startedAt: new Date(startedAt).toISOString(),
   });
 
-  const productCounters = await runEntityBackfill({
-    entityType: "product",
-    fetchBatch: fetchProductBatch,
-    total: productsTotal,
-  });
-
-  const variantCounters = await runEntityBackfill({
+  const counters = { processed: 0, generated: 0, cached: 0, failed: 0 };
+  await runQueue({
     entityType: "variant",
-    fetchBatch: fetchVariantBatch,
-    total: variantsTotal,
+    rows: colours,
+    draw: drawColour,
+    describe: (row) => ({ productId: row.product_id, name: row.product_name, color: row.color, variantId: row.representative_variant_id }),
+    counters,
+    startedAt,
+    totalPlanned,
+  });
+  await runQueue({
+    entityType: "product",
+    rows: products,
+    draw: drawProduct,
+    describe: (row) => ({ productId: row.id, name: row.name }),
+    counters,
+    startedAt,
+    totalPlanned,
   });
 
-  console.log("THERMAL_BACKFILL_COMPLETED", {
-    batchSize,
-    products: productCounters,
-    variants: variantCounters,
-    totalProcessed: productCounters.processed + variantCounters.processed,
-    totalGenerated: productCounters.generated + variantCounters.generated,
-    totalCached: productCounters.cached + variantCounters.cached,
-    totalFailed: productCounters.failed + variantCounters.failed,
-    durationMs: Date.now() - startedAt,
-  });
+  console.log("THERMAL_BACKFILL_COMPLETED", { ...counters, durationMs: Date.now() - startedAt });
+  // What is still missing after this pass: failures, or rows added while it ran.
+  const [coloursLeft, productsLeft] = await Promise.all([fetchColourQueue(), fetchProductQueue()]);
+  console.log("THERMAL_BACKFILL_REMAINING", { colours: coloursLeft.length, products: productsLeft.length });
 };
 
-main().catch((error) => {
-  console.error("THERMAL_BACKFILL_FATAL", {
-    message: error?.message,
-    stack: error?.stack,
-  });
-  process.exitCode = 1;
-});
+const invokedDirectly = Boolean(process.argv[1]) && /backfillThermalArtwork\.js$/.test(process.argv[1]);
+if (invokedDirectly) {
+  main()
+    .then(() => process.exit(process.exitCode || 0))
+    .catch((error) => {
+      console.error("THERMAL_BACKFILL_FATAL", { message: error?.message, stack: error?.stack });
+      process.exit(1);
+    });
+}
