@@ -84,6 +84,7 @@ import { resolveProductImageUrl } from "../shared/lib/imageUrls";
 import {
   buildCrocsStorefrontSizeOptions,
   compareCrocsSizes,
+  crocsSizeKey,
   isCrocsProduct,
   isKnownCrocsSize,
   resolveCrocsEuSize,
@@ -4231,9 +4232,16 @@ const productHasAvailableSize = (product = {}, size = "") => {
   const target = String(size || "").trim().toLowerCase();
   if (!target) return true;
   const crocsProduct = isCrocsProduct(product);
-  return (Array.isArray(product.variants) ? product.variants : []).some((variant) =>
-    String(crocsProduct ? resolveCrocsEuSize(variant?.size) : variant?.size || "").trim().toLowerCase() === target && variantHasStock(variant)
-  );
+  // The chips show the EU label while inventory keeps the factory marking, so a
+  // Crocs size can arrive either way — an AI-inbox link carries C8 / M7/W9, the
+  // customer's own click carries 24/25. Both have to reach the same variant.
+  const crocsTarget = crocsProduct ? crocsSizeKey(resolveCrocsEuSize(size)) : "";
+  return (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
+    if (!variantHasStock(variant)) return false;
+    const originalSize = String(variant?.size || "").trim().toLowerCase();
+    if (!crocsProduct) return originalSize === target;
+    return originalSize === target || crocsSizeKey(resolveCrocsEuSize(variant?.size)) === crocsTarget;
+  });
 };
 
 const compareAvailableSizeOptions = (a, b) => {

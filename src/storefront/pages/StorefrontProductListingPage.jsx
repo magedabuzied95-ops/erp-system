@@ -37,6 +37,7 @@ import {
   prefetchStorefrontProducts,
   normalizeFilterKey,
 } from "../Storefront";
+import { resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
 import { Baby, Briefcase, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
@@ -542,12 +543,22 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const gender = seoCategory?.apiFilters?.gender || normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
   const backendSearchTerm = searchGender ? "" : q;
   const size = params.get("size") || "";
-  const selectedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
+  const requestedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
   const color = params.get("color") || "";
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
   const productType = seoCategory?.apiFilters?.product_type || normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
   const isCrocsListing = normalizeStorefrontProductTypeValue(productType) === "crocs";
+  // A Crocs link minted anywhere else in the business carries the factory
+  // marking (?size=C8, ?size=M7/W9) because that is the variant identity, while
+  // this listing speaks EU labels. Fold the alias on the way in so the link
+  // lands on products and the matching chip reads as selected.
+  const selectedSizes = useMemo(
+    () => (isCrocsListing
+      ? [...new Set(requestedSizes.map((value) => resolveCrocsEuSize(value)).filter(Boolean))]
+      : requestedSizes),
+    [isCrocsListing, requestedSizes]
+  );
   const bagType = normalizeFilterKey(params.get("bag_type") || "");
   const selectedType = productType || "";
   const grade = params.get("grade") || "";
@@ -1077,12 +1088,16 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     ["q", "brand", "gender", "category", "product_type", "type", "style", "grade", "quality", "color", "size", "sizes", "min_price", "max_price", "inStock", "sale", "offer_story", "offerStory", "lastSizes", "last_sizes", "sort"].forEach((field) => next.delete(field));
     return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
+  // On a Crocs listing every size in the URL is folded to its EU label first,
+  // so a factory marking that arrived in a shared link and a chip the customer
+  // taps are the same entry instead of two.
+  const listingSizeKey = (value) => normalizeFilterKey(isCrocsListing ? resolveCrocsEuSize(value) : value);
   const toggleSizeValue = (value) => {
     const nextValue = normalizeFilterText(value);
     if (!nextValue) return;
     setSearchParam((next) => {
-      const current = new Set(readMultiQueryValues(next, ["size", "sizes"]).map(normalizeFilterKey));
-      const normalized = normalizeFilterKey(nextValue);
+      const current = new Set(readMultiQueryValues(next, ["size", "sizes"]).map(listingSizeKey));
+      const normalized = listingSizeKey(nextValue);
       if (current.has(normalized)) current.delete(normalized);
       else current.add(normalized);
       writeMultiQueryValues(next, "size", Array.from(current));
@@ -1224,8 +1239,8 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
             return;
           }
           if (field === "size") {
-            const current = new Set(readMultiQueryValues(next, ["size", "sizes"]).map(normalizeFilterKey));
-            current.delete(normalizeFilterKey(value));
+            const current = new Set(readMultiQueryValues(next, ["size", "sizes"]).map(listingSizeKey));
+            current.delete(listingSizeKey(value));
             if (current.size) writeMultiQueryValues(next, "size", Array.from(current));
             else next.delete("size");
             next.delete("sizes");

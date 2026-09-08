@@ -1,3 +1,5 @@
+import { isKnownCrocsSize, resolveCrocsEuSize } from "../../../shared/lib/crocsSizes.js";
+
 const clean = (value = "") => String(value ?? "").trim();
 
 const CANONICAL_STOREFRONT_ORIGIN = "https://m1store-egy.com";
@@ -73,10 +75,20 @@ export const buildAvailableProductsUrl = ({
   return `${resolvePublicStorefrontOrigin()}${path}`;
 };
 
+// The link keeps the factory marking the warehouse uses (C8, M7/W9) because
+// that is the variant identity, but the storefront prints the EU label on the
+// card. Saying both spares the customer a "where is C8?" round trip.
+const sizeTextWithCrocsAlias = (size = "") => {
+  const text = clean(size);
+  if (!text || !isKnownCrocsSize(text)) return text;
+  const eu = resolveCrocsEuSize(text);
+  return !eu || eu.toLowerCase() === text.toLowerCase() ? text : `${text} (${eu})`;
+};
+
 export const buildAvailableProductsMessage = (filters = {}, url = "") => {
   const sizes = normalizeSizes(filters.sizes);
   const sizeLabel = sizes.length > 1 ? "المقاسات" : "المقاس";
-  const sizeText = sizes.length ? sizes.join("، ") : "";
+  const sizeText = sizes.length ? sizes.map(sizeTextWithCrocsAlias).join("، ") : "";
   const selectedFilters = uniqueTextValues([
     // The customer reads this line, so prefer the label the picker showed
     // ("رجالي", "مستورد فيتنامي") over the slug that goes in the URL.
