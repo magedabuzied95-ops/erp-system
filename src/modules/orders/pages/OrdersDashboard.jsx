@@ -1546,7 +1546,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
     <div className="mt-3 w-full min-w-0 overflow-x-auto overflow-y-visible pb-2">
       <div className="min-w-[1520px] overflow-visible">
         <div
-          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,14rem)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem_minmax(0,1fr)] rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
+          className="sticky top-0 z-20 grid grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.4fr)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_minmax(7.5rem,1.2fr)_minmax(5.5rem,1fr)_minmax(7rem,1.2fr)] rounded-[var(--radius-control)] border border-border bg-surface px-3 py-2 text-[10px] uppercase tracking-[0.16em] text-text-muted shadow-lg shadow-black/20 backdrop-blur-xl"
           dir={tableDir}
         >
           <div className="flex items-center justify-center py-1 text-center">{t("orders.table.actions")}</div>
@@ -1576,7 +1576,7 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") openOrder(order);
                 }}
-                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,14rem)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_7rem_5.5rem_5.5rem_minmax(0,1fr)] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-surface-hover hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
+                className={`relative z-0 grid cursor-pointer grid-cols-[4rem_8rem_7.5rem_minmax(9rem,1.4fr)_10.5rem_4.5rem_9rem_6.5rem_6.5rem_6.5rem_minmax(7.5rem,1.2fr)_minmax(5.5rem,1fr)_minmax(7rem,1.2fr)] items-center overflow-visible rounded-[var(--radius-card)] border px-3 py-2 shadow-xl transition-all duration-200 ease-out hover:z-10 hover:border-primary/30 hover:bg-surface-hover hover:shadow-2xl hover:shadow-primary/10 ${priority.className} ${selectedIds.includes(order.id) || String(activeOrderId) === String(order.id) ? "ring-1 ring-primary/35" : ""}`}
                 dir={tableDir}
               >
                 <RowMenu t={t} order={order} openOrder={openOrder} editOrder={editOrder} cancelOrder={cancelOrder} archiveOrder={archiveOrder} permanentDeleteOrder={permanentDeleteOrder} navigate={navigate} openMenuId={openMenuId} setOpenMenuId={setOpenMenuId} />
@@ -1593,8 +1593,8 @@ function TableView({ t, language, orders, selectedIds, toggleSelected, openOrder
                 <PaidAmountCell order={order} />
                 <DueAmountCell order={order} />
                 <SellerCell order={order} />
-                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-text-muted"><span className="truncate">{order.branch || "-"}</span></div>
-                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-text-muted"><span className="truncate">{getPosDisplay(order) || "-"}</span></div>
+                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-text-muted"><span className="truncate" title={order.branch || "-"}>{order.branch || "-"}</span></div>
+                <div className="flex min-w-0 items-center justify-center px-2 text-center text-xs font-medium text-text-muted"><span className="truncate" title={getPosDisplay(order) || "-"}>{getPosDisplay(order) || "-"}</span></div>
               </div>
             );
           })}
@@ -2024,7 +2024,7 @@ function CustomerCell({ t, order }) {
   const attribution = getAttributionLabel(order);
   return (
     <div className="table-cell-stack px-2">
-      <div className="truncate text-sm font-semibold text-text" title={getCustomerPhone(order)}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
+      <div className="truncate text-sm font-semibold text-text" title={getCustomerDisplayName(order, t("orders.fallback.customer"))}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap items-center justify-center gap-1">
         <ConfirmationBadge order={order} />
         {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{attribution}</div> : null}
