@@ -865,6 +865,42 @@ const channelEnvEnabled = (channel) => {
   return whatsappEnabled();
 };
 
+/*
+ * Whether the Cloud webhook may write inbound messages for this tenant.
+ *
+ * Meta keeps delivering to the app-level webhook long after a number is disconnected in the ERP,
+ * and on a Coexistence number Evolution is receiving the very same messages. Ingesting both is
+ * what doubled every WhatsApp conversation, so the integration row is the authority: only a
+ * CONNECTED Cloud number may write.
+ *
+ * No row at all means no Cloud integration was ever set up, and inbound is refused for the same
+ * reason. A read failure is deliberately treated as "allowed" — losing messages because a
+ * SELECT failed is far worse than a duplicate.
+ */
+const isWhatsappCloudIngestionAllowed = async ({ tenantId, phoneNumberId = "" } = {}) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT status, phone_number_id
+      FROM whatsapp_cloud_integrations
+      WHERE tenant_id = $1
+        AND ($2::text = '' OR phone_number_id = $2::text)
+      ORDER BY updated_at DESC
+      LIMIT 1
+      `,
+      [tenantId, String(phoneNumberId || "")]
+    );
+    const row = result.rows?.[0];
+    if (!row) return { allowed: false, reason: "cloud_integration_not_configured" };
+    const status = String(row.status || "").trim().toLowerCase();
+    if (status !== "connected") return { allowed: false, reason: `cloud_integration_${status || "unknown"}` };
+    return { allowed: true, reason: "connected" };
+  } catch (error) {
+    console.warn("[whatsapp:cloud-ingest-gate-failed]", { tenant_id: tenantId, message: error?.message || String(error) });
+    return { allowed: true, reason: "gate_unavailable" };
+  }
+};
+
 const resolveWhatsappTenantId = async (req, metadata = {}) => {
   const explicit = Number(req.query?.tenant_id || req.body?.tenant_id || metadata?.tenant_id);
   if (Number.isFinite(explicit) && explicit > 0) return Math.trunc(explicit);
@@ -1600,6 +1636,29 @@ export const handleWhatsappCloudWebhookRequest = async (req, res) => {
     const metadata = req.body?.entry?.[0]?.changes?.[0]?.value?.metadata || {};
     const tenantId = await resolveWhatsappTenantId(req, metadata);
     if (!tenantId) return res.status(400).json({ success: false, message: "A valid tenant id is required" });
+    /*
+     * A DISCONNECTED Cloud integration must not ingest. This number runs WhatsApp Coexistence —
+     * the same line on the Business App and on Cloud API at once — so every inbound message
+     * arrives TWICE: once here as a `wamid.…` and once through Evolution as the bare provider id
+     * that wamid is built from. Two different ids means neither dedupe key matches the other, so
+     * both were written and the whole conversation came out doubled.
+     *
+     * The integration row already said status='disconnected' and webhook_subscribed=false; this
+     * path simply never read it. Status updates are still accepted — a delivery receipt for a
+     * message we really did send through Cloud must still land.
+     */
+    const cloudIngestAllowed = await isWhatsappCloudIngestionAllowed({
+      tenantId,
+      phoneNumberId: String(metadata?.phone_number_id || ""),
+    });
+    if (!cloudIngestAllowed.allowed && !hasStatuses) {
+      console.info("[whatsapp:cloud-inbound-skipped]", {
+        tenant_id: tenantId,
+        phone_number_id: String(metadata?.phone_number_id || ""),
+        reason: cloudIngestAllowed.reason,
+      });
+      return res.status(200).json({ success: true, ignored: cloudIngestAllowed.reason });
+    }
     const messages = extractWhatsAppWebhookMessages({ body: req.body, tenantId });
     if (!messages.length) {
       return res.status(200).json({ success: true, ignored: hasStatuses ? "status_update" : "no_messages" });
