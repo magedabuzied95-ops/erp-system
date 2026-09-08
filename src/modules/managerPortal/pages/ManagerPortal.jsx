@@ -102,7 +102,7 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   stock: { sound: true, toast: true, push: true },
   ai_leads: { sound: true, toast: true, push: true },
 };
-const MANAGER_PORTAL_PWA_VERSION = "20260808-inventory-approvals";
+const MANAGER_PORTAL_PWA_VERSION = "20260909-offline-media";
 const MANAGER_PORTAL_CRITICAL_TIMEOUT_MS = 9000;
 const MANAGER_PORTAL_DEFERRED_TIMEOUT_MS = 12000;
 // The initial load eagerly fetches every tab's data (critical + deferred). Switching

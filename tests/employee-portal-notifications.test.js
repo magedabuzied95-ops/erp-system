@@ -64,7 +64,9 @@ test("installed employee portal exposes and repairs its push subscription", () =
   assert.match(portal, /subscription\.unsubscribe\(\)/);
   assert.match(portal, /applicationServerKey:\s*urlBase64ToUint8Array\(publicKey\)/);
   assert.match(portal, /notificationsReady/);
-  assert.match(serviceWorker, /employee-portal-shell-v8/);
+  // A number, not a literal: pinning the shell version here turns every future
+  // bump into a false failure, and the version is not what this test is about.
+  assert.match(serviceWorker, /employee-portal-shell-v\d+/);
 });
 
 test("shared shortage alerts use employee-specific read receipts", () => {

@@ -8686,8 +8686,14 @@ function POSPro() {
       <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:overflow-hidden lg:p-3 xl:pb-3">
         {viewportIsMobile ? (
           <div className="sticky top-0 z-40 -mx-2 -mt-2 border-b border-white/10 bg-zinc-950/96 px-2 pt-[calc(env(safe-area-inset-top)+0.6rem)] pb-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:hidden">
+            {/* Measured at 280-414px. The identity block holds a 7rem floor and
+                the customer chip is what yields, because the chip's text is the
+                same customer this block's third line already names -- so the
+                duplicate is the right thing to sacrifice. Without the floor,
+                adding one more action button drove the salesperson's name to
+                11px at 280px. */}
             <div className="flex items-start gap-2">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-[7rem] flex-1">
                 <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
                   <Store className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{storeDisplayName}</span>
@@ -8695,7 +8701,7 @@ function POSPro() {
                 <div className="mt-1 truncate text-sm font-black text-white">{salespersonDisplayName}</div>
                 <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-400">{mobileSelectedCustomerLabel}</div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 {/* Icon-only while idle so it costs one 36px slot on a 375px
                     topbar, but always present: this is the only way in to the
                     photo download, which is done connected and idle. */}
@@ -8719,7 +8725,7 @@ function POSPro() {
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
-                  className="inline-flex h-[var(--control-height-lg)] max-w-[8.75rem] items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-left text-[11px] font-black text-white shadow-[0_0_18px_rgba(0,0,0,0.16)]"
+                  className="inline-flex h-[var(--control-height-lg)] min-w-0 max-w-[8.75rem] shrink items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 text-left text-[11px] font-black text-white shadow-[0_0_18px_rgba(0,0,0,0.16)]"
                 >
                   <User className="h-4 w-4 shrink-0 text-emerald-200" />
                   <span className="truncate">{mobileSelectedCustomerLabel}</span>

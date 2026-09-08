@@ -762,7 +762,7 @@ const safeNow = () => {
 };
 
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
-const EMPLOYEE_PORTAL_PWA_VERSION = "20260802-android-startup-1";
+const EMPLOYEE_PORTAL_PWA_VERSION = "20260909-offline-media";
 
 // The store's zone, never the phone's: an employee whose handset roamed or was never set saw a
 // check-in time hours away from the one on the branch wall.

@@ -97,14 +97,31 @@ export const createServer = (build, { assetFallback = "spa", offline = false } =
 };
 
 class FakeCache {
-  constructor() {
+  constructor(fetchImpl = async () => new Response("", { status: 404 })) {
     this.entries = new Map();
+    this.fetchImpl = fetchImpl;
   }
   #key(req) {
     return typeof req === "string" ? new URL(req, "https://erp.test").pathname : new URL(req.url).pathname;
   }
   async put(req, res) {
     this.entries.set(this.#key(req), res);
+  }
+  /**
+   * Faithful to the real thing on the point that matters: `addAll` REJECTS if
+   * any response is not ok, and stores nothing when it does. The inbox and
+   * portal workers both wrap their install in `.catch(...)`, so a lenient fake
+   * would hide an install that actually fails in a browser.
+   */
+  async addAll(requests = []) {
+    const fetched = await Promise.all(
+      requests.map(async (req) => {
+        const res = await this.fetchImpl(req);
+        if (!res || !res.ok) throw new TypeError(`Request for ${req} failed`);
+        return [req, res];
+      }),
+    );
+    for (const [req, res] of fetched) this.entries.set(this.#key(req), res);
   }
   async match(req) {
     return this.entries.get(this.#key(req));
@@ -118,11 +135,12 @@ class FakeCache {
 }
 
 class FakeCacheStorage {
-  constructor() {
+  constructor(fetchImpl) {
     this.caches = new Map();
+    this.fetchImpl = fetchImpl;
   }
   async open(name) {
-    if (!this.caches.has(name)) this.caches.set(name, new FakeCache());
+    if (!this.caches.has(name)) this.caches.set(name, new FakeCache(this.fetchImpl));
     return this.caches.get(name);
   }
   async keys() {
@@ -140,12 +158,12 @@ class FakeCacheStorage {
   }
 }
 
-export const loadServiceWorker = (server, { swPath } = {}) => {
+export const loadServiceWorker = (server, { swPath, clients = {} } = {}) => {
   const file = swPath || path.join(process.cwd(), "public", "pos-sw.js");
   const source = fs.readFileSync(file, "utf8");
 
   const listeners = new Map();
-  const cacheStorage = new FakeCacheStorage();
+  const cacheStorage = new FakeCacheStorage(async (input) => server.handle(typeof input === "string" ? input : input.url));
   const state = { skipWaitingCalled: 0, claimCalled: 0 };
 
   const self = {
@@ -161,6 +179,10 @@ export const loadServiceWorker = (server, { swPath } = {}) => {
       claim: async () => {
         state.claimCalled += 1;
       },
+      // A worker registered at scope "/" has to be able to ask WHICH page made a
+      // request, because "is this a portal request" cannot be answered from a
+      // cross-origin image's own URL.
+      get: async (id) => (clients[id] ? { id, url: clients[id] } : undefined),
     },
     registration: { scope: "https://erp.test/pos" },
   };
@@ -168,7 +190,8 @@ export const loadServiceWorker = (server, { swPath } = {}) => {
   const sandbox = {
     self,
     caches: cacheStorage,
-    fetch: async (input) => server.handle(typeof input === "string" ? input : input.url),
+    fetch: async (input, init) =>
+      server.handle(typeof input === "string" ? input : input.url, init),
     Response,
     Request,
     Headers,
@@ -177,9 +200,20 @@ export const loadServiceWorker = (server, { swPath } = {}) => {
     setTimeout,
     clearTimeout,
   };
+  // The workers pull their shared image-cache helpers in with importScripts, so
+  // the harness has to resolve those the way a browser would -- from `public/`,
+  // into the SAME context -- or the tests would be driving a worker whose
+  // helpers are undefined.
+  sandbox.importScripts = (...paths) => {
+    for (const scriptPath of paths) {
+      const resolved = new URL(scriptPath, "https://erp.test").pathname;
+      const onDisk = path.join(process.cwd(), "public", resolved.replace(/^\/+/, ""));
+      vm.runInContext(fs.readFileSync(onDisk, "utf8"), sandbox, { filename: resolved });
+    }
+  };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(source, sandbox, { filename: "pos-sw.js" });
+  vm.runInContext(source, sandbox, { filename: path.basename(file) });
 
   const dispatch = async (type, event) => {
     const fns = listeners.get(type) || [];
@@ -212,11 +246,11 @@ export const loadServiceWorker = (server, { swPath } = {}) => {
      * product image -- a distinction that decides whether the offline shell
      * fallback runs at all.
      */
-    fetch: async (url, { mode = "no-cors", headers = null, destination = "" } = {}) => {
+    fetch: async (url, { mode = "no-cors", headers = null, destination = "", clientId = "" } = {}) => {
       const request = new Request(new URL(url, "https://erp.test").toString(), headers ? { headers } : undefined);
       Object.defineProperty(request, "mode", { value: mode, configurable: true });
       Object.defineProperty(request, "destination", { value: destination, configurable: true });
-      const evt = await dispatch("fetch", { request });
+      const evt = await dispatch("fetch", { request, clientId });
       if (!evt._response) return null;
       return evt._response;
     },

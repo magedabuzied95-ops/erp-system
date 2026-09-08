@@ -1,4 +1,16 @@
-const CACHE_NAME = "employee-portal-shell-v8";
+// Shared with the POS and inbox workers. A failed import fails the install,
+// which leaves the previous worker active -- the safe outcome.
+importScripts("/sw-image-cache.js");
+
+const CACHE_NAME = "employee-portal-shell-v9";
+
+// Employee photos, task attachments and chat media come from the API origin, and
+// the fetch handler below returns early for every cross-origin request -- so a
+// portal with no connection showed none of them. Versioned on its own, and
+// deliberately NOT under the "employee-portal" prefix that activate() deletes --
+// a name inside that prefix would throw the media away on every version bump.
+const MEDIA_CACHE = "portal-media-v1";
+const portalMedia = self.createSwImageCache({ cacheName: MEDIA_CACHE, maxEntries: 800 });
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
@@ -114,10 +126,45 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+/**
+ * Whether the PAGE that asked for this subresource is a portal page.
+ *
+ * This worker is registered at scope "/", so it sees every request the browser
+ * profile makes on this origin -- which is exactly why the handler below limits
+ * itself with `isEmployeePortalPath`. That test reads the request's OWN path, so
+ * it cannot be used for media: a photo's path is `/uploads/...` on the API
+ * origin and would never match. Asking who the client is keeps the media cache
+ * to the portal instead of quietly hoarding every image the storefront and the
+ * ERP happen to render in the same browser.
+ */
+const isPortalClient = async (clientId) => {
+  if (!clientId || !self.clients?.get) return false;
+  try {
+    const client = await self.clients.get(clientId);
+    if (!client?.url) return false;
+    return isEmployeePortalPath(new URL(client.url).pathname);
+  } catch {
+    return false;
+  }
+};
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
+
+  // Media is handled before both gates below, because it is the one thing the
+  // portal needs that does not live on this origin.
+  if (portalMedia.isImageRequest(request, url)) {
+    event.respondWith(
+      (async () => {
+        if (!(await isPortalClient(event.clientId))) return fetch(request);
+        return portalMedia.handleFetch(event, request);
+      })()
+    );
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
   if (!isEmployeePortalPath(url.pathname)) return;
 

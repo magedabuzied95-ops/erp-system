@@ -450,19 +450,24 @@ test("queued expenses block the shift close alongside invoices", async () => {
 
 test("the POS service worker caches and serves product images from any origin", () => {
   const worker = readSource("public/pos-sw.js");
+  // The rules themselves now live in one shared module, used by all three PWA
+  // workers -- three copies of them is how the original bug survived. Their
+  // behaviour is driven for real in tests/pwa-offline-media.test.js; what is
+  // POS-specific, and asserted here, is the ORDERING.
+  const shared = readSource("public/sw-image-cache.js");
 
   // The image branch has to run BEFORE the same-origin early return, or a photo
   // on the API origin is never seen by the worker at all.
-  const imageBranchAt = worker.indexOf("isProductImageRequest(request, url)", worker.indexOf("addEventListener(\"fetch\""));
-  const crossOriginGateAt = worker.indexOf("url.origin !== self.location.origin", worker.indexOf("addEventListener(\"fetch\""));
+  const fetchHandlerAt = worker.indexOf('addEventListener("fetch"');
+  const imageBranchAt = worker.indexOf("productImages.isImageRequest(request, url)", fetchHandlerAt);
+  const crossOriginGateAt = worker.indexOf("url.origin !== self.location.origin", fetchHandlerAt);
   assert.ok(imageBranchAt > 0, "the fetch handler must have a product-image branch");
   // Matched verbatim, so a disabled branch (`false &&`, a feature flag) reads as
   // a regression rather than passing on the strength of the call still being there.
   assert.ok(
-    worker.includes("if (isProductImageRequest(request, url)) {"),
+    worker.includes("if (productImages.isImageRequest(request, url)) {"),
     "the branch condition must be the check itself, not a disabled version of it"
   );
-  assert.ok(worker.includes("caches.open(IMAGE_CACHE)"), "the branch must read the image cache");
   assert.ok(
     imageBranchAt < crossOriginGateAt,
     "product images must be handled before the cross-origin early return"
@@ -470,9 +475,9 @@ test("the POS service worker caches and serves product images from any origin", 
 
   // Opaque responses are the whole point: a cross-origin image without CORS
   // headers cannot be stored any other way, and cache.add would reject it.
-  assert.ok(worker.includes('response.type === "opaque"'));
-  assert.ok(worker.includes('mode: "no-cors"'));
-  assert.ok(!/cache\.add\(url\)/.test(worker), "cache.add cannot store an opaque image response");
+  assert.ok(shared.includes('response.type === "opaque"'));
+  assert.ok(shared.includes('mode: "no-cors"'));
+  assert.ok(!/cache\.add\(/.test(shared), "cache.add cannot store an opaque image response");
 
   // The image cache must survive a shell version bump, so it must not carry the
   // prefix the activate handler evicts.
@@ -493,4 +498,23 @@ test("the page and the worker agree on one image cache, and the whole catalogue 
   // left almost every product blank offline.
   assert.ok(!cacheLib.includes(".slice(0, 120)"));
   assert.match(cacheLib, /POS_IMAGE_WARM_LIMIT = \d{3,}/);
+});
+
+test("the mobile topbar keeps the cashier's identity readable when an action is added", () => {
+  const source = readSource("src/modules/pos/pages/POSPro.jsx");
+
+  // Measured at 280-414px: without a floor on the identity block, adding one
+  // more action button drove the salesperson's name to 11px at 280px. The floor
+  // pushes the squeeze onto the customer chip, whose text is the same customer
+  // the identity block's third line already names.
+  assert.match(source, /<div className="min-w-\[7rem\] flex-1">/);
+  assert.ok(
+    source.includes('<div className="flex min-w-0 items-center gap-2">'),
+    "the mobile action group must be able to shrink, or the identity block absorbs the whole squeeze"
+  );
+  assert.match(
+    source,
+    /min-w-0 max-w-\[8\.75rem\] shrink items-center[\s\S]{0,400}mobileSelectedCustomerLabel/,
+    "the customer chip must be the element that yields width"
+  );
 });
