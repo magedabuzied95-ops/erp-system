@@ -91,6 +91,25 @@ export const resolveCrocsEuSize = (value = "") => {
 
 export const isKnownCrocsSize = (value = "") => knownRank.has(crocsSizeKey(value));
 
+// Every marking that names the same shoe as `value`. The storefront prints the
+// EU label while stock is kept under the factory marking, and one EU label can
+// cover two markings (34/35 is both J3 and M3/W5), so grouping by EU is what a
+// size filter has to match on — never a single alias.
+const knownSizesByEuKey = CROCS_KNOWN_SIZES.reduce((groups, size) => {
+  const key = crocsSizeKey(resolveCrocsEuSize(size));
+  if (!key) return groups;
+  const current = groups.get(key) || [];
+  current.push(size);
+  groups.set(key, current);
+  return groups;
+}, new Map());
+
+export const crocsSizeAliases = (value = "") => {
+  const normalized = normalizeCrocsSizeValue(value);
+  if (!normalized) return [];
+  return uniqueCrocsSizes([normalized, ...(knownSizesByEuKey.get(crocsSizeKey(resolveCrocsEuSize(normalized))) || [])]);
+};
+
 export const isCrocsProduct = (product = {}) => {
   const values = [
     product?.product_type,

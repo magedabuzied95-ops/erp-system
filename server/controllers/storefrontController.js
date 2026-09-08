@@ -40,6 +40,7 @@ import { resolveStorefrontProductLink } from "../services/storefrontProductUrlSe
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 // ONE definition of "this product is a curated offer", shared with POS and the AI resolver.
 import { isForcedOfferSale } from "../../src/shared/lib/effectiveCustomerPrice.js";
+import { crocsSizeAliases } from "../../src/shared/lib/crocsSizes.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
 import {
   createStorefrontCustomerReviewData,
@@ -3374,21 +3375,41 @@ export const storefrontCardHasAvailableSize = (product = {}, size = "") => {
     toNumber(product?.total_stock ?? product?.stock) > 0;
 };
 
+// Crocs stock is kept under the factory marking (C8, M7/W9) while the storefront
+// prints the EU label (24/25) on the chip, so a size filter on a Crocs listing
+// has to match every marking that shares that label — whichever of the two the
+// link happened to carry. Gated on the product type so a plain "24/25" search
+// over the rest of the catalogue keeps meaning exactly what it says.
+const isCrocsProductTypeFilter = (value = "") => {
+  const normalized = queryText(value).toLowerCase();
+  return normalized.includes("croc") || normalized.includes("كروكس");
+};
+
+export const expandCrocsSizeFilter = (sizes = [], productTypeFilter = "") => {
+  const list = Array.isArray(sizes) ? sizes : [];
+  if (!list.length || !isCrocsProductTypeFilter(productTypeFilter)) return list;
+  return [...new Set(list.flatMap((size) => {
+    const aliases = crocsSizeAliases(size);
+    return aliases.length ? aliases : [size];
+  }))];
+};
+
 const normalizeStorefrontProductsQuery = (query = {}) => {
   const rawSearch = queryText(query.q).toLowerCase();
   const audienceSearch = normalizeAudienceValue(rawSearch);
   const rawGender = queryText(query.gender || query.audience || query.target_audience);
+  const productTypeFilter = queryText(query.product_type || query.productType);
   return {
     q: audienceSearch ? "" : rawSearch,
     category: queryText(query.category).toLowerCase(),
     brand: queryText(query.brand || query.brandId || query.brand_id),
     gender: rawGender,
-    productType: queryText(query.product_type || query.productType),
+    productType: productTypeFilter,
     grade: queryText(query.grade),
     quality: queryText(query.quality),
     // Every facet the listing page can stack must be filtered here, before the
     // page is cut: filtering a 24-card page afterwards is what left pages short.
-    sizes: queryTextList(query.size, query.sizes),
+    sizes: expandCrocsSizeFilter(queryTextList(query.size, query.sizes), productTypeFilter),
     size: queryText(query.size),
     colors: queryTextList(query.color, query.colors),
     bagType: queryTextList(query.bag_type, query.bagType),

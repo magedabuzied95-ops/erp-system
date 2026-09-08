@@ -17,13 +17,15 @@ test("the product listing forwards every server-supported filter to the storefro
   assert.match(stateSource, /quality: quality \|\| ""/);
   // Every selected size goes to the backend, not just the first one: filtering
   // the rest client-side removed cards from an already-paginated page.
-  assert.match(stateSource, /size: isCrocsListing \? "" : selectedSizes/);
+  // Crocs included: `backendSizes` is the EU label plus every factory marking
+  // that names the same shoe, so the backend can cut the result set itself.
+  assert.match(stateSource, /size: backendSizes/);
   assert.match(stateSource, /color: color \|\| ""/);
   assert.match(stateSource, /bag_type: bagType \|\| ""/);
   assert.match(stateSource, /min_price: minPrice \|\| ""/);
   assert.match(stateSource, /max_price: maxPrice \|\| ""/);
   assert.match(stateSource, /last_sizes: lastSizes \? 1 : ""/);
-  assert.match(stateSource, /Crocs filters use customer-facing EU labels/);
+  assert.match(stateSource, /the request carries the EU label and every factory/);
   assert.match(stateSource, /inStock: truthyFlag\(inStock\) \? 1 : ""/);
 });
 
@@ -36,8 +38,9 @@ test("the listing does not re-filter a paginated page by a facet the backend alr
     assert.match(source, new RegExp(`${facet}: ""`));
   }
   assert.match(source, /lastSizes: false/);
-  // Crocs is the one facet that must stay client-side (EU labels vs factory marking).
-  assert.match(source, /sizes: isCrocsListing \? catalogFilters\.sizes : \[\]/);
+  // Crocs was the last exception, and it cost the customer the result count and
+  // the second page. No size is re-applied to an already-cut page any more.
+  assert.match(source, /sizes: \[\]/);
 });
 
 test("changing any forwarded filter invalidates the product request", () => {
@@ -45,7 +48,7 @@ test("changing any forwarded filter invalidates the product request", () => {
   const stateEnd = listingSource.indexOf("const productsApiParams", stateStart);
   const stateSource = listingSource.slice(stateStart, stateEnd);
 
-  for (const dependency of ["brand", "category", "gender", "grade", "inStock", "isCrocsListing", "productType", "quality", "selectedSizes", "sort"]) {
+  for (const dependency of ["backendSizes", "brand", "category", "gender", "grade", "inStock", "productType", "quality", "sort"]) {
     assert.match(stateSource, new RegExp(`\\b${dependency}\\b`));
   }
 });

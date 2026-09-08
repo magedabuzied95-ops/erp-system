@@ -100,6 +100,7 @@ test("the link preview counts the same grade the shopper will land on", () => {
     productType: "",
     grade: "",
     quality: ["mirror", "mirror_original", "mirror original", "original_mirror", "original mirror"],
+    sizes: ["42"],
     size: "42",
     inStock: true,
     offerStory: false,

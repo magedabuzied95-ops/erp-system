@@ -37,7 +37,7 @@ import {
   prefetchStorefrontProducts,
   normalizeFilterKey,
 } from "../Storefront";
-import { resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
+import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
 import { Baby, Briefcase, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
@@ -161,14 +161,23 @@ const parseNumberValue = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 };
-const readMultiQueryValues = (params, keys = []) => {
+// A size carries the separator inside it — M7/W9 and 24/25 are one size each —
+// so a size param is split on commas and pipes only. Splitting on the slash
+// turned ?size=M7/W9 into two sizes nobody stocks and emptied the page.
+const splitSizeFacetValues = (value = "") =>
+  String(value ?? "")
+    .split(/[,|]+/)
+    .map((item) => normalizeFilterText(item))
+    .filter(Boolean);
+const readMultiQueryValues = (params, keys = [], split = splitFacetValues) => {
   const values = [];
   (Array.isArray(keys) ? keys : [keys]).forEach((key) => {
     if (!key) return;
-    values.push(...params.getAll(key).flatMap(splitFacetValues));
+    values.push(...params.getAll(key).flatMap(split));
   });
   return Array.from(new Set(values.map(normalizeFilterText).filter(Boolean)));
 };
+const readMultiSizeQueryValues = (params) => readMultiQueryValues(params, ["size", "sizes"], splitSizeFacetValues);
 const writeMultiQueryValues = (params, key, values = []) => {
   const nextValues = Array.from(new Set((Array.isArray(values) ? values : [values]).map(normalizeFilterText).filter(Boolean)));
   params.delete(key);
@@ -543,7 +552,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const gender = seoCategory?.apiFilters?.gender || normalizeStorefrontAudienceValue(genderParam) || genderParam || searchGender;
   const backendSearchTerm = searchGender ? "" : q;
   const size = params.get("size") || "";
-  const requestedSizes = useMemo(() => readMultiQueryValues(params, ["size", "sizes"]), [params]);
+  const requestedSizes = useMemo(() => readMultiSizeQueryValues(params), [params]);
   const color = params.get("color") || "";
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
@@ -558,6 +567,18 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       ? [...new Set(requestedSizes.map((value) => resolveCrocsEuSize(value)).filter(Boolean))]
       : requestedSizes),
     [isCrocsListing, requestedSizes]
+  );
+  // What the API is asked for: the EU label the chip shows plus every factory
+  // marking that names the same shoe, so one request covers both spellings
+  // whatever the backend in front of this bundle happens to know.
+  const backendSizes = useMemo(
+    () => (isCrocsListing
+      ? [...new Set(selectedSizes.flatMap((value) => {
+        const aliases = crocsSizeAliases(value);
+        return aliases.length ? aliases : [value];
+      }))]
+      : selectedSizes),
+    [isCrocsListing, selectedSizes]
   );
   const bagType = normalizeFilterKey(params.get("bag_type") || "");
   const selectedType = productType || "";
@@ -594,12 +615,12 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       product_type: productType || "",
       grade: grade || "",
       quality: quality || "",
-      // Crocs filters use customer-facing EU labels while inventory keeps the
-      // original factory marking, so filter those variants client-side.
-      // Everything else goes to the backend: a facet applied after the backend
-      // has already cut the page removes cards from that page instead of from
-      // the result set, which is what left pages short of a full row.
-      size: isCrocsListing ? "" : selectedSizes,
+      // Crocs included: the request carries the EU label and every factory
+      // marking it names, so the backend can answer it like any other facet. A
+      // facet applied after the backend has cut the page removes cards from that
+      // page instead of from the result set, which is what left pages short of a
+      // full row — and what made a Crocs size say "1-24 of 42" over four cards.
+      size: backendSizes,
       color: color || "",
       bag_type: bagType || "",
       min_price: minPrice || "",
@@ -612,7 +633,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       limit: pageSize,
       offset: (page - 1) * pageSize,
     }),
-    [backendSearchTerm, bagType, brand, category, color, gender, grade, inStock, isCrocsListing, lastSizes, maxPrice, minPrice, page, pageSize, productType, quality, saleView, selectedSizes, sort, seoCategory?.largeSizes]
+    [backendSearchTerm, backendSizes, bagType, brand, category, color, gender, grade, inStock, lastSizes, maxPrice, minPrice, page, pageSize, productType, quality, saleView, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);
@@ -745,13 +766,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       minPrice: "",
       maxPrice: "",
       lastSizes: false,
-      // Crocs is the one facet the backend cannot resolve: the chips are EU
-      // labels while inventory keeps the factory marking.
-      sizes: isCrocsListing ? catalogFilters.sizes : [],
+      // Crocs used to be the one exception here, and it cost the customer the
+      // count and the second page. The backend resolves the EU label against the
+      // factory marking now, so no size is re-applied to a cut page.
+      sizes: [],
       saleView: false,
       inStock: false,
     }),
-    [catalogFilters, isCrocsListing]
+    [catalogFilters]
   );
   const hasActiveCatalogFilters = Boolean(
     debouncedFilterState.gender ||
@@ -1096,7 +1118,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     const nextValue = normalizeFilterText(value);
     if (!nextValue) return;
     setSearchParam((next) => {
-      const current = new Set(readMultiQueryValues(next, ["size", "sizes"]).map(listingSizeKey));
+      const current = new Set(readMultiSizeQueryValues(next).map(listingSizeKey));
       const normalized = listingSizeKey(nextValue);
       if (current.has(normalized)) current.delete(normalized);
       else current.add(normalized);
@@ -1239,7 +1261,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
             return;
           }
           if (field === "size") {
-            const current = new Set(readMultiQueryValues(next, ["size", "sizes"]).map(listingSizeKey));
+            const current = new Set(readMultiSizeQueryValues(next).map(listingSizeKey));
             current.delete(listingSizeKey(value));
             if (current.size) writeMultiQueryValues(next, "size", Array.from(current));
             else next.delete("size");

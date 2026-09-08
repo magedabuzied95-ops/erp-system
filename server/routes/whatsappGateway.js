@@ -576,6 +576,13 @@ router.post("/webhook", async (req, res) => {
     // handled:false for anything it does not own — a question, a greeting, a customer who never
     // tapped a card — so the AI keeps every conversation the flow is not actually driving.
     let whatsappSalesFlowHandled = false;
+    console.info("[whatsapp:sales-flow-input]", {
+      from_me: normalized.fromMe === true,
+      button_id: normalized.selectedButtonId || "",
+      display_text: (normalized.selectedDisplayText || "").slice(0, 40),
+      phone: normalized.phone || "",
+      text_preview: String(normalized.text || "").slice(0, 40),
+    });
     if (!normalized.fromMe) {
       try {
         const { handleWhatsappSalesFlow } = await import("../services/whatsappSalesFlowService.js");

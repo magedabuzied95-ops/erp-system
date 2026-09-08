@@ -24,6 +24,7 @@ import { normalizeAttributionPlatform } from "../utils/marketingAttribution.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 import {
   DEFAULT_TENANT_ID,
+  expandCrocsSizeFilter,
   queryProductsWithSql,
   storefrontProductsSql,
   storefrontQualityAliases,
@@ -864,13 +865,20 @@ export const buildShareAvailableStorefrontFilters = ({ filters = {}, normalizedS
   // The link preview counts/pictures the SAME products the shopper will land on,
   // so the grade the picker chose has to reach this query as well.
   quality: storefrontQualityAliases(filters.quality || ""),
+  // Every size reaches the SQL, not just a lone one: a Crocs marking expands to
+  // the EU label that names the same shoe, and a multi-size link used to fall
+  // through to the JS pass with no size predicate at all.
+  sizes: normalizedSizes.map((item) => String(item || "").trim()).filter(Boolean),
   size: normalizedSizes.length === 1 ? String(normalizedSizes[0] || "").trim() : "",
   inStock: Boolean(filters.inStock),
   offerStory: Boolean(filters.offerStory),
 });
 
 const loadShareAvailableProducts = async (req = {}, filters = {}) => {
-  const normalizedSizes = parseShareParamList(filters.sizes).map((item) => String(item).trim()).filter(Boolean);
+  const normalizedSizes = expandCrocsSizeFilter(
+    parseShareParamList(filters.sizes).map((item) => String(item).trim()).filter(Boolean),
+    filters.type || ""
+  );
   const minPrice = normalizeSharePriceValue(filters.minPrice);
   const maxPrice = normalizeSharePriceValue(filters.maxPrice);
   const tenantId = shareTenantFromRequest(req);

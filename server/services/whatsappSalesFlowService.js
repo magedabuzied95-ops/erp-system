@@ -231,6 +231,9 @@ export const handleWhatsappSalesFlow = async ({
   const body = text(messageText);
   const tap = text(buttonId);
   const { flow, step } = salesFlowFromMemory(conversationId);
+  // A handled:false used to be silent, which made a flow that simply did not match look identical
+  // to a flow that never ran at all.
+  console.log("WHATSAPP_SALES_FLOW_ENTER", { conversation_id: conversationId, button_id: tap, step, product_id: Number(flow?.product_id || 0) || null, text_preview: body.slice(0, 40) });
 
   // ── colour ──────────────────────────────────────────────────────────────────────────────────
   // A tap on a carousel card. The existing card button names the exact variant; the flow's own
