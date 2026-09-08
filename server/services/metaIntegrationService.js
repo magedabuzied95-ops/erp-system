@@ -1790,8 +1790,55 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
   };
 };
 
+// A generic template is a CARD SET, not a photo. Its payload nests an `image_url`
+// per ELEMENT, and the recursive walk in extractImageUrlFromAttachment below
+// reaches straight past the template and returns the first card's picture. That
+// is how our own Messenger colour carousel came back through Meta's echo as a
+// single product photo: the echo was stored as an image message, the cards were
+// never written to the row, and the transcript could only draw what was there.
+const attachmentTemplateElements = (attachment = {}) => {
+  if (!attachment || typeof attachment !== "object") return [];
+  if (text(attachment.type).toLowerCase() !== "template") return [];
+  const elements = attachment.payload?.elements;
+  return Array.isArray(elements) ? elements : [];
+};
+
+// The inverse of buildMetaCarouselElement: the element we sent, read back into a
+// product card the transcript can draw. The title is "<name> — <price> جنيه" and
+// the colour button carries the variant, so both survive the round trip.
+const templateElementToProductCard = (element = {}) => {
+  if (!element || typeof element !== "object") return null;
+  const title = text(element.title);
+  const imageUrl = text(element.image_url);
+  if (!title && !imageUrl) return null;
+  const [namePart, pricePart = ""] = title.split(" — ");
+  const price = Number(String(pricePart).replace(/[^\d.]/g, "")) || null;
+  const buttons = Array.isArray(element.buttons) ? element.buttons : [];
+  const postback = text(buttons.find((button) => text(button?.type) === "postback")?.payload || "");
+  const variantId = (postback.match(/^choose_color:(\d+)$/) || [])[1] || "";
+  return {
+    variant_id: variantId || null,
+    name: text(namePart) || title,
+    title: text(namePart) || title,
+    price,
+    image_url: imageUrl,
+    product_url: text(buttons.find((button) => text(button?.type) === "web_url")?.url || ""),
+    subtitle: text(element.subtitle),
+  };
+};
+
+/** Every generic-template element across these attachments, as product cards. */
+export const metaTemplateProductCards = (attachments = []) =>
+  (Array.isArray(attachments) ? attachments : [])
+    .flatMap((attachment) => attachmentTemplateElements(attachment))
+    .map(templateElementToProductCard)
+    .filter(Boolean)
+    .slice(0, 10);
+
 const extractImageUrlFromAttachment = (attachment = {}) => {
   if (!attachment || typeof attachment !== "object") return "";
+  // Never mine a photo out of a card set — see attachmentTemplateElements above.
+  if (attachmentTemplateElements(attachment).length) return "";
   const direct = text(
     attachment.url ||
       attachment.image_url ||
@@ -25567,7 +25614,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
     if (message.from_me === true || text(message.direction) === "outbound") {
       const echoAlias = channelAlias(message.channel);
       const echoMessageId = text(message.external_message_id || message.dedupe_key || "");
-      const echoText = text(message.message_text) || inboundAttachmentLabel(message.attachments) || "[attachment]";
+      // Our own carousel comes back here as a template attachment. Read its
+      // elements back into cards so the row says "product card" rather than
+      // storing the first colour's photo and calling it an image message.
+      const echoProductCards = metaTemplateProductCards(message.attachments || []);
+      const echoText = echoProductCards.length
+        ? text(message.message_text)
+        : text(message.message_text) || inboundAttachmentLabel(message.attachments) || "[attachment]";
       // preserveExistingOnProviderMatch: a reply sent FROM the inbox is already
       // stored under this mid, and Meta echoes it back to us anyway.
       const outboundRow = await appendChannelOutboundSupportReply({
@@ -25584,7 +25637,9 @@ export const processMetaWebhook = async ({ req } = {}) => {
         deliveryStatus: "sent",
         externalMessageId: echoMessageId,
         providerMessageId: echoMessageId,
-        visualAttachments: message.attachments || [],
+        productCards: echoProductCards,
+        messageType: echoProductCards.length ? "product_card" : undefined,
+        visualAttachments: echoProductCards.length ? [] : (message.attachments || []),
         sessionCustomerName: message.customer_name || "",
         sessionStatus: "ai_active",
         preserveExistingOnProviderMatch: true,

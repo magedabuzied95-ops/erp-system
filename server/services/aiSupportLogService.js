@@ -369,7 +369,13 @@ const persistOutboundTranscriptRow = async ({
   const safeSenderType = toText(senderType || (manualMessage ? "staff" : "ai") || "ai");
   const safeDirection = toText(direction || "outbound").toLowerCase() === "inbound" ? "inbound" : "outbound";
   const isInbound = safeDirection === "inbound";
-  const safeMessageType = toText(messageType || "text") || "text";
+  // A row that carries cards IS a product-card message, the way
+  // appendAiGeneratedSupportReply has always stamped it. This path defaulted to
+  // "text" even with cards attached, so the same message described itself
+  // differently depending on which writer produced it.
+  const safeMessageType = toText(
+    messageType || ((Array.isArray(productCards) ? productCards : []).length ? "product_card" : "text")
+  ) || "text";
   const safeMessage = preserveExactMessage ? String(message ?? answer ?? staffMessage ?? "") : repairText(message || answer || staffMessage);
   const safeAnswer = preserveExactMessage ? String(answer || message || staffMessage || "") : repairText(answer || message || staffMessage);
   const safeStaffMessage = preserveExactMessage ? String(staffMessage || message || answer || "") : repairText(staffMessage || message || answer);
