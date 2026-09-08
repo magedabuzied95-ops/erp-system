@@ -1815,7 +1815,9 @@
       "nextImage": "الصورة التالية",
       "mediaUnavailable": "المرفق غير متاح",
       "file": "ملف",
-      "transcribed": "نص مُفرَّغ آليًا"
+      "transcribed": "نص مُفرَّغ آليًا",
+      "correctReply": "تصحيح الرد",
+      "confidence": "الثقة"
     },
     "channelAlert": {
       "whatsappTitle": "واتساب غير متصل",

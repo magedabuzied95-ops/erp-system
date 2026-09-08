@@ -2567,12 +2567,17 @@ const Transcript = memo(function Transcript({
   const postTitle = commentThreadDisplayName(conversation || {});
   const postTime = commentThreadPostTime(conversation || {});
   const commentCount = commentThreadCommentCount(conversation || {});
+  // The thread's own picture and name, so an incoming bubble can carry the small
+  // round avatar every chat app puts beside it instead of a "العميل" caption.
+  const threadChannel = clean(conversation?.channel || conversation?.source || "").toLowerCase();
+  const threadAvatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation || {}) : customerAvatarUrl(conversation || {});
+  const threadName = isCommentThread ? commentThreadCommenterName(conversation || {}) : getConversationDisplayName(conversation || {});
   if (!rows.length && !events.length && !isCommentThread) {
     return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{t("aiSupport.inbox.panel.noTranscript")}</div>;
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-1.5">
       <PinnedMessagesBar rows={rows} variant="desktop" />
       {olderMessagesAvailable ? (
         <div className="flex justify-center">
@@ -2618,6 +2623,12 @@ const Transcript = memo(function Transcript({
         const rowKey = transcriptDayKey(rowTime);
         const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
         const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime) : "";
+        // Messenger hangs the avatar off the LAST message of a run, not every one
+        // of them, so a burst of five lines from the customer reads as one person
+        // talking rather than five stamped rows.
+        const inbound = row.kind === "customer" || row.kind === "comment";
+        const nextRow = rows[index + 1];
+        const nextInbound = nextRow ? nextRow.kind === "customer" || nextRow.kind === "comment" : false;
         return (
           <Fragment key={row.key}>
             {dayLabel ? (
@@ -2635,6 +2646,10 @@ const Transcript = memo(function Transcript({
               onEditMessage={onEditMessage}
               reactionOptions={reactionOptions}
               channelLabel={row.channelLabel}
+              channelKey={threadChannel}
+              avatarUrl={threadAvatar}
+              customerName={threadName}
+              showAvatar={inbound && !nextInbound}
             />
           </Fragment>
         );

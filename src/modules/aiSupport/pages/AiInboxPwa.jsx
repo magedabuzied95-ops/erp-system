@@ -2309,6 +2309,11 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
 }) {
   const { t } = useTranslation();
   const isCommentThread = isCommentConversation(conversation || {});
+  // The thread's own picture and name, so an incoming bubble can carry the small
+  // round avatar every chat app puts beside it instead of a "العميل" caption.
+  const threadChannel = clean(conversation?.channel || conversation?.source || "").toLowerCase();
+  const threadAvatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation || {}) : customerAvatarUrl(conversation || {});
+  const threadName = isCommentThread ? commentThreadCommenterName(conversation || {}) : conversationName(conversation || {});
   if (!rows.length && !isCommentThread) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
@@ -2375,6 +2380,12 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
         const rowKey = transcriptDayKey(rowTime);
         const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
         const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime) : "";
+        // Messenger hangs the avatar off the LAST message of a run, not every one
+        // of them, so a burst of five lines from the customer reads as one person
+        // talking rather than five stamped rows.
+        const inbound = row.kind === "customer" || row.kind === "comment";
+        const nextRow = rows[index + 1];
+        const nextInbound = nextRow ? nextRow.kind === "customer" || nextRow.kind === "comment" : false;
         return (
           <Fragment key={row.key}>
             {dayLabel ? (
@@ -2391,6 +2402,10 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               onEditMessage={onEditMessage}
               onOpenCorrection={onOpenCorrection}
               reactionOptions={reactionOptions}
+              channelKey={threadChannel}
+              avatarUrl={threadAvatar}
+              customerName={threadName}
+              showAvatar={inbound && !nextInbound}
             />
           </Fragment>
         );

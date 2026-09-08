@@ -1,10 +1,23 @@
+/**
+ * A product card as the customer's own app draws it.
+ *
+ * It used to be one house card everywhere: a cyan panel captioned "منتج مُرسل"
+ * with the full send timestamp, wrapping a dark tile per product. Nothing on a
+ * customer's phone looks like that. WhatsApp shows the card as part of the
+ * outgoing bubble — photo, caption, then a link row under a hairline — while
+ * Meta's generic template is a white card that sits on the transcript
+ * background, outside any bubble, with its button in the platform's blue.
+ *
+ * The shapes come from `platformChrome`, so the transcript mirrors what actually
+ * left the building, platform for platform.
+ */
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
-import DeliveryTicks, { deliveryStatusLabel, isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
+import { platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -44,16 +57,6 @@ const firstImageValue = (...values) => {
     if (text) return text;
   }
   return "";
-};
-
-const absoluteTime = (value, language = "ar") => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return clean(value);
-  return date.toLocaleString(language === "ar" ? "ar-EG" : "en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
 };
 
 const productCardRoute = (productId = "") => {
@@ -150,95 +153,128 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
 const cardImage = (card = {}) =>
   resolveProductImageUrl(firstImageValue(card.image_url, card.image, card.thumbnail_url, card.media_url, card.product_image_url, card.product_image, card.variant_image_url, card.variant_image, card.main_image));
 
-function ProductCardMessage({ message = {}, cards = [], compact = false }) {
-  const { t, i18n } = useTranslation();
+const cardSubtitle = (card = {}, t, priceValue) => {
+  const parts = [];
+  if (priceValue > 0) parts.push(money(priceValue));
+  if (clean(card.color)) parts.push(t("aiSupport.inbox.productCard.colorValue", { color: clean(card.color) }));
+  if (clean(card.size)) parts.push(t("aiSupport.inbox.productCard.sizeValue", { size: clean(card.size) }));
+  return parts.join(" · ");
+};
+
+function ProductCardMessage({
+  message = {},
+  cards = [],
+  compact = false,
+  platform: platformProp = "",
+  variant = "desktop",
+  chrome: chromeProp = null,
+}) {
+  const { t } = useTranslation();
   const items = asArray(cards).flatMap((card) => normalizeProductCard(card)).filter(Boolean);
   if (!items.length) return null;
-  const deliveryStatus = clean(message.delivery_status || "");
+
+  const platform = clean(platformProp) || resolveMessagePlatform(message);
+  const chrome = chromeProp || platformChrome(platform, variant);
+  // Meta draws a generic template as a white card on the conversation background.
+  // WhatsApp draws the same product as part of the bubble it was sent in, so the
+  // card there inherits the bubble instead of sitting on top of one.
+  const standalone = chrome.cardMode === "standalone";
+  const strip = items.length > 1;
+
+  const renderCard = (card, index) => {
+    const image = cardImage(card);
+    const priceValue = Number(card.price ?? card.final_price ?? 0);
+    const storefrontUrl = resolveStorefrontUrl(card);
+    const name = card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product");
+    const subtitle = cardSubtitle(card, t, priceValue);
+    const action = card.color && (card.variant_id || card.id)
+      ? t("aiSupport.inbox.productCard.chooseColorButton")
+      : t("aiSupport.inbox.productCard.openProduct");
+    // Every card of a colour carousel carries the SAME product_id, and an abandoned cart can
+    // hold one product in two sizes — the product identity alone is not unique inside a strip,
+    // so the position completes the key.
+    const cardKey = `${clean(card.product_id || card.id)}:${clean(card.variant_id)}:${index}`;
+
+    const picture = image ? (
+      <img
+        src={image}
+        alt={name}
+        loading="lazy"
+        decoding="async"
+        className={`aspect-square w-full object-contain ${chrome.cardImageBg}`}
+      />
+    ) : (
+      <div className={`grid aspect-square w-full place-items-center ${chrome.cardImageBg}`}>
+        <ShoppingBag className={`h-8 w-8 ${chrome.cardMuted}`} />
+      </div>
+    );
+
+    if (standalone) {
+      return (
+        <article
+          key={cardKey}
+          className={`${chrome.cardWidth} ${strip ? "shrink-0 snap-start" : ""} overflow-hidden ${chrome.cardRadius} ${chrome.cardSurface} shadow-[0_1px_3px_rgba(0,0,0,0.25)]`}
+        >
+          {picture}
+          <div className="px-3 py-2.5" dir="auto">
+            <p className={`truncate text-[14px] font-semibold leading-5 ${chrome.cardTitle}`}>{name}</p>
+            {subtitle ? <p className={`mt-0.5 truncate text-[12.5px] leading-4 ${chrome.cardMuted}`}>{subtitle}</p> : null}
+          </div>
+          {storefrontUrl ? (
+            <>
+              <span aria-hidden="true" className={`block h-px w-full ${chrome.cardHairline}`} />
+              <a
+                href={storefrontUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={`block px-3 py-2.5 text-center text-[14px] font-semibold ${chrome.cardAction}`}
+              >
+                {action}
+              </a>
+            </>
+          ) : null}
+        </article>
+      );
+    }
+
+    return (
+      /* Inside a bubble the strip has to fit the bubble, not the transcript, so a
+         colour carousel is a row of narrower cards rather than one card the
+         bubble crops. */
+      <div key={cardKey} className={strip ? "w-[190px] shrink-0 snap-start" : "w-full"}>
+        <div className="overflow-hidden rounded-[8px]">{picture}</div>
+        <div className="px-0.5 pt-1.5" dir="auto">
+          <p className={`text-[14px] font-semibold leading-5 ${chrome.cardTitle}`}>{name}</p>
+          {subtitle ? <p className={`mt-0.5 text-[12.5px] leading-4 ${chrome.cardMuted}`}>{subtitle}</p> : null}
+        </div>
+        {storefrontUrl ? (
+          <>
+            <span aria-hidden="true" className={`my-1.5 block h-px w-full ${chrome.cardHairline}`} />
+            <a
+              href={storefrontUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={`flex items-center justify-center gap-1.5 py-1 text-[13.5px] font-semibold ${chrome.cardAction}`}
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+              {action}
+            </a>
+          </>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <div
       data-ai-product-card-density={compact ? "compact" : "default"}
-      className={`${compact ? "w-full max-w-[520px] rounded-2xl p-2.5" : "rounded-3xl p-4"} rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 shadow-[0_10px_30px_rgba(8,145,178,0.14)]`}
+      data-ai-product-card-platform={platform}
+      /* Multi-card renders as the same horizontal swipe strip the customer gets —
+         the transcript's job here is to mirror what actually left, card for card. */
+      className={strip ? "flex max-w-full snap-x snap-mandatory gap-2 overflow-x-auto pb-1" : "max-w-full"}
       style={{ contentVisibility: "auto", containIntrinsicSize: compact ? "260px" : "360px" }}
     >
-      <div className={`flex flex-wrap items-center font-black uppercase text-cyan-100 ${compact ? "gap-1.5 text-[10px] tracking-[0.1em]" : "gap-2 text-[11px] tracking-[0.14em]"}`}>
-        <ShoppingBag className="h-3.5 w-3.5" />
-        <span>{t("aiSupport.inbox.productCard.sentProduct")}</span>
-        {deliveryStatus ? (
-          isTickableDeliveryStatus(deliveryStatus)
-            ? <DeliveryTicks status={deliveryStatus} />
-            : (
-              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] tracking-[0.08em] text-slate-200">
-                {deliveryStatusLabel(t, deliveryStatus)}
-              </span>
-            )
-        ) : null}
-        {message.created_at ? <span className="text-slate-500">{absoluteTime(message.created_at, i18n.resolvedLanguage)}</span> : null}
-        {items.length > 1 ? <span className="text-slate-500">{t("aiSupport.inbox.productCard.productCount", { count: items.length })}</span> : null}
-      </div>
-
-      {/* Multi-card renders as the same horizontal swipe strip WhatsApp shows the customer —
-          the transcript's job here is to mirror what actually left, card for card. */}
-      <div className={items.length > 1
-        ? `${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} flex snap-x snap-mandatory overflow-x-auto pb-1`
-        : `${compact ? "mt-2 gap-1.5" : "mt-3 gap-2"} grid`}>
-        {items.map((card, index) => {
-          const image = cardImage(card);
-          const priceValue = Number(card.price ?? card.final_price ?? 0);
-          const storefrontUrl = resolveStorefrontUrl(card);
-          // Every card of a colour carousel carries the SAME product_id, and an abandoned cart can
-          // hold one product in two sizes — the product identity alone is not unique inside a strip,
-          // so the position completes the key.
-          const cardKey = `${clean(card.product_id || card.id)}:${clean(card.variant_id)}:${index}`;
-          return (
-            <div
-              key={cardKey}
-              className={`overflow-hidden border border-white/10 bg-slate-950/70 ${compact ? "rounded-xl" : "rounded-2xl"} ${items.length > 1 ? "w-52 shrink-0 snap-start" : ""}`}
-            >
-              {storefrontUrl ? (
-                <a href={storefrontUrl} target="_blank" rel="noreferrer" className="block">
-                  {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "aspect-square w-full bg-white object-contain" : "aspect-square w-full bg-white object-contain"} loading="lazy" decoding="async" />
-                  ) : (
-                    <div className={`grid w-full place-items-center bg-white/[0.05] aspect-square`}>
-                      <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
-                    </div>
-                  )}
-                  <div className={compact ? "p-2.5" : "p-3"}>
-                    <div className={`truncate font-black text-white ${compact ? "text-xs" : "text-sm"}`}>{card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")}</div>
-                    {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
-                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
-                      {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.colorValue", { color: card.color })}</span> : null}
-                      {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.sizeValue", { size: card.size })}</span> : null}
-                    </div>
-                    <div className={`${compact ? "mt-2 rounded-lg px-2.5 py-1.5 text-[10px]" : "mt-3 rounded-xl px-3 py-2 text-[11px]"} inline-flex items-center gap-1.5 border border-cyan-300/20 bg-cyan-300/10 font-black text-cyan-100`}>
-                      {card.color && (card.variant_id || card.id) ? t("aiSupport.inbox.productCard.chooseColorButton") : t("aiSupport.inbox.productCard.openProduct")}
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    </div>
-                  </div>
-                </a>
-              ) : (
-                <div className={compact ? "p-2.5" : "p-3"}>
-                  {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")} className={compact ? "aspect-square w-full rounded-lg bg-white object-contain" : "aspect-square w-full rounded-xl bg-white object-contain"} loading="lazy" decoding="async" />
-                  ) : (
-                    <div className={`grid w-full place-items-center bg-white/[0.05] ${compact ? "aspect-square rounded-lg" : "aspect-square rounded-xl"}`}>
-                      <ShoppingBag className={`${compact ? "h-7 w-7" : "h-10 w-10"} text-slate-500`} />
-                    </div>
-                  )}
-                  <div className={`${compact ? "mt-2 text-xs" : "mt-3 text-sm"} truncate font-black text-white`}>{card.product_name || card.name || card.title || t("aiSupport.inbox.productCard.product")}</div>
-                  {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
-                    {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.colorValue", { color: card.color })}</span> : null}
-                    {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.productCard.sizeValue", { size: card.size })}</span> : null}
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {items.map(renderCard)}
     </div>
   );
 }

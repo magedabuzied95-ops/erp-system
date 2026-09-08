@@ -1807,7 +1807,9 @@
       "nextImage": "Next image",
       "mediaUnavailable": "Attachment unavailable",
       "file": "File",
-      "transcribed": "Auto transcript"
+      "transcribed": "Auto transcript",
+      "correctReply": "Correct reply",
+      "confidence": "Confidence"
     },
     "channelAlert": {
       "whatsappTitle": "WhatsApp is disconnected",

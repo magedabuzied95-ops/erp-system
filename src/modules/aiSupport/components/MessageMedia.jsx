@@ -239,6 +239,30 @@ const TONES = {
     chip: "border-amber-300/25 bg-amber-300/10 text-amber-100 hover:bg-amber-300/20",
     frame: "border-amber-300/20 bg-amber-950/40",
   },
+  // The two tones the chat bubbles use. An attachment is no longer a card with a
+  // palette of its own — it is drawn in the ink of the bubble it sits in, so the
+  // only question left is whether that bubble is dark (every brand colour, and
+  // the dark workspace) or light (the PWA's incoming side).
+  onDark: {
+    shell: "border-white/15 bg-black/[0.22]",
+    accent: "bg-white text-slate-900 hover:bg-white",
+    wave: "bg-white",
+    waveIdle: "bg-white/35",
+    title: "text-[#fff]",
+    muted: "text-white/65",
+    chip: "border-white/20 bg-white/[0.12] text-white/85 hover:bg-white/[0.22]",
+    frame: "border-white/15 bg-black/[0.22]",
+  },
+  onLight: {
+    shell: "border-slate-200 bg-slate-50",
+    accent: "bg-[#00a884] text-white hover:bg-[#029b7c]",
+    wave: "bg-[#0b7a63]",
+    waveIdle: "bg-slate-300",
+    title: "text-slate-900",
+    muted: "text-slate-500",
+    chip: "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+    frame: "border-slate-200 bg-slate-100",
+  },
   light: {
     shell: "border-slate-200 bg-white",
     accent: "bg-emerald-500 text-white hover:bg-emerald-600",
@@ -306,7 +330,7 @@ const waveformFor = (seed = "") => {
 // so the transcript keeps a single active element.
 let activeVoiceAudio = null;
 
-function VoiceNote({ item, tone = "customer", variant = "desktop", transcript = "" }) {
+function VoiceNote({ item, tone = "customer", variant = "desktop", transcript = "", bare = false }) {
   const { t } = useTranslation();
   const palette = toneOf(tone);
   const audioRef = useRef(null);
@@ -399,7 +423,7 @@ function VoiceNote({ item, tone = "customer", variant = "desktop", transcript = 
   return (
     <div
       dir="ltr"
-      className={`flex ${compact ? "min-w-[212px] max-w-[286px]" : "min-w-[268px] max-w-[340px]"} flex-col gap-1.5 rounded-2xl border p-2.5 ${palette.shell}`}
+      className={`flex ${compact ? "min-w-[212px] max-w-[286px]" : "min-w-[262px] max-w-[320px]"} flex-col gap-1.5 ${bare ? "px-0.5 py-1" : `rounded-2xl border p-2.5 ${palette.shell}`}`}
     >
       <audio
         ref={audioRef}
@@ -592,7 +616,7 @@ function ImageLightbox({ items = [], index = 0, onClose, onStep }) {
   );
 }
 
-function ImageTile({ item, tone, className = "", fit = "cover", overflow = 0, onOpen }) {
+function ImageTile({ item, tone, className = "", fit = "cover", overflow = 0, bare = false, onOpen }) {
   const { t } = useTranslation();
   const palette = toneOf(tone);
   const [failed, setFailed] = useState(false);
@@ -613,7 +637,7 @@ function ImageTile({ item, tone, className = "", fit = "cover", overflow = 0, on
       type="button"
       onClick={onOpen}
       aria-label={t("aiSupport.inbox.message.openImage")}
-      className={`group/tile relative block overflow-hidden rounded-2xl border transition ${palette.frame} ${className}`}
+      className={`group/tile relative block overflow-hidden transition ${bare ? "rounded-[10px]" : `rounded-2xl border ${palette.frame}`} ${className}`}
     >
       <img
         src={item.url}
@@ -634,7 +658,7 @@ function ImageTile({ item, tone, className = "", fit = "cover", overflow = 0, on
   );
 }
 
-function MessageImages({ items = [], tone = "customer", variant = "desktop" }) {
+function MessageImages({ items = [], tone = "customer", variant = "desktop", bare = false }) {
   const [viewer, setViewer] = useState(-1);
   if (!items.length) return null;
 
@@ -642,6 +666,10 @@ function MessageImages({ items = [], tone = "customer", variant = "desktop" }) {
   const step = (delta) => setViewer((current) => (current + delta + items.length) % items.length);
   const visible = items.slice(0, 4);
   const overflow = items.length - visible.length;
+  // A photo in a chat is shown at its own shape — the frame that used to box it
+  // into a fixed rectangle is what made every attachment read as a card.
+  const single = compact ? "max-h-[300px] max-w-[236px]" : "max-h-[380px] max-w-[320px]";
+  const grid = compact ? "max-w-[236px]" : "max-w-[320px]";
 
   return (
     <>
@@ -650,16 +678,18 @@ function MessageImages({ items = [], tone = "customer", variant = "desktop" }) {
           item={visible[0]}
           tone={tone}
           fit="contain"
+          bare={bare}
           onOpen={() => setViewer(0)}
-          className={`${compact ? "max-h-[200px] max-w-[214px]" : "max-h-[268px] max-w-[286px]"} w-fit`}
+          className={`${single} w-fit`}
         />
       ) : (
-        <div className={`grid grid-cols-2 gap-1.5 ${compact ? "max-w-[214px]" : "max-w-[286px]"}`}>
+        <div className={`grid grid-cols-2 gap-[3px] ${grid}`}>
           {visible.map((item, index) => (
             <ImageTile
               key={item.url}
               item={item}
               tone={tone}
+              bare={bare}
               onOpen={() => setViewer(index)}
               overflow={index === visible.length - 1 ? overflow : 0}
               className={`aspect-square ${visible.length === 3 && index === 0 ? "col-span-2 aspect-[16/10]" : ""}`}
@@ -694,7 +724,7 @@ const documentExtension = (item = {}) => {
   return "";
 };
 
-function DocumentCard({ item, tone = "customer", variant = "desktop" }) {
+function DocumentCard({ item, tone = "customer", variant = "desktop", bare = false }) {
   const { t } = useTranslation();
   const palette = toneOf(tone);
   const family = documentFamily(item);
@@ -707,7 +737,7 @@ function DocumentCard({ item, tone = "customer", variant = "desktop" }) {
   // how the old bubble ended up with a download icon that only ever opened a tab.
   return (
     <div
-      className={`flex ${compact ? "min-w-[204px] max-w-[286px]" : "min-w-[236px] max-w-[340px]"} items-center gap-2.5 rounded-2xl border p-2.5 ${palette.shell}`}
+      className={`flex ${compact ? "min-w-[204px] max-w-[286px]" : "min-w-[236px] max-w-[320px]"} items-center gap-2.5 p-2.5 ${bare ? "rounded-[10px] bg-black/[0.16]" : `rounded-2xl border ${palette.shell}`}`}
     >
       <a
         href={item.url}
@@ -745,11 +775,11 @@ function DocumentCard({ item, tone = "customer", variant = "desktop" }) {
 
 /* ── Videos ──────────────────────────────────────────────────────────────── */
 
-function VideoCard({ item, tone = "customer", variant = "desktop" }) {
+function VideoCard({ item, tone = "customer", variant = "desktop", bare = false }) {
   const palette = toneOf(tone);
   return (
-    <div className={`overflow-hidden rounded-2xl border ${palette.frame} ${variant === "pwa" ? "max-w-[214px]" : "max-w-[320px]"}`}>
-      <video controls preload="metadata" src={item.url} className="block max-h-[280px] w-full bg-black" />
+    <div className={`overflow-hidden ${bare ? "rounded-[10px]" : `rounded-2xl border ${palette.frame}`} ${variant === "pwa" ? "max-w-[236px]" : "max-w-[320px]"}`}>
+      <video controls preload="metadata" src={item.url} className="block max-h-[340px] w-full bg-black" />
     </div>
   );
 }
@@ -760,7 +790,7 @@ function VideoCard({ item, tone = "customer", variant = "desktop" }) {
  * Every attachment on one message, in a fixed order so a mixed message always
  * reads the same way: pictures, then voice, then video, then files.
  */
-function MessageMedia({ message = {}, groups, tone = "customer", variant = "desktop", className = "mt-3" }) {
+function MessageMedia({ message = {}, groups, tone = "customer", variant = "desktop", className = "mt-3", bare = false }) {
   const resolved = useMemo(() => groups || messageMediaGroups(message), [groups, message]);
   if (!hasMedia(resolved)) return null;
   // A transcribed voice note carries the transcript as the message body, which the
@@ -771,21 +801,22 @@ function MessageMedia({ message = {}, groups, tone = "customer", variant = "desk
 
   return (
     <div className={`${className} flex flex-col items-start gap-2`}>
-      <MessageImages items={resolved.images} tone={tone} variant={variant} />
+      <MessageImages items={resolved.images} tone={tone} variant={variant} bare={bare} />
       {resolved.audios.map((item) => (
         <VoiceNote
           key={item.url}
           item={item}
           tone={tone}
           variant={variant}
+          bare={bare}
           transcript={resolved.audios.length === 1 ? transcript : ""}
         />
       ))}
       {resolved.videos.map((item) => (
-        <VideoCard key={item.url} item={item} tone={tone} variant={variant} />
+        <VideoCard key={item.url} item={item} tone={tone} variant={variant} bare={bare} />
       ))}
       {resolved.documents.map((item) => (
-        <DocumentCard key={item.url} item={item} tone={tone} variant={variant} />
+        <DocumentCard key={item.url} item={item} tone={tone} variant={variant} bare={bare} />
       ))}
     </div>
   );

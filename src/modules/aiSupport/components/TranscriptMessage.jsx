@@ -6,7 +6,9 @@ import { useTranslation } from "react-i18next";
 
 import ProductCardMessage from "./ProductCardMessage";
 import MessageMedia, { messageMediaGroups, messageStoryContext } from "./MessageMedia.jsx";
-import DeliveryTicks, { deliveryStatusLabel as sharedDeliveryStatusLabel, isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
+import DeliveryTicks, { isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
+import CustomerAvatar from "./CustomerAvatar.jsx";
+import { bubbleClock, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -45,10 +47,6 @@ const absoluteTime = (value) => {
   });
 };
 
-// delivery_status enum + label mapping live in DeliveryTicks.jsx (shared with
-// ProductCardMessage and the PWA transcript).
-const deliveryStatusLabel = sharedDeliveryStatusLabel;
-
 // The webhook writes a readable label as the body of a media-only message
 // ("📷 صورة", "🎤 رسالة صوتية", "📎 ملف"), and older rows still carry the literal
 // "[attachment]". Once the attachment itself renders as a player, a tile or a
@@ -59,36 +57,6 @@ const isGenericMediaBody = (value = "") => {
   const stripped = clean(value).replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim().toLowerCase();
   return !stripped || MEDIA_BODY_LABELS.has(stripped);
 };
-
-const commentThreadPostTitle = (message = {}) =>
-  clean(
-    message.post_message ||
-      message.post_title ||
-      message.post_caption ||
-      message.post_name ||
-      message.post_text ||
-      message.post_body ||
-      message.caption ||
-      message.conversationMetadata?.post_message ||
-      message.conversationMetadata?.post_caption ||
-      message.conversationMetadata?.post_title ||
-      message.conversationMetadata?.post_body ||
-      ""
-  );
-
-const commentThreadPostTime = (message = {}) =>
-  clean(
-    message.post_created_time ||
-      message.comment_created_time ||
-      message.created_time ||
-      message.post_time ||
-      message.post_date ||
-      message.conversationMetadata?.post_created_time ||
-      message.conversationMetadata?.comment_created_time ||
-      message.conversationMetadata?.post_time ||
-      message.conversationMetadata?.post_date ||
-      ""
-  );
 
 const messageBodyText = (message = {}) =>
   clean(
@@ -518,6 +486,14 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
               <dt className="text-slate-400">{t("aiSupport.inbox.message.time")}</dt><dd className="font-bold">{createdAt || "—"}</dd>
               <dt className="text-slate-400">{t("aiSupport.inbox.message.type")}</dt><dd className="font-bold">{message.message_type || row.kind || "message"}</dd>
               <dt className="text-slate-400">{t("aiSupport.inbox.message.status")}</dt><dd className="font-bold">{message.delivery_status || "—"}</dd>
+              {/* The AI bubble used to print "conf 0.62" beside the sender caption.
+                  It is a diagnostic, not chat, so it moved here with the rest. */}
+              {Number(message.confidence) > 0 ? (
+                <>
+                  <dt className="text-slate-400">{t("aiSupport.inbox.message.confidence")}</dt>
+                  <dd dir="ltr" className="text-left font-bold tabular-nums">{Number(message.confidence).toFixed(2)}</dd>
+                </>
+              ) : null}
               <dt className="text-slate-400">{t("aiSupport.inbox.message.identifier")}</dt><dd dir="ltr" className="truncate text-left font-mono text-xs">{key || "—"}</dd>
             </dl>
           </section>
@@ -527,7 +503,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   );
 }
 
-function LinkifiedText({ text = "", className = "" }) {
+function LinkifiedText({ text = "", className = "", linkClassName = "font-black text-cyan-100 decoration-cyan-300/50" }) {
   const value = String(text || "");
   if (!value.trim()) return null;
   const parts = value.split(/(https?:\/\/[^\s]+)/g);
@@ -536,12 +512,78 @@ function LinkifiedText({ text = "", className = "" }) {
       {parts.map((part, index) => {
         if (!/^https?:\/\//i.test(part)) return <span key={`${index}-${part.slice(0, 8)}`}>{part}</span>;
         return (
-          <a key={`${index}-${part}`} href={part} target="_blank" rel="noopener noreferrer" className="font-black text-cyan-100 underline decoration-cyan-300/50 underline-offset-4 hover:text-cyan-50">
+          <a key={`${index}-${part}`} href={part} target="_blank" rel="noopener noreferrer" className={`underline underline-offset-4 ${linkClassName}`}>
             {part}
           </a>
         );
       })}
     </p>
+  );
+}
+
+/* ── Chat chrome ─────────────────────────────────────────────────────────────
+ * A bubble, a stamp, and — on the customer's side — a small round picture next
+ * to it. That is the whole vocabulary of every chat app the customer is actually
+ * using, and it is now the whole vocabulary here: no sender caption, no channel
+ * name, no full date. The day lives in the separator above the group, and the
+ * channel lives in the colours the bubble is painted in.
+ * ------------------------------------------------------------------------- */
+
+function ChatBubble({ chrome, side, flush = false, className = "", children }) {
+  const tone = side === "in" ? chrome.inbound : chrome.outbound;
+  // The tail sits on the top corner nearest the edge the bubble is anchored to.
+  // Logical corners keep that true whichever direction the transcript runs in.
+  const tail = side === "in" ? "rounded-ss-[4px]" : "rounded-se-[4px]";
+  return (
+    <div
+      data-ai-message-bubble="true"
+      className={`relative max-w-full overflow-hidden ${chrome.radius} ${tail} ${tone} ${flush ? "p-[3px]" : "px-2.5 py-1.5"} shadow-[0_1px_2px_rgba(0,0,0,0.22)] ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+// The stamp: the time, then the delivery marks, at the bottom-end of the bubble.
+// Over a photo it becomes the same translucent pill the platforms float on the
+// image itself.
+function BubbleStamp({ chrome, side, time, status, showTicks = false, floating = false, leading = null, trailing = null }) {
+  const meta = side === "in" ? chrome.inboundMeta : chrome.outboundMeta;
+  return (
+    <div
+      className={floating
+        ? "absolute bottom-2 end-2 z-10 flex items-center gap-1 rounded-full bg-black/[0.55] px-1.5 py-0.5 text-[10.5px] font-medium leading-4 text-white/90 backdrop-blur-sm"
+        : `mt-0.5 flex items-center justify-end gap-1 text-[10.5px] font-medium leading-4 ${meta}`}
+    >
+      {leading}
+      {time ? <span className="tabular-nums">{time}</span> : null}
+      {showTicks ? <DeliveryTicks status={status} /> : null}
+      {trailing}
+    </div>
+  );
+}
+
+function ChatRow({ side, align, avatarUrl = "", customerName = "", showAvatar = false, variant = "desktop", children }) {
+  const avatarSize = variant === "pwa" ? "h-6 w-6" : "h-7 w-7";
+  return (
+    <div className={`flex items-end gap-1.5 ${align === "right" ? "justify-end" : "justify-start"}`}>
+      {side === "in" ? (
+        showAvatar ? (
+          <CustomerAvatar
+            url={avatarUrl}
+            name={customerName}
+            // One size, one place: CustomerAvatar concatenates className with
+            // imgClassName, so an `h-full` there would out-rank the box set here.
+            className={`${avatarSize} shrink-0 self-end rounded-full object-cover`}
+            fallbackClassName={variant === "pwa" ? "bg-slate-200 text-[10px] text-slate-600" : "bg-white/[0.12] text-[10px] text-slate-200"}
+            iconClassName="h-3.5 w-3.5"
+          />
+        ) : (
+          <span aria-hidden="true" className={`${avatarSize} shrink-0`} />
+        )
+      ) : null}
+      <div className={`flex min-w-0 max-w-[78%] flex-col ${side === "in" ? "items-start" : "items-end"}`}>{children}</div>
+    </div>
   );
 }
 
@@ -689,6 +731,10 @@ function TranscriptMessage({
   onEditMessage,
   reactionOptions = QUICK_MESSAGE_REACTIONS,
   channelLabel = "",
+  channelKey = "",
+  avatarUrl = "",
+  customerName = "",
+  showAvatar = true,
 }) {
   const { t } = useTranslation();
   const safeRow = row || {};
@@ -713,248 +759,128 @@ function TranscriptMessage({
     safeRow.kind === "comment" ||
     clean(message.message_type).toLowerCase() === "comment_inbound" ||
     (clean(message.thread_kind).toLowerCase() === "comment" && ["customer", "user", "client"].includes(clean(message.sender_type).toLowerCase()));
-  const postUrl = clean(
-    safeRow.postUrl ||
-      message.post_permalink ||
-      message.permalink_url ||
-      message.post_url ||
-      message.metadata?.post_permalink ||
-      message.metadata?.permalink_url ||
-      message.channel_metadata?.post_permalink ||
-      message.channel_metadata?.permalink_url ||
-      message.conversationMetadata?.post_permalink_url ||
-      message.conversationMetadata?.post_permalink ||
-      message.conversationMetadata?.comment_url ||
-      message.conversationMetadata?.permalink_url
-  );
-  const postTitle = commentThreadPostTitle(message) || clean(message.post_permalink_url || message.metadata?.post_message || message.metadata?.post_caption || message.conversationMetadata?.post_message || message.conversationMetadata?.post_caption || "");
-  const postTime = commentThreadPostTime(message);
-  const sourceLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
-  const commentLabel = clean(message.channel_label || channelLabel || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment")) || (clean(message.channel).includes("instagram") ? "Instagram Comment" : "Facebook Comment");
   const commenterName = clean(message.commenter_name || message.customer_name || message.sender_name || message.from_name || message.author_name || "");
   const sourceComment = isCommentMessage ? null : sourceCommentContext(message);
+
+  // The chrome the customer's own app would have used. The channel decides the
+  // colours; nothing writes its name on the bubble any more.
+  const platform = useMemo(() => resolveMessagePlatform(message, channelKey), [message, channelKey]);
+  const chrome = useMemo(() => platformChrome(platform, variant), [platform, variant]);
+  const compact = variant === "pwa";
+  const side = safeRow.kind === "customer" || isCommentMessage ? "in" : "out";
+  const align = side === "in" ? "left" : "right";
+  const clock = bubbleClock(message.created_at);
+  // An attachment is drawn in the ink of the bubble it sits in, so a player on a
+  // WhatsApp-light outgoing bubble is dark on mint, not white on mint.
+  const mediaTone = (side === "in" ? chrome.inboundInk : chrome.outboundInk) === "dark" ? "onLight" : "onDark";
+  const failed = clean(message.delivery_status).toLowerCase() === "failed";
+  const isInternalNote = clean(message.message_type).toLowerCase() === "internal_note";
+  const showTicks = side === "out" && !isInternalNote && isTickableDeliveryStatus(message.delivery_status);
+  const textClass = compact ? "text-[14px] leading-5.5" : "text-[14.5px] leading-6";
+
+  const stampFor = (options = {}) => (
+    <BubbleStamp
+      chrome={chrome}
+      side={side}
+      time={clock}
+      status={message.delivery_status}
+      showTicks={showTicks}
+      leading={failed ? <span className="font-black text-rose-300">!</span> : options.leading || null}
+      trailing={options.trailing || null}
+      floating={Boolean(options.floating)}
+    />
+  );
+
+  const attachments = (extraClass = "mt-1.5") => (
+    <MessageMedia message={message} groups={media} tone={mediaTone} variant={variant} bare className={extraClass} />
+  );
+
+  // A photo or a clip with nothing written under it is the message. It fills the
+  // bubble edge to edge and the stamp floats on top of it, exactly as it does on
+  // the customer's screen — the framed tile inside a padded card is gone.
+  const visualOnly = (kindText) =>
+    !clean(kindText) &&
+    !story &&
+    !sourceComment &&
+    Boolean(media.images.length || media.videos.length) &&
+    !media.audios.length &&
+    !media.documents.length;
+
   if (!safeRow.visible) return null;
 
-  if (variant === "pwa") {
-    if (safeRow.kind === "product_card") {
-      return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
-          <div className="flex justify-start">
-            <div data-ai-message-bubble="true" className="w-[82%] max-w-sm space-y-1.5">
-              <div className="px-1 text-left text-[10px] font-medium text-slate-500">{createdAt}</div>
-              <ProductCardMessage message={message} cards={cards} />
-            </div>
-          </div>
-        </MessageActionShell>
-      );
-    }
+  const shell = (children) => (
+    <MessageActionShell
+      row={safeRow}
+      message={message}
+      variant={variant}
+      align={align}
+      createdAt={createdAt}
+      channelLabel={channelLabel}
+      onReact={onReact}
+      onEditMessage={onEditMessage}
+      reactionOptions={reactionOptions}
+    >
+      {children}
+    </MessageActionShell>
+  );
 
-    if (safeRow.kind === "customer") {
-      return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="right" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
-          <div className="flex justify-end">
-            <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
-            <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
-            <div className="ai-pwa-message-body">
-              {story ? <StoryContext story={story} variant="pwa" /> : null}
-              <LinkifiedText text={bodyText(message.customer_message)} className="text-[14px] leading-5.5" />
-              {message.delivery_status === "failed" ? <span className="text-[11px] text-rose-500"> · Failed</span> : null}
-              {message.delivery_status === "failed" && message.delivery_error ? (
-                <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
-              ) : null}
-              <MessageMedia message={message} groups={media} tone="light" variant="pwa" className="mt-2" />
-            </div>
+  /* ── The product card ─────────────────────────────────────────────────────
+   * On WhatsApp the card is the outgoing bubble; on Messenger and Instagram the
+   * generic template is a white card on the conversation background with no
+   * bubble behind it. `cardMode` carries that difference. */
+  if (safeRow.kind === "product_card") {
+    const standalone = chrome.cardMode === "standalone";
+    return shell(
+      <ChatRow side="out" align="right" variant={variant}>
+        {standalone ? (
+          <div data-ai-message-bubble="true" className="flex max-w-full flex-col items-end">
+            <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
+            <BubbleStamp chrome={chrome} side="out" time={clock} status={message.delivery_status} showTicks={showTicks} />
           </div>
-        </div>
-        </MessageActionShell>
-      );
-    }
-
-    if (safeRow.kind === "ai") {
-      return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
-          <div className="flex justify-start">
-            <div data-ai-message-bubble="true" className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
-            <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
-              <Bot className="h-3.5 w-3.5" />
-              AI
-              <DeliveryTicks status={message.delivery_status} />
-            </div>
-            <LinkifiedText text={bodyText(message.ai_answer)} className="ai-pwa-message-body text-[14px] leading-5.5" />
-            <MessageMedia message={message} groups={media} tone="light" variant="pwa" className="mt-2" />
-            </div>
-          </div>
-        </MessageActionShell>
-      );
-    }
-
-    if (safeRow.kind === "staff") {
-      return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
-          <div className="flex justify-start">
-            <div data-ai-message-bubble="true" className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
-            <div className="ai-pwa-message-meta mb-1 flex items-center gap-1.5 text-[10px] font-medium">
-              <span>{message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}</span>
-              {message.message_type === "internal_note" ? null : <DeliveryTicks status={message.delivery_status} />}
-            </div>
-            {sourceComment ? <SourceCommentContext context={sourceComment} variant="pwa" /> : null}
-            <LinkifiedText text={bodyText(message.staff_message)} className="ai-pwa-message-body text-[14px] leading-5.5" />
-            <MessageMedia message={message} groups={media} tone="light" variant="pwa" className="mt-2" />
-            {message.delivery_status === "failed" && message.delivery_error ? (
-              <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
-            ) : null}
-            </div>
-          </div>
-        </MessageActionShell>
-      );
-    }
-
-    if (isCommentMessage) {
-      return (
-        <MessageActionShell row={safeRow} message={message} variant="pwa" align="left" createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
-          <div className="flex justify-start">
-            <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
-              <MessageSquareText className="h-3.5 w-3.5" />
-              <span>{commenterName || commentLabel}</span>
-              <span className="text-slate-400">/</span>
-              <span>{createdAt}</span>
-            </div>
-            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-2 text-[15px] leading-7 text-white" />
-            <MessageMedia message={message} groups={media} tone="comment" variant="pwa" className="mt-2" />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {message.comment_id && onReplyComment ? (
-                <button
-                  type="button"
-                  onClick={() => onReplyComment(message)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100"
-                >
-                  <MessageSquareText className="h-3.5 w-3.5" />
-                  رد على التعليق
-                </button>
-              ) : null}
-              {message.commenter_id && onPrivateMessage ? (
-                <button
-                  type="button"
-                  onClick={() => onPrivateMessage(message)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  إرسال رسالة خاصة
-                </button>
-              ) : null}
-            </div>
-            </div>
-          </div>
-        </MessageActionShell>
-      );
-    }
-
-    return null;
+        ) : (
+          <ChatBubble chrome={chrome} side="out" className={chrome.cardWidth}>
+            <ProductCardMessage message={message} cards={cards} compact={compact} platform={platform} variant={variant} chrome={chrome} />
+            {stampFor()}
+          </ChatBubble>
+        )}
+      </ChatRow>
+    );
   }
 
-  return (
-    <MessageActionShell row={safeRow} message={message} variant="desktop" align={safeRow.kind === "customer" || isCommentMessage ? "left" : "right"} createdAt={createdAt} channelLabel={channelLabel} onReact={onReact} onEditMessage={onEditMessage} reactionOptions={reactionOptions}>
-      <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
-      {safeRow.kind === "product_card" ? (
-        <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className="max-w-[88%]">
-            <ProductCardMessage message={message} cards={cards} compact />
-          </div>
-        </div>
-      ) : null}
-      {safeRow.kind === "customer" ? (
-        <div className="flex justify-start">
-          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-              <span>{t("aiSupport.inbox.message.customer")}</span>
-              <span>/</span>
-              <span>{channelLabel}</span>
-              <span>/</span>
-              <span>{createdAt}</span>
-            </div>
-            {story ? <StoryContext story={story} variant="desktop" /> : null}
-            <LinkifiedText text={bodyText(message.customer_message)} className="mt-2 text-[15px] leading-7 text-white" />
-            <MessageMedia message={message} groups={media} tone="customer" variant="desktop" />
-          </div>
-        </div>
-      ) : null}
-      {safeRow.kind === "ai" ? (
-        <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-br-md border border-cyan-300/15 bg-cyan-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
-              <Bot className="h-3.5 w-3.5" />
-              <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
-              {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">{t("aiSupport.inbox.message.draftReply")}</span> : null}
-              <span className="text-slate-500">{createdAt}</span>
-              {message.delivery_status ? (
-                isTickableDeliveryStatus(message.delivery_status)
-                  ? <DeliveryTicks status={message.delivery_status} />
-                  : <span className={message.delivery_status === "failed" ? "text-rose-200" : "text-cyan-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span>
-              ) : null}
-              <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
-              {message.message_type !== "comment_suggestion" ? (
-                <button
-                  type="button"
-                  onClick={() => onOpenCorrection?.(message)}
-                  className="inline-flex h-6 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 text-[10px] font-black text-slate-100"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  تصحيح الرد
-                </button>
-              ) : null}
-            </div>
-            <LinkifiedText text={bodyText(message.ai_answer)} className="mt-2 text-[15px] leading-7 text-white" />
-            {message.suggested_products?.length ? <div className="mt-3"><ProductCardMessage message={message} cards={message.suggested_products} compact /></div> : null}
-            {/* visual_attachments already feed messageMediaGroups — rendering them
-                separately here painted every AI image twice. */}
-            <MessageMedia message={message} groups={media} tone="ai" variant="desktop" />
-          </div>
-        </div>
-      ) : null}
-      {safeRow.kind === "staff" ? (
-        <div className="flex justify-end">
-          <div data-ai-message-bubble="true" className={`max-w-[80%] rounded-2xl rounded-br-md px-4 py-3 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
-            <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"}`}>
-              <UserCheck className="h-3.5 w-3.5" />
-              <span>{staffSenderLabel(message)}</span>
-              {message.staff_user_name && message.staff_user_name !== "أنا" ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
-              {message.message_type && !["text", "conversation"].includes(clean(message.message_type).toLowerCase()) ? (
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${message.message_type === "automation_error" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : message.message_type === "comment_like" ? "border-white/10 bg-white/[0.055] text-slate-100" : message.message_type === "comment_private_reply" ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100" : "border-violet-300/20 bg-violet-400/10 text-violet-100"}`}>
-                  {message.message_type}
-                </span>
-              ) : null}
-              <span className="text-slate-500">{createdAt}</span>
-              {message.delivery_status ? (
-                isTickableDeliveryStatus(message.delivery_status)
-                  ? <DeliveryTicks status={message.delivery_status} />
-                  : <span className={message.delivery_status === "failed" ? "text-rose-200" : "text-emerald-200"}>{deliveryStatusLabel(t, message.delivery_status)}</span>
-              ) : null}
-            </div>
-            {sourceComment ? <div className="mt-2"><SourceCommentContext context={sourceComment} variant="desktop" /></div> : null}
-            <LinkifiedText text={bodyText(message.staff_message)} className="mt-2 text-[15px] leading-7 text-white" />
-            <MessageMedia message={message} groups={media} tone="staff" variant="desktop" />
-            {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
-          </div>
-        </div>
-      ) : null}
-      {isCommentMessage ? (
-        <div className="flex justify-start">
-          <div data-ai-message-bubble="true" className="max-w-[80%] rounded-2xl rounded-bl-md border border-amber-300/20 bg-amber-300/10 px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-amber-100">
-              <MessageSquareText className="h-3.5 w-3.5" />
-              <span>{commenterName || commentLabel}</span>
-              <span className="text-slate-400">/</span>
-              <span>{createdAt}</span>
-            </div>
-            <LinkifiedText text={bodyText(message.customer_message || message.message_text || message.text || message.body)} className="mt-2 text-[15px] leading-7 text-white" />
-            <MessageMedia message={message} groups={media} tone="comment" variant="desktop" />
-            <div className="mt-3 flex flex-wrap gap-2">
+  /* ── The customer ─────────────────────────────────────────────────────── */
+  if (safeRow.kind === "customer") {
+    const text = bodyText(message.customer_message);
+    const flush = visualOnly(text);
+    return shell(
+      <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName} showAvatar={showAvatar}>
+        <ChatBubble chrome={chrome} side="in" flush={flush}>
+          {story ? <StoryContext story={story} variant={variant} /> : null}
+          <LinkifiedText text={text} className={textClass} linkClassName={chrome.link} />
+          {attachments(flush ? "" : "mt-1.5")}
+          {stampFor({ floating: flush })}
+        </ChatBubble>
+      </ChatRow>
+    );
+  }
+
+  /* ── A comment under a post ───────────────────────────────────────────── */
+  if (isCommentMessage) {
+    const text = bodyText(message.customer_message || message.message_text || message.text || message.body);
+    return shell(
+      <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName || commenterName} showAvatar={showAvatar}>
+        <ChatBubble chrome={chrome} side="in">
+          {commenterName ? (
+            <div dir="auto" className={`text-[12.5px] font-bold leading-4 ${chrome.cardAction}`}>{commenterName}</div>
+          ) : null}
+          <LinkifiedText text={text} className={`${textClass} ${commenterName ? "mt-0.5" : ""}`} linkClassName={chrome.link} />
+          {attachments()}
+          {(message.comment_id && onReplyComment) || (message.commenter_id && onPrivateMessage) ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {message.comment_id && onReplyComment ? (
                 <button
                   type="button"
                   onClick={() => onReplyComment(message)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-[11px] font-black text-violet-100"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-full bg-black/[0.22] px-2.5 text-[11px] font-bold"
                 >
                   <MessageSquareText className="h-3.5 w-3.5" />
                   رد على التعليق
@@ -964,20 +890,77 @@ function TranscriptMessage({
                 <button
                   type="button"
                   onClick={() => onPrivateMessage(message)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
+                  className="inline-flex h-7 items-center gap-1.5 rounded-full bg-black/[0.22] px-2.5 text-[11px] font-bold"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
                   إرسال رسالة خاصة
                 </button>
               ) : null}
             </div>
+          ) : null}
+          {stampFor()}
+        </ChatBubble>
+      </ChatRow>
+    );
+  }
+
+  /* ── Our side: the assistant, an agent, or an automation ──────────────── */
+  const isAi = safeRow.kind === "ai";
+  const text = bodyText(isAi ? message.ai_answer : message.staff_message);
+  const flush = visualOnly(text);
+  const staffName = clean(message.staff_user_name);
+  const authorLabel = isInternalNote
+    ? "ملاحظة داخلية"
+    : isAi
+      ? (message.message_type === "comment_suggestion" ? t("aiSupport.inbox.message.draftReply") : "AI")
+      : staffName && staffName !== "أنا"
+        ? staffName
+        : staffSenderLabel(message) === "النظام"
+          ? "النظام"
+          : "";
+  const AuthorIcon = isAi ? Bot : isInternalNote ? Info : UserCheck;
+  const correctReply = isAi && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
+    <button
+      type="button"
+      title={t("aiSupport.inbox.message.correctReply")}
+      aria-label={t("aiSupport.inbox.message.correctReply")}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenCorrection(message);
+      }}
+      className="ms-0.5 grid h-4 w-4 place-items-center rounded-full opacity-70 transition hover:opacity-100"
+    >
+      <Sparkles className="h-3 w-3" />
+    </button>
+  ) : null;
+
+  return shell(
+    <ChatRow side="out" align="right" variant={variant}>
+      <ChatBubble chrome={chrome} side="out" flush={flush} className={failed ? "ring-1 ring-rose-400/70" : ""}>
+        {authorLabel ? (
+          <div className={`flex items-center gap-1 text-[11.5px] font-bold leading-4 ${chrome.outboundMeta}`}>
+            <AuthorIcon className="h-3 w-3" />
+            {authorLabel}
           </div>
-        </div>
-      ) : null}
-      </div>
-    </MessageActionShell>
+        ) : null}
+        {sourceComment ? <div className={authorLabel ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
+        <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkClassName={chrome.link} />
+        {isAi && message.suggested_products?.length ? (
+          <div className="mt-2">
+            <ProductCardMessage message={message} cards={message.suggested_products} compact platform={platform} variant={variant} chrome={chrome} />
+          </div>
+        ) : null}
+        {/* visual_attachments already feed messageMediaGroups — rendering them
+            separately here painted every AI image twice. */}
+        {attachments(flush ? "" : "mt-1.5")}
+        {failed && message.delivery_error ? (
+          <p className="mt-1 text-[11px] font-bold leading-4 text-rose-200">{message.delivery_error}</p>
+        ) : null}
+        {stampFor({ floating: flush, trailing: correctReply })}
+      </ChatBubble>
+    </ChatRow>
   );
 }
 
-export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.onEditMessage === next.onEditMessage && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel);
+export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.onEditMessage === next.onEditMessage && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel && prev.channelKey === next.channelKey && prev.avatarUrl === next.avatarUrl && prev.customerName === next.customerName && prev.showAvatar === next.showAvatar);
 
