@@ -17776,7 +17776,21 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       product_id: Number(colorPayload?.product_id || salesFlow?.product_id || 0) || null,
     });
     const productId = Number(colorPayload?.product_id || salesFlow?.product_id || 0) || null;
-    const selectedSize = text(colorPayload?.size || salesFlow?.selected_size || "");
+    // A tapped colour carries its OWN size, and an empty one means "no size chosen yet" — it must
+    // NOT fall back to whatever size is left on the conversation. Falling back is how a customer
+    // who tapped Black and picked nothing else got a summary for size 42: a size from an earlier
+    // attempt in the same chat. The "تغيير اللون" path deliberately puts the settled size INTO
+    // the payload, so keeping the size when it is genuinely known still works.
+    // Typed colours have no payload, so there the conversation's size is the only source there is.
+    // A tapped colour carries its OWN size, and an empty one means "no size chosen yet" — it must
+    // NOT fall back to whatever size is left on the conversation. Falling back is how a customer
+    // who tapped Black and picked nothing else got a summary for size 42: a size from an earlier
+    // attempt in the same chat. The "تغيير اللون" path deliberately puts the settled size INTO
+    // the payload, so keeping the size when it is genuinely known still works.
+    // Typed colours have no payload, so there the conversation's size is the only source there is.
+    const selectedSize = colorPayload
+      ? text(colorPayload.size || "")
+      : text(salesFlow?.selected_size || "");
     // A typed colour has to be resolved against what the catalog actually spells, otherwise
     // "ابيض" never matches the row stored as "White".
     const rawColorInput = text(colorPayload?.color || messageText);

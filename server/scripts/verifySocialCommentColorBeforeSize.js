@@ -99,11 +99,29 @@ assert.match(
 // customer is back to never being asked for a size in that colour.
 const colorHandlerIndex = metaSource.indexOf('reason: "social_comment_color_selected"');
 assert.ok(colorHandlerIndex > 0, "colour handler is gone");
-const colorHandlerBody = metaSource.slice(Math.max(0, colorHandlerIndex - 3000), colorHandlerIndex);
+// Bounded by the handler's own opening line rather than a character count — the body grew past a
+// 3000-char window and the assertions below started reading someone else's code.
+const colorHandlerStart = metaSource.lastIndexOf("if (colorPayload || (socialCommentSalesFlowStepFromMemory", colorHandlerIndex);
+assert.ok(colorHandlerStart > 0, "could not find the start of the colour handler");
+const colorHandlerBody = metaSource.slice(colorHandlerStart, colorHandlerIndex);
 assert.match(
   colorHandlerBody,
   /if \(!selectedSize\) \{\s*return presentSizeOptions\(/,
   "choosing a colour must lead to the size question, not to the order summary"
+);
+
+// A tapped colour carries its own size, and an empty one means "not chosen yet". Falling back to
+// the conversation's size handed a customer who tapped Black and nothing else a summary for size
+// 42 — a size left over from an earlier attempt in the same chat.
+assert.match(
+  colorHandlerBody,
+  /const selectedSize = colorPayload\s*\?\s*text\(colorPayload\.size \|\| ""\)\s*:\s*text\(salesFlow\?\.selected_size \|\| ""\)/,
+  "a tapped colour must take the size from its own payload only, never from leftover conversation state"
+);
+assert.doesNotMatch(
+  colorHandlerBody,
+  /text\(colorPayload\?\.size \|\| salesFlow\?\.selected_size/,
+  "the old ||-chain silently inherits a stale size behind an empty payload"
 );
 
 console.log("social comment colour-before-size OK");
