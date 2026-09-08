@@ -18276,8 +18276,11 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         message,
         text: addressLink
           ? (addressCardSent
-              ? "ممتاز ✅\n\nفاضل بيانات الشحن بس — دوس على «إملا بيانات الشحن 📦» فوق، إملا العنوان واختار المدينة والمنطقة والحي، ودوس تأكيد.\n\nأول ما تبعتها هيوصلك تأكيد الطلب فورًا ❤️"
-              : `ممتاز ✅\n\nفاضل بيانات الشحن بس. افتح اللينك ده، إملا بياناتك واختار المدينة والمنطقة والحي، ودوس تأكيد 👇\n\n${addressLink}\n\nأول ما تبعتها هيوصلك تأكيد الطلب فورًا ❤️`)
+              // The card is right above this message, so the copy points at its button rather
+              // than repeating what the form itself already asks for.
+              ? "☑ ممتاز\nفاضل بس بيانات الشحن 📦\nاضغط «إملا بيانات الشحن» وكمل بياناتك، وبعدها أكد الطلب ❤️"
+              // No card, so the link has to be IN the text — there is no button to point at.
+              : `☑ ممتاز\nفاضل بس بيانات الشحن 📦\nافتح اللينك ده وكمل بياناتك، وبعدها أكد الطلب ❤️\n\n${addressLink}`)
           // Only when no public URL is configured: the old text path is the fallback, never the plan.
           : "ممتاز ✅\n\nلإتمام الطلب برجاء إرسال بيانات الشحن:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
         detectedIntent: "social_comment_sales_flow_confirm",
