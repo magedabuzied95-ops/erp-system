@@ -195,4 +195,12 @@ assert.match(
   "an unpriced product must be handed to a human, not read as a failed order"
 );
 
+// ONE confirmation text for every channel. The Meta branch kept an inline copy of the old
+// wording, so the invoice reached WhatsApp only and Instagram confirmed INV-1246 without it.
+const confirmStart = metaService.indexOf("if (isWhatsapp) await sendConfirmation(successText);");
+assert.ok(confirmStart > 0, "the confirmation send is gone");
+const confirmBody = metaService.slice(confirmStart, confirmStart + 900);
+assert.match(confirmBody, /text: successText,/, "every channel must send the same confirmation, invoice included");
+assert.doesNotMatch(confirmBody, /"✅ تم تأكيد طلبك بنجاح",/, "no channel may keep its own copy of the confirmation");
+
 console.log("social comment order totals OK");

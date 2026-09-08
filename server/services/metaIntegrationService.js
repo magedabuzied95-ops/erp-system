@@ -18961,16 +18961,13 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   successLines.push("", "هيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️", "", "شكراً لاختيارك M1 Store");
   const successText = successLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   if (isWhatsapp) await sendConfirmation(successText);
+  // ONE text for every channel. This branch kept its own inline copy, so the invoice added to
+  // successText reached WhatsApp and nothing else — INV-1246 confirmed on Instagram with the old
+  // wording while the WhatsApp order beside it carried its invoice and total.
   else await sendSocialCommentSalesFlowText({
     config,
     message,
-    text: [
-      "✅ تم تأكيد طلبك بنجاح",
-      "",
-      "طلبك اتسجل عندنا، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
-      "",
-      "شكراً لاختيارك M1 Store",
-    ].join("\n"),
+    text: successText,
     detectedIntent: "social_comment_sales_flow_draft_order_created",
     metadata: {
       selected_size: selectedSize,
