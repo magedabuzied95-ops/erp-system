@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import {
   createBuild,
@@ -21,6 +22,15 @@ import {
 
 const BUILD_A = () => createBuild("AAAA1111");
 const BUILD_B = () => createBuild("BBBB2222");
+
+// The shell version the worker is actually running, so a version bump does not
+// silently turn a cache assertion into a test of an empty cache.
+const currentShellVersion = () => {
+  const source = readFileSync(new URL("../public/pos-sw.js", import.meta.url), "utf8");
+  const match = source.match(/const VERSION = "([^"]+)"/);
+  assert.ok(match, "public/pos-sw.js must declare a VERSION");
+  return match[1];
+};
 
 const boot = async (sw, server, build) => {
   await sw.install();
@@ -77,8 +87,13 @@ test("an already-poisoned cache entry is evicted rather than served", async () =
   await sw.install();
   await sw.activate();
 
-  // Simulate a client that a previous worker generation already poisoned.
-  const runtime = await sw.cacheStorage.open("pos-shell-v11-runtime");
+  // Simulate a client that a previous worker generation already poisoned. The
+  // cache name is read from the worker rather than pinned, because the entry has
+  // to land in the cache THIS worker reads: activate() has already evicted every
+  // older `pos-shell-*` pair by the time we get here, so a hardcoded old version
+  // would seed a cache nothing consults and the test would pass on a worker that
+  // never evicts anything.
+  const runtime = await sw.cacheStorage.open(`${currentShellVersion()}-runtime`);
   await runtime.put(
     a.lazyChunks[0],
     new Response("<!doctype html><html></html>", {
@@ -161,7 +176,115 @@ test("caches do not accumulate across builds", async () => {
   for (const chunk of b.chunks) await sw2.fetch(chunk);
 
   const names = await sw2.cacheStorage.keys();
-  const stale = names.filter((n) => n.startsWith("pos-shell-") && !n.includes(process.env.__EXPECT_VERSION || ""));
-  assert.ok(names.length <= 2, `cache storage grew unbounded across deploys: ${JSON.stringify(names)}`);
+  // Counted over the shell pair alone. The product-image cache is deliberately
+  // outside that prefix so a deploy does not cost the shop a full catalogue of
+  // photos, so it must not be read as accumulation here.
+  const shellCaches = names.filter((name) => name.startsWith("pos-shell-"));
+  const stale = shellCaches.filter((n) => !n.includes(process.env.__EXPECT_VERSION || ""));
+  assert.ok(shellCaches.length <= 2, `cache storage grew unbounded across deploys: ${JSON.stringify(names)}`);
   assert.ok(stale.length >= 0);
+});
+
+test("a navigation is never mistaken for an image", async () => {
+  const a = BUILD_A();
+  const server = createServer(a, { assetFallback: "spa" });
+  const sw = loadServiceWorker(server);
+  await boot(sw, server, a);
+
+  server.offline = true;
+
+  // Chrome sends `text/html,...,image/avif,image/webp,...` for a navigation. A
+  // worker that sniffs the Accept header for "image/" routes the POS page into
+  // the image cache, and the offline shell fallback silently stops existing.
+  const navRes = await sw.fetch("/pos", {
+    mode: "navigate",
+    headers: { accept: "text/html,application/xhtml+xml,image/avif,image/webp,*/*;q=0.8" },
+  });
+  assert.ok(navRes, "an offline navigation must still be answered from the shell cache");
+  const html = await (await navRes).text();
+  assert.match(html, /id="root"/, "the offline navigation must return the application shell");
+
+  const names = await sw.cacheStorage.keys();
+  assert.ok(
+    !names.includes("pos-product-images-v1") ||
+      !(await (await sw.cacheStorage.open("pos-product-images-v1")).keys()).some((key) =>
+        String(key?.url || key).includes("/pos"),
+      ),
+    "the POS document must never be stored in the product-image cache",
+  );
+});
+
+// ============================================================================
+// PRODUCT IMAGES
+// The till is a picture grid. Photos live on the API origin, and before v12 the
+// worker returned early for every cross-origin request -- so nothing cached them
+// and nothing served them, and an offline cashier got a grid of broken pictures.
+// ============================================================================
+
+const IMAGE_ORIGIN = "https://api.erp.test";
+const PRODUCT_IMAGE = `${IMAGE_ORIGIN}/uploads/products/shoe.png`;
+const MISSING_IMAGE = `${IMAGE_ORIGIN}/uploads/products/gone.png`;
+
+const buildWithImages = () =>
+  createBuild("AAAA1111", {
+    extraFiles: { "/uploads/products/shoe.png": { body: "PNGDATA", type: "image/png" } },
+  });
+
+test("a warmed product image renders offline, from another origin", async () => {
+  const a = buildWithImages();
+  const server = createServer(a, { assetFallback: "404" });
+  const sw = loadServiceWorker(server);
+  await boot(sw, server, a);
+
+  const replies = [];
+  await sw.message({ type: "POS_WARM_IMAGES", urls: [PRODUCT_IMAGE] }, {
+    postMessage: (payload) => replies.push(payload),
+  });
+
+  assert.equal(replies[0]?.type, "POS_WARM_IMAGES_DONE");
+  assert.equal(replies[0]?.counts?.stored, 1, "the warm must actually store the photo");
+
+  server.offline = true;
+
+  const res = await sw.fetch(PRODUCT_IMAGE, { destination: "image" });
+  assert.ok(res, "an offline product image must be answered from cache, not left to fail");
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), "PNGDATA");
+});
+
+test("a photo the server does not have is not stored as a permanent broken image", async () => {
+  const a = buildWithImages();
+  const server = createServer(a, { assetFallback: "404" });
+  const sw = loadServiceWorker(server);
+  await boot(sw, server, a);
+
+  const replies = [];
+  await sw.message({ type: "POS_WARM_IMAGES", urls: [MISSING_IMAGE] }, {
+    postMessage: (payload) => replies.push(payload),
+  });
+
+  // The origin answers a missing upload with the SPA shell (200, text/html).
+  // Storing that would give this product a permanently broken picture, which is
+  // the same failure shape as a CDN caching a 404 as immutable.
+  assert.equal(replies[0]?.counts?.stored ?? 0, 0);
+  const images = await sw.cacheStorage.open("pos-product-images-v1");
+  assert.equal(await images.match(MISSING_IMAGE), undefined);
+});
+
+test("the image cache survives a shell version bump", async () => {
+  const a = buildWithImages();
+  const server = createServer(a, { assetFallback: "404" });
+  const sw = loadServiceWorker(server);
+  await boot(sw, server, a);
+  await sw.message({ type: "POS_WARM_IMAGES", urls: [PRODUCT_IMAGE] }, { postMessage: () => {} });
+
+  // A new worker generation activates. Evicting the photos here would cost the
+  // shop a full catalogue re-download on every deploy.
+  const sw2 = loadServiceWorker(server);
+  sw2.cacheStorage.caches = sw.cacheStorage.caches;
+  await sw2.install();
+  await sw2.activate();
+
+  const images = await sw2.cacheStorage.open("pos-product-images-v1");
+  assert.ok(await images.match(PRODUCT_IMAGE), "a deploy must not throw away the warmed photos");
 });

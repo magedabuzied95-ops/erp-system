@@ -112,6 +112,12 @@ import {
   toPosCustomerRow,
   toServerCustomerId,
 } from "../lib/posOfflineCustomers";
+import {
+  createOfflineExpenseIdempotencyKey,
+  deleteOfflineExpense,
+  requeueOfflineExpense,
+  saveOfflineExpense,
+} from "../lib/posOfflineExpenses";
 import { countOpenOfflineWork, createOfflineSyncScheduler } from "../lib/posOfflineSync";
 import { API_BASE_URL } from "../../../shared/constants/app.js";
 import PosOfflineQueueModal from "../components/PosOfflineQueueModal";
@@ -129,7 +135,9 @@ import {
 } from "../../../shared/lib/productRefreshSignal";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import {
+  extractPosCatalogSnapshotImageUrls,
   getPosCatalogCacheMeta,
+  getPosImageCacheStatus,
   getPosCatalogSnapshot,
   preloadPosCatalogThumbnails,
   savePosCatalogSnapshot,
@@ -260,7 +268,10 @@ const readStoredOpenInvoices = () => {
 };
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest?v=10";
 const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
-const POS_SERVICE_WORKER_VERSION = 11;
+// v12 teaches the worker to cache and serve product images from the API origin.
+// Must be bumped in step with VERSION in public/pos-sw.js, or a warm terminal
+// keeps the old worker and its blank offline grid.
+const POS_SERVICE_WORKER_VERSION = 12;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 // PWA/OS chrome colour for the installed POS app. This was pinned to #07111f, a
@@ -1842,6 +1853,8 @@ function POSPro() {
   const [offlineOrdersPendingCount, setOfflineOrdersPendingCount] = useState(0);
   const [offlineQueueOpen, setOfflineQueueOpen] = useState(false);
   const [offlineSyncing, setOfflineSyncing] = useState(false);
+  const [offlineImageCache, setOfflineImageCache] = useState(null);
+  const [offlineImageWarming, setOfflineImageWarming] = useState(false);
   // The till's own read on the connection. `navigator.onLine` seeds it, but the
   // sync scheduler's reachability probe is what keeps it honest -- shop Wi-Fi
   // with a dead uplink reports online and would otherwise show a green pill
@@ -2070,8 +2083,8 @@ function POSPro() {
 
     const applyWork = (work) => {
       if (!active || !work) return;
-      setOfflinePendingSyncCount(Number(work.orders || 0) + Number(work.customers || 0));
-      setOfflineOrdersPendingCount(Number(work.orders || 0));
+      setOfflinePendingSyncCount(Number(work.total || 0));
+      setOfflineOrdersPendingCount(Number(work.drawerAffecting ?? work.orders ?? 0));
       setOfflineNeedsReviewCount(Number(work.needsReview || 0));
     };
 
@@ -5801,8 +5814,8 @@ function POSPro() {
             setPosBackendOnline(false);
             void countOpenOfflineWork({ tenantId: customerCacheTenantId })
               .then((work) => {
-                setOfflinePendingSyncCount(Number(work.orders || 0) + Number(work.customers || 0));
-                setOfflineOrdersPendingCount(Number(work.orders || 0));
+                setOfflinePendingSyncCount(Number(work.total || 0));
+                setOfflineOrdersPendingCount(Number(work.drawerAffecting ?? work.orders ?? 0));
                 setOfflineNeedsReviewCount(Number(work.needsReview || 0));
               })
               .catch(() => {});
@@ -5919,11 +5932,47 @@ function POSPro() {
     ensureServerPosShiftRef.current = ensureServerPosShift;
   }, [ensureServerPosShift]);
 
+  // How many catalogue photos this device can draw with no connection, against
+  // how many the loaded catalogue actually needs.
+  const refreshOfflineImageCache = useCallback(async () => {
+    const status = await getPosImageCacheStatus().catch(() => null);
+    if (!status) return null;
+    const expected = extractPosCatalogSnapshotImageUrls(products).length;
+    const next = { ...status, expected };
+    setOfflineImageCache(next);
+    return next;
+  }, [products]);
+
+  const handleWarmOfflineImages = useCallback(async () => {
+    setOfflineImageWarming(true);
+    try {
+      const counts = await preloadPosCatalogThumbnails(products);
+      const status = await refreshOfflineImageCache();
+      if (counts) {
+        toast.success(
+          t("pos.toasts.offlineImagesReady", "{{count}} product photos are saved on this device", {
+            count: Number(status?.cached || counts.stored || 0),
+          })
+        );
+      } else {
+        toast.error(t("pos.toasts.offlineImagesFailed", "Could not save the product photos"));
+      }
+      return counts;
+    } finally {
+      setOfflineImageWarming(false);
+    }
+  }, [products, refreshOfflineImageCache, t]);
+
+  useEffect(() => {
+    if (!offlineQueueOpen) return;
+    void refreshOfflineImageCache();
+  }, [offlineQueueOpen, refreshOfflineImageCache]);
+
   const refreshOfflineWorkCounts = useCallback(async () => {
     const work = await countOpenOfflineWork({ tenantId: customerCacheTenantId }).catch(() => null);
     if (!work) return null;
-    setOfflinePendingSyncCount(Number(work.orders || 0) + Number(work.customers || 0));
-    setOfflineOrdersPendingCount(Number(work.orders || 0));
+    setOfflinePendingSyncCount(Number(work.total || 0));
+    setOfflineOrdersPendingCount(Number(work.drawerAffecting ?? work.orders ?? 0));
     setOfflineNeedsReviewCount(Number(work.needsReview || 0));
     return work;
   }, [customerCacheTenantId]);
@@ -5966,6 +6015,25 @@ function POSPro() {
       await handleOfflineSyncNow();
     },
     [handleOfflineSyncNow]
+  );
+
+  const handleRetryOfflineExpense = useCallback(
+    async (expense) => {
+      if (!expense?.local_id) return;
+      await requeueOfflineExpense(expense.local_id);
+      await handleOfflineSyncNow();
+    },
+    [handleOfflineSyncNow]
+  );
+
+  const handleDiscardOfflineExpense = useCallback(
+    async (expense) => {
+      if (!expense?.local_id) return;
+      await deleteOfflineExpense(expense.local_id);
+      await refreshOfflineWorkCounts();
+      toast.success(t("pos.toasts.offlineExpenseDiscarded", "Expense removed from the queue"));
+    },
+    [refreshOfflineWorkCounts, t]
   );
 
   const handleDiscardOfflineOrder = useCallback(
@@ -6169,6 +6237,7 @@ function POSPro() {
       toast.error(t("pos.shift.openShift", "Open shift"));
       return;
     }
+    const expenseIdempotencyKey = createOfflineExpenseIdempotencyKey();
     const amount = Number(quickExpense.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error(tt("pos.posPro.toasts.invalidExpenseAmount"));
@@ -6179,18 +6248,34 @@ function POSPro() {
       toast.error("Select an employee for the advance");
       return;
     }
+    const expenseBranchId = activePosShift.branch_id || posShiftBranch?.id || currentUser?.branch_id || null;
+    const expenseRequestPayload = {
+      category: quickExpense.category,
+      expense_type: quickExpense.category,
+      amount,
+      payment_method: quickExpense.payment_method,
+      notes: quickExpense.notes,
+      employee_id: isEmployeeAdvance ? quickExpense.employee_id : null,
+    };
     try {
       setQuickExpenseSaving(true);
-      const response = await api.post("/pos/expenses", {
-        shift_id: activePosShift.id,
-        branch_id: activePosShift.branch_id || posShiftBranch?.id || currentUser?.branch_id || null,
-        category: quickExpense.category,
-        expense_type: quickExpense.category,
-        amount,
-        payment_method: quickExpense.payment_method,
-        notes: quickExpense.notes,
-        employee_id: isEmployeeAdvance ? quickExpense.employee_id : null,
-      });
+      const response = await api.post(
+        "/pos/expenses",
+        {
+          ...expenseRequestPayload,
+          // Null for a shift opened on this device: the column is a bigint, and
+          // the server resolves the open shift for us.
+          shift_id: toServerPosShiftId(activePosShift.id),
+          branch_id: expenseBranchId,
+          idempotency_key: expenseIdempotencyKey,
+        },
+        {
+          headers: {
+            "Idempotency-Key": expenseIdempotencyKey,
+            "X-Idempotency-Key": expenseIdempotencyKey,
+          },
+        }
+      );
       const report = response?.report || null;
       if (report?.shift) {
         setActivePosShift((prev) => ({ ...(prev || {}), ...report.shift }));
@@ -6202,6 +6287,57 @@ function POSPro() {
       toast.success(isEmployeeAdvance ? "Employee advance saved" : "Expense saved");
     } catch (err) {
       console.error("[pos] failed to create quick expense:", err);
+      // The money already left the drawer. Refusing to record it would leave the
+      // shift's cash short with nothing to explain it at closing time, so the
+      // expense queues exactly like an offline invoice.
+      if (shouldStoreOfflineOrderDraft(err)) {
+        try {
+          await saveOfflineExpense({
+            idempotency_key: expenseIdempotencyKey,
+            category: quickExpense.category,
+            amount,
+            payment_method: quickExpense.payment_method,
+            notes: quickExpense.notes,
+            employee_id: isEmployeeAdvance ? quickExpense.employee_id : null,
+            employee_name: isEmployeeAdvance
+              ? salesEmployees.find((employee) => String(employee.id) === String(quickExpense.employee_id))?.name || ""
+              : "",
+            cashier: {
+              id: currentUser?.id || null,
+              name: currentUser?.name || currentUser?.full_name || currentUser?.email || "",
+            },
+            shift_id: toServerPosShiftId(activePosShift.id),
+            branch_id: expenseBranchId,
+            request_payload: expenseRequestPayload,
+          });
+          // The drawer is short by this amount from now on, whether or not the
+          // server has heard about it -- so reflect it locally straight away.
+          setActivePosShift((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  expected_cash:
+                    quickExpense.payment_method === "cash"
+                      ? Number(prev.expected_cash || 0) - amount
+                      : prev.expected_cash,
+                }
+              : prev
+          );
+          setPosBackendOnline(false);
+          await refreshOfflineWorkCounts();
+          setQuickExpense(quickExpenseDefaults);
+          setQuickExpenseOpen(false);
+          toast.success(
+            t(
+              "pos.toasts.savedOfflineExpense",
+              "Expense saved on this device. It will sync when the connection returns."
+            )
+          );
+          return;
+        } catch (offlineExpenseError) {
+          console.error("[pos-offline-expenses] failed to queue expense", offlineExpenseError?.message || offlineExpenseError);
+        }
+      }
       toast.error(err?.message || "Failed to save expense");
     } finally {
       setQuickExpenseSaving(false);
@@ -7146,8 +7282,8 @@ function POSPro() {
           });
           const pendingWork = await countOpenOfflineWork({ tenantId: customerCacheTenantId }).catch(() => null);
           if (pendingWork) {
-            setOfflinePendingSyncCount(Number(pendingWork.orders || 0) + Number(pendingWork.customers || 0));
-            setOfflineOrdersPendingCount(Number(pendingWork.orders || 0));
+            setOfflinePendingSyncCount(Number(pendingWork.total || 0));
+            setOfflineOrdersPendingCount(Number(pendingWork.drawerAffecting ?? pendingWork.orders ?? 0));
             setOfflineNeedsReviewCount(Number(pendingWork.needsReview || 0));
           }
           setPosBackendOnline(false);
@@ -9701,6 +9837,11 @@ function POSPro() {
             onRetryOrder={handleRetryOfflineOrder}
             onDiscardOrder={handleDiscardOfflineOrder}
             onPrintOrder={handleReprintOfflineOrder}
+            onRetryExpense={handleRetryOfflineExpense}
+            onDiscardExpense={handleDiscardOfflineExpense}
+            imageCache={offlineImageCache}
+            imageWarming={offlineImageWarming}
+            onWarmImages={handleWarmOfflineImages}
           />
         ) : null}
 

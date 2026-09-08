@@ -337,7 +337,7 @@
 
             if ("serviceWorker" in navigator) {
               window.addEventListener("load", function () {
-                navigator.serviceWorker.register("/pos-sw.js?v=11", { scope: "/pos" }).then(function (registration) {
+                navigator.serviceWorker.register("/pos-sw.js?v=12", { scope: "/pos" }).then(function (registration) {
                   if (registration && registration.update) registration.update().catch(function () {});
                 }).catch(function () {});
               }, { once: true });

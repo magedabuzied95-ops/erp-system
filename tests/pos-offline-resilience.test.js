@@ -29,7 +29,16 @@ import {
   isOfflinePosShiftId,
   toServerPosShiftId,
 } from "../src/modules/pos/lib/posShiftCache.js";
-import { probeBackendReachable, runOfflineSyncPass } from "../src/modules/pos/lib/posOfflineSync.js";
+import {
+  countOpenOfflineWork,
+  probeBackendReachable,
+  runOfflineSyncPass,
+} from "../src/modules/pos/lib/posOfflineSync.js";
+import {
+  listOpenOfflineExpenses,
+  retryPendingOfflineExpenses,
+  saveOfflineExpense,
+} from "../src/modules/pos/lib/posOfflineExpenses.js";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -364,4 +373,124 @@ test("the server treats an offline replay as a routing problem, not a rejection"
   // Both id columns are bigint, so both are coerced before they reach a query.
   assert.match(source, /shift_id: toPositiveIntegerOrNull\(firstValue\(body\.shift_id, body\.shiftId\)\)/);
   assert.ok(source.includes("offline_original_shift_id"));
+});
+
+test("an expense raised offline queues, replays under one key, and never posts twice", async () => {
+  await withBrowser(async () => {
+    const saved = await saveOfflineExpense({
+      category: "delivery",
+      amount: 45,
+      payment_method: "cash",
+      notes: "delivery man",
+      shift_id: 42,
+      branch_id: 3,
+      request_payload: { category: "delivery", amount: 45, payment_method: "cash" },
+    });
+
+    assert.ok(saved.idempotency_key.startsWith("pos-expense-"));
+    assert.equal(saved.status, OFFLINE_ORDER_STATUS.PENDING);
+    assert.equal((await listOpenOfflineExpenses()).length, 1);
+
+    const sent = [];
+    const send = async (record) => {
+      sent.push({
+        ...(record.request_payload || {}),
+        shift_id: record.shift_id,
+        idempotency_key: record.idempotency_key,
+        offline_origin: true,
+      });
+      return { expense: { id: 900 } };
+    };
+
+    await retryPendingOfflineExpenses(send);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].idempotency_key, saved.idempotency_key);
+    assert.equal(sent[0].offline_origin, true);
+    assert.equal(sent[0].shift_id, 42);
+
+    // A second pass must not withdraw the same cash again.
+    await retryPendingOfflineExpenses(send);
+    assert.equal(sent.length, 1);
+    assert.equal((await listOpenOfflineExpenses()).length, 0);
+  });
+});
+
+test("an expense refused because no shift is open holds instead of failing", async () => {
+  await withBrowser(async () => {
+    const saved = await saveOfflineExpense({
+      category: "water",
+      amount: 20,
+      payment_method: "cash",
+      request_payload: { category: "water", amount: 20 },
+    });
+
+    await retryPendingOfflineExpenses(async () => {
+      const error = new Error("no open shift");
+      error.status = 409;
+      error.responseBody = { code: "OFFLINE_REPLAY_NO_OPEN_SHIFT" };
+      throw error;
+    });
+
+    const held = (await listOpenOfflineExpenses())[0];
+    assert.equal(held.local_id, saved.local_id);
+    assert.equal(held.status, OFFLINE_ORDER_STATUS.PENDING, "still queued, not marked failed");
+    assert.equal(held.error_reason, "no_open_shift");
+  });
+});
+
+test("queued expenses block the shift close alongside invoices", async () => {
+  await withBrowser(async () => {
+    await saveOfflineExpense({ category: "snacks", amount: 15, request_payload: {} });
+    const work = await countOpenOfflineWork({ tenantId: 1 });
+    assert.equal(work.expenses, 1);
+    assert.equal(work.drawerAffecting, 1, "an expense moves drawer cash, so the close must wait for it");
+    assert.equal(work.total, 1);
+  });
+});
+
+test("the POS service worker caches and serves product images from any origin", () => {
+  const worker = readSource("public/pos-sw.js");
+
+  // The image branch has to run BEFORE the same-origin early return, or a photo
+  // on the API origin is never seen by the worker at all.
+  const imageBranchAt = worker.indexOf("isProductImageRequest(request, url)", worker.indexOf("addEventListener(\"fetch\""));
+  const crossOriginGateAt = worker.indexOf("url.origin !== self.location.origin", worker.indexOf("addEventListener(\"fetch\""));
+  assert.ok(imageBranchAt > 0, "the fetch handler must have a product-image branch");
+  // Matched verbatim, so a disabled branch (`false &&`, a feature flag) reads as
+  // a regression rather than passing on the strength of the call still being there.
+  assert.ok(
+    worker.includes("if (isProductImageRequest(request, url)) {"),
+    "the branch condition must be the check itself, not a disabled version of it"
+  );
+  assert.ok(worker.includes("caches.open(IMAGE_CACHE)"), "the branch must read the image cache");
+  assert.ok(
+    imageBranchAt < crossOriginGateAt,
+    "product images must be handled before the cross-origin early return"
+  );
+
+  // Opaque responses are the whole point: a cross-origin image without CORS
+  // headers cannot be stored any other way, and cache.add would reject it.
+  assert.ok(worker.includes('response.type === "opaque"'));
+  assert.ok(worker.includes('mode: "no-cors"'));
+  assert.ok(!/cache\.add\(url\)/.test(worker), "cache.add cannot store an opaque image response");
+
+  // The image cache must survive a shell version bump, so it must not carry the
+  // prefix the activate handler evicts.
+  assert.match(worker, /const IMAGE_CACHE = "pos-product-images-v\d+"/);
+  assert.ok(!worker.includes('IMAGE_CACHE = `pos-shell-'));
+});
+
+test("the page and the worker agree on one image cache, and the whole catalogue is warmed", () => {
+  const worker = readSource("public/pos-sw.js");
+  const cacheLib = readSource("src/modules/pos/lib/posCatalogCache.js");
+
+  const workerName = worker.match(/const IMAGE_CACHE = "([^"]+)"/)?.[1];
+  const pageName = cacheLib.match(/const POS_PRODUCT_IMAGE_CACHE_NAME = "([^"]+)"/)?.[1];
+  assert.ok(workerName);
+  assert.equal(pageName, workerName, "a cache written by one and read by the other must share a name");
+
+  // The old preloader capped the warm at 120 images, which on a real catalogue
+  // left almost every product blank offline.
+  assert.ok(!cacheLib.includes(".slice(0, 120)"));
+  assert.match(cacheLib, /POS_IMAGE_WARM_LIMIT = \d{3,}/);
 });

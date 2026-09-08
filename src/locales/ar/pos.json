@@ -479,7 +479,11 @@
     "offlineSyncDone": "تمت مزامنة {{count}} فاتورة",
     "offlineSyncStillPending": "لسه مفيش اتصال بالسيرفر",
     "offlineInvoiceDiscarded": "تم حذف الفاتورة من الطابور",
-    "offlineReceiptUnavailable": "مفيش إيصال محفوظ للفاتورة دي"
+    "offlineReceiptUnavailable": "مفيش إيصال محفوظ للفاتورة دي",
+    "savedOfflineExpense": "تم حفظ المصروف على الجهاز. هيتزامن أول ما الاتصال يرجع.",
+    "offlineExpenseDiscarded": "تم حذف المصروف من الطابور",
+    "offlineImagesReady": "تم حفظ {{count}} صورة منتج على الجهاز",
+    "offlineImagesFailed": "تعذر حفظ صور المنتجات"
   },
   "personal": {
     "noCashImpact": " - لا تؤثر على الكاش",
@@ -804,6 +808,15 @@
       "confirmDiscard": "احذف نهائيًا",
       "cancel": "إلغاء",
       "close": "إغلاق"
+    },
+    "expenses": {
+      "title": "مصاريف في انتظار المزامنة",
+      "fallback": "مصروف"
+    },
+    "images": {
+      "stored": "صور المنتجات المحفوظة للاستخدام بدون نت: {{count}}",
+      "download": "تحميل الصور",
+      "needsConnection": "تحميل الصور محتاج اتصال"
     }
   }
 }

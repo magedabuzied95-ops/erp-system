@@ -11,7 +11,23 @@ export const POS_CATALOG_SCHEMA_VERSION = 6;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
-const POS_CATALOG_THUMBNAIL_CACHE_NAME = `erp-pos-catalog-thumbnails-v${POS_CATALOG_SCHEMA_VERSION}`;
+// Must stay identical to IMAGE_CACHE in public/pos-sw.js. The previous name was
+// versioned on the catalog schema and was read by nothing at all: the worker's
+// fetch handler returned early for cross-origin requests, so every warmed
+// thumbnail sat in a cache no request ever consulted and the offline grid was
+// blank. One name, written by the worker and read by the worker.
+const POS_PRODUCT_IMAGE_CACHE_NAME = "pos-product-images-v1";
+// Retired. Deleted on the first warm so the dead entries stop occupying quota
+// that the live cache needs.
+const LEGACY_THUMBNAIL_CACHE_NAMES = Array.from(
+  { length: POS_CATALOG_SCHEMA_VERSION },
+  (_unused, index) => `erp-pos-catalog-thumbnails-v${index + 1}`
+);
+// A full catalogue, not a sample. The old cap was 120 images, which on a
+// 3,000-product catalogue meant roughly one product in twenty-five rendered
+// offline. Ordering still puts favourites first, so the cap that remains is a
+// storage guard rather than a selection.
+const POS_IMAGE_WARM_LIMIT = 4000;
 
 const POS_OFFLINE_DEBUG =
   String(import.meta?.env?.VITE_POS_OFFLINE_DEBUG || "").trim().toLowerCase() === "true";
@@ -321,7 +337,7 @@ export const extractPosCatalogSnapshotImageUrls = (snapshotOrProducts = []) => {
     });
   });
 
-  return uniqueStrings(urls.map((value) => pickImageUrl(value))).slice(0, 120);
+  return uniqueStrings(urls.map((value) => pickImageUrl(value))).slice(0, POS_IMAGE_WARM_LIMIT);
 };
 
 export const savePosCatalogSnapshot = async (products = [], catalogVersion = "") => {
@@ -366,29 +382,114 @@ export const clearPosCatalogSnapshot = async () => {
   }
   if (isBrowser() && window.caches?.delete) {
     try {
-      await window.caches.delete(POS_CATALOG_THUMBNAIL_CACHE_NAME);
+      await window.caches.delete(POS_PRODUCT_IMAGE_CACHE_NAME);
+      await dropLegacyThumbnailCaches();
     } catch (error) {
       debugLog("POS_OFFLINE_CATALOG_THUMBNAIL_CACHE_CLEAR_FAILED", error?.message || error);
     }
   }
 };
 
-export const preloadPosCatalogThumbnails = async (snapshotOrProducts = []) => {
-  if (!isBrowser() || !window.caches?.open) return;
-  const urls = extractPosCatalogSnapshotImageUrls(snapshotOrProducts);
-  if (!urls.length) return;
+const dropLegacyThumbnailCaches = async () => {
+  if (!isBrowser() || !window.caches?.delete) return;
+  await Promise.all(
+    LEGACY_THUMBNAIL_CACHE_NAMES.map((name) => window.caches.delete(name).catch(() => false))
+  );
+};
 
-  try {
-    const cache = await window.caches.open(POS_CATALOG_THUMBNAIL_CACHE_NAME);
-    for (const url of urls) {
+const warmImagesThroughServiceWorker = (urls) =>
+  new Promise((resolve, reject) => {
+    const controller = navigator.serviceWorker?.controller;
+    if (!controller || typeof MessageChannel !== "function") {
+      reject(new Error("no POS service worker is controlling this page"));
+      return;
+    }
+    const channel = new MessageChannel();
+    // A whole catalogue can take a while on a slow line; the fallback below is
+    // for "no worker", not for "slow worker", so this is generous.
+    const timer = setTimeout(() => reject(new Error("service worker warm timed out")), 10 * 60 * 1000);
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timer);
+      if (event.data?.type === "POS_WARM_IMAGES_DONE") resolve(event.data.counts || {});
+      else reject(new Error(event.data?.message || "service worker warm failed"));
+    };
+    controller.postMessage({ type: "POS_WARM_IMAGES", urls }, [channel.port2]);
+  });
+
+// Used when no worker controls the page (a first load before activation, or a
+// browser with service workers off). `cache.put` with a no-cors response is the
+// only page-side way to store a cross-origin image: `cache.add` runs its own
+// `response.ok` check, which an opaque response can never pass -- that check is
+// why the previous preloader silently stored nothing.
+const warmImagesFromPage = async (urls) => {
+  const cache = await window.caches.open(POS_PRODUCT_IMAGE_CACHE_NAME);
+  const counts = { requested: urls.length, stored: 0, hit: 0, failed: 0 };
+  let cursor = 0;
+
+  const worker = async () => {
+    while (cursor < urls.length) {
+      const url = urls[cursor];
+      cursor += 1;
       try {
-        await cache.add(url);
+        if (await cache.match(url)) {
+          counts.hit += 1;
+          continue;
+        }
+        const response = await fetch(url, { mode: "no-cors", credentials: "omit", cache: "no-store" });
+        if (response && (response.type === "opaque" || response.ok)) {
+          await cache.put(url, response);
+          counts.stored += 1;
+        } else {
+          counts.failed += 1;
+        }
       } catch {
-        // Thumbnails are best-effort only.
+        counts.failed += 1;
       }
     }
-    debugLog("POS_OFFLINE_CATALOG_THUMBNAILS_PRELOADED", { image_url_count: urls.length });
+  };
+
+  await Promise.all(Array.from({ length: Math.min(6, urls.length) }, worker));
+  return counts;
+};
+
+/**
+ * Puts the catalogue's photos on the device. The till is a picture grid -- a
+ * cashier picks a product by looking at it -- so an offline catalogue without
+ * images is not a usable catalogue.
+ */
+export const preloadPosCatalogThumbnails = async (snapshotOrProducts = []) => {
+  if (!isBrowser() || !window.caches?.open) return null;
+  const urls = extractPosCatalogSnapshotImageUrls(snapshotOrProducts);
+  if (!urls.length) return null;
+
+  void dropLegacyThumbnailCaches();
+
+  try {
+    const counts = await warmImagesThroughServiceWorker(urls);
+    debugLog("POS_OFFLINE_CATALOG_IMAGES_WARMED", { via: "service_worker", ...counts });
+    return counts;
+  } catch (workerError) {
+    debugLog("POS_OFFLINE_CATALOG_IMAGES_WORKER_UNAVAILABLE", workerError?.message || workerError);
+  }
+
+  try {
+    const counts = await warmImagesFromPage(urls);
+    debugLog("POS_OFFLINE_CATALOG_IMAGES_WARMED", { via: "page", ...counts });
+    return counts;
   } catch (error) {
-    debugLog("POS_OFFLINE_CATALOG_THUMBNAILS_PRELOAD_FAILED", error?.message || error);
+    debugLog("POS_OFFLINE_CATALOG_IMAGES_WARM_FAILED", error?.message || error);
+    return null;
+  }
+};
+
+/** How much of the catalogue this device can actually draw with no connection. */
+export const getPosImageCacheStatus = async () => {
+  if (!isBrowser() || !window.caches?.open) return { cached: 0 };
+  try {
+    const cache = await window.caches.open(POS_PRODUCT_IMAGE_CACHE_NAME);
+    const keys = await cache.keys();
+    return { cached: keys.length };
+  } catch {
+    return { cached: 0 };
   }
 };

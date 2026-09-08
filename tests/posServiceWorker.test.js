@@ -24,7 +24,10 @@ test("POS registers a root service worker that can control the exact /pos route"
 
   assert.match(source, /POS_SERVICE_WORKER_HREF = "\/pos-sw\.js"/);
   assert.match(source, /register\(scriptUrl, \{ scope: "\/pos" \}\)/);
-  assert.match(source, /POS_SERVICE_WORKER_VERSION = 11/);
+  // A number, not a literal: pinning this to one release makes every future
+  // bump look like a regression, and the parity check below is what actually
+  // guards the version — against the worker and index.html, not against 11.
+  assert.match(source, /POS_SERVICE_WORKER_VERSION = \d+/);
   assert.match(source, /addEventListener\("controllerchange", handleControllerChange\)/);
 });
 

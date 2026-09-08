@@ -202,10 +202,20 @@ export const loadServiceWorker = (server, { swPath } = {}) => {
     listeners,
     install: () => dispatch("install", {}),
     activate: () => dispatch("activate", {}),
-    /** Returns the Response the SW produced, or null when it passed through. */
-    fetch: async (url, { mode = "no-cors" } = {}) => {
-      const request = new Request(new URL(url, "https://erp.test").toString());
+    /** Delivers a postMessage from the page, with an optional reply port. */
+    message: (data, port = null) => dispatch("message", { data, ports: port ? [port] : [] }),
+    /**
+     * Returns the Response the SW produced, or null when it passed through.
+     *
+     * `headers` and `destination` are settable because the worker classifies
+     * requests by both, and the two are what separate a navigation from a
+     * product image -- a distinction that decides whether the offline shell
+     * fallback runs at all.
+     */
+    fetch: async (url, { mode = "no-cors", headers = null, destination = "" } = {}) => {
+      const request = new Request(new URL(url, "https://erp.test").toString(), headers ? { headers } : undefined);
       Object.defineProperty(request, "mode", { value: mode, configurable: true });
+      Object.defineProperty(request, "destination", { value: destination, configurable: true });
       const evt = await dispatch("fetch", { request });
       if (!evt._response) return null;
       return evt._response;

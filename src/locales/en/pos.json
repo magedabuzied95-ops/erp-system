@@ -479,7 +479,11 @@
     "offlineSyncDone": "{{count}} invoices synced",
     "offlineSyncStillPending": "Still no connection to the server",
     "offlineInvoiceDiscarded": "Invoice removed from the queue",
-    "offlineReceiptUnavailable": "No stored receipt for this invoice"
+    "offlineReceiptUnavailable": "No stored receipt for this invoice",
+    "savedOfflineExpense": "Expense saved on this device. It will sync when the connection returns.",
+    "offlineExpenseDiscarded": "Expense removed from the queue",
+    "offlineImagesReady": "{{count}} product photos are saved on this device",
+    "offlineImagesFailed": "Could not save the product photos"
   },
   "personal": {
     "noCashImpact": " - does not affect cash",
@@ -801,6 +805,15 @@
       "confirmDiscard": "Delete for good",
       "cancel": "Cancel",
       "close": "Close"
+    },
+    "expenses": {
+      "title": "Expenses waiting to sync",
+      "fallback": "Expense"
+    },
+    "images": {
+      "stored": "Product photos saved for offline use: {{count}}",
+      "download": "Download photos",
+      "needsConnection": "A connection is needed to download photos"
     }
   }
 }

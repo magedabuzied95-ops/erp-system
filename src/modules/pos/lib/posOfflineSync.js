@@ -9,6 +9,11 @@ import {
   pruneSyncedOfflineCustomers,
   retryPendingOfflineCustomers,
 } from "./posOfflineCustomers.js";
+import {
+  listOpenOfflineExpenses,
+  pruneSyncedOfflineExpenses,
+  retryPendingOfflineExpenses,
+} from "./posOfflineExpenses.js";
 
 // `navigator.onLine` answers "is there a link", never "can I reach the ERP".
 // A counter on shop Wi-Fi with a dead uplink, a captive portal, or a backend
@@ -76,18 +81,26 @@ export const probeBackendReachable = async ({
 };
 
 export const countOpenOfflineWork = async ({ tenantId } = {}) => {
-  const [orders, customers] = await Promise.all([
+  const [orders, customers, expenses] = await Promise.all([
     listOfflineOrders().catch(() => []),
     listPendingOfflineCustomers({ tenantId }).catch(() => []),
+    listOpenOfflineExpenses().catch(() => []),
   ]);
   const openOrders = orders.filter((order) =>
     OPEN_OFFLINE_ORDER_STATUSES.includes(String(order.status || ""))
   );
+  const needsReview =
+    openOrders.filter((order) => String(order.status || "") === "needs_review").length +
+    expenses.filter((expense) => String(expense.status || "") === "needs_review").length;
   return {
     orders: openOrders.length,
-    needsReview: openOrders.filter((order) => String(order.status || "") === "needs_review").length,
+    expenses: expenses.length,
+    needsReview,
     customers: customers.length,
-    total: openOrders.length + customers.length,
+    // Expenses count toward the shift-close block alongside invoices: both move
+    // cash in the drawer the close is about to settle.
+    drawerAffecting: openOrders.length + expenses.length,
+    total: openOrders.length + customers.length + expenses.length,
   };
 };
 
@@ -121,12 +134,23 @@ export const runOfflineSyncPass = async ({ tenantId, apiBaseUrl = "", force = fa
     orders = { total: 0, synced: [], failed: [{ error: String(error?.message || error) }] };
   }
 
+  // Expenses last. An expense needs an open shift exactly as an invoice does, so
+  // sending them after the invoices means one shift lookup has already proved
+  // itself before the drawer withdrawals go out.
+  let expenses;
+  try {
+    expenses = await retryPendingOfflineExpenses();
+  } catch (error) {
+    expenses = { total: 0, synced: [], failed: [{ error: String(error?.message || error) }] };
+  }
+
   // Housekeeping runs after a successful pass, never before: a device that is
   // still offline must not lose anything to a prune it could not replace.
   void pruneSyncedOfflineOrders().catch(() => 0);
   void pruneSyncedOfflineCustomers().catch(() => 0);
+  void pruneSyncedOfflineExpenses().catch(() => 0);
 
-  return { skipped: false, reason: "", reachable, customers, orders };
+  return { skipped: false, reason: "", reachable, customers, orders, expenses };
 };
 
 /**
@@ -184,7 +208,9 @@ export const createOfflineSyncScheduler = ({
     try {
       const result = await runOfflineSyncPass({ tenantId, apiBaseUrl, force });
       const nextWork = await countOpenOfflineWork({ tenantId }).catch(() => work);
-      const madeProgress = Boolean(result?.orders?.synced?.length || result?.customers?.synced?.length);
+      const madeProgress = Boolean(
+        result?.orders?.synced?.length || result?.customers?.synced?.length || result?.expenses?.synced?.length
+      );
 
       if (result.skipped || (!madeProgress && nextWork.total > 0)) {
         currentInterval = Math.min(maxIntervalMs, Math.max(minIntervalMs, currentInterval * SYNC_BACKOFF_FACTOR));

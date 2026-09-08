@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, CheckCircle2, CloudOff, Loader2, Printer, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CloudOff, Image as ImageIcon, Loader2, Printer, RefreshCw, Trash2, X } from "lucide-react";
 
 import { formatCurrency } from "../lib/posUtils";
 import {
@@ -11,6 +11,7 @@ import {
   subscribeToOfflineOrderChanges,
 } from "../lib/posOfflineOrders";
 import { listOfflineCustomers } from "../lib/posOfflineCustomers";
+import { listOpenOfflineExpenses } from "../lib/posOfflineExpenses";
 
 const STATUS_TONE = {
   [OFFLINE_ORDER_STATUS.PENDING]: "border-amber-400/40 bg-amber-400/10 text-amber-300",
@@ -48,6 +49,11 @@ export default function PosOfflineQueueModal({
   onRetryOrder,
   onDiscardOrder,
   onPrintOrder,
+  onRetryExpense,
+  onDiscardExpense,
+  imageCache = null,
+  imageWarming = false,
+  onWarmImages,
 }) {
   const { t } = useTranslation();
   const label = useCallback(
@@ -61,6 +67,7 @@ export default function PosOfflineQueueModal({
 
   const [orders, setOrders] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyLocalId, setBusyLocalId] = useState("");
   const [confirmDiscardId, setConfirmDiscardId] = useState("");
@@ -68,12 +75,14 @@ export default function PosOfflineQueueModal({
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [orderRows, customerRows] = await Promise.all([
+      const [orderRows, customerRows, expenseRows] = await Promise.all([
         listOfflineOrders().catch(() => []),
         listOfflineCustomers().catch(() => []),
+        listOpenOfflineExpenses().catch(() => []),
       ]);
       setOrders(orderRows.slice().reverse());
       setCustomers(customerRows.filter((row) => String(row.status || "") !== "synced"));
+      setExpenses(expenseRows.slice().reverse());
     } finally {
       setLoading(false);
     }
@@ -221,6 +230,91 @@ export default function PosOfflineQueueModal({
               "{{count}}",
               String(customers.length)
             )}
+          </div>
+        ) : null}
+
+        {/* The till is a picture grid: a cashier picks a product by looking at
+            it, so how many photos this device holds is the difference between a
+            usable offline catalogue and an unusable one. Shown here, with a way
+            to fill it before the connection is needed rather than after. */}
+        {imageCache ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2">
+            <div className="flex min-w-0 items-center gap-2 text-[11px] text-[var(--muted)]">
+              <ImageIcon className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0">
+                {label("images.stored", "Product photos saved for offline use: {{count}}").replace(
+                  "{{count}}",
+                  String(Number(imageCache.cached || 0))
+                )}
+                {Number(imageCache.expected || 0) > 0 ? ` / ${Number(imageCache.expected)}` : ""}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onWarmImages?.()}
+              disabled={imageWarming || !online}
+              title={online ? "" : label("images.needsConnection", "A connection is needed to download photos")}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-[11px] font-black transition hover:border-[var(--primary)] disabled:opacity-60"
+            >
+              {imageWarming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
+              {label("images.download", "Download photos")}
+            </button>
+          </div>
+        ) : null}
+
+        {expenses.length > 0 ? (
+          <div className="border-b border-[var(--border)] px-4 py-2">
+            <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--muted)]">
+              {label("expenses.title", "Expenses waiting to sync")}
+            </div>
+            <ul className="flex flex-col gap-1.5">
+              {expenses.map((expense) => (
+                <li
+                  key={expense.local_id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-[12px] font-black">
+                        {expense.employee_name || expense.category || label("expenses.fallback", "Expense")}
+                      </span>
+                      <span
+                        className={`rounded-lg border px-1.5 py-0.5 text-[10px] font-black ${
+                          STATUS_TONE[String(expense.status || "")] || STATUS_TONE[OFFLINE_ORDER_STATUS.PENDING]
+                        }`}
+                      >
+                        {statusLabel(expense.status)}
+                      </span>
+                    </div>
+                    <div className="truncate text-[10px] text-[var(--muted)]">
+                      {[formatWhen(expense.created_at), expense.payment_method, expense.notes].filter(Boolean).join("  ·  ")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-black">{formatCurrency(Number(expense.amount || 0))}</span>
+                    <button
+                      type="button"
+                      disabled={busyLocalId === expense.local_id}
+                      onClick={() => runRowAction(expense.local_id, () => onRetryExpense?.(expense))}
+                      className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--border)] px-2 text-[10px] font-black transition hover:border-[var(--primary)] disabled:opacity-60"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      {label("actions.retry", "Retry")}
+                    </button>
+                    {String(expense.status || "") === OFFLINE_ORDER_STATUS.NEEDS_REVIEW ? (
+                      <button
+                        type="button"
+                        aria-label={label("actions.discard", "Discard")}
+                        onClick={() => runRowAction(expense.local_id, () => onDiscardExpense?.(expense))}
+                        className="grid h-7 w-7 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-rose-400/50 hover:text-rose-300"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
 

@@ -289,6 +289,16 @@ const ensurePosExpenseSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS paid_by BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'expenses'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS shift_id BIGINT NULL`);
+  // A POS expense raised while the till was offline. Without a key, a replay
+  // whose response was lost on the way back posts the same cash withdrawal
+  // twice -- and unlike an invoice, nothing downstream would flag the duplicate.
+  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS idempotency_key TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS offline_origin BOOLEAN NOT NULL DEFAULT FALSE`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS offline_created_at TIMESTAMPTZ`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS offline_original_shift_id BIGINT`);
+  await clientOrPool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_tenant_idempotency_key ON expenses (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL`
+  );
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS employee_id BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS created_by BIGINT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS expenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP`);
@@ -1619,8 +1629,19 @@ export const createQuickPosExpense = async (req, res) => {
     const category = isEmployeeAdvance ? "employee_advance" : clean(req.body?.category || req.body?.expense_type || req.body?.expenseType || "other") || expenseType;
     const employeeId = numberOrNull(req.body?.employee_id || req.body?.employeeId);
     const notes = clean(req.body?.notes || req.body?.note);
+    // Same replay contract as a POS invoice: the money already left the drawer
+    // while the till was offline, so this is a routing problem, never a refusal.
+    const offlineOrigin = Boolean(req.body?.offline_origin ?? req.body?.offlineOrigin ?? false);
+    const offlineCreatedAt = clean(req.body?.offline_created_at || req.body?.offlineCreatedAt) || null;
+    const idempotencyKey = clean(
+      req.get?.("Idempotency-Key") ||
+        req.get?.("X-Idempotency-Key") ||
+        req.body?.idempotency_key ||
+        req.body?.idempotencyKey ||
+        ""
+    ).slice(0, 120);
 
-    if (!shiftId) return res.status(400).json({ success: false, message: "Open POS shift is required" });
+    if (!shiftId && !offlineOrigin) return res.status(400).json({ success: false, message: "Open POS shift is required" });
     if (amount <= 0) return res.status(400).json({ success: false, message: "Expense amount must be greater than zero" });
     if (!quickExpensePayments.has(paymentMethod)) return res.status(400).json({ success: false, message: "Payment method must be cash, card, or wallet" });
     if (isEmployeeAdvance && !employeeId) return res.status(400).json({ success: false, message: "Employee is required for employee advance" });
@@ -1630,8 +1651,30 @@ export const createQuickPosExpense = async (req, res) => {
     }
 
     await client.query("BEGIN");
-    const shiftResult = await client.query(
-      `
+
+    // A replay that already landed must not withdraw the cash a second time.
+    if (idempotencyKey) {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`pos-expense:${tenantId ?? "global"}:${idempotencyKey}`]);
+      const existing = await client.query(
+        `
+        SELECT *
+        FROM expenses
+        WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+          AND idempotency_key = $2
+        LIMIT 1
+        `,
+        [tenantId, idempotencyKey]
+      );
+      if (existing.rows[0]) {
+        const duplicateReport = await buildPosShiftReport(client, { tenantId, shiftId: existing.rows[0].shift_id });
+        await client.query("COMMIT");
+        return res.status(200).json({ success: true, duplicate: true, expense: existing.rows[0], advance: null, report: duplicateReport });
+      }
+    }
+
+    const shiftResult = shiftId
+      ? await client.query(
+          `
       SELECT *
       FROM cash_drawer_shifts
       WHERE id = $1
@@ -1640,9 +1683,34 @@ export const createQuickPosExpense = async (req, res) => {
       LIMIT 1
       FOR UPDATE
       `,
-      [shiftId, tenantId]
-    );
-    const shift = shiftResult.rows[0];
+          [shiftId, tenantId]
+        )
+      : { rows: [] };
+    let shift = shiftResult.rows[0];
+    let offlineOriginalShiftId = null;
+
+    // The shift the expense was raised in has since closed (or was opened on the
+    // device and never existed here). Route the cash to whichever shift is open
+    // now rather than refusing the withdrawal that already happened.
+    if (!shift && offlineOrigin) {
+      const currentShift = await getCurrentCashDrawerShift(client, {
+        tenantId,
+        userId: req.user?.id || null,
+        branchId: numberOrNull(req.body?.branch_id || req.body?.branchId),
+      });
+      if (currentShift) {
+        offlineOriginalShiftId = shiftId || null;
+        shift = currentShift;
+      } else {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          success: false,
+          code: "OFFLINE_REPLAY_NO_OPEN_SHIFT",
+          message: "لا توجد وردية مفتوحة لاستقبال المصروف المؤجل. افتح وردية وسيتم رفعه تلقائيًا",
+        });
+      }
+    }
+
     if (!shift) {
       await client.query("ROLLBACK");
       return res.status(404).json({ success: false, message: "Open POS shift not found" });
@@ -1680,9 +1748,10 @@ export const createQuickPosExpense = async (req, res) => {
       INSERT INTO expenses (
         tenant_id, title, amount, expense_type, category, payment_method,
         branch_id, employee_id, expense_date, notes, status, paid_at, paid_by,
-        source, shift_id, created_by, created_at, updated_at
+        source, shift_id, created_by, created_at, updated_at,
+        idempotency_key, offline_origin, offline_created_at, offline_original_shift_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,'paid',NOW(),$10,'pos',$11,$10,NOW(),NOW())
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE,$9,'paid',NOW(),$10,'pos',$11,$10,NOW(),NOW(),$12,$13,$14::timestamptz,$15::bigint)
       RETURNING *
       `,
       [
@@ -1697,6 +1766,10 @@ export const createQuickPosExpense = async (req, res) => {
         notes,
         req.user?.id || null,
         shift.id,
+        idempotencyKey || null,
+        offlineOrigin,
+        offlineCreatedAt,
+        offlineOriginalShiftId,
       ]
     );
     const expense = expenseResult.rows[0];
