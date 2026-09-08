@@ -248,7 +248,7 @@ const TONES = {
     accent: "bg-white text-slate-900 hover:bg-white",
     wave: "bg-white",
     waveIdle: "bg-white/35",
-    title: "text-[#fff]",
+    title: "text-[#ffffff]",
     muted: "text-white/65",
     chip: "border-white/20 bg-white/[0.12] text-white/85 hover:bg-white/[0.22]",
     frame: "border-white/15 bg-black/[0.22]",

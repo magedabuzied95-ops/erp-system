@@ -1,4 +1,4 @@
-﻿import { memo, useMemo } from "react";
+﻿import { memo, useContext, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Bot, Camera, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
 
@@ -8,7 +8,10 @@ import ProductCardMessage from "./ProductCardMessage";
 import MessageMedia, { messageMediaGroups, messageStoryContext } from "./MessageMedia.jsx";
 import DeliveryTicks, { isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
-import { bubbleClock, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+import { bubbleClock, chromeModeFor, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+// The context, not the hook: this component also renders in the message
+// previews and the pinned bar, and useTheme throws outside a provider.
+import { ThemeContext } from "../../../theme/themeContext";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -765,14 +768,20 @@ function TranscriptMessage({
   // The chrome the customer's own app would have used. The channel decides the
   // colours; nothing writes its name on the bubble any more.
   const platform = useMemo(() => resolveMessagePlatform(message, channelKey), [message, channelKey]);
-  const chrome = useMemo(() => platformChrome(platform, variant), [platform, variant]);
+  const chromeMode = chromeModeFor(variant, useContext(ThemeContext)?.theme?.mode);
+  const chrome = useMemo(() => platformChrome(platform, chromeMode), [platform, chromeMode]);
   const compact = variant === "pwa";
   const side = safeRow.kind === "customer" || isCommentMessage ? "in" : "out";
   const align = side === "in" ? "left" : "right";
   const clock = bubbleClock(message.created_at);
-  // An attachment is drawn in the ink of the bubble it sits in, so a player on a
-  // WhatsApp-light outgoing bubble is dark on mint, not white on mint.
-  const mediaTone = (side === "in" ? chrome.inboundInk : chrome.outboundInk) === "dark" ? "onLight" : "onDark";
+  // Everything drawn inside a bubble follows the bubble's own ink, not the
+  // page's: a link, a failure mark and a media player on a WhatsApp-light
+  // outgoing bubble are all dark on mint, while the same three on Messenger's
+  // blue stay white whichever theme the ERP is in.
+  const darkInk = (side === "in" ? chrome.inboundInk : chrome.outboundInk) === "dark";
+  const mediaTone = darkInk ? "onLight" : "onDark";
+  const linkClass = darkInk ? chrome.linkDarkInk : chrome.linkLightInk;
+  const dangerClass = darkInk ? "text-rose-600" : "text-rose-200";
   const failed = clean(message.delivery_status).toLowerCase() === "failed";
   const isInternalNote = clean(message.message_type).toLowerCase() === "internal_note";
   const showTicks = side === "out" && !isInternalNote && isTickableDeliveryStatus(message.delivery_status);
@@ -785,7 +794,7 @@ function TranscriptMessage({
       time={clock}
       status={message.delivery_status}
       showTicks={showTicks}
-      leading={failed ? <span className="font-black text-rose-300">!</span> : options.leading || null}
+      leading={failed ? <span className={`font-black ${dangerClass}`}>!</span> : options.leading || null}
       trailing={options.trailing || null}
       floating={Boolean(options.floating)}
     />
@@ -855,7 +864,7 @@ function TranscriptMessage({
       <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName} showAvatar={showAvatar}>
         <ChatBubble chrome={chrome} side="in" flush={flush}>
           {story ? <StoryContext story={story} variant={variant} /> : null}
-          <LinkifiedText text={text} className={textClass} linkClassName={chrome.link} />
+          <LinkifiedText text={text} className={textClass} linkClassName={linkClass} />
           {attachments(flush ? "" : "mt-1.5")}
           {stampFor({ floating: flush })}
         </ChatBubble>
@@ -872,7 +881,7 @@ function TranscriptMessage({
           {commenterName ? (
             <div dir="auto" className={`text-[12.5px] font-bold leading-4 ${chrome.cardAction}`}>{commenterName}</div>
           ) : null}
-          <LinkifiedText text={text} className={`${textClass} ${commenterName ? "mt-0.5" : ""}`} linkClassName={chrome.link} />
+          <LinkifiedText text={text} className={`${textClass} ${commenterName ? "mt-0.5" : ""}`} linkClassName={linkClass} />
           {attachments()}
           {(message.comment_id && onReplyComment) || (message.commenter_id && onPrivateMessage) ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -944,7 +953,7 @@ function TranscriptMessage({
           </div>
         ) : null}
         {sourceComment ? <div className={authorLabel ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
-        <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkClassName={chrome.link} />
+        <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkClassName={linkClass} />
         {isAi && message.suggested_products?.length ? (
           <div className="mt-2">
             <ProductCardMessage message={message} cards={message.suggested_products} compact platform={platform} variant={variant} chrome={chrome} />
@@ -954,7 +963,7 @@ function TranscriptMessage({
             separately here painted every AI image twice. */}
         {attachments(flush ? "" : "mt-1.5")}
         {failed && message.delivery_error ? (
-          <p className="mt-1 text-[11px] font-bold leading-4 text-rose-200">{message.delivery_error}</p>
+          <p className={`mt-1 text-[11px] font-bold leading-4 ${dangerClass}`}>{message.delivery_error}</p>
         ) : null}
         {stampFor({ floating: flush, trailing: correctReply })}
       </ChatBubble>

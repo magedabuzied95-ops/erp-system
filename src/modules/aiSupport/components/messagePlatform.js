@@ -34,16 +34,17 @@ export const resolveMessagePlatform = (message = {}, fallbackChannel = "") => {
 const CHROME = {
   whatsapp: {
     radius: "rounded-[10px]",
-    inbound: "bg-[#202c33] text-[#fff]",
-    outbound: "bg-[#005c4b] text-[#fff]",
+    inbound: "bg-[#202c33] text-[#ffffff]",
+    outbound: "bg-[#005c4b] text-[#ffffff]",
     inboundMeta: "text-white/45",
     outboundMeta: "text-white/60",
-    link: "decoration-white/40 text-[#53bdeb]",
+    linkLightInk: "decoration-white/40 text-[#53bdeb]",
+    linkDarkInk: "text-[#027eb5] decoration-[#027eb5]/40",
     cardMode: "bubble",
     cardWidth: "w-[286px]",
-    cardSurface: "bg-[#005c4b] text-[#fff]",
+    cardSurface: "bg-[#005c4b] text-[#ffffff]",
     cardRadius: "rounded-[10px]",
-    cardTitle: "text-[#fff]",
+    cardTitle: "text-[#ffffff]",
     cardMuted: "text-white/65",
     cardHairline: "bg-white/15",
     cardAction: "text-[#53bdeb]",
@@ -51,11 +52,12 @@ const CHROME = {
   },
   messenger: {
     radius: "rounded-[18px]",
-    inbound: "bg-[#303030] text-[#fff]",
-    outbound: "bg-[#0084ff] text-[#fff]",
+    inbound: "bg-[#303030] text-[#ffffff]",
+    outbound: "bg-[#0084ff] text-[#ffffff]",
     inboundMeta: "text-white/50",
     outboundMeta: "text-white/75",
-    link: "decoration-white/40 text-[#fff]",
+    linkLightInk: "decoration-white/60 text-[#ffffff]",
+    linkDarkInk: "text-[#0064d1] decoration-[#0064d1]/40",
     cardMode: "standalone",
     cardWidth: "w-[248px]",
     cardSurface: "bg-white text-[#050505]",
@@ -68,11 +70,12 @@ const CHROME = {
   },
   instagram: {
     radius: "rounded-[20px]",
-    inbound: "bg-[#262626] text-[#fff]",
-    outbound: "bg-[linear-gradient(135deg,#4f5bd5,#962fbf_55%,#d62976)] text-[#fff]",
+    inbound: "bg-[#262626] text-[#ffffff]",
+    outbound: "bg-[linear-gradient(135deg,#4f5bd5,#962fbf_55%,#d62976)] text-[#ffffff]",
     inboundMeta: "text-white/50",
     outboundMeta: "text-white/75",
-    link: "decoration-white/40 text-[#fff]",
+    linkLightInk: "decoration-white/60 text-[#ffffff]",
+    linkDarkInk: "text-[#00376b] decoration-[#00376b]/40",
     cardMode: "standalone",
     cardWidth: "w-[240px]",
     cardSurface: "bg-white text-[#0f0f0f]",
@@ -85,16 +88,17 @@ const CHROME = {
   },
   telegram: {
     radius: "rounded-[12px]",
-    inbound: "bg-[#182533] text-[#fff]",
-    outbound: "bg-[#2b5278] text-[#fff]",
+    inbound: "bg-[#182533] text-[#ffffff]",
+    outbound: "bg-[#2b5278] text-[#ffffff]",
     inboundMeta: "text-white/45",
     outboundMeta: "text-white/60",
-    link: "decoration-white/40 text-[#62bcf9]",
+    linkLightInk: "decoration-white/40 text-[#62bcf9]",
+    linkDarkInk: "text-[#168acd] decoration-[#168acd]/40",
     cardMode: "bubble",
     cardWidth: "w-[286px]",
-    cardSurface: "bg-[#2b5278] text-[#fff]",
+    cardSurface: "bg-[#2b5278] text-[#ffffff]",
     cardRadius: "rounded-[12px]",
-    cardTitle: "text-[#fff]",
+    cardTitle: "text-[#ffffff]",
     cardMuted: "text-white/65",
     cardHairline: "bg-white/15",
     cardAction: "text-[#62bcf9]",
@@ -102,11 +106,12 @@ const CHROME = {
   },
   tiktok: {
     radius: "rounded-[16px]",
-    inbound: "bg-[#2a2a2a] text-[#fff]",
-    outbound: "bg-[#fe2c55] text-[#fff]",
+    inbound: "bg-[#2a2a2a] text-[#ffffff]",
+    outbound: "bg-[#fe2c55] text-[#ffffff]",
     inboundMeta: "text-white/50",
     outboundMeta: "text-white/75",
-    link: "decoration-white/40 text-[#fff]",
+    linkLightInk: "decoration-white/60 text-[#ffffff]",
+    linkDarkInk: "text-[#fe2c55] decoration-[#fe2c55]/40",
     cardMode: "standalone",
     cardWidth: "w-[240px]",
     cardSurface: "bg-white text-[#161823]",
@@ -119,16 +124,17 @@ const CHROME = {
   },
   web: {
     radius: "rounded-[14px]",
-    inbound: "bg-white/[0.09] text-[#fff]",
-    outbound: "bg-emerald-800/70 text-[#fff]",
+    inbound: "bg-white/[0.09] text-[#ffffff]",
+    outbound: "bg-emerald-800/70 text-[#ffffff]",
     inboundMeta: "text-white/45",
     outboundMeta: "text-white/60",
-    link: "decoration-white/40 text-cyan-200",
+    linkLightInk: "decoration-white/40 text-cyan-200",
+    linkDarkInk: "text-emerald-700 decoration-emerald-700/40",
     cardMode: "bubble",
     cardWidth: "w-[286px]",
-    cardSurface: "bg-emerald-800/70 text-[#fff]",
+    cardSurface: "bg-emerald-800/70 text-[#ffffff]",
     cardRadius: "rounded-[14px]",
-    cardTitle: "text-[#fff]",
+    cardTitle: "text-[#ffffff]",
     cardMuted: "text-white/65",
     cardHairline: "bg-white/15",
     cardAction: "text-cyan-200",
@@ -136,11 +142,12 @@ const CHROME = {
   },
 };
 
-// The PWA transcript is a light canvas — it is these apps in light mode, not the
-// dark ones with the page turned up. WhatsApp and Telegram are genuinely a
-// different pair of bubbles there (pale mint on white, dark ink); Messenger,
-// Instagram and TikTok keep the same brand colour on the outgoing side and only
-// their neutral half moves.
+// The light canvas — the PWA transcript always, and the desktop workspace
+// whenever the ERP is in a light theme. These are the same apps in light mode,
+// not the dark ones with the page turned up: WhatsApp and Telegram are genuinely
+// a different pair of bubbles there (pale mint on white, dark ink), while
+// Messenger, Instagram and TikTok keep the same brand colour on the outgoing
+// side and only their neutral half moves.
 //
 // `ink` says which way the text runs on that side, because an attachment drawn
 // inside the bubble has to be painted in the same ink as the words above it.
@@ -152,7 +159,6 @@ const LIGHT_OVERRIDES = {
     outbound: "bg-[#d9fdd3] text-[#111b21]",
     outboundMeta: "text-[#667781]",
     outboundInk: "dark",
-    link: "text-[#027eb5] decoration-[#027eb5]/40",
     cardSurface: "bg-[#d9fdd3] text-[#111b21]",
     cardTitle: "text-[#111b21]",
     cardMuted: "text-[#667781]",
@@ -166,7 +172,6 @@ const LIGHT_OVERRIDES = {
     outbound: "bg-[#effdde] text-[#111b21]",
     outboundMeta: "text-[#4fae4e]",
     outboundInk: "dark",
-    link: "text-[#168acd] decoration-[#168acd]/40",
     cardSurface: "bg-[#effdde] text-[#111b21]",
     cardTitle: "text-[#111b21]",
     cardMuted: "text-[#707579]",
@@ -177,19 +182,16 @@ const LIGHT_OVERRIDES = {
     inbound: "bg-[#e4e6eb] text-[#050505]",
     inboundMeta: "text-[#65676b]",
     inboundInk: "dark",
-    link: "text-[#0064d1] decoration-[#0064d1]/40",
   },
   instagram: {
     inbound: "bg-[#efefef] text-[#0f0f0f]",
     inboundMeta: "text-[#737373]",
     inboundInk: "dark",
-    link: "text-[#00376b] decoration-[#00376b]/40",
   },
   tiktok: {
     inbound: "bg-[#f1f1f2] text-[#161823]",
     inboundMeta: "text-[#6b7280]",
     inboundInk: "dark",
-    link: "text-[#fe2c55] decoration-[#fe2c55]/40",
   },
   web: {
     inbound: "bg-white text-slate-900",
@@ -198,7 +200,6 @@ const LIGHT_OVERRIDES = {
     outbound: "bg-emerald-100 text-slate-900",
     outboundMeta: "text-emerald-800/70",
     outboundInk: "dark",
-    link: "text-emerald-700 decoration-emerald-700/40",
     cardSurface: "bg-emerald-100 text-slate-900",
     cardTitle: "text-slate-900",
     cardMuted: "text-slate-500",
@@ -208,14 +209,24 @@ const LIGHT_OVERRIDES = {
 };
 
 /**
- * The chrome for one message. `variant` is the surface it is painted on —
- * "desktop" (dark workspace) or "pwa" (light phone transcript).
+ * The chrome for one message. `mode` is the canvas it is painted on — "dark" or
+ * "light" — which the caller reads off the live theme, NOT off the surface: the
+ * desktop workspace follows the ERP theme and the PWA is always light.
  */
-export const platformChrome = (platform = "web", variant = "desktop") => {
+export const platformChrome = (platform = "web", mode = "dark") => {
   const base = { inboundInk: "light", outboundInk: "light", ...(CHROME[platform] || CHROME.web) };
-  if (variant !== "pwa") return base;
+  if (mode !== "light") return base;
   return { ...base, ...(LIGHT_OVERRIDES[platform] || LIGHT_OVERRIDES.web) };
 };
+
+/**
+ * Which canvas the bubbles are being painted on. The PWA transcript is a light
+ * page whatever the ERP theme is; everywhere else follows the live theme, so a
+ * user on the light theme gets the light-mode bubbles rather than WhatsApp's
+ * night palette punched into a bright page.
+ */
+export const chromeModeFor = (variant = "desktop", themeMode = "") =>
+  variant === "pwa" || String(themeMode).toLowerCase() === "light" ? "light" : "dark";
 
 // "1:03 ص" — the only stamp a chat bubble carries. The day it belongs to is the
 // separator above it, exactly as WhatsApp and Messenger do it, so the full

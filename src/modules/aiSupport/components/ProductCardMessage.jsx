@@ -11,13 +11,14 @@
  * The shapes come from `platformChrome`, so the transcript mirrors what actually
  * left the building, platform for platform.
  */
-import { memo } from "react";
+import { memo, useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
-import { platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+import { chromeModeFor, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+import { ThemeContext } from "../../../theme/themeContext";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -170,11 +171,14 @@ function ProductCardMessage({
   chrome: chromeProp = null,
 }) {
   const { t } = useTranslation();
+  const themeMode = useContext(ThemeContext)?.theme?.mode;
   const items = asArray(cards).flatMap((card) => normalizeProductCard(card)).filter(Boolean);
   if (!items.length) return null;
 
   const platform = clean(platformProp) || resolveMessagePlatform(message);
-  const chrome = chromeProp || platformChrome(platform, variant);
+  // The transcript hands its own chrome down; this fallback only fires when the
+  // card is rendered on its own.
+  const chrome = chromeProp || platformChrome(platform, chromeModeFor(variant, themeMode));
   // Meta draws a generic template as a white card on the conversation background.
   // WhatsApp draws the same product as part of the bubble it was sent in, so the
   // card there inherits the bubble instead of sitting on top of one.
