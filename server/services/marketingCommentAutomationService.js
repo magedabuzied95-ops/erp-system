@@ -670,10 +670,27 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
   commentId = "",
   normalizedContext = {},
   productName = "",
+  postId = "",
 } = {}) => {
   const safeName = trimString(productName || normalizedContext?.productName || "");
   const colorCards = Array.isArray(normalizedContext?.colorCards) ? normalizedContext.colorCards : [];
   if (normalizedContext?.carouselEligible && colorCards.length) {
+    // The colour choice belongs ON the card. It used to ride a SECOND DM sent after the private
+    // reply, and an ordinary DM only reaches a customer whose 24-hour messaging window is already
+    // open — so a first-time commenter got the pictures and no way at all to pick a colour, while
+    // someone mid-conversation got buttons and looked like proof the feature worked. A postback
+    // button travels inside the private reply itself and has no window to be outside of.
+    const carouselWithButtons = buildSocialCommentMessengerCarouselPayload({
+      imageAspectRatio: "",
+      commentId,
+      postId,
+      productId: Number(normalizedContext?.productId || 0) || null,
+      colorCards,
+      productName: safeName,
+      productPrice: normalizedContext?.priceUsed,
+    });
+    // The same cards with no buttons. The send retries with these if Instagram ever refuses a
+    // postback on a private reply, so the floor stays exactly the carousel that shipped before.
     const carousel = buildSocialCommentMessengerCarouselPayload({
       imageAspectRatio: "",
       commentId,
@@ -682,8 +699,17 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
       productName: safeName,
       productPrice: normalizedContext?.priceUsed,
     });
-    if (carousel) {
-      return { mode: "color_carousel", elements: carousel.message.attachment.payload.elements.length, payload: carousel };
+    const primary = carouselWithButtons || carousel;
+    if (primary) {
+      const hasColorButtons = primary.message.attachment.payload.elements
+        .some((element) => (Array.isArray(element?.buttons) ? element.buttons : []).some((button) => button?.type === "postback"));
+      return {
+        mode: "color_carousel",
+        elements: primary.message.attachment.payload.elements.length,
+        payload: primary,
+        fallbackPayload: hasColorButtons ? carousel : null,
+        hasColorButtons,
+      };
     }
   }
   const productImageUrl = trimString(normalizedContext?.productImageUrl || "");
@@ -1895,6 +1921,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       commentId: graphCommentId,
       normalizedContext: normalizedProductContext,
       productName: instagramProductName,
+      postId: trimString(options?.postId || ""),
     });
     const instagramPageId = trimString(settings?.page_id || settings?.facebook_page_id || capabilityDebug?.pageId || "");
     const instagramAccessToken = tokenStatus?.accessToken || getPublishingAccessToken(settings);
@@ -1903,12 +1930,30 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       const visualTarget = new URL(`${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(instagramPageId)}/messages`);
       visualTarget.searchParams.set("access_token", instagramAccessToken);
       try {
-        const visualResponse = await fetch(visualTarget.toString(), {
+        let visualResponse = await fetch(visualTarget.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(instagramVisual.payload),
         });
-        const visualPayload = await parseMetaResponse(visualResponse);
+        let visualPayload = await parseMetaResponse(visualResponse);
+        let deliveredWithColorButtons = instagramVisual.hasColorButtons === true;
+        // A refusal here must cost the buttons, never the pictures: resend the identical cards
+        // without the postback rather than let the whole visual reply fall through to text.
+        if (!visualResponse.ok && instagramVisual.fallbackPayload) {
+          console.warn("SOCIAL_COMMENT_INSTAGRAM_CARD_BUTTONS_REJECTED", {
+            comment_id: graphCommentId,
+            product_id: normalizedProductContext.productId,
+            status: visualResponse.status,
+            message: getMetaErrorMessage(visualPayload),
+          });
+          visualResponse = await fetch(visualTarget.toString(), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(instagramVisual.fallbackPayload),
+          });
+          visualPayload = await parseMetaResponse(visualResponse);
+          deliveredWithColorButtons = false;
+        }
         if (visualResponse.ok) {
           instagramVisualDelivered = true;
           console.log("SOCIAL_COMMENT_INSTAGRAM_VISUAL_REPLY_SENT", {
@@ -1918,6 +1963,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
             product_name: instagramProductName,
             delivery_mode: instagramVisual.mode,
             elements: instagramVisual.elements,
+            color_buttons_on_cards: deliveredWithColorButtons,
             colors: instagramVisual.mode === "color_carousel"
               ? (normalizedProductContext.colorCards || []).slice(0, instagramVisual.elements).map((card) => trimString(card?.colorLabel || card?.color || ""))
               : [],
@@ -1932,27 +1978,26 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
             delivery_mode: instagramVisual.mode,
           });
           /*
-           * COLOUR BUTTONS ON INSTAGRAM.
+           * COLOUR BUTTONS, THE FALLBACK COPY.
            *
-           * Instagram allows exactly one private reply per comment and its template takes no
-           * postback button, so the carousel above cannot carry a control. That left the customer
-           * with nothing to press and only a typed colour to fall back on — which the owner
-           * rightly refuses to ask of customers.
+           * The buttons now ride the cards above, inside the private reply. This second DM only
+           * goes out when they could not — no product id to build a payload from, or Instagram
+           * refused the postback and the cards were resent plain.
            *
-           * But the private reply opens a messaging window, and we already know who to send to:
-           * the commenter id IS the id the DM thread lives under (verified in production —
-           * commenter 1777533973455570 and conversation instagram:1777533973455570). So the cards
-           * go as the private reply, and the colour buttons follow as an ordinary DM.
+           * It is a fallback and not the mechanism, because an ordinary DM needs the customer's
+           * 24-hour messaging window to be open. zeinab1268 commented for the first time in nine
+           * days, got the carousel, and never got these buttons; maged.abuzied had been DMing all
+           * evening, so his window was open and the same code looked like it worked.
            *
-           * Failure-isolated: the sale already has its cards, and a customer who never gets the
-           * buttons can still type a colour. This must never take the private reply down with it.
+           * Failure-isolated either way: the sale already has its cards, and losing the buttons
+           * must never take the private reply down with it.
            */
           try {
             const buttonColors = Array.isArray(normalizedProductContext.availableColors)
               ? normalizedProductContext.availableColors
               : [];
             const recipientId = trimString(visualPayload?.recipient_id || trimString(options?.commenterId || "") || "");
-            if (buttonColors.length > 1 && recipientId && normalizedProductContext.productId) {
+            if (!deliveredWithColorButtons && buttonColors.length > 1 && recipientId && normalizedProductContext.productId) {
               const { sendInstagramColorQuickReplies } = await import("./metaIntegrationService.js");
               const followUp = await sendInstagramColorQuickReplies({
                 tenantId: businessId,
@@ -1970,6 +2015,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
                 colors: buttonColors.length,
                 sent: followUp?.sent === true,
                 reason: followUp?.reason || "",
+                delivery: "follow_up_dm",
               });
             }
           } catch (colorButtonsError) {

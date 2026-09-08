@@ -193,8 +193,11 @@ const igSenderStart = metaSource.indexOf("export const sendInstagramColorQuickRe
 const igSenderBody = metaSource.slice(igSenderStart, igSenderStart + 2600);
 assert.match(igSenderBody, /buildSocialCommentColorQuickReplies\(/, "the buttons must carry the same payload Messenger uses");
 assert.match(igSenderBody, /catch \(error\)[\s\S]{0,400}return \{ sent: false/, "losing the buttons must not cost the private reply");
+const marketingSource = readFileSync(
+  fileURLToPath(new URL("../services/marketingCommentAutomationService.js", import.meta.url)), "utf8"
+);
 assert.match(
-  readFileSync(fileURLToPath(new URL("../services/marketingCommentAutomationService.js", import.meta.url)), "utf8"),
+  marketingSource,
   /sendInstagramColorQuickReplies\(\{/,
   "the comment→DM path must actually send them"
 );
@@ -212,6 +215,69 @@ assert.doesNotMatch(
   metaSource,
   /quickReplies: Array\.isArray\(quickReplies\) && normalizedChannel === AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER \?/,
   "the Messenger-only restriction is what dead-ended the Instagram flow one step in"
+);
+
+// ── The Instagram colour button is ON the card, not in a second DM ────────────────────────────
+// The buttons used to be a separate DM sent after the private reply, and an ordinary DM needs the
+// customer's 24-hour messaging window to be open. A first-time commenter (zeinab1268, nine days
+// since her last DM) got the carousel and no way at all to pick a colour; a customer already
+// mid-conversation got buttons, which is why the same code read as working. A postback button is
+// part of the private reply and has no window to be outside of.
+const { buildSocialCommentInstagramPrivateReplyPayload } = await import(
+  "../services/marketingCommentAutomationService.js"
+);
+const igColorCards = [
+  { color: "Black", colorLabel: "Black", imageUrl: "https://api.example.com/uploads/a.jpg", sizes: ["41"], productLink: "https://shop.example.com/p/a" },
+  { color: "White", colorLabel: "White", imageUrl: "https://api.example.com/uploads/b.jpg", sizes: ["42"], productLink: "https://shop.example.com/p/b" },
+];
+const igVisual = buildSocialCommentInstagramPrivateReplyPayload({
+  commentId: "c1",
+  postId: "p1",
+  normalizedContext: { carouselEligible: true, colorCards: igColorCards, productId: 4, priceUsed: "1100" },
+  productName: "Alexander Mcqueen",
+});
+assert.ok(igVisual, "the Instagram private reply must still build a carousel");
+assert.equal(igVisual.mode, "color_carousel");
+assert.equal(igVisual.hasColorButtons, true, "every Instagram colour card must carry its own colour button");
+for (const element of igVisual.payload.message.attachment.payload.elements) {
+  const postback = (element.buttons || []).find((button) => button.type === "postback");
+  assert.ok(postback, "a colour card with no postback leaves the customer nothing to press");
+  const parsed = parseSocialCommentColorQuickReplyPayload(postback.payload);
+  assert.ok(parsed, "the card button must carry the payload the colour handler reads");
+  assert.equal(parsed.product_id, 4, "the card button must name its product — a null id builds no button at all");
+  assert.equal(parsed.size, "", "choosing a colour must not smuggle a size in with it");
+  assert.equal(parsed.post_id, "p1", "the tap must carry the post it came from, or the order loses its attribution");
+}
+// A refusal costs the buttons, never the pictures.
+assert.ok(igVisual.fallbackPayload, "a buttonless copy of the same cards must exist to retry with");
+assert.equal(
+  igVisual.fallbackPayload.message.attachment.payload.elements.length,
+  igVisual.payload.message.attachment.payload.elements.length,
+  "the retry must carry the same cards, only without the button"
+);
+for (const element of igVisual.fallbackPayload.message.attachment.payload.elements) {
+  assert.ok(
+    !(element.buttons || []).some((button) => button.type === "postback"),
+    "the retry exists precisely because the postback was refused"
+  );
+}
+// image_aspect_ratio stays a Messenger-only field on both copies.
+for (const payload of [igVisual.payload, igVisual.fallbackPayload]) {
+  assert.equal(
+    payload.message.attachment.payload.image_aspect_ratio,
+    undefined,
+    "Instagram's template reference does not carry image_aspect_ratio"
+  );
+}
+assert.match(
+  marketingSource,
+  /if \(!deliveredWithColorButtons && buttonColors\.length > 1/,
+  "the follow-up DM must not repeat a colour question the cards already asked"
+);
+assert.match(
+  marketingSource,
+  /if \(!visualResponse\.ok && instagramVisual\.fallbackPayload\)/,
+  "a refused postback must resend the plain cards, not drop the visual reply"
 );
 
 console.log("social comment colour-before-size OK");
