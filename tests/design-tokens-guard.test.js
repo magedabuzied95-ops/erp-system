@@ -179,10 +179,18 @@ test("tailwind.config.js is still inert — nothing may rely on it", () => {
   assert.doesNotMatch(withoutComments, /@config/);
 });
 
-test("ThemeProvider remains the authoritative owner of `.dark`", () => {
+test("the ERP theme remains the authoritative source of `.dark`", () => {
+  // The write itself moved into documentColorScheme.js — the one owner of the
+  // four root theme signals — because ThemeProvider is the outermost provider
+  // and its effect flushed last, stamping the ERP's `dark` class onto a shop
+  // page sitting in its LIGHT theme. ThemeProvider still decides the value.
   const provider = fs.readFileSync(path.join(SRC, "theme", "ThemeProvider.jsx"), "utf8");
-  assert.match(provider, /root\.classList\.toggle\("dark", theme\.mode === "dark"\)/);
-  assert.match(provider, /body\.classList\.toggle\("dark", theme\.mode === "dark"\)/);
+  assert.match(provider, /setAppColorScheme\(theme\.mode, themeColor, theme\.id\)/);
+  assert.doesNotMatch(provider, /classList\.toggle\("dark"/);
+
+  const owner = fs.readFileSync(path.join(SRC, "theme", "documentColorScheme.js"), "utf8");
+  assert.match(owner, /classList\?\.toggle\?\.\("dark", dark\)/);
+  assert.match(owner, /darkClass: true/, "the ERP owner still carries the class");
 });
 
 test("the storefront keeps its own scoped dark theme", () => {

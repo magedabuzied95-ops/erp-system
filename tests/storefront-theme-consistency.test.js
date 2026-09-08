@@ -20,13 +20,16 @@ test("storefront brand theme is identical before the first paint on every browse
 });
 
 test("storefront owns one synchronized light-dark theme state", () => {
-  assert.match(storefrontSource, /const themeMode = "dark"/);
-  assert.doesNotMatch(storefrontSource, /readStorefrontStorage\(THEME_KEY/);
-  assert.match(storefrontSource, /root\.classList\.toggle\("dark", dark\)/);
-  assert.match(storefrontSource, /body\.classList\.toggle\("dark", dark\)/);
+  // `storefront-dark` is the shop's own class and it writes that itself. The
+  // three signals it SHARES with the ERP theme — the root colour-scheme, the
+  // Tailwind `dark` class and `data-theme` — go through the owner module, or
+  // the last effect to run decides them (see tests/browser-force-dark-optout).
   assert.match(storefrontSource, /body\.classList\.toggle\("storefront-dark", dark\)/);
-  assert.match(storefrontSource, /root\.setAttribute\("data-theme", themeMode\)/);
-  assert.match(storefrontSource, /root\.style\.colorScheme = themeMode/);
+  assert.match(storefrontSource, /setStorefrontColorScheme\(themeMode,/);
+  assert.doesNotMatch(storefrontSource, /root\.classList\.toggle\("dark"/);
+  assert.doesNotMatch(storefrontSource, /body\.classList\.toggle\("dark"/);
+  assert.doesNotMatch(storefrontSource, /root\.setAttribute\("data-theme"/);
+  assert.doesNotMatch(storefrontSource, /root\.style\.colorScheme = themeMode/);
 });
 
 test("storefront uses Cairo as its single typography family", () => {

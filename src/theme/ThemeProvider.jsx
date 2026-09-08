@@ -59,16 +59,15 @@ const applyThemeVariables = (theme, accentId, density, appearance) => {
     body?.style?.removeProperty?.(`--${key}`);
   });
 
-  root.dataset.theme = theme.id;
+  // `data-theme` and the `dark` class are NOT written here: they are two of the
+  // four root theme signals the storefront has to be able to outrank while its
+  // shell is mounted. setAppColorScheme() below publishes them.
   root.dataset.accent = accent.id;
   root.dataset.density = densityValue;
   root.dataset.appearance = normalizeAppearance(appearance).preset;
   root.classList.add("theme-app");
-  root.classList.toggle("dark", theme.mode === "dark");
   if (body) {
     body.classList.add("theme-app");
-    body.classList.toggle("dark", theme.mode === "dark");
-    body.dataset.theme = theme.id;
     body.dataset.accent = accent.id;
     body.dataset.density = densityValue;
     body.classList.toggle("theme-density-compact", densityValue === "compact");
@@ -77,12 +76,14 @@ const applyThemeVariables = (theme, accentId, density, appearance) => {
     body.style.color = "var(--text)";
   }
 
-  // Both the root `color-scheme` and the theme-color meta go through the one
-  // owner. Writing them here directly used to clobber whatever the storefront
-  // had set, because this provider is the outermost one and React flushes its
-  // effect last. See src/theme/documentColorScheme.js.
+  // The root `color-scheme`, the theme-color meta, the `dark` class and
+  // `data-theme` all go through the one owner. Writing them here directly used
+  // to clobber whatever the storefront had set, because this provider is the
+  // outermost one and React flushes its effect last — that is how a light shop
+  // page ended up wearing the ERP's dark class. See
+  // src/theme/documentColorScheme.js.
   const themeColor = theme.mode === "light" ? variables.bg || "#f7f4ee" : variables.bg || "#050816";
-  setAppColorScheme(theme.mode, themeColor);
+  setAppColorScheme(theme.mode, themeColor, theme.id);
 };
 
 export function ThemeProvider({ children }) {

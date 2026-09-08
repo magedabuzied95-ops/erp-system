@@ -27,8 +27,21 @@ const makeDocument = () => {
       if (name === "content") this.content = value;
     },
   };
+  // Enough of an element for the owner to write all four signals on.
+  const makeElement = () => {
+    const classes = new Set();
+    return {
+      style: { colorScheme: "" },
+      dataset: {},
+      classList: {
+        toggle: (name, on) => (on ? classes.add(name) : classes.delete(name)),
+        contains: (name) => classes.has(name),
+      },
+    };
+  };
   return {
-    documentElement: { style: { colorScheme: "" } },
+    documentElement: makeElement(),
+    body: makeElement(),
     querySelector: (selector) => (selector === 'meta[name="theme-color"]' ? meta : null),
     themeColorMeta: meta,
   };
@@ -104,6 +117,81 @@ test("the storefront outranks the ERP theme while its shell is mounted", async (
   assert.equal(doc.themeColorMeta.content, "#eae7e0");
 
   delete globalThis.document;
+});
+
+test("a light shop never wears the ERP's dark class", async () => {
+  const doc = makeDocument();
+  globalThis.document = doc;
+  const { setAppColorScheme, setStorefrontColorScheme, releaseStorefrontColorScheme } = await loadOwner();
+
+  // The owner's workspace theme is dark, so the ERP page carries the class.
+  setAppColorScheme("dark", "#131211", "dark");
+  assert.equal(doc.documentElement.classList.contains("dark"), true);
+  assert.equal(doc.body.classList.contains("dark"), true);
+  assert.equal(doc.documentElement.dataset.theme, "dark");
+
+  // Then the same phone opens the shop in its LIGHT theme. The footer's cream
+  // band comes from `.storefront-shell:not(.storefront-dark)`; if the `dark`
+  // class survived here, every `dark:text-white/50` inside it would fire and
+  // the text would be white on cream.
+  setStorefrontColorScheme("light", "#111111");
+  assert.equal(doc.documentElement.classList.contains("dark"), false);
+  assert.equal(doc.body.classList.contains("dark"), false);
+  assert.equal(doc.documentElement.dataset.theme, "light");
+  assert.equal(doc.body.dataset.theme, "light");
+
+  // ThemeProvider re-runs when the tenant appearance profile arrives — after
+  // the shop has mounted. That re-run is exactly what used to win.
+  setAppColorScheme("dark", "#131211", "dark");
+  assert.equal(doc.documentElement.classList.contains("dark"), false, "the ERP theme must not re-dress a light shop page");
+  assert.equal(doc.documentElement.dataset.theme, "light");
+
+  // Leaving the shop hands the workspace theme back.
+  releaseStorefrontColorScheme();
+  assert.equal(doc.documentElement.classList.contains("dark"), true);
+  assert.equal(doc.body.classList.contains("dark"), true);
+  assert.equal(doc.documentElement.dataset.theme, "dark");
+
+  delete globalThis.document;
+});
+
+test("the shop's dark theme rides its own shell class, not the Tailwind variant", async () => {
+  const doc = makeDocument();
+  globalThis.document = doc;
+  const { setStorefrontColorScheme } = await loadOwner();
+
+  setStorefrontColorScheme("dark", "#050505");
+  assert.equal(doc.documentElement.style.colorScheme, "only dark");
+  assert.equal(doc.documentElement.dataset.theme, "dark");
+  // `.storefront-dark` (written by the shop itself) plus the hand-written rules
+  // in src/index.css are the shop's dark theme. Turning the class on here would
+  // wake ~311 dormant `dark:` utilities across the storefront at once.
+  assert.equal(doc.documentElement.classList.contains("dark"), false);
+  assert.equal(doc.body.classList.contains("dark"), false);
+
+  delete globalThis.document;
+});
+
+test("nothing outside the owner toggles the document `dark` class", () => {
+  const offenders = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!/\.(js|jsx)$/.test(entry.name)) continue;
+      const rel = path.relative(root, full).split(path.sep).join("/");
+      if (rel === OWNER) continue;
+      const source = fs.readFileSync(full, "utf8");
+      if (/(documentElement|document\.body|\broot|\bbody)\.classList\.toggle\(\s*["'`]dark["'`]/.test(source)) {
+        offenders.push(rel);
+      }
+    }
+  };
+  walk(path.join(root, "src"));
+  assert.deepEqual(offenders, [], `these files re-open the dark-class race; route them through ${OWNER}`);
 });
 
 test("the storefront light theme still reports a dark toolbar colour", () => {

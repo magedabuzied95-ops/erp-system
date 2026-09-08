@@ -10563,13 +10563,8 @@ function Storefront() {
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
-    const root = document.documentElement;
     const body = document.body;
     previousDocumentThemeRef.current = {
-      rootDark: root.classList.contains("dark"),
-      bodyDark: body.classList.contains("dark"),
-      rootTheme: root.getAttribute("data-theme"),
-      bodyTheme: body.getAttribute("data-theme"),
       bodyStorefrontDark: body.classList.contains("storefront-dark"),
     };
     body.classList.add("storefront-shell");
@@ -10583,17 +10578,12 @@ function Storefront() {
       const previous = previousDocumentThemeRef.current;
       detachSiteDesign();
       body.classList.remove("storefront-shell");
-      if (!previous) return;
-      root.classList.toggle("dark", previous.rootDark);
-      body.classList.toggle("dark", previous.bodyDark);
-      body.classList.toggle("storefront-dark", previous.bodyStorefrontDark);
-      if (previous.rootTheme === null) root.removeAttribute("data-theme");
-      else root.setAttribute("data-theme", previous.rootTheme);
-      if (previous.bodyTheme === null) body.removeAttribute("data-theme");
-      else body.setAttribute("data-theme", previous.bodyTheme);
-      // Hand the root colour-scheme back to the ERP theme rather than restoring
-      // the string we captured: that snapshot was taken before ThemeProvider's
-      // own effect had run, so replaying it here reinstated a stale value.
+      if (previous) body.classList.toggle("storefront-dark", previous.bodyStorefrontDark);
+      // Hand the four root theme signals back to the ERP theme rather than
+      // restoring the ones we captured: that snapshot is taken before
+      // ThemeProvider's own effect has run, so replaying it reinstated a stale
+      // value — and on the storefront host the boot script has always seeded a
+      // dark one. The owner re-publishes the ERP's live theme instead.
       releaseStorefrontColorScheme();
     };
   }, []);
@@ -10601,13 +10591,14 @@ function Storefront() {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const dark = themeMode === "dark";
-    const root = document.documentElement;
     const body = document.body;
-    root.classList.toggle("dark", dark);
-    body.classList.toggle("dark", dark);
+    // `storefront-dark` is the shop's own theme class and nothing else writes
+    // it. The Tailwind `dark` class and `data-theme` are shared with the ERP
+    // theme, so they are published through the owner module instead of being
+    // written here — otherwise the last effect to run decided them, and a shop
+    // in LIGHT could end up wearing the ERP's `dark` class (invisible white
+    // footer text on the cream band). See src/theme/documentColorScheme.js.
     body.classList.toggle("storefront-dark", dark);
-    root.setAttribute("data-theme", themeMode);
-    body.setAttribute("data-theme", themeMode);
     // The storefront header is deliberately dark in BOTH themes (see the
     // gradient on `.storefront-shell:not(.storefront-dark) .sf-luxury-header`),
     // and theme-color paints the browser toolbar sitting right on top of it —
