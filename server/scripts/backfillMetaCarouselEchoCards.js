@@ -23,7 +23,7 @@
  *      today's products onto an old message, which is worse than a photo.
  *
  * Usage (inside the backend container):
- *   node server/scripts/backfillMetaCarouselEchoCards.js [--tenant 1] [--days 90] [--apply]
+ *   node server/scripts/backfillMetaCarouselEchoCards.js [--tenant 1] [--days 90] [--include-captioned] [--apply]
  *
  * Without --apply it prints the plan and rolls back, so the dry run exercises
  * the identical transaction that the real run commits.
@@ -39,6 +39,8 @@ const flag = (name) => process.argv.includes(`--${name}`);
 const APPLY = flag("apply");
 const TENANT = Number(arg("tenant", "0")) || null;
 const DAYS = Number(arg("days", "90")) || 90;
+// Opt-in, because deleting a row that carries text can delete a real message.
+const INCLUDE_CAPTIONED = flag("include-captioned");
 // The echo lands within a couple of seconds of our own send; three minutes is
 // wide enough for a slow webhook and far too narrow to pair unrelated messages.
 const SIBLING_WINDOW = "3 minutes";
@@ -59,7 +61,7 @@ const run = async () => {
         m.channel,
         m.created_at,
         m.message_text,
-        m.visual_attachments,
+        COALESCE(jsonb_array_length(m.visual_attachments), 0) AS attachment_count,
         (
           SELECT s.product_cards
           FROM ai_support_messages s
@@ -84,28 +86,41 @@ const run = async () => {
       TENANT ? [TENANT] : []
     );
 
-    const duplicates = candidates.rows.filter((row) => cardCount(row.sibling_cards) > 0);
+    const paired = candidates.rows.filter((row) => cardCount(row.sibling_cards) > 0);
     const orphans = candidates.rows.filter((row) => cardCount(row.sibling_cards) === 0);
+    // The carousel's own echo carries no text — the lead sentence goes out as a
+    // separate message. A row that DOES carry text is a message someone wrote,
+    // and the three-minute pairing window is not evidence enough to delete it:
+    // a real photo sent to a customer minutes after a carousel would look
+    // identical to this query. Those need --include-captioned, said out loud.
+    const removable = paired.filter((row) => !String(row.message_text || "").trim());
+    const captioned = paired.filter((row) => String(row.message_text || "").trim());
+    const doomed = INCLUDE_CAPTIONED ? paired : removable;
 
     console.log(`echo image rows examined : ${candidates.rows.length}`);
-    console.log(`  duplicates of a card row (removable) : ${duplicates.length}`);
+    console.log(`  paired with a card row               : ${paired.length}`);
+    console.log(`    of those, no text — removable      : ${removable.length}`);
+    console.log(`    of those, carry text — kept        : ${captioned.length}${INCLUDE_CAPTIONED ? " (INCLUDED by --include-captioned)" : ""}`);
     console.log(`  no cards anywhere (left alone)       : ${orphans.length}`);
 
-    for (const row of duplicates.slice(0, 20)) {
+    for (const row of doomed.slice(0, 20)) {
       console.log(
-        `  DUP  id=${row.id} ${row.channel} ${row.session_id} ${new Date(row.created_at).toISOString()} ` +
-          `cards_on_sibling=${cardCount(row.sibling_cards)}`
+        `  DEL  id=${row.id} ${row.channel} ${row.session_id} ${new Date(row.created_at).toISOString()} ` +
+          `attachments=${row.attachment_count} cards_on_sibling=${cardCount(row.sibling_cards)}`
       );
+    }
+    for (const row of captioned.slice(0, 20)) {
+      console.log(`  TEXT id=${row.id} ${row.channel} ${new Date(row.created_at).toISOString()} "${String(row.message_text).slice(0, 60)}"`);
     }
     for (const row of orphans.slice(0, 20)) {
       console.log(`  KEEP id=${row.id} ${row.channel} ${row.session_id} ${new Date(row.created_at).toISOString()}`);
     }
-    if (duplicates.length > 20 || orphans.length > 20) console.log("  … (truncated)");
+    if (doomed.length > 20 || orphans.length > 20 || captioned.length > 20) console.log("  … (truncated)");
 
-    if (duplicates.length) {
+    if (doomed.length) {
       const deleted = await client.query(
         `DELETE FROM ai_support_messages WHERE id = ANY($1::bigint[]) RETURNING id`,
-        [duplicates.map((row) => row.id)]
+        [doomed.map((row) => row.id)]
       );
       console.log(`${APPLY ? "deleted" : "would delete"} ${deleted.rowCount} duplicate echo rows`);
     }
