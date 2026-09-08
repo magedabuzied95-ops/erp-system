@@ -3406,9 +3406,11 @@ const executeSocialCommentAutomationRuntime = async ({
     automation_state: persistedRuntimeStateWithLatency,
   };
 
-  // Instagram's Graph API exposes no comment-like endpoint (/{comment-id}/likes is
-  // Facebook only), so the like step stays off there while replies still run.
-  const likeSupportedOnPlatform = normalizedPlatform === "facebook";
+  // Instagram had no way to like a comment until Meta shipped the Like Media and
+  // Comments API on 2026-04-22; `likeComment` now routes it through the IG User node.
+  // A missing `instagram_manage_engagement` grant only fails this one step —
+  // executeAutomationStep catches it, and the public reply and the DM still run.
+  const likeSupportedOnPlatform = normalizedPlatform === "facebook" || normalizedPlatform === "instagram";
   const likeEnabled = Boolean(config.settings?.likeComment) && likeSupportedOnPlatform;
   const publicReplyEnabled = Boolean(config.settings?.publicReply);
   const privateReplyEnabled = Boolean(config.settings?.privateReply);

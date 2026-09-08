@@ -1005,13 +1005,35 @@ export const commentMatchesRule = (rule = {}, message = "") => {
 export const renderTemplate = (template = "", context = {}) =>
   trimString(template).replace(/\{\{\s*(\w+)\s*\}\}/g, (_match, key) => trimString(context[key]));
 
+// The two platforms take a like in different places. Facebook takes it on the comment
+// itself. Instagram has no likes edge on a comment at all — Meta's Like Media and
+// Comments API (changelog 2026-04-22) puts the like on the IG User and names its target
+// in a parameter, and it needs `instagram_manage_engagement`. Liking is limited to
+// comments under our own media, which is the only place this automation ever runs.
+export const buildCommentLikeRequest = ({ platform = "", commentId = "", instagramUserId = "" } = {}) => {
+  const safeCommentId = trimString(commentId);
+  if (!safeCommentId) throw new Error("A comment id is required to like a comment");
+  if (trimString(platform).toLowerCase() !== "instagram") {
+    return { endpoint: `/${encodeURIComponent(safeCommentId)}/likes`, params: {} };
+  }
+  const safeInstagramUserId = trimString(instagramUserId);
+  if (!safeInstagramUserId) {
+    throw new Error("The connected Instagram account id is unavailable, so the comment cannot be liked");
+  }
+  return {
+    endpoint: `/${encodeURIComponent(safeInstagramUserId)}/likes`,
+    params: { comment_id: safeCommentId },
+  };
+};
+
 export const likeComment = async (platform, commentId, businessId) => {
-  return callMetaPost({
-    businessId,
-    endpoint: `/${encodeURIComponent(commentId)}/likes`,
-    label: "like",
-    params: {},
+  const settings = trimString(platform).toLowerCase() === "instagram" ? await getSettingsRow(businessId) : null;
+  const { endpoint, params } = buildCommentLikeRequest({
+    platform,
+    commentId,
+    instagramUserId: settings?.instagram_account_id || settings?.instagram_business_account_id || "",
   });
+  return callMetaPost({ businessId, endpoint, label: "like", params });
 };
 
 export const buildFacebookCommentMentionParams = ({ message = "", commenterId = "", commenterName = "" } = {}) => {
@@ -2565,7 +2587,7 @@ const REQUIRED_META_PERMISSIONS = {
     private_reply: ["pages_manage_engagement", "pages_messaging"],
   },
   instagram: {
-    liked: ["instagram_manage_comments", "pages_manage_engagement"],
+    liked: ["instagram_manage_engagement"],
     public_reply: ["instagram_manage_comments", "pages_manage_engagement"],
     private_reply: ["instagram_manage_comments", "pages_messaging"],
   },
