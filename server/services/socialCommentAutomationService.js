@@ -1678,7 +1678,7 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       $22::boolean,
       $23::text,
       CURRENT_TIMESTAMP,
-      COALESCE($24::timestamp, CURRENT_TIMESTAMP),
+      COALESCE($24::timestamptz, CURRENT_TIMESTAMP),
       CURRENT_TIMESTAMP
     )
     ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
@@ -1878,7 +1878,7 @@ const findSocialCommentAutomationRunByKey = async ({
     conditions.push(`id <> $6::bigint`);
     params.push(safeCurrentRunId);
   }
-  const currentCreatedAtClause = safeCurrentCreatedAt ? `AND created_at < $${params.length + 1}::timestamp` : "";
+  const currentCreatedAtClause = safeCurrentCreatedAt ? `AND created_at < $${params.length + 1}::timestamptz` : "";
   if (safeCurrentRunId && safeCurrentCreatedAt) {
     params.push(safeCurrentCreatedAt);
   } else if (safeCurrentCreatedAt) {
@@ -4909,13 +4909,20 @@ const resolveSocialCommentPostFullPicture = (event = {}) =>
       ""
   );
 
-const resolveSocialCommentCreatedTime = (event = {}) =>
+// NEVER close these chains on `processed_at`. That column records when WE stored the
+// row, not when the author wrote it. An Instagram comment webhook carries no
+// `created_time` at all (value = id/from/text/media), so the fallback fired on every
+// single IG comment and handed the recency guard our own storage timestamp. Because
+// that timestamp was written through a `::timestamp` cast it landed one Cairo offset
+// (3h) in the past, so every IG comment read as three hours old and was skipped as
+// stale — no like, no public reply, no DM. An unknown creation time must stay unknown:
+// `maybeSkipOldSocialCommentAutomation` already runs the automation when it is null.
+export const resolveSocialCommentCreatedTime = (event = {}) =>
   text(
     event.raw_payload?.comment?.created_time ||
       event.raw_payload?.value?.created_time ||
       event.raw_payload?.comment_created_time ||
       event.comment_created_time ||
-      event.processed_at ||
       ""
   );
 
@@ -4929,7 +4936,6 @@ const resolveSocialCommentPostCreatedTime = (event = {}) =>
       event.comment_created_time ||
       event.raw_payload?.comment?.created_time ||
       event.raw_payload?.value?.created_time ||
-      event.processed_at ||
       ""
   );
 
@@ -7569,7 +7575,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           $1, $2, $3, $4, $5, $6, $7, $8,
           $9, $10, $11, $12, $13,
           $14, $15, $16, $17, $18, $19,
-          $20, $21::jsonb, $22::jsonb, $23::timestamp, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          $20, $21::jsonb, $22::jsonb, $23::timestamptz, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
         ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
           channel = EXCLUDED.channel,
