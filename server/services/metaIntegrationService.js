@@ -25541,7 +25541,18 @@ export const sendMetaInboxOutboundMessage = async ({
         recipientId: safeRecipientId,
         messageText: safeMessage,
         sendContext,
-        quickReplies: Array.isArray(quickReplies) && normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER ? quickReplies : [],
+        /*
+         * Instagram DMs take quick replies exactly as Messenger does — same message body, same
+         * endpoint shape. Restricting them to Messenger silently stripped every button on
+         * Instagram: the colour step reached the customer with buttons (it sends direct), they
+         * tapped one, and the SIZE step then arrived as bare text with nothing to press. The flow
+         * dead-ended one step in, and nothing logged a thing because the buttons were dropped here
+         * rather than rejected by Meta.
+         */
+        quickReplies: Array.isArray(quickReplies)
+          && [AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel)
+          ? quickReplies
+          : [],
       });
     }
   } catch (error) {

@@ -199,4 +199,19 @@ assert.match(
   "the comment→DM path must actually send them"
 );
 
+// Quick replies must reach Instagram, not just Messenger. Restricting them to Messenger stripped
+// every button on Instagram silently — the colour step reached the customer (it sends direct),
+// they tapped one, and the SIZE step arrived as bare text with nothing to press. Nothing logged
+// it, because the buttons were dropped locally rather than rejected by Meta.
+assert.match(
+  metaSource,
+  /quickReplies: Array\.isArray\(quickReplies\)[\s\S]{0,240}\[AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS\.INSTAGRAM\]\s*\.includes\(normalizedChannel\)/,
+  "Instagram must receive quick replies too"
+);
+assert.doesNotMatch(
+  metaSource,
+  /quickReplies: Array\.isArray\(quickReplies\) && normalizedChannel === AI_AGENT_CHANNELS\.FACEBOOK_MESSENGER \?/,
+  "the Messenger-only restriction is what dead-ended the Instagram flow one step in"
+);
+
 console.log("social comment colour-before-size OK");
