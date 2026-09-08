@@ -219,6 +219,24 @@ export const platformChrome = (platform = "web", mode = "dark") => {
   return { ...base, ...(LIGHT_OVERRIDES[platform] || LIGHT_OVERRIDES.web) };
 };
 
+// The wallpaper the conversation runs on. WhatsApp's bubbles were drawn against
+// its own warm near-black (#0b141a) and its beige paper (#efeae2); dropping the
+// same teal onto the workspace's navy panel is what makes a correct bubble read
+// as muddy. One canvas per platform, so the thread looks like the app it came
+// from before a single bubble is painted.
+const CANVAS = {
+  whatsapp: { dark: "bg-[#0b141a]", light: "bg-[#efeae2]" },
+  messenger: { dark: "bg-[#0a0a0a]", light: "bg-[#ffffff]" },
+  instagram: { dark: "bg-[#000000]", light: "bg-[#ffffff]" },
+  telegram: { dark: "bg-[#0e1621]", light: "bg-[#e6ebee]" },
+  tiktok: { dark: "bg-[#121212]", light: "bg-[#ffffff]" },
+  web: { dark: "", light: "" },
+};
+
+/** The transcript wallpaper for a conversation, as a background class (may be ""). */
+export const platformCanvas = (platform = "web", mode = "dark") =>
+  (CANVAS[platform] || CANVAS.web)[mode === "light" ? "light" : "dark"] || "";
+
 /**
  * Which canvas the bubbles are being painted on. The PWA transcript is a light
  * page whatever the ERP theme is; everywhere else follows the live theme, so a

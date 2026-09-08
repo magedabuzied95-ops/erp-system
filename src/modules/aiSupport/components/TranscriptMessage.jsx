@@ -419,14 +419,22 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
           </div>
         </div>
       ) : null}
+      {/* The react affordance used to hang under EVERY bubble as a permanent
+          floating circle — one dangling dot per message down the whole thread,
+          which is the single loudest thing on a transcript that is otherwise
+          just bubbles. No chat client shows it at rest: it appears beside the
+          message you are pointing at. So it sits in the free margin opposite
+          the bubble, out of the flow, and fades in on hover or keyboard focus. */}
       {canReact ? (
-        <div className={`-mt-2 flex px-3 ${align === "right" ? "justify-end" : "justify-start"}`}>
+        <div
+          className={`pointer-events-none absolute inset-x-0 bottom-1 z-20 flex px-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100 ${align === "right" ? "justify-start" : "justify-end"}`}
+        >
           <button
             type="button"
             aria-label={t("aiSupport.inbox.message.addReaction")}
             title={t("aiSupport.inbox.message.addReaction")}
             onClick={() => setReactionPickerOpen((current) => !current)}
-            className={`grid h-7 w-7 place-items-center rounded-full border shadow-sm transition hover:-translate-y-0.5 ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300"}`}
+            className={`pointer-events-auto grid h-7 w-7 place-items-center rounded-full border shadow-sm transition hover:-translate-y-0.5 ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300"}`}
           >
             <Smile className="h-4 w-4" />
           </button>

@@ -113,6 +113,8 @@ import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import AvatarZoom from "../components/AvatarZoom.jsx";
 import CustomerAvatar from "../components/CustomerAvatar.jsx";
+import { chromeModeFor, platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
+import { useTheme } from "../../../theme/useTheme";
 import { isMetaDmConversation, metaCustomerDisplayName } from "../lib/customerIdentity.js";
 
 // A WhatsApp or Meta picture url is signed and expires. When one stops loading, ask
@@ -4532,6 +4534,10 @@ export default function AiInbox({ reviewerMode = false }) {
   const previousLatestMessageKeyRef = useRef("");
   const restoreScrollStateRef = useRef(null);
   const transcriptScrollRef = useRef(null);
+  // The wallpaper the thread runs on: WhatsApp's own near-black or beige paper,
+  // Messenger's white, Instagram's black. A correct bubble still reads as muddy
+  // when it is dropped onto the workspace's navy panel instead.
+  const { theme: activeTheme } = useTheme();
   const pinToBottomAfterRefreshRef = useRef(false);
   const messengerProfileSyncAttemptedRef = useRef(new Set());
   const selectedSessionIdRef = useRef("");
@@ -5426,6 +5432,10 @@ export default function AiInbox({ reviewerMode = false }) {
       ? (selectedConversationThread || visibleConversations[0] || null)
       : null;
   const selectedConversation = isConversationMode ? activeMainItem : null;
+  const transcriptCanvasClass = platformCanvas(
+    resolveMessagePlatform({}, selectedConversation?.channel || selectedConversation?.source || ""),
+    chromeModeFor("desktop", activeTheme?.mode)
+  );
   /*
    * The AI analysis layer — src/modules/aiSupport/{core,intelligence,decision,
    * copilot,learning} — was reachable only from the PWA, so ~15k lines of
@@ -9382,7 +9392,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     </button>
                   </div>
                   <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
-                    <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto p-4">
+                    <div ref={transcriptScrollRef} className={`min-h-0 flex-1 overflow-y-auto p-4 ${transcriptCanvasClass}`}>
                       <Transcript
                         conversation={selectedConversation}
                         rows={selectedTranscriptRows}
@@ -9907,7 +9917,7 @@ export default function AiInbox({ reviewerMode = false }) {
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
-                        <div ref={transcriptScrollRef} className="min-h-0 flex-1 overflow-y-auto pr-1">
+                        <div ref={transcriptScrollRef} className={`min-h-0 flex-1 overflow-y-auto pr-1 ${transcriptCanvasClass}`}>
                           <Transcript
                             conversation={selectedConversation}
                             rows={selectedTranscriptRows}

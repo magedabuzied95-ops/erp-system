@@ -63,6 +63,7 @@ import CustomerAvatar from "../components/CustomerAvatar.jsx";
 import { resolveMetaCustomerIdentity } from "../lib/customerIdentity.js";
 import { useAIInboxAnalysis } from "../integration/useAIInboxAnalysis";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
+import { platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
@@ -2213,8 +2214,11 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
     );
   }
 
+  // The thread wears the wallpaper of the app it came from, the same as the
+  // desktop workspace, so a bubble is never judged against the ERP panel.
+  const canvas = platformCanvas(resolveMessagePlatform({}, threadChannel), "light");
   return (
-    <div dir="rtl" className="space-y-2.5 pb-3">
+    <div dir="rtl" className={`-mx-2 space-y-2.5 px-2 pb-3 ${canvas}`}>
       {conversation?.older_messages_available ? (
         <div className="flex justify-center">
           <button
