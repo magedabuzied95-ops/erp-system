@@ -3391,3 +3391,166 @@ export const setManagerPortalTaskTemplateActive = async ({ manager = {}, templat
 
 export const deleteManagerPortalTaskTemplate = async ({ manager = {}, templateId } = {}) =>
   deleteStaffTaskTemplate(templateId, managerTaskActor(manager));
+
+// ---------------------------------------------------------------------------
+// OFFLINE ATTENDANCE APPROVALS
+//
+// An employee whose phone had no connection records their arrival on the device.
+// The time comes from that phone, so it is parked in
+// `attendance_offline_submissions` and is NOT attendance: no payroll query, no
+// attendance-centre view and no aggregate can see it. It becomes real here, and
+// only here, when a manager approves it -- which is the only path that is
+// allowed to hand `recordEmployeePortalAttendance` a time the server did not
+// witness itself.
+// ---------------------------------------------------------------------------
+
+const offlineAttendanceRow = (row = {}) => ({
+  id: row.id,
+  employee_id: row.employee_id,
+  employee_name: row.employee_name || "",
+  employee_code: row.employee_code || "",
+  branch_id: row.branch_id || null,
+  branch_name: row.branch_name || "",
+  action: row.action,
+  occurred_at: row.occurred_at,
+  attendance_date: row.attendance_date,
+  time_zone: row.time_zone,
+  gps_lat: row.gps_lat === null ? null : Number(row.gps_lat),
+  gps_lng: row.gps_lng === null ? null : Number(row.gps_lng),
+  gps_accuracy: row.gps_accuracy === null ? null : Number(row.gps_accuracy),
+  notes: row.notes || "",
+  status: row.status,
+  // How long the record sat on the device before it reached us. This is the
+  // number that tells a manager whether the claim is plausible.
+  device_synced_at: row.device_synced_at,
+  reviewed_at: row.reviewed_at,
+  review_note: row.review_note || "",
+  attendance_log_id: row.attendance_log_id || null,
+});
+
+export const getManagerPortalOfflineAttendance = async ({ manager = {}, query = {} } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const status = String(query.status || "pending").toLowerCase();
+  const rows = await safeQuery(
+    `
+    SELECT s.*, e.full_name AS employee_name, e.employee_code, b.name AS branch_name
+    FROM attendance_offline_submissions s
+    JOIN employees e ON e.id = s.employee_id
+    LEFT JOIN branches b ON b.id = s.branch_id
+    WHERE ($1::bigint IS NULL OR s.tenant_id = $1::bigint)
+      AND ($2::bigint IS NULL OR s.branch_id = $2::bigint)
+      AND ($3 = 'all' OR s.status = $3)
+    ORDER BY s.occurred_at DESC
+    LIMIT 200
+    `,
+    [tenantId, branchId, status],
+    []
+  );
+  return rows.map(offlineAttendanceRow);
+};
+
+const loadScopedOfflineSubmission = async ({ manager, submissionId }) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const branchId = branchFilterValue(manager);
+  const id = numberOrNull(submissionId);
+  if (!id) {
+    const error = new Error("Submission is required");
+    error.status = 400;
+    throw error;
+  }
+  const rows = await safeQuery(
+    `
+    SELECT * FROM attendance_offline_submissions
+    WHERE id = $1::bigint
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      AND ($3::bigint IS NULL OR branch_id = $3::bigint)
+    LIMIT 1
+    `,
+    [id, tenantId, branchId],
+    []
+  );
+  const submission = rows[0];
+  if (!submission) {
+    const error = new Error("Offline attendance submission not found");
+    error.status = 404;
+    throw error;
+  }
+  if (String(submission.status) !== "pending") {
+    const error = new Error("This submission has already been reviewed");
+    error.status = 409;
+    throw error;
+  }
+  return submission;
+};
+
+export const approveManagerPortalOfflineAttendance = async ({ manager = {}, submissionId, note = "" } = {}) => {
+  const submission = await loadScopedOfflineSubmission({ manager, submissionId });
+  const { employee } = await loadScopedEmployee({ manager, employeeId: submission.employee_id });
+
+  const { recordEmployeePortalAttendance } = await import("./employeePayrollPortalService.js");
+
+  // The captured time is handed over here and nowhere else. Everything after
+  // this point -- GPS radius, shift resolution, late minutes, the notification --
+  // is the same code a live check-in runs, so an approved offline record is
+  // indistinguishable from one made at the counter, except in its audit trail.
+  const result = await recordEmployeePortalAttendance({
+    employee,
+    occurredAt: new Date(submission.occurred_at),
+    data: {
+      action: submission.action,
+      attendance_date: submission.attendance_date,
+      timezone: submission.time_zone,
+      notes: submission.notes || "",
+      gps_lat: submission.gps_lat,
+      gps_lng: submission.gps_lng,
+      gps_accuracy: submission.gps_accuracy,
+      location: {
+        latitude: submission.gps_lat === null ? null : Number(submission.gps_lat),
+        longitude: submission.gps_lng === null ? null : Number(submission.gps_lng),
+        accuracy: submission.gps_accuracy === null ? null : Number(submission.gps_accuracy),
+      },
+    },
+    audit: { source: "manager_portal_offline_approval", managerEmployeeId: manager.id || null },
+  });
+
+  const attendanceLogId = result?.attendance?.id || result?.attendance_log?.id || null;
+  const updated = await safeQuery(
+    `
+    UPDATE attendance_offline_submissions
+    SET status = 'approved',
+        reviewed_by = $2::bigint,
+        reviewed_at = NOW(),
+        review_note = NULLIF($3, ''),
+        attendance_log_id = $4::bigint,
+        updated_at = NOW()
+    WHERE id = $1::bigint
+    RETURNING *
+    `,
+    [submission.id, numberOrNull(manager.user_id), String(note || "").trim(), attendanceLogId],
+    []
+  );
+
+  return { submission: offlineAttendanceRow(updated[0] || submission), attendance: result };
+};
+
+export const rejectManagerPortalOfflineAttendance = async ({ manager = {}, submissionId, note = "" } = {}) => {
+  const submission = await loadScopedOfflineSubmission({ manager, submissionId });
+  const updated = await safeQuery(
+    `
+    UPDATE attendance_offline_submissions
+    SET status = 'rejected',
+        reviewed_by = $2::bigint,
+        reviewed_at = NOW(),
+        review_note = NULLIF($3, ''),
+        updated_at = NOW()
+    WHERE id = $1::bigint
+    RETURNING *
+    `,
+    [submission.id, numberOrNull(manager.user_id), String(note || "").trim()],
+    []
+  );
+  // Kept, not deleted: a refused claim is part of the record a dispute is
+  // settled from.
+  return { submission: offlineAttendanceRow(updated[0] || submission) };
+};

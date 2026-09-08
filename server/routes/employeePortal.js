@@ -12,6 +12,7 @@ import {
   markAllEmployeePortalNotificationsRead,
   markEmployeePortalNotificationRead,
   recordEmployeePortalAudit,
+  queueOfflineAttendanceSubmission,
   recordEmployeePortalAttendance,
   refreshEmployeePayrollPortalMetadataCache,
   subscribeEmployeePortalPush,
@@ -1341,7 +1342,15 @@ router.post("/:token/attendance/actions", async (req, res) => {
     if (!employee) return;
     markPortalTiming(timings, "verify_ms", sectionStartedAt);
     sectionStartedAt = nowMs();
-    const result = await recordEmployeePortalAttendance({ employee, data: req.body || {}, audit: auditContextFromRequest(req) });
+    // An action the device recorded while it had no connection carries its own
+    // timestamp, so it is PARKED for a manager instead of written. This route
+    // never passes `occurredAt` to the recorder: a phone's clock does not get to
+    // decide payroll, and the approval path is the only one that may hand over a
+    // time the server did not witness.
+    const offlineOrigin = Boolean(req.body?.offline_origin ?? req.body?.offlineOrigin ?? false);
+    const result = offlineOrigin
+      ? await queueOfflineAttendanceSubmission({ employee, data: req.body || {}, audit: auditContextFromRequest(req) })
+      : await recordEmployeePortalAttendance({ employee, data: req.body || {}, audit: auditContextFromRequest(req) });
     markPortalTiming(timings, "attendance_write_ms", sectionStartedAt);
     sectionStartedAt = nowMs();
     const portal = await buildEmployeePayrollPortalPayload({

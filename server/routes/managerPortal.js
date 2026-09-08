@@ -18,7 +18,10 @@ import {
   getManagerPortalTasks,
   getManagerPortalNotifications,
   getManagerPortalOperations,
+  approveManagerPortalOfflineAttendance,
   getManagerPortalInventoryApprovals,
+  getManagerPortalOfflineAttendance,
+  rejectManagerPortalOfflineAttendance,
   getManagerPortalInventoryApprovalSession,
   getManagerPortalSales,
   getManagerPortalStaff,
@@ -909,6 +912,57 @@ router.post("/:token/profit/lock", verifyManagerPortalToken, async (req, res) =>
   } catch (error) {
     console.error("[manager-portal] profit lock error", error?.message || error);
     return res.json({ success: true, profit_locked: true });
+  }
+});
+
+// Attendance an employee recorded on their own device while offline. It is not
+// attendance until it is approved here, so these three routes are the only way
+// a time the server did not witness can reach payroll.
+router.get("/:token/offline-attendance", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const submissions = await getManagerPortalOfflineAttendance({ manager, query: req.query || {} });
+    return res.json({ success: true, submissions });
+  } catch (error) {
+    console.error("[manager-portal] offline attendance list error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load offline attendance" });
+  }
+});
+
+router.post("/:token/offline-attendance/:submissionId/approve", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await approveManagerPortalOfflineAttendance({
+      manager,
+      submissionId: req.params.submissionId,
+      note: req.body?.note || "",
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] offline attendance approve error", error);
+    return res.status(error.status || 500).json({
+      success: false,
+      code: error.code || null,
+      message: error.message || "Failed to approve offline attendance",
+    });
+  }
+});
+
+router.post("/:token/offline-attendance/:submissionId/reject", async (req, res) => {
+  try {
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await rejectManagerPortalOfflineAttendance({
+      manager,
+      submissionId: req.params.submissionId,
+      note: req.body?.note || "",
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error("[manager-portal] offline attendance reject error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to reject offline attendance" });
   }
 });
 

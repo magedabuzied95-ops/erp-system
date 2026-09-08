@@ -478,6 +478,49 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
     ON employee_portal_notifications (tenant_id, employee_id, order_id, type)
     WHERE order_id IS NOT NULL
   `);
+
+  // Attendance an employee recorded while their phone had no connection.
+  //
+  // Deliberately its OWN table, not a flagged row in `attendance_logs`: the time
+  // came from the employee's own device, so it must not touch payroll, the
+  // attendance centre, or any existing aggregate until a manager has seen it.
+  // Keeping it out of `attendance_logs` means not one payroll query had to learn
+  // about it -- a pending submission simply does not exist to them.
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS attendance_offline_submissions (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      employee_id BIGINT NOT NULL,
+      branch_id BIGINT NULL,
+      action VARCHAR(20) NOT NULL,
+      occurred_at TIMESTAMPTZ NOT NULL,
+      attendance_date DATE NOT NULL,
+      time_zone VARCHAR(80) NOT NULL DEFAULT 'Africa/Cairo',
+      gps_lat NUMERIC(12,7) NULL,
+      gps_lng NUMERIC(12,7) NULL,
+      gps_accuracy NUMERIC(10,2) NULL,
+      notes TEXT NULL,
+      idempotency_key TEXT NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      reviewed_by BIGINT NULL,
+      reviewed_at TIMESTAMPTZ NULL,
+      review_note TEXT NULL,
+      attendance_log_id BIGINT NULL,
+      device_synced_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  // The device retries until it hears a success, so the key is what stops one
+  // arrival at the counter becoming three pending submissions.
+  await clientOrPool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_offline_submissions_key
+    ON attendance_offline_submissions (tenant_id, idempotency_key)
+  `);
+  await clientOrPool.query(`
+    CREATE INDEX IF NOT EXISTS idx_attendance_offline_submissions_pending
+    ON attendance_offline_submissions (tenant_id, branch_id, status, occurred_at DESC)
+  `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_notifications_employee_created ON employee_portal_notifications (tenant_id, employee_id, created_at DESC)`);
   await clientOrPool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_dedupe_key
@@ -2591,7 +2634,113 @@ const runEmployeePortalCheckoutQuery = async (queryName, sql, params = [], conte
   }
 };
 
-export const recordEmployeePortalAttendance = async ({ employee, data = {}, audit = {} }) => {
+// How far back a device is allowed to claim it recorded something. Longer than a
+// shift so an overnight outage still syncs, short enough that a phone cannot
+// invent last week.
+const OFFLINE_ATTENDANCE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+// A little slack for clock skew between the phone and the server; beyond that a
+// future timestamp is refused outright rather than quietly clamped, because a
+// clamped time is a wrong time that nobody notices.
+const OFFLINE_ATTENDANCE_FUTURE_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * Parks an attendance action the employee recorded while offline.
+ *
+ * It does NOT become attendance. The employee's phone supplied the time, and a
+ * phone's clock must never decide payroll, so this waits for a manager. The GPS
+ * is stored as captured and validated at approval against the branch, exactly as
+ * a live check-in is.
+ */
+export const queueOfflineAttendanceSubmission = async ({ employee, data = {}, audit = {} }) => {
+  await ensureEmployeePayrollPortalSchema(db);
+
+  const action = clean(data.action_type || data.action).toLowerCase();
+  if (!["check_in", "check_out"].includes(action)) {
+    throw employeePortalError("invalid_action", "Action must be check_in or check_out", 400);
+  }
+
+  const idempotencyKey = clean(data.idempotency_key || data.idempotencyKey);
+  if (!idempotencyKey) {
+    throw employeePortalError("idempotency_key_required", "An offline attendance submission needs an idempotency key", 400);
+  }
+
+  const occurredAtRaw = clean(data.occurred_at || data.occurredAt);
+  const occurredAt = occurredAtRaw ? new Date(occurredAtRaw) : null;
+  if (!occurredAt || Number.isNaN(occurredAt.getTime())) {
+    throw employeePortalError("occurred_at_required", "An offline attendance submission needs the time it happened", 400);
+  }
+  const now = Date.now();
+  if (occurredAt.getTime() > now + OFFLINE_ATTENDANCE_FUTURE_SKEW_MS) {
+    throw employeePortalError("occurred_at_in_future", "وقت التسجيل في المستقبل — راجع ساعة الجهاز", 400);
+  }
+  if (now - occurredAt.getTime() > OFFLINE_ATTENDANCE_MAX_AGE_MS) {
+    throw employeePortalError("occurred_at_too_old", "التسجيل قديم جدًا ولا يمكن رفعه تلقائيًا — تواصل مع الإدارة", 400);
+  }
+
+  const timeZone = clean(data.timezone || data.time_zone || data.tz) || "Africa/Cairo";
+  const attendanceDate = clean(data.attendance_date) || localIsoDate(occurredAt, timeZone);
+  const branch = await getEmployeeBranchForPortalAttendance({ employee }).catch(() => null);
+
+  const inserted = await db.query(
+    `
+    INSERT INTO attendance_offline_submissions (
+      tenant_id, employee_id, branch_id, action, occurred_at, attendance_date, time_zone,
+      gps_lat, gps_lng, gps_accuracy, notes, idempotency_key, status, device_synced_at
+    )
+    VALUES ($1,$2,$3,$4,$5::timestamptz,$6::date,$7,$8,$9,$10,$11,$12,'pending',NOW())
+    ON CONFLICT (tenant_id, idempotency_key) DO UPDATE
+      SET device_synced_at = NOW(), updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      employee.tenant_id,
+      employee.id,
+      branch?.id || null,
+      action,
+      occurredAt.toISOString(),
+      attendanceDate,
+      timeZone,
+      numberOrNull(data.gps_lat ?? data.location?.latitude),
+      numberOrNull(data.gps_lng ?? data.location?.longitude),
+      numberOrNull(data.gps_accuracy ?? data.location?.accuracy),
+      clean(data.notes) || null,
+      idempotencyKey,
+    ]
+  );
+
+  const submission = inserted.rows[0] || null;
+  await recordEmployeePortalAudit({
+    employee,
+    action: `attendance_offline_${action}`,
+    audit,
+    metadata: { submission_id: submission?.id || null, occurred_at: occurredAt.toISOString(), attendance_date: attendanceDate },
+  }).catch(() => null);
+
+  await createNotification({
+    tenant_id: employee.tenant_id,
+    role_key: "manager",
+    branch_id: branch?.id || null,
+    type: "employee_attendance_offline_pending",
+    category: "attendance",
+    priority: "high",
+    title: "حضور مسجل بدون اتصال في انتظار الموافقة",
+    body: `${employee.full_name || employee.name || "موظف"} — ${action === "check_in" ? "حضور" : "انصراف"} بتاريخ ${attendanceDate}`,
+    metadata: { submission_id: submission?.id || null, employee_id: employee.id },
+  }).catch(() => null);
+
+  return { pending: true, submission };
+};
+
+/**
+ * Writes a real attendance row.
+ *
+ * `occurredAt` overrides the server clock and is the ONLY way a time that did
+ * not come from this server can be stored. The employee portal never passes it:
+ * an offline check-in is parked as a submission and only reaches this function
+ * once a MANAGER has approved it, so a phone's clock can never decide payroll on
+ * its own. See approveManagerPortalOfflineAttendance.
+ */
+export const recordEmployeePortalAttendance = async ({ employee, data = {}, audit = {}, occurredAt = null }) => {
   await ensureEmployeePayrollPortalSchema(db);
   const action = clean(data.action_type || data.action).toLowerCase();
   if (!["check_in", "check_out"].includes(action)) {
@@ -2618,7 +2767,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     gps_verification_result: gps.verification_result,
   };
   if (action === "check_in") {
-    const checkInAt = new Date();
+    const checkInAt = occurredAt instanceof Date ? occurredAt : new Date();
     const shiftResolution = await resolveShiftForCheckIn({
       clientOrPool: db,
       tenantId: employee.tenant_id,
@@ -2893,7 +3042,7 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     throw error;
   }
   const attendanceRecordId = attendanceRow.id || attendanceLogId || null;
-  const checkOutAt = new Date();
+  const checkOutAt = occurredAt instanceof Date ? occurredAt : new Date();
   const shiftResult = attendanceRow.selected_shift_id || attendanceRow.shift_id
     ? await runEmployeePortalCheckoutQuery(
         "shift_lookup_for_checkout",

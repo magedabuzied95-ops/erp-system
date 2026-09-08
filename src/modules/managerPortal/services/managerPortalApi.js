@@ -22,6 +22,11 @@ export const managerPortalApi = {
   inventoryApproval: (token, sessionId) => api.get(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}`),
   approveInventoryApproval: (token, sessionId) => api.post(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}/approve`),
   rejectInventoryApproval: (token, sessionId, payload = {}) => api.post(`${tokenPath(token)}/inventory-approvals/${encodeURIComponent(sessionId)}/reject`, payload),
+  // Attendance an employee recorded on their own device while offline. It is
+  // NOT attendance until it is approved here.
+  offlineAttendance: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/offline-attendance`, { ...options, params }),
+  approveOfflineAttendance: (token, submissionId, payload = {}) => api.post(`${tokenPath(token)}/offline-attendance/${encodeURIComponent(submissionId)}/approve`, payload),
+  rejectOfflineAttendance: (token, submissionId, payload = {}) => api.post(`${tokenPath(token)}/offline-attendance/${encodeURIComponent(submissionId)}/reject`, payload),
   pushPublicKey: (token, options = {}) => api.get(`${tokenPath(token)}/push/public-key`, options),
   subscribePush: (token, payload) => api.post(`${tokenPath(token)}/push/subscribe`, payload),
   testPush: (token, payload = {}) => api.post(`${tokenPath(token)}/push/test`, payload),

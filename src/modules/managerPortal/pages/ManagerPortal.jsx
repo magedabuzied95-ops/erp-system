@@ -993,6 +993,8 @@ export default function ManagerPortal() {
   const [operationsKind, setOperationsKind] = useState("all");
   const [expandedOperationIds, setExpandedOperationIds] = useState({});
   const [inventoryApprovals, setInventoryApprovals] = useState(null);
+  const [offlineAttendance, setOfflineAttendance] = useState([]);
+  const [offlineAttendanceBusyId, setOfflineAttendanceBusyId] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [managerChatState, setManagerChatState] = useState({ employee: null, thread: null, messages: [] });
@@ -2220,6 +2222,49 @@ export default function ManagerPortal() {
     navigate(`/manager-portal/${encodeURIComponent(token)}/inventory-approvals`);
   };
 
+  const loadOfflineAttendance = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await managerPortalApi.offlineAttendance(token, { status: "pending" });
+      setOfflineAttendance(Array.isArray(response?.submissions) ? response.submissions : []);
+    } catch {
+      // A portal that cannot reach this list must still render everything else.
+      setOfflineAttendance([]);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadOfflineAttendance();
+  }, [loadOfflineAttendance]);
+
+  const reviewOfflineAttendance = async (submission, decision) => {
+    if (!submission?.id) return;
+    setOfflineAttendanceBusyId(String(submission.id));
+    try {
+      if (decision === "approve") await managerPortalApi.approveOfflineAttendance(token, submission.id);
+      else await managerPortalApi.rejectOfflineAttendance(token, submission.id);
+      await loadOfflineAttendance();
+      // An approval writes a real attendance row, so the staff figures on screen
+      // are now stale.
+      if (decision === "approve") await reloadTabData("staff", { force: true });
+      toast.success(
+        decision === "approve"
+          ? tt("managerPortal.offlineAttendance.approved", "تم اعتماد الحضور")
+          : tt("managerPortal.offlineAttendance.rejected", "تم رفض التسجيل")
+      );
+    } catch (error) {
+      // Surfaced rather than swallowed: an approval that failed its branch-radius
+      // check is exactly the case the manager has to see.
+      toast.error(
+        error?.responseBody?.message ||
+          error?.message ||
+          tt("managerPortal.offlineAttendance.reviewFailed", "تعذر مراجعة التسجيل")
+      );
+    } finally {
+      setOfflineAttendanceBusyId("");
+    }
+  };
+
   const reviewAdvanceRequest = async (requestId, status) => {
     setAdvanceRequestReviewingId(String(requestId));
     try {
@@ -3265,6 +3310,76 @@ export default function ManagerPortal() {
 
           {activeTab === "staff" ? (
             <div className="manager-portal-tab manager-portal-tab--staff space-y-2 sm:space-y-3">
+              {/* Attendance an employee recorded on their own phone while it had
+                  no connection. It is deliberately NOT in attendance yet: the
+                  time came from their device, so it counts for nothing until it
+                  is approved here. Placed first, because an unreviewed one is a
+                  shift that is missing from payroll. */}
+              {offlineAttendance.length ? (
+                <section className="manager-advance-panel rounded-2xl border p-3 text-right shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[15px] font-black text-slate-950 dark:text-white">
+                        {tt("managerPortal.offlineAttendance.title", "حضور بدون اتصال في انتظار الموافقة")}
+                      </div>
+                      <div className="mt-0.5 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        {tt("managerPortal.offlineAttendance.subtitle", "الوقت مسجل من جهاز الموظف — لا يُحتسب قبل موافقتك")}
+                      </div>
+                    </div>
+                    <span className="inline-flex min-w-8 items-center justify-center rounded-full bg-rose-400 px-2.5 py-1 text-xs font-black text-slate-950">
+                      {formatNumber(offlineAttendance.length)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {offlineAttendance.map((submission) => {
+                      const busy = offlineAttendanceBusyId === String(submission.id);
+                      return (
+                        <div key={submission.id} className="manager-advance-request-card rounded-xl border p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-black text-slate-950 dark:text-white">
+                                {portalText(submission.employee_name || tt("managerPortal.common.employee"))}
+                              </div>
+                              <div className="mt-1 text-[11px] font-black text-rose-700 dark:text-rose-300">
+                                {submission.action === "check_in"
+                                  ? tt("managerPortal.offlineAttendance.checkIn", "حضور")
+                                  : tt("managerPortal.offlineAttendance.checkOut", "انصراف")}
+                                {" · "}
+                                {formatDateTime(submission.occurred_at)}
+                              </div>
+                              {/* The gap between the two is what tells a manager
+                                  whether the claim is plausible. */}
+                              <div className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                {tt("managerPortal.offlineAttendance.syncedAt", "وصل للنظام")}: {formatDateTime(submission.device_synced_at)}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 flex-col gap-1.5">
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => reviewOfflineAttendance(submission, "approve")}
+                                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-[11px] font-black text-slate-950 disabled:opacity-60"
+                              >
+                                {tt("managerPortal.offlineAttendance.approve", "اعتماد")}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() => reviewOfflineAttendance(submission, "reject")}
+                                className="rounded-lg border border-rose-400/60 px-3 py-1.5 text-[11px] font-black text-rose-600 disabled:opacity-60 dark:text-rose-300"
+                              >
+                                {tt("managerPortal.offlineAttendance.reject", "رفض")}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
+
               <section className="manager-advance-panel rounded-2xl border p-3 text-right shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div>

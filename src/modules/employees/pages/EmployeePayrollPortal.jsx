@@ -50,6 +50,12 @@ import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveEmployeeProfileImageUrl, resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import {
+  countPendingOfflineAttendance,
+  saveOfflineAttendance,
+  shouldQueueAttendanceOffline,
+  syncOfflineAttendance,
+} from "../lib/offlineAttendanceQueue";
+import {
   BARCODE_PRINT_DEFAULTS,
   DISPLAY_REFILL_BARCODE_DEFAULTS,
   normalizeBarcodePrintSettings,
@@ -318,6 +324,7 @@ Object.assign(labels.ar, {
   branchToken: "كود أو رمز QR الفرع",
   branchTokenPlaceholder: "امسح QR أو أدخل كود الفرع",
   attendanceSaved: "تم تسجيل الحضور",
+  attendanceQueuedOffline: "تم تسجيل الحضور على الجهاز بدون اتصال — في انتظار موافقة المدير",
   checkoutSaved: "تم تسجيل الانصراف",
   attendanceError: "تعذر تسجيل الحضور",
   outsideBranchRadius: "أنت خارج نطاق الفرع",
@@ -380,6 +387,7 @@ Object.assign(labels.en, {
   branchToken: "Branch QR/token",
   branchTokenPlaceholder: "Scan QR or enter branch code",
   attendanceSaved: "Attendance recorded",
+  attendanceQueuedOffline: "Recorded on this device while offline — waiting for the manager to approve it",
   checkoutSaved: "Check-out recorded",
   attendanceError: "Unable to record attendance",
   outsideBranchRadius: "You are outside the branch radius",
@@ -1546,6 +1554,10 @@ export default function EmployeePayrollPortal() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [branchToken, setBranchToken] = useState("");
   const [attendanceSaving, setAttendanceSaving] = useState("");
+  // Attendance recorded on this device that has not yet been handed to the
+  // server. Once handed over it stops being counted here: from that point it is
+  // a request awaiting a manager, not something this device still owes.
+  const [offlineAttendanceCount, setOfflineAttendanceCount] = useState(0);
   const [requestType, setRequestType] = useState("vacation");
   const [requestAmount, setRequestAmount] = useState("");
   const [requestPaymentMethod, setRequestPaymentMethod] = useState("cash");
@@ -3529,6 +3541,38 @@ export default function EmployeePayrollPortal() {
 
   const notificationsReady = notificationState === "granted" && notificationSubscriptionActive;
 
+  // Hands anything the device recorded offline to the server as soon as it can.
+  // The `online` event alone is not enough: it never fires when the outage was
+  // the backend rather than the link, and a phone that was asleep can miss it.
+  useEffect(() => {
+    if (!token) return undefined;
+    let active = true;
+
+    const run = async () => {
+      const result = await syncOfflineAttendance(token).catch(() => null);
+      if (!active) return;
+      setOfflineAttendanceCount(await countPendingOfflineAttendance().catch(() => 0));
+      if (result?.submitted?.length) {
+        setPortalNotice(text.attendanceQueuedOffline);
+        void loadPortalByToken({ silent: true, clearNotice: false });
+      }
+      // A refusal cannot be replayed into a success, so the employee is told
+      // rather than left with a queue that silently never empties.
+      const permanent = (result?.failed || []).find((entry) => entry.permanent);
+      if (permanent) setPortalNotice(permanent.error || text.attendanceError);
+    };
+
+    void run();
+    const timer = window.setInterval(run, 60 * 1000);
+    window.addEventListener("online", run);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("online", run);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const submitAttendanceAction = async (actionType) => {
     // The stored day is the authority: a second check-in on a day that already
     // has one would land on the old record, so it is stopped before the request
@@ -3544,6 +3588,7 @@ export default function EmployeePayrollPortal() {
     setEarlyCheckoutOpen(false);
     setLocationGate(null);
     const startedAt = safeNow();
+    let capturedLocation = null;
     try {
       setAttendanceSaving(actionType);
       setPortalNotice("");
@@ -3558,6 +3603,10 @@ export default function EmployeePayrollPortal() {
         });
       }
       const location = await getBrowserLocation();
+      // Held outside the try's scope so the offline branch below can queue the
+      // coordinates that were actually captured, rather than asking the device
+      // for them a second time.
+      capturedLocation = location;
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/attendance/actions`, {
         action: actionType,
         attendance_log_id: actionType === "check_out" ? (todayAttendance?.id || todayAttendance?.attendance_id || null) : null,
@@ -3572,6 +3621,31 @@ export default function EmployeePayrollPortal() {
       setPortalNotice(actionType === "check_out" ? text.checkoutSaved : text.attendanceSaved);
       logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType });
     } catch (err) {
+      // No connection. The employee is standing at the branch and has pressed
+      // the button, so the action is kept on the device with the time and the
+      // GPS as captured. It does NOT become attendance on sync -- the server
+      // parks it and a manager approves it, because a phone's clock must not
+      // decide payroll on its own.
+      // Only with real coordinates: an approval re-runs the branch-radius check
+      // against them, so a submission with no location could never be approved
+      // and would just leave the employee believing they were recorded.
+      const hasCapturedLocation =
+        Number.isFinite(Number(capturedLocation?.latitude)) && Number.isFinite(Number(capturedLocation?.longitude));
+      if (hasCapturedLocation && shouldQueueAttendanceOffline(err)) {
+        try {
+          await saveOfflineAttendance({
+            action: actionType,
+            location: capturedLocation,
+            timezone: browserTimeZone(),
+          });
+          setOfflineAttendanceCount(await countPendingOfflineAttendance().catch(() => 0));
+          setPortalNotice(text.attendanceQueuedOffline);
+          logPagePerf("employee-wallet.attendance-action", startedAt, { action: actionType, queued_offline: true });
+          return;
+        } catch (queueError) {
+          console.error("[employee-portal-attendance] failed to queue offline", queueError?.message || queueError);
+        }
+      }
       const code = err?.responseBody?.code;
       if (code === "already_checked_in" || code === "already_checked_out_today") {
         const refreshedPortal = await loadPortalByToken({ silent: true, clearNotice: false });
