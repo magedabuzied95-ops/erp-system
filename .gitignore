@@ -67,6 +67,7 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+!server/services/whatsappSalesFlowService.js
 !server/services/metaGraphRateLimiter.js
 !server/services/metaImageCompatService.js
 # Surveillance Center. Same shape as the analytics package above: the directory
@@ -122,6 +123,7 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+!server/services/whatsappSalesFlowService.js
 !server/services/metaGraphRateLimiter.js
 !server/services/metaImageCompatService.js
 # Surveillance Center. Same shape as the analytics package above: the directory

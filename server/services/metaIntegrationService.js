@@ -18742,10 +18742,8 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     // else is ours to fix, and the address is already safely stored either way.
     const priceMissing = draftOrderResult?.failureCode === "MISSING_PRODUCT_PRICE";
     const pendingText = priceMissing
-      ? "استلمت عنوانك ✅
-فاضل نأكدلك سعر المنتج ده من الاستور، وهيتواصل معاك فريق خدمة العملاء حالاً ❤️"
-      : "استلمت عنوانك ✅
-فريق خدمة العملاء هيتواصل معاك حالاً لتأكيد الطلب ❤️";
+      ? "استلمت عنوانك ✅\nفاضل نأكدلك سعر المنتج ده من الاستور، وهيتواصل معاك فريق خدمة العملاء حالاً ❤️"
+      : "استلمت عنوانك ✅\nفريق خدمة العملاء هيتواصل معاك حالاً لتأكيد الطلب ❤️";
     if (isWhatsapp) {
       await sendConfirmation(pendingText);
       return { handled: true, reason: "address_received_order_not_created" };
@@ -18773,8 +18771,7 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     "طلبك اتسجل عندنا، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
     "",
     "شكراً لاختيارك M1 Store",
-  ].join("
-");
+  ].join("\n");
   if (isWhatsapp) await sendConfirmation(successText);
   else await sendSocialCommentSalesFlowText({
     config,

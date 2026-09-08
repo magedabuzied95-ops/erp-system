@@ -570,12 +570,42 @@ router.post("/webhook", async (req, res) => {
         skipReason: normalized.skipReason || normalized.replyTargetReason || "evolution_noise",
       });
     }
+    // ── Deterministic sales flow ───────────────────────────────────────────────────────────────
+    // The same colour → size → summary → confirm → address path Messenger and Instagram run. It
+    // gets first refusal on a colour-card tap and on the replies that follow one, and returns
+    // handled:false for anything it does not own — a question, a greeting, a customer who never
+    // tapped a card — so the AI keeps every conversation the flow is not actually driving.
+    let whatsappSalesFlowHandled = false;
+    if (!normalized.fromMe) {
+      try {
+        const { handleWhatsappSalesFlow } = await import("../services/whatsappSalesFlowService.js");
+        const flowResult = await handleWhatsappSalesFlow({
+          tenantId: 1,
+          phone: normalized.phone || normalized.from || normalized.remoteJid || "",
+          buttonId: normalized.selectedButtonId || "",
+          messageText: normalized.text || "",
+        });
+        whatsappSalesFlowHandled = flowResult?.handled === true;
+        if (whatsappSalesFlowHandled) {
+          console.info("[whatsapp:sales-flow]", {
+            reason: flowResult.reason,
+            phoneSuffix: String(normalized.phone || "").slice(-4),
+            button: normalized.selectedButtonId || "",
+          });
+          return res.status(200).json({ success: true, received: true, handled: true, reason: flowResult.reason });
+        }
+      } catch (salesFlowError) {
+        // Never let the flow cost the message: fall through to the AI exactly as before.
+        console.warn("[whatsapp:sales-flow-failed]", { message: salesFlowError?.message || String(salesFlowError) });
+      }
+    }
+
     // ── Colour-card tap ────────────────────────────────────────────────────────────────────────
-    // A tap on a colour carousel card arrives as a button reply whose id names the exact variant.
-    // The AI pipeline grounds colours from TEXT, so the tap is rewritten into the one sentence the
-    // grounding gate resolves deterministically — the product name and the colour string exactly
-    // as the catalog spells them. The customer's tap label ("اطلب اللون ده") says nothing usable;
-    // this rewrite is what turns it into an unambiguous colour choice.
+    // Reached only when the deterministic flow did not take the tap (no such variant, or the
+    // product vanished). The AI pipeline grounds colours from TEXT, so the tap is rewritten into
+    // the one sentence the grounding gate resolves deterministically — the product name and the
+    // colour string exactly as the catalog spells them. The customer's tap label
+    // ("اطلب اللون ده") says nothing usable; this rewrite is what turns it into a colour choice.
     const colorTap = String(normalized.selectedButtonId || "").match(/^choose_color:(\d+)$/);
     if (colorTap) {
       try {
