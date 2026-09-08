@@ -1897,6 +1897,72 @@ export const sendOrderConfirmationListMessage = async ({ phone, title = "", text
  * Evolution only. Cloud API has its own interactive list with a different payload; pretending
  * otherwise would fail at send time instead of falling back to text.
  */
+/*
+ * Reply buttons with ids of our own choosing. The only buttons sender that existed hard-coded the
+ * confirm/edit/cancel order ids, so a flow that needed its own two buttons had nothing to call.
+ *
+ * WhatsApp caps this at THREE buttons — anything past three is dropped by the platform, so the
+ * cap is enforced here rather than discovered live. Evolution's payload carries no image, which is
+ * why the caller sends the photo as its own message first.
+ */
+export const sendReplyButtonsMessage = async ({
+  phone,
+  title = "",
+  description = "",
+  footer = "",
+  buttons = [],
+  fallbackText = "",
+} = {}) => {
+  if (provider() !== "evolution") {
+    throw gatewayError("Interactive buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  }
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const safeButtons = (Array.isArray(buttons) ? buttons : [])
+    .map((button) => ({
+      type: "reply",
+      displayText: text(button?.displayText).slice(0, 20),
+      id: text(button?.id),
+    }))
+    .filter((button) => button.displayText && button.id)
+    .slice(0, 3);
+  if (!safeButtons.length) throw gatewayError("At least one button is required", "WHATSAPP_BUTTONS_EMPTY", 400);
+  const current = requireEvolutionConfig();
+  const payload = {
+    number: normalizedPhone,
+    title: text(title).slice(0, 60),
+    description: text(description).slice(0, 1024),
+    footer: text(footer).slice(0, 60),
+    buttons: safeButtons,
+  };
+  const logBase = {
+    order_id: null,
+    phoneSuffix: normalizedPhone.slice(-4),
+    buttonIds: safeButtons.map((button) => button.id),
+  };
+  // Same guarantee as the list: buttons that will not send must still reach the customer as text,
+  // or the flow dead-ends in silence.
+  try {
+    return await sendEvolutionButtonsMessage({
+      current,
+      endpoint: `/message/sendButtons/${encodeURIComponent(current.instanceName)}`,
+      requestBody: JSON.stringify(payload),
+      requestTimeoutMs: 9000,
+      logBase,
+      phone: normalizedPhone,
+      fallbackOnNotDelivered: async () =>
+        sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(description) }),
+    });
+  } catch (error) {
+    console.warn("[whatsapp:reply-buttons-fallback]", {
+      phoneSuffix: normalizedPhone.slice(-4),
+      buttons: safeButtons.length,
+      message: error?.message || String(error),
+    });
+    return sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(description) });
+  }
+};
+
 export const sendChoiceListMessage = async ({
   phone,
   title = "",

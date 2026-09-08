@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { buildSizeRowId, parseSizeRowId, whatsappConversationId } from "../services/whatsappSalesFlowService.js";
+import {
+  buildSizeRowId,
+  parseSaleActionId,
+  parseSizeRowId,
+  whatsappConversationId,
+} from "../services/whatsappSalesFlowService.js";
 
 /* ======================================================
    THE SAME SALE, ON WHATSAPP
@@ -156,5 +161,35 @@ for (const [label, source] of [["whatsapp", flowSource], ["meta", metaService]])
     `${label}: carried state must not be spread after the explicit fields`
   );
 }
+
+// ── 8. The summary is a photo, the facts, and two buttons ─────────────────────────────────────
+// Evolution's buttons payload carries no image, so the colour's photo is its own message with the
+// caption and the buttons follow. Both ids name the whole variant: a bare "confirm" would be
+// ambiguous on its own AND would collide with the separate order-confirmation flow's confirm_order.
+assert.deepEqual(
+  parseSaleActionId("sale_confirm:315:White%20%26%20Brown:34"),
+  { action: "confirm", product_id: 315, color: "White & Brown", size: "34" }
+);
+assert.deepEqual(
+  parseSaleActionId("sale_cancel:315:Grey:41"),
+  { action: "cancel", product_id: 315, color: "Grey", size: "41" }
+);
+assert.equal(parseSaleActionId("confirm_order:1203"), null, "the legacy order-confirmation id must not be claimed");
+assert.equal(parseSaleActionId(buildSizeRowId({ productId: 1, color: "A", size: "2" })), null, "a size row must not parse as an action");
+
+assert.match(flowSource, /await sendImageMessage\(\{ phone, imageUrl, caption \}\)/, "the summary must show the chosen colour's photo");
+assert.match(flowSource, /absolutePublicUploadUrl\(rawImage\)/, "a relative /uploads path renders nothing on WhatsApp");
+assert.match(flowSource, /await sendReplyButtonsMessage\(\{/, "the summary must carry confirm and cancel buttons");
+// If the photo fails, its facts must ride the buttons message instead of vanishing with it.
+assert.match(
+  flowSource,
+  /const buttonsBody = photoSent \? "[^"]+" : `\$\{caption\}/,
+  "a failed photo must not take the size and price down with it"
+);
+const buttonsStart = gatewaySource.indexOf("export const sendReplyButtonsMessage");
+assert.ok(buttonsStart > 0, "the generic buttons sender is gone");
+const buttonsBody = gatewaySource.slice(buttonsStart, buttonsStart + 2600);
+assert.match(buttonsBody, /\.slice\(0, 3\)/, "WhatsApp drops anything past three buttons");
+assert.match(buttonsBody, /catch \(error\)[\s\S]{0,400}sendTextMessage\(/, "buttons that will not send must still reach the customer as text");
 
 console.log("whatsapp sales flow OK");

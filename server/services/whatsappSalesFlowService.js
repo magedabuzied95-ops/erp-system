@@ -9,7 +9,8 @@ import {
 } from "./socialCommentPrivateReplyService.js";
 import { createAddressRequest } from "./conversationAddressRequestService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
-import { sendChoiceListMessage, sendCtaUrlMessage, sendTextMessage } from "./whatsappGatewayService.js";
+import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
+import { sendChoiceListMessage, sendCtaUrlMessage, sendImageMessage, sendReplyButtonsMessage, sendTextMessage } from "./whatsappGatewayService.js";
 
 /* ======================================================
    THE SAME SALE, ON WHATSAPP
@@ -207,9 +208,44 @@ const presentSizes = async ({ tenantId, phone, conversationId, productId, color,
   return { handled: true, reason: "whatsapp_size_options_sent" };
 };
 
+// The order summary the owner asked for: the CHOSEN COLOUR's photo, the size and the price under
+// it, and confirm / cancel underneath. Evolution's buttons payload carries no image, so the photo
+// goes first with its own caption and the buttons follow — two bubbles, one summary.
+//
+// The button ids name the whole variant rather than a bare "confirm", so a tap is unambiguous on
+// its own and cannot be confused with the separate order-confirmation flow's confirm_order ids.
+export const SALE_CONFIRM_PREFIX = "sale_confirm:";
+export const SALE_CANCEL_PREFIX = "sale_cancel:";
+
+const buildSaleActionId = (prefix, { productId, color = "", size = "" }) =>
+  `${prefix}${Number(productId || 0)}:${encodeURIComponent(text(color))}:${encodeURIComponent(text(size))}`;
+
+export const parseSaleActionId = (value = "") => {
+  const raw = text(value);
+  const prefix = raw.startsWith(SALE_CONFIRM_PREFIX)
+    ? SALE_CONFIRM_PREFIX
+    : (raw.startsWith(SALE_CANCEL_PREFIX) ? SALE_CANCEL_PREFIX : "");
+  if (!prefix) return null;
+  const parts = raw.slice(prefix.length).split(":");
+  if (parts.length < 3) return null;
+  const productId = Number(parts[0] || 0) || null;
+  if (!productId) return null;
+  try {
+    return {
+      action: prefix === SALE_CONFIRM_PREFIX ? "confirm" : "cancel",
+      product_id: productId,
+      color: decodeURIComponent(parts[1] || ""),
+      size: decodeURIComponent(parts.slice(2).join(":")),
+    };
+  } catch {
+    return null;
+  }
+};
+
 const sendSummary = async ({ tenantId, phone, conversationId, productId, color, size, product }) => {
   const variants = await loadVariants({ tenantId, productId, color, size });
   const priceUsed = await resolvePrice({ tenantId, product, variants });
+  const colorLabel = normalizeSocialCommentColorDisplay(color) || color;
   persistFlow({
     conversationId,
     productId,
@@ -218,13 +254,46 @@ const sendSummary = async ({ tenantId, phone, conversationId, productId, color, 
     step: "awaiting_order_confirmation",
     extra: { product_name: text(product?.name || ""), price_used: priceUsed },
   });
-  const summary = buildSocialCommentOrderSummaryMessageV2({
-    productName: text(product?.name || ""),
-    selectedSize: size,
-    selectedColor: color,
-    priceUsed,
+
+  const caption = [
+    `👟 ${text(product?.name || "المنتج")}`,
+    `🎨 اللون: ${colorLabel}`,
+    `📏 المقاس: ${size}`,
+    priceUsed ? `💵 السعر: ${priceUsed} جنيه` : "",
+  ].filter(Boolean).join("\n");
+
+  // The photo of the colour actually chosen, not the product's cover — a relative /uploads path
+  // renders nothing, so it goes through the resolver first.
+  const rawImage = text(variants[0]?.image_url || "");
+  const imageUrl = rawImage ? absolutePublicUploadUrl(rawImage) : "";
+  let photoSent = false;
+  if (imageUrl) {
+    photoSent = await sendImageMessage({ phone, imageUrl, caption })
+      .then(() => true)
+      .catch((error) => {
+        console.warn("WHATSAPP_SUMMARY_IMAGE_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
+        return false;
+      });
+  }
+  // No photo, or the photo failed: the caption still has to reach the customer, so it rides the
+  // buttons message instead of vanishing with the image.
+  const buttonsBody = photoSent ? "هل ترغب في إتمام الطلب؟" : `${caption}\n\nهل ترغب في إتمام الطلب؟`;
+
+  await sendReplyButtonsMessage({
+    phone,
+    title: "تفاصيل طلبك",
+    description: buttonsBody,
+    footer: "M1 Store",
+    buttons: [
+      { displayText: "✅ تأكيد الطلب", id: buildSaleActionId(SALE_CONFIRM_PREFIX, { productId, color, size }) },
+      { displayText: "❌ إلغاء الطلب", id: buildSaleActionId(SALE_CANCEL_PREFIX, { productId, color, size }) },
+    ],
+    // Buttons are never guaranteed on WhatsApp; a typed "تأكيد" still works either way.
+    fallbackText: `${caption}\n\nاكتب «تأكيد» عشان نكمل ✅`,
+  }).catch(async (error) => {
+    console.warn("WHATSAPP_SUMMARY_BUTTONS_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
+    await send({ phone, message: `${caption}\n\nاكتب «تأكيد» عشان نكمل ✅` });
   });
-  await send({ phone, message: `${summary}\n\nاكتب «تأكيد» عشان نكمل ✅` });
   return { handled: true, reason: "whatsapp_order_summary_sent" };
 };
 
@@ -316,6 +385,27 @@ export const handleWhatsappSalesFlow = async ({
       return sendSummary({ tenantId, phone, conversationId, productId, color, size: tappedSize, product });
     }
     return presentSizes({ tenantId, phone, conversationId, productId, color, product });
+  }
+
+  // ── confirm / cancel, tapped ────────────────────────────────────────────────────────────────
+  // The id names the whole variant, so the tap stands on its own even if the conversation state
+  // was lost — and it cannot be confused with the separate order-confirmation flow's ids.
+  const saleAction = parseSaleActionId(tap);
+  if (saleAction) {
+    console.log("WHATSAPP_SALES_FLOW_ACTION", { conversation_id: conversationId, ...saleAction });
+    if (saleAction.action === "cancel") {
+      persistFlow({ conversationId, productId: saleAction.product_id, step: "" });
+      await send({ phone, message: "تم إلغاء الطلب.\nيسعدنا خدمتك في أي وقت ❤️" });
+      return { handled: true, reason: "whatsapp_order_cancelled" };
+    }
+    return sendAddressLink({
+      tenantId,
+      phone,
+      conversationId,
+      // The tap is the authority on the variant; the conversation only supplies the customer name.
+      flow: { ...flow, product_id: saleAction.product_id, selected_color: saleAction.color, selected_size: saleAction.size },
+      productId: saleAction.product_id,
+    });
   }
 
   // ── size, chosen from the list ──────────────────────────────────────────────────────────────
