@@ -16239,7 +16239,7 @@ const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", 
 // The one live address link for this conversation. createAddressRequest already reuses a pending
 // code rather than minting a second, so re-confirming hands back the same URL the customer may
 // already have open. Never throws: a link that cannot be built falls back to the text ask.
-const buildSocialCommentAddressLink = async ({ config, message, customerName = "", customerPhone = "" } = {}) => {
+const buildSocialCommentAddressLink = async ({ config, message, customerName = "", customerPhone = "", salesFlow = null } = {}) => {
   const conversationId = text(message?.external_conversation_id || "");
   if (!conversationId) return "";
   try {
@@ -16249,6 +16249,8 @@ const buildSocialCommentAddressLink = async ({ config, message, customerName = "
       channel: text(message?.channel || ""),
       customerName: text(customerName),
       customerPhone: text(customerPhone),
+      // Rides with the link so a restart cannot cost the order.
+      salesFlow: salesFlow && typeof salesFlow === "object" ? salesFlow : null,
     });
     const url = text(request?.url || buildAddressRequestPublicUrl(request?.code || ""));
     // A relative path is not something a customer can tap inside Messenger.
@@ -18327,6 +18329,16 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         message,
         customerName: text(salesFlow?.customer_name || ""),
         customerPhone: text(salesFlow?.customer_phone || ""),
+        // The variant as confirmed, stored with the link: the submit can rebuild the order from
+        // this even if a restart has emptied the conversation memory in the meantime.
+        salesFlow: {
+          ...salesFlow,
+          product_id: productId,
+          selected_size: selectedSize,
+          selected_color: selectedColor,
+          post_id: postId,
+          comment_id: commentId,
+        },
       });
       const nextStep = addressLink ? "awaiting_address_link" : "awaiting_customer_data";
       // The card carries the button; the text beside it explains it. If Meta refuses the card the
@@ -18665,14 +18677,26 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   address = {},
   customerName = "",
   customerPhone = "",
+  // The flow as it stood when the link was issued, read back off the address-request row.
+  salesFlowSnapshot = null,
 } = {}) => {
   const conversationId = text(sessionId);
   if (!conversationId) return { handled: false, reason: "missing_conversation_id" };
   const memory = getConversationMemory(conversationId) || {};
-  const salesFlow = memory.sales_flow && typeof memory.sales_flow === "object"
+  const liveFlow = memory.sales_flow && typeof memory.sales_flow === "object"
     ? memory.sales_flow
     : (memory.salesFlow && typeof memory.salesFlow === "object" ? memory.salesFlow : {});
-  const step = socialCommentSalesFlowStepFromMemory(memory);
+  /*
+   * Conversation memory is an in-process Map: a deploy between the customer receiving the link and
+   * submitting it empties it, and the order was then never created — silently. The snapshot stored
+   * on the address-request row spans exactly that gap. Live memory still wins when it has a
+   * variant, because it reflects any change made after the link went out.
+   */
+  const snapshot = salesFlowSnapshot && typeof salesFlowSnapshot === "object" ? salesFlowSnapshot : {};
+  const liveHasVariant = Boolean(Number(liveFlow?.product_id || 0) && text(liveFlow?.selected_color) && text(liveFlow?.selected_size));
+  const salesFlow = liveHasVariant ? liveFlow : { ...liveFlow, ...snapshot };
+  const usedSnapshot = !liveHasVariant && Boolean(Number(snapshot?.product_id || 0));
+  const step = usedSnapshot ? "awaiting_address_link" : socialCommentSalesFlowStepFromMemory(memory);
   const productId = Number(salesFlow?.product_id || 0) || null;
   const selectedSize = text(salesFlow?.selected_size || "");
   const selectedColor = text(salesFlow?.selected_color || "");
@@ -18687,6 +18711,9 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
     selected_size: selectedSize,
     selected_color: selectedColor,
     waiting_for_address: waitingForAddress,
+    // Which source supplied the variant — a snapshot means the live memory had been wiped, and
+    // this order would have been lost before.
+    flow_source: usedSnapshot ? "address_request_snapshot" : "conversation_memory",
   });
   if (!waitingForAddress || !productId || !selectedColor || !selectedSize) {
     return { handled: false, reason: "no_pending_social_comment_order" };

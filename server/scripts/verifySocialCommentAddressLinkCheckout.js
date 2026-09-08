@@ -244,4 +244,42 @@ assert.doesNotMatch(
   "a raw /me/messages POST cannot reach an Instagram thread"
 );
 
+// ── 6. The order survives a restart between the link and the submit ───────────────────────────
+// Conversation state is an in-process Map. A deploy between the customer receiving the link and
+// filling it in emptied it, the submit found no flow waiting, and the order was never created —
+// silently. It happened twice in one afternoon of testing. The address-request row spans exactly
+// that gap, so the variant rides along with it.
+assert.match(
+  addressService,
+  /ADD COLUMN IF NOT EXISTS sales_flow JSONB/,
+  "the address-request row must be able to carry the flow it was issued for"
+);
+assert.match(
+  addressService,
+  /sales_flow = COALESCE\(\$6::jsonb, sales_flow\)/,
+  "re-sending a link must not erase the snapshot already stored"
+);
+assert.match(
+  addressService,
+  /salesFlowSnapshot: row\.sales_flow/,
+  "the submit must hand the stored snapshot to the order path"
+);
+assert.match(
+  completeBody,
+  /const salesFlow = liveHasVariant \? liveFlow : \{ \.\.\.liveFlow, \.\.\.snapshot \}/,
+  "live memory wins when it has a variant; the snapshot is the fallback"
+);
+assert.match(
+  completeBody,
+  /const step = usedSnapshot \? "awaiting_address_link"/,
+  "a recovered snapshot must satisfy the waiting-for-address check it was stored for"
+);
+// Both flows have to actually store it, or the column is decoration.
+assert.match(metaService, /salesFlow: \{\s*\.\.\.salesFlow,\s*product_id: productId/, "the Meta confirm step must store the variant with the link");
+assert.match(
+  read("../services/whatsappSalesFlowService.js"),
+  /salesFlow: \{\s*\.\.\.flow,\s*product_id: Number\(productId \|\| 0\)/,
+  "the WhatsApp confirm step must store the variant with the link"
+);
+
 console.log("social comment address-link checkout OK");

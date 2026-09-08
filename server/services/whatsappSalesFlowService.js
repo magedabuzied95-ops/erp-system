@@ -304,6 +304,14 @@ const sendAddressLink = async ({ tenantId, phone, conversationId, flow, productI
     channel: "whatsapp",
     customerName: text(flow?.customer_name || ""),
     customerPhone: text(phone),
+    // The variant travels with the link. Conversation state lives in an in-process Map, so a
+    // deploy between sending this and the customer filling it in would otherwise lose the order.
+    salesFlow: {
+      ...flow,
+      product_id: Number(productId || 0) || null,
+      selected_color: text(flow?.selected_color || ""),
+      selected_size: text(flow?.selected_size || ""),
+    },
   }).catch((error) => {
     console.warn("WHATSAPP_ADDRESS_LINK_FAILED", { conversation_id: conversationId, message: error?.message || String(error) });
     return null;

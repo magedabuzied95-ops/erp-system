@@ -51,6 +51,16 @@ const ensureAddressRequestSchema = () => {
         )
       `);
       await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS conversation_address_requests_code ON conversation_address_requests (code)`);
+      /*
+       * The sales flow the link was issued FOR, kept beside the link itself.
+       *
+       * The conversation's sales_flow lives in an in-process Map, so a deploy between the moment
+       * the customer receives the link and the moment they submit it wipes the flow — and the
+       * submit then finds nothing waiting for an address and creates no order, silently. That is
+       * not hypothetical: it happened twice during one afternoon of testing. This row already
+       * spans exactly that gap, so the snapshot rides along with it.
+       */
+      await db.query(`ALTER TABLE IF EXISTS conversation_address_requests ADD COLUMN IF NOT EXISTS sales_flow JSONB`);
       await db.query(`CREATE INDEX IF NOT EXISTS conversation_address_requests_session ON conversation_address_requests (tenant_id, session_id, created_at DESC)`);
       // One pending link per conversation, enforced by the database. Rapid taps
       // during the slow first rollout raced SELECT-then-INSERT into several
@@ -128,6 +138,9 @@ export const createAddressRequest = async ({
   customerName = "",
   customerPhone = "",
   createdBy = null,
+  // The variant this link is being issued for. Stored so the submit can still build the order
+  // after a restart has emptied the in-process conversation memory.
+  salesFlow = null,
 } = {}) => {
   await ensureAddressRequestSchema();
   const safeSessionId = text(sessionId);
@@ -139,6 +152,11 @@ export const createAddressRequest = async ({
   // pending row is reused too — same URL, new lease — because the partial
   // unique index below admits only one pending row either way.
   const expiresAt = new Date(Date.now() + ADDRESS_REQUEST_TTL_HOURS * 3600_000);
+  // NULL leaves whatever snapshot is already there rather than erasing it: a seller re-sending the
+  // link must not wipe the variant the flow recorded.
+  const salesFlowJson = salesFlow && typeof salesFlow === "object" && Object.keys(salesFlow).length
+    ? JSON.stringify(salesFlow)
+    : null;
   const reusePending = async () => {
     const refreshed = await db.query(
       `
@@ -146,6 +164,7 @@ export const createAddressRequest = async ({
       SET expires_at = $3,
           customer_name = COALESCE(NULLIF($4, ''), customer_name),
           customer_phone = COALESCE(NULLIF($5, ''), customer_phone),
+          sales_flow = COALESCE($6::jsonb, sales_flow),
           updated_at = NOW()
       WHERE id = (
         SELECT id FROM conversation_address_requests
@@ -157,7 +176,7 @@ export const createAddressRequest = async ({
       )
       RETURNING *
       `,
-      [tenantId || null, safeSessionId, expiresAt, text(customerName), text(customerPhone)]
+      [tenantId || null, safeSessionId, expiresAt, text(customerName), text(customerPhone), salesFlowJson]
     );
     return refreshed.rows[0] || null;
   };
@@ -167,11 +186,11 @@ export const createAddressRequest = async ({
     const inserted = await db.query(
       `
       INSERT INTO conversation_address_requests
-        (tenant_id, session_id, channel, code, status, customer_name, customer_phone, created_by, expires_at)
-      VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
+        (tenant_id, session_id, channel, code, status, customer_name, customer_phone, created_by, expires_at, sales_flow)
+      VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9::jsonb)
       RETURNING *
       `,
-      [tenantId || null, safeSessionId, text(channel), generateAddressRequestCode(), text(customerName), text(customerPhone), createdBy || null, expiresAt]
+      [tenantId || null, safeSessionId, text(channel), generateAddressRequestCode(), text(customerName), text(customerPhone), createdBy || null, expiresAt, salesFlowJson]
     );
     return { ...serializeForStaff(inserted.rows[0]), reused: false };
   } catch (error) {
@@ -363,6 +382,9 @@ export const submitPublicAddressRequest = async ({ code = "", payload = {}, ipAd
       address,
       customerName,
       customerPhone,
+      // The flow as it stood when the link went out. The live conversation memory is preferred,
+      // but it does not survive a restart — and the customer may fill this in hours later.
+      salesFlowSnapshot: row.sales_flow && typeof row.sales_flow === "object" ? row.sales_flow : null,
     });
   } catch (error) {
     console.warn("[address-request] social comment order completion failed", {
