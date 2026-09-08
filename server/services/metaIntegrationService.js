@@ -18730,6 +18730,72 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
    Called from conversationAddressRequestService AFTER the address row is committed, and failure
    isolated by that caller: a broken order must never lose the address the customer just typed.
 ====================================================== */
+/*
+ * The colour buttons Instagram cannot put on its private reply.
+ *
+ * A private reply is one message and its template takes no postback, so the cards go out first and
+ * these follow as an ordinary DM — which Instagram's endpoint accepts with quick_replies. They
+ * carry the SAME SOCIAL_COLOR_SELECT payload Messenger uses, so one handler serves both and a tap
+ * lands in the deterministic flow rather than as free text for the AI to interpret.
+ *
+ * Never throws: the customer already has the cards, and losing the buttons must not cost the
+ * private reply that carried them.
+ */
+export const sendInstagramColorQuickReplies = async ({
+  tenantId = null,
+  recipientId = "",
+  productId = null,
+  productName = "",
+  colors = [],
+  postId = "",
+  commentId = "",
+} = {}) => {
+  const safeRecipient = text(recipientId);
+  const safeProductId = Number(productId || 0) || null;
+  if (!safeRecipient || !safeProductId) return { sent: false, reason: "missing_recipient_or_product" };
+  const quickReplies = buildSocialCommentColorQuickReplies({
+    productId: safeProductId,
+    colors,
+    postId,
+    commentId,
+    conversationId: `${AI_AGENT_CHANNELS.INSTAGRAM}:${safeRecipient}`,
+  });
+  if (!quickReplies.length) return { sent: false, reason: "no_colors" };
+  try {
+    const sendConfig = await resolveMetaSendConfig({
+      tenantId,
+      channel: AI_AGENT_CHANNELS.INSTAGRAM,
+    });
+    const token = text(sendConfig?.token || "");
+    if (!token) return { sent: false, reason: "missing_token" };
+    const result = await postMetaMessageWithThreadControl({
+      token,
+      recipientId: safeRecipient,
+      body: {
+        recipient: { id: safeRecipient },
+        message: {
+          text: `${text(productName) || "المنتج"}\n\nاختار اللون اللي يعجبك 👇`,
+          quick_replies: quickReplies,
+        },
+      },
+      sendContext: {
+        channel: AI_AGENT_CHANNELS.INSTAGRAM,
+        instagram_business_login: sendConfig?.instagramBusinessLogin === true,
+        resolved_instagram_account_id: text(sendConfig?.config?.instagram_business_account_id || ""),
+      },
+    });
+    return { sent: true, reason: "sent", message_id: text(result?.message_id || "") };
+  } catch (error) {
+    console.warn("INSTAGRAM_COLOR_QUICK_REPLIES_FAILED", {
+      tenant_id: tenantId,
+      recipient: maskIdForLog(safeRecipient),
+      status: error?.status || "",
+      message: error?.message || String(error),
+    });
+    return { sent: false, reason: text(error?.code || error?.message || "send_failed") };
+  }
+};
+
 export const completeSocialCommentOrderFromAddressRequest = async ({
   tenantId = null,
   sessionId = "",
@@ -26138,6 +26204,66 @@ export const processMetaWebhook = async ({ req } = {}) => {
       ai_paused: ["human_takeover", "closed"].includes(status),
       closed: status === "closed",
     });
+    /*
+     * A TAP is answered even when the AI is switched off for this conversation.
+     *
+     * The order buttons — colour, size, confirm — are not the AI writing free text; they are the
+     * customer pressing a control we put in front of them, naming a product, a colour and a size
+     * outright. Switching the AI off means "stop it composing replies", not "stop the order I
+     * already started". Before this, a conversation with ai_enabled=false swallowed every tap in
+     * silence: the message was stored and the whole reply pipeline was skipped, so the customer
+     * pressed a button and nothing ever happened. 36 of 238 live conversations sit in that state.
+     *
+     * Only an explicit payload qualifies. Typed text still respects the switch, so a colleague
+     * handling a conversation by hand is never talked over.
+     */
+    const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);
+    const isSocialCommentTap = Boolean(socialCommentTapPayload) && (
+      isSocialCommentQuickReplyPayload(socialCommentTapPayload)
+      || /^choose_color:\d+$/.test(socialCommentTapPayload)
+    );
+    if (isSocialCommentTap && !conversationAiEnabled) {
+      console.log("[meta-inbox] sales_flow_tap_while_ai_disabled", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        payload: socialCommentTapPayload.slice(0, 60),
+      });
+      const tapResult = await handleSocialCommentMessengerQuickReplySelection({
+        config,
+        message,
+        inboundKey,
+        inboundMetaMid: message.external_message_id || messageId,
+      }).catch((error) => {
+        console.warn("[meta-inbox] sales_flow_tap_failed", {
+          session_id: message.external_conversation_id,
+          message: error?.message || String(error),
+        });
+        return null;
+      });
+      if (tapResult?.handled) {
+        // Routed already: the handler further down must not answer the same tap a second time.
+        if (message?.raw?.event && typeof message.raw.event === "object") {
+          message.raw.event.__social_comment_quick_reply_routed = true;
+        }
+        markMessageProcessingStatus(messageId, "sent");
+        await storeProcessedInboundKey({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          inboundKey,
+          status: "sent",
+        });
+        results.push({
+          channel: alias,
+          external_user_id: message.external_customer_id,
+          stored: true,
+          sent: true,
+          reason: tapResult.reason,
+        });
+        continue;
+      }
+    }
     if (!shouldForceShippingHandler && !conversationAiEnabled) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "conversation_ai_disabled" });
       continue;

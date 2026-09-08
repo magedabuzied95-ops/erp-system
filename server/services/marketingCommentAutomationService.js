@@ -1931,6 +1931,53 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
             product_name: instagramProductName,
             delivery_mode: instagramVisual.mode,
           });
+          /*
+           * COLOUR BUTTONS ON INSTAGRAM.
+           *
+           * Instagram allows exactly one private reply per comment and its template takes no
+           * postback button, so the carousel above cannot carry a control. That left the customer
+           * with nothing to press and only a typed colour to fall back on — which the owner
+           * rightly refuses to ask of customers.
+           *
+           * But the private reply opens a messaging window, and we already know who to send to:
+           * the commenter id IS the id the DM thread lives under (verified in production —
+           * commenter 1777533973455570 and conversation instagram:1777533973455570). So the cards
+           * go as the private reply, and the colour buttons follow as an ordinary DM.
+           *
+           * Failure-isolated: the sale already has its cards, and a customer who never gets the
+           * buttons can still type a colour. This must never take the private reply down with it.
+           */
+          try {
+            const buttonColors = Array.isArray(normalizedProductContext.availableColors)
+              ? normalizedProductContext.availableColors
+              : [];
+            const recipientId = trimString(visualPayload?.recipient_id || trimString(options?.commenterId || "") || "");
+            if (buttonColors.length > 1 && recipientId && normalizedProductContext.productId) {
+              const { sendInstagramColorQuickReplies } = await import("./metaIntegrationService.js");
+              const followUp = await sendInstagramColorQuickReplies({
+                tenantId: businessId,
+                recipientId,
+                productId: normalizedProductContext.productId,
+                productName: instagramProductName,
+                colors: buttonColors,
+                postId: trimString(options?.postId || ""),
+                commentId: graphCommentId,
+              });
+              console.log("SOCIAL_COMMENT_INSTAGRAM_COLOR_BUTTONS", {
+                comment_id: graphCommentId,
+                recipient_id: recipientId,
+                product_id: normalizedProductContext.productId,
+                colors: buttonColors.length,
+                sent: followUp?.sent === true,
+                reason: followUp?.reason || "",
+              });
+            }
+          } catch (colorButtonsError) {
+            console.warn("SOCIAL_COMMENT_INSTAGRAM_COLOR_BUTTONS_FAILED", {
+              comment_id: graphCommentId,
+              message: colorButtonsError?.message || String(colorButtonsError),
+            });
+          }
           await enrichCommenterIdentityFromPrivateReply({
             tenantId: businessId,
             platform: normalizedPlatform,

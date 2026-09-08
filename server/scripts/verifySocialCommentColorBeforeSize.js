@@ -155,4 +155,48 @@ assert.match(
   "the lookup must not run when the conversation already has cards — it is on the ordinary text path"
 );
 
+// ── A tap is answered even when the AI is switched off ────────────────────────────────────────
+// 36 of 238 live conversations had ai_enabled=false, and that gate skipped the whole reply
+// pipeline — so a customer pressed a colour button and nothing happened, silently. The order
+// buttons are not the AI composing text; they are the customer naming a product, colour and size.
+assert.match(
+  metaSource,
+  /if \(isSocialCommentTap && !conversationAiEnabled\)/,
+  "an explicit tap must be answered even when the conversation's AI is off"
+);
+assert.match(
+  metaSource,
+  /const isSocialCommentTap = Boolean\(socialCommentTapPayload\)/,
+  "only a real payload counts as a tap"
+);
+// Typed text must still respect the switch, or a colleague handling a chat by hand gets talked over.
+const tapGateStart = metaSource.indexOf("const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);");
+assert.ok(tapGateStart > 0, "the tap gate is gone");
+const tapGateBody = metaSource.slice(tapGateStart, tapGateStart + 2600);
+assert.doesNotMatch(tapGateBody, /message_text|messageText/, "the tap gate must not act on typed text");
+assert.match(
+  tapGateBody,
+  /__social_comment_quick_reply_routed = true/,
+  "a tap answered here must not be answered again further down"
+);
+
+// ── Instagram gets colour BUTTONS, not a request to type ──────────────────────────────────────
+// Instagram allows one private reply per comment and its template takes no postback, so the cards
+// go first and the buttons follow as an ordinary DM to the commenter id — which IS the id the DM
+// thread lives under.
+assert.match(
+  metaSource,
+  /export const sendInstagramColorQuickReplies = async/,
+  "Instagram must be able to send colour buttons after the private reply"
+);
+const igSenderStart = metaSource.indexOf("export const sendInstagramColorQuickReplies");
+const igSenderBody = metaSource.slice(igSenderStart, igSenderStart + 2600);
+assert.match(igSenderBody, /buildSocialCommentColorQuickReplies\(/, "the buttons must carry the same payload Messenger uses");
+assert.match(igSenderBody, /catch \(error\)[\s\S]{0,400}return \{ sent: false/, "losing the buttons must not cost the private reply");
+assert.match(
+  readFileSync(fileURLToPath(new URL("../services/marketingCommentAutomationService.js", import.meta.url)), "utf8"),
+  /sendInstagramColorQuickReplies\(\{/,
+  "the comment→DM path must actually send them"
+);
+
 console.log("social comment colour-before-size OK");
