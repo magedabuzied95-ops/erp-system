@@ -8696,23 +8696,26 @@ function POSPro() {
                 <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-400">{mobileSelectedCustomerLabel}</div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {!posBackendOnline || offlinePendingSyncCount > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => setOfflineQueueOpen(true)}
-                    aria-label={t("pos.offlineQueue.title", "Offline invoices")}
-                    className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-1 rounded-2xl border px-2.5 text-[11px] font-black ${
-                      offlineNeedsReviewCount > 0
-                        ? "border-rose-300/40 bg-rose-400/10 text-rose-100"
-                        : "border-amber-300/30 bg-amber-400/10 text-amber-100"
-                    }`}
-                  >
-                    <CloudOff className="h-4 w-4 shrink-0" />
-                    {offlinePendingSyncCount > 0 ? (
-                      <span className="tabular-nums">{offlinePendingSyncCount}</span>
-                    ) : null}
-                  </button>
-                ) : null}
+                {/* Icon-only while idle so it costs one 36px slot on a 375px
+                    topbar, but always present: this is the only way in to the
+                    photo download, which is done connected and idle. */}
+                <button
+                  type="button"
+                  onClick={() => setOfflineQueueOpen(true)}
+                  aria-label={t("pos.offlineQueue.title", "Offline invoices")}
+                  className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center gap-1 rounded-2xl border px-2 text-[11px] font-black ${
+                    offlineNeedsReviewCount > 0
+                      ? "border-rose-300/40 bg-rose-400/10 text-rose-100"
+                      : !posBackendOnline || offlinePendingSyncCount > 0
+                        ? "border-amber-300/30 bg-amber-400/10 text-amber-100"
+                        : "border-white/10 bg-white/[0.05] text-zinc-300"
+                  }`}
+                >
+                  <CloudOff className="h-4 w-4 shrink-0" />
+                  {offlinePendingSyncCount > 0 ? (
+                    <span className="tabular-nums">{offlinePendingSyncCount}</span>
+                  ) : null}
+                </button>
                 <button
                   type="button"
                   onClick={() => setMobileCartOpen(true)}
@@ -8780,27 +8783,33 @@ function POSPro() {
           </div>
           <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
           {/* Silent while everything is reaching the server. It appears the
-              moment the till is working offline or holding invoices, because
-              that is the only time the cashier needs to know. */}
-          {!posBackendOnline || offlinePendingSyncCount > 0 ? (
-            <button
-              type="button"
-              onClick={() => setOfflineQueueOpen(true)}
-              title={t("pos.offlineQueue.title", "Offline invoices")}
-              className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-black transition ${
-                offlineNeedsReviewCount > 0
-                  ? "border-rose-300/40 bg-rose-400/10 text-rose-100 hover:border-rose-200/60"
-                  : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/55"
-              }`}
-            >
-              <CloudOff className="h-4 w-4" />
-              {offlinePendingSyncCount > 0 ? (
-                <span className="tabular-nums">{offlinePendingSyncCount}</span>
-              ) : (
-                <span>{t("pos.offlineQueue.pill.offline", "Offline")}</span>
-              )}
-            </button>
-          ) : null}
+              moment the till is working offline or holding invoices.
+
+              It is present even when all is well, quietly, because the panel is
+              also where the shop downloads the catalogue photos for offline use
+              -- and that is a thing you do while CONNECTED and idle. An entry
+              point that only appears once the connection is gone is an entry
+              point you can never use in time. */}
+          <button
+            type="button"
+            onClick={() => setOfflineQueueOpen(true)}
+            title={t("pos.offlineQueue.title", "Offline invoices")}
+            aria-label={t("pos.offlineQueue.title", "Offline invoices")}
+            className={`inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-1.5 rounded-xl border px-2.5 text-xs font-black transition ${
+              offlineNeedsReviewCount > 0
+                ? "border-rose-300/40 bg-rose-400/10 text-rose-100 hover:border-rose-200/60"
+                : !posBackendOnline || offlinePendingSyncCount > 0
+                  ? "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-200/55"
+                  : "border-white/10 bg-white/[0.05] text-zinc-300 hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+            }`}
+          >
+            <CloudOff className="h-4 w-4" />
+            {offlinePendingSyncCount > 0 ? (
+              <span className="tabular-nums">{offlinePendingSyncCount}</span>
+            ) : !posBackendOnline ? (
+              <span>{t("pos.offlineQueue.pill.offline", "Offline")}</span>
+            ) : null}
+          </button>
           <button
             type="button"
             onClick={handleToggleFullscreen}
