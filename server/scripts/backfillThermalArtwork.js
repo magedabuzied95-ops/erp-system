@@ -38,6 +38,19 @@ const refreshBefore = parseRefreshBefore(argValue("refresh-before") || process.e
 const limit = Math.max(0, Number(argValue("limit") || process.env.THERMAL_BACKFILL_LIMIT || 0) || 0);
 const dryRun = hasFlag("dry-run");
 
+export const parseTypeList = (raw) =>
+  String(raw || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+// Product types that never get artwork. Bag photos are shop and lifestyle
+// scenes (several pieces, shelves, toys); the engine draws the whole scene,
+// so the owner took bags out of the run altogether.
+const excludedTypes = parseTypeList(argValue("exclude-types") || process.env.THERMAL_BACKFILL_EXCLUDE_TYPES || "");
+// Product types drawn before everything else, in the order given.
+const typesFirst = parseTypeList(argValue("types-first") || process.env.THERMAL_BACKFILL_TYPES_FIRST || "");
+
 // The colour's photo: the colour's primary gallery image, else the row's own.
 const COLOUR_IMAGE_SQL = "COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''))";
 const COLOUR_KEY_SQL = "LOWER(TRIM(COALESCE(v.color, '')))";
@@ -53,12 +66,34 @@ const PRODUCT_READY_SQL =
  * so the comparison must read false rather than NULL — a NULL inside
  * BOOL_OR would make the whole colour vanish from the queue.
  */
-export const doneClause = (readySql, generatedAtSql, cutoff = refreshBefore) =>
-  cutoff ? `(${readySql} AND COALESCE(${generatedAtSql} >= $1::timestamptz, false))` : `(${readySql})`;
+export const doneClause = (readySql, generatedAtSql, cutoff = refreshBefore, placeholder = "$1") =>
+  cutoff ? `(${readySql} AND COALESCE(${generatedAtSql} >= ${placeholder}::timestamptz, false))` : `(${readySql})`;
 
-const cutoffParams = () => (refreshBefore ? [refreshBefore] : []);
+/**
+ * The bound parameters and their placeholders, in one place: the cutoff,
+ * the excluded types and the types drawn first are each optional, so the
+ * numbering depends on which are set.
+ */
+export const queryPlan = ({ cutoff = refreshBefore, excluded = excludedTypes, first = typesFirst } = {}) => {
+  const params = [];
+  const add = (value) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  const cutoffPh = cutoff ? add(cutoff) : "";
+  const excludePh = excluded.length ? add(excluded) : "";
+  const firstPh = first.length ? add(first) : "";
+  return { params, cutoffPh, excludePh, firstPh };
+};
 
-export const colourQueueSql = (cutoff = refreshBefore) => `
+const PRODUCT_TYPE_SQL = "LOWER(TRIM(COALESCE(p.product_type, '')))";
+const typeFilterSql = (excludePh) => (excludePh ? `AND ${PRODUCT_TYPE_SQL} <> ALL(${excludePh}::text[])` : "");
+const typeOrderSql = (firstPh, typeSql = PRODUCT_TYPE_SQL) =>
+  firstPh ? `COALESCE(array_position(${firstPh}::text[], ${typeSql}), 9999), ` : "";
+
+export const colourQueueSql = ({ cutoff = refreshBefore, excluded = excludedTypes, first = typesFirst } = {}) => {
+  const plan = queryPlan({ cutoff, excluded, first });
+  const sql = `
     SELECT
       v.product_id,
       MAX(v.tenant_id) AS tenant_id,
@@ -83,13 +118,17 @@ export const colourQueueSql = (cutoff = refreshBefore) => `
       LIMIT 1
     ) pvi ON TRUE
     WHERE ${COLOUR_IMAGE_SQL} IS NOT NULL
+      ${typeFilterSql(plan.excludePh)}
     GROUP BY v.product_id, color_key, primary_image_url
-    HAVING NOT BOOL_OR(${doneClause(ROW_READY_SQL, "v.thermal_image_generated_at", cutoff)})
-    ORDER BY MAX(p.created_at) DESC, v.product_id DESC, color_key ASC
+    HAVING NOT BOOL_OR(${doneClause(ROW_READY_SQL, "v.thermal_image_generated_at", cutoff, plan.cutoffPh)})
+    ORDER BY ${typeOrderSql(plan.firstPh, "LOWER(TRIM(COALESCE(MAX(p.product_type), '')))")}MAX(p.created_at) DESC, v.product_id DESC, color_key ASC
 `;
+  return { sql, params: plan.params };
+};
 
 export const fetchColourQueue = async () => {
-  const result = await db.query(colourQueueSql(), cutoffParams());
+  const { sql, params } = colourQueueSql();
+  const result = await db.query(sql, params);
   return result.rows;
 };
 
@@ -99,11 +138,14 @@ export const fetchColourQueue = async () => {
  * else the label reads the colour's artwork, and drawing the product as well
  * would double the run for nothing.
  */
-export const productQueueSql = (cutoff = refreshBefore) => `
+export const productQueueSql = ({ cutoff = refreshBefore, excluded = excludedTypes, first = typesFirst } = {}) => {
+  const plan = queryPlan({ cutoff, excluded, first });
+  const sql = `
     SELECT p.id, p.tenant_id, p.name, p.image_url, p.thermal_image_url, p.created_at
     FROM products p
     WHERE COALESCE(NULLIF(p.image_url, ''), '') <> ''
-      AND NOT ${doneClause(PRODUCT_READY_SQL, "p.thermal_image_generated_at", cutoff)}
+      ${typeFilterSql(plan.excludePh)}
+      AND NOT ${doneClause(PRODUCT_READY_SQL, "p.thermal_image_generated_at", cutoff, plan.cutoffPh)}
       AND NOT EXISTS (
         SELECT 1
         FROM product_variants v
@@ -113,11 +155,14 @@ export const productQueueSql = (cutoff = refreshBefore) => `
         WHERE v.product_id = p.id
           AND ${COLOUR_IMAGE_SQL} IS NOT NULL
       )
-    ORDER BY p.created_at DESC, p.id DESC
+    ORDER BY ${typeOrderSql(plan.firstPh)}p.created_at DESC, p.id DESC
 `;
+  return { sql, params: plan.params };
+};
 
 export const fetchProductQueue = async () => {
-  const result = await db.query(productQueueSql(), cutoffParams());
+  const { sql, params } = productQueueSql();
+  const result = await db.query(sql, params);
   return result.rows;
 };
 
@@ -216,6 +261,8 @@ const main = async () => {
   const totalPlanned = limit ? Math.min(limit, colours.length + products.length) : colours.length + products.length;
   console.log("THERMAL_BACKFILL_STARTED", {
     refreshBefore,
+    excludedTypes,
+    typesFirst,
     limit: limit || null,
     dryRun,
     colours: colours.length,
