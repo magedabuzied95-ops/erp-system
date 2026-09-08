@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 
 import { api } from "../../shared/api/api";
+import i18n, { normalizeLanguage } from "../../i18n/i18n";
+import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
 
 /*
   The customer's side of the AI-inbox address link (/addr/:code).
@@ -82,6 +84,24 @@ export function CustomerAddressPage() {
 function CustomerAddressPageInner() {
   useTranslation();
   const { code } = useParams();
+
+  // This page is unconditionally dark and is reached only from an Arabic DM, but it renders
+  // OUTSIDE the storefront shell — so it inherited the ERP app's light signals: the root said
+  // `color-scheme: light only` with `theme-color: #eae7e0` on a black page, and the language fell
+  // back to the phone's browser locale, which handed an Egyptian customer an English form.
+  //
+  // Claiming `only dark` is what stops Chrome-on-Android, Samsung Internet and the Facebook /
+  // Instagram in-app browsers re-colouring a page they judge to be light — see
+  // src/theme/documentColorScheme.js. Released on unmount so the ERP theme takes over again.
+  useEffect(() => {
+    setStorefrontColorScheme("dark", "#050505");
+    return () => releaseStorefrontColorScheme();
+  }, []);
+
+  useEffect(() => {
+    if (normalizeLanguage(i18n.language) === "ar") return;
+    i18n.changeLanguage("ar").catch(() => {});
+  }, []);
   const resolvedCode = useMemo(() => {
     try {
       return decodeURIComponent(text(code));
@@ -261,7 +281,7 @@ function CustomerAddressPageInner() {
   const submittedAddress = request?.address || {};
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-6 text-white sm:px-6">
+    <main className="sf-address-link-page min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-6 text-white sm:px-6">
       <div className="mx-auto flex min-h-[92svh] max-w-xl flex-col justify-center py-3">
         <section className="w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="px-4 pb-6 pt-5 sm:px-6">

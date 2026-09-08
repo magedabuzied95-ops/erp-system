@@ -5062,6 +5062,16 @@ html[data-theme="light"] .text-white {
   color: var(--text) !important;
 }
 
+/* The customer address page (/addr/:code) is a black page that renders OUTSIDE the storefront
+   shell, so `html[data-theme] .text-white { color: var(--text) !important }` above repainted its
+   white text in the ERP's light ink (#1b1915) — a near-black heading, near-black inputs and
+   invisible select placeholders on a near-black card. The page has no light variant to protect,
+   so white stays white inside it. Backgrounds are left to the page's own utilities. */
+html[data-theme] .sf-address-link-page .text-white,
+html[data-theme] .sf-address-link-page.text-white {
+  color: #ffffff !important;
+}
+
 html[data-theme] [class*="bg-[#050816]"],
 html[data-theme] .bg-zinc-950,
 html[data-theme] .bg-zinc-950\/90,
