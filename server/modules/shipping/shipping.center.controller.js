@@ -1,3 +1,4 @@
+import { getTenantId } from "../../utils/requestScope.js";
 import {
   bulkShippingCenterAction,
   getShippingCenterMeta,
@@ -49,6 +50,15 @@ export const bulkShippingCenterActionController = async (req, res) => {
     const result = await bulkShippingCenterAction({
       action: req.body?.action,
       orderIds: req.body?.order_ids || req.body?.orderIds || [],
+      // The Orders page books a courier for orders that have not chosen one yet,
+      // which the Shipping Center's own queue never does — so the override only
+      // applies when the caller names the provider explicitly.
+      provider: req.body?.provider || req.body?.shipping_provider || "",
+      sendToInbox: req.body?.send_to_inbox === true || req.body?.sendToInbox === true,
+      inboxPhone: req.body?.inbox_phone || req.body?.inboxPhone || "",
+      tenantId: getTenantId(req, req.user?.tenant_id || null),
+      staffUserId: req.user?.id || null,
+      staffUserName: [req.user?.name, req.user?.full_name, req.user?.username].find((value) => String(value || "").trim()) || "",
     });
     return res.json({ success: true, ...result });
   } catch (error) {

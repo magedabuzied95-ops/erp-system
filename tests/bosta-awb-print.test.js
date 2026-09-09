@@ -38,7 +38,7 @@ const respondJson = (body) => (_req, res) => {
 // still showed a success toast over a print that opened nothing.
 test("the label is fetched from Bosta at print time, not read off the order", () => {
   assert.match(shippingServiceSource, /export const fetchBostaShipmentLabels/);
-  assert.match(centerServiceSource, /if \(action === "print_labels"\) \{\s*return fetchBostaShipmentLabels\(ids\);/);
+  assert.match(centerServiceSource, /if \(action === "print_labels"\) \{\s*const labels = await fetchBostaShipmentLabels\(ids\);/);
 
   const printBranch = centerServiceSource.slice(centerServiceSource.indexOf('action === "print_labels"'));
   assert.doesNotMatch(printBranch.slice(0, 400), /shipping_label_url/);

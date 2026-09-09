@@ -261,7 +261,166 @@ export const getShippingCenterMeta = async () => {
   };
 };
 
-export const bulkShippingCenterAction = async ({ action, orderIds = [] } = {}) => {
+/*
+ * Where the printed airway bills are sent automatically.
+ *
+ * A number, not a conversation id: the operations line the labels go to has
+ * usually never written to us, so there is no thread to look up. The outbound
+ * write creates the canonical `whatsapp:<phone>` session the inbound webhook
+ * would have created, which is what makes a reply from that number land on the
+ * same thread instead of opening a second one.
+ */
+const DEFAULT_LABEL_INBOX_PHONE = "01019719986";
+
+const labelInboxPhone = (override = "") =>
+  text(override) || text(process.env.SHIPPING_LABEL_INBOX_PHONE) || DEFAULT_LABEL_INBOX_PHONE;
+
+const labelPdfFileName = (printed = []) => {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const first = printed[0]?.order_number ? String(printed[0].order_number).replace(/[^a-zA-Z0-9_-]+/g, "") : "";
+  if (printed.length === 1 && first) return `bosta-awb-${first}.pdf`;
+  return `bosta-awb-${printed.length || 0}-${stamp}.pdf`;
+};
+
+const labelCaption = (printed = []) => {
+  const codes = printed.map((row) => text(row.order_number) || `#${row.order_id}`).filter(Boolean);
+  const head = printed.length === 1
+    ? `بوليصة شحن بوسطة للطلب ${codes[0] || ""}`.trim()
+    : `بوالص شحن بوسطة لعدد ${printed.length} طلب`;
+  const list = codes.slice(0, 20).join("، ");
+  const more = codes.length > 20 ? ` +${codes.length - 20}` : "";
+  return list ? `${head}\n${list}${more}` : head;
+};
+
+/**
+ * Store the AWB PDF where the channels can fetch it, push it to the operations
+ * number as a WhatsApp document, and write the bubble into the AI Inbox thread.
+ *
+ * The transcript row is written whether or not WhatsApp accepted the file, for
+ * the same reason the operator attachment path does it: a send that failed has
+ * to be visible in the thread instead of disappearing into a log line.
+ */
+const deliverLabelsToInbox = async ({ pdfBase64 = "", printed = [], phone = "", tenantId = null, staffUserId = null, staffUserName = "" } = {}) => {
+  if (!text(pdfBase64)) return { sent: false, error: "No label PDF to send" };
+  const [{ default: fs }, { INBOX_ATTACHMENT_DIR, INBOX_ATTACHMENT_URL_PREFIX }] = await Promise.all([
+    import("node:fs/promises"),
+    import("../../config/inboxAttachmentUpload.js"),
+  ]);
+  const { normalizeWhatsappPhone, normalizeWhatsappSessionId } = await import("../../utils/whatsappIdentity.js");
+  const { sendDocumentMessage } = await import("../../services/whatsappGatewayService.js");
+  const { appendChannelOutboundSupportReply } = await import("../../services/aiSupportLogService.js");
+  const { upsertChannelConversationMapping } = await import("../../services/aiChannelAdapterService.js");
+  const { emitToRooms } = await import("../../utils/socket.js");
+
+  const rawPhone = labelInboxPhone(phone);
+  const canonicalPhone = normalizeWhatsappPhone(rawPhone) || rawPhone;
+  const sessionId = normalizeWhatsappSessionId(rawPhone, canonicalPhone) || `whatsapp:${canonicalPhone}`;
+  const safeTenantId = Number(tenantId) > 0 ? Number(tenantId) : 1;
+
+  const fileName = labelPdfFileName(printed);
+  const storedName = `${Date.now()}-${fileName}`;
+  const buffer = Buffer.from(pdfBase64, "base64");
+  await fs.mkdir(INBOX_ATTACHMENT_DIR, { recursive: true });
+  await fs.writeFile(`${INBOX_ATTACHMENT_DIR}/${storedName}`, buffer);
+  const relativeUrl = `${INBOX_ATTACHMENT_URL_PREFIX}/${storedName}`;
+  const caption = labelCaption(printed);
+
+  let sendResult = null;
+  let deliveryStatus = "sent";
+  let deliveryError = "";
+  try {
+    sendResult = await sendDocumentMessage({
+      phone: canonicalPhone,
+      documentUrl: relativeUrl,
+      fileName,
+      caption,
+      mimetype: "application/pdf",
+    });
+  } catch (error) {
+    deliveryStatus = "failed";
+    deliveryError = error?.message || "WhatsApp did not accept the labels";
+    console.error("[bosta-awb-inbox] whatsapp send failed", { phoneSuffix: canonicalPhone.slice(-4), message: deliveryError });
+  }
+
+  const providerMessageId = sendResult?.message_id || sendResult?.result?.key?.id || "";
+  const message = await appendChannelOutboundSupportReply({
+    tenantId: safeTenantId,
+    channel: "whatsapp",
+    sessionId,
+    resolvedPhone: canonicalPhone,
+    remoteJid: canonicalPhone,
+    resolvedReplyJid: canonicalPhone,
+    message: caption,
+    messageType: "document",
+    senderType: "staff",
+    staffUserId,
+    staffUserName,
+    source: "shipping_label_dispatch",
+    sessionSource: "shipping_label_dispatch",
+    sourcePath: "shipping_label_dispatch",
+    insertSource: "shipping_label_dispatch",
+    deliveryStatus,
+    deliveryError,
+    providerMessageId,
+    externalMessageId: providerMessageId,
+    visualAttachments: [{
+      type: "document",
+      url: relativeUrl,
+      mime_type: "application/pdf",
+      file_name: fileName,
+      file_size: buffer.length,
+    }],
+  }).catch((error) => {
+    console.error("[bosta-awb-inbox] transcript write failed", { message: error?.message || String(error) });
+    return null;
+  });
+
+  await upsertChannelConversationMapping({
+    tenantId: safeTenantId,
+    channel: "whatsapp",
+    externalConversationId: sessionId,
+    externalCustomerId: canonicalPhone,
+    lastMessageAt: new Date(),
+  }).catch(() => {});
+
+  if (message) {
+    emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:message", { tenant_id: safeTenantId, session_id: sessionId, message, at: new Date().toISOString() });
+    emitToRooms([`tenant:${safeTenantId}`], "ai_inbox:refresh", { tenant_id: safeTenantId, session_id: sessionId, at: new Date().toISOString() });
+  }
+
+  return {
+    sent: deliveryStatus === "sent",
+    phone: canonicalPhone,
+    session_id: sessionId,
+    file_name: fileName,
+    url: relativeUrl,
+    label_count: printed.length,
+    delivery_status: deliveryStatus,
+    error: deliveryError,
+  };
+};
+
+/*
+ * Which stored provider a "create it on Bosta" request is allowed to overwrite.
+ *
+ * The Shipping Center only ever ships what the order already says it ships with,
+ * and that is right for a queue built out of courier orders. The Orders page is
+ * the other case: a shop order carries the default provider (`manual` /
+ * `in_store_delivery`, i.e. nobody has chosen a courier yet), and the operator
+ * selecting rows and pressing "create shipment" IS the choice. What must never be
+ * silently overwritten is a DIFFERENT courier — an order already booked with
+ * Mylerz would end up with two parcels out for the same box.
+ */
+const PROVIDERLESS_KEYS = new Set(["", "manual", "in_store_delivery", "in-store-delivery", "store_pickup", "none", "null"]);
+
+export const canCreateBostaShipmentFor = (rawProvider = "", requestedProvider = "") => {
+  const stored = text(rawProvider).toLowerCase();
+  if (normalizeShippingProviderKey(stored) === "bosta") return true;
+  if (text(requestedProvider).toLowerCase() !== "bosta") return false;
+  return PROVIDERLESS_KEYS.has(stored);
+};
+
+export const bulkShippingCenterAction = async ({ action, orderIds = [], provider = "", sendToInbox = false, inboxPhone = "", tenantId = null, staffUserId = null, staffUserName = "" } = {}) => {
   await ensureShippingSchema();
   const ids = [...new Set((Array.isArray(orderIds) ? orderIds : []).map((id) => Number(id)).filter(Number.isFinite))];
   if (!ids.length) {
@@ -290,16 +449,34 @@ export const bulkShippingCenterAction = async ({ action, orderIds = [] } = {}) =
   // the client then filtered down to nothing — a success toast over a no-op. The label
   // has to be pulled from Bosta's AWB endpoint at print time.
   if (action === "print_labels") {
-    return fetchBostaShipmentLabels(ids);
+    const labels = await fetchBostaShipmentLabels(ids);
+    if (!sendToInbox) return labels;
+    // The same PDF the operator is about to print also has to reach whoever hands
+    // the parcels over, so it goes out on the AI Inbox in the same round trip —
+    // regenerating it in a second request would print one bill and send another.
+    const inbox = await deliverLabelsToInbox({
+      pdfBase64: labels.pdf_base64,
+      printed: labels.printed,
+      phone: inboxPhone,
+      tenantId,
+      staffUserId,
+      staffUserName,
+    }).catch((error) => ({
+      sent: false,
+      error: error?.message || "Failed to send the labels to the inbox",
+    }));
+    return { ...labels, inbox_delivery: inbox };
   }
 
   const results = [];
   for (const id of ids) {
     try {
       if (action === "create_shipments") {
-        const providerResult = await db.query("SELECT COALESCE(shipping_provider_id, shipping_provider, '') AS provider FROM orders WHERE id = $1", [id]);
-        const provider = normalizeShippingProviderKey(providerResult.rows[0]?.provider || "");
-        if (provider !== "bosta") throw new Error(`Create shipment is currently implemented for Bosta orders only. Provider: ${provider || "unknown"}`);
+        const providerResult = await db.query("SELECT COALESCE(NULLIF(shipping_provider_id, ''), NULLIF(shipping_provider, ''), '') AS provider FROM orders WHERE id = $1", [id]);
+        const storedProvider = providerResult.rows[0]?.provider || "";
+        if (!canCreateBostaShipmentFor(storedProvider, provider)) {
+          throw new Error(`Create shipment is currently implemented for Bosta orders only. Provider: ${normalizeShippingProviderKey(storedProvider) || "unknown"}`);
+        }
         results.push({ order_id: id, success: true, result: await createBostaShipmentForOrder(id) });
       } else if (action === "refresh_status") {
         results.push({ order_id: id, success: true, result: await refreshBostaShipmentForOrder(id) });

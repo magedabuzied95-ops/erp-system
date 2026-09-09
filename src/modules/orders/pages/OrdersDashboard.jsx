@@ -22,6 +22,7 @@ import {
   MessageCircle,
   MoreVertical,
   PackageOpen,
+  PackagePlus,
   Pencil,
   Phone,
   Plus,
@@ -478,6 +479,46 @@ const courierCollectionOf = (order = {}) => {
   const providerLabel = provider === "bosta" ? "بوسطة" : (provider || "شركة الشحن");
   return { providerLabel, settled: Boolean(order.courier_settlement_id) };
 };
+/*
+ * Bulk shipping off the orders list.
+ *
+ * A row already with the courier is the one thing the create must not touch: the
+ * server refuses a second delivery, but sending it anyway turns a clean run into
+ * a wall of red for rows nobody meant to re-ship. The same reading decides the
+ * print — a label only exists once the parcel does.
+ */
+const orderShipmentReference = (order = {}) =>
+  String(
+    order.shipping_provider_delivery_id ||
+    order.shipping_tracking_number ||
+    order.tracking_number ||
+    order.shipment_id ||
+    ""
+  ).trim();
+
+const NON_COURIER_PROVIDERS = ["", "manual", "in_store_delivery", "in-store-delivery", "store_pickup", "none", "null"];
+
+// Another courier's order is left alone: it already has a parcel booked somewhere
+// else, and creating a Bosta one would put two vans on the same box.
+const orderBlocksBostaShipment = (order = {}) => {
+  const provider = lower(order.shipping_provider_id || order.shipping_provider || "");
+  return provider !== "bosta" && !NON_COURIER_PROVIDERS.includes(provider);
+};
+
+/* Literal keys keep these reachable by the missing-key guard. */
+const LABEL_SKIP_REASON_KEY = {
+  shipment_not_created: "shipping.center.bulk.printReason.shipment_not_created",
+  provider_unsupported: "shipping.center.bulk.printReason.provider_unsupported",
+  order_not_found: "shipping.center.bulk.printReason.order_not_found",
+};
+
+const pdfUrlFromBase64 = (base64) => {
+  const binary = window.atob(String(base64 || ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+};
+
 const paymentMethodParts = (order = {}) => [
   { key: "cash", value: numberValue(order.cash_amount, order.cashAmount) },
   { key: "card", value: numberValue(order.card_amount, order.cardAmount) },
@@ -736,6 +777,8 @@ function OrdersDashboard() {
   const [cancellingOrder, setCancellingOrder] = useState(false);
   const [archivingOrder, setArchivingOrder] = useState(false);
   const [permanentDeleting, setPermanentDeleting] = useState(false);
+  const [shipmentBusy, setShipmentBusy] = useState(false);
+  const [printingLabels, setPrintingLabels] = useState(false);
 
   const loadOrders = useCallback(async () => {
     const requestId = loadRequestRef.current + 1;
@@ -1137,6 +1180,131 @@ function OrdersDashboard() {
     }
   };
 
+  const orderCodeById = (id) => {
+    const match = selectedOrders.find((order) => String(order.id) === String(id));
+    return match ? orderCode(match) : `#${id}`;
+  };
+
+  /*
+   * "إنشاء شحنة" over a selection. Rows that already have a parcel and rows booked
+   * with another courier are held back here rather than sent and refused one by
+   * one: the server would answer with a wall of red for orders nobody meant to
+   * re-ship. The per-order failures that DO come back arrive inside a 200, so they
+   * are read out of the body — a green toast over three refusals is the exact
+   * outcome this reporting exists to prevent.
+   */
+  const bulkCreateShipments = async () => {
+    if (!selectedCount || shipmentBusy) return;
+    const alreadyShipped = selectedOrders.filter((order) => orderShipmentReference(order));
+    const pending = selectedOrders.filter((order) => !orderShipmentReference(order));
+    const otherCourier = pending.filter((order) => orderBlocksBostaShipment(order));
+    const targets = pending.filter((order) => !orderBlocksBostaShipment(order));
+    if (!targets.length) {
+      toast.error(alreadyShipped.length && !otherCourier.length
+        ? t("orders.bulk.shipmentAllExist")
+        : t("orders.bulk.shipmentNoEligible"));
+      return;
+    }
+    setShipmentBusy(true);
+    const toastId = toast.loading(t("orders.bulk.shipmentCreating", { count: targets.length }));
+    try {
+      const result = await api.post("/shipping/center/bulk", {
+        action: "create_shipments",
+        order_ids: targets.map((order) => order.id),
+        // Named explicitly: it is what lets an order that never picked a courier
+        // be booked on Bosta, and it is what keeps another courier's order safe.
+        provider: "bosta",
+      });
+      toast.dismiss(toastId);
+      const rows = Array.isArray(result?.results) ? result.results : [];
+      const failures = rows.filter((row) => !row.success);
+      const created = rows.length - failures.length;
+      if (created) toast.success(t("orders.bulk.shipmentCreated", { count: created }));
+      if (failures.length) {
+        const lines = failures
+          .slice(0, 6)
+          .map((row) => `${orderCodeById(row.order_id)}: ${row.message || ""}`.trim())
+          .join("\n");
+        toast.error(`${t("orders.bulk.shipmentFailed", { count: failures.length })}\n${lines}`, { duration: 12000 });
+      }
+      if (alreadyShipped.length) toast(t("orders.bulk.shipmentSkippedExisting", { count: alreadyShipped.length }));
+      if (otherCourier.length) toast(t("orders.bulk.shipmentSkippedProvider", { count: otherCourier.length }));
+      if (created) {
+        setSelectedIds([]);
+        await loadOrders();
+      }
+    } catch (err) {
+      toast.dismiss(toastId);
+      toast.error(err.responseBody?.message || err.message || t("orders.bulk.shipmentFailedAll"));
+    } finally {
+      setShipmentBusy(false);
+    }
+  };
+
+  /*
+   * The bulk print is the courier's paperwork: selected rows that have a Bosta
+   * parcel print their airway bill, and the same PDF is pushed to the operations
+   * WhatsApp line through the AI Inbox inside the same request — regenerating it
+   * in a second call would print one bill and send another. A selection with no
+   * shipment on it still prints invoices, because that is all there is to print.
+   */
+  const bulkPrint = async () => {
+    if (!selectedCount || printingLabels) return;
+    const withShipment = selectedOrders.filter((order) => orderShipmentReference(order));
+    if (!withShipment.length) {
+      await printOrders(selectedOrders);
+      return;
+    }
+    // The tab is claimed inside the click, before any await: a window opened after
+    // the round trip has no user gesture behind it and the blocker eats it.
+    const printWindow = window.open("", "_blank");
+    const toastId = toast.loading(t("orders.bulk.labelPreparing"));
+    setPrintingLabels(true);
+    try {
+      const result = await api.post("/shipping/center/bulk", {
+        action: "print_labels",
+        order_ids: withShipment.map((order) => order.id),
+        send_to_inbox: true,
+      });
+      if (!result?.pdf_base64) throw new Error(t("orders.bulk.labelFailed"));
+      const url = pdfUrlFromBase64(result.pdf_base64);
+      if (printWindow && !printWindow.closed) {
+        printWindow.location.href = url;
+      } else {
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `bosta-labels-${Date.now()}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        toast(t("orders.bulk.labelPopupBlocked"));
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+
+      const printed = Array.isArray(result?.printed) ? result.printed : [];
+      toast.success(t("orders.bulk.labelReady", { count: printed.length || withShipment.length }), { id: toastId });
+
+      const delivery = result?.inbox_delivery || null;
+      if (delivery?.sent) toast.success(t("orders.bulk.labelSentToInbox", { phone: delivery.phone || "" }));
+      else if (delivery) toast.error(`${t("orders.bulk.labelInboxFailed")}${delivery.error ? `\n${delivery.error}` : ""}`, { duration: 10000 });
+
+      const skipped = Array.isArray(result?.skipped) ? result.skipped : [];
+      const missingLabel = selectedCount - withShipment.length;
+      if (skipped.length || missingLabel > 0) {
+        const listed = skipped
+          .slice(0, 5)
+          .map((row) => `${row.order_number || row.order_id} (${LABEL_SKIP_REASON_KEY[row.reason] ? t(LABEL_SKIP_REASON_KEY[row.reason]) : row.reason})`)
+          .join("، ");
+        toast(`${t("orders.bulk.labelSkipped", { count: skipped.length + missingLabel })}${listed ? `\n${listed}` : ""}`, { duration: 8000 });
+      }
+    } catch (err) {
+      if (printWindow && !printWindow.closed) printWindow.close();
+      toast.error(err.responseBody?.message || err.message || t("orders.bulk.labelFailed"), { id: toastId });
+    } finally {
+      setPrintingLabels(false);
+    }
+  };
+
   const exportSelected = () => {
     const rows = selectedOrders.length ? selectedOrders : filteredOrders;
     const csv = [
@@ -1242,7 +1410,10 @@ function OrdersDashboard() {
                 selectedCount={selectedCount}
                 onConfirm={() => bulkSetStatus("Confirmed")}
                 onShip={() => bulkSetStatus("Shipped")}
-                onPrint={() => { void printOrders(selectedOrders); }}
+                onCreateShipment={() => { void bulkCreateShipments(); }}
+                creatingShipment={shipmentBusy}
+                onPrint={() => { void bulkPrint(); }}
+                printingLabels={printingLabels}
                 onExport={exportSelected}
                 onWhatsapp={bulkWhatsapp}
               />
@@ -1341,7 +1512,7 @@ function OrdersDashboard() {
  * one toolbar that is dormant until rows are picked, instead of six loose
  * greyed-out buttons that looked broken.
  */
-function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, onWhatsapp }) {
+function BulkActions({ t, selectedCount, onConfirm, onShip, onCreateShipment, creatingShipment = false, onPrint, printingLabels = false, onExport, onWhatsapp }) {
   const hasSelection = selectedCount > 0;
   return (
     <div className="m1-orders-selection" data-active={hasSelection ? "true" : "false"}>
@@ -1353,7 +1524,20 @@ function BulkActions({ t, selectedCount, onConfirm, onShip, onPrint, onExport, o
       </span>
       <ActionButton disabled={!hasSelection} onClick={onConfirm} icon={<CheckCircle2 className="h-3.5 w-3.5" />} label={t("orders.bulk.confirm")} />
       <ActionButton disabled={!hasSelection} onClick={onShip} icon={<Truck className="h-3.5 w-3.5" />} label={t("orders.bulk.ship")} />
-      <ActionButton disabled={!hasSelection} onClick={onPrint} icon={<Printer className="h-3.5 w-3.5" />} label={t("orders.bulk.print")} />
+      <ActionButton
+        disabled={!hasSelection || creatingShipment}
+        onClick={onCreateShipment}
+        icon={<PackagePlus className="h-3.5 w-3.5" />}
+        label={creatingShipment ? t("orders.bulk.createShipmentBusy") : t("orders.bulk.createShipment")}
+        title={t("orders.bulk.createShipmentHint")}
+      />
+      <ActionButton
+        disabled={!hasSelection || printingLabels}
+        onClick={onPrint}
+        icon={<Printer className="h-3.5 w-3.5" />}
+        label={printingLabels ? t("orders.bulk.labelBusy") : t("orders.bulk.print")}
+        title={t("orders.bulk.printHint")}
+      />
       <ActionButton disabled={!hasSelection} onClick={onExport} icon={<Download className="h-3.5 w-3.5" />} label={t("orders.bulk.export")} />
       <ActionButton disabled={!hasSelection} onClick={onWhatsapp} icon={<MessageCircle className="h-3.5 w-3.5" />} label={t("orders.bulk.whatsapp")} />
       <ActionButton disabled title={t("orders.bulk.cancelRequiresBackend")} icon={<RotateCcw className="h-3.5 w-3.5" />} label={t("orders.bulk.cancel")} tone="rose" />

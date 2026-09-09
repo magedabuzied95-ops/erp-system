@@ -1453,6 +1453,89 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
   }
 };
 
+/*
+ * A file, not a photo. The Bosta airway bill is a PDF, and pushing it through
+ * sendImageMessage would put an unopenable image bubble on the courier's phone:
+ * the transport is the same /message/sendMedia call, but the mediatype, the
+ * mimetype and the file name all have to say "document" or nothing prints.
+ */
+export const sendDocumentMessage = async ({ phone, documentUrl, fileName = "", caption = "", mimetype = "application/pdf", instance = "" } = {}) => {
+  const lid = normalizeWhatsappLid(phone);
+  const normalizedPhone = lid ? `${lid}@lid` : normalizeEgyptPhone(phone);
+  const media = resolvePublicImageUrl(documentUrl);
+  const safeCaption = text(caption).slice(0, 500);
+  const safeFileName = text(fileName) || "document.pdf";
+  const safeMimetype = text(mimetype) || "application/pdf";
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  if (!isPublicImageUrl(media)) throw gatewayError("A valid public document URL is required", "WHATSAPP_DOCUMENT_URL_REQUIRED", 400);
+  if (isCloudTransport(instance)) {
+    refuseCloudLid(lid);
+    return whatsappCloud.sendDocument({
+      phone: normalizedPhone,
+      documentUrl: media,
+      fileName: safeFileName,
+      caption: safeCaption,
+      phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
+    });
+  }
+  const current = requireEvolutionConfig(instance);
+  const endpoint = `/message/sendMedia/${encodeURIComponent(current.instanceName)}`;
+  const payload = {
+    number: normalizedPhone,
+    mediatype: "document",
+    mimetype: safeMimetype,
+    media,
+    fileName: safeFileName,
+    caption: safeCaption,
+  };
+  console.info("[whatsapp:evolution-document-send-start]", {
+    instanceName: current.instanceName,
+    phoneSuffix: normalizedPhone.slice(-4),
+    documentUrl: media,
+    fileName: safeFileName,
+  });
+  // Deliberately not evolutionFetch: that helper resolves the DEFAULT instance,
+  // so a send addressed to the second WhatsApp line would leave on the first.
+  const response = await fetch(`${current.apiUrl}${endpoint}`, {
+    method: "POST",
+    headers: { apikey: apiKey(), "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const raw = await response.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = { raw };
+  }
+  if (!response.ok) {
+    console.error("[whatsapp:evolution-document-error]", {
+      instanceName: current.instanceName,
+      phoneSuffix: normalizedPhone.slice(-4),
+      documentUrl: media,
+      response_status: response.status,
+      response_body: data,
+    });
+    throw gatewayError(data?.message || data?.error || `Evolution API returned ${response.status}`, "EVOLUTION_API_ERROR", response.status, { data, responseBody: data, responseRaw: raw });
+  }
+  console.info("[whatsapp:evolution-document-sent]", {
+    instanceName: current.instanceName,
+    phoneSuffix: normalizedPhone.slice(-4),
+    documentUrl: media,
+  });
+  return {
+    success: true,
+    sent: true,
+    delivery_status: "sent",
+    provider: current.provider,
+    instanceName: current.instanceName,
+    phone: normalizedPhone,
+    documentUrl: media,
+    message_id: data?.key?.id || data?.messageId || "",
+    result: data,
+  };
+};
+
 const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "", footer = "", orderId = "", useSafeIds = false, buttonCount = 3 } = {}) => {
   const safeTitle = String(title || "").trim();
   const safeText = String(text || "").trim();

@@ -211,6 +211,32 @@ export const sendImage = async ({ phone, imageUrl, caption = "", phoneNumberId =
   });
 };
 
+/*
+ * A PDF is a document, not an image: Graph rejects a `type: image` whose link is
+ * a PDF, and the filename is what the recipient's phone shows in the file bubble,
+ * so an airway bill without one arrives as an unnamed blob.
+ */
+export const sendDocument = async ({ phone, documentUrl, fileName = "", caption = "", phoneNumberId = "" } = {}) => {
+  const to = toGraphRecipient(phone);
+  const link = text(documentUrl);
+  if (!to) throw cloudError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  if (!link) throw cloudError("A document URL is required", "WHATSAPP_DOCUMENT_REQUIRED", 400);
+  return postMessage({
+    phoneNumberId,
+    message: {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "document",
+      document: {
+        link,
+        ...(text(fileName) ? { filename: text(fileName) } : {}),
+        ...(text(caption) ? { caption: text(caption) } : {}),
+      },
+    },
+  });
+};
+
 export const sendReaction = async ({ phone, targetMessageId = "", emoji = "", phoneNumberId = "" } = {}) => {
   const to = toGraphRecipient(phone);
   const messageId = text(targetMessageId);
@@ -404,6 +430,7 @@ export default {
   cloudErrorMeaning,
   sendText,
   sendImage,
+  sendDocument,
   sendReaction,
   sendInteractiveButtons,
   sendCtaUrl,
