@@ -1210,7 +1210,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                       ? classificationLabel(selectedGenderOption, lang)
                     : category || (lastSizes ? t("storefront.home.lastSizes", "آخر المقاسات") : saleView ? t("storefront.nav.sale", "العروض") : t("storefront.products.allProducts", "كل المنتجات"))}
           </h1>
-          {seoCategory ? <p className="mt-2 max-w-3xl text-sm font-bold leading-6 text-stone-600 dark:text-stone-300">{seoCategory.intro}</p> : null}
+          {seoCategory ? <p className="sf-catalog-intro mt-2 max-w-3xl text-sm font-bold leading-6 text-stone-600 dark:text-stone-300">{seoCategory.intro}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">
@@ -1376,7 +1376,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 ) : null}
                 {totalProducts > PAGE_SIZE_OPTIONS[0] ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-stone-600 dark:text-stone-400">{t("storefront.products.perPage", "عدد المنتجات في الصفحة")}</span>
+                    <span className="sf-catalog-pagesize-label text-xs font-bold text-stone-600 dark:text-stone-400">{t("storefront.products.perPage", "عدد المنتجات في الصفحة")}</span>
                     <div className="flex items-center gap-1.5">
                       {PAGE_SIZE_OPTIONS.map((size) => (
                         <Link
@@ -1396,7 +1396,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 <nav aria-label={lang === "en" ? "Related sections" : "أقسام مرتبطة"} className="mt-7 flex flex-wrap justify-center gap-2">
                   {seoCategory.related.map((path) => {
                     const related = localizeSeoCategory(seoCategoryByPath(path), lang);
-                    return related ? <Link key={path} to={path} className="rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;
+                    return related ? <Link key={path} to={path} className="sf-catalog-seo-chip rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;
                   })}
                 </nav>
               ) : null}

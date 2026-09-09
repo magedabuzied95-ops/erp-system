@@ -19,6 +19,29 @@ test("storefront brand theme is identical before the first paint on every browse
   assert.doesNotMatch(main, /localStorage\.getItem\("erp\.theme"\) \|\| "dark"/);
 });
 
+test("the dark storefront paints its ink on every page, not only the homepage", () => {
+  // `dark:` utilities are inert under the shop (documentColorScheme.js keeps
+  // Tailwind's `dark` class off in both themes), so any element whose dark ink
+  // exists ONLY as a `dark:` utility renders its LIGHT colour on a black page.
+  // Measured live before this guard: the footer's "Customer service" at 1.13
+  // contrast on /product/*, the catalogue h1 at 1.03 and the card name at 1.09.
+  // home.css repaints the footer under `.m1h[data-theme="dark"]` — the homepage
+  // only — so these rules carry every other page.
+  const darkFooterInk = /body\.storefront-shell\.storefront-dark \.sf-footer \.sf-footer__contact\s*\{[^}]*color:/;
+  assert.match(styles, darkFooterInk, "the footer contact lines need a dark colour outside .m1h");
+  assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-footer \.sf-footer__link\s*\{[^}]*color:/);
+  assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-catalog-title/);
+  assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-product-card \.sf-product-card-name/);
+  assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-product-card \.sf-product-card-brand/);
+
+  // The CSS above is only reachable through these hooks.
+  assert.match(storefrontSource, /className=\{`sf-product-card-name /);
+  assert.match(storefrontSource, /className="sf-product-card-brand /);
+  assert.match(listingSource, /className="sf-catalog-intro /);
+  assert.match(listingSource, /className="sf-catalog-pagesize-label /);
+  assert.match(listingSource, /className="sf-catalog-seo-chip /);
+});
+
 test("storefront owns one synchronized light-dark theme state", () => {
   // `storefront-dark` is the shop's own class and it writes that itself. The
   // three signals it SHARES with the ERP theme — the root colour-scheme, the

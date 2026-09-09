@@ -6442,7 +6442,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             onClick={(event) => event.stopPropagation()}
             aria-label={`${normalizeLanguage(i18n.language) === "ar" ? "عرض منتجات" : "Shop"} ${brandLabel}`}
             dir="ltr"
-            className="line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#d4af37] hover:underline focus-visible:text-[#d4af37] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#f3d77a] md:min-h-[1.05rem]"
+            className="sf-product-card-brand line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#d4af37] hover:underline focus-visible:text-[#d4af37] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#f3d77a] md:min-h-[1.05rem]"
           >
             {brandLabel}
           </Link>
@@ -6451,7 +6451,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           to={detailsUrl}
           onClick={resetStorefrontViewportScroll}
           dir="ltr"
-          className={`mt-0 flex min-h-[2.4rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.55rem] md:text-[13px] md:leading-5 dark:text-stone-100 dark:hover:text-[#f3d77a] ${densityClasses.title}`}
+          className={`sf-product-card-name mt-0 flex min-h-[2.4rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.55rem] md:text-[13px] md:leading-5 dark:text-stone-100 dark:hover:text-[#f3d77a] ${densityClasses.title}`}
         >
           {product.name}
         </Link>

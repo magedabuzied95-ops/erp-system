@@ -8167,4 +8167,100 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     color: var(--sf-footer-bar-ink, #8d8981) !important;
   }
 
+  /* ---- footer ink, on EVERY page ---------------------------------------
+     The dark footer's contact lines, links and copy were repainted in
+     home.css under `.m1h[data-theme="dark"]`, i.e. on the homepage only —
+     its own comment says the product page "is untouched". Measured on
+     m1store-egy.com/product/742 in dark: "Customer service" #292524 on
+     #0b0b0b (contrast 1.13) and the support address at 1.30 — the same
+     invisible-footer symptom the light theme had, one theme over.
+
+     The `dark:text-white/...` utilities in the markup cannot do this job:
+     the storefront runs with Tailwind's `dark` class OFF in both themes
+     (src/theme/documentColorScheme.js). The `--m1h-*` fallbacks keep the
+     homepage on the exact colours Site Studio gives it and hand every other
+     page a literal. */
+  body.storefront-shell.storefront-dark .sf-footer h3,
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__contact {
+    color: var(--m1h-text, var(--sf-footer-ink, #efeee9)) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer p,
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__link {
+    color: var(--m1h-text-2, rgba(255, 255, 255, 0.62)) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__link:hover,
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__contact:hover {
+    color: var(--m1h-accent, #f3d77a) !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__social {
+    border-color: var(--m1h-line, rgba(255, 255, 255, 0.1)) !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: var(--m1h-text, #efeee9) !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer__social:hover {
+    border-color: var(--m1h-accent, #d4af37) !important;
+    color: var(--m1h-accent, #f3d77a) !important;
+  }
+
+  /* The section rules and the divider above the copyright line are drawn with
+     `border-stone-200`, a light-mode value in a dark footer. */
+  body.storefront-shell.storefront-dark .sf-footer [class*="border-stone-200"] {
+    border-color: var(--m1h-line, rgba(255, 255, 255, 0.1)) !important;
+  }
+
+  /* ---- catalogue ink ---------------------------------------------------
+     Same defect, same cause, on the listing pages (/products, /offers,
+     search and every SEO category): the heading, the result count and both
+     card labels carry `text-stone-*` with a `dark:` twin that never fires.
+     Measured in dark: the h1 at 1.03, the card name at 1.09 (×24 per page),
+     the brand line at 1.85 — the page reads as a wall of photos with no
+     names. `-webkit-text-fill-color` is set with the colour because a bare
+     `color` loses to a fill declared elsewhere on these links. */
+  body.storefront-shell.storefront-dark .sf-catalog-title,
+  body.storefront-shell.storefront-dark .sf-product-card .sf-product-card-name,
+  body.storefront-shell.storefront-dark .sf-small-product-card .sf-product-recommendation-name {
+    color: var(--sf-dark-text, #f8fafc) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-catalog-count,
+  body.storefront-shell.storefront-dark .sf-catalog-intro,
+  body.storefront-shell.storefront-dark .sf-catalog-seo-chip,
+  body.storefront-shell.storefront-dark .sf-product-card .sf-product-card-brand,
+  body.storefront-shell.storefront-dark .sf-small-product-card .sf-product-recommendation-meta,
+  body.storefront-shell.storefront-dark .sf-product-card .sf-card-slide-cta,
+  body.storefront-shell.storefront-dark .sf-small-product-card .sf-card-slide-cta {
+    color: var(--sf-dark-secondary, #cbd5e1) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-catalog-eyebrow,
+  body.storefront-shell.storefront-dark .sf-catalog-pagesize-label {
+    color: var(--sf-dark-muted, #94a3b8) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* The gold hover is the whole affordance on these links, and the rules
+     above are `!important` — so it has to be restated at the same weight. */
+  body.storefront-shell.storefront-dark .sf-product-card .sf-product-card-name:hover,
+  body.storefront-shell.storefront-dark .sf-product-card .sf-product-card-brand:hover,
+  body.storefront-shell.storefront-dark .sf-catalog-seo-chip:hover,
+  body.storefront-shell.storefront-dark .sf-product-card .sf-card-slide-cta:hover,
+  body.storefront-shell.storefront-dark .sf-small-product-card .sf-card-slide-cta:hover {
+    color: #f3d77a !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-product-card .sf-card-slide-cta:disabled,
+  body.storefront-shell.storefront-dark .sf-small-product-card .sf-card-slide-cta:disabled {
+    color: rgba(255, 255, 255, 0.38) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
 }
