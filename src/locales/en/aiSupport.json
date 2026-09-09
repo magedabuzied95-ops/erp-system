@@ -1636,7 +1636,8 @@
       "warningsCount": "warnings {{count}}",
       "writeInternalNote": "Write an internal note",
       "lastSeen": "Last seen {{time}}",
-      "noRecentActivity": "No recent activity"
+      "noRecentActivity": "No recent activity",
+      "close": "Close"
     },
     "pwaOrder": {
       "aiInboxOrder": "AI Inbox Order",

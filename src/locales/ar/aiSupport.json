@@ -1644,7 +1644,8 @@
       "warningsCount": "التحذيرات {{count}}",
       "writeInternalNote": "اكتب ملاحظة داخلية",
       "lastSeen": "آخر ظهور {{time}}",
-      "noRecentActivity": "لا يوجد نشاط حديث"
+      "noRecentActivity": "لا يوجد نشاط حديث",
+      "close": "إغلاق"
     },
     "pwaOrder": {
       "aiInboxOrder": "طلب صندوق الذكاء",

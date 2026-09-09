@@ -19,11 +19,11 @@ import {
   MoreHorizontal,
   Minimize2,
   PackagePlus,
+  Plus,
   Ruler,
   Search,
   Send,
   Settings,
-  Smile,
   ShieldBan,
   ShoppingBag,
   ShoppingCart,
@@ -113,7 +113,6 @@ import {
 } from "../services/inboxChannels";
 import "./AiInboxPwa.css";
 import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
-import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
   GENERIC_CUSTOMER_NAMES,
@@ -1990,6 +1989,131 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
   );
 }
 
+// The whole reply row: attach button, editor, send. It owns the draft so a
+// keystroke re-renders THIS, and never the inbox screen around it. Outside
+// writers (a quick reply, an approved AI draft, a quoted reply) push text in
+// through `seed`; a send reads it back out of `textRef`.
+const PwaComposerBar = memo(function PwaComposerBar({
+  seed = { text: "", token: 0 },
+  mode = "reply",
+  sending = false,
+  placeholder = "",
+  quickReplies = [],
+  customerName = "",
+  light = true,
+  textRef,
+  editorRef,
+  onSubmit,
+  onSetText,
+  onPickImage,
+  sendTone = "sky",
+}) {
+  const { t } = useTranslation();
+  const [attachOpen, setAttachOpen] = useState(false);
+  // Two booleans, not the text: the row only re-renders when the send button
+  // flips between disabled and armed, or when a slash command opens the quick
+  // replies. Typing an ordinary sentence renders nothing after the first letter.
+  const [draftState, setDraftState] = useState({ armed: false, slash: "" });
+  const [seedText, setSeedText] = useState(seed.text || "");
+
+  const syncDraftState = useCallback((value) => {
+    const text = String(value || "");
+    const armed = Boolean(text.trim()) && !/^\s*\//.test(text);
+    const slash = /^\s*\/[^\n]*$/.test(text) ? text : "";
+    setDraftState((current) => (current.armed === armed && current.slash === slash ? current : { armed, slash }));
+  }, []);
+
+  const handleChange = useCallback((value) => {
+    if (textRef) textRef.current = String(value || "");
+    syncDraftState(value);
+  }, [syncDraftState, textRef]);
+
+  useEffect(() => {
+    const text = String(seed.text || "");
+    if (textRef) textRef.current = text;
+    setSeedText(text);
+    syncDraftState(text);
+    const editor = editorRef?.current;
+    if (editor && String(editor.innerText || "").replace(/\u00a0/g, " ") !== text) {
+      editor.innerText = text;
+      if (text && typeof window !== "undefined") {
+        // Land the caret after the text that was just dropped in, the way a
+        // pasted quick reply behaves in every chat app.
+        const range = document.createRange();
+        range.selectNodeContents(editor);
+        range.collapse(false);
+        const selection = window.getSelection?.();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+    }
+    // The seed token is the signal: the same text pushed twice must still land.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed.token]);
+
+  return (
+    <>
+      <QuickRepliesPicker
+        replies={quickReplies}
+        customerName={customerName}
+        value={draftState.slash}
+        onUse={(message) => onSetText?.(message)}
+        light={light}
+      />
+      <div className="flex items-end gap-2">
+        <div className="relative shrink-0">
+          {attachOpen ? (
+            <>
+              <button
+                type="button"
+                aria-label={t("aiSupport.inbox.pwa.close")}
+                onClick={() => setAttachOpen(false)}
+                className="fixed inset-0 z-30 cursor-default bg-slate-900/10"
+              />
+              <div className="absolute bottom-14 left-0 z-40 min-w-[11rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_44px_rgba(15,23,42,0.2)]">
+                <button
+                  type="button"
+                  onClick={() => { setAttachOpen(false); onPickImage?.(); }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+                >
+                  <Image className="h-4 w-4 text-slate-500" />
+                  {t("aiSupport.inbox.pwa.attachImage")}
+                </button>
+              </div>
+            </>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setAttachOpen((current) => !current)}
+            className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ring-1 transition ${attachOpen ? "bg-slate-900 text-white ring-slate-900" : "bg-slate-100 text-slate-600 ring-slate-200"}`}
+            aria-label={t("aiSupport.inbox.pwa.attachImage")}
+            aria-expanded={attachOpen}
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+        <PwaReplyEditor
+          editorRef={editorRef}
+          value={seedText}
+          onChange={handleChange}
+          onSubmit={onSubmit}
+          disabled={sending}
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          onClick={() => void onSubmit?.()}
+          disabled={!draftState.armed || sending}
+          className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
+          aria-label={mode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
+        >
+          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+        </button>
+      </div>
+    </>
+  );
+});
+
 // WhatsApp picture URLs expire: the stored one can 404 and the browser paints
 // a broken-image glyph. Remember dead URLs for the session so a re-render does
 // not retry them, and ask the backend once to fetch the current URL.
@@ -3284,7 +3408,20 @@ export default function AiInboxPwa() {
   const [metaHistorySyncing, setMetaHistorySyncing] = useState(false);
   const [leadFilter, setLeadFilter] = useState("new");
   const canReply = usePermission("ai_inbox_messenger.reply");
-  const [composerText, setComposerText] = useState("");
+  // The reply text lives in the composer bar, not here. This screen is ~5k lines
+  // of JSX; holding the draft in page state re-rendered every one of them on
+  // every keystroke, which is what made typing lag on a phone. The page keeps a
+  // ref (what a send reads) and a seed (what an outside writer — a quick reply,
+  // an AI draft, a quoted reply — pushes INTO the bar), so a keystroke never
+  // reaches this component at all.
+  const composerTextRef = useRef("");
+  const [composerSeed, setComposerSeed] = useState({ text: "", token: 0 });
+  const setComposerText = useCallback((next) => {
+    const value = String((typeof next === "function" ? next(composerTextRef.current) : next) ?? "");
+    composerTextRef.current = value;
+    setComposerSeed((current) => ({ text: value, token: current.token + 1 }));
+  }, []);
+  const readComposerText = useCallback(() => composerTextRef.current, []);
   const [composerMode, setComposerMode] = useState("reply");
   const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
   // The settings the desktop workspace hides behind its channel rail: comment
@@ -3338,7 +3475,6 @@ export default function AiInboxPwa() {
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [aiToggling, setAiToggling] = useState(false);
   const [leadActionLoading, setLeadActionLoading] = useState("");
@@ -3359,7 +3495,11 @@ export default function AiInboxPwa() {
   const [productQuery, setProductQuery] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [conversationHeaderHeight, setConversationHeaderHeight] = useState(0);
-  const [userIsNearBottom, setUserIsNearBottom] = useState(true);
+  // Near-bottom is a scroll fact, not screen state: as a useState it re-rendered
+  // this entire screen on every scroll event, which is what made the thread
+  // stutter under a finger. A ref carries it, and the scroll listener is
+  // throttled to one frame.
+  const nearBottomRef = useRef(true);
   const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
   const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
   const [socialComments, setSocialComments] = useState(() => ({
@@ -3394,7 +3534,6 @@ export default function AiInboxPwa() {
   const conversationHeaderRef = useRef(null);
   const menuButtonRef = useRef(null);
   const imageInputRef = useRef(null);
-  const emojiButtonRef = useRef(null);
   const composerEditorRef = useRef(null);
   const pollRef = useRef(null);
   const restoreScrollStateRef = useRef(null);
@@ -5340,7 +5479,7 @@ export default function AiInboxPwa() {
       if (restoreState) {
         scroller.scrollTop = Math.max(0, restoreState.scrollTop + (scroller.scrollHeight - restoreState.scrollHeight));
         restoreScrollStateRef.current = null;
-        setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+        nearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140;
         isLoadingOlderRef.current = false;
         isAppendingNewMessageRef.current = false;
         return;
@@ -5351,11 +5490,11 @@ export default function AiInboxPwa() {
       const conversationChanged = previousConversationKeyRef.current !== conversationKey;
       const latestMessageAppended = latestMessageKey && latestMessageKey !== previousLatestMessageKeyRef.current;
 
-      if (conversationChanged || (latestMessageAppended && userIsNearBottom) || pinBottomAfterRefresh) {
+      if (conversationChanged || (latestMessageAppended && nearBottomRef.current) || pinBottomAfterRefresh) {
         scroller.scrollTop = scroller.scrollHeight;
-        setUserIsNearBottom(true);
+        nearBottomRef.current = true;
       } else {
-        setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+        nearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140;
       }
 
       previousConversationKeyRef.current = conversationKey;
@@ -5364,7 +5503,7 @@ export default function AiInboxPwa() {
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [selectedConversation, selectedConversation?.conversation_key, selectedConversation?.messages, selectedConversation?.session_id, tab, userIsNearBottom]);
+  }, [selectedConversation, selectedConversation?.conversation_key, selectedConversation?.messages, selectedConversation?.session_id, tab]);
 
   useLayoutEffect(() => {
     if (!selectedConversation || tab !== "conversations") {
@@ -5511,7 +5650,7 @@ export default function AiInboxPwa() {
 
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
-    const message = cleanMessageText(explicitText || composerText);
+    const message = cleanMessageText(explicitText || readComposerText());
     if (!selectedConversation?.session_id || !message) return { ok: false, skipped: true };
     if (manualSendInFlightRef.current) return { ok: false, skipped: true }; // double-click / in-flight guard
     manualSendInFlightRef.current = true;
@@ -5763,7 +5902,7 @@ export default function AiInboxPwa() {
       manualSendInFlightRef.current = false;
       setSending(false);
     }
-  }, [composerMode, composerText, editingAiDraft, headers, patchConversation, selectedConversation, tenantId]);
+  }, [composerMode, editingAiDraft, headers, patchConversation, readComposerText, selectedConversation, setComposerText, tenantId]);
 
   // The inline edit lives inside the suggestion card and does NOT touch the
   // manual composer; Approve & Send uses the edited text.
@@ -6271,32 +6410,25 @@ export default function AiInboxPwa() {
     [closeAvailableBySizePicker, sendManualReply]
   );
 
+  const scrollFrameRef = useRef(0);
+  const handleMainScroll = useCallback(() => {
+    if (scrollFrameRef.current) return;
+    scrollFrameRef.current = window.requestAnimationFrame(() => {
+      scrollFrameRef.current = 0;
+      const scroller = mainScrollRef.current;
+      if (!scroller) return;
+      nearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140;
+    });
+  }, []);
+
+  useEffect(() => () => {
+    if (scrollFrameRef.current) window.cancelAnimationFrame(scrollFrameRef.current);
+  }, []);
+
   const openImagePicker = useCallback(() => {
     if (!imageInputRef.current) return;
     imageInputRef.current.value = "";
     imageInputRef.current.click();
-  }, []);
-
-  const insertComposerEmoji = useCallback((emoji) => {
-    const editor = composerEditorRef.current;
-    const selection = window.getSelection?.();
-    const hasEditorSelection = selection?.rangeCount && editor?.contains(selection.anchorNode);
-    if (editor && hasEditorSelection) {
-      const range = selection.getRangeAt(0);
-      range.deleteContents();
-      const node = document.createTextNode(emoji);
-      range.insertNode(node);
-      range.setStartAfter(node);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      const nextText = String(editor.innerText || "").replace(/\u00a0/g, " ");
-      setComposerText(nextText);
-      editor.focus();
-      return;
-    }
-    setComposerText((current) => `${current || ""}${emoji}`);
-    window.requestAnimationFrame(() => editor?.focus());
   }, []);
 
   /*
@@ -6315,7 +6447,7 @@ export default function AiInboxPwa() {
     if (attachmentSendingRef.current) return;
     attachmentSendingRef.current = true;
     const canonicalSessionId = selectedConversationRouteId || sessionId;
-    const caption = cleanMessageText(composerText);
+    const caption = cleanMessageText(readComposerText());
     const form = new FormData();
     form.append("file", file);
     form.append("tenant_id", String(tenantId || ""));
@@ -6351,7 +6483,7 @@ export default function AiInboxPwa() {
       attachmentSendingRef.current = false;
       setSending(false);
     }
-  }, [composerText, headers, patchConversation, selectedConversation, selectedConversationRouteId, t, tenantId]);
+  }, [headers, patchConversation, readComposerText, selectedConversation, selectedConversationRouteId, setComposerText, t, tenantId]);
 
   const toggleConversationAi = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
@@ -7812,11 +7944,7 @@ export default function AiInboxPwa() {
         )}
         <main
           ref={mainScrollRef}
-          onScroll={() => {
-            const scroller = mainScrollRef.current;
-            if (!scroller) return;
-            setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
-          }}
+          onScroll={handleMainScroll}
           className={`ai-pwa-main flex-1 min-h-0 overflow-y-auto px-2 ${contentScreen && tab === "conversations" ? "" : "pt-1.5"} ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}
           style={contentScreen && tab === "conversations" ? { paddingTop: `${conversationHeaderHeight || 88}px` } : undefined}
         >
@@ -7969,74 +8097,32 @@ export default function AiInboxPwa() {
                   instagramDelivery={normalizeConversationChannel(selectedConversation || {}) === "instagram"}
                 />
               ) : null}
-              <QuickRepliesPicker
-                replies={quickRepliesStore.quickReplies}
-                customerName={conversationName(selectedConversation || {})}
-                value={composerText}
-                onUse={(message) => setComposerText(message)}
-                light={!isDarkTheme}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageAttachmentChange}
+                className="hidden"
+                aria-hidden="true"
               />
-              <div className="flex items-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setProductSheetOpen(true)}
-                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-100"
-                  aria-label={t("aiSupport.inbox.picker.sendProduct")}
-                >
-                  <PackagePlus className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={openImagePicker}
-                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 ring-1 ring-slate-200"
-                  aria-label={t("aiSupport.inbox.pwa.attachImage")}
-                  title={t("aiSupport.inbox.pwa.attachImage")}
-                >
-                  <Image className="h-5 w-5" />
-                </button>
-                <input
-                  ref={imageInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageAttachmentChange}
-                  className="hidden"
-                  aria-hidden="true"
-                />
-                <PwaReplyEditor
-                  editorRef={composerEditorRef}
-                  value={composerText}
-                  onChange={setComposerText}
-                  onSubmit={sendManualReply}
-                  disabled={sending}
-                  placeholder={composerMode === "note" ? t("aiSupport.inbox.pwa.writeInternalNote") : t("aiSupport.inbox.pwa.typeReply")}
-                />
-                <button
-                  ref={emojiButtonRef}
-                  type="button"
-                  onClick={() => setEmojiPickerOpen((current) => !current)}
-                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 transition ${emojiPickerOpen ? "bg-amber-100 text-amber-700 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-300/20" : "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-white/[0.06] dark:text-slate-200 dark:ring-white/10"}`}
-                  aria-label={t("aiSupport.inbox.pwa.emoji")}
-                  aria-expanded={emojiPickerOpen}
-                >
-                  <Smile className="h-5 w-5" />
-                </button>
-                <AppleEmojiPicker
-                  open={emojiPickerOpen}
-                  anchorRef={emojiButtonRef}
-                  onClose={() => setEmojiPickerOpen(false)}
-                  onSelect={insertComposerEmoji}
-                  title={t("aiSupport.inbox.emoji.choose")}
-                />
-                <button
-                  type="button"
-                  onClick={() => void sendManualReply()}
-                  disabled={!clean(composerText) || /^\s*\//.test(composerText) || sending}
-                  className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "bg-amber-500" : "bg-sky-600"}`}
-                  aria-label={composerMode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
-                >
-                  {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                </button>
-              </div>
+              {/* sendTone: the warning colour belongs to an AI DRAFT under review.
+                  With no draft the confidence engine scores 0 and reads "high risk",
+                  so every send button in the app wore the amber warning colour. */}
+              <PwaComposerBar
+                seed={composerSeed}
+                mode={composerMode}
+                sending={sending}
+                placeholder={composerMode === "note" ? t("aiSupport.inbox.pwa.writeInternalNote") : t("aiSupport.inbox.pwa.typeReply")}
+                quickReplies={quickRepliesStore.quickReplies}
+                customerName={conversationName(selectedConversation || {})}
+                light={!isDarkTheme}
+                textRef={composerTextRef}
+                editorRef={composerEditorRef}
+                onSubmit={sendManualReply}
+                onSetText={setComposerText}
+                onPickImage={openImagePicker}
+                sendTone={composerMode !== "note" && Boolean(activeAiSuggestionText) && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "amber" : "sky"}
+              />
             </div>
           </div>
         ) : null}
