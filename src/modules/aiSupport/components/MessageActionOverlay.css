@@ -1,0 +1,82 @@
+/* The message action overlay — one sheet for every surface (desktop inbox and
+   the PWA). It is drawn in a portal on the body, above everything the
+   transcript scroller would otherwise clip, so the animation and the geometry
+   live here rather than in either page's stylesheet. */
+
+@keyframes m1-msg-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes m1-msg-lift-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes m1-msg-panel-in {
+  from { opacity: 0; transform: scale(0.9) translateY(var(--m1-msg-panel-shift, 6px)); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes m1-msg-emoji-in {
+  from { opacity: 0; transform: scale(0.4) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.m1-msg-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: m1-msg-scrim-in 140ms ease-out both;
+}
+
+.m1-msg-lift {
+  position: fixed;
+  pointer-events: none;
+  overflow: hidden;
+  animation: m1-msg-lift-in 170ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The lifted copy is a picture of the message, never a second live message:
+   nothing inside it may take a click, play, or steal focus. */
+.m1-msg-lift * {
+  pointer-events: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+
+.m1-msg-panel {
+  position: fixed;
+  animation: m1-msg-panel-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.m1-msg-emoji-chip {
+  animation: m1-msg-emoji-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* A held message must not also raise the browser's own text-selection bubble or
+   the iOS callout — the press belongs to this sheet. */
+.ai-inbox-message-actions {
+  -webkit-touch-callout: none;
+}
+
+/* On a finger the hold belongs to the sheet, so the text under it must not
+   start a selection on the way — the copy the operator wanted is an action in
+   the sheet. On a mouse, selecting a sentence out of a message still works. */
+@media (pointer: coarse) {
+  .ai-inbox-message-actions [data-ai-message-bubble="true"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m1-msg-scrim,
+  .m1-msg-lift,
+  .m1-msg-panel,
+  .m1-msg-emoji-chip {
+    animation-duration: 1ms !important;
+  }
+}

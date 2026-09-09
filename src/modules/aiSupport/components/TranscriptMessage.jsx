@@ -13,6 +13,7 @@ import { bubbleClock, bubbleSkin, chromeModeFor, platformChrome, resolveMessageP
 // previews and the pinned bar, and useTheme throws outside a provider.
 import { ThemeContext } from "../../../theme/themeContext";
 import { AppleEmoji, AppleEmojiPicker } from "./AppleEmojiPicker.jsx";
+import MessageActionOverlay from "./MessageActionOverlay.jsx";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -84,21 +85,35 @@ const messageIdentity = (row = {}, message = {}) =>
       `${row.kind || "message"}:${message.created_at || ""}:${messageBodyText(message).slice(0, 80)}`
   );
 
+// Every bubble asks for the pinned and starred sets as it mounts. Parsing the
+// same two localStorage blobs once per message is the kind of cost that only
+// shows up on a phone opening a long thread, so the parse is cached and dropped
+// whenever a flag is written.
+const storedMessageSetCache = new Map();
+
+const invalidateStoredMessageSets = () => storedMessageSetCache.clear();
+
 const readStoredMessageSet = (storageKey) => {
   if (typeof window === "undefined") return new Set();
+  const cached = storedMessageSetCache.get(storageKey);
+  if (cached) return cached;
+  let values;
   try {
-    return new Set(asArray(JSON.parse(window.localStorage.getItem(storageKey) || "[]")).map((item) => clean(item)).filter(Boolean));
+    values = new Set(asArray(JSON.parse(window.localStorage.getItem(storageKey) || "[]")).map((item) => clean(item)).filter(Boolean));
   } catch {
-    return new Set();
+    values = new Set();
   }
+  storedMessageSetCache.set(storageKey, values);
+  return values;
 };
 
 const writeStoredMessageFlag = (storageKey, messageKey, enabled) => {
   if (typeof window === "undefined" || !messageKey) return;
-  const values = readStoredMessageSet(storageKey);
+  const values = new Set(readStoredMessageSet(storageKey));
   if (enabled) values.add(messageKey);
   else values.delete(messageKey);
   window.localStorage.setItem(storageKey, JSON.stringify([...values].slice(-500)));
+  invalidateStoredMessageSets();
 };
 
 const dispatchMessagePinChange = (messageKey, pinned) => {
@@ -111,7 +126,11 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    const refresh = () => setRevision((current) => current + 1);
+    const refresh = () => {
+      // Another tab may have written the list; drop the cached parse first.
+      invalidateStoredMessageSets();
+      setRevision((current) => current + 1);
+    };
     window.addEventListener(MESSAGE_PIN_CHANGE_EVENT, refresh);
     window.addEventListener("storage", refresh);
     return () => {
@@ -180,7 +199,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   );
 }
 
-function MessageActionShell({ row, message, variant, align = "left", createdAt = "", channelLabel = "", onReact, onEditMessage, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
+function MessageActionShell({ row, message, variant, mode = "dark", align = "left", createdAt = "", channelLabel = "", onReact, onEditMessage, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
   const { t } = useTranslation();
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -188,11 +207,10 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const [selected, setSelected] = useState(false);
   const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
   const [reactionPickerExpanded, setReactionPickerExpanded] = useState(false);
   const [reactionSending, setReactionSending] = useState(false);
   const [localReaction, setLocalReaction] = useState(null);
-  const [menuPosition, setMenuPosition] = useState({ left: 8, top: 8 });
+  const [anchorEl, setAnchorEl] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editDraft, setEditDraft] = useState("");
   const [editSaving, setEditSaving] = useState(false);
@@ -201,6 +219,9 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
   const reactionPickerAnchorRef = useRef(null);
+  const pressTimerRef = useRef(0);
+  const pressOriginRef = useRef(null);
+  const suppressClickRef = useRef(false);
   const text = messageBodyText(message);
   const reactions = asArray(row?.reactions).filter((reaction) => reactionEmoji(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
   const ownReaction = reactions.find((reaction) => reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff") || null;
@@ -231,7 +252,8 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     setPinned(readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
     setStarred(readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
     setSelected(false);
-    setReactionPickerOpen(false);
+    setMenuOpen(false);
+    setAnchorEl(null);
     setReactionPickerExpanded(false);
     setLocalReaction(null);
     setEditing(false);
@@ -239,14 +261,9 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     setLocallyEdited(false);
   }, [key]);
 
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    const close = (event) => {
-      if (!shellRef.current?.contains(event.target)) setMenuOpen(false);
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [menuOpen]);
+  // The sheet dismisses itself: it owns the scrim, so a stray listener here
+  // would fire on the sheet's own buttons and close it before the click landed.
+  useEffect(() => () => window.clearTimeout(pressTimerRef.current), []);
 
   useEffect(() => {
     const syncPinState = (event) => {
@@ -266,18 +283,74 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     };
   }, [key]);
 
-  const openActionsFromMessage = (event) => {
-    if (editing) return;
-    if (!event.target.closest("[data-ai-message-bubble='true']")) return;
-    if (event.target.closest("a, button, input, textarea, select, audio, video, [role='button']")) return;
-    if (typeof window !== "undefined" && window.getSelection?.()?.toString()) return;
-    const bounds = shellRef.current?.getBoundingClientRect();
-    if (bounds) {
-      const left = Math.max(8, Math.min(event.clientX - bounds.left, Math.max(8, bounds.width - 184)));
-      const top = Math.max(8, event.clientY - bounds.top);
-      setMenuPosition({ left, top });
-    }
+  const closeActions = () => {
+    setMenuOpen(false);
+    setAnchorEl(null);
+  };
+
+  // The sheet lifts the message itself, so it needs the node that was pressed:
+  // the bubble when there is one, and the whole row when the message is a card
+  // that stands on the transcript with no bubble behind it.
+  const actionAnchorFor = (target) =>
+    target?.closest?.("[data-ai-message-bubble='true']")
+    || shellRef.current?.querySelector("[data-ai-message-bubble='true']")
+    || shellRef.current?.querySelector("[data-ai-message-body='true']")
+    || shellRef.current;
+
+  const canOpenActionsFrom = (target) => {
+    if (editing || menuOpen) return false;
+    if (!target?.closest?.("[data-ai-message-bubble='true'], [data-ai-message-body='true']")) return false;
+    if (target.closest("a, button, input, textarea, select, audio, video, [role='button']")) return false;
+    if (typeof window !== "undefined" && window.getSelection?.()?.toString()) return false;
+    return true;
+  };
+
+  const openActions = (target) => {
+    const anchor = actionAnchorFor(target);
+    if (!anchor) return;
+    setAnchorEl(anchor);
     setMenuOpen(true);
+  };
+
+  const openActionsFromMessage = (event) => {
+    // A long press has already opened the sheet; the click the finger leaves
+    // behind must not close it again on the way up.
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    if (!canOpenActionsFrom(event.target)) return;
+    openActions(event.target);
+  };
+
+  const cancelPress = () => {
+    window.clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = 0;
+    pressOriginRef.current = null;
+  };
+
+  const startPress = (event) => {
+    // A suppressed click that never arrived (the finger lifted over the scrim)
+    // must not swallow the next real tap on this message.
+    suppressClickRef.current = false;
+    if (event.pointerType === "mouse") return;
+    if (!canOpenActionsFrom(event.target)) return;
+    const target = event.target;
+    pressOriginRef.current = { x: event.clientX, y: event.clientY };
+    window.clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = window.setTimeout(() => {
+      pressTimerRef.current = 0;
+      suppressClickRef.current = true;
+      // The short tick every phone gives a long press, when the device has one.
+      try { navigator.vibrate?.(12); } catch { /* a browser without haptics */ }
+      openActions(target);
+    }, 380);
+  };
+
+  const trackPress = (event) => {
+    const origin = pressOriginRef.current;
+    if (!origin || !pressTimerRef.current) return;
+    if (Math.abs(event.clientX - origin.x) > 12 || Math.abs(event.clientY - origin.y) > 12) cancelPress();
   };
 
   const copyMessage = async () => {
@@ -285,14 +358,14 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     await navigator.clipboard.writeText(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1400);
-    setMenuOpen(false);
+    closeActions();
   };
 
   const replyToMessage = () => {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("m1:ai-inbox-message-reply", { detail: { messageKey: key, sender, text, createdAt } }));
     }
-    setMenuOpen(false);
+    closeActions();
   };
 
   const togglePinned = () => {
@@ -300,14 +373,14 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     setPinned(next);
     writeStoredMessageFlag(MESSAGE_PIN_STORAGE_KEY, key, next);
     dispatchMessagePinChange(key, next);
-    setMenuOpen(false);
+    closeActions();
   };
 
   const toggleStarred = () => {
     const next = !starred;
     setStarred(next);
     writeStoredMessageFlag(MESSAGE_STAR_STORAGE_KEY, key, next);
-    setMenuOpen(false);
+    closeActions();
   };
 
   const submitReaction = async (emoji) => {
@@ -316,8 +389,8 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     const nextEmoji = effectiveOwnReaction === emoji ? "" : emoji;
     setReactionSending(true);
     setLocalReaction(nextEmoji);
-    setReactionPickerOpen(false);
     setReactionPickerExpanded(false);
+    closeActions();
     try {
       await onReact({
         row,
@@ -337,7 +410,7 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
   const startEditing = () => {
     setEditDraft(text);
     setEditing(true);
-    setMenuOpen(false);
+    closeActions();
   };
 
   const submitEdit = async () => {
@@ -370,15 +443,25 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
     ...(canEdit ? [{ label: t("aiSupport.inbox.message.edit"), icon: Pencil, action: startEditing }] : []),
     { label: t(copied ? "aiSupport.inbox.message.copied" : "aiSupport.inbox.message.copy"), icon: Copy, action: copyMessage, disabled: !text },
     { label: t(pinned ? "aiSupport.inbox.message.unpin" : "aiSupport.inbox.message.pin"), icon: pinned ? PinOff : Pin, action: togglePinned },
-    { label: t(starred ? "aiSupport.inbox.message.unstar" : "aiSupport.inbox.message.star"), icon: Star, action: toggleStarred, active: starred },
-    { label: t(selected ? "aiSupport.inbox.message.deselect" : "aiSupport.inbox.message.select"), icon: CheckSquare, action: () => { setSelected((current) => !current); setMenuOpen(false); }, active: selected },
-    { label: t("aiSupport.inbox.message.info"), icon: Info, action: () => { setInfoOpen(true); setMenuOpen(false); } },
+    { label: t(starred ? "aiSupport.inbox.message.unstar" : "aiSupport.inbox.message.star"), icon: Star, action: toggleStarred, active: starred, fill: starred },
+    { label: t(selected ? "aiSupport.inbox.message.deselect" : "aiSupport.inbox.message.select"), icon: CheckSquare, action: () => { setSelected((current) => !current); closeActions(); }, active: selected },
+    { label: t("aiSupport.inbox.message.info"), icon: Info, action: () => { setInfoOpen(true); closeActions(); } },
   ];
 
   return (
     <div
       ref={shellRef}
       onClick={openActionsFromMessage}
+      onContextMenu={(event) => {
+        if (!canOpenActionsFrom(event.target)) return;
+        event.preventDefault();
+        openActions(event.target);
+      }}
+      onPointerDown={startPress}
+      onPointerMove={trackPress}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
+      onPointerLeave={cancelPress}
       className={`ai-inbox-message-actions group relative cursor-context-menu rounded-2xl transition ${selected ? "bg-amber-300/10 p-1 ring-1 ring-amber-300/45" : ""} ${focused ? "ring-2 ring-amber-300 ring-offset-2 ring-offset-transparent" : ""}`}
       data-message-key={key}
       data-message-selected={selected ? "true" : "false"}
@@ -390,7 +473,9 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
           {wasEdited ? <span className="inline-flex items-center gap-1"><Pencil className="h-3 w-3" /> {t("aiSupport.inbox.message.edited")}</span> : null}
         </div>
       ) : null}
-      {children}
+      {/* The pressable body of the message, and the node the sheet lifts when
+          the message is a card that carries no bubble of its own. */}
+      <div data-ai-message-body="true">{children}</div>
       {editing ? (
         <div data-ai-message-editor="true" className={`mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
           <div dir="rtl" className={`w-full max-w-[420px] rounded-2xl border p-2 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-amber-300/40 bg-[#20231f] text-white"}`}>
@@ -433,23 +518,37 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
             type="button"
             aria-label={t("aiSupport.inbox.message.addReaction")}
             title={t("aiSupport.inbox.message.addReaction")}
-            onClick={() => setReactionPickerOpen((current) => !current)}
+            onClick={(event) => { event.stopPropagation(); openActions(event.currentTarget); }}
             className={`pointer-events-auto grid h-7 w-7 place-items-center rounded-full border shadow-sm transition hover:-translate-y-0.5 ${variant === "pwa" ? "border-slate-200 bg-white text-slate-500" : "border-white/10 bg-[#252824] text-slate-300"}`}
           >
             <Smile className="h-4 w-4" />
           </button>
         </div>
       ) : null}
-      {reactionPickerOpen ? (
-        <div data-ai-message-reaction-picker="true" className={`relative z-50 mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
-          <div className={`inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-xl ${variant === "pwa" ? "border-slate-200 bg-white" : "border-white/10 bg-[#232833]"}`}>
-            {reactionOptions.map((emoji) => (
-              <button key={emoji} type="button" disabled={reactionSending} onClick={() => void submitReaction(emoji)} className={`grid h-9 w-9 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-slate-100 disabled:opacity-50 ${effectiveOwnReaction === emoji ? "bg-amber-100 ring-1 ring-amber-300" : ""}`} aria-label={`تفاعل ${emoji}`}><AppleEmoji emoji={emoji} size={25} /></button>
-            ))}
-            {reactionOptions.length > 1 ? <button ref={reactionPickerAnchorRef} type="button" onClick={() => setReactionPickerExpanded((current) => !current)} className="grid h-9 w-9 place-items-center rounded-full text-lg font-black text-slate-500 transition hover:bg-slate-100" aria-label={t("aiSupport.inbox.message.showAllEmoji")}>+</button> : null}
-          </div>
-        </div>
-      ) : null}
+      {/* One sheet for the whole message: the reactions over it, the actions
+          under it, the message itself lifted out of the dimmed transcript —
+          the same gesture and the same picture the customer's own chat app
+          gives, on the desktop inbox and in the PWA alike. */}
+      <MessageActionOverlay
+        open={menuOpen}
+        anchorEl={anchorEl}
+        align={align}
+        mode={mode}
+        items={menuItems}
+        reactionOptions={reactionOptions}
+        canReact={canReact}
+        reactionSending={reactionSending}
+        activeReaction={effectiveOwnReaction}
+        onReact={(emoji) => void submitReaction(emoji)}
+        onMore={() => setReactionPickerExpanded(true)}
+        moreRef={reactionPickerAnchorRef}
+        onClose={closeActions}
+        labels={{
+          react: t("aiSupport.inbox.message.addReaction"),
+          showAllEmoji: t("aiSupport.inbox.message.showAllEmoji"),
+          messageActions: t("aiSupport.inbox.message.messageActions"),
+        }}
+      />
       <AppleEmojiPicker
         open={reactionPickerExpanded}
         anchorRef={reactionPickerAnchorRef}
@@ -466,22 +565,6 @@ function MessageActionShell({ row, message, variant, align = "left", createdAt =
               return <AppleEmoji key={messageIdentity({ kind: "reaction" }, reaction)} emoji={emoji} size={20} className="drop-shadow-sm" title={`${reactor}: ${emoji}`} />;
             })}
           </div>
-        </div>
-      ) : null}
-      {menuOpen ? (
-        <div
-          dir="ltr"
-          role="menu"
-          aria-label={t("aiSupport.inbox.message.messageActions")}
-          style={{ left: menuPosition.left, top: menuPosition.top }}
-          className="absolute z-40 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-slate-800 shadow-[0_18px_55px_rgba(0,0,0,0.28)]"
-        >
-          {menuItems.map(({ label, icon: Icon, action, disabled, active }) => (
-            <button key={label} type="button" onClick={action} disabled={disabled} className={`flex h-10 w-full items-center gap-3 px-3 text-left text-sm font-semibold transition hover:bg-slate-100 disabled:opacity-40 ${active ? "text-amber-600" : ""}`}>
-              <Icon className={`h-4 w-4 ${active && label.includes("Star") ? "fill-current" : ""}`} />
-              <span>{label}</span>
-            </button>
-          ))}
         </div>
       ) : null}
       {infoOpen ? (
@@ -839,6 +922,7 @@ function TranscriptMessage({
       row={safeRow}
       message={message}
       variant={variant}
+      mode={chromeMode}
       align={align}
       createdAt={createdAt}
       channelLabel={channelLabel}
