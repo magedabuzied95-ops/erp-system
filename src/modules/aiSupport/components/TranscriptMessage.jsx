@@ -25,6 +25,13 @@ const MESSAGE_PIN_STORAGE_KEY = "m1:ai-inbox:pinned-messages:v1";
 const MESSAGE_STAR_STORAGE_KEY = "m1:ai-inbox:starred-messages:v1";
 const MESSAGE_PIN_CHANGE_EVENT = "m1:ai-inbox-message-pin-change";
 const MESSAGE_FOCUS_EVENT = "m1:ai-inbox-message-focus";
+// Shared by every message in the transcript on purpose: the tap that dismisses
+// the sheet must not open the NEXT one. The scrim already swallows that tap, but
+// a phone browser can still retarget a click whose scrim went away underneath
+// it, and the message it lands on is never the one that was open — so the whole
+// transcript ignores an opening tap for a moment after a sheet closes.
+const ACTION_SHEET_REOPEN_GUARD_MS = 350;
+let actionSheetClosedAt = 0;
 // WhatsApp refuses an edit older than 15 minutes, so the action disappears
 // rather than offering a button that can only fail. Mirrors
 // WHATSAPP_EDIT_WINDOW_MS on the server.
@@ -284,6 +291,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
   }, [key]);
 
   const closeActions = () => {
+    actionSheetClosedAt = Date.now();
     setMenuOpen(false);
     setAnchorEl(null);
   };
@@ -299,6 +307,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
 
   const canOpenActionsFrom = (target) => {
     if (editing || menuOpen) return false;
+    if (Date.now() - actionSheetClosedAt < ACTION_SHEET_REOPEN_GUARD_MS) return false;
     if (!target?.closest?.("[data-ai-message-bubble='true'], [data-ai-message-body='true']")) return false;
     if (target.closest("a, button, input, textarea, select, audio, video, [role='button']")) return false;
     if (typeof window !== "undefined" && window.getSelection?.()?.toString()) return false;

@@ -183,8 +183,17 @@ export default function MessageActionOverlay({
       role="presentation"
       data-ai-message-action-overlay="true"
       style={{ position: "fixed", inset: 0, zIndex: OVERLAY_Z }}
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget || event.target.closest("[data-m1-msg-dismiss='true']")) onClose?.();
+      // The dismissing tap is taken on the click, not on the pointer going
+      // down. Closing on pointerdown tears the scrim away mid-gesture, and the
+      // browser then hands the click that follows to whatever is under the
+      // finger — the message underneath — which opened a second sheet instead
+      // of closing the first. Held to the end of the gesture, the scrim takes
+      // that click itself and stops it there.
+      onClick={(event) => {
+        if (event.target !== event.currentTarget && !event.target.closest("[data-m1-msg-dismiss='true']")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onClose?.();
       }}
       onContextMenu={(event) => event.preventDefault()}
     >
