@@ -66,4 +66,49 @@ const extractIndex = routeSource.indexOf("const messages = extractWhatsAppWebhoo
 assert.ok(gateCallIndex > 0 && extractIndex > 0, "the gate call or the extraction is gone");
 assert.ok(gateCallIndex < extractIndex, "the gate must run before any message is extracted");
 
+// ── 4. Two numbers, and a reply leaves from the one the customer wrote to ─────────────────────
+// The Evolution instance and the Cloud number now run as independent lines. When the caller does
+// not name the instance, the fallback was WHATSAPP_PROVIDER — a property of the deployment, not
+// of the conversation — so a Cloud customer was answered out of the Evolution session and back,
+// on a line that may not even be connected.
+const adapterSource = readFileSync(
+  fileURLToPath(new URL("../services/aiChannelAdapterService.js", import.meta.url)), "utf8"
+);
+assert.match(
+  adapterSource,
+  /const selectedInstance = toText\(instance\) \|\| await lastKnownWhatsappInstance\(recipient\);/,
+  "an unnamed instance must be resolved from the conversation before the environment decides"
+);
+assert.doesNotMatch(
+  adapterSource,
+  /const selectedInstance = toText\(instance\);/,
+  "falling straight through to the environment default is what crossed the two lines"
+);
+// The environment stays the LAST resort — removing it would strand a customer we have never
+// exchanged a message with.
+assert.match(
+  adapterSource,
+  /instanceIsCloud \|\| config\.provider === "cloud" \? "cloud" : "evolution"/,
+  "the environment default must remain for a conversation with no history at all"
+);
+
+const { lastKnownWhatsappInstance } = await import("../services/aiChannelAdapterService.js");
+// No phone, no query: this runs on the send path and must not touch the database to say "nothing".
+assert.equal(await lastKnownWhatsappInstance(""), "");
+assert.equal(await lastKnownWhatsappInstance("   "), "");
+assert.equal(await lastKnownWhatsappInstance("abc"), "", "a recipient with no digits names no number");
+const resolverStart = adapterSource.indexOf("export const lastKnownWhatsappInstance = async");
+assert.ok(resolverStart > 0, "the resolver is gone");
+const resolverBody = adapterSource.slice(resolverStart, adapterSource.indexOf("export const providerMessageIdFromSendResponse", resolverStart));
+assert.match(
+  resolverBody,
+  /catch \(error\)[\s\S]{0,320}return "";/,
+  "a failed lookup must fall back to the old behaviour, never throw on the send path"
+);
+assert.match(
+  resolverBody,
+  /ORDER BY created_at DESC/,
+  "the number the customer wrote to most recently is the one that answers"
+);
+
 console.log("whatsapp cloud ingest gate OK");

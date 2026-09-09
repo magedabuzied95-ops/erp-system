@@ -1690,6 +1690,47 @@ const visualAttachmentImageUrls = (reply = {}) =>
  * message a second time a second or two later. Ten rows in a week, every one of them a message
  * the customer received exactly once.
  */
+/*
+ * WHICH OF OUR NUMBERS THIS CUSTOMER IS TALKING TO.
+ *
+ * Two independent WhatsApp lines run side by side — an Evolution instance and a Cloud number —
+ * and a reply has to leave from the one the customer actually wrote to. The caller normally
+ * knows it and passes it; when it does not, the fallback was WHATSAPP_PROVIDER, which is a
+ * property of the DEPLOYMENT and not of the conversation. That answered a Cloud customer out of
+ * the Evolution session and an Evolution customer out of Cloud — on a line that may not even be
+ * connected, which is what "Connection Closed" on a perfectly healthy conversation was.
+ *
+ * The conversation's own history is the answer. The environment default stays as the last
+ * resort, for a customer we have genuinely never exchanged a message with.
+ *
+ * Never throws: an unresolved instance is the old behaviour, not a lost message.
+ */
+export const lastKnownWhatsappInstance = async (recipient = "") => {
+  const phone = toText(recipient).replace(/D/g, "");
+  if (!phone) return "";
+  try {
+    const { rows } = await db.query(
+      `
+      SELECT whatsapp_instance
+      FROM ai_support_messages
+      WHERE channel = 'whatsapp'
+        AND session_id = $1
+        AND COALESCE(whatsapp_instance, '') <> ''
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [`whatsapp:${phone}`]
+    );
+    return toText(rows[0]?.whatsapp_instance || "");
+  } catch (error) {
+    console.warn("[whatsapp] could not resolve the conversation's own number", {
+      phone_suffix: phone.slice(-4),
+      message: error?.message || String(error),
+    });
+    return "";
+  }
+};
+
 export const providerMessageIdFromSendResponse = (response = null) => toText(
   response?.message_id
   || response?.messages?.[0]?.id
@@ -1716,9 +1757,10 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
    *
    * The instance carries the answer, in the same form the gateway already understands:
    * "cloud:<phone_number_id>" is the Cloud number, a bare name is an Evolution instance, and
-   * empty still means "whatever the environment says".
+   * empty means: ask the conversation which number it belongs to, and only fall back to the
+   * environment for a customer we have never exchanged a message with.
    */
-  const selectedInstance = toText(instance);
+  const selectedInstance = toText(instance) || await lastKnownWhatsappInstance(recipient);
   const instanceIsCloud = selectedInstance.toLowerCase().startsWith("cloud:");
   const selectedTransport = instanceIsCloud || config.provider === "cloud" ? "cloud" : "evolution";
   if (instanceIsCloud) config.phoneNumberId = selectedInstance.slice("cloud:".length) || config.phoneNumberId;
