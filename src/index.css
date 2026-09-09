@@ -8214,6 +8214,20 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     border-color: var(--m1h-line, rgba(255, 255, 255, 0.1)) !important;
   }
 
+  /* The footer wordmark comes in two files — dark ink for the cream band,
+     white for the black one — and the swap used to be `dark:hidden` /
+     `hidden dark:block`. Both are inert under the shop, so the DARK artwork
+     was the one painting on the dark footer: a near-black logo on #0b0b0b.
+     The markup keeps `hidden` on the white copy so it stays hidden until this
+     sheet arrives, which is why the dark rule needs `display: block`. */
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer-logo--on-light {
+    display: none !important;
+  }
+
+  body.storefront-shell.storefront-dark .sf-footer .sf-footer-logo--on-dark {
+    display: block !important;
+  }
+
   /* ---- catalogue ink ---------------------------------------------------
      Same defect, same cause, on the listing pages (/products, /offers,
      search and every SEO category): the heading, the result count and both

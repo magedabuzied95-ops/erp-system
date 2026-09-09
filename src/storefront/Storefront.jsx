@@ -3544,11 +3544,15 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr]">
           <div>
             <div className="relative h-24 w-24 md:h-28 md:w-28" aria-label="M1 Store">
-              <div className="absolute inset-0 dark:hidden">
+              {/* Which artwork shows is decided by `.storefront-dark` in
+                  index.css, not by the `dark:` variant — the shop runs with
+                  Tailwind's `dark` class off in both themes, so `dark:hidden`
+                  here left the DARK logo on the black footer. */}
+              <div className="sf-footer-logo sf-footer-logo--on-light absolute inset-0">
                 <img src="/branding/m-one-logo-dark-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
                 <img src="/branding/m-one-logo-dark-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
               </div>
-              <div className="absolute inset-0 hidden dark:block">
+              <div className="sf-footer-logo sf-footer-logo--on-dark absolute inset-0 hidden">
                 <img src="/branding/m-one-logo-white-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
                 <img src="/branding/m-one-logo-white-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
               </div>

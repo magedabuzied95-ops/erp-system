@@ -34,8 +34,20 @@ test("the dark storefront paints its ink on every page, not only the homepage", 
   assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-product-card \.sf-product-card-name/);
   assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-product-card \.sf-product-card-brand/);
 
+  // The footer wordmark is two files, and `dark:hidden` / `hidden dark:block`
+  // left the DARK-ink one painting on the black footer.
+  assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-footer \.sf-footer-logo--on-light\s*\{[^}]*display:\s*none/);
+  assert.match(styles, /body\.storefront-shell\.storefront-dark \.sf-footer \.sf-footer-logo--on-dark\s*\{[^}]*display:\s*block/);
+  assert.doesNotMatch(
+    storefrontSource,
+    /className=["'`][^"'`]*dark:hidden/,
+    "no storefront element may swap itself with the inert dark variant"
+  );
+
   // The CSS above is only reachable through these hooks.
   assert.match(storefrontSource, /className=\{`sf-product-card-name /);
+  assert.match(storefrontSource, /className="sf-footer-logo sf-footer-logo--on-light /);
+  assert.match(storefrontSource, /className="sf-footer-logo sf-footer-logo--on-dark /);
   assert.match(storefrontSource, /className="sf-product-card-brand /);
   assert.match(listingSource, /className="sf-catalog-intro /);
   assert.match(listingSource, /className="sf-catalog-pagesize-label /);
