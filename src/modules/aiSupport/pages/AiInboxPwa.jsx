@@ -505,6 +505,18 @@ const normalizeMessageDirection = (message = {}) => {
   return "";
 };
 
+// A value that normalisation did not really change. Arrays are rebuilt on every
+// pass (product cards), so they count as unchanged when they hold the same items.
+const sameNormalizedValue = (left, right) => {
+  if (left === right) return true;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length && left.every((item, index) => item === right[index]);
+  }
+  return false;
+};
+
+const EMPTY_CONVERSATION_METADATA = Object.freeze({});
+
 const normalizeInboxMessage = (message = {}) => {
   if (!message || typeof message !== "object") return {};
   const productCards = normalizeMessageProductCards(message);
@@ -544,7 +556,7 @@ const normalizeInboxMessage = (message = {}) => {
       ""
   );
 
-  return {
+  const normalized = {
     ...message,
     direction: direction || message.direction || message.message_direction || "",
     sender_type: normalizedSenderType,
@@ -572,6 +584,15 @@ const normalizeInboxMessage = (message = {}) => {
     product_cards: productCards,
     productCards,
   };
+
+  // An ALREADY normalised message must come back as the same object. This ran on
+  // every message on every patch, and a fresh object each time meant the
+  // transcript could not memoise: sending one reply re-rendered every bubble in
+  // the thread — one 149ms task on a desktop, far worse on the phone.
+  for (const key of Object.keys(normalized)) {
+    if (!sameNormalizedValue(normalized[key], message[key])) return normalized;
+  }
+  return message;
 };
 
 const conversationWorkflowStatus = (conversation = {}) =>
@@ -2092,22 +2113,24 @@ const PwaComposerBar = memo(function PwaComposerBar({
             <Plus className="h-5 w-5" />
           </button>
         </div>
+        {/* Never disabled. A reply already on its way to the provider is no
+            reason to stop the next one being written — that lock is what made
+            sending feel slow even though the bubble appeared instantly. */}
         <PwaReplyEditor
           editorRef={editorRef}
           value={seedText}
           onChange={handleChange}
           onSubmit={onSubmit}
-          disabled={sending}
           placeholder={placeholder}
         />
         <button
           type="button"
           onClick={() => void onSubmit?.()}
-          disabled={!draftState.armed || sending}
+          disabled={!draftState.armed}
           className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
           aria-label={mode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
         >
-          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+          {sending && !draftState.armed ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </button>
       </div>
     </>
@@ -2498,8 +2521,11 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
       ) : null}
       {rows.map((row, index) => {
         const rowTime = transcriptRowTime(row);
-        const rowKey = transcriptDayKey(rowTime);
-        const prevKey = index > 0 ? transcriptDayKey(transcriptRowTime(rows[index - 1])) : "";
+        const rowKey = row.dayKey === undefined ? transcriptDayKey(rowTime) : row.dayKey;
+        const previousRow = index > 0 ? rows[index - 1] : null;
+        const prevKey = !previousRow ? "" : previousRow.dayKey === undefined ? transcriptDayKey(transcriptRowTime(previousRow)) : previousRow.dayKey;
+        // Only a day boundary needs the written label, so the expensive part
+        // runs a handful of times per thread rather than once per message.
         const dayLabel = rowKey && rowKey !== prevKey ? transcriptDayLabel(rowTime) : "";
         // Messenger hangs the avatar off the LAST message of a run, not every one
         // of them, so a burst of five lines from the customer reads as one person
@@ -3540,10 +3566,12 @@ export default function AiInboxPwa() {
   const isLoadingOlderRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
   const isAppendingNewMessageRef = useRef(false);
-  // Synchronous in-flight guard for manual sends: a ref (not the async `sending`
-  // state) so a rapid double-click cannot start a second send before the first
-  // render commits — preventing duplicate outbound messages.
-  const manualSendInFlightRef = useRef(false);
+  // Double-tap guard for manual sends. It used to block every send while one
+  // was in flight, which on a phone meant no second message could leave for the
+  // 2-5s the provider takes — the sender sat and waited. What actually needs
+  // preventing is the SAME text going twice from one impatient double tap, so
+  // the guard remembers the last text and the moment it left.
+  const lastManualSendRef = useRef({ text: "", at: 0 });
   // Its own guard: an upload takes seconds, and the picker can fire twice.
   const attachmentSendingRef = useRef(false);
   const previousConversationKeyRef = useRef("");
@@ -4371,7 +4399,7 @@ export default function AiInboxPwa() {
     if (!("serviceWorker" in navigator)) return undefined;
     // `?v=` must move with VERSION inside inbox-sw.js, or clients keep running the
     // old worker and the cache-first `/assets/` rule strands them on a stale bundle.
-    navigator.serviceWorker.register("/inbox-sw.js?v=18", { scope: "/inbox" }).catch(() => null);
+    navigator.serviceWorker.register("/inbox-sw.js?v=19", { scope: "/inbox" }).catch(() => null);
     return undefined;
   }, []);
 
@@ -5255,11 +5283,29 @@ export default function AiInboxPwa() {
   useEffect(() => {
     setEditingAiDraft(false);
   }, [selectedConversation?.session_id]);
+  // Rows are memoised per message. TranscriptMessage bails out on `prev.row ===
+  // next.row`, so rebuilding every row object on every patch defeated it and one
+  // new reply re-rendered the whole thread. A message whose object has not
+  // changed keeps the row it already had.
+  const transcriptRowCacheRef = useRef(new Map());
+  // Every handler a message bubble receives used to list `selectedConversation`
+  // among its dependencies. Sending a reply replaces that object, so all five
+  // handlers were reborn and TranscriptMessage — memoised on prop identity —
+  // re-rendered EVERY bubble in the thread. They read the live conversation off
+  // this mirror instead, and keep their identity across a patch.
+  const selectedConversationRef = useRef(null);
+  useLayoutEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
+
   const selectedTranscriptRows = useMemo(() => {
+    const conversationMetadata = selectedConversation?.channel_metadata || selectedConversation?.metadata || EMPTY_CONVERSATION_METADATA;
+    const previousRows = transcriptRowCacheRef.current;
+    const nextRows = new Map();
     const messages = cascadeDeliveryStatuses(
       uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message))
     );
-    return messages
+    const rows = messages
       .map((message) => {
         const normalizedMessage = normalizeInboxMessage(message);
         const cards = normalizeMessageProductCards(normalizedMessage);
@@ -5270,18 +5316,34 @@ export default function AiInboxPwa() {
         const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
         const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
-        return {
-          key: messageKey(normalizedMessage),
+        const rowKey = messageKey(normalizedMessage);
+        const cached = previousRows.get(rowKey);
+        if (cached && cached.source === normalizedMessage && cached.row.conversationMetadata === conversationMetadata) {
+          nextRows.set(rowKey, cached);
+          return cached.row;
+        }
+        const row = {
+          key: rowKey,
           message: normalizedMessage,
           cards,
           kind: hasProductCards || normalizedMessage.message_type === "product_card" ? "product_card" : isCustomer ? "customer" : isStaff ? "staff" : "ai",
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
-          conversationMetadata: selectedConversation?.channel_metadata || selectedConversation?.metadata || {},
+          // The instant itself, and the calendar day it falls on. Both are
+          // computed once per message here: the transcript used to derive the
+          // day key twice per row on every render, and each derivation built a
+          // fresh Intl formatter.
+          created_at: normalizedMessage.created_at,
+          dayKey: transcriptDayKey(normalizedMessage.created_at),
+          conversationMetadata,
         };
+        nextRows.set(rowKey, { source: normalizedMessage, row });
+        return row;
       })
       .filter(Boolean);
-  }, [selectedConversation?.messages]);
+    transcriptRowCacheRef.current = nextRows;
+    return rows;
+  }, [selectedConversation?.messages, selectedConversation?.channel_metadata, selectedConversation?.metadata]);
 
   useEffect(() => {
     const draftText = clean(activeAiReplyDraft?.text || "");
@@ -5609,6 +5671,8 @@ export default function AiInboxPwa() {
   }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, selectedConversation, tab]);
 
   const reactToMessage = useCallback(async ({ emoji = "", targetMessageId = "", remoteJid = "", targetFromMe = false } = {}) => {
+    // The live conversation, without taking a dependency on it (see the ref).
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !targetMessageId) return null;
     try {
       const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/reaction"), {
@@ -5625,12 +5689,14 @@ export default function AiInboxPwa() {
       toast.error(reactionError?.message || "تعذر إرسال التفاعل");
       throw reactionError;
     }
-  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, requestRefresh, selectedConversationRouteId, tenantId]);
 
   // Edits a message the customer already received. WhatsApp only, and only
   // inside its 15-minute window — the server is the authority, so the thread is
   // refreshed from it rather than patched optimistically.
   const editMessage = useCallback(async ({ text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+    // The live conversation, without taking a dependency on it (see the ref).
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !targetMessageId) return null;
     try {
       const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/edit"), {
@@ -5646,14 +5712,15 @@ export default function AiInboxPwa() {
       toast.error(editError?.message || "تعذر تعديل الرسالة");
       throw editError;
     }
-  }, [headers, requestRefresh, selectedConversation, selectedConversationRouteId, tenantId]);
+  }, [headers, requestRefresh, selectedConversationRouteId, tenantId]);
 
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
     const message = cleanMessageText(explicitText || readComposerText());
     if (!selectedConversation?.session_id || !message) return { ok: false, skipped: true };
-    if (manualSendInFlightRef.current) return { ok: false, skipped: true }; // double-click / in-flight guard
-    manualSendInFlightRef.current = true;
+    const lastSend = lastManualSendRef.current;
+    if (message === lastSend.text && Date.now() - lastSend.at < 1500) return { ok: false, skipped: true };
+    lastManualSendRef.current = { text: message, at: Date.now() };
     const clientRequestId = buildClientRequestId();
     const canonicalSessionId = selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
     const messageIdentityKey = buildMessageIdentityKey({
@@ -5697,8 +5764,15 @@ export default function AiInboxPwa() {
     });
     if (composerMode !== "note" && warningCount > 0) {
       const confirmed = window.confirm(sendWarnings.join("\n"));
-      if (!confirmed) { manualSendInFlightRef.current = false; return { ok: false, cancelled: true }; }
+      // Cancelled: release the double-tap guard so the same text can be sent
+      // once the sender has read the warning and decided again.
+      if (!confirmed) { lastManualSendRef.current = { text: "", at: 0 }; return { ok: false, cancelled: true }; }
     }
+    // Empty the box NOW. The optimistic bubble below carries the text into the
+    // thread with a "sending" clock, exactly as WhatsApp does, so waiting for the
+    // provider before clearing only left the sender staring at text they had
+    // already sent. A failure is reported on that bubble, not by refilling the box.
+    if (!explicitText || readComposerText().trim() === message) setComposerText("");
     const allowSameTextCorrection = options.allowSameTextCorrection === true || editingAiDraft;
     const correctionMetadata = options.correctionMetadata || {};
     const sendFlow = options.flow || (allowSameTextCorrection ? "edit" : "normal");
@@ -5878,7 +5952,6 @@ export default function AiInboxPwa() {
         toast.success(t("aiSupport.inbox.pwa.messageSent"));
       }
       setEditingAiDraft(false);
-      setComposerText("");
       if (composerMode === "note") setComposerMode("reply");
       // The caller needs to know whether the customer actually received this.
       // An assisted approval sends the reply text FIRST and the product cards
@@ -5899,7 +5972,6 @@ export default function AiInboxPwa() {
       toast.error(sendError?.responseBody?.delivery_error || sendError?.responseBody?.message || sendError?.message || "فشل الإرسال");
       return { ok: false, error: sendError?.message || "" };
     } finally {
-      manualSendInFlightRef.current = false;
       setSending(false);
     }
   }, [composerMode, editingAiDraft, headers, patchConversation, readComposerText, selectedConversation, setComposerText, tenantId]);
@@ -5968,9 +6040,11 @@ export default function AiInboxPwa() {
   // "This answer was wrong" — the correction the AI learns from. Reachable from
   // any AI message in the transcript, the same as on the desktop.
   const openReplyCorrection = useCallback((message = {}) => {
+    // The live conversation, without taking a dependency on it (see the ref).
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id) return;
     setCorrectionModal({ open: true, draft: buildReplyCorrectionDraft({ conversation: selectedConversation, message }) });
-  }, [selectedConversation]);
+  }, []);
   const closeReplyCorrection = useCallback(() => {
     setCorrectionModal({ open: false, draft: buildReplyCorrectionDraft() });
   }, []);
@@ -6650,6 +6724,8 @@ export default function AiInboxPwa() {
   }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
 
   const sendLeadPrivateMessage = useCallback(async (targetComment = null) => {
+    // The live conversation, without taking a dependency on it (see the ref).
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id) return;
     const identifiers = conversationIdentifiers(selectedConversation);
     const sessionId = identifiers.sessionId;
@@ -6688,9 +6764,11 @@ export default function AiInboxPwa() {
     } finally {
       setLeadActionLoading("");
     }
-  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, tenantId]);
 
   const sendLeadCommentReply = useCallback(async (targetComment = null) => {
+    // The live conversation, without taking a dependency on it (see the ref).
+    const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation)) return;
     const identifiers = conversationIdentifiers(selectedConversation);
     const sessionId = identifiers.sessionId;
@@ -6737,7 +6815,7 @@ export default function AiInboxPwa() {
     } finally {
       setLeadActionLoading("");
     }
-  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, tenantId]);
 
   const saveSocialReplySettings = useCallback(async () => {
     setSocialActionLoading("global_settings");
@@ -7049,7 +7127,7 @@ export default function AiInboxPwa() {
   );
   const lastOrder = asArray(selectedConversation?.customer_profile?.previous_orders)[0] || selectedConversation?.last_order || selectedConversation?.order || null;
   const confirmationMeta = confirmationStatusMeta(lastOrder?.status);
-  const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || availableBySizeSending || sending);
+  const quickActionBusy = Boolean(leadActionLoading || aiToggling || productSending || availableBySizeSending);
   const isRtlLayout =
     typeof document !== "undefined" &&
     ((document.documentElement.dir || document.body?.dir || "").toLowerCase() === "rtl");

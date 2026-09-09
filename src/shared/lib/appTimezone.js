@@ -60,15 +60,16 @@ const NativeDateTimeFormat = Intl.DateTimeFormat;
 
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
-/**
- * The wall clock an instant shows in the zone, as numbers:
- * `{ year, month (1-12), day, hour (0-23), minute, second, weekday (0 = Sunday) }`, or null.
- */
-export const zonedParts = (value = new Date(), timeZone = appTimezone) => {
-  const date = toDate(value);
-  if (!date) return null;
-  const parts = {};
-  const formatted = new NativeDateTimeFormat("en-US", {
+// Building an Intl.DateTimeFormat is the expensive half of reading a zoned
+// clock, and it is asked for per row, per render, all over the app — the AI
+// Inbox transcript alone rebuilt it twice per message every time a reply was
+// sent. A formatter is immutable, so one per zone is kept and reused.
+const zonedPartsFormatters = new Map();
+
+const zonedPartsFormatter = (timeZone) => {
+  const cached = zonedPartsFormatters.get(timeZone);
+  if (cached) return cached;
+  const formatter = new NativeDateTimeFormat("en-US", {
     timeZone,
     hourCycle: "h23",
     year: "numeric",
@@ -78,7 +79,20 @@ export const zonedParts = (value = new Date(), timeZone = appTimezone) => {
     minute: "2-digit",
     second: "2-digit",
     weekday: "short",
-  }).formatToParts(date);
+  });
+  zonedPartsFormatters.set(timeZone, formatter);
+  return formatter;
+};
+
+/**
+ * The wall clock an instant shows in the zone, as numbers:
+ * `{ year, month (1-12), day, hour (0-23), minute, second, weekday (0 = Sunday) }`, or null.
+ */
+export const zonedParts = (value = new Date(), timeZone = appTimezone) => {
+  const date = toDate(value);
+  if (!date) return null;
+  const parts = {};
+  const formatted = zonedPartsFormatter(timeZone).formatToParts(date);
   for (const part of formatted) {
     if (part.type !== "literal") parts[part.type] = part.value;
   }
