@@ -6607,6 +6607,7 @@ export const executeSocialCommentAutomation = async ({
     conversationId: trace.conversationId || sessionId || "",
     productContext: trace.productContext || null,
     customerName: trace.customerName || "",
+    commentText: trace.commentText || safeRow.original_comment_text || safeRow.comment_text || "",
   }));
   const rawResolvedProductContext = metadataObject(
     safeRow.product_context ||

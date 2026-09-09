@@ -603,6 +603,231 @@ export const stripCardPointersFromText = (message = "", { keepSizeButtons = fals
     .trim();
 };
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   THE CUSTOMER ALREADY SAID WHAT THEY WANT
+   ──────────────────────────────────────────────────────────────────────────────────────────────
+   "42 اسود" under a product post used to buy nothing: the first DM was built from the PRODUCT
+   alone, so it sent every colour and asked the colour question anyway. The comment text now
+   resolves against the catalog before that message is built, and what is provably satisfiable
+   narrows the cards, the buttons and the copy.
+
+   What this must never do is CHOOSE. INV-1203 was an auto-picked colour — a size tap resolved to
+   whichever colour still stocked it, and the customer was never asked. So:
+     • a colour settles only when it is in stock AND stocks the size they named;
+     • a size NEVER settles a colour on its own, not even when exactly one colour has it — the
+       colour question survives, the text just says where that size lives;
+     • an unsatisfiable request narrows nothing; it is answered in words instead.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+
+// Arabic-Indic (U+0660) and Extended Arabic-Indic (U+06F0) digits are the same sizes as ASCII
+// ones. Compared by CODE POINT rather than through a character class of literal digits: a matcher
+// is exactly the kind of string this repo has silently corrupted before, and a mangled range
+// matches nothing without ever erroring.
+const normalizeArabicDigits = (value = "") =>
+  Array.from(String(value ?? ""))
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660);
+      if (code >= 0x06F0 && code <= 0x06F9) return String(code - 0x06F0);
+      return character;
+    })
+    .join("");
+
+const sizeMatchKey = (value = "") => {
+  const normalized = normalizeArabicDigits(text(value)).toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return "";
+  const parsed = Number.parseFloat(normalized);
+  // "42", "42.0" and "٤٢" are one size; "42.5" keeps its half.
+  return Number.isFinite(parsed) && /^\d+(?:\.\d+)?$/.test(normalized) ? String(parsed) : normalized;
+};
+
+// Only the catalog's OWN sizes can match, so a price, a quantity or a phone number in the comment
+// cannot be read as a size. Two different sizes in one comment is a question, not a choice — it
+// resolves to nothing rather than to a guess.
+export const matchSocialCommentSizeInput = (input = "", catalogSizes = []) => {
+  const normalizedInput = normalizeArabicDigits(text(input)).toLowerCase();
+  if (!normalizedInput) return "";
+  const keyed = asArray(catalogSizes)
+    .map((size) => ({ size: text(size), key: sizeMatchKey(size) }))
+    .filter((entry) => entry.size && entry.key);
+  if (!keyed.length) return "";
+  const tokens = new Set(
+    normalizedInput
+      .split(/[^\p{L}\p{N}.]+/u)
+      .map((token) => sizeMatchKey(token))
+      .filter(Boolean)
+  );
+  const matched = keyed.filter((entry) => tokens.has(entry.key));
+  const distinct = new Set(matched.map((entry) => entry.key));
+  return distinct.size === 1 ? matched[0].size : "";
+};
+
+const uniqueColorValues = (values = []) =>
+  asArray(values)
+    .map((value) => text(value))
+    .filter(Boolean)
+    .filter((value, index, array) => array.findIndex((item) => colorGroupKey(item) === colorGroupKey(value)) === index);
+
+export const resolveSocialCommentRequestedVariant = ({ commentText = "", normalizedContext = {} } = {}) => {
+  const idle = {
+    requested: false,
+    color: "",
+    size: "",
+    colorAvailable: false,
+    sizeAvailable: false,
+    comboAvailable: false,
+    settledColor: "",
+    settledSize: "",
+    colorsWithRequestedSize: [],
+    availableSizesForColor: [],
+  };
+  const comment = text(commentText);
+  if (!comment) return idle;
+  const color = matchSocialCommentColorInput(comment, normalizedContext?.availableColors || []);
+  const size = matchSocialCommentSizeInput(comment, normalizedContext?.availableSizes || []);
+  if (!color && !size) return idle;
+
+  const rows = asArray(normalizedContext?.availableVariantRows).filter((row) => row && typeof row === "object");
+  const colorRows = color ? rows.filter((row) => colorGroupKey(row?.color || "") === colorGroupKey(color)) : [];
+  const rowsWithSize = size ? rows.filter((row) => sizeMatchKey(variantSizeLabel(row)) === sizeMatchKey(size)) : [];
+  const colorsWithRequestedSize = uniqueColorValues(rowsWithSize.map((row) => row?.color || ""));
+  const colorAvailable = Boolean(color) && colorRows.length > 0;
+  const sizeAvailable = Boolean(size) && rowsWithSize.length > 0;
+  const comboAvailable = Boolean(color && size)
+    && colorRows.some((row) => sizeMatchKey(variantSizeLabel(row)) === sizeMatchKey(size));
+
+  return {
+    requested: true,
+    color,
+    size,
+    colorAvailable,
+    sizeAvailable,
+    comboAvailable,
+    // A named size that this colour does not stock un-settles the colour: the answer then has to
+    // show the customer where that size actually is, which it cannot do from one narrowed card.
+    settledColor: colorAvailable && (!size || comboAvailable) ? color : "",
+    settledSize: comboAvailable ? size : "",
+    colorsWithRequestedSize,
+    availableSizesForColor: sortSocialCommentAvailableSizes(colorRows.map((row) => variantSizeLabel(row))),
+  };
+};
+
+export const narrowSocialCommentContextToRequest = ({ normalizedContext = {}, requestedVariant = {} } = {}) => {
+  const context = normalizedContext && typeof normalizedContext === "object" ? normalizedContext : {};
+  if (!requestedVariant?.requested) return context;
+  const cards = asArray(context.colorCards);
+  const settledColor = text(requestedVariant.settledColor);
+
+  if (settledColor) {
+    const card = cards.find((item) => colorGroupKey(item?.color || "") === colorGroupKey(settledColor)) || null;
+    const sizes = sortSocialCommentAvailableSizes(requestedVariant.availableSizesForColor);
+    const narrowedSizes = sizes.length ? sizes : asArray(context.availableSizes).map(text).filter(Boolean);
+    return {
+      ...context,
+      availableColors: [settledColor],
+      availableSizes: narrowedSizes,
+      availableSizesLabel: narrowedSizes.length ? narrowedSizes.join(" | ") : context.availableSizesLabel,
+      colorCards: card ? [card] : cards,
+      // One card is not a carousel. The single-card path takes over, and it draws THIS colour
+      // because the product image and link are swapped for the card's own.
+      carouselEligible: false,
+      productImageUrl: text(card?.imageUrl) || context.productImageUrl,
+      productLink: text(card?.productLink) || context.productLink,
+      requestedVariant,
+      requestNarrowed: true,
+    };
+  }
+
+  // Size only. Narrowing to a SINGLE colour here would settle a colour nobody was asked about —
+  // that is INV-1203 — so it only ever drops colours when two or more still remain to choose from.
+  const colorsWithSize = uniqueColorValues(requestedVariant.colorsWithRequestedSize);
+  const allColors = uniqueColorValues(context.availableColors);
+  if (requestedVariant.sizeAvailable && colorsWithSize.length >= 2 && colorsWithSize.length < allColors.length) {
+    const keys = new Set(colorsWithSize.map((value) => colorGroupKey(value)));
+    const narrowedCards = cards.filter((item) => keys.has(colorGroupKey(item?.color || "")));
+    return {
+      ...context,
+      availableColors: colorsWithSize,
+      colorCards: narrowedCards.length ? narrowedCards : cards,
+      carouselEligible: narrowedCards.length ? socialCommentCarouselEligible(narrowedCards) : context.carouselEligible,
+      requestedVariant,
+      requestNarrowed: true,
+    };
+  }
+
+  return { ...context, requestedVariant, requestNarrowed: false };
+};
+
+// What the customer reads before the ask. Every branch names what they typed, so a narrowed set of
+// cards is never a silent substitution, and an unavailable request is answered instead of ignored.
+export const buildSocialCommentRequestedVariantLines = (requestedVariant = {}) => {
+  if (!requestedVariant?.requested) return [];
+  const colorLabel = normalizeSocialCommentColorDisplay(requestedVariant.color) || text(requestedVariant.color);
+  const size = text(requestedVariant.size);
+  const alternatives = uniqueColorValues(requestedVariant.colorsWithRequestedSize)
+    .map((value) => normalizeSocialCommentColorDisplay(value) || value)
+    .join(" / ");
+  const sizesForColor = sortSocialCommentAvailableSizes(requestedVariant.availableSizesForColor).join(" | ");
+
+  if (requestedVariant.settledColor && requestedVariant.settledSize) {
+    return [`${colorLabel} مقاس ${size} متاح ✅`];
+  }
+  if (requestedVariant.settledColor) {
+    return [`${colorLabel} متاح ✅`];
+  }
+  if (colorLabel && !requestedVariant.colorAvailable) {
+    return [
+      `${colorLabel} خلص دلوقتي 😔`,
+      alternatives && size ? `مقاس ${size} متاح في: ${alternatives}` : "",
+    ].filter(Boolean);
+  }
+  // Both halves of the answer, always: where the size they asked for actually is, AND what the
+  // colour they asked for does have. Narrowing the cards to the other colours is only honest if
+  // the message says the colour they named is still there in other sizes.
+  if (colorLabel && size && !requestedVariant.comboAvailable) {
+    return [
+      `${colorLabel} مفيهوش مقاس ${size} دلوقتي 😔`,
+      alternatives ? `مقاس ${size} متاح في: ${alternatives}` : "",
+      sizesForColor ? `والمتاح في ${colorLabel}: ${sizesForColor}` : "",
+    ].filter(Boolean);
+  }
+  if (!colorLabel && size) {
+    return requestedVariant.sizeAvailable
+      ? [alternatives ? `مقاس ${size} متاح في: ${alternatives}` : `مقاس ${size} متاح ✅`]
+      : [`مقاس ${size} خلص دلوقتي 😔`];
+  }
+  return [];
+};
+
+// The ack goes directly above the "look at the cards" line, where the ask already is, so the
+// message reads as one thought. A settled colour also retires the colour question — its buttons
+// are gone, and pointing at them would point at nothing.
+export const applySocialCommentRequestedVariantToMessage = ({ message = "", requestedVariant = {} } = {}) => {
+  const base = String(message || "");
+  const lines = buildSocialCommentRequestedVariantLines(requestedVariant);
+  if (!lines.length) return base;
+  // A settled colour leaves ONE card behind, so both of the lines written for a carousel have to
+  // go: "swipe left and right on the cards" in front of a single photo, and a colour question
+  // whose buttons are now sizes.
+  const settled = text(requestedVariant.settledColor);
+  const withAsk = settled && base.includes(PICK_COLOR_LINE)
+    ? base.split(PICK_COLOR_LINE).join(PICK_SIZE_LINE)
+    : base;
+  const withBrowse = settled && withAsk.includes(CAROUSEL_BROWSE_LINE)
+    ? withAsk.split(CAROUSEL_BROWSE_LINE).join(SINGLE_CARD_BROWSE_LINE)
+    : withAsk;
+  const rows = withBrowse.split("\n");
+  const browseIndex = rows.findIndex((row) => {
+    const trimmed = row.trim();
+    return trimmed === CAROUSEL_BROWSE_LINE || trimmed === SINGLE_CARD_BROWSE_LINE;
+  });
+  const insertAt = browseIndex >= 0
+    ? browseIndex
+    : Math.min(rows.findIndex((row) => row.trim()) + 1, rows.length);
+  const merged = [...rows.slice(0, insertAt), ...lines, "", ...rows.slice(insertAt)];
+  return merged.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
 const buildProductReplySections = ({ customerName = "", normalizedContext = {} } = {}) => {
   // No sizes means no size buttons underneath — pointing at buttons that were never attached
   // reads as a broken message, so the ask becomes a plain question instead.

@@ -4,10 +4,13 @@ import ensureMarketingSchema from "../utils/marketingSchema.js";
 import {
   GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
   SOCIAL_COMMENT_COLOR_QUICK_REPLY_PREFIX,
+  applySocialCommentRequestedVariantToMessage,
   buildSocialCommentColorQuickReplies,
   buildSocialCommentPrivateReplyMessage,
   buildSocialCommentSizeQuickReplies,
+  narrowSocialCommentContextToRequest,
   normalizeSocialCommentProductContext,
+  resolveSocialCommentRequestedVariant,
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
   stripCardPointersFromText,
   swapSizeButtonsCtaForPlainAsk,
@@ -20,6 +23,13 @@ import { savePostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 const GRAPH_API_PRIVATE_REPLY_VERSIONS = [GRAPH_API_VERSION, "v19.0", "v20.0", "v21.0"];
+
+// Reading the colour and size out of the comment is ON. The kill switch is here rather than in a
+// per-post toggle because it changes the SHAPE of the first DM everywhere at once, and turning it
+// off has to be one restart, not a pass over every linked post:
+//   SOCIAL_COMMENT_REQUEST_PREFILL_ENABLED=false
+export const socialCommentRequestPrefillEnabled = () =>
+  String(process.env.SOCIAL_COMMENT_REQUEST_PREFILL_ENABLED ?? "true").trim().toLowerCase() !== "false";
 
 const DEFAULT_KEYWORDS = ["بكام", "السعر", "سعر", "كام", "متاح", "موجود", "مقاس", "الوان", "لون", "price", "how much", "available", "size", "color"];
 const DEFAULT_PRIVATE_REPLY = `أهلاً بحضرتك ❤️
@@ -674,7 +684,11 @@ export const buildSocialCommentInstagramPrivateReplyPayload = ({
 } = {}) => {
   const safeName = trimString(productName || normalizedContext?.productName || "");
   const colorCards = Array.isArray(normalizedContext?.colorCards) ? normalizedContext.colorCards : [];
-  if (normalizedContext?.carouselEligible && colorCards.length) {
+  // One card is not a carousel, but a card narrowed down to the colour the comment named still
+  // belongs on this path: it is the only shape that carries a colour postback, and Instagram gets
+  // no quick replies and no second message to ask in.
+  const narrowedToOneColor = Boolean(normalizedContext?.requestNarrowed) && colorCards.length === 1;
+  if ((normalizedContext?.carouselEligible || narrowedToOneColor) && colorCards.length) {
     // The colour choice belongs ON the card. It used to ride a SECOND DM sent after the private
     // reply, and an ordinary DM only reaches a customer whose 24-hour messaging window is already
     // open — so a first-time commenter got the pictures and no way at all to pick a colour, while
@@ -1238,7 +1252,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
   const sendStartedAt = Date.now();
   const settings = await getSettingsRow(businessId);
   const tokenStatus = validateMetaToken(settings || {});
-  const selectedMessage = trimString(message) || "تم الرد على حضرتك في الخاص ✅";
+  let selectedMessage = trimString(message) || "تم الرد على حضرتك في الخاص ✅";
   const hasProductContext = Boolean(options?.productContext?.found || options?.productContext?.has_product_context);
   const selectedSource = trimString(options?.selectedSource || (hasProductContext ? "product_aware_rendered_reply" : "sendPrivateReply_argument"));
   console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", {
@@ -1338,7 +1352,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     },
   });
   const normalizedPlatform = trimString(platform || "").toLowerCase().includes("instagram") ? "instagram" : "facebook";
-  const normalizedProductContext = await normalizeSocialCommentProductContext({
+  let normalizedProductContext = await normalizeSocialCommentProductContext({
     tenantId: businessId,
     productContext: options?.productContext || {},
   }).catch(() => ({
@@ -1346,6 +1360,42 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     productImageUrl: "",
     availableSizes: [],
   }));
+  // ── What the comment itself asked for ───────────────────────────────────────────────────────
+  // "42 اسود" is an answer to the colour and size questions this message is about to ask. It gets
+  // resolved against the catalog and, when it is satisfiable, narrows the cards, the buttons and
+  // the copy. It can never SELECT: a colour only settles when it stocks the size they named, and
+  // a lone size never settles a colour — see the header of socialCommentPrivateReplyService.js.
+  const requestedVariant = socialCommentRequestPrefillEnabled()
+    ? resolveSocialCommentRequestedVariant({
+        commentText: trimString(options?.commentText || ""),
+        normalizedContext: normalizedProductContext,
+      })
+    : { requested: false };
+  if (requestedVariant.requested) {
+    normalizedProductContext = narrowSocialCommentContextToRequest({
+      normalizedContext: normalizedProductContext,
+      requestedVariant,
+    });
+    selectedMessage = applySocialCommentRequestedVariantToMessage({
+      message: selectedMessage,
+      requestedVariant,
+    });
+    console.log("SOCIAL_COMMENT_REQUESTED_VARIANT_RESOLVED", {
+      comment_id: graphCommentId,
+      product_id: normalizedProductContext.productId,
+      requested_color: requestedVariant.color,
+      requested_size: requestedVariant.size,
+      color_available: requestedVariant.colorAvailable,
+      size_available: requestedVariant.sizeAvailable,
+      combo_available: requestedVariant.comboAvailable,
+      settled_color: requestedVariant.settledColor,
+      settled_size: requestedVariant.settledSize,
+      narrowed: Boolean(normalizedProductContext.requestNarrowed),
+      colors_shown: Array.isArray(normalizedProductContext.availableColors)
+        ? normalizedProductContext.availableColors.length
+        : 0,
+    });
+  }
   const normalizedConversationId = trimString(
     options?.conversationId ||
     options?.sessionId ||
@@ -2813,6 +2863,7 @@ export const sendUnifiedSocialCommentPrivateReply = async ({
   message = "",
   productContext = null,
   customerName = "",
+  commentText = "",
 } = {}) => {
   const safeTenantId = Number(tenantId || businessId || 0);
   const sanitized = sanitizeUnifiedSocialCommentPrivateReplyMessage({
@@ -2852,6 +2903,7 @@ export const sendUnifiedSocialCommentPrivateReply = async ({
     postId,
     conversationId,
     productContext,
+    commentText,
     selectedSource: "unified_sender",
   });
 };

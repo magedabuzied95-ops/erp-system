@@ -1076,6 +1076,9 @@ export const registerBackgroundJobHandlers = () => {
         conversationId: row.inbox_conversation_id || row.external_conversation_id || "",
         productContext,
         customerName: row.commenter_name || row.customer_name || "",
+        // The words the customer actually wrote. The sender reads the colour and size out of them
+        // so the first DM answers the comment instead of asking it back.
+        commentText: row.original_comment_text || row.comment_text || "",
       });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: commentId,
