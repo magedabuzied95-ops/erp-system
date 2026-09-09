@@ -414,6 +414,120 @@ test("the studio previews cards through the storefront's own rules", () => {
   assert.ok(!/\.m1-site__mock-card \{/.test(css), "the superseded lookalike card rule is back");
 });
 
+/* ------------------------------------------------------ the studio preview */
+
+// The preview is the only place the strip, the footer and the section order are
+// ever seen before publishing. It shipped drawing the colours and the hero and
+// nothing else, so four of the six tabs were edited blind — which is what was
+// reported. These guards are about the preview staying a picture of the whole
+// page, not about how any one band looks.
+const studioSource = readFileSync(new URL("../src/modules/settings/pages/SiteStudio.jsx", import.meta.url), "utf8");
+const studioCss = readFileSync(new URL("../src/modules/settings/pages/SiteStudio.m1.css", import.meta.url), "utf8");
+
+test("the preview renders the sections from the stored order, not a fixed list", () => {
+  assert.ok(studioSource.includes("resolveHomeSections(design)"), "the preview no longer follows the saved order");
+  assert.ok(
+    /previewSections\.map\(\(id\) => renderPreviewSection\(id\)\)/.test(studioSource),
+    "the stage stopped rendering the resolved order"
+  );
+  // A hidden section leaves no gap, so the count is the only thing that explains
+  // why the preview is shorter than the list beside it.
+  assert.ok(studioSource.includes("hiddenSectionCount"), "nothing tells the owner a section is hidden");
+});
+
+test("every homepage section has something to draw in the preview", () => {
+  const filterRowIds = new Set(HOME_FILTER_ROWS.map((row) => row.id));
+  // The filtered rows are reached through the registry rather than five literal
+  // branches, so a sixth row would draw itself the day it is added.
+  assert.ok(studioSource.includes("HOME_FILTER_ROW_MAP[id]"), "the filtered rows no longer come from the registry");
+  for (const section of HOME_SECTIONS) {
+    if (filterRowIds.has(section.id)) continue;
+    assert.ok(
+      studioSource.includes(`id === "${section.id}"`),
+      `the preview has no drawing for the "${section.id}" section`
+    );
+  }
+  // ...and anything the file has no branch for still gets a labelled band, so a
+  // new section can never be silently missing from the preview.
+  assert.ok(
+    /\/\/ A section this file has no drawing for[\s\S]{0,400}return previewBand\(/.test(studioSource),
+    "the fallback band is gone, so an unknown section would render nothing"
+  );
+});
+
+test("the preview draws the two bands the palette does not cover", () => {
+  for (const className of ["m1-site__strip", "m1-site__footer", "m1-site__footer-bar"]) {
+    assert.ok(studioSource.includes(`className="${className}"`), `the preview does not render .${className}`);
+  }
+  // Each band reads the same variable the live stylesheet reads, so the preview
+  // cannot show one colour while the site shows another.
+  for (const token of ["--sf-strip-bg", "--sf-strip-ink", "--sf-footer-bg", "--sf-footer-ink", "--sf-footer-bar-bg", "--sf-footer-bar-ink"]) {
+    assert.ok(studioCss.includes(`var(${token})`), `the preview does not paint from ${token}`);
+  }
+});
+
+// "Off" means no promises, never no strip: the language switch and the theme
+// toggle live in that band. A preview that hid the whole band would teach the
+// owner the opposite of what the site does.
+test("turning the promises off leaves the strip band in the preview", () => {
+  assert.ok(studioSource.includes("resolveStripItems(design, language)"), "the preview invents its own promise list");
+  assert.ok(
+    !/\{design\.strip\.enabled [&?][\s\S]{0,120}m1-site__strip"/.test(studioSource),
+    "the whole band is now conditional, which would take the corner controls with it"
+  );
+  assert.ok(studioSource.includes('tr("stripOff")'), "an empty strip says nothing about why it is empty");
+});
+
+// The homepage sizes a good half of itself from VIEWPORT media queries — a
+// section heading is 21px below 768px and 28px above it, the category rail turns
+// from a swipe into a three-up grid. A preview that shrank the tokens instead
+// would show a layout no visitor is ever served, which is exactly what the first
+// version of this panel did.
+test("the preview scales a real desktop page rather than shrinking the tokens", () => {
+  assert.ok(/\.m1-site__page \{[^}]*zoom:/.test(studioCss), "the preview page is no longer scaled");
+  assert.ok(
+    !/--m1h-t-(section|hero|base):/.test(studioCss),
+    "the preview re-declares the homepage type scale, so it shows a layout the media queries never produce"
+  );
+});
+
+// The strip's built-in promises live in the storefront bundle. The studio reads
+// the same keys rather than keeping a second copy, so this only fails if a key
+// is renamed on one side.
+test("the promise fallback the preview shows is the one the storefront ships", () => {
+  const keys = studioSource.match(/const DEFAULT_PROMISE_KEYS = \[([^\]]+)\]/);
+  assert.ok(keys, "the preview no longer names the shipped promises");
+  const names = keys[1].split(",").map((part) => part.trim().replace(/"/g, "")).filter(Boolean);
+  assert.equal(names.length, 5, "the strip falls back to a different number of promises than the site does");
+  for (const locale of ["en", "ar"]) {
+    const bundle = JSON.parse(readFileSync(new URL(`../src/locales/${locale}/storefront.json`, import.meta.url), "utf8"));
+    for (const name of names) {
+      assert.ok(bundle.header?.announcements?.[name], `${locale}: storefront.header.announcements.${name} is missing`);
+    }
+  }
+  assert.ok(
+    studioSource.includes("storefront.header.announcements."),
+    "the preview stopped reading the storefront's own promises"
+  );
+});
+
+// Every label in the preview is translated. A missing key renders its own dotted
+// path on screen, which is how "siteStudio.mockCategory" ends up printed inside
+// a category tile.
+test("every label the studio asks for exists in both locales", () => {
+  const used = new Set(
+    [...studioSource.matchAll(/\btr\("([^"$]+)"/g)].map((match) => match[1])
+  );
+  assert.ok(used.size > 30, `only ${used.size} keys were found, so the scan is broken`);
+  for (const locale of ["en", "ar"]) {
+    const bundle = JSON.parse(readFileSync(new URL(`../src/locales/${locale}/settings.json`, import.meta.url), "utf8"));
+    for (const key of used) {
+      const value = key.split(".").reduce((node, part) => (node == null ? node : node[part]), bundle.siteStudio);
+      assert.ok(typeof value === "string" && value.trim(), `${locale}: siteStudio.${key} is missing`);
+    }
+  }
+});
+
 /* ------------------------------------------- late-mounting homepage sections */
 
 // A section that mounts after the reveal observer was wired stays at opacity 0

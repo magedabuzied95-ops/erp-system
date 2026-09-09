@@ -11,10 +11,10 @@
 // in index.css) with the real clip behind it, and the swatch panel is fed the
 // same custom properties the storefront will get. What you see is what ships.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { ArrowDown, ArrowUp, Eye, EyeOff, LayoutGrid, LayoutList, Loader2, Monitor, Moon, Palette, Plus, RotateCcw, Save, Sun, Trash2, Type, Video } from "lucide-react";
+import { ArrowDown, ArrowUp, CreditCard, Eye, EyeOff, Globe, Headphones, LayoutGrid, LayoutList, Loader2, Monitor, Moon, Palette, Plus, RefreshCcw, RotateCcw, Save, Sun, Trash2, Truck, Type, Video } from "lucide-react";
 
 import { Badge, Button, Input, PageHeader, Select, Switch, Textarea } from "../../../shared/ui/M1UI";
 import { api } from "../../../shared/api/api";
@@ -37,11 +37,16 @@ import {
   SITE_RADIUS_PROFILES,
   STRIP_MAX_ITEMS,
   TITLED_HOME_SECTIONS,
+  GENDER_LABELS,
+  HOME_FILTER_ROW_MAP,
   HOME_SECTION_MAP,
   isSafeCssColor,
   normalizeSiteDesign,
   resolveCardLook,
   resolveHeroCopy,
+  resolveHomeSections,
+  resolveSectionTitle,
+  resolveStripItems,
   siteDesignPreviewVariables,
 } from "../../../../shared/siteDesign.js";
 // The homepage stylesheet, so the card templates preview through the rules the
@@ -58,6 +63,12 @@ const TABS = [
   { id: "bands", icon: LayoutList },
   { id: "sections", icon: LayoutList },
 ];
+
+// The five promises the storefront falls back to when the owner has written
+// none of their own. They are read from the storefront's own bundle, which the
+// ERP already loads as a branch of its dictionary, so the preview shows the
+// real sentences instead of a second copy that can drift from them.
+const DEFAULT_PROMISE_KEYS = ["fastShipping", "exchange", "cod", "premium", "todayDeals"];
 
 const localized = (value, language) => (value && typeof value === "object" ? value[language] || value.en : value);
 
@@ -204,6 +215,13 @@ export default function SiteStudio() {
     };
   }, []);
 
+  // The homepage running order, resolved exactly the way the storefront resolves
+  // it. It is read this high up because the hero clip only exists while the hero
+  // section is in that order: the play effect below has to run again when the
+  // section comes back, or re-enabling it leaves a frozen first frame.
+  const previewSections = useMemo(() => resolveHomeSections(design), [design]);
+  const heroInPreview = previewSections.includes("heroVideo");
+
   // The preview clip is muted, looping scenery exactly as it is on the site;
   // the attribute (not the React prop) is what a browser's autoplay check reads.
   useEffect(() => {
@@ -213,7 +231,7 @@ export default function SiteStudio() {
     video.setAttribute("muted", "");
     const attempt = video.play();
     if (attempt && typeof attempt.catch === "function") attempt.catch(() => {});
-  }, []);
+  }, [heroInPreview]);
 
   const dirty = useMemo(() => JSON.stringify(design) !== JSON.stringify(saved), [design, saved]);
   const previewVars = useMemo(() => siteDesignPreviewVariables(design, mode), [design, mode]);
@@ -229,6 +247,233 @@ export default function SiteStudio() {
     () => (language === "ar" ? arabicFontStack(design.fontAr) : latinFontStack(design.fontEn, design.fontAr)),
     [design.fontAr, design.fontEn, language]
   );
+
+  // ---- the preview, as a scale model of the homepage ---------------------
+  //
+  // Six tabs decide this record and the stage used to draw two of them. The
+  // strip, the footer, the section order and the section headings had no
+  // picture at all, so those tabs were being edited blind. The stage now renders
+  // the page the record describes - strip, header, the sections in their stored
+  // order, footer - through the storefront's own classes wherever they exist.
+  //
+  // Every section is drawn from the same registry Storefront.jsx renders from,
+  // and an id with no drawing of its own falls through to a labelled band, so a
+  // section added to HOME_SECTIONS appears here the day it is added instead of
+  // being quietly missing from the preview.
+  const hiddenSectionCount = design.sections.length - previewSections.length;
+
+  // What the strip will actually say: the owner's promises when they wrote any,
+  // the five shipped ones when they did not, and none at all when they are off -
+  // with the band still drawn, because the language and theme controls live in
+  // it and "off" has never meant "no strip".
+  const stripPromises = useMemo(() => {
+    const own = resolveStripItems(design, language);
+    if (own === null) return [];
+    return own.length ? own : DEFAULT_PROMISE_KEYS.map((key) => t(`storefront.header.announcements.${key}`));
+  }, [design, language, t]);
+
+  // Real card markup and the real home.css rules, not a lookalike: the whole
+  // point of a card template picker is that the thing you pick is the thing you
+  // get. Only the photograph is a stand-in.
+  const previewCards = (
+    <div className="m1-site__mock-grid">
+      {[0, 1, 2, 3].map((index) => (
+        <article key={index} className={cardClassName}>
+          <div className="m1h-card__plate">
+            {index === 1 ? <span className="m1h-badge m1h-badge--sale">-24%</span> : null}
+            <span className="m1-site__mock-plate" aria-hidden="true" />
+          </div>
+          <div className="m1h-card__body">
+            <p className="m1h-card__brand">{tr("mockBrand")}</p>
+            {/* <p>, like every other line of copy in the stage: the preview is a
+                picture of a page, and twenty-four <h3>s for products that do not
+                exist would put a fake outline in front of a screen reader. */}
+            <p className="m1h-card__name">{tr("mockProduct")}</p>
+            <div className="m1h-card__price">
+              <span className={`m1h-card__price-now${index === 1 ? " m1h-card__price-now--sale" : ""}`}>1,450</span>
+              {index === 1 ? <span className="m1h-card__price-was">1,900</span> : null}
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+
+  // The hero is the one section that is not inside a shell: it bleeds to the
+  // edges on the site, so it does here too. It renders through the REAL overlay
+  // rules (:is(.storefront-shell, .sf-hero-preview) in index.css) with the real
+  // clip behind it.
+  const heroSection = (
+    <div className="sf-hero-preview">
+      <div className="sf-hero-video">
+        <video
+          ref={videoRef}
+          className="sf-hero-video__media is-ready"
+          src="/media/hero-walk.mp4"
+          autoPlay
+          muted
+          loop
+          playsInline
+          controls={false}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+        {heroCopy ? (
+          <div className={`sf-hero-video__overlay is-${heroCopy.position} is-align-${heroCopy.align}`}>
+            <div className="sf-hero-video__scrim" aria-hidden="true" />
+            <div className="sf-hero-video__copy">
+              {heroCopy.eyebrow ? <span className="sf-hero-video__eyebrow">{heroCopy.eyebrow}</span> : null}
+              <p className="sf-hero-video__title">{heroCopy.title}</p>
+              {heroCopy.subtitle ? <p className="sf-hero-video__sub">{heroCopy.subtitle}</p> : null}
+              <div className="sf-hero-video__actions">
+                {heroCopy.primaryLabel ? <span className="sf-hero-video__cta">{heroCopy.primaryLabel}</span> : null}
+                {heroCopy.secondaryLabel ? (
+                  <span className="sf-hero-video__cta sf-hero-video__cta--ghost">{heroCopy.secondaryLabel}</span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+
+  const previewBand = (id, children) => (
+    <section key={id} className="m1h-block">
+      <div className="m1h-shell">{children}</div>
+    </section>
+  );
+
+  // Headings inside the stage are <p>, not <h2>: the preview is a picture of a
+  // page, and a real heading outline for a page that is not this one would put a
+  // second, fake document structure in front of a screen reader.
+  const renderPreviewSection = (id) => {
+    const label = localized(HOME_SECTION_MAP[id]?.label, language) || id;
+    const filterRow = HOME_FILTER_ROW_MAP[id];
+
+    if (id === "heroVideo") return <Fragment key={id}>{heroSection}</Fragment>;
+
+    if (id === "productHero") {
+      return previewBand(
+        id,
+        <div className="m1-site__mock-hero">
+          <div className="m1-site__mock-hero-copy">
+            <p className="m1h-hero__eyebrow">{tr("mockBrand")}</p>
+            <p className="m1h-hero__title">{label}</p>
+            <p className="m1h-hero__sub">{tr("mockProduct")}</p>
+            <span className="m1h-btn m1h-btn--primary">{tr("mockCta")}</span>
+          </div>
+          <span className="m1-site__mock-frame" aria-hidden="true">
+            <span className="m1-site__mock-plate" />
+          </span>
+        </div>
+      );
+    }
+
+    if (id === "categories") {
+      return previewBand(
+        id,
+        <>
+          <div className="m1h-sec">
+            <p className="m1h-sec__title">{resolveSectionTitle(design, "categories", language)}</p>
+          </div>
+          <div className="m1-site__mock-cats">
+            {[0, 1, 2].map((index) => (
+              <span key={index} className="m1h-cat">
+                <span className="m1-site__mock-plate" aria-hidden="true" />
+                <span className="m1h-cat__scrim" />
+                <span className="m1h-cat__label">{tr("mockCategory")}</span>
+              </span>
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    // A filtered row carries its own heading, its own sentence and its audience
+    // switch. None of the three is editable, and all three are part of what the
+    // colours, the corner shape and the card template have to look right against.
+    if (filterRow) {
+      return previewBand(
+        id,
+        <>
+          <div className="m1h-frow__head">
+            <div className="m1h-frow__topline">
+              <p className="m1h-sec__title">{localized(filterRow.label, language)}</p>
+              {filterRow.genders.length > 1 ? (
+                <div className="m1h-frow__tabs" aria-hidden="true">
+                  {filterRow.genders.map((gender, index) => (
+                    <span key={gender} className={`m1h-frow__tab${index === 0 ? " is-on" : ""}`}>
+                      {localized(GENDER_LABELS[gender], language)}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <p className="m1h-frow__sub">{localized(filterRow.subtitle, language)}</p>
+          </div>
+          {previewCards}
+        </>
+      );
+    }
+
+    if (id === "offers") {
+      return previewBand(
+        id,
+        <>
+          <div className="m1h-sec">
+            <p className="m1h-sec__title">{label}</p>
+            <span className="m1h-sec__link">{tr("mockCta")}</span>
+          </div>
+          {previewCards}
+          <div className="m1-site__mock-foot">
+            <span className="m1-site__mock-pill">{tr("mockSale")}</span>
+            <span className="m1-site__mock-cta">{tr("mockCta")}</span>
+          </div>
+        </>
+      );
+    }
+
+    if (id === "brands") {
+      return previewBand(
+        id,
+        <>
+          <div className="m1h-sec">
+            <p className="m1h-sec__title">{label}</p>
+          </div>
+          <div className="m1-site__mock-brands" aria-hidden="true">
+            {[0, 1, 2, 3, 4].map((index) => (
+              <span key={index} className="m1-site__mock-brand" />
+            ))}
+          </div>
+        </>
+      );
+    }
+
+    if (id === "trust") {
+      return previewBand(
+        id,
+        <div className="m1h-trust">
+          {[Truck, CreditCard, RefreshCcw, Headphones].map((Icon, index) => (
+            <div key={index} className="m1h-trust__item">
+              <Icon className="m1h-trust__icon" size={20} strokeWidth={1.6} aria-hidden="true" />
+              <span className="m1-site__mock-line is-strong" aria-hidden="true" />
+              <span className="m1-site__mock-line" aria-hidden="true" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // A section this file has no drawing for still has a place in the order, so
+    // it is shown as a named band rather than disappearing from the preview.
+    return previewBand(
+      id,
+      <div className="m1-site__mock-band">
+        <p className="m1h-sec__title">{label}</p>
+      </div>
+    );
+  };
 
   const palette = design.palette[mode];
   const update = (path, value) => setDesign((current) => setIn(current, path, value));
@@ -726,77 +971,74 @@ export default function SiteStudio() {
             </div>
           </div>
 
-          <div className="m1-site__stage m1h" data-theme={mode} style={{ ...previewVars, fontFamily: fontStack }}>
-            <div className="sf-hero-preview">
-              <div className="sf-hero-video">
-                <video
-                  ref={videoRef}
-                  className="sf-hero-video__media is-ready"
-                  src="/media/hero-walk.mp4"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  controls={false}
-                  tabIndex={-1}
-                  aria-hidden="true"
-                />
-                {heroCopy ? (
-                  <div className={`sf-hero-video__overlay is-${heroCopy.position} is-align-${heroCopy.align}`}>
-                    <div className="sf-hero-video__scrim" aria-hidden="true" />
-                    <div className="sf-hero-video__copy">
-                      {heroCopy.eyebrow ? <span className="sf-hero-video__eyebrow">{heroCopy.eyebrow}</span> : null}
-                      <p className="sf-hero-video__title">{heroCopy.title}</p>
-                      {heroCopy.subtitle ? <p className="sf-hero-video__sub">{heroCopy.subtitle}</p> : null}
-                      <div className="sf-hero-video__actions">
-                        {heroCopy.primaryLabel ? <span className="sf-hero-video__cta">{heroCopy.primaryLabel}</span> : null}
-                        {heroCopy.secondaryLabel ? (
-                          <span className="sf-hero-video__cta sf-hero-video__cta--ghost">{heroCopy.secondaryLabel}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+          {/* Two elements, not one: the stage is the scroll box at panel width and
+              the page inside it is the SITE, laid out at a real desktop width and
+              then scaled down to fit. Scaling is what makes the preview honest —
+              home.css sizes half the page from viewport media queries (a section
+              heading is 28px above 768px), so a preview that simply shrank the
+              tokens would show a layout no visitor ever gets. */}
+          <div className="m1-site__stage">
+            <div className="m1-site__page m1h" data-theme={mode} style={{ ...previewVars, fontFamily: fontStack }}>
+              {/* The strip is drawn whether the promises are on or off: "off"
+                  means no promises, never no band - the language switch and the
+                  theme toggle live in it. Its dark default is `transparent`, so
+                  what shows through here is the page colour, exactly as on site. */}
+              <div className="m1-site__strip">
+                <span className="m1-site__strip-corner" aria-hidden="true">
+                  {mode === "dark" ? <Sun size={14} /> : <Moon size={14} />}
+                </span>
+                <div className="m1-site__strip-track">
+                  {stripPromises.length ? (
+                    stripPromises.map((promise, index) => (
+                      // Index keys: a fixed list of promises, never reordered, and
+                      // two promises may legitimately read the same.
+                      <span key={index} className="m1-site__strip-item">
+                        {promise}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="m1-site__strip-item is-empty">{tr("stripOff")}</span>
+                  )}
+                </div>
+                <span className="m1-site__strip-corner" aria-hidden="true">
+                  <Globe size={14} />
+                  {language.toUpperCase()}
+                </span>
               </div>
-            </div>
 
-            {/* A page fragment, not a gallery of swatches: colours only prove
-                themselves next to the shapes they will actually sit in. */}
-            <div className="m1-site__mock">
               <div className="m1-site__mock-bar">
                 <strong>{tr("mockStore")}</strong>
                 <span>{tr("mockNav")}</span>
               </div>
-              {/* Real card markup and the real home.css rules, not a lookalike:
-                  the whole point of a card template picker is that the thing you
-                  pick is the thing you get. Only the photograph is a stand-in. */}
-              <div className="m1-site__mock-grid">
-                {[0, 1, 2].map((index) => (
-                  <article key={index} className={cardClassName}>
-                    <div className="m1h-card__plate">
-                      {index === 1 ? <span className="m1h-badge m1h-badge--sale">-24%</span> : null}
-                      <span className="m1-site__mock-plate" aria-hidden="true" />
+
+              {previewSections.map((id) => renderPreviewSection(id))}
+
+              {/* Not a section, by the same rule as the site: the footer is the end
+                  of the page, and an owner who dragged it to the top would only be
+                  reporting a bug. */}
+              <div className="m1-site__footer">
+                <div className="m1-site__footer-cols">
+                  {[tr("mockFooterAbout"), tr("mockFooterCategories"), tr("mockFooterLinks")].map((heading) => (
+                    <div key={heading} className="m1-site__footer-col">
+                      <strong>{heading}</strong>
+                      <span className="m1-site__mock-line" aria-hidden="true" />
+                      <span className="m1-site__mock-line" aria-hidden="true" />
+                      <span className="m1-site__mock-line" aria-hidden="true" />
                     </div>
-                    <div className="m1h-card__body">
-                      <p className="m1h-card__brand">{tr("mockBrand")}</p>
-                      <h3 className="m1h-card__name">{tr("mockProduct")}</h3>
-                      <div className="m1h-card__price">
-                        <span className={`m1h-card__price-now${index === 1 ? " m1h-card__price-now--sale" : ""}`}>1,450</span>
-                        {index === 1 ? <span className="m1h-card__price-was">1,900</span> : null}
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              <div className="m1-site__mock-foot">
-                <span className="m1-site__mock-pill">{tr("mockSale")}</span>
-                <span className="m1-site__mock-cta">{tr("mockCta")}</span>
+                  ))}
+                </div>
+                <div className="m1-site__footer-bar">{tr("mockCopyright")}</div>
               </div>
             </div>
           </div>
 
           <p className="m1-site__preview-note">
             {loading ? tr("loading") : tr("previewNote")}
+            {/* A hidden section leaves no gap in the preview, so the count is the
+                only thing that says why the page is shorter than the list. */}
+            {!loading && hiddenSectionCount > 0 ? (
+              <Badge tone="warning">{tr("previewHidden", { n: hiddenSectionCount })}</Badge>
+            ) : null}
             {!loading && !dirty ? <Badge tone="success">{tr("live")}</Badge> : null}
           </p>
         </aside>

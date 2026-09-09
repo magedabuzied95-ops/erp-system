@@ -1,7 +1,7 @@
 /* Site Studio.
    The page itself is ERP chrome and stays on ERP tokens; only what is inside
    `.m1-site__stage` may use the storefront's tokens, because that block is the
-   preview and is fed those tokens inline. Nothing here uses a literal colour
+   preview and its inner page is fed those tokens inline. Nothing here uses a literal colour
    outside the preview — the page has to survive an appearance change like every
    other ERP surface. */
 
@@ -77,32 +77,84 @@
 .m1-site__preview-modes > button.is-active { background: var(--surface); border-color: var(--border-strong); color: var(--text); }
 
 /* Everything below is painted with the STOREFRONT tokens, handed in inline by
-   siteDesignPreviewVariables(). The ERP tokens stop at this boundary. */
-.m1-site__stage { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--m1h-bg); color: var(--m1h-text); }
+   siteDesignPreviewVariables(). The ERP tokens stop at this boundary.
 
-.m1-site__stage .sf-hero-preview { position: relative; }
-/* The clip is 21:9 on a wide storefront; the preview panel is narrower than a
-   real viewport, so it is capped rather than scaled to keep the copy readable. */
-.m1-site__stage .sf-hero-preview .sf-hero-video { aspect-ratio: 16 / 9; max-height: 300px; }
-.m1-site__stage .sf-hero-preview .sf-hero-video__title { font-size: clamp(1.4rem, 4.2vw, 2.1rem); }
-.m1-site__stage .sf-hero-preview .sf-hero-video__copy { padding-inline: clamp(1rem, 3.5vw, 1.75rem); padding-block: clamp(1rem, 3.5vw, 1.75rem); }
+   The stage is the scroll box, at whatever width the panel has. The page inside
+   it is the SITE: it is laid out at a real desktop width and then scaled down,
+   rather than being rebuilt at panel size with smaller tokens. That is the only
+   version that is true — home.css sizes a good half of the page from viewport
+   media queries (a section heading is 21px below 768px and 28px above it, and
+   the category rail turns from a swipe into a three-up grid), so a preview built
+   out of shrunken tokens would show a layout no visitor is ever served.
 
-.m1-site__mock { display: grid; gap: var(--space-3); padding: var(--space-3); }
-.m1-site__mock-bar { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); padding-block-end: var(--space-2); border-block-end: 1px solid var(--m1h-line); }
-.m1-site__mock-bar strong { color: var(--m1h-text); font-size: 0.95rem; font-weight: 800; letter-spacing: .04em; }
-.m1-site__mock-bar span { color: var(--m1h-text-3); font-size: 0.72rem; letter-spacing: .1em; text-transform: uppercase; }
-.m1-site__mock-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
-/* The mock cards render as real .m1h-card elements now, so their look comes
-   from home.css and cannot drift from the storefront. */
-.m1-site__mock-plate { aspect-ratio: 1 / 1; border-radius: var(--m1h-r-sm); background: var(--m1h-plate); box-shadow: inset 0 0 0 1px var(--m1h-plate-edge); }
-.m1-site__mock-name { margin: 0; color: var(--m1h-text-2); font-size: 0.72rem; }
-.m1-site__mock-price { display: flex; align-items: baseline; gap: 6px; margin: 0; color: var(--m1h-text); font-size: 0.82rem; font-weight: 800; }
-.m1-site__mock-price em { color: var(--m1h-sale); font-size: 0.7rem; font-style: normal; text-decoration: line-through; }
-.m1-site__mock-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
-.m1-site__mock-pill { padding: 4px 10px; border-radius: 999px; background: var(--m1h-sale); color: var(--m1h-sale-fg); font-size: 0.66rem; font-weight: 800; letter-spacing: .06em; }
-.m1-site__mock-cta { padding: 8px 16px; border-radius: var(--m1h-r-sm); background: var(--m1h-invert-bg); color: var(--m1h-invert-text); font-size: 0.7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+   0.55 is chosen against the panel, not by taste: the studio's preview column is
+   ~690px on a 1440px screen, and 690 / 0.55 = 1254px — the storefront shell's
+   own 1240px maximum. */
+.m1-site__stage {
+  max-block-size: min(74vh, 820px);
+  overflow: hidden auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+}
 
-.m1-site__preview-note { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); }
+.m1-site__page {
+  zoom: 0.55;
+  background: var(--m1h-bg);
+  color: var(--m1h-text);
+}
+
+.m1-site__page .sf-hero-preview { position: relative; }
+/* The clip is 21:9 across a real viewport. The preview column is shorter than a
+   viewport is wide, so the hero is capped rather than scaled — at 21:9 the copy
+   would sit in a letterbox two lines tall. */
+.m1-site__page .sf-hero-preview .sf-hero-video { aspect-ratio: 16 / 9; max-height: 460px; }
+
+/* ---- the announcement strip -------------------------------------------- */
+/* Painted from the same variables index.css reads on the real strip. The dark
+   default is `transparent`, and what shows through here is the page colour —
+   which is what shows through on the site too. */
+.m1-site__strip { display: flex; align-items: center; gap: var(--m1h-s3); padding: 7px var(--m1h-s4); background: var(--sf-strip-bg); color: var(--sf-strip-ink); font-size: var(--m1h-t-xs); font-weight: 700; }
+.m1-site__strip-corner { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+.m1-site__strip-track { display: flex; flex: 1 1 auto; justify-content: center; gap: var(--m1h-s8); min-width: 0; overflow: hidden; white-space: nowrap; }
+.m1-site__strip-item { flex: 0 0 auto; }
+.m1-site__strip-item.is-empty { font-weight: 600; opacity: .6; }
+
+/* ---- the storefront header --------------------------------------------- */
+.m1-site__mock-bar { display: flex; align-items: baseline; justify-content: space-between; gap: var(--m1h-s4); padding: var(--m1h-s4) var(--m1h-s8); border-block-end: 1px solid var(--m1h-line); }
+.m1-site__mock-bar strong { color: var(--m1h-text); font-size: var(--m1h-t-price); font-weight: 800; letter-spacing: .04em; }
+.m1-site__mock-bar span { color: var(--m1h-text-3); font-size: var(--m1h-t-sm); letter-spacing: .1em; text-transform: uppercase; }
+
+/* ---- the sections ------------------------------------------------------ */
+/* The mock cards render as real .m1h-card elements, so their look comes from
+   home.css and cannot drift from the storefront. Four to a row, which is what a
+   product rail shows at this width. */
+.m1-site__mock-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--m1h-s5); }
+.m1-site__mock-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--m1h-s4); }
+.m1-site__mock-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--m1h-s10); align-items: center; }
+.m1-site__mock-hero-copy { display: grid; justify-items: start; gap: var(--m1h-s3); min-width: 0; }
+.m1-site__mock-frame { position: relative; display: block; overflow: hidden; aspect-ratio: 1 / 1; border-radius: var(--m1h-r-xl); background: var(--m1h-plate); box-shadow: inset 0 0 0 1px var(--m1h-plate-edge); }
+.m1-site__mock-brands { display: flex; flex-wrap: wrap; gap: var(--m1h-s4); }
+.m1-site__mock-brand { display: block; inline-size: 96px; block-size: 46px; border-radius: var(--m1h-r-sm); background: var(--m1h-surface); box-shadow: inset 0 0 0 1px var(--m1h-line); }
+/* A section with no drawing of its own. Dashed, so it reads as "this block is
+   here, in this position" rather than as a finished piece of the page. */
+.m1-site__mock-band { display: flex; align-items: center; justify-content: space-between; gap: var(--m1h-s4); padding: var(--m1h-s5) var(--m1h-s6); border: 1px dashed var(--m1h-line); border-radius: var(--m1h-r-md); }
+.m1-site__mock-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--m1h-s4); margin-top: var(--m1h-s5); }
+.m1-site__mock-pill { padding: 6px 14px; border-radius: 999px; background: var(--m1h-sale); color: var(--m1h-sale-fg); font-size: var(--m1h-t-xs); font-weight: 800; letter-spacing: .06em; }
+.m1-site__mock-cta { padding: 10px 22px; border-radius: var(--m1h-r-sm); background: var(--m1h-invert-bg); color: var(--m1h-invert-text); font-size: var(--m1h-t-sm); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+/* Stand-in copy takes its colour from the band it sits in, so a footer ink or a
+   trust-strip text colour can be judged off the bars themselves. */
+.m1-site__mock-line { display: block; inline-size: 70%; block-size: 8px; border-radius: 999px; background: currentColor; opacity: .32; }
+.m1-site__mock-line.is-strong { inline-size: 52%; block-size: 10px; opacity: .62; }
+
+/* ---- the footer -------------------------------------------------------- */
+.m1-site__footer { background: var(--sf-footer-bg); color: var(--sf-footer-ink); }
+.m1-site__footer-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--m1h-s8); padding: var(--m1h-s10) var(--m1h-s8); }
+.m1-site__footer-col { display: grid; align-content: start; gap: var(--m1h-s3); min-width: 0; }
+.m1-site__footer-col > strong { font-size: var(--m1h-t-base); font-weight: 800; }
+.m1-site__footer-bar { padding: var(--m1h-s3) var(--m1h-s8); background: var(--sf-footer-bar-bg); color: var(--sf-footer-bar-ink); font-size: var(--m1h-t-xs); font-weight: 700; text-align: center; }
+
+.m1-site__preview-note { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; color: var(--text-tertiary); font-size: var(--font-caption); line-height: var(--font-caption-lh); }
 
 /* ---- repeatable rows (strip promises, section order) -------------------- */
 .m1-site__row { display: flex; align-items: flex-start; gap: var(--space-2); }
@@ -153,6 +205,6 @@
 .m1-site__template-art.is-overlay b { inset-block-end: 20px; inset-inline-start: 14px; background: rgba(255, 255, 255, 0.92); }
 .m1-site__template-art.is-overlay u { inset-block-end: 11px; inset-inline-start: 14px; background: rgba(255, 255, 255, 0.6); }
 
-/* The preview stage is a homepage root, so the card rules from home.css apply
-   to it. The photograph is the only stand-in. */
-.m1-site__stage .m1-site__mock-plate { position: absolute; inset: 0; display: block; background: repeating-linear-gradient(135deg, var(--m1h-line-soft) 0 8px, transparent 8px 16px); }
+/* The scaled page is a homepage root, so the card rules from home.css apply to
+   it. The photograph is the only stand-in. */
+.m1-site__page .m1-site__mock-plate { position: absolute; inset: 0; display: block; background: repeating-linear-gradient(135deg, var(--m1h-line-soft) 0 8px, transparent 8px 16px); }
