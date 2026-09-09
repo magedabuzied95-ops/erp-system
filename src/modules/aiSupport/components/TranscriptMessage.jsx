@@ -532,7 +532,6 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
       <MessageActionOverlay
         open={menuOpen}
         anchorEl={anchorEl}
-        align={align}
         mode={mode}
         items={menuItems}
         reactionOptions={reactionOptions}

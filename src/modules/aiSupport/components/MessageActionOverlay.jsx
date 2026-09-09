@@ -45,8 +45,20 @@ const darkSkin = {
   more: "text-slate-300 hover:bg-white/10",
 };
 
-/** Where the pill, the lifted message and the card go, for one anchor. */
-const measure = (anchorEl, { align, itemCount, hasReactions }) => {
+/** Roughly how wide the reaction pill wants to be: a 36px chip per emoji, the
+ *  gap between them, and the pill's own padding and border. It only has to be
+ *  close — it exists so the pill is never pushed into a space too narrow for
+ *  its own chips, which squeezes them into unreadable slivers. */
+const reactionPillWidth = (count) => count * 36 + Math.max(0, count - 1) * 2 + 14;
+
+/** Where the pill, the lifted message and the card go, for one anchor.
+ *
+ *  The side is read off the geometry, never off the message's `align`: the
+ *  transcript is laid out in logical directions, so on an Arabic (RTL) inbox an
+ *  incoming message aligned "left" is drawn against the physical RIGHT edge.
+ *  Everything here is in viewport pixels, so it asks the only question that
+ *  survives both directions — which edge is this message actually nearer? */
+const measure = (anchorEl, { itemCount, hasReactions, reactionCount }) => {
   const rect = anchorEl.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -62,23 +74,32 @@ const measure = (anchorEl, { align, itemCount, hasReactions }) => {
   const maxTop = vh - PAD - menuHeight - GAP - height;
   const top = maxTop <= minTop ? minTop : Math.min(Math.max(rect.top, minTop), maxTop);
   const left = Math.min(Math.max(rect.left, PAD), Math.max(PAD, vw - PAD - width));
+  const anchorRight = vw - (left + width) <= left;
   const menuWidth = Math.min(MENU_WIDTH, vw - PAD * 2);
-  const menuLeft = align === "right"
+  const menuLeft = anchorRight
     ? Math.min(Math.max(left + width - menuWidth, PAD), Math.max(PAD, vw - PAD - menuWidth))
     : Math.min(Math.max(left, PAD), Math.max(PAD, vw - PAD - menuWidth));
+  // The pill hugs the same edge of the message the bubble is on, but it is
+  // wider than a short message, so it is laid out in a full-width strip and
+  // pushed against that edge — free to grow the other way. The push is capped
+  // at what the pill needs for its own chips: a two-word message would
+  // otherwise leave it a 100px slot and crush six emoji into it.
+  const strip = vw - PAD * 2;
+  const edgeOffset = Math.max(0, Math.min(
+    anchorRight ? vw - PAD - (left + width) : left - PAD,
+    strip - reactionPillWidth(reactionCount),
+  ));
   return {
     lift: { left, top, width, height, cropped: height < rect.height - 1 },
     menu: { left: menuLeft, top: top + height + GAP, width: menuWidth },
-    // The pill hugs the same edge of the message the bubble is anchored to, but
-    // it is wider than a short message, so it is laid out in a full-width strip
-    // and pushed against that edge — free to grow the other way.
+    anchorRight,
     emoji: {
       top: top - GAP - EMOJI_ROW_HEIGHT,
       left: PAD,
-      width: vw - PAD * 2,
-      justify: align === "right" ? "flex-end" : "flex-start",
-      offsetStart: align === "right" ? 0 : Math.max(0, left - PAD),
-      offsetEnd: align === "right" ? Math.max(0, vw - PAD - (left + width)) : 0,
+      width: strip,
+      justify: anchorRight ? "flex-end" : "flex-start",
+      offsetStart: anchorRight ? 0 : edgeOffset,
+      offsetEnd: anchorRight ? edgeOffset : 0,
     },
   };
 };
@@ -86,7 +107,6 @@ const measure = (anchorEl, { align, itemCount, hasReactions }) => {
 export default function MessageActionOverlay({
   open = false,
   anchorEl = null,
-  align = "left",
   mode = "dark",
   items = [],
   reactionOptions = [],
@@ -101,6 +121,7 @@ export default function MessageActionOverlay({
 }) {
   const liftRef = useRef(null);
   const [layout, setLayout] = useState(null);
+  const reactionCount = reactionOptions.length + (reactionOptions.length > 1 ? 1 : 0);
   const hasReactions = canReact && reactionOptions.length > 0;
 
   useLayoutEffect(() => {
@@ -108,11 +129,11 @@ export default function MessageActionOverlay({
       setLayout(null);
       return undefined;
     }
-    const sync = () => setLayout(measure(anchorEl, { align, itemCount: items.length, hasReactions }));
+    const sync = () => setLayout(measure(anchorEl, { itemCount: items.length, hasReactions, reactionCount }));
     sync();
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
-  }, [align, anchorEl, hasReactions, items.length, open]);
+  }, [anchorEl, hasReactions, items.length, open, reactionCount]);
 
   // The message on the sheet is a copy of the one in the transcript. Cloning the
   // node keeps every bubble exactly as it was drawn — the platform's colours are
@@ -194,7 +215,7 @@ export default function MessageActionOverlay({
             paddingLeft: layout.emoji.offsetStart,
             paddingRight: layout.emoji.offsetEnd,
             ["--m1-msg-panel-shift"]: "8px",
-            transformOrigin: align === "right" ? "bottom right" : "bottom left",
+            transformOrigin: layout.anchorRight ? "bottom right" : "bottom left",
           }}
         >
           <div className={`inline-flex max-w-full items-center gap-0.5 rounded-full border px-1.5 py-1 shadow-[0_10px_35px_rgba(0,0,0,0.35)] ${skin.panel}`}>
@@ -206,7 +227,7 @@ export default function MessageActionOverlay({
                 onClick={() => onReact?.(emoji)}
                 aria-label={`${labels.react || "تفاعل"} ${emoji}`}
                 style={{ animationDelay: `${60 + index * 24}ms` }}
-                className={`m1-msg-emoji-chip grid h-9 w-9 place-items-center rounded-full transition-transform duration-150 hover:-translate-y-0.5 disabled:opacity-50 ${skin.chip} ${activeReaction === emoji ? skin.chipActive : ""}`}
+                className={`m1-msg-emoji-chip grid h-9 w-9 shrink-0 place-items-center rounded-full transition-transform duration-150 hover:-translate-y-0.5 disabled:opacity-50 ${skin.chip} ${activeReaction === emoji ? skin.chipActive : ""}`}
               >
                 <AppleEmoji emoji={emoji} size={26} />
               </button>
@@ -218,7 +239,7 @@ export default function MessageActionOverlay({
                 onClick={() => onMore?.()}
                 aria-label={labels.showAllEmoji || ""}
                 style={{ animationDelay: `${60 + reactionOptions.length * 24}ms` }}
-                className={`m1-msg-emoji-chip grid h-9 w-9 place-items-center rounded-full text-lg font-black transition ${skin.more}`}
+                className={`m1-msg-emoji-chip grid h-9 w-9 shrink-0 place-items-center rounded-full text-lg font-black transition ${skin.more}`}
               >
                 +
               </button>
@@ -237,7 +258,7 @@ export default function MessageActionOverlay({
           top: layout.menu.top,
           width: layout.menu.width,
           ["--m1-msg-panel-shift"]: "-8px",
-          transformOrigin: align === "right" ? "top right" : "top left",
+          transformOrigin: layout.anchorRight ? "top right" : "top left",
         }}
       >
         {items.map(({ label, icon: Icon, action, disabled, active, fill }) => (
