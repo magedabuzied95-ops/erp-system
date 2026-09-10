@@ -9109,7 +9109,10 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
    comment Graph has just confirmed alive is not asked about again for a while. */
 const SOCIAL_COMMENT_RECONCILE_TTL_MS = 2 * 60 * 1000;
 const SOCIAL_COMMENT_RECONCILE_MAX_PAGES = 15;
-const SOCIAL_COMMENT_RECONCILE_MAX_CHECKS = 40;
+// Sized for the first pass over a post nobody ever reconciled: in production the first one found a
+// post with 195 stored comments and 4 live ones. At 40 a pass it took eight opens to clear.
+const SOCIAL_COMMENT_RECONCILE_MAX_CHECKS = 200;
+const SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY = 10;
 const SOCIAL_COMMENT_ALIVE_TTL_MS = 30 * 60 * 1000;
 const socialCommentReconcileState = new Map();
 const socialCommentAliveAt = new Map();
@@ -9207,18 +9210,33 @@ export const reconcileDeletedSocialCommentsForPost = async ({
     });
 
     const confirmedDeleted = [];
-    for (let index = 0; index < plan.toCheck.length; index += 5) {
-      const batch = plan.toCheck.slice(index, index + 5);
+    const missingErrorSample = [];
+    let checked = 0;
+    for (let index = 0; index < plan.toCheck.length; index += SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY) {
+      if (index > 0 && shouldDeferBackgroundGraphWork().defer) break;
+      const batch = plan.toCheck.slice(index, index + SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY);
       const outcomes = await Promise.all(batch.map(async (commentId) => {
         try {
           await callMetaGet({ endpoint: `/${encodeURIComponent(commentId)}`, token, params: { fields: "id" } });
           socialCommentAliveAt.set(aliveKey(commentId), Date.now());
           return { commentId, deleted: false };
         } catch (error) {
-          return { commentId, deleted: isGraphObjectMissingError(error), rateLimited: isMetaRateLimitError(error) };
+          return { commentId, deleted: isGraphObjectMissingError(error), rateLimited: isMetaRateLimitError(error), error };
         }
       }));
-      outcomes.filter((outcome) => outcome.deleted).forEach((outcome) => confirmedDeleted.push(outcome.commentId));
+      checked += batch.length;
+      outcomes.filter((outcome) => outcome.deleted).forEach((outcome) => {
+        confirmedDeleted.push(outcome.commentId);
+        if (missingErrorSample.length < 3) {
+          missingErrorSample.push({
+            comment_id: outcome.commentId,
+            status: outcome.error?.status || null,
+            code: outcome.error?.meta?.code || "",
+            subcode: outcome.error?.meta?.error_subcode || "",
+            message: text(outcome.error?.message || "").slice(0, 160),
+          });
+        }
+      });
       if (outcomes.some((outcome) => outcome.rateLimited)) break;
     }
 
@@ -9236,10 +9254,12 @@ export const reconcileDeletedSocialCommentsForPost = async ({
       live_count: live.ids.size,
       listing_complete: live.complete,
       stored_count: asArray(stored.rows).length,
-      checked: plan.toCheck.length,
-      checks_deferred: plan.skippedChecks,
+      checked,
+      checks_deferred: plan.skippedChecks + (plan.toCheck.length - checked),
       deleted: marked.updated,
       restored: restored.updated,
+      // What Graph actually said about a deleted one — the evidence behind every mark.
+      missing_error_sample: missingErrorSample,
     };
     if (plan.toCheck.length || plan.toRestore.length || !live.complete) {
       console.log("SOCIAL_COMMENT_DELETION_RECONCILED", summary);
