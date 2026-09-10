@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildProductSeo } from "../../src/shared/lib/productSeo.js";
 import {
   injectProductSeoIntoHtml,
+  makeProductSeoImagesAbsolute,
   loadStorefrontHtmlShell,
 } from "../../server/services/storefrontProductSeoPageService.js";
 
@@ -120,4 +121,17 @@ test("gallery rows stored as objects become real image urls in the Product schem
     "https://images.example/three.jpg",
   ]);
   assert.equal(JSON.stringify(seo.productJsonLd).includes("[object Object]"), false);
+});
+
+test("a relative and an absolute row for the same file become one image", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    image_url: "/uploads/products/nike.jpg",
+    gallery_images: ["https://api.m1store-egy.com/uploads/products/nike.jpg", "/uploads/products/other.jpg"],
+  });
+  const absolute = makeProductSeoImagesAbsolute(seo);
+  assert.deepEqual(absolute.productJsonLd.image, [
+    "https://api.m1store-egy.com/uploads/products/nike.jpg",
+    "https://api.m1store-egy.com/uploads/products/other.jpg",
+  ]);
 });

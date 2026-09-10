@@ -16,8 +16,10 @@ const absoluteSeoImageUrl = (value = "") => {
 
 export const makeProductSeoImagesAbsolute = (seo = {}) => {
   const image = absoluteSeoImageUrl(seo.image);
+  // Deduped AFTER absolutising: a relative and an absolute row for the same file
+  // are two distinct strings upstream and one identical url here.
   const productImages = Array.isArray(seo.productJsonLd?.image)
-    ? seo.productJsonLd.image.map(absoluteSeoImageUrl).filter(Boolean)
+    ? [...new Set(seo.productJsonLd.image.map(absoluteSeoImageUrl).filter(Boolean))]
     : [];
   return {
     ...seo,
