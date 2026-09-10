@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
 import { Truck } from "lucide-react";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import PortalOnlineOrdersBoard from "../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard";
@@ -10,7 +10,7 @@ import usePageTitle from "../../../shared/hooks/usePageTitle";
 // أوردرات الشحن in the employee portal. Every employee sees it (owner decision,
 // 2026-09-10); the board is shared with the manager portal.
 export default function EmployeePortalOnlineOrders() {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useEmployeePortalArabic();
   usePageTitle("Employee Shipping Orders");
   const { token } = useParams();
   const navigate = useNavigate();

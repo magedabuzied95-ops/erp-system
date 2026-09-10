@@ -74,6 +74,7 @@ import i18n from "../../../i18n/i18n";
 // The portal has its own label table; ring copy is shared across surfaces and lives in the i18n bundle.
 const ringText = (key) => i18n.t(`common.chatRing.${key}`);
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
+import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
 import { getEmployeeSalesOpportunities, getEmployeeSalesBoard } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
@@ -1544,6 +1545,9 @@ export default function EmployeePayrollPortal() {
   const navigate = useNavigate();
   const location = useLocation();
   const language = "ar";
+  // Dictionary strings on this screen (أوردرات الشحن, chat ring) must be Arabic too, and
+  // re-render once the Arabic dictionary is active.
+  useEmployeePortalArabic();
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
