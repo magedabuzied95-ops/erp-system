@@ -5851,14 +5851,34 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     draft_storage_ms: 0,
     total_reply_ms: 0,
   };
-  const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 100 });
+  // Resolve the ONE conversation by key, like every other single-conversation caller in this
+  // file. The old `loadAiInbox({ limit: 100 })` + `session_id ===` sweep could not find a
+  // WhatsApp thread at all: production's assisted intake logged
+  // `generation_blocked:Conversation not found` for every WhatsApp message — 0 suggestions out
+  // of 413 in a week — while the same sweep found a Messenger thread from the same minutes.
+  // Checked against the live /inbox response (2026-09-10): the WhatsApp session ids the intake
+  // asked for were not among the 100 rows it returned, in any format. A keyed lookup adds
+  // `session_id = ANY(keys)` to the same WHERE the inbox list already passes, so it reaches the
+  // conversation wherever it ranks.
+  const conversationLookup = await findAiInboxConversationByKeys({ tenantId, keys: [conversationId] });
+  const conversation = conversationLookup.conversation;
+  // Downstream only ever reads this to find the same conversation again (the harness and the
+  // recommendation loader both prefer the conversation they are handed), so it carries just it.
+  const inbox = { conversations: conversation ? [conversation] : [] };
   const pipelineQueryCounts = {
     db_reads_count: 1,
     correction_queries_count: 0,
     product_queries_count: 0,
   };
-  const conversation = asArray(inbox.conversations).find((item) => item.session_id === conversationId);
-  if (!conversation) throw Object.assign(new Error("Conversation not found"), { status: 404 });
+  if (!conversation) {
+    console.warn("[ai-inbox] reply generation could not resolve the conversation", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      searched: conversationLookup.searched,
+      loaded_count: conversationLookup.loaded_count,
+    });
+    throw Object.assign(new Error("Conversation not found"), { status: 404 });
+  }
   const aiSettings = await getAiAgentSettings({ tenantId }).catch(() => DEFAULT_SETTINGS);
   if (!isAiAssistantGlobalEnabled(aiSettings)) {
     throw Object.assign(new Error("AI assistant is globally paused"), { status: 409, code: "AI_ASSISTANT_GLOBAL_PAUSED" });

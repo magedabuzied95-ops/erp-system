@@ -152,6 +152,25 @@ test("a REAL caption is never thrown away in favour of what the photo looks like
   }
 });
 
+test("the inbox reply resolves its conversation by key, never by a 100-row sweep", () => {
+  // LIVE 2026-09-10: the assisted intake logged `generation_blocked:Conversation not found` for
+  // EVERY WhatsApp message — 0 suggestions out of 413 in a week — because generateAiInboxReply
+  // loaded the first 100 inbox rows and searched them for `session_id ===`. The WhatsApp threads
+  // the intake asked for were not among those 100 in any format, while a Messenger thread from the
+  // same minutes was. So no suggestion — photo or text — ever reached a WhatsApp customer.
+  const fn = salesAgent.slice(
+    salesAgent.indexOf("export const generateAiInboxReply = async"),
+    salesAgent.indexOf("const typedMessage = latestCustomerMessage(conversation.messages)")
+  );
+  assert.ok(fn.length > 0, "the conversation lookup sits at the top of the function");
+  assert.match(fn, /findAiInboxConversationByKeys\(\{ tenantId, keys: \[conversationId\] \}\)/,
+    "the conversation is resolved by key, wherever it ranks");
+  assert.ok(!/loadAiInbox\(\{ tenantId, filter: "all", limit: 100 \}\)/.test(fn),
+    "the 100-row sweep that could not see WhatsApp threads is gone");
+  assert.ok(!/\.find\(\(item\) => item\.session_id === conversationId\)/.test(fn),
+    "and so is the exact-string search over it");
+});
+
 test("the inbox pipeline turns a photo into words instead of bypassing the grounding gate", () => {
   const branch = salesAgent.slice(
     salesAgent.indexOf("const inboundImageUrl = firstInboundImageUrl(asArray(latestCustomerRow?.attachments))"),
