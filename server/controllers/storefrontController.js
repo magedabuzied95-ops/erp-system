@@ -408,7 +408,10 @@ const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, 
   const enabled = saleModeEnabled(pricingSettings) || forcedOffer === true;
   // Some catalog imports store the only customer-facing price in sale_price.
   // Never turn that valid price into zero merely because global sale mode is off.
-  const basePrice = selling > 0 ? selling : sale > 0 ? sale : original;
+  // A compare/original price is never a selling price, though: a size with no price of its own
+  // used to be shown AT its strikethrough (product 30 at 2,050, 318 sizes in all, every one out of
+  // stock). Zero here means "this size has no price", which the page renders as unavailable.
+  const basePrice = selling > 0 ? selling : sale > 0 ? sale : 0;
   const activeSale = enabled && sale > 0 && selling > 0 && sale < selling;
   const activePrice = activeSale ? sale : basePrice;
   const compareAtPrice = original > activePrice && activePrice > 0 ? original : 0;

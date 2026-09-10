@@ -88,6 +88,9 @@ export const storefrontSaleModeOn = (product = {}, variant = {}) => Boolean(
   truthyStorefrontFlag(product?.sale_mode_enabled)
 );
 
+// No regular_price fallback: the storefront API fills a product's regular_price with its
+// compare/original price, so reaching for it here showed a size that has no price AT its
+// strikethrough price. Zero means "no price"; callers render that as unavailable.
 export const storefrontSellingPrice = (product = {}, variant = {}) =>
   parseStorefrontPriceValue(
     variant?.current_selling_price ||
@@ -96,7 +99,6 @@ export const storefrontSellingPrice = (product = {}, variant = {}) =>
     product?.current_selling_price ||
     product?.selling_price ||
     product?.price ||
-    product?.regular_price ||
     0
   );
 
@@ -152,11 +154,15 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = false, variant
   const customComparePrice = parseStorefrontPriceValue(
     resolvedVariant?.custom_compare_price ?? product?.custom_compare_price
   );
-  const originalPrice = customCompareEnabled && customComparePrice > sellingPrice
-    ? customComparePrice
-    : legacySaleValid
-      ? storedSellingPrice
-      : 0;
+  // With no price there is nothing to discount: without this guard a priceless size showed its
+  // compare price struck through next to "0" and a "-100%" badge.
+  const originalPrice = sellingPrice <= 0
+    ? 0
+    : customCompareEnabled && customComparePrice > sellingPrice
+      ? customComparePrice
+      : legacySaleValid
+        ? storedSellingPrice
+        : 0;
   let price = sellingPrice;
   const comparePrice = originalPrice > sellingPrice ? originalPrice : null;
   const isOnSale = Boolean(comparePrice);

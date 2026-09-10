@@ -718,7 +718,13 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
             <h1 className="mt-3 line-clamp-2 text-[1.85rem] font-black leading-[1.08] md:text-4xl">{displayTitle}</h1>
             <div className="mt-5 flex flex-wrap items-end gap-x-3 gap-y-2">
-              <div className="text-3xl font-black text-white md:text-[2.65rem]">{money(selectedSellingPrice)}</div>
+              {/* A size with no price of its own used to render its strikethrough as the price, then
+                  "0" once that fallback went. It says so instead. */}
+              {selectedSellingPrice > 0 ? (
+                <div className="text-3xl font-black text-white md:text-[2.65rem]">{money(selectedSellingPrice)}</div>
+              ) : (
+                <div className="text-xl font-black text-white/70 md:text-2xl">{sfText("storefront.products.priceUnavailable", "Price unavailable")}</div>
+              )}
               {selectedComparePrice > selectedSellingPrice ? <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm font-black text-white/60 line-through">{money(selectedComparePrice)}</span> : null}
               {selectedDiscountPercent ? <span className="rounded-full bg-emerald-400/15 px-3 py-1.5 text-sm font-black text-emerald-200">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
               {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
