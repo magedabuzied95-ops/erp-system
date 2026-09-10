@@ -475,6 +475,23 @@ export const clearMetaCatalogFeedCache = () => {
 
 export const buildMetaCatalogFeed = async ({ warmImages = true, force = false } = {}) => {
   if (!force && feedCache && Date.now() - feedCache.generatedAt < META_FEED_TTL_MS) return feedCache;
+  try {
+    return await rebuildMetaCatalogFeed({ warmImages });
+  } catch (error) {
+    // A stale catalogue beats a 500: Meta treats a failed fetch as an error against the feed,
+    // and the rows it already has are still mostly true.
+    if (feedCache) {
+      console.error("[meta-catalog-feed] rebuild failed; serving the last good copy", {
+        error: error?.message || String(error),
+        generated_at: new Date(feedCache.generatedAt).toISOString(),
+      });
+      return feedCache;
+    }
+    throw error;
+  }
+};
+
+const rebuildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
   const storefrontUrl = storefrontBaseUrl() || DEFAULT_STOREFRONT_URL;
   const backendUrl = text(process.env.PUBLIC_BACKEND_URL || process.env.API_PUBLIC_URL || DEFAULT_BACKEND_URL).replace(/\/+$/g, "");
   const rows = await queryMetaCatalogRows();

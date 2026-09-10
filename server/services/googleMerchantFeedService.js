@@ -11,7 +11,12 @@ export const GOOGLE_FEED_TTL_MS = 24 * 60 * 60 * 1000;
 const STOREFRONT_URL = "https://m1store-egy.com";
 const BACKEND_URL = "https://api.m1store-egy.com";
 const FALLBACK_IMAGE = `${STOREFRONT_URL}/branding/m-one-logo-dark-fixed.png`;
-const PAGE_SIZE = 1000;
+// One page, not nine. Every page re-runs this query's CTEs and pays a growing OFFSET, so the
+// 1,000-row paging cost 53s of database time for 8,760 rows and the route answered 503 at its
+// 60s request limit; the same rows in a single query take 12.4s (measured on production).
+const PAGE_SIZE = 10000;
+// The storefront's DEFAULT_TENANT_ID: every catalogue row belongs to tenant 1.
+const FEED_TENANT_ID = 1;
 
 const text = (value = "") => String(value ?? "").trim();
 const positive = (value) => {
@@ -399,6 +404,23 @@ export const clearGoogleMerchantFeedCache = () => {
 export const buildGoogleMerchantFeed = async ({ force = false } = {}) => {
   const now = Date.now();
   if (!force && feedCache && now - feedCache.generatedAt < GOOGLE_FEED_TTL_MS) return feedCache;
+  try {
+    return await rebuildGoogleMerchantFeed(now);
+  } catch (error) {
+    // A stale catalogue beats no catalogue: Merchant Center treats a failed fetch as a fetch
+    // error against the account, and the rows it already has are still mostly true.
+    if (feedCache) {
+      console.error("[google-merchant-feed] rebuild failed; serving the last good copy", {
+        error: error?.message || String(error),
+        generated_at: new Date(feedCache.generatedAt).toISOString(),
+      });
+      return feedCache;
+    }
+    throw error;
+  }
+};
+
+const rebuildGoogleMerchantFeed = async (now = Date.now()) => {
   const rows = [];
   let offset = 0;
   while (true) {
@@ -409,7 +431,7 @@ export const buildGoogleMerchantFeed = async ({ force = false } = {}) => {
     offset += page.length;
   }
   // Loaded once per build: without it every row falls back to "Sale OFF".
-  const saleModeSettings = await loadTenantSaleModeSettings({});
+  const saleModeSettings = await loadTenantSaleModeSettings({ tenantId: FEED_TENANT_ID });
   const generated = buildGoogleMerchantFeedFromRows(rows, { saleModeSettings });
   const etag = `"${createHash("sha256").update(generated.xml).digest("hex")}"`;
   feedCache = {
