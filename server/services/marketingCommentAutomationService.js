@@ -1076,24 +1076,56 @@ export const likeComment = async (platform, commentId, businessId) => {
   return callMetaPost({ businessId, endpoint, label: "like", params });
 };
 
-export const buildFacebookCommentMentionParams = ({ message = "", commenterId = "", commenterName = "" } = {}) => {
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   A MENTION IS WRITTEN INTO THE MESSAGE, NOT PASSED BESIDE IT
+   ──────────────────────────────────────────────────────────────────────────────────────────────
+   Every public reply since 2026-07-15 sent the mention as a `message_tags` parameter. That field
+   is READ-ONLY on the Graph API: posting it with a comment is silently ignored — no error, no
+   tag — so the customer's name went out as plain text and nobody could see why.
+
+   Meta's own rule (Pages API, "Comments and @Mentions") is that the mention goes INSIDE `message`:
+
+     Facebook   @[<page-scoped id>]   numeric, and only for someone who commented on the post
+     Instagram  @<username>           Instagram has no bracket form; the handle is the mention
+
+   The bracket form is unforgiving: anything it cannot resolve reaches the customer verbatim as
+   "@[12345]", so both branches refuse to build one they are not sure of and hand back the plain
+   name instead.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+export const buildSocialCommentMentionMessage = ({
+  platform = "",
+  message = "",
+  commenterId = "",
+  commenterName = "",
+  commenterUsername = "",
+} = {}) => {
   const safeMessage = trimString(message);
-  const safeCommenterId = trimString(commenterId);
-  const safeCommenterName = trimString(commenterName);
-  const offset = safeCommenterName ? safeMessage.indexOf(safeCommenterName) : -1;
-  if (!safeMessage || !safeCommenterId || !safeCommenterName || offset < 0) {
-    return { message: safeMessage, mentionApplied: false };
+  const safeName = trimString(commenterName);
+  const plain = { message: safeMessage, mentionApplied: false, mentionToken: "" };
+  // Nothing to replace: the reply never says the customer's name, so there is nowhere to put it.
+  if (!safeMessage || !safeName || !safeMessage.includes(safeName)) return plain;
+
+  if (trimString(platform).toLowerCase().includes("instagram")) {
+    // The handle, never the display name — "@Maged Abuzied" is not a mention, it is three words
+    // with an @ in front of them.
+    const handle = trimString(commenterUsername || safeName).replace(/^@+/, "");
+    if (!handle || !/^[A-Za-z0-9._]+$/.test(handle)) return plain;
+    const target = safeMessage.includes(handle) ? handle : safeName;
+    return {
+      message: safeMessage.replace(target, `@${handle}`),
+      mentionApplied: true,
+      mentionToken: `@${handle}`,
+    };
   }
+
+  // A non-numeric id means the identity fell back to a username or to the comment id. Writing
+  // "@[maged.abuzied]" would ship those brackets to the customer, so it stays a plain name.
+  const pageScopedId = trimString(commenterId);
+  if (!/^\d+$/.test(pageScopedId)) return plain;
   return {
-    message: safeMessage,
-    message_tags: JSON.stringify([{
-      id: safeCommenterId,
-      name: safeCommenterName,
-      type: "user",
-      offset,
-      length: safeCommenterName.length,
-    }]),
+    message: safeMessage.replace(safeName, `@[${pageScopedId}]`),
     mentionApplied: true,
+    mentionToken: `@[${pageScopedId}]`,
   };
 };
 
@@ -1191,36 +1223,46 @@ export const replyToComment = async (platform, commentId, message, businessId, o
         code: "OFFICIAL_PUBLIC_REPLY_EMPTY",
       });
     }
-    const mentionParams = platform === "facebook"
-      ? buildFacebookCommentMentionParams({
-        message: officialMessage,
-        commenterId: options?.commenterId,
-        commenterName: options?.commenterName,
-      })
-      : { message: officialMessage, mentionApplied: false };
+    const mentionParams = buildSocialCommentMentionMessage({
+      platform,
+      message: officialMessage,
+      commenterId: options?.commenterId,
+      commenterName: options?.commenterName,
+      commenterUsername: options?.commenterUsername,
+    });
+    console.log("SOCIAL_COMMENT_PUBLIC_REPLY_MENTION", {
+      platform,
+      comment_id: String(commentId || ""),
+      mention_applied: mentionParams.mentionApplied,
+      mention_token: mentionParams.mentionToken || "",
+      has_commenter_id: Boolean(trimString(options?.commenterId || "")),
+      has_commenter_name: Boolean(trimString(options?.commenterName || "")),
+      has_commenter_username: Boolean(trimString(options?.commenterUsername || "")),
+    });
     let result;
     try {
       result = await callMetaPost({
         businessId,
         endpoint,
         label: mentionParams.mentionApplied ? "public reply with mention" : "public reply",
-        params: {
-          message: mentionParams.message,
-          ...(mentionParams.message_tags ? { message_tags: mentionParams.message_tags } : {}),
-        },
+        params: { message: mentionParams.message },
       });
     } catch (error) {
       if (!mentionParams.mentionApplied || !canRetryPublicReplyWithoutMention(error)) throw error;
+      // The mention is now part of the text, so the retry has to go back to the ORIGINAL message —
+      // resending the same string would just fail the same way, and losing the reply to a rejected
+      // tag is worse than a plain name.
       console.warn("SOCIAL_COMMENT_PUBLIC_REPLY_MENTION_FALLBACK", {
         platform,
         comment_id: String(commentId || ""),
-        reason: error?.message || "Meta rejected the mention tag",
+        mention_token: mentionParams.mentionToken || "",
+        reason: error?.message || "Meta rejected the mention",
       });
       result = await callMetaPost({
         businessId,
         endpoint,
         label: "public reply mention fallback",
-        params: { message: mentionParams.message },
+        params: { message: officialMessage },
       });
     }
     console.log("SOCIAL_COMMENT_PUBLIC_REPLY_SEND_DONE", {

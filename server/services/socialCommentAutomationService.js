@@ -3452,6 +3452,15 @@ const executeSocialCommentAutomationRuntime = async ({
           await replyToComment(normalizedPlatform, safeCommentId, effectiveRenderedPublicReply, safeTenantId, {
             commenterId: safeRow.commenter_id,
             commenterName: safeRow.commenter_name,
+            // Instagram mentions a handle, not a name. It rides beside the name because a profile
+            // lookup can have replaced commenter_name with a display name by the time we get here.
+            commenterUsername: text(
+              safeRow.commenter_username ||
+              safeRow.username ||
+              safeRow.raw_payload?.value?.from?.username ||
+              safeRow.raw_payload?.from?.username ||
+              ""
+            ),
             postId: safePostId,
           });
           aiPhaseTimings.public_reply_send_completed_at = new Date().toISOString();
