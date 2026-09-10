@@ -252,6 +252,13 @@ const shapeOrder = (order = {}, items = []) => {
       apartment: text(order.apartment_number),
       landmark: text(order.landmark),
       full: text(order.customer_address) || text(order.shipping_address_line),
+      // Raw values behind the names, so the manager's edit form can preselect the
+      // Bosta pickers and send back exactly what editOrder stores.
+      raw_governorate: text(order.governorate),
+      raw_city_area: text(order.city_area),
+      shipping_city_id: text(order.shipping_city_id),
+      shipping_zone_id: text(order.shipping_zone_id),
+      shipping_district_id: text(order.shipping_district_id),
     },
     delivery_notes: text(order.delivery_notes),
     order_notes: text(order.order_notes || order.notes),
@@ -381,6 +388,7 @@ const PORTAL_SOURCES = new Set(["employee_portal", "manager_portal"]);
 const STAFF_TIMELINE_KINDS = {
   customer_confirmed_order: "staff_confirmed",
   portal_confirmation_sent: "staff_confirmation_sent",
+  portal_edited: "staff_edited",
   portal_ready_to_ship: "staff_ready_to_ship",
   portal_bosta_created: "staff_shipment_created",
 };

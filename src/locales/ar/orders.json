@@ -989,7 +989,8 @@
       "staff_confirmed": "أكّد الأوردر: {{actor}}",
       "staff_ready_to_ship": "جهّزه للشحن: {{actor}}",
       "staff_shipment_created": "أنشأ شحنة بوسطة: {{actor}}",
-      "staff_confirmation_sent": "أرسل رسالة التأكيد: {{actor}}"
+      "staff_confirmation_sent": "أرسل رسالة التأكيد: {{actor}}",
+      "staff_edited": "عدّل بيانات الأوردر: {{actor}}"
     },
     "providers": {
       "bosta": "بوسطة",
@@ -1027,7 +1028,12 @@
       "CONFIRMATION_ORDER_DISPATCHED": "الأوردر خرج للشحن بالفعل، لا يمكن طلب تأكيده من العميل",
       "CONFIRMATION_STATUS_NOT_CONFIRMABLE": "حالة الأوردر لا تسمح بطلب تأكيد من العميل",
       "CONFIRMATION_NOT_SENT": "تعذّر إرسال رسالة التأكيد",
-      "WHATSAPP_GATEWAY_ERROR": "تعذّر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل."
+      "WHATSAPP_GATEWAY_ERROR": "تعذّر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل.",
+      "ORDER_HAS_SHIPMENT": "الأوردر عليه شحنة بوسطة — لا يمكن تعديله أو حذفه من هنا",
+      "ORDER_LOCKED": "لا يمكن تعديل أو حذف الأوردر في حالته الحالية",
+      "NOTHING_TO_SAVE": "لا توجد تعديلات للحفظ",
+      "CUSTOMER_NAME_REQUIRED": "اسم العميل مطلوب",
+      "CUSTOMER_PHONE_INVALID": "رقم الموبايل غير صحيح"
     },
     "access": {
       "title": "تجهيز أوردرات الشحن",
@@ -1058,6 +1064,24 @@
       "failedCount": "تعذّر {{count}}",
       "printed": "تم فتح {{count}} بوليصة للطباعة",
       "noneEligible": "الأوردرات المحددة ليست جاهزة للشحن ولا عليها بوليصة — أكّد الأوردر أولًا"
+    },
+    "manage": {
+      "menu": "خيارات الأوردر",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "lockedHint": "الأوردر عليه شحنة أو خرج من مرحلة التجهيز — التعديل والحذف من النظام أو من بوسطة",
+      "editTitle": "تعديل الأوردر {{number}}",
+      "pickGovernorate": "اختر المحافظة",
+      "pickCity": "اختر المنطقة",
+      "pickDistrict": "اختر الحي",
+      "save": "حفظ التعديلات",
+      "saved": "تم حفظ تعديلات الأوردر",
+      "itemsHint": "تعديل المنتجات أو المقاسات أو الأسعار من صفحة الأوردرات في النظام.",
+      "deleteTitle": "حذف الأوردر {{number}}؟",
+      "deleteBody": "سيتم إلغاء الأوردر وإرجاع المنتجات للمخزون، ولن يظهر في أوردرات الشحن بعد ذلك. لا يمكن التراجع من البوابة.",
+      "deleteReason": "سبب الحذف (اختياري)",
+      "deleteConfirm": "حذف الأوردر",
+      "deleted": "تم حذف الأوردر {{number}} ورجعت المنتجات للمخزون"
     }
   }
 }

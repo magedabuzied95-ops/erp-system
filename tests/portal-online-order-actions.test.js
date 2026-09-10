@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { runPortalOrderAction } from "../server/modules/shipping/shipping.portal.actions.js";
+import { PORTAL_SHIP_ACTIONS, runPortalOrderAction } from "../server/modules/shipping/shipping.portal.actions.js";
+
+test("only booking the parcel and printing its airway bill are open to every employee", () => {
+  assert.deepEqual([...PORTAL_SHIP_ACTIONS].sort(), ["create_shipment", "print_awb"]);
+});
 import { employeeCanActOnOnlineOrders, setEmployeeOnlineOrdersAccess } from "../server/modules/shipping/shipping.portal.access.js";
 import { portalOrderActionsFor } from "../src/shared/components/portalOnlineOrders/portalOrderActions.js";
 
@@ -225,6 +229,9 @@ test("the employee route checks the switch before it acts; the manager route act
   const actAt = block.indexOf("runPortalOrderAction(");
   assert.ok(guardAt > 0 && actAt > guardAt, "the permission check must come before the action");
   assert.match(block, /status\(403\)/);
+  // Shipping and printing skip the switch (every employee); nothing else does.
+  assert.match(block, /const shippingAction = PORTAL_SHIP_ACTIONS\.includes\(/);
+  assert.match(block, /if \(!shippingAction && !\(await employeeCanActOnOnlineOrders\(/);
 
   const managerRoutes = readFileSync(new URL("../server/routes/managerPortal.js", import.meta.url), "utf8");
   assert.match(managerRoutes, /runPortalOrderAction\(\{ actor: manager, surface: "manager_portal"/);

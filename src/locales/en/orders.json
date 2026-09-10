@@ -989,7 +989,8 @@
       "staff_confirmed": "Confirmed by {{actor}}",
       "staff_ready_to_ship": "Marked ready to ship by {{actor}}",
       "staff_shipment_created": "Bosta shipment created by {{actor}}",
-      "staff_confirmation_sent": "Confirmation message sent by {{actor}}"
+      "staff_confirmation_sent": "Confirmation message sent by {{actor}}",
+      "staff_edited": "Order details edited by {{actor}}"
     },
     "providers": {
       "bosta": "Bosta",
@@ -1027,7 +1028,12 @@
       "CONFIRMATION_ORDER_DISPATCHED": "The order is already out for shipping; the customer cannot confirm it now",
       "CONFIRMATION_STATUS_NOT_CONFIRMABLE": "The order's status does not allow a confirmation request",
       "CONFIRMATION_NOT_SENT": "Could not send the confirmation message",
-      "WHATSAPP_GATEWAY_ERROR": "WhatsApp refused the message. Check that the shop number is connected."
+      "WHATSAPP_GATEWAY_ERROR": "WhatsApp refused the message. Check that the shop number is connected.",
+      "ORDER_HAS_SHIPMENT": "This order has a Bosta shipment — it cannot be edited or deleted here",
+      "ORDER_LOCKED": "This order cannot be edited or deleted in its current status",
+      "NOTHING_TO_SAVE": "Nothing to save",
+      "CUSTOMER_NAME_REQUIRED": "Customer name is required",
+      "CUSTOMER_PHONE_INVALID": "The phone number is not valid"
     },
     "access": {
       "title": "Handle shipping orders",
@@ -1058,6 +1064,24 @@
       "failedCount": "{{count}} failed",
       "printed": "{{count}} airway bills opened for printing",
       "noneEligible": "None of the selected orders is ready to ship or has an airway bill — confirm the order first"
+    },
+    "manage": {
+      "menu": "Order options",
+      "edit": "Edit",
+      "delete": "Delete",
+      "lockedHint": "This order has a shipment or is past preparation — edit or delete it from the system or from Bosta",
+      "editTitle": "Edit order {{number}}",
+      "pickGovernorate": "Choose governorate",
+      "pickCity": "Choose area",
+      "pickDistrict": "Choose district",
+      "save": "Save changes",
+      "saved": "Order changes saved",
+      "itemsHint": "Change products, sizes or prices from the Orders page in the system.",
+      "deleteTitle": "Delete order {{number}}?",
+      "deleteBody": "The order is cancelled and its products go back to stock; it will no longer appear under shipping orders. This cannot be undone from the portal.",
+      "deleteReason": "Reason (optional)",
+      "deleteConfirm": "Delete order",
+      "deleted": "Order {{number}} deleted and its products returned to stock"
     }
   }
 }

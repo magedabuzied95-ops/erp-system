@@ -51,6 +51,13 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "CONFIRMATION_STATUS_NOT_CONFIRMABLE",
   "CONFIRMATION_NOT_SENT",
   "WHATSAPP_GATEWAY_ERROR",
+  "ORDER_HAS_SHIPMENT",
+  "ORDER_LOCKED",
+  "NOTHING_TO_SAVE",
+  "CUSTOMER_NAME_REQUIRED",
+  "CUSTOMER_PHONE_INVALID",
+  // EDIT_REFUSED / DELETE_REFUSED are left out on purpose: they carry the ERP handler's
+  // own reason, which the generic sentence shows after its dash.
 ];
 
 export const pdfUrlFromBase64 = (base64) => {

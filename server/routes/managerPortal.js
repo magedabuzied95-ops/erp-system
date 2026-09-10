@@ -54,6 +54,7 @@ import {
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
+import { deletePortalOnlineOrder, editPortalOnlineOrder } from "../modules/shipping/shipping.portal.manage.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -331,7 +332,7 @@ router.get("/:token/online-orders", async (req, res) => {
     if (!manager) return;
     const payload = await listPortalOnlineOrders({ tenantId: manager.tenant_id, query: req.query || {} });
     // Every manager-portal holder may act (owner decision 2026-09-10).
-    return res.json({ success: true, ...payload, permissions: { can_act: true } });
+    return res.json({ success: true, ...payload, permissions: { can_act: true, can_ship: true } });
   } catch (error) {
     console.error("[manager-portal] online orders error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
@@ -361,6 +362,34 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
   } catch (error) {
     if (!error.status || error.status >= 500) console.error("[manager-portal] online order action error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Action failed", payload: error.payload || null });
+  }
+});
+
+// ⋮ on a shipping card: edit the customer / address / notes, or delete (cancel + stock
+// back) — manager portal only, and only before a Bosta parcel exists.
+router.post("/:token/online-orders/:orderId/edit", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await editPortalOnlineOrder({ actor: manager, surface: "manager_portal", orderId: req.params.orderId, fields: req.body?.fields || {} });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status || error.status >= 500) console.error("[manager-portal] online order edit error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Edit failed" });
+  }
+});
+
+router.post("/:token/online-orders/:orderId/delete", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await deletePortalOnlineOrder({ actor: manager, surface: "manager_portal", orderId: req.params.orderId, reason: req.body?.reason || "" });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status || error.status >= 500) console.error("[manager-portal] online order delete error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Delete failed" });
   }
 });
 

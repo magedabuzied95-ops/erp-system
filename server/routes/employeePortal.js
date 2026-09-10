@@ -56,7 +56,7 @@ import {
 import { getSettingsByCategory } from "../services/settingsService.js";
 import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../services/salesOpportunityService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
-import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
+import { PORTAL_SHIP_ACTIONS, runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -653,7 +653,9 @@ router.get("/:token/online-orders", async (req, res) => {
       listPortalOnlineOrders({ tenantId: employee.tenant_id, query: req.query || {} }),
       employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }),
     ]);
-    return res.json({ success: true, ...payload, permissions: { can_act: canAct } });
+    // can_ship: every employee may book the Bosta parcel, print the AWB and multi-select.
+    // can_act: confirming stays with the employees the admin switched on.
+    return res.json({ success: true, ...payload, permissions: { can_act: canAct, can_ship: true } });
   } catch (error) {
     console.error("[employee-portal] online orders load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
@@ -673,14 +675,15 @@ router.get("/:token/online-orders/:orderId", async (req, res) => {
   }
 });
 
-// Confirm / ready to ship / create the Bosta parcel / print its AWB — only for the
-// employees the admin switched on (the list itself stays visible to everyone).
+// Create the Bosta parcel / print its AWB: every employee (owner request 2026-09-10).
+// Confirm / send the confirmation / ready to ship: only the employees switched on.
 router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store, private");
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    if (!(await employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }))) {
+    const shippingAction = PORTAL_SHIP_ACTIONS.includes(String(req.params.action || "").trim().toLowerCase());
+    if (!shippingAction && !(await employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }))) {
       return res.status(403).json({ success: false, code: "ONLINE_ORDERS_ACTIONS_DISABLED", message: "Not allowed to act on online orders" });
     }
     const result = await runPortalOrderAction({ actor: employee, surface: "employee_portal", orderId: req.params.orderId, action: req.params.action });
@@ -691,15 +694,13 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
   }
 });
 
-// Several airway bills in one PDF — same switch as the single actions.
+// Several airway bills in one PDF — printing is open to every employee, like the
+// single print.
 router.post("/:token/online-orders/print-labels", async (req, res) => {
   try {
     res.set("Cache-Control", "no-store, private");
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    if (!(await employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }))) {
-      return res.status(403).json({ success: false, code: "ONLINE_ORDERS_ACTIONS_DISABLED", message: "Not allowed to act on online orders" });
-    }
     const result = await runPortalBulkPrint({ actor: employee, surface: "employee_portal", orderIds: req.body?.order_ids });
     return res.json({ success: true, ...result });
   } catch (error) {

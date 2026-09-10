@@ -93,10 +93,10 @@ test("bulk print only prints the caller's orders that have a Bosta parcel, in on
   await assert.rejects(runPortalBulkPrint({ actor: { tenant_id: 4 }, orderIds: Array.from({ length: 51 }, (_, i) => i + 1), deps }), { code: "TOO_MANY_ORDERS" });
 });
 
-test("the employee bulk-print route checks the switch before it prints", () => {
+test("bulk print is open to every employee, like the single print (owner request 2026-09-10)", () => {
   const routes = readFileSync(new URL("../server/routes/employeePortal.js", import.meta.url), "utf8");
-  const block = routes.slice(routes.indexOf('router.post("/:token/online-orders/print-labels"'));
-  const guardAt = block.indexOf("employeeCanActOnOnlineOrders(");
-  const printAt = block.indexOf("runPortalBulkPrint(");
-  assert.ok(guardAt > 0 && printAt > guardAt);
+  const start = routes.indexOf('router.post("/:token/online-orders/print-labels"');
+  const block = routes.slice(start, routes.indexOf("});", routes.indexOf("runPortalBulkPrint(", start)));
+  assert.ok(block.includes("loadVerifiedEmployee("), "still a verified portal token");
+  assert.ok(!block.includes("employeeCanActOnOnlineOrders("), "no per-employee switch on printing");
 });

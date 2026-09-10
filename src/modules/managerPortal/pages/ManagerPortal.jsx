@@ -1851,6 +1851,8 @@ export default function ManagerPortal() {
   }, [token]);
   const runOnlineOrderAction = useCallback((orderId, action) => managerPortalApi.onlineOrderAction(token, orderId, action), [token]);
   const printOnlineOrderLabels = useCallback((orderIds) => managerPortalApi.onlineOrdersPrintLabels(token, orderIds), [token]);
+  const editOnlineOrder = useCallback((orderId, fields) => managerPortalApi.onlineOrderEdit(token, orderId, fields), [token]);
+  const deleteOnlineOrder = useCallback((orderId, reason) => managerPortalApi.onlineOrderDelete(token, orderId, reason), [token]);
 
   useEffect(() => {
     const invoiceId = searchParams.get("invoice_id") || searchParams.get("invoiceId") || "";
@@ -4529,6 +4531,8 @@ export default function ManagerPortal() {
                     loadDetail={loadOnlineOrder}
                     runAction={runOnlineOrderAction}
                     printLabels={printOnlineOrderLabels}
+                    editOrder={editOnlineOrder}
+                    deleteOrder={deleteOnlineOrder}
                     bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}
                   />
                 </Suspense>

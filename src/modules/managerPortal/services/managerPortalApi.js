@@ -18,6 +18,8 @@ export const managerPortalApi = {
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
   onlineOrders: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/online-orders`, { cache: "no-store", ...options, params }),
   onlineOrder: (token, orderId) => api.get(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }),
+  onlineOrderEdit: (token, orderId, fields = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/edit`, { fields }, { suppressErrorStatuses: [400, 404, 409] }),
+  onlineOrderDelete: (token, orderId, reason = "") => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/delete`, { reason }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrdersPrintLabels: (token, orderIds = []) => api.post(`${tokenPath(token)}/online-orders/print-labels`, { order_ids: orderIds }, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
   onlineOrderAction: (token, orderId, action) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, {}, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
   stockAlerts: (token, options = {}) => api.get(`${tokenPath(token)}/stock-alerts`, options),

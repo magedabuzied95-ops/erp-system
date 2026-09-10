@@ -30,6 +30,7 @@ import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from 
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
 import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor } from "./portalOrderActions";
 import { currentBuildId } from "../../lib/portalBuildUpdate";
+import { OrderDeleteSheet, OrderEditSheet, OrderManageMenu } from "./PortalOrderManage";
 
 // أوردرات الشحن — one board, mounted by both the employee portal (its own page) and
 // the manager portal (a tab). The host only supplies how to fetch; everything the
@@ -328,7 +329,7 @@ function ItemLine({ item, ui }) {
   );
 }
 
-function OrderCard({ order, ui, onOpen, selectable = false, selected = false, onToggleSelect }) {
+function OrderCard({ order, ui, onOpen, selectable = false, selected = false, onToggleSelect, onManage = null }) {
   const confirmation = getConfirmationState(order);
   const items = Array.isArray(order.items) ? order.items : [];
   // What was ordered is read from the card itself: a photo big enough to recognise the
@@ -370,9 +371,13 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
           </div>
           <div className="mt-0.5 text-[11px] font-bold text-text-muted">{ui.dateTime(order.created_at)}</div>
         </div>
-        <div className="flex max-w-[55%] flex-col items-end gap-1">
-          <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{statusText}</TonePill>
-          {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
+        <div className="flex max-w-[60%] items-start gap-1.5">
+          <div className="flex min-w-0 flex-col items-end gap-1">
+            <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{statusText}</TonePill>
+            {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
+          </div>
+          {/* The card's far corner (left in Arabic): edit / delete, manager portal only. */}
+          {onManage && !selectable ? <OrderManageMenu order={order} ui={ui} onEdit={onManage.edit} onDelete={onManage.remove} /> : null}
         </div>
       </div>
 
@@ -468,8 +473,12 @@ function timelineLabel(event, ui) {
 const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer };
 const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb" };
 
-function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm }) {
-  const actions = portalOrderActionsFor(order);
+// Shipping the parcel and printing its airway bill have their own permission (every
+// employee has it); the rest of the flow needs can_act.
+const SHIP_ACTIONS = new Set(["create_shipment", "print_awb"]);
+
+function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canAct = false, canShip = false }) {
+  const actions = portalOrderActionsFor(order).filter((action) => (SHIP_ACTIONS.has(action) ? canShip : canAct));
   if (!actions.length && !state.notice && !state.actionError) return null;
   const busy = Boolean(state.busy);
   return (
@@ -526,7 +535,7 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm }) {
   );
 }
 
-function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, onAction, onCancelConfirm }) {
+function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, canShip = false, onAction, onCancelConfirm }) {
   const [imagePreview, setImagePreview] = useState("");
   const order = selection.order || {};
   useEffect(() => {
@@ -758,7 +767,7 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, onA
             </Section>
           ) : null}
         </div>
-        {canAct ? <OrderActionBar order={order} ui={ui} state={selection} onAction={onAction} onCancelConfirm={onCancelConfirm} /> : null}
+        {canAct || canShip ? <OrderActionBar order={order} ui={ui} state={selection} onAction={onAction} onCancelConfirm={onCancelConfirm} canAct={canAct} canShip={canShip} /> : null}
       </section>
 
       {imagePreview ? (
@@ -783,6 +792,9 @@ export default function PortalOnlineOrdersBoard({
   loadDetail,
   runAction = null,
   printLabels = null,
+  // Manager portal only: the card ⋮ (edit the customer / address, or delete the order).
+  editOrder = null,
+  deleteOrder = null,
   // Where the multi-select bar floats: above the manager portal's bottom nav, or at the
   // screen edge on the employee page, which has none.
   bulkBarOffset = "calc(env(safe-area-inset-bottom) + 0.75rem)",
@@ -790,6 +802,7 @@ export default function PortalOnlineOrdersBoard({
 }) {
   const ui = useBoardText();
   const [canAct, setCanAct] = useState(false);
+  const [canShip, setCanShip] = useState(false);
   const runActionRef = useRef(runAction);
   runActionRef.current = runAction;
   const [group, setGroup] = useState("all");
@@ -824,6 +837,7 @@ export default function PortalOnlineOrdersBoard({
       if (requestId !== requestRef.current) return;
       const orders = Array.isArray(payload?.orders) ? payload.orders : [];
       setCanAct(Boolean(runActionRef.current) && payload?.permissions?.can_act === true);
+      setCanShip(Boolean(runActionRef.current) && (payload?.permissions?.can_ship === true || payload?.permissions?.can_act === true));
       setBoard((current) => ({
         orders: page > 1 ? appendById(current.orders, orders) : orders,
         counts: payload?.counts || {},
@@ -1002,7 +1016,45 @@ export default function PortalOnlineOrdersBoard({
     }
   };
 
-  const canBulk = canAct && Boolean(runAction);
+  // Multi-select only books and prints, so it follows the shipping permission.
+  const canBulk = canShip && Boolean(runAction);
+
+  // ---- ⋮ edit / delete (manager portal only).
+  const [manageTarget, setManageTarget] = useState(null);
+  const [flash, setFlash] = useState("");
+  const editOrderRef = useRef(editOrder);
+  editOrderRef.current = editOrder;
+  const deleteOrderRef = useRef(deleteOrder);
+  deleteOrderRef.current = deleteOrder;
+  useEffect(() => {
+    if (!flash) return undefined;
+    const timer = window.setTimeout(() => setFlash(""), 4500);
+    return () => window.clearTimeout(timer);
+  }, [flash]);
+  const manageHandlers = useMemo(() => (editOrder && deleteOrder
+    ? { edit: (order) => setManageTarget({ mode: "edit", order }), remove: (order) => setManageTarget({ mode: "delete", order }) }
+    : null), [editOrder, deleteOrder]);
+
+  const saveEdit = async (orderId, fields) => {
+    const response = await editOrderRef.current(orderId, fields);
+    const nextOrder = response?.order || null;
+    if (nextOrder) {
+      setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(orderId) ? { ...row, ...nextOrder } : row)) }));
+      setSelection((existing) => (existing && String(existing.id) === String(orderId) ? { ...existing, order: { ...existing.order, ...nextOrder } } : existing));
+    }
+    setManageTarget(null);
+    setFlash(ui.tb("manage.saved"));
+  };
+
+  const runDelete = async (orderId, reason) => {
+    const target = manageTarget?.order;
+    await deleteOrderRef.current(orderId, reason);
+    setBoard((existing) => ({ ...existing, orders: existing.orders.filter((row) => String(row.id) !== String(orderId)) }));
+    setSelection((existing) => (existing && String(existing.id) === String(orderId) ? null : existing));
+    setManageTarget(null);
+    setFlash(ui.tb("manage.deleted", { number: target?.order_number || "" }));
+    if (boardRef.current.page === 1) void fetchPage({ page: 1, silent: true });
+  };
   const counts = board.counts || {};
 
   return (
@@ -1081,6 +1133,13 @@ export default function PortalOnlineOrdersBoard({
         })}
       </div>
 
+      {flash ? (
+        <div className="flex items-center gap-2 rounded-[var(--radius-control)] bg-success-subtle px-3 py-2 text-xs font-black text-text" role="status">
+          <Check className="h-4 w-4 shrink-0 text-success" />
+          {flash}
+        </div>
+      ) : null}
+
       {board.error && !board.loading ? (
         <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-8 text-center">
           <AlertTriangle className="h-6 w-6 text-danger" />
@@ -1113,6 +1172,7 @@ export default function PortalOnlineOrdersBoard({
               selectable={selectMode}
               selected={selectedIds.has(String(order.id))}
               onToggleSelect={toggleSelect}
+              onManage={manageHandlers}
             />
           ))}
         </div>
@@ -1241,6 +1301,13 @@ export default function PortalOnlineOrdersBoard({
         </div>
       ) : null}
 
+      {manageTarget?.mode === "edit" ? (
+        <OrderEditSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onSave={saveEdit} errorText={actionErrorText} />
+      ) : null}
+      {manageTarget?.mode === "delete" ? (
+        <OrderDeleteSheet order={manageTarget.order} ui={ui} onClose={() => setManageTarget(null)} onDelete={runDelete} errorText={actionErrorText} />
+      ) : null}
+
       {selection ? (
         <OrderDetailSheet
           selection={selection}
@@ -1248,6 +1315,7 @@ export default function PortalOnlineOrdersBoard({
           onClose={closeSelection}
           onRetry={() => void loadSelection(selection.order)}
           canAct={canAct}
+          canShip={canShip}
           onAction={(action) => void handleAction(action)}
           onCancelConfirm={() => patchSelection(selection.id, { confirming: "" })}
         />

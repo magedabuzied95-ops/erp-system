@@ -16,6 +16,10 @@ import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shippin
 // and records who pressed the button on the order timeline and in the portal audit log.
 
 export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb"];
+// Shipping the parcel and printing its airway bill are open to EVERY employee in the
+// employee portal (owner request 2026-09-10: whoever packs, ships). Confirming an
+// order stays with managers and the employees switched on.
+export const PORTAL_SHIP_ACTIONS = ["create_shipment", "print_awb"];
 
 // Why sendOrderConfirmation declined, as a code the portal can say in Arabic.
 const CONFIRMATION_SEND_CODES = {
