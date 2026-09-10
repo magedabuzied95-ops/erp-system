@@ -568,11 +568,11 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
 // The text's only job is to say what to do with the cards and the buttons.
 const CAROUSEL_BROWSE_LINE = "عشان تشوف الألوان والمقاسات المتاحة من كل لون دوس يمين وشمال على الكروت،";
 const SINGLE_CARD_BROWSE_LINE = "عشان تشوف المقاسات المتاحة بصّ على الكارت فوق،";
-const PICK_SIZE_LINE = "واختار مقاسك من الأزرار تحت 👇";
+const PICK_SIZE_LINE = "اختار مقاسك من الأزرار تحت 👇";
 // Colour first, then size. Asking for a size while several colours are on screen is what let a
 // customer press "40" without ever saying which colour he meant — the flow then picked one for
 // him. The size buttons only come back once the colour is settled.
-const PICK_COLOR_LINE = "واختار اللون الأول من الأزرار تحت 👇";
+const PICK_COLOR_LINE = "اختار اللون من الأزرار تحت 👇";
 
 // Messenger sometimes refuses a message that carries quick replies, and the sender then retries
 // with plain text. Pointing at buttons that were dropped on the retry reads as a broken message,
@@ -806,27 +806,26 @@ export const applySocialCommentRequestedVariantToMessage = ({ message = "", requ
   const base = String(message || "");
   const lines = buildSocialCommentRequestedVariantLines(requestedVariant);
   if (!lines.length) return base;
-  // A settled colour leaves ONE card behind, so both of the lines written for a carousel have to
-  // go: "swipe left and right on the cards" in front of a single photo, and a colour question
-  // whose buttons are now sizes.
+  // A settled colour retires the colour question: its buttons are sizes now, and the message is
+  // rendered upstream from the un-narrowed product, so it still carries the colour ask.
   const settled = text(requestedVariant.settledColor);
   const withAsk = settled && base.includes(PICK_COLOR_LINE)
     ? base.split(PICK_COLOR_LINE).join(PICK_SIZE_LINE)
     : base;
-  const withBrowse = settled && withAsk.includes(CAROUSEL_BROWSE_LINE)
-    ? withAsk.split(CAROUSEL_BROWSE_LINE).join(SINGLE_CARD_BROWSE_LINE)
-    : withAsk;
-  const rows = withBrowse.split("\n");
-  const browseIndex = rows.findIndex((row) => {
-    const trimmed = row.trim();
-    return trimmed === CAROUSEL_BROWSE_LINE || trimmed === SINGLE_CARD_BROWSE_LINE;
-  });
-  const insertAt = browseIndex >= 0
-    ? browseIndex
-    : Math.min(rows.findIndex((row) => row.trim()) + 1, rows.length);
-  const merged = [...rows.slice(0, insertAt), ...lines, "", ...rows.slice(insertAt)];
+  const rows = withAsk.split("\n");
+  // Straight under the greeting, above the ask.
+  const insertAt = Math.min(rows.findIndex((row) => row.trim()) + 1, rows.length);
+  // A one-line answer sits straight under the greeting; only the multi-line ones — where a colour
+  // or a size was unavailable — earn a blank line to stand apart from the ask.
+  const block = lines.length > 1 ? [...lines, ""] : lines;
+  const merged = [...rows.slice(0, insertAt), ...block, ...rows.slice(insertAt)];
   return merged.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
+
+// Facebook hands back the profile's full name, and "أهلاً بحضرتك يا Maged Abuzied ✨" wraps onto
+// two phone lines before the message has said anything at all. The first name greets just as warmly
+// in half the space.
+const greetingName = (value = "") => text(value).split(/\s+/)[0] || "";
 
 const buildProductReplySections = ({ customerName = "", normalizedContext = {} } = {}) => {
   // No sizes means no size buttons underneath — pointing at buttons that were never attached
@@ -835,16 +834,17 @@ const buildProductReplySections = ({ customerName = "", normalizedContext = {} }
     ? normalizedContext.availableSizes.length > 0
     : Boolean(normalizedContext.availableSizesLabel) && normalizedContext.availableSizesLabel !== DEFAULT_SIZE_FALLBACK;
   const hasColorChoice = Array.isArray(normalizedContext.availableColors) && normalizedContext.availableColors.length > 1;
+  // Owner decision (2026-09-10): the reply was nine lines on a phone screen before it asked
+  // anything. Gone: the sentence explaining how to swipe a carousel, and the "we're here if you
+  // need help" sign-off. Kept short: the greeting, ONE ask, and one line of shipping and COD.
+  //
+  // The ask is the line that cannot go. Instagram takes no quick replies at all, and Messenger
+  // drops them on a retry — in both cases this sentence is the only question the customer gets.
   return [
-    text(customerName) ? `أهلاً بحضرتك يا ${text(customerName)} ✨` : "أهلاً بحضرتك ✨",
-    "",
-    normalizedContext.carouselEligible ? CAROUSEL_BROWSE_LINE : SINGLE_CARD_BROWSE_LINE,
+    text(customerName) ? `أهلاً بحضرتك يا ${greetingName(customerName)} ✨` : "أهلاً بحضرتك ✨",
     hasColorChoice ? PICK_COLOR_LINE : hasSizes ? PICK_SIZE_LINE : DEFAULT_SIZE_FALLBACK,
     "",
-    "متاح شحن لجميع المحافظات",
-    "متاح الدفع عند الاستلام ❤️",
-    "",
-    "لو محتاج مساعدة في اختيار المقاس أو عندك أي استفسار، إحنا معاك في أي وقت ❤️",
+    "شحن لكل المحافظات • الدفع عند الاستلام ❤️",
   ];
 };
 

@@ -132,7 +132,7 @@ assert.equal(matchSocialCommentSizeInput("01142995566", ["40", "41", "42"]), "",
 const idle = resolve("بكام ده؟");
 assert.equal(idle.requested, false);
 assert.equal(narrowSocialCommentContextToRequest({ normalizedContext: CONTEXT, requestedVariant: idle }), CONTEXT);
-const plain = buildPolishedSocialCommentProductReply({ customerName: "أحمد", productContext: CONTEXT });
+const plain = buildPolishedSocialCommentProductReply({ customerName: "Maged Abuzied", productContext: CONTEXT });
 assert.equal(
   applySocialCommentRequestedVariantToMessage({ message: plain, requestedVariant: idle }),
   plain,
@@ -140,7 +140,11 @@ assert.equal(
 );
 
 // ── 6. The copy: the ack lands above the ask, and a settled colour retires the colour question ─
-assert.ok(plain.includes("واختار اللون الأول"), "the untouched reply asks for a colour");
+assert.ok(plain.includes("اختار اللون من الأزرار"), "the untouched reply asks for a colour");
+// The copy is deliberately short — the cards carry the price, the sizes and the link, and the
+// owner cut the carousel explainer and the sign-off on 2026-09-10. A regrowing message is a bug.
+assert.ok(plain.split("\n").filter((line) => line.trim()).length <= 3, "the reply stays three lines");
+assert.ok(plain.length <= 120, `the reply stays short (was ${plain.length} chars)`);
 // The message is rendered from the UN-narrowed product upstream and only meets the comment here,
 // so it still carries the colour question while the buttons under it have already become sizes.
 const narrowedMessage = applySocialCommentRequestedVariantToMessage({
@@ -150,22 +154,20 @@ const narrowedMessage = applySocialCommentRequestedVariantToMessage({
 assert.ok(narrowedMessage.includes("مقاس 42 متاح"), "the reply confirms what the comment asked for");
 assert.ok(narrowedMessage.includes("مقاسك"), "and asks for the size instead");
 assert.ok(
-  !narrowedMessage.includes("واختار اللون الأول"),
+  !narrowedMessage.includes("اختار اللون"),
   "the colour question is gone once the comment settled the colour"
+);
+assert.ok(
+  narrowedMessage.includes("Maged") && !narrowedMessage.includes("Abuzied"),
+  "the greeting uses the first name only — a full profile name wraps onto a second line"
 );
 const ackIndex = narrowedMessage.indexOf("مقاس 42 متاح");
 const askIndex = narrowedMessage.indexOf("مقاسك");
 assert.ok(ackIndex >= 0 && askIndex > ackIndex, "the confirmation reads before the ask, not after it");
-assert.ok(
-  !narrowedMessage.includes("دوس يمين وشمال"),
-  "one card is left, so the swipe-the-carousel line must go with the colour question"
-);
-// The size-only case keeps two cards, so that line has to survive there.
-assert.ok(
-  applySocialCommentRequestedVariantToMessage({ message: plain, requestedVariant: fortyTwoOnly })
-    .includes("دوس يمين وشمال"),
-  "two cards are still a carousel to swipe"
-);
+// A size with no colour keeps the colour question — the answer is added, the ask is untouched.
+const sizeOnlyMessage = applySocialCommentRequestedVariantToMessage({ message: plain, requestedVariant: fortyTwoOnly });
+assert.ok(sizeOnlyMessage.includes("اختار اللون من الأزرار"), "a lone size must not retire the colour question");
+assert.ok(sizeOnlyMessage.includes("مقاس 42 متاح في"), "and the answer still names where that size is");
 
 // ── 7. A narrowed colour still has to be CHOSEN, and the tap must carry it ────────────────────
 // This is the whole safety argument: nothing records a colour except a button the customer
