@@ -92,3 +92,38 @@ test("the Google item links to the colourway it advertises", async () => {
   });
   assert.equal(item.link, "https://m1store-egy.com/product/louis-vuitton-lv?color=Grey");
 });
+
+test("the purchase invoice's sale price is the offer price, ahead of the variant column", () => {
+  // Product 568 in production: pv.sale_price is 0.00, the invoice that brought the colour in
+  // recorded 550 against a selling price of 650, and the shop sells at 550.
+  const row = offerRow({ product_sale_price: 0, variant_sale_price: 0, variant_purchase_sale_price: 550 });
+  assert.equal(resolveMetaCatalogActivePrice(row), 550);
+  assert.equal(resolveGoogleFeedPricing(row).active_price, 550);
+
+  const both = offerRow({ product_sale_price: 0, variant_sale_price: 600, variant_purchase_sale_price: 550 });
+  assert.equal(resolveMetaCatalogActivePrice(both), 550);
+  assert.equal(resolveGoogleFeedPricing(both).active_price, 550);
+});
+
+test("a manual override outranks the purchase-invoice price in BOTH feeds", async () => {
+  // Product 707: variants carry purchase 1,100 and a manual override of 1,700; the shop
+  // charges 1,700 and the Google feed used to advertise 1,100.
+  const row = {
+    product_id: 707,
+    variant_id: 8833,
+    product_name: "Momolly Bag",
+    product_type: "Bags",
+    color: "Blue & Green",
+    size: "16-inch",
+    variant_stock: 1,
+    variant_purchase_selling_price: 1100,
+    variant_manual_selling_price: 1700,
+    variant_manual_price_override_active: true,
+    use_custom_compare_price: true,
+    custom_compare_price: 2300,
+  };
+  assert.equal(resolveMetaCatalogActivePrice(row), 1700);
+  assert.equal(resolveGoogleFeedPricing(row).active_price, 1700);
+  assert.equal(resolveGoogleFeedPricing(row).sale_price, 1700);
+  assert.equal(resolveGoogleFeedPricing(row).price, 2300);
+});

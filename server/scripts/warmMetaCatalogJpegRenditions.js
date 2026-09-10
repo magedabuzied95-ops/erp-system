@@ -19,7 +19,7 @@ import {
 const startedAt = Date.now();
 // warm: false — this script is the warm-up; letting the build kick its own
 // background pass as well would convert every image twice.
-const feed = await buildMetaCatalogFeed({ warmImages: false });
+const feed = await buildMetaCatalogFeed({ warmImages: false, force: true });
 
 const sources = new Set();
 for (const item of feed.items || []) {

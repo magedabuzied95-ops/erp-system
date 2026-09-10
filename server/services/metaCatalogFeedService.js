@@ -11,6 +11,8 @@ const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
 const DEFAULT_BACKEND_URL = "https://api.m1store-egy.com";
 const DEFAULT_PRODUCT_IMAGE_PATH = "/branding/m-one-logo-dark-fixed.png";
+// The storefront's DEFAULT_TENANT_ID. Every product row is tenant 1 (checked in production).
+const FEED_TENANT_ID = 1;
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -121,6 +123,24 @@ const queryMetaCatalogRows = async () => {
       WHERE COALESCE(TRIM(sku), '') <> ''
       GROUP BY LOWER(TRIM(sku))
     ),
+    /*
+      Where this catalogue really keeps its offer prices. The storefront reads a variant's sale
+      price as COALESCE(purchase invoice sale price, pv.sale_price) — so a colour bought in on an
+      invoice that recorded 550 alongside a selling price of 650 SELLS at 550 while pv.sale_price
+      is still 0.00, and the ads quoted 650. One pass over the invoice lines that carry a sale
+      price, newest purchase per variant.
+    */
+    variant_purchase_sale AS (
+      SELECT DISTINCT ON (pi.variant_id)
+        pi.variant_id,
+        NULLIF(pi.sale_price, 0) AS purchase_sale_price
+      FROM purchase_items pi
+      JOIN purchases pu ON pu.id = pi.purchase_id
+      WHERE pi.variant_id IS NOT NULL
+        AND NULLIF(pi.sale_price, 0) > 0
+        AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+      ORDER BY pi.variant_id, pu.created_at DESC, pi.id DESC
+    ),
     color_images AS (
       SELECT
         product_id,
@@ -154,6 +174,7 @@ const queryMetaCatalogRows = async () => {
       -- offer flag that exists as a column — the aliases the resolver also accepts do not.
       p.sale_price AS product_sale_price,
       pv.sale_price AS variant_sale_price,
+      vps.purchase_sale_price AS variant_purchase_sale_price,
       p.is_offer_story AS product_is_offer_story,
       -- Sale Mode's own inputs, so the day the global toggle goes on the feed decides with the
       -- same per-record flag, window and margin floor as POS instead of quoting a stale price.
@@ -205,6 +226,7 @@ const queryMetaCatalogRows = async () => {
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN variant_sku_counts vsc ON vsc.sku_key = LOWER(TRIM(pv.sku))
     LEFT JOIN color_images ci ON ci.product_id = p.id AND ci.color_key = LOWER(TRIM(pv.color))
+    LEFT JOIN variant_purchase_sale vps ON vps.variant_id = pv.id
     WHERE p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') = 'active'
       AND p.is_storefront_visible IS DISTINCT FROM FALSE
@@ -278,7 +300,8 @@ export const resolveMetaCatalogActivePrice = (
       promotion_enabled: row.product_promotion_enabled,
     }),
     variant: definedOnly({
-      sale_price: row.variant_sale_price,
+      // Same precedence as the storefront: the purchase invoice's sale price first.
+      sale_price: numberValue(row.variant_purchase_sale_price) || row.variant_sale_price,
       sale_price_enabled: row.variant_sale_price_enabled,
       sale_start_at: row.variant_sale_start_at,
       sale_end_at: row.variant_sale_end_at,
@@ -437,17 +460,33 @@ export const applyMetaReadableImages = async (items = [], { warm = true } = {}) 
   return items;
 };
 
-export const buildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
+/*
+  A build is ~9s of query plus the XML for 8,760 items, and Meta re-crawls on its own schedule
+  while our own checks pull the same url. Without a cache every one of those pays the full build,
+  and a build that drifts past the query read timeout answers 500 — which is exactly what happened
+  once. The TTL matches the Cache-Control the route already sends.
+*/
+export const META_FEED_TTL_MS = 15 * 60 * 1000;
+let feedCache = null;
+
+export const clearMetaCatalogFeedCache = () => {
+  feedCache = null;
+};
+
+export const buildMetaCatalogFeed = async ({ warmImages = true, force = false } = {}) => {
+  if (!force && feedCache && Date.now() - feedCache.generatedAt < META_FEED_TTL_MS) return feedCache;
   const storefrontUrl = storefrontBaseUrl() || DEFAULT_STOREFRONT_URL;
   const backendUrl = text(process.env.PUBLIC_BACKEND_URL || process.env.API_PUBLIC_URL || DEFAULT_BACKEND_URL).replace(/\/+$/g, "");
   const rows = await queryMetaCatalogRows();
   // Loaded once: without it every row falls back to "Sale OFF" and a running sale is under-quoted.
-  const saleModeSettings = await loadTenantSaleModeSettings({});
+  // Every catalogue row belongs to tenant 1 and the storefront serves the same default, so the
+  // feed and the shop answer "is a sale running" from one row of website_settings.
+  const saleModeSettings = await loadTenantSaleModeSettings({ tenantId: FEED_TENANT_ID });
   const items = rows.map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl, saleModeSettings }));
   await applyMetaReadableImages(items, { warm: warmImages });
   const body = items.map(metaCatalogItemXml).join("\n");
 
-  return {
+  feedCache = {
     feedUrl: FEED_URL,
     items,
     xml: `<?xml version="1.0" encoding="UTF-8"?>
@@ -459,5 +498,7 @@ export const buildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
 ${body}
   </channel>
 </rss>`,
+    generatedAt: Date.now(),
   };
+  return feedCache;
 };

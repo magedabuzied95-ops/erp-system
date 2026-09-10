@@ -112,10 +112,14 @@ const currentSellingPrice = (row = {}) => resolveCurrentSellingPrice({
   },
 }).value;
 
-const purchaseSellingPrice = (row = {}) =>
-  positive(row.variant_purchase_selling_price) ||
-  positive(row.product_purchase_selling_price) ||
-  currentSellingPrice(row);
+/*
+  The Phase 1 pricing contract is manual override → purchase-invoice price → legacy columns, and
+  this used to read the purchase price FIRST. A bag whose variants carry a manual override of 1,700
+  over a purchase price of 1,100 was therefore advertised at 1,100 while the shop charges 1,700 —
+  600 EGP under, on every item priced that way. The canonical resolver already reads the purchase
+  price in its own tier; there is nothing left for a shortcut to add.
+*/
+const normalSellingPriceFor = (row = {}) => currentSellingPrice(row);
 
 // The resolver merges variant over product to evaluate the Sale Mode rules, so a variant key that
 // is merely absent from the row would shadow the product's own value with undefined.
@@ -127,7 +131,7 @@ export const resolveGoogleFeedPricing = (row = {}, { saleModeSettings = {} } = {
   // per-record flags from quoting dormant sale prices. The canonical resolver is what draws that
   // line properly: a curated offer or a live Sale Mode run is what the shop charges, and a feed
   // that quotes more than the landing page is exactly what Merchant Center disapproves.
-  const normalSellingPrice = purchaseSellingPrice(row);
+  const normalSellingPrice = normalSellingPriceFor(row);
   if (!(normalSellingPrice > 0)) return { price: 0, sale_price: 0, active_price: 0 };
 
   const effective = resolveEffectiveCustomerPrice({
@@ -148,7 +152,8 @@ export const resolveGoogleFeedPricing = (row = {}, { saleModeSettings = {} } = {
       promotion_enabled: row.product_promotion_enabled,
     }),
     variant: definedOnly({
-      sale_price: row.variant_sale_price,
+      // Same precedence as the storefront: the purchase invoice's sale price first.
+      sale_price: positive(row.variant_purchase_sale_price) || row.variant_sale_price,
       sale_price_enabled: row.variant_sale_price_enabled,
       sale_start_at: row.variant_sale_start_at,
       sale_end_at: row.variant_sale_end_at,
@@ -258,7 +263,20 @@ export const googleMerchantItemXml = (item = {}) => {
 };
 
 const googleRowsSql = `
-  WITH color_images AS (
+  WITH variant_purchase_sale AS (
+    -- The storefront reads a variant sale price as COALESCE(purchase invoice sale price,
+    -- pv.sale_price); this catalogue keeps most of its offer prices on the invoice line.
+    SELECT DISTINCT ON (pi.variant_id)
+      pi.variant_id,
+      NULLIF(pi.sale_price, 0) AS purchase_sale_price
+    FROM purchase_items pi
+    JOIN purchases pu ON pu.id = pi.purchase_id
+    WHERE pi.variant_id IS NOT NULL
+      AND NULLIF(pi.sale_price, 0) > 0
+      AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
+    ORDER BY pi.variant_id, pu.created_at DESC, pi.id DESC
+  ),
+  color_images AS (
     SELECT
       product_id,
       LOWER(TRIM(color_name)) AS color_key,
@@ -290,6 +308,7 @@ const googleRowsSql = `
     -- Plain column references: to_jsonb(row) serialises the whole row per reference.
     p.sale_price AS product_sale_price,
     pv.sale_price AS variant_sale_price,
+    vps.purchase_sale_price AS variant_purchase_sale_price,
     p.is_offer_story AS product_is_offer_story,
     p.sale_price_enabled AS product_sale_price_enabled,
     p.sale_start_at AS product_sale_start_at,
@@ -330,6 +349,7 @@ const googleRowsSql = `
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN brands b ON b.id = p.brand_id
   LEFT JOIN color_images ci ON ci.product_id = p.id AND ci.color_key = LOWER(TRIM(pv.color))
+  LEFT JOIN variant_purchase_sale vps ON vps.variant_id = pv.id
   WHERE p.is_active IS DISTINCT FROM FALSE
     AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') = 'active'
     AND p.is_storefront_visible IS DISTINCT FROM FALSE
