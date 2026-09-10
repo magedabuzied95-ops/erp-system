@@ -49,3 +49,27 @@ test("a failed rebuild serves the last good copy instead of a 500", async (t) =>
   // build's worth of calls", not an exact count.
   assert.ok(calls > 2, `expected a second attempt, saw ${calls} queries`);
 });
+
+test("a size with no price anywhere is dropped, never advertised at its strikethrough", async (t) => {
+  // Product 221: no price on the size or the product, only a compare price of 950 — the feed
+  // printed 950 as the price while the shop sells that colour at 700.
+  const feedModule = await import("../../server/services/metaCatalogFeedService.js");
+  const db = (await import("../../server/database/db.js")).default;
+  const realQuery = db.query;
+  t.after(() => {
+    db.query = realQuery;
+    clearMetaCatalogFeedCache();
+  });
+  const base = { product_type: "Sneakers", color: "Camel", variant_stock: 2, sku_count: 1 };
+  db.query = async (sql) => {
+    if (!String(sql).includes("FROM products p")) throw new Error("settings not needed here");
+    return { rows: [
+      { ...base, product_id: 1, variant_id: 10, variant_sku: "PRICED", product_name: "Priced", size: "40", product_selling_price: 700 },
+      { ...base, product_id: 2, variant_id: 20, variant_sku: "PRICELESS", product_name: "Priceless", size: "41",
+        use_custom_compare_price: true, custom_compare_price: 950 },
+    ] };
+  };
+  const feed = await feedModule.buildMetaCatalogFeed({ warmImages: false, force: true });
+  assert.deepEqual(feed.items.map((item) => item.id), ["PRICED"]);
+  assert.equal(feed.xml.includes("950.00 EGP"), false);
+});

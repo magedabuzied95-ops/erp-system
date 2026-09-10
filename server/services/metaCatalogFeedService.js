@@ -6,6 +6,7 @@ import { resolveProductAudience } from "./productAudienceResolver.js";
 import { metaCatalogImageUrl, warmMetaCatalogImageRenditions } from "./metaImageCompatService.js";
 import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
 import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
+import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "./adFeedPurchaseLinesSql.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -123,24 +124,7 @@ const queryMetaCatalogRows = async () => {
       WHERE COALESCE(TRIM(sku), '') <> ''
       GROUP BY LOWER(TRIM(sku))
     ),
-    /*
-      Where this catalogue really keeps its offer prices. The storefront reads a variant's sale
-      price as COALESCE(purchase invoice sale price, pv.sale_price) — so a colour bought in on an
-      invoice that recorded 550 alongside a selling price of 650 SELLS at 550 while pv.sale_price
-      is still 0.00, and the ads quoted 650. One pass over the invoice lines that carry a sale
-      price, newest purchase per variant.
-    */
-    variant_purchase_sale AS (
-      SELECT DISTINCT ON (pi.variant_id)
-        pi.variant_id,
-        NULLIF(pi.sale_price, 0) AS purchase_sale_price
-      FROM purchase_items pi
-      JOIN purchases pu ON pu.id = pi.purchase_id
-      WHERE pi.variant_id IS NOT NULL
-        AND NULLIF(pi.sale_price, 0) > 0
-        AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
-      ORDER BY pi.variant_id, pu.created_at DESC, pi.id DESC
-    ),
+    ${AD_FEED_PURCHASE_CTES},
     color_images AS (
       SELECT
         product_id,
@@ -174,7 +158,7 @@ const queryMetaCatalogRows = async () => {
       -- offer flag that exists as a column — the aliases the resolver also accepts do not.
       p.sale_price AS product_sale_price,
       pv.sale_price AS variant_sale_price,
-      vps.purchase_sale_price AS variant_purchase_sale_price,
+      ${AD_FEED_PURCHASE_COLUMNS},
       p.is_offer_story AS product_is_offer_story,
       -- Sale Mode's own inputs, so the day the global toggle goes on the feed decides with the
       -- same per-record flag, window and margin floor as POS instead of quoting a stale price.
@@ -226,7 +210,7 @@ const queryMetaCatalogRows = async () => {
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN variant_sku_counts vsc ON vsc.sku_key = LOWER(TRIM(pv.sku))
     LEFT JOIN color_images ci ON ci.product_id = p.id AND ci.color_key = LOWER(TRIM(pv.color))
-    LEFT JOIN variant_purchase_sale vps ON vps.variant_id = pv.id
+    ${AD_FEED_PURCHASE_JOINS}
     WHERE p.is_active IS DISTINCT FROM FALSE
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') = 'active'
       AND p.is_storefront_visible IS DISTINCT FROM FALSE
@@ -254,7 +238,8 @@ export const resolveMetaCatalogCurrentPrice = (row = {}) => {
   const variant = {
     manual_selling_price: row.variant_manual_selling_price,
     manual_price_override_active: row.variant_manual_price_override_active,
-    purchase_selling_price: row.variant_purchase_selling_price,
+    // The invoice line the storefront prices this size from (adFeedPurchaseLinesSql).
+    purchase_selling_price: row.variant_line_purchase_selling_price ?? row.variant_purchase_selling_price,
     selling_price: row.variant_selling_price,
     price: row.variant_price,
     regular_price: row.variant_regular_price,
@@ -300,8 +285,8 @@ export const resolveMetaCatalogActivePrice = (
       promotion_enabled: row.product_promotion_enabled,
     }),
     variant: definedOnly({
-      // Same precedence as the storefront: the purchase invoice's sale price first.
-      sale_price: numberValue(row.variant_purchase_sale_price) || row.variant_sale_price,
+      // The winning invoice line's sale price, else the column — exactly the storefront payload.
+      sale_price: row.variant_line_sale_price ?? row.variant_sale_price,
       sale_price_enabled: row.variant_sale_price_enabled,
       sale_start_at: row.variant_sale_start_at,
       sale_end_at: row.variant_sale_end_at,
@@ -366,6 +351,8 @@ export const buildMetaCatalogItem = (
 
   const item = {
     id,
+    // Not emitted: what the customer pays, so a size with no price anywhere can be dropped.
+    active_price: sellingPrice,
     item_group_id: metaItemGroupId(row),
     title: titleParts.join(" - "),
     description: text(row.description || row.product_name),
@@ -499,7 +486,12 @@ const rebuildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
   // Every catalogue row belongs to tenant 1 and the storefront serves the same default, so the
   // feed and the shop answer "is a sale running" from one row of website_settings.
   const saleModeSettings = await loadTenantSaleModeSettings({ tenantId: FEED_TENANT_ID });
-  const items = rows.map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl, saleModeSettings }));
+  // A size with no price anywhere — not its own, not its product's, not its colour's invoice —
+  // cannot be bought online, and the only number left to print is its strikethrough price: product
+  // 221 was advertised at 950 while its sizes sell at 700. Google's feed already drops these.
+  const items = rows
+    .map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl, saleModeSettings }))
+    .filter((item) => item.active_price > 0);
   await applyMetaReadableImages(items, { warm: warmImages });
   const body = items.map(metaCatalogItemXml).join("\n");
 

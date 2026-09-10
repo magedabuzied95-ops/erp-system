@@ -93,14 +93,15 @@ test("the Google item links to the colourway it advertises", async () => {
   assert.equal(item.link, "https://m1store-egy.com/product/louis-vuitton-lv?color=Grey");
 });
 
-test("the purchase invoice's sale price is the offer price, ahead of the variant column", () => {
-  // Product 568 in production: pv.sale_price is 0.00, the invoice that brought the colour in
-  // recorded 550 against a selling price of 650, and the shop sells at 550.
-  const row = offerRow({ product_sale_price: 0, variant_sale_price: 0, variant_purchase_sale_price: 550 });
+test("the winning invoice line's sale price is the offer price, ahead of the variant column", () => {
+  // Product 568: pv.sale_price is 0.00, the invoice that brought the colour in recorded 550
+  // against a selling price of 650, and the shop sells at 550. The SQL (adFeedPurchaseLinesSql)
+  // hands the row the winning line's sale price, already COALESCEd with the column.
+  const row = offerRow({ product_sale_price: 0, variant_sale_price: 0, variant_line_sale_price: 550 });
   assert.equal(resolveMetaCatalogActivePrice(row), 550);
   assert.equal(resolveGoogleFeedPricing(row).active_price, 550);
 
-  const both = offerRow({ product_sale_price: 0, variant_sale_price: 600, variant_purchase_sale_price: 550 });
+  const both = offerRow({ product_sale_price: 0, variant_sale_price: 600, variant_line_sale_price: 550 });
   assert.equal(resolveMetaCatalogActivePrice(both), 550);
   assert.equal(resolveGoogleFeedPricing(both).active_price, 550);
 });
