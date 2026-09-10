@@ -12,9 +12,11 @@
      object does not exist" marks it deleted. Instagram sends no deletion webhook at all, so
      this is the only way an Instagram deletion is ever seen.
 
-   The list alone is never trusted to delete anything: a hidden comment, a reply the list did
-   not expand, or a comment filed under this post but living on a sibling object (a photo, an
-   ad's dark post) can all be absent from it while still very much existing.
+   The list alone is not trusted by default: a hidden comment, a reply the list did not
+   expand, or a comment filed under this post but living on a sibling object (a photo, an
+   ad's dark post) can all be absent from it while still very much existing. A post earns it
+   only after its own unlisted comments were confirmed gone one by one
+   (decideSocialCommentBulkDeletion).
 
    Pure functions only — no database, no network — so the rules can be tested directly. */
 
@@ -82,13 +84,19 @@ export const isGraphObjectMissingError = (error = {}) => {
                comment from one it never got to, so nothing is checked from it.
 
    Returns the ids to confirm one by one (never more than maxChecks) and the ids that were marked
-   deleted but are listed again — those are restored, which also heals any false positive. */
+   deleted but are listed again — those are restored, which also heals any false positive.
+
+   It also sorts out which unlisted comments could be marked from the listing alone, should the
+   post earn it (decideSocialCommentBulkDeletion): only ones filed under THIS very object (a comment
+   filed here but living on a photo or an ad's dark post is never listed here while alive) and
+   never one we hid ourselves. */
 export const planSocialCommentDeletionReconcile = ({
   storedRows = [],
   liveIds = [],
   complete = false,
   maxChecks = 40,
   recentlyVerifiedIds = new Set(),
+  graphPostId = "",
 } = {}) => {
   const live = new Set();
   for (const id of liveIds instanceof Set ? [...liveIds] : asArray(liveIds)) {
@@ -98,22 +106,63 @@ export const planSocialCommentDeletionReconcile = ({
     live.add(socialCommentIdSuffix(safe));
   }
   const isLive = (commentId) => live.has(commentId) || live.has(socialCommentIdSuffix(commentId));
+  const graphSuffix = socialCommentIdSuffix(graphPostId);
   const toCheck = [];
   const toRestore = [];
+  const bulkCandidates = [];
+  let unlistedAliveDirect = 0;
+  let priorConfirmed = 0;
   const seen = new Set();
   for (const row of asArray(storedRows)) {
     const commentId = text(row?.comment_id);
     if (!commentId || seen.has(commentId)) continue;
     seen.add(commentId);
     const deleted = Boolean(row?.deleted_at);
+    if (deleted && text(row?.deleted_reason) === "graph_missing") priorConfirmed += 1;
     if (isLive(commentId)) {
       if (deleted) toRestore.push(commentId);
       continue;
     }
     if (deleted || !complete) continue;
-    if (recentlyVerifiedIds.has(commentId)) continue;
+    const direct = Boolean(graphSuffix) && socialCommentIdSuffix(row?.post_id) === graphSuffix && !row?.hidden_at;
+    if (recentlyVerifiedIds.has(commentId)) {
+      if (direct) unlistedAliveDirect += 1;
+      continue;
+    }
     toCheck.push(commentId);
+    if (direct) bulkCandidates.push(commentId);
   }
   const cap = Math.max(0, Number(maxChecks) || 0);
-  return { toCheck: toCheck.slice(0, cap), toRestore, skippedChecks: Math.max(0, toCheck.length - cap) };
+  return {
+    toCheck: toCheck.slice(0, cap),
+    toRestore,
+    skippedChecks: Math.max(0, toCheck.length - cap),
+    bulkCandidates,
+    unlistedAliveDirect,
+    priorConfirmed,
+  };
+};
+
+/* May the rest of a post's unlisted comments be marked deleted from the listing alone?
+
+   The one-by-one check costs a Graph call per comment against an app budget the comment poller
+   keeps nearly empty — in production it stalled at 5 checks a pass with ~146 stale comments left
+   on one post. So a post EARNS bulk marking: at least `minEvidence` of its unlisted comments were
+   individually confirmed gone (this pass or an earlier one), and not one unlisted comment filed
+   under it was ever found alive. The first production passes confirmed 90 of 90 checked. A bulk
+   mark is still healed the moment the comment is listed again. */
+export const decideSocialCommentBulkDeletion = ({
+  plan = {},
+  confirmedDeletedIds = [],
+  confirmedAliveIds = [],
+  minEvidence = 5,
+} = {}) => {
+  const candidates = asArray(plan.bulkCandidates);
+  const candidateSet = new Set(candidates);
+  const aliveDirect = Number(plan.unlistedAliveDirect || 0) + asArray(confirmedAliveIds).filter((id) => candidateSet.has(id)).length;
+  const evidence = Number(plan.priorConfirmed || 0) + asArray(confirmedDeletedIds).length;
+  if (aliveDirect > 0) return { ids: [], reason: "unlisted_comment_alive", evidence };
+  if (evidence < minEvidence) return { ids: [], reason: "not_enough_evidence", evidence };
+  const done = new Set(asArray(confirmedDeletedIds));
+  return { ids: candidates.filter((id) => !done.has(id)), reason: "listing_proven", evidence };
 };

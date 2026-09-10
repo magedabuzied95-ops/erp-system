@@ -59,6 +59,7 @@ import {
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
 import {
+  decideSocialCommentBulkDeletion,
   extractSocialCommentRemovalEvents,
   isGraphObjectMissingError,
   planSocialCommentDeletionReconcile,
@@ -9167,7 +9168,10 @@ export const reconcileDeletedSocialCommentsForPost = async ({
     return { success: true, skipped: true, reason: "recently_reconciled" };
   }
   const budget = shouldDeferBackgroundGraphWork();
-  if (budget.defer) return { success: false, skipped: true, reason: budget.reason };
+  if (budget.defer) {
+    console.log("SOCIAL_COMMENT_DELETION_CHECK_DEFERRED", { tenant_id: safeTenantId, platform: safePlatform, post_id: safeGraphPostId, reason: budget.reason, retry_after_ms: budget.retry_after_ms });
+    return { success: false, skipped: true, reason: budget.reason };
+  }
 
   const promise = (async () => {
     let token = "";
@@ -9185,7 +9189,7 @@ export const reconcileDeletedSocialCommentsForPost = async ({
     const live = await fetchLiveSocialCommentIds({ platform: safePlatform, postId: safeGraphPostId, token });
     const stored = await db.query(
       `
-      SELECT comment_id, deleted_at
+      SELECT comment_id, post_id, deleted_at, deleted_reason, hidden_at
       FROM social_comment_automation_runs
       WHERE tenant_id = $1::bigint
         AND platform = $2::text
@@ -9211,9 +9215,11 @@ export const reconcileDeletedSocialCommentsForPost = async ({
       complete: live.complete,
       maxChecks: SOCIAL_COMMENT_RECONCILE_MAX_CHECKS,
       recentlyVerifiedIds,
+      graphPostId: safeGraphPostId,
     });
 
     const confirmedDeleted = [];
+    const confirmedAlive = [];
     const missingErrorSample = [];
     let checked = 0;
     for (let index = 0; index < plan.toCheck.length; index += SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY) {
@@ -9225,12 +9231,13 @@ export const reconcileDeletedSocialCommentsForPost = async ({
         try {
           await callMetaGet({ endpoint: `/${encodeURIComponent(commentId)}`, token, params: { fields: "id" } });
           socialCommentAliveAt.set(aliveKey(commentId), Date.now());
-          return { commentId, deleted: false };
+          return { commentId, deleted: false, alive: true };
         } catch (error) {
           return { commentId, deleted: isGraphObjectMissingError(error), rateLimited: isMetaRateLimitError(error), error };
         }
       }));
       checked += batch.length;
+      outcomes.filter((outcome) => outcome.alive).forEach((outcome) => confirmedAlive.push(outcome.commentId));
       outcomes.filter((outcome) => outcome.deleted).forEach((outcome) => {
         confirmedDeleted.push(outcome.commentId);
         if (missingErrorSample.length < 3) {
@@ -9249,6 +9256,12 @@ export const reconcileDeletedSocialCommentsForPost = async ({
     const marked = confirmedDeleted.length
       ? await markSocialCommentsDeleted({ tenantId: safeTenantId, platform: safePlatform, commentIds: confirmedDeleted, reason: "graph_missing" })
       : { updated: 0 };
+    // The one-by-one check stalls whenever the app budget is spent. A post whose unlisted comments
+    // have already proven to be deleted ones gets the rest marked from the listing.
+    const bulk = decideSocialCommentBulkDeletion({ plan, confirmedDeletedIds: confirmedDeleted, confirmedAliveIds: confirmedAlive });
+    const bulkMarked = bulk.ids.length
+      ? await markSocialCommentsDeleted({ tenantId: safeTenantId, platform: safePlatform, commentIds: bulk.ids, reason: "graph_unlisted" })
+      : { updated: 0 };
     const restored = plan.toRestore.length
       ? await markSocialCommentsDeleted({ tenantId: safeTenantId, platform: safePlatform, commentIds: plan.toRestore, deleted: false, reason: "graph_listed" })
       : { updated: 0 };
@@ -9263,6 +9276,9 @@ export const reconcileDeletedSocialCommentsForPost = async ({
       checked,
       checks_deferred: plan.skippedChecks + (plan.toCheck.length - checked),
       deleted: marked.updated,
+      bulk_deleted: bulkMarked.updated,
+      bulk_reason: bulk.reason,
+      evidence: bulk.evidence,
       restored: restored.updated,
       // What Graph actually said about a deleted one — the evidence behind every mark.
       missing_error_sample: missingErrorSample,

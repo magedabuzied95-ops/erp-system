@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  decideSocialCommentBulkDeletion,
   extractSocialCommentRemovalEvents,
   isGraphObjectMissingError,
   planSocialCommentDeletionReconcile,
@@ -105,6 +106,89 @@ test("checks are capped, and a comment just confirmed alive is not asked about a
   assert.equal(plan.skippedChecks, 19);
 });
 
+/* Production: a post with 195 stored comments and 4 live ones; 40 confirmed gone one by one, then
+   the app budget ran dry and the check stalled at 5 a pass with ~146 left. */
+const POST = "109139174713691_1145934767769890";
+const stalePost = ({ confirmed = 40, unlisted = 146, extra = [] } = {}) => [
+  ...Array.from({ length: confirmed }, (_, index) => ({ comment_id: `1145934767769890_${1000 + index}`, post_id: POST, deleted_at: "2026-09-11T00:00:00Z", deleted_reason: "graph_missing" })),
+  ...Array.from({ length: unlisted }, (_, index) => ({ comment_id: `1145934767769890_${2000 + index}`, post_id: POST })),
+  { comment_id: "1145934767769890_1", post_id: POST },
+  ...extra,
+];
+const LIVE = ["1145934767769890_1"];
+
+test("a post whose unlisted comments proved to be deleted ones gets the rest marked from the listing", () => {
+  const plan = planSocialCommentDeletionReconcile({ storedRows: stalePost(), liveIds: LIVE, complete: true, maxChecks: 60, graphPostId: POST });
+  assert.equal(plan.priorConfirmed, 40);
+  const bulk = decideSocialCommentBulkDeletion({ plan, confirmedDeletedIds: [], confirmedAliveIds: [] });
+  assert.equal(bulk.reason, "listing_proven");
+  assert.equal(bulk.ids.length, 146, "every unlisted comment on the post, even with zero checks this pass");
+  assert.equal(bulk.ids.includes("1145934767769890_1"), false, "a listed comment is never marked");
+});
+
+test("no bulk marking without evidence — a fresh post is checked one by one", () => {
+  const plan = planSocialCommentDeletionReconcile({ storedRows: stalePost({ confirmed: 0 }), liveIds: LIVE, complete: true, graphPostId: POST });
+  assert.equal(decideSocialCommentBulkDeletion({ plan, confirmedDeletedIds: ["1145934767769890_2000"] }).reason, "not_enough_evidence");
+  assert.equal(
+    decideSocialCommentBulkDeletion({ plan, confirmedDeletedIds: plan.toCheck.slice(0, 5) }).reason,
+    "listing_proven",
+    "five confirmed this pass are enough"
+  );
+});
+
+test("only a Graph-confirmed miss is evidence — a webhook removal says nothing about the listing", () => {
+  const storedRows = stalePost({ confirmed: 0 }).concat(
+    Array.from({ length: 10 }, (_, index) => ({ comment_id: `1145934767769890_${3000 + index}`, post_id: POST, deleted_at: "2026-09-11T00:00:00Z", deleted_reason: "webhook_remove" }))
+  );
+  const plan = planSocialCommentDeletionReconcile({ storedRows, liveIds: LIVE, complete: true, graphPostId: POST });
+  assert.equal(plan.priorConfirmed, 0);
+  assert.deepEqual(decideSocialCommentBulkDeletion({ plan }).ids, []);
+});
+
+test("one unlisted comment found ALIVE on the post turns bulk marking off", () => {
+  const plan = planSocialCommentDeletionReconcile({ storedRows: stalePost(), liveIds: LIVE, complete: true, graphPostId: POST });
+  const bulk = decideSocialCommentBulkDeletion({ plan, confirmedDeletedIds: [], confirmedAliveIds: ["1145934767769890_2000"] });
+  assert.deepEqual(bulk.ids, []);
+  assert.equal(bulk.reason, "unlisted_comment_alive");
+  const cached = planSocialCommentDeletionReconcile({
+    storedRows: stalePost(), liveIds: LIVE, complete: true, graphPostId: POST, recentlyVerifiedIds: new Set(["1145934767769890_2001"]),
+  });
+  assert.deepEqual(decideSocialCommentBulkDeletion({ plan: cached }).ids, [], "an alive verdict from an earlier pass counts too");
+});
+
+test("bulk marking never touches a comment we hid, or one filed here from another object", () => {
+  const plan = planSocialCommentDeletionReconcile({
+    storedRows: stalePost({
+      extra: [
+        { comment_id: "1145934767769890_9001", post_id: POST, hidden_at: "2026-09-10T00:00:00Z" },
+        // An ad's dark post / the photo object: never listed on this post while alive.
+        { comment_id: "555_9002", post_id: "109139174713691_555" },
+      ],
+    }),
+    liveIds: LIVE,
+    complete: true,
+    graphPostId: POST,
+    maxChecks: 500,
+  });
+  const bulk = decideSocialCommentBulkDeletion({ plan });
+  assert.equal(bulk.ids.includes("1145934767769890_9001"), false, "a hidden comment is absent from the list, not deleted");
+  assert.equal(bulk.ids.includes("555_9002"), false);
+  assert.equal(plan.toCheck.includes("555_9002"), true, "those still get the one-by-one check");
+});
+
+test("a partial listing earns no bulk marking", () => {
+  const plan = planSocialCommentDeletionReconcile({ storedRows: stalePost(), liveIds: LIVE, complete: false, graphPostId: POST });
+  assert.deepEqual(decideSocialCommentBulkDeletion({ plan }).ids, []);
+});
+
+test("the reconcile marks the bulk under its own reason, after the checks", () => {
+  const start = meta.indexOf("export const reconcileDeletedSocialCommentsForPost");
+  const body = meta.slice(start, meta.indexOf("export const runMetaCommentsPollingScan", start));
+  assert.match(body, /decideSocialCommentBulkDeletion\(\{ plan, confirmedDeletedIds: confirmedDeleted, confirmedAliveIds: confirmedAlive \}\)/);
+  assert.match(body, /commentIds: bulk\.ids, reason: "graph_unlisted"/);
+  assert.match(body, /SELECT comment_id, post_id, deleted_at, deleted_reason, hidden_at/, "the plan needs post_id, the prior verdicts and hidden_at");
+});
+
 test("the webhook marks a removed comment (and its replies) deleted", () => {
   const start = meta.indexOf("export const processMetaWebhook");
   assert.ok(start > 0, "processMetaWebhook is gone");
@@ -119,7 +203,7 @@ test("the reconcile deletes only what Graph confirmed missing, one by one", () =
   const body = meta.slice(start, meta.indexOf("export const runMetaCommentsPollingScan", start));
   assert.match(body, /deleted: isGraphObjectMissingError\(error\)/, "a deletion must come from Graph's own answer");
   assert.match(body, /commentIds: confirmedDeleted, reason: "graph_missing"/, "only confirmed ids may be marked");
-  assert.doesNotMatch(body, /commentIds: plan\.toCheck/, "the listing alone must never delete");
+  assert.doesNotMatch(body, /commentIds: plan\.(toCheck|bulkCandidates)/, "the listing alone must never delete unearned");
 });
 
 test("opening a thread runs the deletion check, and the thread skips deleted comments", () => {
