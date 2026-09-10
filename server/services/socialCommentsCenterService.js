@@ -3047,21 +3047,6 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
       aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
     }).catch(() => {});
   }
-  const linkedProductPost = metadataObject(post || row || {});
-  const linkedProductResolvedPost = hasLinkedProductForSocialCommentPost(linkedProductPost)
-    ? linkedProductPost
-    : safeTenantId && safePostId
-      ? await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: canonicalPostId || safePostId }).catch(() => linkedProductPost)
-      : linkedProductPost;
-  if (!hasLinkedProductForSocialCommentPost(linkedProductResolvedPost)) {
-    console.log("CONFIG_LOOKUP_RESULT", {
-      matched_key: "",
-      config_id: null,
-      enabled: false,
-      template_key: "",
-    });
-    return null;
-  }
   const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: safePostId, row, post });
   console.log("CONFIG_LOOKUP_INPUT", {
     tenant_id: safeTenantId,
@@ -3103,6 +3088,36 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
       template_key: text(normalizedConfig.template_key || ""),
     });
     return normalizedConfig;
+  }
+  /* The linked-product gate guards CREATING a default config, and only that.
+
+     It used to run first, before any saved row was looked up, and it decided "is this post linked
+     to a product?" through loadSocialCommentPost — which finds nothing for a post whose id
+     arrives in the {pageId}_{postId} form. So a post that WAS linked, whose saved config row
+     carries its own product_id, read back as null: the save wrote the row, the verification read
+     found nothing, the server answered with defaults, and the drawer overwrote every switch the
+     owner had just set with the default value. Switches whose default is ON looked like they
+     stuck; hideComments and the master enable, whose defaults are OFF, flipped back seconds after
+     every save (2026-09-10).
+
+     A row the owner explicitly saved for this post is the strongest evidence there is. It is
+     returned above without asking the gate; the gate now only stops us inventing a default for a
+     post nobody has linked. */
+  const linkedProductPost = metadataObject(post || row || {});
+  const linkedProductResolvedPost = hasLinkedProductForSocialCommentPost(linkedProductPost)
+    ? linkedProductPost
+    : safeTenantId && safePostId
+      ? await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: canonicalPostId || safePostId }).catch(() => linkedProductPost)
+      : linkedProductPost;
+  if (!hasLinkedProductForSocialCommentPost(linkedProductResolvedPost)) {
+    console.log("CONFIG_LOOKUP_RESULT", {
+      matched_key: "",
+      config_id: null,
+      enabled: false,
+      template_key: "",
+      reason: "no_saved_row_and_no_linked_product",
+    });
+    return null;
   }
   const fallbackConfig = {
     ...(await ensureSocialCommentAutomationConfigRecord({ tenantId: safeTenantId, platform: normalizedPlatform, postId: canonicalPostId || safePostId, row, post, hydratePost })),
