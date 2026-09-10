@@ -84,6 +84,7 @@ import "./EmployeePayrollPortal.m1.css";
 // Temporary product decision: keep payroll data and logic intact, but hide the
 // employee-facing salary surface until it is ready to be enabled again.
 const EMPLOYEE_PORTAL_SALARY_ENABLED = false;
+const ONLINE_ORDERS_NAV_KEY = "online-orders";
 
 const labels = {
   ar: {
@@ -2171,6 +2172,9 @@ export default function EmployeePayrollPortal() {
   const mobileTabs = [
     ["home", ui("homeTab"), Home],
     ["tasks", text.tasksTab, ClipboardList],
+    // Its own page, not an in-page tab: the bar navigates there (owner request
+    // 2026-09-10: between المهام and الطلبات).
+    [ONLINE_ORDERS_NAV_KEY, i18n.t("orders.portalBoard.navLabel"), Truck],
     ["requests", text.requestsTab, MessageCircle],
     ["display-refill", ui("displayRefillTab"), AlertTriangle],
     ["display-audit", "تمم العرض", CheckCircle2],
@@ -3887,17 +3891,6 @@ export default function EmployeePayrollPortal() {
                 <span>{text.inventoryTab}</span>
               </a>
 
-              <a
-                href={`${employeeFeatureBasePath}/${encodeURIComponent(token)}/online-orders`}
-                data-testid="employee-online-orders-link"
-                onPointerEnter={() => { void import("./EmployeePortalOnlineOrders"); }}
-                onFocus={() => { void import("./EmployeePortalOnlineOrders"); }}
-                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
-              >
-                <Truck className="h-4 w-4" />
-                <span>{i18n.t("orders.portalBoard.entry")}</span>
-              </a>
-
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
                   { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
@@ -4425,12 +4418,18 @@ export default function EmployeePayrollPortal() {
               />
             ) : null}
 
-            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-7" : "grid-cols-6"} gap-1 rounded-[var(--radius-card)] border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-8" : "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => setActiveTab(key)}
+                  data-testid={`employee-nav-${key}`}
+                  onPointerEnter={key === ONLINE_ORDERS_NAV_KEY ? () => { void import("./EmployeePortalOnlineOrders"); } : undefined}
+                  // A full page load, like the home's products / inventory links: a router
+                  // navigate() changes the URL but leaves this screen mounted.
+                  onClick={() => (key === ONLINE_ORDERS_NAV_KEY
+                    ? window.location.assign(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/online-orders`)
+                    : setActiveTab(key))}
                   className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-control)] px-1 py-1.5 text-[10px] font-black leading-tight ${activeTab === key ? "bg-slate-950/95 text-white shadow-sm" : "text-slate-500"}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
