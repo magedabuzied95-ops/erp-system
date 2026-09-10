@@ -1,0 +1,81 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { buildMetaCatalogItem, resolveMetaCatalogActivePrice } from "../../server/services/metaCatalogFeedService.js";
+import { resolveGoogleFeedPricing } from "../../server/services/googleMerchantFeedService.js";
+
+// Product 568 in production: priced only by its purchase invoice, sitting in العروض with a
+// stored sale price the shop actually charges, while both feeds advertised the normal price.
+const offerRow = (overrides = {}) => ({
+  product_id: 568,
+  variant_id: 7990,
+  variant_sku: "CK-568-39",
+  sku_count: 1,
+  product_name: "Calvin Klein",
+  product_type: "Sneakers",
+  color: "Grey",
+  size: "39",
+  variant_stock: 2,
+  product_purchase_selling_price: 650,
+  use_custom_compare_price: true,
+  custom_compare_price: 700,
+  product_sale_price: 550,
+  product_is_offer_story: "true",
+  ...overrides,
+});
+
+test("a curated offer is advertised at the price the shop charges", () => {
+  const row = offerRow();
+  assert.equal(resolveMetaCatalogActivePrice(row), 550);
+
+  const item = buildMetaCatalogItem(row);
+  assert.equal(item.price, "700.00 EGP");
+  assert.equal(item.sale_price, "550.00 EGP");
+
+  const google = resolveGoogleFeedPricing(row);
+  assert.equal(google.active_price, 550);
+  assert.equal(google.sale_price, 550);
+  assert.equal(google.price, 700);
+});
+
+test("with no compare price the normal price becomes the strikethrough", () => {
+  const row = offerRow({ use_custom_compare_price: false, custom_compare_price: 0 });
+  const item = buildMetaCatalogItem(row);
+  assert.equal(item.price, "650.00 EGP");
+  assert.equal(item.sale_price, "550.00 EGP");
+
+  const google = resolveGoogleFeedPricing(row);
+  assert.deepEqual(google, { price: 650, sale_price: 550, active_price: 550 });
+});
+
+test("a stored sale price on a product that is NOT an offer stays dormant while Sale Mode is off", () => {
+  const row = offerRow({ product_is_offer_story: "false" });
+  assert.equal(resolveMetaCatalogActivePrice(row), 650);
+
+  const item = buildMetaCatalogItem(row);
+  assert.equal(item.price, "700.00 EGP");
+  assert.equal(item.sale_price, "650.00 EGP");
+  assert.equal(resolveGoogleFeedPricing(row).active_price, 650);
+});
+
+test("the same dormant sale price goes live when the global toggle is on", () => {
+  // Outside العروض it takes BOTH: the global toggle and the record's own enable flag.
+  const row = offerRow({ product_is_offer_story: "false", product_sale_price_enabled: "true" });
+  const saleModeSettings = { sale_mode_enabled: true };
+  assert.equal(resolveMetaCatalogActivePrice(row, { saleModeSettings }), 550);
+  assert.equal(resolveGoogleFeedPricing(row, { saleModeSettings }).active_price, 550);
+});
+
+test("a sale price that is not a discount can never raise the advertised price", () => {
+  for (const salePrice of [650, 900]) {
+    const row = offerRow({ product_sale_price: salePrice });
+    assert.equal(resolveMetaCatalogActivePrice(row), 650);
+    assert.equal(resolveGoogleFeedPricing(row).active_price, 650);
+  }
+});
+
+test("the variant's own sale price is read as well as the product's", () => {
+  const row = offerRow({ product_sale_price: null, variant_sale_price: 500 });
+  assert.equal(resolveMetaCatalogActivePrice(row), 500);
+  assert.equal(resolveGoogleFeedPricing(row).active_price, 500);
+});

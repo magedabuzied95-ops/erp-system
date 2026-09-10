@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import db from "../database/db.js";
 import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
+import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
+import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { resolveProductAudience } from "./productAudienceResolver.js";
 
 export const GOOGLE_FEED_URL = "https://m1store-egy.com/feeds/google.xml";
@@ -109,18 +111,52 @@ const purchaseSellingPrice = (row = {}) =>
   positive(row.product_purchase_selling_price) ||
   currentSellingPrice(row);
 
-export const resolveGoogleFeedPricing = (row = {}) => {
-  // Google Merchant intentionally receives the purchase-invoice selling price,
-  // never the real sale/promo price stored in sale_price.
+// The resolver merges variant over product to evaluate the Sale Mode rules, so a variant key that
+// is merely absent from the row would shadow the product's own value with undefined.
+const definedOnly = (record = {}) =>
+  Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== null));
+
+export const resolveGoogleFeedPricing = (row = {}, { saleModeSettings = {} } = {}) => {
+  // This used to send the normal price and NEVER the stored sale_price, to keep the ~30 loose
+  // per-record flags from quoting dormant sale prices. The canonical resolver is what draws that
+  // line properly: a curated offer or a live Sale Mode run is what the shop charges, and a feed
+  // that quotes more than the landing page is exactly what Merchant Center disapproves.
   const normalSellingPrice = purchaseSellingPrice(row);
   if (!(normalSellingPrice > 0)) return { price: 0, sale_price: 0, active_price: 0 };
 
-  const crossedPrice = enabled(row.use_custom_compare_price)
-    ? positive(row.custom_compare_price)
-    : 0;
-  return crossedPrice > normalSellingPrice
-    ? { price: crossedPrice, sale_price: normalSellingPrice, active_price: normalSellingPrice }
-    : { price: normalSellingPrice, sale_price: 0, active_price: normalSellingPrice };
+  const effective = resolveEffectiveCustomerPrice({
+    product: definedOnly({
+      id: row.product_id,
+      product_id: row.product_id,
+      category_id: row.category_id,
+      brand_id: row.brand_id,
+      selling_price: normalSellingPrice,
+      sale_price: row.product_sale_price,
+      sale_price_enabled: row.product_sale_price_enabled,
+      sale_start_at: row.product_sale_start_at,
+      sale_end_at: row.product_sale_end_at,
+      cost_price: row.product_cost_price,
+      is_offer_story: row.product_is_offer_story,
+      is_offer: row.product_is_offer,
+      show_in_offers: row.product_show_in_offers,
+      promotion_enabled: row.product_promotion_enabled,
+    }),
+    variant: definedOnly({
+      sale_price: row.variant_sale_price,
+      sale_price_enabled: row.variant_sale_price_enabled,
+      sale_start_at: row.variant_sale_start_at,
+      sale_end_at: row.variant_sale_end_at,
+      cost_price: row.variant_cost_price,
+    }),
+    saleModeSettings,
+  });
+  const activePrice = effective.has_price ? positive(effective.active_price) || normalSellingPrice : normalSellingPrice;
+
+  const customCompare = enabled(row.use_custom_compare_price) ? positive(row.custom_compare_price) : 0;
+  const crossedPrice = Math.max(customCompare, activePrice < normalSellingPrice ? normalSellingPrice : 0);
+  return crossedPrice > activePrice
+    ? { price: crossedPrice, sale_price: activePrice, active_price: activePrice }
+    : { price: activePrice, sale_price: 0, active_price: activePrice };
 };
 
 const isBag = (row = {}) => resolveMetaProductCategories(row).matchedBy === "bags";
@@ -129,7 +165,7 @@ const isFootwear = (row = {}) => {
   return ["sneakers", "crocs", "slippers", "footwear-fallback"].includes(category.matchedBy);
 };
 
-export const buildGoogleMerchantItem = (row = {}) => {
+export const buildGoogleMerchantItem = (row = {}, { saleModeSettings = {} } = {}) => {
   const productId = text(row.product_id);
   const variantId = text(row.variant_id);
   const color = text(row.color);
@@ -139,7 +175,7 @@ export const buildGoogleMerchantItem = (row = {}) => {
   if (variantId && isFootwear(row) && (!color || !size)) return null;
   if (variantId && bag && !color) return null;
 
-  const pricing = resolveGoogleFeedPricing(row);
+  const pricing = resolveGoogleFeedPricing(row, { saleModeSettings });
   if (!(pricing.active_price > 0)) return null;
 
   const primaryImage = publicHttpsUrl(
@@ -245,6 +281,22 @@ const googleRowsSql = `
     p.price AS product_price,
     p.use_custom_compare_price,
     p.custom_compare_price,
+    to_jsonb(p)->>'sale_price' AS product_sale_price,
+    to_jsonb(pv)->>'sale_price' AS variant_sale_price,
+    to_jsonb(p)->>'is_offer_story' AS product_is_offer_story,
+    to_jsonb(p)->>'is_offer' AS product_is_offer,
+    to_jsonb(p)->>'show_in_offers' AS product_show_in_offers,
+    to_jsonb(p)->>'promotion_enabled' AS product_promotion_enabled,
+    to_jsonb(p)->>'sale_price_enabled' AS product_sale_price_enabled,
+    to_jsonb(p)->>'sale_start_at' AS product_sale_start_at,
+    to_jsonb(p)->>'sale_end_at' AS product_sale_end_at,
+    to_jsonb(p)->>'cost_price' AS product_cost_price,
+    to_jsonb(pv)->>'sale_price_enabled' AS variant_sale_price_enabled,
+    to_jsonb(pv)->>'sale_start_at' AS variant_sale_start_at,
+    to_jsonb(pv)->>'sale_end_at' AS variant_sale_end_at,
+    to_jsonb(pv)->>'cost_price' AS variant_cost_price,
+    p.category_id,
+    p.brand_id,
     p.product_type,
     c.name AS category_name,
     COALESCE(NULLIF(TRIM(to_jsonb(pv)->>'google_product_category'), ''), NULLIF(TRIM(to_jsonb(p)->>'google_product_category'), '')) AS google_product_category,
@@ -290,11 +342,11 @@ export const queryGoogleMerchantRowsPage = async ({ offset = 0, limit = PAGE_SIZ
   return result.rows || [];
 };
 
-export const buildGoogleMerchantFeedFromRows = (rows = []) => {
+export const buildGoogleMerchantFeedFromRows = (rows = [], { saleModeSettings = {} } = {}) => {
   const items = [];
   const seen = new Set();
   for (const row of rows) {
-    const item = buildGoogleMerchantItem(row);
+    const item = buildGoogleMerchantItem(row, { saleModeSettings });
     if (!item || seen.has(item.id)) continue;
     seen.add(item.id);
     items.push(item);
@@ -332,7 +384,9 @@ export const buildGoogleMerchantFeed = async ({ force = false } = {}) => {
     if (page.length < PAGE_SIZE) break;
     offset += page.length;
   }
-  const generated = buildGoogleMerchantFeedFromRows(rows);
+  // Loaded once per build: without it every row falls back to "Sale OFF".
+  const saleModeSettings = await loadTenantSaleModeSettings({});
+  const generated = buildGoogleMerchantFeedFromRows(rows, { saleModeSettings });
   const etag = `"${createHash("sha256").update(generated.xml).digest("hex")}"`;
   feedCache = {
     xml: generated.xml,

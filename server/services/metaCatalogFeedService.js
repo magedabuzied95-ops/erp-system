@@ -4,6 +4,8 @@ import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
 import { resolveProductAudience } from "./productAudienceResolver.js";
 import { metaCatalogImageUrl, warmMetaCatalogImageRenditions } from "./metaImageCompatService.js";
+import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
+import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -145,6 +147,25 @@ const queryMetaCatalogRows = async () => {
       p.price AS product_price,
       p.use_custom_compare_price,
       p.custom_compare_price,
+      -- A curated offer is charged at its sale price with the global toggle off, so an ad that
+      -- quotes the normal price advertises more than the shop takes. Read through to_jsonb: the
+      -- offer flags are lazily added columns.
+      to_jsonb(p)->>'sale_price' AS product_sale_price,
+      to_jsonb(pv)->>'sale_price' AS variant_sale_price,
+      to_jsonb(p)->>'is_offer_story' AS product_is_offer_story,
+      to_jsonb(p)->>'is_offer' AS product_is_offer,
+      to_jsonb(p)->>'show_in_offers' AS product_show_in_offers,
+      to_jsonb(p)->>'promotion_enabled' AS product_promotion_enabled,
+      -- Sale Mode's own inputs, so the day the global toggle goes on the feed decides with the
+      -- same per-record flag, window and margin floor as POS instead of quoting a stale price.
+      to_jsonb(p)->>'sale_price_enabled' AS product_sale_price_enabled,
+      to_jsonb(p)->>'sale_start_at' AS product_sale_start_at,
+      to_jsonb(p)->>'sale_end_at' AS product_sale_end_at,
+      to_jsonb(p)->>'cost_price' AS product_cost_price,
+      to_jsonb(pv)->>'sale_price_enabled' AS variant_sale_price_enabled,
+      to_jsonb(pv)->>'sale_start_at' AS variant_sale_start_at,
+      to_jsonb(pv)->>'sale_end_at' AS variant_sale_end_at,
+      to_jsonb(pv)->>'cost_price' AS variant_cost_price,
       p.category_id,
       p.product_type,
       c.name AS category_name,
@@ -220,6 +241,55 @@ export const resolveMetaCatalogCurrentPrice = (row = {}) => {
   return resolved.value;
 };
 
+/*
+  What the customer actually pays. The feed used to send the NORMAL price, so a product sitting in
+  العروض — charged at its sale price in POS, on the storefront and in every AI quote, with the global
+  toggle off — was advertised at the higher price. Google reads that as a landing-page mismatch and
+  Meta sends the customer to a cheaper page than the ad promised.
+
+  The decision is delegated to the canonical resolver, never re-implemented here: it is the thing
+  that separates a live offer from a stored-but-dormant sale price. Only the normal price is ours,
+  handed in as the product's selling price so the Phase 1 contract above still decides it.
+*/
+// The resolver merges variant over product to evaluate the Sale Mode rules, so a variant key that
+// is merely absent from the row would shadow the product's own value with undefined.
+const definedOnly = (record = {}) =>
+  Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== null));
+
+export const resolveMetaCatalogActivePrice = (
+  row = {},
+  { saleModeSettings = {}, normalPrice = resolveMetaCatalogCurrentPrice(row) } = {}
+) => {
+  if (!(normalPrice > 0)) return 0;
+  const effective = resolveEffectiveCustomerPrice({
+    product: definedOnly({
+      id: row.product_id,
+      product_id: row.product_id,
+      category_id: row.category_id,
+      brand_id: row.brand_id,
+      selling_price: normalPrice,
+      sale_price: row.product_sale_price,
+      sale_price_enabled: row.product_sale_price_enabled,
+      sale_start_at: row.product_sale_start_at,
+      sale_end_at: row.product_sale_end_at,
+      cost_price: row.product_cost_price,
+      is_offer_story: row.product_is_offer_story,
+      is_offer: row.product_is_offer,
+      show_in_offers: row.product_show_in_offers,
+      promotion_enabled: row.product_promotion_enabled,
+    }),
+    variant: definedOnly({
+      sale_price: row.variant_sale_price,
+      sale_price_enabled: row.variant_sale_price_enabled,
+      sale_start_at: row.variant_sale_start_at,
+      sale_end_at: row.variant_sale_end_at,
+      cost_price: row.variant_cost_price,
+    }),
+    saleModeSettings,
+  });
+  return effective.has_price ? effective.active_price : normalPrice;
+};
+
 const enabledFlag = (value) =>
   value === true || value === 1 || String(value || "").trim().toLowerCase() === "true";
 
@@ -239,7 +309,10 @@ export const resolveMetaCatalogComparePrice = (row = {}, currentPrice = resolveM
   return comparePrice > currentPrice ? comparePrice : 0;
 };
 
-export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_URL, backendUrl = DEFAULT_BACKEND_URL } = {}) => {
+export const buildMetaCatalogItem = (
+  row,
+  { storefrontUrl = DEFAULT_STOREFRONT_URL, backendUrl = DEFAULT_BACKEND_URL, saleModeSettings = {} } = {}
+) => {
   const productId = text(row.product_id);
   const variantId = text(row.variant_id);
   const sku = text(row.variant_sku);
@@ -251,8 +324,13 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
   // and "Nike V2K - White & Pink - 39" reads like a stockroom row to a customer.
   const titleParts = [row.product_name, color].map(text).filter(Boolean);
   const audience = resolveProductAudience(row);
-  const sellingPrice = resolveMetaCatalogCurrentPrice(row);
-  const comparePrice = resolveMetaCatalogComparePrice(row, sellingPrice);
+  const normalPrice = resolveMetaCatalogCurrentPrice(row);
+  const sellingPrice = resolveMetaCatalogActivePrice(row, { saleModeSettings, normalPrice });
+  // A live offer makes the normal price the strikethrough, even where no custom compare is set.
+  const comparePrice = Math.max(
+    resolveMetaCatalogComparePrice(row, sellingPrice),
+    sellingPrice < normalPrice ? normalPrice : 0
+  );
   const categories = resolveMetaProductCategories(row);
   const fallbackImage = absoluteUrl(DEFAULT_PRODUCT_IMAGE_PATH, storefrontUrl);
   const productImage = absoluteUrl(row.product_image_url, backendUrl);
@@ -364,7 +442,9 @@ export const buildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
   const storefrontUrl = storefrontBaseUrl() || DEFAULT_STOREFRONT_URL;
   const backendUrl = text(process.env.PUBLIC_BACKEND_URL || process.env.API_PUBLIC_URL || DEFAULT_BACKEND_URL).replace(/\/+$/g, "");
   const rows = await queryMetaCatalogRows();
-  const items = rows.map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl }));
+  // Loaded once: without it every row falls back to "Sale OFF" and a running sale is under-quoted.
+  const saleModeSettings = await loadTenantSaleModeSettings({});
+  const items = rows.map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl, saleModeSettings }));
   await applyMetaReadableImages(items, { warm: warmImages });
   const body = items.map(metaCatalogItemXml).join("\n");
 
