@@ -79,3 +79,16 @@ test("the variant's own sale price is read as well as the product's", () => {
   assert.equal(resolveMetaCatalogActivePrice(row), 500);
   assert.equal(resolveGoogleFeedPricing(row).active_price, 500);
 });
+
+test("the Google item links to the colourway it advertises", async () => {
+  const { buildGoogleMerchantItem } = await import("../../server/services/googleMerchantFeedService.js");
+  const item = buildGoogleMerchantItem({
+    ...offerRow(),
+    slug: "louis-vuitton-lv",
+    product_name: "Louis Vuitton LV",
+    variant_barcode: "",
+    variant_article_code: "LV-1",
+    brand_name: "LV",
+  });
+  assert.equal(item.link, "https://m1store-egy.com/product/louis-vuitton-lv?color=Grey");
+});

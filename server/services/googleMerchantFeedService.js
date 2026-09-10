@@ -73,9 +73,15 @@ const productIdentifier = (row = {}) => {
   return text(row.product_id);
 };
 
+// Google requires the landing page to show the item it advertised, and this feed is per
+// variant while the product page defaults to its first colourway — a bag advertised at
+// 1,100 landed on a page quoting 1,700. The storefront honours ?color=.
 const productLink = (row = {}) => {
   const identifier = productIdentifier(row);
-  return identifier ? `${STOREFRONT_URL}/product/${encodeURIComponent(identifier)}` : "";
+  if (!identifier) return "";
+  const color = text(row.color);
+  const query = color ? `?color=${encodeURIComponent(color)}` : "";
+  return `${STOREFRONT_URL}/product/${encodeURIComponent(identifier)}${query}`;
 };
 
 const gtinIsValid = (value = "") => {
