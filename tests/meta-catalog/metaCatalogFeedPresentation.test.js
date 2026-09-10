@@ -107,12 +107,17 @@ test("a colour gallery of objects is cleaned the same way", () => {
   ]);
 });
 
-test("the card links to its own colourway on the storefront", () => {
+test("the card links to its own colourway and exact size on the storefront", () => {
   const item = buildMetaCatalogItem(baseRow({ slug: "nike-v2k" }), { storefrontUrl: "https://m1store-egy.com" });
-  assert.equal(item.link, "https://m1store-egy.com/product/nike-v2k?color=White%20%26%20Pink");
+  assert.equal(item.link, "https://m1store-egy.com/product/nike-v2k?color=White%20%26%20Pink&variant=20");
 
   const colourless = buildMetaCatalogItem(baseRow({ slug: "nike-v2k", color: "" }), {
     storefrontUrl: "https://m1store-egy.com",
   });
-  assert.equal(colourless.link, "https://m1store-egy.com/product/nike-v2k");
+  assert.equal(colourless.link, "https://m1store-egy.com/product/nike-v2k?variant=20");
+
+  const productOnly = buildMetaCatalogItem(baseRow({ slug: "nike-v2k", color: "", variant_id: "" }), {
+    storefrontUrl: "https://m1store-egy.com",
+  });
+  assert.equal(productOnly.link, "https://m1store-egy.com/product/nike-v2k");
 });

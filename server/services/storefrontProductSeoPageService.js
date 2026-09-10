@@ -116,9 +116,10 @@ export const createStorefrontProductSeoPageHandler = ({
     if (!product) return res.status(status === 404 ? 404 : 503).send("Product not found");
     // The ad feeds link each colourway with ?color=; the schema must quote that colour's offer.
     const color = String(req.query?.color || "").trim().slice(0, 120);
+    const variant = String(req.query?.variant || "").trim().slice(0, 40);
     const html = injectProductSeoIntoHtml(
       await loadShell(),
-      makeProductSeoImagesAbsolute(buildProductSeo(product, { color }))
+      makeProductSeoImagesAbsolute(buildProductSeo(product, { color, variant }))
     );
     res.set("Content-Type", "text/html; charset=utf-8");
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");

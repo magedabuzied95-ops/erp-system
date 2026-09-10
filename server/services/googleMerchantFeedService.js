@@ -85,8 +85,11 @@ const productIdentifier = (row = {}) => {
 const productLink = (row = {}) => {
   const identifier = productIdentifier(row);
   if (!identifier) return "";
-  const color = text(row.color);
-  const query = color ? `?color=${encodeURIComponent(color)}` : "";
+  const parts = [];
+  if (text(row.color)) parts.push(`color=${encodeURIComponent(text(row.color))}`);
+  // The exact size: its own price can differ from the colour's first in-stock size.
+  if (text(row.variant_id)) parts.push(`variant=${encodeURIComponent(text(row.variant_id))}`);
+  const query = parts.length ? `?${parts.join("&")}` : "";
   return `${STOREFRONT_URL}/product/${encodeURIComponent(identifier)}${query}`;
 };
 

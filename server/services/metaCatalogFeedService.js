@@ -111,7 +111,13 @@ const buildMetaProductUrl = (row = {}, { storefrontUrl = "" } = {}) => {
   // The storefront honours ?color=, so the card lands on the colourway it advertised
   // instead of whichever colour the product page defaults to.
   const color = text(row.color);
-  const query = color ? `?color=${encodeURIComponent(color)}` : "";
+  // ...and ?variant= lands it on the exact size: within one colour, sizes can carry their own
+  // prices (Skechers Max Run 46-48 sell at 1,450 while the colour opens on 1,350), and the page
+  // already selects a requested variant when it is in stock.
+  const parts = [];
+  if (color) parts.push(`color=${encodeURIComponent(color)}`);
+  if (text(row.variant_id)) parts.push(`variant=${encodeURIComponent(text(row.variant_id))}`);
+  const query = parts.length ? `?${parts.join("&")}` : "";
   const path = `/product/${encodeURIComponent(identifier)}${query}`;
   return base ? `${base}${path}` : path;
 };

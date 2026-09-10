@@ -187,3 +187,25 @@ test("the page handler passes ?color= through to the schema", async () => {
   assert.match(sent, /"price":"650\.00"/);
   assert.match(sent, /\?color=Mint/);
 });
+
+test("?variant= narrows the offer to that exact size", () => {
+  // Within Mint the sizes are priced alike here, so give one size its own price, as Skechers
+  // Max Run's 46-48 carry 1,450 in a colour that opens on 1,350.
+  const product = {
+    ...multiPriceProduct,
+    variants: [
+      { id: 1, color: "Mint", size: "40", stock: 2, final_price: 650 },
+      { id: 4, color: "Mint", size: "46", stock: 1, final_price: 1450 },
+    ],
+  };
+  const seo = buildProductSeo(product, { color: "Mint", variant: "4" });
+  assert.equal(seo.productJsonLd.offers.price, "1450.00");
+  assert.equal(seo.productJsonLd.offers.availability, "https://schema.org/InStock");
+  assert.equal(seo.productJsonLd.offers.url, "https://m1store-egy.com/product/nike-air-force-1-sneakers?color=Mint&variant=4");
+  assert.equal(seo.canonical, "https://m1store-egy.com/product/nike-air-force-1-sneakers");
+
+  // An id the product does not have falls back to the colour.
+  const unknown = buildProductSeo(product, { color: "Mint", variant: "999" });
+  assert.equal(unknown.productJsonLd.offers.price, "650.00");
+  assert.equal(unknown.productJsonLd.offers.url, "https://m1store-egy.com/product/nike-air-force-1-sneakers?color=Mint");
+});

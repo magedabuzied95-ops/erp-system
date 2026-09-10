@@ -80,7 +80,17 @@ const variantsForColor = (variants = [], color = "") => {
   return matching.length ? matching : null;
 };
 
-export const buildProductSeo = (product = {}, { color = "" } = {}) => {
+// The ad links name the exact size with ?variant=: within one colour, sizes can carry their own
+// prices (Skechers Max Run 46-48 at 1,450 in a colour that opens on 1,350). A variant id this
+// product has narrows the offer to that one size; an unknown id is ignored.
+const variantById = (variants = [], variantId = "") => {
+  const wanted = text(variantId);
+  if (!wanted) return null;
+  const match = variants.find((variant) => text(variant.id) === wanted);
+  return match ? [match] : null;
+};
+
+export const buildProductSeo = (product = {}, { color = "", variant = "" } = {}) => {
   const name = text(product.name || product.title);
   const brand = text(product.brand_name || product.brand || product.product_brand);
   const category = text(product.category || product.category_name || product.product_type);
@@ -94,8 +104,9 @@ export const buildProductSeo = (product = {}, { color = "" } = {}) => {
   const title = buildProductSeoTitle(product);
   const url = productCanonicalUrl(product);
   const allVariants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
-  const colorVariants = variantsForColor(allVariants, color);
+  const colorVariants = variantById(allVariants, variant) || variantsForColor(allVariants, color);
   const selectedColor = colorVariants ? text(colorVariants[0].color || colorVariants[0].color_name) : "";
+  const selectedVariantId = colorVariants && colorVariants.length === 1 && text(variant) ? text(colorVariants[0].id) : "";
   const variants = colorVariants || allVariants;
   const images = unique([
     ...(colorVariants ? colorVariants.map((variant) => mediaUrl(variant.image_url || variant.image)) : []),
@@ -121,7 +132,9 @@ export const buildProductSeo = (product = {}, { color = "" } = {}) => {
     priceCurrency: "EGP",
     availability,
     itemCondition: "https://schema.org/NewCondition",
-    url: selectedColor ? `${url}?color=${encodeURIComponent(selectedColor)}` : url,
+    url: selectedColor
+      ? `${url}?color=${encodeURIComponent(selectedColor)}${selectedVariantId ? `&variant=${encodeURIComponent(selectedVariantId)}` : ""}`
+      : url,
   };
   // Google merchant listings require Offer. AggregateOffer is supported only
   // for product snippets, so keep the schema price aligned with the initial

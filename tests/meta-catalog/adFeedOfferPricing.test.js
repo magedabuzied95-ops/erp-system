@@ -80,7 +80,7 @@ test("the variant's own sale price is read as well as the product's", () => {
   assert.equal(resolveGoogleFeedPricing(row).active_price, 500);
 });
 
-test("the Google item links to the colourway it advertises", async () => {
+test("the Google item links to the colourway and exact size it advertises", async () => {
   const { buildGoogleMerchantItem } = await import("../../server/services/googleMerchantFeedService.js");
   const item = buildGoogleMerchantItem({
     ...offerRow(),
@@ -90,7 +90,7 @@ test("the Google item links to the colourway it advertises", async () => {
     variant_article_code: "LV-1",
     brand_name: "LV",
   });
-  assert.equal(item.link, "https://m1store-egy.com/product/louis-vuitton-lv?color=Grey");
+  assert.equal(item.link, "https://m1store-egy.com/product/louis-vuitton-lv?color=Grey&variant=7990");
 });
 
 test("the winning invoice line's sale price is the offer price, ahead of the variant column", () => {
