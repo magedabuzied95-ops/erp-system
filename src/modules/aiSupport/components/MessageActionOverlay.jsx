@@ -215,6 +215,15 @@ export default function MessageActionOverlay({
 
       {hasReactions ? (
         <div
+          // The strip is laid out in PHYSICAL pixels — `measure` reads the side
+          // off the geometry and returns a physical left, a physical padding and
+          // the edge to hug. An Arabic inbox puts dir="rtl" on the body and this
+          // panel is portalled onto the body, so without this the container read
+          // `flex-end` as the LEFT edge and threw the pill to the far side of the
+          // screen (emoji reversed with it) while the lifted message and the menu
+          // stayed correctly on the right. Pinned to ltr, like the menu below,
+          // the flex end is the physical right edge the measurement means.
+          dir="ltr"
           className="m1-msg-panel flex items-center"
           style={{
             left: layout.emoji.left,
