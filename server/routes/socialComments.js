@@ -1331,8 +1331,8 @@ router.get("/visibility", protect, permit("settings", "view"), async (req, res) 
     return res.json({ success: true, visibility: {} });
   }
   try {
-    // Same lazy ensure the writers run — the first screen after a deploy can ask before any
-    // comment has arrived to create the columns.
+    // Development only in effect: production adds these columns at boot, and this lazy ensure is
+    // switched off there. A missing column still reads as "nothing hidden" via the catch below.
     const { ensureSocialCommentAutomationSchema } = await getSocialCommentAutomationRouteDeps();
     await ensureSocialCommentAutomationSchema().catch(() => {});
     const result = await db.query(

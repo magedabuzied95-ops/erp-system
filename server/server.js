@@ -784,7 +784,7 @@ const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.
 const { runAbandonedCartReminderTick } = await import("./services/abandonedCartReminderService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
-const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
+const { socialCommentConversationId, materializeSocialCommentInboxConversation, ensureSocialCommentVisibilityColumns } = await import("./services/socialCommentAutomationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { refreshOpenAiCredentialOverrides } = await import("./services/openaiCredentials.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
@@ -2633,6 +2633,11 @@ const bootstrapStartup = async () => {
     console.log("[server] meta integration schema ensured");
     await ensureSocialAutomationSettingsSchema(db);
     console.log("[server] social automation settings schema ensured");
+    // hidden_at / hidden_reason on the comment runs table. The table's own runtime ensure is off
+    // in production, so without this the hide/unhide button would read and write columns that do
+    // not exist there.
+    await ensureSocialCommentVisibilityColumns(db);
+    console.log("[server] social comment visibility columns ensured");
     await repairCorruptedArabicText(db);
     await warmDashboardMetadataCache();
     console.log("[server] dashboard metadata cache warmed");

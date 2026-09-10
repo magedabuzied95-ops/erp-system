@@ -90,6 +90,23 @@ test("the hidden-state columns exist before anything reads or writes them", () =
   );
 });
 
+test("production gets the columns at BOOT — the table's runtime ensure is off there", () => {
+  // The first deploy put hidden_at only in ensureSocialCommentAutomationSchema. That function
+  // returns early in production (runtime DDL starved the pool in the 2026-08-26 outage) and is not
+  // called at boot, so the columns existed in development and never in production.
+  const server = read("../server/server.js");
+  const boot = server.indexOf("const bootstrapStartup = async");
+  assert.ok(boot > 0, "bootstrapStartup is gone");
+  const bootBody = server.slice(boot, server.indexOf("\n};", boot));
+  assert.match(bootBody, /await ensureSocialCommentVisibilityColumns\(db\);/, "the boot no longer adds the hidden-state columns");
+  const start = automation.indexOf("export const ensureSocialCommentVisibilityColumns");
+  assert.ok(start > 0);
+  const body = automation.slice(start, automation.indexOf("\n};", start));
+  assert.doesNotMatch(body, /isSocialCommentAutomationSchemaInitEnabled/, "the boot ensure must not sit behind the runtime-DDL switch");
+  assert.match(body, /ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ NULL/);
+  assert.match(body, /ADD COLUMN IF NOT EXISTS hidden_reason TEXT NULL/);
+});
+
 test("the PWA gets the button because it renders the same row", () => {
   // One component, two surfaces. If the PWA ever forks its own row, the button has to be ported.
   assert.match(pwa, /SocialCommentsWorkspaceCommentRow/, "the PWA no longer renders the shared comment row");

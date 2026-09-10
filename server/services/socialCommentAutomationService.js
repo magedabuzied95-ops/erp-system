@@ -7150,6 +7150,31 @@ const isSocialCommentAutomationSchemaInitEnabled = () => {
   return String(process.env.NODE_ENV || "").toLowerCase() !== "production";
 };
 
+/* The hide/unhide columns, for PRODUCTION.
+
+   ensureSocialCommentAutomationSchema below is switched off at runtime in production on purpose —
+   runtime DDL on hot tables starved the connection pool in the 2026-08-26 outage — and it is not
+   called at boot. So a column added only there exists in development and never in production:
+   exactly what happened to hidden_at on its first deploy. Production schema goes through
+   bootstrapStartup, once, before the server listens; this is the piece of it that owns these two.
+
+   Two nullable columns with no default: ADD COLUMN IF NOT EXISTS is a metadata-only change in
+   Postgres — no table rewrite, no backfill, nothing that can collide with a unique key and take the
+   boot down. */
+let socialCommentVisibilityColumnsPromise = null;
+export const ensureSocialCommentVisibilityColumns = async (clientOrPool = db) => {
+  if (!socialCommentVisibilityColumnsPromise) {
+    socialCommentVisibilityColumnsPromise = (async () => {
+      await clientOrPool.query(`ALTER TABLE IF EXISTS social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_reason TEXT NULL`);
+    })().catch((error) => {
+      socialCommentVisibilityColumnsPromise = null;
+      throw error;
+    });
+  }
+  return socialCommentVisibilityColumnsPromise;
+};
+
 export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => {
   if (!isSocialCommentAutomationSchemaInitEnabled()) {
     return { skipped: true, reason: "schema_init_disabled" };
@@ -7570,9 +7595,9 @@ export const recordSocialCommentVisibility = async ({
   const safeTenantId = Number(tenantId || 0);
   const safeCommentId = text(commentId);
   if (!safeTenantId || !safeCommentId) return;
-  // The columns are added by the lazy schema ensure, which otherwise only runs when a comment
-  // arrives. A manual hide from the inbox can come first — and would then update a column that
-  // does not exist yet, fail, and leave the button believing a state the database never recorded.
+  // Production gets these columns at boot (ensureSocialCommentVisibilityColumns in
+  // bootstrapStartup). This covers development, where the lazy table ensure is on and would
+  // otherwise only have run once a comment arrived.
   await ensureSocialCommentAutomationSchema().catch(() => {});
   await db.query(
     `
