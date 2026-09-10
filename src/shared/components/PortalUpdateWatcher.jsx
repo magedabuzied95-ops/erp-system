@@ -24,7 +24,7 @@ const readReloadedFor = () => {
   }
 };
 
-const reloadOnto = (build) => {
+const replaceOnto = (build) => {
   try {
     sessionStorage.setItem(RELOADED_FOR_KEY, build);
   } catch {
@@ -40,9 +40,17 @@ export default function PortalUpdateWatcher() {
   const location = useLocation();
   const isPortal = PORTAL_PATH_PATTERN.test(location.pathname || "");
   const [availableBuild, setAvailableBuild] = useState("");
+  const [reloading, setReloading] = useState(false);
   const hiddenAtRef = useRef(0);
   const checkingRef = useRef(false);
   const current = useRef(currentBuildId()).current;
+
+  // A reload that just happens reads as a crash ("first tap crashes, the second opens",
+  // 2026-09-11): the screen says it is updating, and paints that before the page goes.
+  const reloadOnto = useCallback((build) => {
+    setReloading(true);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => replaceOnto(build)));
+  }, []);
 
   const check = useCallback(async ({ allowAutoReload = false } = {}) => {
     if (!current || checkingRef.current) return;
@@ -60,12 +68,14 @@ export default function PortalUpdateWatcher() {
     } finally {
       checkingRef.current = false;
     }
-  }, [current]);
+  }, [current, reloadOnto]);
 
   useEffect(() => {
     if (!isPortal || !current || import.meta.env.DEV) return undefined;
-    // A page opened from a stale HTTP/app cache is already old on its first paint.
-    const firstCheck = window.setTimeout(() => void check({ allowAutoReload: true }), 4000);
+    // A page opened from a stale HTTP/app cache is already old on its first paint. Checked
+    // at once: this used to wait 4s, long enough for the first tap to land and then be
+    // thrown away by the reload.
+    const firstCheck = window.setTimeout(() => void check({ allowAutoReload: true }), 0);
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         hiddenAtRef.current = Date.now();
@@ -85,6 +95,14 @@ export default function PortalUpdateWatcher() {
     };
   }, [isPortal, current, check]);
 
+  if (reloading) {
+    return (
+      <div className="fixed inset-0 z-[130] flex flex-col items-center justify-center gap-3 bg-surface text-text" role="status" aria-live="polite">
+        <RefreshCw className="h-7 w-7 animate-spin text-primary" />
+        <span className="text-sm font-black">{t("orders.portalBoard.update.reloading")}</span>
+      </div>
+    );
+  }
   if (!isPortal || !availableBuild) return null;
   return (
     <div className="portal-update-banner fixed inset-x-3 top-[calc(env(safe-area-inset-top)+0.5rem)] z-[120] mx-auto flex max-w-md items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2.5 text-text shadow-2xl" role="status">

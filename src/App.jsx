@@ -23,6 +23,7 @@ import { api } from "./shared/api/api";
 import { getPublicSettings } from "./shared/api/publicSettings";
 import { setAppTimezoneFromSettings } from "./shared/lib/appTimezone";
 import { setCurrency } from "./shared/lib/currency";
+import { importWithChunkRetry } from "./shared/utils/chunkLoadRecovery";
 import { useTheme } from "./theme/useTheme";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
 
@@ -177,7 +178,9 @@ const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
 const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePortal"));
 const EmployeePortalProducts = lazy(() => import("./modules/employees/pages/EmployeePortalProducts"));
 const EmployeePortalInventory = lazy(() => import("./modules/employees/pages/EmployeePortalInventory"));
-const EmployeePortalOnlineOrders = lazy(() => import("./modules/employees/pages/EmployeePortalOnlineOrders"));
+// Retried past a CDN-cached 404 like the storefront's pages: الشحن is the portal page people
+// open right after a deploy, and a poisoned edge made that first open crash.
+const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders")));
 const EmployeeAppShell = lazy(() => import("./modules/employees/pages/EmployeeAppShell"));
 const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
 const ManagerPortal = lazy(() => import("./modules/managerPortal/pages/ManagerPortal"));

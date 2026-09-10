@@ -26,6 +26,7 @@ import {
 import { formatCurrency, formatNumber } from "../../lib/currency";
 import { formatInAppTimezone } from "../../lib/appTimezone";
 import { resolveProductImageUrl, resolveShippingProofImageUrl } from "../../lib/imageUrls";
+import { buildStorefrontImageSrcSet } from "../../lib/storefrontImage";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
 import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor } from "./portalOrderActions";
@@ -277,11 +278,28 @@ function ContactButtons({ phone, ui, size = "sm" }) {
   );
 }
 
-function ProductThumb({ src, size = "h-12 w-12", onOpen }) {
-  const [failed, setFailed] = useState(false);
-  const url = src && !failed ? resolveProductImageUrl(src) : "";
+// A card asked for the full photo — 35–224 KB each, measured on production 2026-09-11 —
+// to paint an 80px square, and a list of 30 made the page heavy on a phone. The server
+// keeps 240px webp variants (4–9 KB); the srcset picks one, and a missing variant falls
+// back to the original before giving up. The viewer still opens the original.
+const THUMB_VARIANT_WIDTHS = [96, 240];
+
+function ProductThumb({ src, size = "h-12 w-12", sizes = "80px", onOpen }) {
+  // 0 = variant srcset, 1 = original only, 2 = no image at all
+  const [stage, setStage] = useState(0);
+  const url = src && stage < 2 ? resolveProductImageUrl(src) : "";
+  const srcSet = url && stage === 0 ? buildStorefrontImageSrcSet(url, THUMB_VARIANT_WIDTHS) : "";
   const body = url ? (
-    <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} className={`${size} shrink-0 rounded-xl border border-border bg-surface-soft object-cover`} />
+    <img
+      src={url}
+      srcSet={srcSet || undefined}
+      sizes={srcSet ? sizes : undefined}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      onError={() => setStage((current) => (current === 0 && srcSet ? 1 : 2))}
+      className={`${size} shrink-0 rounded-xl border border-border bg-surface-soft object-cover`}
+    />
   ) : (
     <span className={`${size} grid shrink-0 place-items-center rounded-xl border border-border bg-surface-soft text-text-muted`}>
       <Package className="h-5 w-5" />

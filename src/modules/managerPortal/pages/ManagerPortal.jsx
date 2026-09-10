@@ -58,8 +58,13 @@ import toast from "react-hot-toast";
 // The chat (list, composer, recorder, media viewer, ring) only loads when the
 // tab is opened; a manager on attendance never downloads it.
 const SharedPortalChat = lazy(() => import("../../../shared/chat/SharedPortalChat"));
-const PortalOnlineOrdersBoard = lazy(() => import("../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard"));
+// الشحن is in the bottom bar, so its file is fetched once the portal is idle: the tap then
+// renders at once, and a deploy landing mid-session can no longer turn that first tap into
+// a failed chunk load + reload ("first tap crashes, second opens").
+const preloadOnlineOrdersBoard = createChunkPreloader(() => import("../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard"));
+const PortalOnlineOrdersBoard = lazy(() => preloadOnlineOrdersBoard());
 import { chatCacheScope } from "../../../shared/chat/chatCache";
+import { createChunkPreloader } from "../../../shared/utils/chunkLoadRecovery";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { formatInAppTimezone, instantToWallClock, wallClockToInstant } from "../../../shared/lib/appTimezone";
 import { resolveProductImageUrl, resolveEmployeeProfileImageUrl } from "../../../shared/lib/imageUrls";
@@ -942,6 +947,12 @@ export default function ManagerPortal() {
   const [portalLanguage, setPortalLanguage] = useState(() => resolveManagerPortalLanguage());
   useEffect(() => { void activateRuntimeLanguage(portalLanguage); }, [portalLanguage]);
   useEffect(() => () => { void activateRuntimeLanguage(readSystemLanguage()); }, []);
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1500));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const handle = idle(() => { preloadOnlineOrdersBoard({ quiet: true }).catch(() => {}); }, { timeout: 4000 });
+    return () => cancel(handle);
+  }, []);
   const changePortalLanguage = useCallback((next) => {
     const normalized = String(next || "").startsWith("ar") ? "ar" : "en";
     writeManagerPortalLanguage(normalized);

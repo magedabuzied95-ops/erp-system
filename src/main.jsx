@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import ReactDOM from "react-dom/client";
 
 import "./i18n/i18n";
@@ -7,7 +8,7 @@ import "./theme/foundation.css";
 import "./theme/fonts-alexandria.css";
 import "./theme/reference.css";
 import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?m1PreviewApi=2";
-import { installChunkLoadRecovery, installStylesheetRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
+import { importWithChunkRetry, installChunkLoadRecovery, installStylesheetRecovery, recoverFromChunkLoadError } from "./shared/utils/chunkLoadRecovery";
 import { installDayFirstDateInputs } from "./shared/utils/dateInputLocale";
 import { installNumericZeroSelect } from "./shared/utils/numericInputZero";
 import { installAppTimezoneDefaults } from "./shared/lib/appTimezone";
@@ -103,18 +104,31 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
 
 if (isEmployeeAppRoute) {
+  // The installed employee app never mounts App.jsx — this table IS its router. A page
+  // added to App.jsx's /employee-app block must be added here too: الشحن was missing
+  // (2026-09-11) and fell through to the home below, so the tab "did nothing".
+  // الشحن is lazy (the home prefetches it once idle) so the board never weighs on the boot.
+  const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders.jsx")));
   Promise.all([
     import("./modules/employees/pages/EmployeeAppShell.jsx"),
     import("./modules/employees/pages/EmployeePortalProducts.jsx"),
     import("./modules/employees/pages/EmployeePortalInventory.jsx"),
-  ]).then(([{ default: EmployeeAppShell }, { default: EmployeePortalProducts }, { default: EmployeePortalInventory }]) => {
+    import("./shared/components/PortalUpdateWatcher.jsx"),
+  ]).then(([
+    { default: EmployeeAppShell },
+    { default: EmployeePortalProducts },
+    { default: EmployeePortalInventory },
+    { default: PortalUpdateWatcher },
+  ]) => {
     root.render(
       <ThemeProvider>
         <BrowserRouter>
+          <PortalUpdateWatcher />
           <Routes>
             <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
+            <Route path="/employee-app/:token/online-orders" element={<Suspense fallback={null}><EmployeePortalOnlineOrders /></Suspense>} />
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
             <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>

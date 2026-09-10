@@ -204,7 +204,7 @@ export const extractChunkUrl = (error) => {
  * sees nothing at all. Only if the retry fails too is the chunk genuinely gone
  * -- a newer deployment replaced it -- and a reload is the only way back.
  */
-export const importWithChunkRetry = (load) => load().catch(async (error) => {
+export const importWithChunkRetry = (load, { recover = true } = {}) => load().catch(async (error) => {
   if (typeof window === "undefined" || !isChunkLoadError(error)) throw error;
 
   const url = extractChunkUrl(error);
@@ -219,9 +219,31 @@ export const importWithChunkRetry = (load) => load().catch(async (error) => {
     }
   }
 
-  await recoverFromChunkLoadError(error);
+  // A background prefetch passes recover:false -- reloading the page under someone who
+  // never asked for that screen is worse than letting the real tap retry.
+  if (recover) await recoverFromChunkLoadError(error);
   throw error;
 });
+
+/*
+ * One shared load for a screen that is prefetched while idle and opened on a tap. Both
+ * callers get the same promise, so the tap after a finished prefetch renders at once; a
+ * failed load is forgotten, so the next caller starts over instead of inheriting it.
+ * `preload({ quiet: true })` is the idle prefetch: it retries past a CDN-cached 404 but
+ * never reloads the page.
+ */
+export const createChunkPreloader = (load) => {
+  let pending = null;
+  return ({ quiet = false } = {}) => {
+    if (!pending) {
+      pending = importWithChunkRetry(load, { recover: !quiet }).catch((error) => {
+        pending = null;
+        throw error;
+      });
+    }
+    return pending;
+  };
+};
 
 export const installChunkLoadRecovery = () => {
   if (typeof window === "undefined") return () => undefined;

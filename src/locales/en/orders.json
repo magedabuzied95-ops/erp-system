@@ -1045,7 +1045,8 @@
     },
     "update": {
       "available": "A new version of the system is available",
-      "reload": "Update now"
+      "reload": "Update now",
+      "reloading": "Updating to the new version…"
     },
     "version": "Version {{build}}",
     "navLabel": "Shipping",

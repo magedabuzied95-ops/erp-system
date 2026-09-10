@@ -1,4 +1,5 @@
 import { getAppTimezone } from "../../../shared/lib/appTimezone";
+import { createChunkPreloader } from "../../../shared/utils/chunkLoadRecovery";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
@@ -85,6 +86,16 @@ import "./EmployeePayrollPortal.m1.css";
 // employee-facing salary surface until it is ready to be enabled again.
 const EMPLOYEE_PORTAL_SALARY_ENABLED = false;
 const ONLINE_ORDERS_NAV_KEY = "online-orders";
+
+// الشحن opens in the app, instantly (2026-09-11). It used to be a full page load because
+// navigate() "changed the URL but left the home mounted" — that was the home's endless
+// badge re-render (see setBadgeCount) starving the route transition, not the router. The
+// page's code is fetched as soon as the home settles; the tap then navigates with it
+// already in memory. If it cannot be fetched (a newer deploy removed it), a full load of
+// the fresh build takes over — always quiet here, because that load lands ON الشحن and a
+// plain reload would not.
+const loadOnlineOrdersPage = createChunkPreloader(() => import("./EmployeePortalOnlineOrders"));
+const preloadOnlineOrdersPage = () => loadOnlineOrdersPage({ quiet: true });
 
 const labels = {
   ar: {
@@ -1549,6 +1560,12 @@ export default function EmployeePayrollPortal() {
   // Dictionary strings on this screen (أوردرات الشحن, chat ring) must be Arabic too, and
   // re-render once the Arabic dictionary is active.
   useEmployeePortalArabic();
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1500));
+    const cancel = window.cancelIdleCallback || window.clearTimeout;
+    const handle = idle(() => { preloadOnlineOrdersPage().catch(() => {}); }, { timeout: 4000 });
+    return () => cancel(handle);
+  }, []);
   const [portal, setPortal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1594,6 +1611,12 @@ export default function EmployeePayrollPortal() {
   const [standalone, setStandalone] = useState(() => isStandaloneApp());
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
   const employeeFeatureBasePath = location.pathname.startsWith("/employee-app/") ? "/employee-app" : "/employee-portal";
+  const openOnlineOrdersPage = () => {
+    const path = `${employeeFeatureBasePath}/${encodeURIComponent(token)}/online-orders`;
+    preloadOnlineOrdersPage()
+      .then(() => navigate(path))
+      .catch(() => window.location.assign(path));
+  };
   const lastAppliedBadgeTotalRef = useRef(null);
   const [notificationState, setNotificationState] = useState(() => {
     if (!pushSupported()) return "unsupported";
@@ -1661,6 +1684,13 @@ export default function EmployeePayrollPortal() {
   const [displayRefillBarcodeSettings, setDisplayRefillBarcodeSettings] = useState(() => normalizeDisplayRefillBarcodeSettings(DISPLAY_REFILL_BARCODE_DEFAULTS));
   const [completedExpanded, setCompletedExpanded] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({ unreadChats: 0, pendingNotifications: 0, newTasks: 0, unreadNotifications: 0, displayRefillAlerts: 0 });
+  // A count that did not change keeps the same object, so React skips the render. The
+  // badge effects wrote a fresh object every run while one of them re-ran after every
+  // render, and the home re-rendered forever: a phone busy all the time, and a tap on
+  // الشحن that died with "Maximum update depth exceeded" (2026-09-11).
+  const setBadgeCount = useCallback((key, value) => {
+    setBadgeCounts((current) => (current[key] === value ? current : { ...current, [key]: value }));
+  }, []);
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
   // Search highlights in the list (PortalChatMessageList `highlight`); nothing is hidden.
   const visibleChatMessages = chatMessages;
@@ -2101,7 +2131,7 @@ export default function EmployeePayrollPortal() {
   const attendanceRows = safeArray(portal?.attendance?.timeline);
     const employeeRequests = safeArray(portal?.employee_requests);
     const visibleRequests = showAllRequests ? employeeRequests : employeeRequests.slice(0, 1);
-    const employeeNotifications = safeArray(portal?.notifications);
+    const employeeNotifications = useMemo(() => safeArray(portal?.notifications), [portal?.notifications]);
   const showHomeTabSections = activeTab === "home";
   const displayRefillAlertRows = useMemo(() => {
     return safeArray(displayRefillAlerts)
@@ -2116,7 +2146,12 @@ export default function EmployeePayrollPortal() {
         return Number(b.id || 0) - Number(a.id || 0);
       });
   }, [displayRefillAlerts]);
-  const pendingDisplayRefillAlerts = displayRefillAlertRows.filter((item) => String(item.status || "pending").toLowerCase() === "pending");
+  // Memoized: the display-refill badge effect depends on this list, and a fresh array on
+  // every render re-ran it after every render — see setBadgeCount.
+  const pendingDisplayRefillAlerts = useMemo(
+    () => displayRefillAlertRows.filter((item) => String(item.status || "pending").toLowerCase() === "pending"),
+    [displayRefillAlertRows]
+  );
   const completedAlerts = displayRefillAlertRows.filter((item) => String(item.status || "").toLowerCase() === "resolved");
   const visibleCompletedAlerts = completedExpanded ? completedAlerts : completedAlerts.slice(0, 1);
   const hiddenCompletedDisplayRefillCount = Math.max(completedAlerts.length - 1, 0);
@@ -2349,7 +2384,7 @@ export default function EmployeePayrollPortal() {
     if (!portal || !token) return undefined;
     const viewed = readBadgeSet(token, "requests");
     const nextCount = requestBadgeIds.filter((id) => !viewed.has(id)).length;
-    setBadgeCounts((current) => ({ ...current, pendingNotifications: activeTab === "requests" ? 0 : nextCount }));
+    setBadgeCount("pendingNotifications", activeTab === "requests" ? 0 : nextCount);
     return undefined;
   }, [activeTab, portal, requestBadgeSignature, token]);
 
@@ -2357,7 +2392,7 @@ export default function EmployeePayrollPortal() {
     if (!portal || !token) return undefined;
     const viewed = readBadgeSet(token, "tasks");
     const nextCount = taskBadgeIds.filter((id) => !viewed.has(id)).length;
-    setBadgeCounts((current) => ({ ...current, newTasks: activeTab === "tasks" ? 0 : nextCount }));
+    setBadgeCount("newTasks", activeTab === "tasks" ? 0 : nextCount);
     return undefined;
   }, [activeTab, portal, taskBadgeSignature, token]);
 
@@ -2368,7 +2403,7 @@ export default function EmployeePayrollPortal() {
       const id = String(item.id || `${item.type || "notification"}-${item.order_id || item.created_at || item.title || item.body || ""}`);
       return !item.read_at && !viewed.has(id);
     }).length;
-    setBadgeCounts((current) => ({ ...current, unreadNotifications: activeTab === "notifications" ? 0 : nextCount }));
+    setBadgeCount("unreadNotifications", activeTab === "notifications" ? 0 : nextCount);
     return undefined;
   }, [activeTab, employeeNotifications, notificationBadgeSignature, notificationSeenVersion, portal, token]);
 
@@ -2376,7 +2411,7 @@ export default function EmployeePayrollPortal() {
     if (!portal || !token) return undefined;
     const viewed = readBadgeSet(token, "display-refill");
     const nextCount = pendingDisplayRefillAlerts.filter((item) => !item.is_read && !viewed.has(String(item.id))).length;
-    setBadgeCounts((current) => ({ ...current, displayRefillAlerts: activeTab === "display-refill" ? 0 : nextCount }));
+    setBadgeCount("displayRefillAlerts", activeTab === "display-refill" ? 0 : nextCount);
     return undefined;
   }, [activeTab, displayRefillBadgeSignature, pendingDisplayRefillAlerts, portal, token]);
 
@@ -4424,12 +4459,8 @@ export default function EmployeePayrollPortal() {
                   key={key}
                   type="button"
                   data-testid={`employee-nav-${key}`}
-                  onPointerEnter={key === ONLINE_ORDERS_NAV_KEY ? () => { void import("./EmployeePortalOnlineOrders"); } : undefined}
-                  // A full page load, like the home's products / inventory links: a router
-                  // navigate() changes the URL but leaves this screen mounted.
-                  onClick={() => (key === ONLINE_ORDERS_NAV_KEY
-                    ? window.location.assign(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/online-orders`)
-                    : setActiveTab(key))}
+                  onPointerEnter={key === ONLINE_ORDERS_NAV_KEY ? () => preloadOnlineOrdersPage().catch(() => {}) : undefined}
+                  onClick={() => (key === ONLINE_ORDERS_NAV_KEY ? openOnlineOrdersPage() : setActiveTab(key))}
                   className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-control)] px-1 py-1.5 text-[10px] font-black leading-tight ${activeTab === key ? "bg-slate-950/95 text-white shadow-sm" : "text-slate-500"}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
