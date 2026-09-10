@@ -45,7 +45,7 @@
     "meta-reviewer:manage": "node server/scripts/manageMetaReviewer.js",
     "test:storefront-seo": "node --test tests/storefront-seo/*.test.js",
     "test:manager-portal": "node --test tests/manager-portal/*.test.js",
-    "test:social-comments": "node server/scripts/verifySocialCommentColorBeforeSize.js && node server/scripts/verifySocialCommentRequestedVariantPrefill.js && node server/scripts/verifySocialCommentSalesFlowReplyPassthrough.js && node server/scripts/verifySocialCommentAddressLinkCheckout.js && node server/scripts/verifySocialCommentOrderTotals.js",
+    "test:social-comments": "node --test tests/social-comment-*.test.js && node server/scripts/verifySocialCommentColorBeforeSize.js && node server/scripts/verifySocialCommentRequestedVariantPrefill.js && node server/scripts/verifySocialCommentSalesFlowReplyPassthrough.js && node server/scripts/verifySocialCommentAddressLinkCheckout.js && node server/scripts/verifySocialCommentOrderTotals.js",
     "migrate:merchant-policies": "node server/scripts/migrateMerchantPolicySettings.js",
     "start": "npm --prefix \"./server\" run start",
     "check:encoding": "node scripts/fix-arabic-mojibake.cjs --check server scripts tests",

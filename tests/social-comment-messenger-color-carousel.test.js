@@ -212,8 +212,12 @@ test("the carousel DM tells the customer to swipe, and never repeats what the ca
   });
 
   assert.match(message, /^أهلاً بحضرتك يا أحمد ✨/);
-  assert.match(message, /دوس يمين وشمال على الكروت/);
-  assert.match(message, /واختار مقاسك من الأزرار تحت/);
+  // The owner cut the two sentences that explained the cards (2026-09-10): nine lines filled the
+  // phone before the message asked anything. The ask is all that stands between the greeting and
+  // the shipping lines now.
+  assert.doesNotMatch(message, /دوس يمين وشمال/, "the swipe explainer is retired copy");
+  assert.doesNotMatch(message, /على الكارت فوق/, "so is the single-card pointer");
+  assert.match(message, /اختار مقاسك من الأزرار تحت/);
   assert.match(message, /متاح شحن لجميع المحافظات/);
   assert.match(message, /متاح الدفع عند الاستلام ❤️/);
   assert.doesNotMatch(message, /1250/, "the cards carry the price; the text must not repeat it");
@@ -225,7 +229,7 @@ test("the carousel DM tells the customer to swipe, and never repeats what the ca
   assert.equal(orphanedSelector, undefined, "no line may open with an orphaned variation selector");
 });
 
-test("a single-colour product is never told to swipe through cards", () => {
+test("a single-colour product gets the same short reply, and no card pointers either", () => {
   const message = buildPolishedSocialCommentProductReply({
     customerName: "أحمد",
     productContext: {
@@ -239,8 +243,9 @@ test("a single-colour product is never told to swipe through cards", () => {
     },
   });
   assert.doesNotMatch(message, /دوس يمين وشمال/);
-  assert.match(message, /على الكارت فوق/);
-  assert.match(message, /واختار مقاسك من الأزرار تحت/);
+  assert.doesNotMatch(message, /على الكارت فوق/);
+  assert.match(message, /اختار مقاسك من الأزرار تحت/);
+  assert.ok(message.split("\n").filter((line) => line.trim()).length <= 4, "the reply stays four lines");
 });
 
 test("with no sizes there are no size buttons, so the text asks for the size instead", () => {

@@ -104,7 +104,10 @@ test("when the pictures cannot go out, the text stops pointing at cards and carr
       carouselEligible: true,
     },
   });
-  assert.match(original, /دوس يمين وشمال على الكروت/);
+  // The card-pointer sentences were cut from the copy on 2026-09-10, so there is nothing left to
+  // strip — but the ask still points at buttons that a text-only send never delivered, and the
+  // facts the cards were carrying still have to come back into the text.
+  assert.doesNotMatch(original, /دوس يمين وشمال|على الكارت فوق/);
   assert.match(original, /الأزرار تحت/);
 
   const recovered = restoreProductFactsToText({

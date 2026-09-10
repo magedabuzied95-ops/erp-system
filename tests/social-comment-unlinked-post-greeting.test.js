@@ -93,8 +93,13 @@ test("the greeting field is persisted like the other templates", () => {
   }
 });
 
-test("liking still degrades correctly on instagram", () => {
-  // Greeting mode must not resurrect the Facebook-only like endpoint for Instagram.
-  assert.match(SOURCE, /const likeSupportedOnPlatform = normalizedPlatform === "facebook";/);
+test("liking still degrades correctly per platform", () => {
+  // This asserted `=== "facebook"` alone, and had been failing since Meta shipped the Like Media
+  // and Comments API on 2026-04-22 and Instagram joined the supported platforms. The rule it was
+  // written to protect still holds: liking is gated on a platform list, never assumed everywhere.
+  assert.match(
+    SOURCE,
+    /const likeSupportedOnPlatform = normalizedPlatform === "facebook" \|\| normalizedPlatform === "instagram";/
+  );
   assert.match(SOURCE, /const likeEnabled = Boolean\(config\.settings\?\.likeComment\) && likeSupportedOnPlatform;/);
 });

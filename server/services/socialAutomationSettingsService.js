@@ -1,15 +1,26 @@
 import db from "../database/db.js";
 
+// Two rules the customer's name imposes on this copy, both learned from live replies:
+//
+// 1. NO "يا" DIRECTLY BEFORE THE NAME. On Instagram the name is a handle now, and
+//    "يا صديقي @maged.abuzied" is a vocative particle glued to a username. Every opener greets
+//    without one, so one line reads right for a Facebook name and an Instagram handle alike.
+// 2. THE VOCATIVE IS SAID ONCE. The opener and the body both carried "يا صديقي", one line after
+//    the other, on both platforms.
+//
+// The name placeholder is load-bearing beyond politeness: buildSocialCommentMentionMessage can
+// only mention someone whose name appears in the message, so an opener without it silently costs
+// the mention. See [[meta-mention-is-written-into-the-message]].
 export const DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS = [
-  "إزيك يا صديقي {{customer_name}} 👋",
-  "أهلاً وسهلاً يا {{customer_name}} ❤️",
-  "نورتنا يا صديقي {{customer_name}} ✨",
-  "منورنا يا {{customer_name}} 🙏",
-  "أهلاً بحضرتك يا {{customer_name}} 🌟",
+  "أهلاً {{customer_name}} 👋",
+  "منورنا {{customer_name}} ✨",
+  "أهلاً وسهلاً {{customer_name}} ❤️",
+  "أهلاً بيك {{customer_name}} 🌟",
+  "تحت أمرك {{customer_name}} 🙏",
 ];
 
 export const DEFAULT_SOCIAL_PUBLIC_REPLY_BODY = [
-  "تم الرد عليك في الخاص يا صديقي ❤️",
+  "تم الرد عليك في الخاص ❤️",
   "وعندنا شحن لكل المحافظات 📦🚚",
   "━━━━━━━━━━━━━━━━━━",
   "❤️ العنوان: دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب",

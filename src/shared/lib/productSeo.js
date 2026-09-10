@@ -11,6 +11,14 @@ const number = (value) => {
 };
 const unique = (values = []) => [...new Set(values.filter(Boolean))];
 
+// Some gallery rows are stored as objects rather than plain urls, and String({})
+// put "https://m1store-egy.com/[object Object]" in the image array Google reads.
+const mediaUrl = (entry) => {
+  if (typeof entry === "string") return text(entry);
+  if (!entry || typeof entry !== "object") return "";
+  return text(entry.url || entry.image_url || entry.imageUrl || entry.secure_url || entry.src || entry.path);
+};
+
 export const productCanonicalUrl = (product = {}) => {
   const slug = text(product.slug || product.canonical_slug || product.id);
   return slug ? `${STOREFRONT_ORIGIN}/product/${encodeURIComponent(slug)}` : STOREFRONT_ORIGIN;
@@ -77,7 +85,7 @@ export const buildProductSeo = (product = {}) => {
     product.og_image_url,
     product.image_url,
     ...(Array.isArray(product.gallery_images) ? product.gallery_images : []),
-  ].map(text));
+  ].map(mediaUrl));
   const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
   const sellableVariants = variants.filter((variant) => Number(variant.stock || 0) > 0);
   const available = variants.length

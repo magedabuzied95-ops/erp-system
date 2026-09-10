@@ -101,3 +101,23 @@ test("product SEO shell always bypasses stale deployment caches", async () => {
   assert.equal(requestOptions.cache, "no-store");
   assert.match(requestOptions.headers["Cache-Control"], /no-store/);
 });
+
+test("gallery rows stored as objects become real image urls in the Product schema", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    gallery_images: [
+      { url: "https://images.example/one.jpg" },
+      { image_url: "https://images.example/two.jpg" },
+      "https://images.example/three.jpg",
+      { caption: "no url on this row" },
+    ],
+  });
+
+  assert.deepEqual(seo.productJsonLd.image, [
+    "https://images.example/nike.webp",
+    "https://images.example/one.jpg",
+    "https://images.example/two.jpg",
+    "https://images.example/three.jpg",
+  ]);
+  assert.equal(JSON.stringify(seo.productJsonLd).includes("[object Object]"), false);
+});
