@@ -70,6 +70,7 @@ const getSocialCommentAutomationRouteDeps = async () => {
         listSocialCommentAutomationRuns: module.listRecentSocialCommentAutomationRuns,
         testSocialCommentAutomationRuntime: module.testSocialCommentAutomationRuntime,
         recordSocialCommentVisibility: module.recordSocialCommentVisibility,
+        ensureSocialCommentAutomationSchema: module.ensureSocialCommentAutomationSchema,
       }))
       .catch((error) => {
         socialCommentAutomationRouteDepsPromise = null;
@@ -1330,6 +1331,10 @@ router.get("/visibility", protect, permit("settings", "view"), async (req, res) 
     return res.json({ success: true, visibility: {} });
   }
   try {
+    // Same lazy ensure the writers run — the first screen after a deploy can ask before any
+    // comment has arrived to create the columns.
+    const { ensureSocialCommentAutomationSchema } = await getSocialCommentAutomationRouteDeps();
+    await ensureSocialCommentAutomationSchema().catch(() => {});
     const result = await db.query(
       `
       SELECT comment_id, hidden_at, hidden_reason

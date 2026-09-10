@@ -7570,6 +7570,10 @@ export const recordSocialCommentVisibility = async ({
   const safeTenantId = Number(tenantId || 0);
   const safeCommentId = text(commentId);
   if (!safeTenantId || !safeCommentId) return;
+  // The columns are added by the lazy schema ensure, which otherwise only runs when a comment
+  // arrives. A manual hide from the inbox can come first — and would then update a column that
+  // does not exist yet, fail, and leave the button believing a state the database never recorded.
+  await ensureSocialCommentAutomationSchema().catch(() => {});
   await db.query(
     `
     UPDATE social_comment_automation_runs

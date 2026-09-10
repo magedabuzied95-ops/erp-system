@@ -70,6 +70,26 @@ test("the button only draws once the real state is known", () => {
   );
 });
 
+test("the hidden-state columns exist before anything reads or writes them", () => {
+  // They come from a LAZY schema ensure that otherwise runs only when a comment arrives. Right
+  // after a deploy the owner can press the button first; without these calls the write fails
+  // silently and the button shows a state the database never recorded.
+  const recordStart = automation.indexOf("export const recordSocialCommentVisibility");
+  const recordBody = automation.slice(recordStart, automation.indexOf("\n};", recordStart));
+  assert.ok(
+    recordBody.indexOf("ensureSocialCommentAutomationSchema()") > 0 &&
+      recordBody.indexOf("ensureSocialCommentAutomationSchema()") < recordBody.indexOf("UPDATE social_comment_automation_runs"),
+    "the writer must ensure the columns before updating them"
+  );
+  const lookupStart = routes.indexOf('router.get("/visibility"');
+  const lookupBody = routes.slice(lookupStart, routes.indexOf("\n});", lookupStart));
+  assert.ok(
+    lookupBody.indexOf("ensureSocialCommentAutomationSchema()") > 0 &&
+      lookupBody.indexOf("ensureSocialCommentAutomationSchema()") < lookupBody.indexOf("SELECT comment_id, hidden_at"),
+    "the lookup must ensure the columns before selecting them"
+  );
+});
+
 test("the PWA gets the button because it renders the same row", () => {
   // One component, two surfaces. If the PWA ever forks its own row, the button has to be ported.
   assert.match(pwa, /SocialCommentsWorkspaceCommentRow/, "the PWA no longer renders the shared comment row");
