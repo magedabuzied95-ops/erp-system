@@ -9,7 +9,8 @@ import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
-import { likeComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { hideComment, likeComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { findBannedWord } from "./socialCommentModerationService.js";
 import { getSocialAutoReplySettings, getSocialCommentAutomationConfig, loadSocialCommentPost } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
@@ -3406,11 +3407,79 @@ const executeSocialCommentAutomationRuntime = async ({
     automation_state: persistedRuntimeStateWithLatency,
   };
 
+  /* ── The moderation gate ───────────────────────────────────────────────────────────────────
+     Order is the whole point of putting this here. A comment that trips the word filter must not
+     be liked, replied to, or answered with a sales DM first — thanking someone for an insult and
+     then hiding it is worse than doing either one alone. So this runs BEFORE every other step and
+     ends the run when it fires.
+
+     The action is always hide, never delete: it is one call to undo, and the person who wrote it
+     still sees their own comment, so a false positive costs nothing and never reads as
+     censorship. */
+  const moderationSettings = await getSocialAutomationSettings(safeTenantId).catch(() => null);
+  const bannedWordsArmed = Boolean(moderationSettings?.banned_words_enabled);
+  const moderationHit = bannedWordsArmed
+    ? findBannedWord({
+        commentText: text(safeRow.original_comment_text || safeRow.comment_text || ""),
+        bannedWords: moderationSettings?.banned_words || [],
+        exceptions: moderationSettings?.banned_word_exceptions || [],
+      })
+    : { matched: false, word: "", exception: "" };
+  if (moderationHit.exception) {
+    // A rule that keeps getting cancelled should be visible, not silent.
+    console.log("SOCIAL_COMMENT_MODERATION_EXCEPTION_APPLIED", {
+      tenant_id: safeTenantId,
+      comment_id: safeCommentId,
+      word: moderationHit.word,
+      exception: moderationHit.exception,
+    });
+  }
+  if (moderationHit.matched) {
+    const moderationResult = { step: "moderation", status: "hidden", reason: "banned_word", word: moderationHit.word };
+    let hideError = "";
+    try {
+      await hideComment(normalizedPlatform, safeCommentId, safeTenantId);
+    } catch (error) {
+      hideError = text(error?.message || "hide failed");
+      moderationResult.status = "failed";
+      moderationResult.error = hideError;
+    }
+    stepResults.push(moderationResult);
+    console.log("SOCIAL_COMMENT_MODERATION_HIDDEN", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      word: moderationHit.word,
+      hidden: !hideError,
+      error: hideError,
+    });
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      configId: config.id ?? null,
+      customerName: safeRow.commenter_name || safeRow.customer_name || "",
+      status: "hidden",
+      stepResults,
+      errorMessage: hideError || null,
+      row: safeRow,
+    }).catch(() => {});
+    return returnWithFlowExit(
+      { applied: true, skipped: true, reason: "banned_word", row: safeRow, step_results: stepResults },
+      { exitReason: "banned_word", exitType: "moderated" }
+    );
+  }
+
   // Instagram had no way to like a comment until Meta shipped the Like Media and
   // Comments API on 2026-04-22; `likeComment` now routes it through the IG User node.
   // A missing `instagram_manage_engagement` grant only fails this one step —
   // executeAutomationStep catches it, and the public reply and the DM still run.
   const likeSupportedOnPlatform = normalizedPlatform === "facebook" || normalizedPlatform === "instagram";
+  // Facebook takes is_hidden, Instagram takes hide. TikTok has its own moderation surface and is
+  // not routed through this sender, so it is not claimed here.
+  const hideSupportedOnPlatform = normalizedPlatform === "facebook" || normalizedPlatform === "instagram";
   const likeEnabled = Boolean(config.settings?.likeComment) && likeSupportedOnPlatform;
   const publicReplyEnabled = Boolean(config.settings?.publicReply);
   const privateReplyEnabled = Boolean(config.settings?.privateReply);
@@ -3954,6 +4023,34 @@ const executeSocialCommentAutomationRuntime = async ({
     const createLeadResult = { step: "createLead", status: "skipped", reason: "disabled" };
     stepResults.push(createLeadResult);
     console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", createLeadResult);
+  }
+
+  /* ── Hiding the customer's own comment ──────────────────────────────────────────────────────
+     A per-post switch, off unless someone turns it on for that post, and it runs LAST on purpose:
+     the customer gets the like, the public reply and the DM first, and only then does the comment
+     leave the public thread. What it buys is that a competitor reading the post cannot see who is
+     buying; what it costs is the engagement signal those comments carry, which is why it is not a
+     global default. On Facebook a hidden comment stays visible to the person who wrote it. */
+  const hideCustomerCommentEnabled = Boolean(config.settings?.hideComments) && hideSupportedOnPlatform;
+  if (hideCustomerCommentEnabled) {
+    await executeAutomationStep({
+      step: "hideComment",
+      enabled: true,
+      stepResults,
+      stepData: { status: "sent" },
+      run: async () => {
+        await hideComment(normalizedPlatform, safeCommentId, safeTenantId);
+        return { ok: true };
+      },
+    });
+  } else {
+    const hideResult = {
+      step: "hideComment",
+      status: "skipped",
+      reason: Boolean(config.settings?.hideComments) && !hideSupportedOnPlatform ? "unsupported_platform" : "disabled",
+    };
+    stepResults.push(hideResult);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", hideResult);
   }
 
   const summary = summarizeAutomationStepResults(stepResults);

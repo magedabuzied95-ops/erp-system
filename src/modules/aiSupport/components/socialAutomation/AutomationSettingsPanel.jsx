@@ -6,6 +6,7 @@ export default function AutomationSettingsPanel({ settings = {}, onChange }) {
     { key: "privateReply", label: "Private reply", note: "Send a private follow-up message." },
     { key: "aiFollowUp", label: "AI follow-up", note: "Open an AI conversation when needed." },
     { key: "createLead", label: "Create lead", note: "Create a CRM opportunity from the comment." },
+    { key: "hideComments", label: "إخفاء كومنتات العملاء", note: "بعد الرد والرسالة — المنافس مش هيشوف مين بيشتري. العميل نفسه لسه شايف كومنته." },
   ];
 
   return (

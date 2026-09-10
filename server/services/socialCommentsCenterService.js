@@ -2573,6 +2573,10 @@ const normalizeSocialCommentAutomationSettings = (value = {}) => ({
   privateReply: value.privateReply ?? value.private_reply ?? true,
   aiFollowUp: value.aiFollowUp ?? value.ai_follow_up ?? true,
   createLead: value.createLead ?? value.create_lead ?? false,
+  // Off unless someone turns it on for this post. Hiding every customer comment keeps competitors
+  // from reading who is buying, and costs the engagement those comments carry — that trade is a
+  // per-post decision, never a default.
+  hideComments: value.hideComments ?? value.hide_comments ?? false,
 });
 
 const buildSocialCommentAutomationDefaultTemplates = (post = {}, product = {}) => {

@@ -1,4 +1,8 @@
 import db from "../database/db.js";
+import {
+  DEFAULT_BANNED_WORDS,
+  DEFAULT_BANNED_WORD_EXCEPTIONS,
+} from "./socialCommentModerationService.js";
 
 // Two rules the customer's name imposes on this copy, both learned from live replies:
 //
@@ -38,7 +42,21 @@ export const DEFAULT_SOCIAL_AUTOMATION_SETTINGS = {
   // Sent when the commented-on post has no product linked. Null means "use the built-in
   // greeting" so an untouched tenant still gets one.
   greeting_private_message_template: null,
+  // The word filter arrives LOADED BUT NOT ARMED. The list is ready to read in Comments Settings,
+  // and hiding a real customer's comment on day one — before anyone has looked at what is in the
+  // list — is not a thing this should decide for a shop by itself. One toggle turns it on.
+  banned_words_enabled: false,
+  banned_words: DEFAULT_BANNED_WORDS,
+  banned_word_exceptions: DEFAULT_BANNED_WORD_EXCEPTIONS,
 };
+
+// The shipped list has to reach the tenant who ALREADY has a settings row — and this shop does.
+// A column added with DEFAULT '[]' would hand them an empty box and the filter would look broken,
+// the same way the reply copy stayed old because a saved row outranked the code default. Postgres
+// backfills existing rows with the column DEFAULT when the column is created, so the list is the
+// default. Ours are literals we control; the quote-doubling is belt and braces.
+const bannedWordColumnDefinition = (column, words) =>
+  `ADD COLUMN IF NOT EXISTS ${column} JSONB NOT NULL DEFAULT '${JSON.stringify(words).replace(/'/g, "''")}'::jsonb`;
 
 const LEGACY_PUBLIC_REPLY_TEMPLATES = new Set([
   "تم إرسال التفاصيل في رسالة خاصة",
@@ -81,6 +99,27 @@ const normalizeTemplate = (value, fallback = "", allowNull = false) => {
 const normalizePublicReplyTemplate = (value, fallback = DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template) => {
   const normalized = normalizeTemplate(value, fallback, false);
   return LEGACY_PUBLIC_REPLY_TEMPLATES.has(normalized) ? fallback : normalized;
+};
+
+// Stored as the owner typed it, never folded. Folding happens at match time in
+// socialCommentModerationService so the settings box keeps reading like Arabic, not like a
+// normaliser's output — an owner who opens the box and sees "احمق" where they typed "أحمق" would
+// reasonably assume something is broken.
+const normalizeWordList = (value, fallback = []) => {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = parsed.split(/\r?\n|,/);
+    }
+  }
+  if (!Array.isArray(parsed)) return [...fallback];
+  return parsed
+    .map((item) => text(item))
+    .filter(Boolean)
+    .filter((item, index, items) => items.indexOf(item) === index)
+    .slice(0, 500);
 };
 
 const normalizePublicReplyOpeners = (value, fallback = DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS) => {
@@ -229,6 +268,11 @@ const rowToSettings = (row = {}) => ({
     DEFAULT_SOCIAL_AUTOMATION_SETTINGS.greeting_private_message_template,
     true
   ),
+  banned_words_enabled: booleanFrom(row.banned_words_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.banned_words_enabled),
+  // No fallback to the shipped list here: an owner who empties the box means it. The ready-made
+  // list reaches an existing row through the column DEFAULT when the column is added, once.
+  banned_words: normalizeWordList(row.banned_words, []),
+  banned_word_exceptions: normalizeWordList(row.banned_word_exceptions, []),
   created_at: row.created_at || null,
   updated_at: row.updated_at || null,
   persisted: true,
@@ -244,6 +288,9 @@ const normalizePatch = (patch = {}) => ({
   ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_openers") ? { public_reply_openers: normalizePublicReplyOpeners(patch.public_reply_openers, DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "private_message_template") ? { private_message_template: normalizeTemplate(patch.private_message_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template, true) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "greeting_private_message_template") ? { greeting_private_message_template: normalizeTemplate(patch.greeting_private_message_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.greeting_private_message_template, true) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "banned_words_enabled") ? { banned_words_enabled: booleanFrom(patch.banned_words_enabled, false) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "banned_words") ? { banned_words: normalizeWordList(patch.banned_words, []) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "banned_word_exceptions") ? { banned_word_exceptions: normalizeWordList(patch.banned_word_exceptions, []) } : {}),
 });
 
 const mergeSettings = (current = {}, patch = {}) => rowToSettings({
@@ -297,6 +344,9 @@ https://share.google/1e0cM7JVmxyLTpWVe',
           ADD COLUMN IF NOT EXISTS public_reply_openers JSONB NOT NULL DEFAULT '[]'::jsonb,
           ADD COLUMN IF NOT EXISTS private_message_template TEXT NULL,
           ADD COLUMN IF NOT EXISTS greeting_private_message_template TEXT NULL,
+          ADD COLUMN IF NOT EXISTS banned_words_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          ${bannedWordColumnDefinition("banned_words", DEFAULT_BANNED_WORDS)},
+          ${bannedWordColumnDefinition("banned_word_exceptions", DEFAULT_BANNED_WORD_EXCEPTIONS)},
           ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
           ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
       `);
@@ -402,10 +452,13 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         public_reply_openers,
         private_message_template,
         greeting_private_message_template,
+        banned_words_enabled,
+        banned_words,
+        banned_word_exceptions,
         created_at,
         updated_at
       )
-      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, COALESCE($11::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $12, $13::jsonb, $14::jsonb, COALESCE($11::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
       ON CONFLICT (tenant_id) DO UPDATE SET
         auto_like_enabled = EXCLUDED.auto_like_enabled,
         auto_public_reply_enabled = EXCLUDED.auto_public_reply_enabled,
@@ -416,6 +469,9 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         public_reply_openers = EXCLUDED.public_reply_openers,
         private_message_template = EXCLUDED.private_message_template,
         greeting_private_message_template = EXCLUDED.greeting_private_message_template,
+        banned_words_enabled = EXCLUDED.banned_words_enabled,
+        banned_words = EXCLUDED.banned_words,
+        banned_word_exceptions = EXCLUDED.banned_word_exceptions,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
       `,
@@ -431,6 +487,9 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         next.private_message_template,
         next.greeting_private_message_template,
         current.created_at || null,
+        next.banned_words_enabled,
+        JSON.stringify(next.banned_words || []),
+        JSON.stringify(next.banned_word_exceptions || []),
       ]
     );
     const settings = rowToSettings(result.rows[0] || next);

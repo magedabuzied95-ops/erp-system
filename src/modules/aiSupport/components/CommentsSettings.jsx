@@ -15,6 +15,9 @@ const DEFAULT_AUTOMATION = {
   public_reply_openers: [],
   private_message_template: "",
   greeting_private_message_template: "",
+  banned_words_enabled: false,
+  banned_words: [],
+  banned_word_exceptions: [],
 };
 
 const normalizeAutomation = (value = {}) => ({
@@ -29,6 +32,13 @@ const normalizeAutomation = (value = {}) => ({
     .filter(Boolean),
   private_message_template: String(value.private_message_template ?? ""),
   greeting_private_message_template: String(value.greeting_private_message_template ?? ""),
+  banned_words_enabled: Boolean(value.banned_words_enabled),
+  banned_words: (Array.isArray(value.banned_words) ? value.banned_words : [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean),
+  banned_word_exceptions: (Array.isArray(value.banned_word_exceptions) ? value.banned_word_exceptions : [])
+    .map((item) => String(item || "").trim())
+    .filter(Boolean),
 });
 
 function Section({ title, hint, action, children, light }) {
@@ -216,6 +226,53 @@ function SocialAutomationSection({ light }) {
               onChange={(event) => patch("public_reply_template", event.target.value)}
               className={`${inputClass} resize-none`}
             />
+          </label>
+
+          {/* The word filter arrives with a list already in it and the switch OFF. Read the list
+              first, then arm it — it hides real customers' comments when it is wrong. */}
+          <div className="block sm:col-span-2">
+            <button
+              type="button"
+              onClick={() => patch("banned_words_enabled", !settings.banned_words_enabled)}
+              className={`inline-flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-black ${
+                settings.banned_words_enabled
+                  ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200"
+                  : light
+                    ? "border border-[#e4dccd] bg-white text-[#756c5b]"
+                    : "border border-slate-700 bg-slate-900 text-slate-300"
+              }`}
+            >
+              فلتر الكلمات المسيئة: {settings.banned_words_enabled ? "شغّال" : "مقفول"}
+            </button>
+            <span className={`mt-2 block text-[11px] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>
+              الكومنت المطابق <bdi>يتخفي فقط</bdi> — من غير رد ولا لايك ولا رسالة خاصة. اللي كتبه لسه شايفه، وبيترجع في أي وقت.
+            </span>
+          </div>
+
+          <label className="block sm:col-span-2">
+            <span className="mb-2 block text-xs font-black">الكلمات المحظورة (كلمة في كل سطر)</span>
+            <textarea
+              rows={6}
+              value={(settings.banned_words || []).join("\n")}
+              onChange={(event) => patch("banned_words", event.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))}
+              className={`${inputClass} resize-none`}
+            />
+            <span className={`mt-2 block text-[11px] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>
+              الكلمة بتتطابق <bdi>كاملة</bdi> — «زبون» مش هتتفلتر عشان فيها «زب».
+            </span>
+          </label>
+
+          <label className="block sm:col-span-2">
+            <span className="mb-2 block text-xs font-black">استثناءات (جملة في كل سطر)</span>
+            <textarea
+              rows={4}
+              value={(settings.banned_word_exceptions || []).join("\n")}
+              onChange={(event) => patch("banned_word_exceptions", event.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean))}
+              className={`${inputClass} resize-none`}
+            />
+            <span className={`mt-2 block text-[11px] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>
+              جملة هنا بتلغي الفلتر جواها بس — زي «لون زفت».
+            </span>
           </label>
 
           <label className="block sm:col-span-2">

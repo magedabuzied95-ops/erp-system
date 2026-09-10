@@ -1077,6 +1077,40 @@ export const likeComment = async (platform, commentId, businessId) => {
 };
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
+   HIDING A COMMENT — TWO PLATFORMS, TWO PARAMETER NAMES, ONE MEANING
+   ──────────────────────────────────────────────────────────────────────────────────────────────
+   Facebook  POST /{comment-id}      is_hidden=true   ("Only applicable to Page comments")
+   Instagram POST /{ig-comment-id}   hide=true
+
+   Hiding is the only moderation action this system takes on its own, and that is deliberate: it
+   is reversible with one call, and the person who wrote the comment still sees it on their own
+   screen, so a false positive costs nothing and never reads as censorship. DELETE exists on both
+   platforms and is not wired up — an automated filter must not be able to destroy anything.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+export const buildCommentVisibilityRequest = ({ platform = "", commentId = "", hidden = true } = {}) => {
+  const safeCommentId = trimString(commentId);
+  if (!safeCommentId) throw new Error("A comment id is required to change a comment's visibility");
+  const isInstagram = trimString(platform).toLowerCase().includes("instagram");
+  return {
+    endpoint: `/${encodeURIComponent(safeCommentId)}`,
+    params: isInstagram ? { hide: hidden ? "true" : "false" } : { is_hidden: hidden ? "true" : "false" },
+  };
+};
+
+export const setCommentHidden = async (platform, commentId, businessId, hidden = true) => {
+  const { endpoint, params } = buildCommentVisibilityRequest({ platform, commentId, hidden });
+  return callMetaPost({
+    businessId,
+    endpoint,
+    label: hidden ? "hide comment" : "unhide comment",
+    params,
+  });
+};
+
+export const hideComment = (platform, commentId, businessId) => setCommentHidden(platform, commentId, businessId, true);
+export const unhideComment = (platform, commentId, businessId) => setCommentHidden(platform, commentId, businessId, false);
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
    A MENTION IS WRITTEN INTO THE MESSAGE, NOT PASSED BESIDE IT
    ──────────────────────────────────────────────────────────────────────────────────────────────
    Every public reply since 2026-07-15 sent the mention as a `message_tags` parameter. That field
