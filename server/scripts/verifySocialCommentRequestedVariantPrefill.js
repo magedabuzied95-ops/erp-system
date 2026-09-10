@@ -143,8 +143,13 @@ assert.equal(
 assert.ok(plain.includes("اختار اللون من الأزرار"), "the untouched reply asks for a colour");
 // The copy is deliberately short — the cards carry the price, the sizes and the link, and the
 // owner cut the carousel explainer and the sign-off on 2026-09-10. A regrowing message is a bug.
-assert.ok(plain.split("\n").filter((line) => line.trim()).length <= 3, "the reply stays three lines");
-assert.ok(plain.length <= 120, `the reply stays short (was ${plain.length} chars)`);
+// Four lines: the greeting, the ask, and shipping and cash-on-delivery on their own lines.
+assert.ok(plain.split("\n").filter((line) => line.trim()).length <= 4, "the reply stays four lines");
+assert.ok(plain.length <= 130, `the reply stays short (was ${plain.length} chars)`);
+assert.ok(
+  plain.includes("متاح شحن لجميع المحافظات") && plain.includes("متاح الدفع عند الاستلام"),
+  "shipping and cash-on-delivery stay as two separate lines, the way the owner wrote them"
+);
 // The message is rendered from the UN-narrowed product upstream and only meets the comment here,
 // so it still carries the colour question while the buttons under it have already become sizes.
 const narrowedMessage = applySocialCommentRequestedVariantToMessage({

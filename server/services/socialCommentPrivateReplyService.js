@@ -844,7 +844,10 @@ const buildProductReplySections = ({ customerName = "", normalizedContext = {} }
     text(customerName) ? `أهلاً بحضرتك يا ${greetingName(customerName)} ✨` : "أهلاً بحضرتك ✨",
     hasColorChoice ? PICK_COLOR_LINE : hasSizes ? PICK_SIZE_LINE : DEFAULT_SIZE_FALLBACK,
     "",
-    "شحن لكل المحافظات • الدفع عند الاستلام ❤️",
+    // Owner kept these two as they always were, on their own lines — merging them onto one was
+    // the one cut that went too far.
+    "متاح شحن لجميع المحافظات",
+    "متاح الدفع عند الاستلام ❤️",
   ];
 };
 
