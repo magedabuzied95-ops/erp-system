@@ -110,21 +110,45 @@ test("the list also accepts one long comma-separated line", () => {
 const readSource = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
 const automationSource = readSource("../server/services/socialCommentAutomationService.js");
 
-test("the moderation gate runs BEFORE the like, the reply and the DM", () => {
-  // Thanking someone for an insult and then hiding it is worse than doing either one alone.
-  const gate = automationSource.indexOf("const moderationHit");
-  const firstStep = automationSource.indexOf("const likeEnabled");
-  assert.ok(gate > 0, "the moderation gate is gone");
-  assert.ok(firstStep > 0);
-  assert.ok(gate < firstStep, "moderation must be decided before any step runs");
+// The filter first shipped inside the per-post runtime — reached only for posts whose automation
+// is ENABLED — so it never saw a comment on any other post. It is an account-wide setting, and it
+// has to sit where every comment passes.
+const ingest = (() => {
+  const start = automationSource.indexOf("export const storeSocialCommentAutomationRuns");
+  assert.ok(start > 0, "the comment ingest is gone");
+  return automationSource.slice(start);
+})();
+
+test("the word filter runs at INGEST, before any automation path is chosen", () => {
+  const gate = ingest.indexOf("moderateIncomingSocialComment({ row: storedRow })");
+  assert.ok(gate > 0, "the ingest no longer calls the word filter");
+  const perPostDispatch = ingest.indexOf("if (automationConfig?.enabled) {");
+  const runtime = ingest.indexOf("executeSocialCommentAutomation({");
+  assert.ok(perPostDispatch > 0 && runtime > 0);
+  assert.ok(gate < perPostDispatch, "the filter must run before the per-post automation is even considered");
+  assert.ok(gate < runtime, "and before the runtime that likes, replies and DMs");
 });
 
-test("a moderated comment ends the run instead of falling through to the steps", () => {
-  const gate = automationSource.indexOf("if (moderationHit.matched) {");
-  assert.ok(gate > 0);
-  const block = automationSource.slice(gate, gate + 2400);
-  assert.match(block, /hideComment\(/, "it has to actually hide");
-  assert.match(block, /return returnWithFlowExit\(/, "and stop the run");
+test("a matched comment leaves the ingest instead of falling through to the steps", () => {
+  const gate = ingest.indexOf("moderateIncomingSocialComment({ row: storedRow })");
+  const block = ingest.slice(gate, gate + 500);
+  assert.match(block, /if \(moderation\.matched\)/, "a MATCH decides it, not a successful hide");
+  assert.match(block, /return storedRow;/, "and nothing after it runs");
+});
+
+test("the filter does not depend on the post having automation switched on", () => {
+  const start = automationSource.indexOf("export const moderateIncomingSocialComment");
+  assert.ok(start > 0);
+  const body = automationSource.slice(start, automationSource.indexOf("\n};", start));
+  assert.match(body, /banned_words_enabled/, "it is armed by the account setting");
+  assert.match(body, /hideComment\(/, "and it actually hides");
+  assert.doesNotMatch(body, /config\.enabled|automationConfig/, "no per-post switch may gate it");
+});
+
+test("there is exactly one word-filter gate", () => {
+  // Two gates drift apart; the runtime copy is what hid this bug in the first place.
+  const calls = automationSource.match(/findBannedWord\(/g) || [];
+  assert.equal(calls.length, 1, `findBannedWord is called ${calls.length} times`);
 });
 
 test("hiding the customer's own comment happens LAST, after they have been served", () => {

@@ -3407,70 +3407,10 @@ const executeSocialCommentAutomationRuntime = async ({
     automation_state: persistedRuntimeStateWithLatency,
   };
 
-  /* ── The moderation gate ───────────────────────────────────────────────────────────────────
-     Order is the whole point of putting this here. A comment that trips the word filter must not
-     be liked, replied to, or answered with a sales DM first — thanking someone for an insult and
-     then hiding it is worse than doing either one alone. So this runs BEFORE every other step and
-     ends the run when it fires.
-
-     The action is always hide, never delete: it is one call to undo, and the person who wrote it
-     still sees their own comment, so a false positive costs nothing and never reads as
-     censorship. */
-  const moderationSettings = await getSocialAutomationSettings(safeTenantId).catch(() => null);
-  const bannedWordsArmed = Boolean(moderationSettings?.banned_words_enabled);
-  const moderationHit = bannedWordsArmed
-    ? findBannedWord({
-        commentText: text(safeRow.original_comment_text || safeRow.comment_text || ""),
-        bannedWords: moderationSettings?.banned_words || [],
-        exceptions: moderationSettings?.banned_word_exceptions || [],
-      })
-    : { matched: false, word: "", exception: "" };
-  if (moderationHit.exception) {
-    // A rule that keeps getting cancelled should be visible, not silent.
-    console.log("SOCIAL_COMMENT_MODERATION_EXCEPTION_APPLIED", {
-      tenant_id: safeTenantId,
-      comment_id: safeCommentId,
-      word: moderationHit.word,
-      exception: moderationHit.exception,
-    });
-  }
-  if (moderationHit.matched) {
-    const moderationResult = { step: "moderation", status: "hidden", reason: "banned_word", word: moderationHit.word };
-    let hideError = "";
-    try {
-      await hideComment(normalizedPlatform, safeCommentId, safeTenantId);
-    } catch (error) {
-      hideError = text(error?.message || "hide failed");
-      moderationResult.status = "failed";
-      moderationResult.error = hideError;
-    }
-    stepResults.push(moderationResult);
-    console.log("SOCIAL_COMMENT_MODERATION_HIDDEN", {
-      tenant_id: safeTenantId,
-      platform: normalizedPlatform,
-      post_id: safePostId,
-      comment_id: safeCommentId,
-      word: moderationHit.word,
-      hidden: !hideError,
-      error: hideError,
-    });
-    await upsertSocialCommentAutomationRunSummary({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      postId: safePostId,
-      commentId: safeCommentId,
-      configId: config.id ?? null,
-      customerName: safeRow.commenter_name || safeRow.customer_name || "",
-      status: "hidden",
-      stepResults,
-      errorMessage: hideError || null,
-      row: safeRow,
-    }).catch(() => {});
-    return returnWithFlowExit(
-      { applied: true, skipped: true, reason: "banned_word", row: safeRow, step_results: stepResults },
-      { exitReason: "banned_word", exitType: "moderated" }
-    );
-  }
+  // The word filter does NOT live here. This runtime is only reached for posts whose per-post
+  // automation is enabled, so a filter placed here missed every comment on every other post —
+  // which is most of them. It runs at ingest instead, in moderateIncomingSocialComment, before any
+  // automation path is chosen.
 
   // Instagram had no way to like a comment until Meta shipped the Like Media and
   // Comments API on 2026-04-22; `likeComment` now routes it through the IG User node.
@@ -7570,6 +7510,78 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null, 
   return events;
 };
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   THE WORD FILTER, AT THE ONE DOOR EVERY COMMENT WALKS THROUGH
+   ──────────────────────────────────────────────────────────────────────────────────────────────
+   This first shipped inside the per-post automation runtime, and that was the wrong door: the
+   runtime is only reached for posts whose automation is ENABLED, so the filter never saw a
+   comment on any other post — which is most posts, and every post with no product linked. An
+   account-wide setting has to run where every comment passes, so it runs here, at ingest, after
+   the row is stored and before any automation path is picked.
+
+   Order still matters for the same reason as before: an abusive comment must not be liked,
+   replied to or sent a sales DM. A MATCH stops the run even when the hide call itself fails —
+   losing the hide is a moderation miss; replying to the insult would be a second one.
+
+   The action is hide, never delete. It is one call to undo and the author still sees their own
+   comment, so a false positive costs nothing and never reads as censorship.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+export const moderateIncomingSocialComment = async ({ row = {} } = {}) => {
+  const miss = { matched: false, hidden: false, word: "", error: "" };
+  const tenantId = Number(row?.tenant_id || 0);
+  const platform = text(row?.platform || "").toLowerCase();
+  const commentId = text(row?.comment_id || "");
+  const commentText = text(row?.original_comment_text || row?.comment_text || "");
+  if (!tenantId || !commentId || !commentText) return miss;
+  if (platform !== "facebook" && platform !== "instagram") return miss;
+
+  const settings = await getSocialAutomationSettings(tenantId).catch(() => null);
+  if (!settings?.banned_words_enabled) return miss;
+
+  const hit = findBannedWord({
+    commentText,
+    bannedWords: settings.banned_words || [],
+    exceptions: settings.banned_word_exceptions || [],
+  });
+  if (hit.exception) {
+    // A rule that keeps being cancelled should be visible, not silent.
+    console.log("SOCIAL_COMMENT_MODERATION_EXCEPTION_APPLIED", {
+      tenant_id: tenantId,
+      comment_id: commentId,
+      word: hit.word,
+      exception: hit.exception,
+    });
+  }
+  if (!hit.matched) return miss;
+
+  let error = "";
+  try {
+    await hideComment(platform, commentId, tenantId);
+  } catch (hideError) {
+    error = text(hideError?.message || "hide failed");
+  }
+  console.log("SOCIAL_COMMENT_MODERATION_HIDDEN", {
+    tenant_id: tenantId,
+    platform,
+    post_id: text(row?.post_id || ""),
+    comment_id: commentId,
+    word: hit.word,
+    hidden: !error,
+    error,
+  });
+  await db.query(
+    `
+    UPDATE social_comment_automation_runs
+    SET action_taken = $4::text,
+        error_code = COALESCE(NULLIF($5::text, ''), error_code),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
+    `,
+    [tenantId, platform, commentId, error ? "hide_banned_word_failed" : "hidden_banned_word", error ? "moderation_hide_failed" : ""]
+  ).catch(() => {});
+  return { matched: true, hidden: !error, word: hit.word, error };
+};
+
 export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events = [], deferAutomation = true, skipAutomation = false } = {}) => {
   await ensureSocialCommentAutomationSchema();
   const stored = [];
@@ -8182,6 +8194,14 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       event: storedRow,
     }).catch(() => null);
     storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
+    // Every comment, whatever post it is on and whether or not that post has automation, passes
+    // the word filter here — before the like, the reply, the DM or the lead can be picked.
+    const moderation = await moderateIncomingSocialComment({ row: storedRow }).catch(() => ({ matched: false }));
+    if (moderation.matched) {
+      storedRow.action_taken = moderation.hidden ? "hidden_banned_word" : "hide_banned_word_failed";
+      emitSocialCommentUpdated(storedRow);
+      return storedRow;
+    }
     if (automationConfig?.enabled) {
       const oldCommentGuard = await maybeSkipOldSocialCommentAutomation({
         tenantId: storedRow.tenant_id,
