@@ -9109,10 +9109,14 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
    comment Graph has just confirmed alive is not asked about again for a while. */
 const SOCIAL_COMMENT_RECONCILE_TTL_MS = 2 * 60 * 1000;
 const SOCIAL_COMMENT_RECONCILE_MAX_PAGES = 15;
-// Sized for the first pass over a post nobody ever reconciled: in production the first one found a
-// post with 195 stored comments and 4 live ones. At 40 a pass it took eight opens to clear.
-const SOCIAL_COMMENT_RECONCILE_MAX_CHECKS = 200;
-const SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY = 10;
+// Every check is one call against the app-wide Graph budget the comment poller already nearly
+// spends ([#4] Application request limit). 200 a pass at 10 wide tripped it on the second deploy,
+// so a pass is small and yields as soon as the budget warms: a post with 150 stale comments clears
+// over a few opens instead of taking Messenger sends down with it.
+const SOCIAL_COMMENT_RECONCILE_MAX_CHECKS = 60;
+const SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY = 5;
+const SOCIAL_COMMENT_RECONCILE_START_PRESSURE_PCT = 75;
+const SOCIAL_COMMENT_RECONCILE_CONTINUE_PRESSURE_PCT = 60;
 const SOCIAL_COMMENT_ALIVE_TTL_MS = 30 * 60 * 1000;
 const socialCommentReconcileState = new Map();
 const socialCommentAliveAt = new Map();
@@ -9213,7 +9217,9 @@ export const reconcileDeletedSocialCommentsForPost = async ({
     const missingErrorSample = [];
     let checked = 0;
     for (let index = 0; index < plan.toCheck.length; index += SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY) {
-      if (index > 0 && shouldDeferBackgroundGraphWork().defer) break;
+      if (shouldDeferBackgroundGraphWork().defer) break;
+      const pressure = Number(getMetaGraphBudgetSnapshot()?.pressure || 0);
+      if (pressure >= (index === 0 ? SOCIAL_COMMENT_RECONCILE_START_PRESSURE_PCT : SOCIAL_COMMENT_RECONCILE_CONTINUE_PRESSURE_PCT)) break;
       const batch = plan.toCheck.slice(index, index + SOCIAL_COMMENT_RECONCILE_CHECK_CONCURRENCY);
       const outcomes = await Promise.all(batch.map(async (commentId) => {
         try {
