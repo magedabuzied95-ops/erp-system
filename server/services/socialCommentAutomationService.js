@@ -3420,6 +3420,9 @@ const executeSocialCommentAutomationRuntime = async ({
   // Facebook takes is_hidden, Instagram takes hide. TikTok has its own moderation surface and is
   // not routed through this sender, so it is not claimed here.
   const hideSupportedOnPlatform = normalizedPlatform === "facebook" || normalizedPlatform === "instagram";
+  // Known up here, before the DM is queued, because the DM job has to carry it: when this post
+  // hides customer comments AND sends a private reply, the hide belongs to the DM worker.
+  const hideCustomerCommentEnabled = Boolean(config.settings?.hideComments) && hideSupportedOnPlatform;
   const likeEnabled = Boolean(config.settings?.likeComment) && likeSupportedOnPlatform;
   const publicReplyEnabled = Boolean(config.settings?.publicReply);
   const privateReplyEnabled = Boolean(config.settings?.privateReply);
@@ -3614,6 +3617,7 @@ const executeSocialCommentAutomationRuntime = async ({
       commentId: safeCommentId,
       postId: safePostId,
       row: workingRow,
+      hideAfterPrivateReply: hideCustomerCommentEnabled,
     }).catch(() => {});
     workingRow.automation_state = buildSocialCommentRuntimeMonitor({
       row: workingRow,
@@ -3971,8 +3975,18 @@ const executeSocialCommentAutomationRuntime = async ({
      leave the public thread. What it buys is that a competitor reading the post cannot see who is
      buying; what it costs is the engagement signal those comments carry, which is why it is not a
      global default. On Facebook a hidden comment stays visible to the person who wrote it. */
-  const hideCustomerCommentEnabled = Boolean(config.settings?.hideComments) && hideSupportedOnPlatform;
-  if (hideCustomerCommentEnabled) {
+  // The private reply is sent by a separate worker, so reaching this line does NOT mean the DM is
+  // out. The first live run hid the comment 150ms after the DM landed — a race it won by luck, and
+  // one it would lose the first time the queue backed up. When a DM was queued in this run, the
+  // hide rides that job (hideAfterPrivateReply) and happens only once the DM has finished.
+  const privateReplyQueuedThisRun = stepResults.some(
+    (item) => item?.step === "privateReply" && item?.status === "queued"
+  );
+  if (hideCustomerCommentEnabled && privateReplyQueuedThisRun) {
+    const hideResult = { step: "hideComment", status: "deferred", reason: "after_private_reply" };
+    stepResults.push(hideResult);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", hideResult);
+  } else if (hideCustomerCommentEnabled) {
     await executeAutomationStep({
       step: "hideComment",
       enabled: true,
@@ -4655,7 +4669,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
   };
 };
 
-export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, platform = "", commentId = "", postId = "", row = {} } = {}) => {
+export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, platform = "", commentId = "", postId = "", row = {}, hideAfterPrivateReply = false } = {}) => {
   const safeTenantId = Number(tenantId);
   const safeCommentId = text(commentId || row.comment_id || "");
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
@@ -4713,6 +4727,10 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
       postId: text(postId || row.post_id || ""),
       commentId: safeCommentId,
       row,
+      // A top-level payload field on purpose, not a key inside row.automation_state: the worker
+      // re-reads the row from the database, and the runtime keeps rewriting automation_state after
+      // this job is queued. Anything stored there can be gone by the time the DM is sent.
+      hideAfterPrivateReply: hideAfterPrivateReply === true,
       latency_trace: mergeSocialCommentLatencyTrace(
         normalizedLatencyTrace,
         {

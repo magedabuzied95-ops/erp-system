@@ -8,7 +8,34 @@ import {
   PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT,
   resolveSocialCommentPublishedProductContext,
 } from "./socialCommentAutomationService.js";
-import { renderTemplate, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { hideComment, renderTemplate, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+
+/* The hide a post's automation handed to this job (payload.hideAfterPrivateReply). It runs once the
+   DM is settled — sent, already there, or failed for good — and never while a retry is still
+   pending, because hiding the comment first could cost the customer the very DM being retried.
+   A failed hide is logged and swallowed: the DM already went out, and it must not be reported as
+   failed or retried because of a moderation call that came after it. */
+const hideCommentAfterPrivateReply = async ({ payload = {}, tenantId, platform, commentId, outcome = "" } = {}) => {
+  if (payload?.hideAfterPrivateReply !== true) return;
+  try {
+    await hideComment(platform, commentId, tenantId);
+    console.log("SOCIAL_COMMENT_HIDE_AFTER_PRIVATE_REPLY", {
+      tenant_id: tenantId,
+      platform,
+      comment_id: commentId,
+      private_reply_outcome: outcome,
+      hidden: true,
+    });
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_HIDE_AFTER_PRIVATE_REPLY_FAILED", {
+      tenant_id: tenantId,
+      platform,
+      comment_id: commentId,
+      private_reply_outcome: outcome,
+      message: String(error?.message || ""),
+    });
+  }
+};
 import { buildSocialCommentPrivateReplyMessage } from "./socialCommentPrivateReplyService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 
@@ -1126,6 +1153,8 @@ export const registerBackgroundJobHandlers = () => {
         errorCode: "",
         automationState: row.automation_state,
       }).catch(() => {});
+      // The DM is out and recorded — only now may the comment leave the public thread.
+      await hideCommentAfterPrivateReply({ payload, tenantId, platform, commentId, outcome: "sent" });
       console.log("[social-comments][private-reply] sent", {
         tenant_id: tenantId,
         platform,
@@ -1289,6 +1318,8 @@ export const registerBackgroundJobHandlers = () => {
           correlation_id: correlationId,
           status: "duplicate",
         });
+        // Meta says this comment already has its private reply — the DM exists, so hiding is safe.
+        await hideCommentAfterPrivateReply({ payload, tenantId, platform, commentId, outcome: "already_replied" });
         return {
           ok: true,
           duplicate: true,
@@ -1299,6 +1330,9 @@ export const registerBackgroundJobHandlers = () => {
       }
       const retryable = status === 429 || status >= 500 || /timeout|timed out|fetch failed|network|ECONNREFUSED|ENOTFOUND/i.test(messageText);
       if (job?.attemptsMade >= (job?.maxAttempts || 1)) {
+        // Out of retries: nothing is left for a hide to get in the way of, and the post still asked
+        // for its customers' comments to be hidden.
+        await hideCommentAfterPrivateReply({ payload, tenantId, platform, commentId, outcome: "failed_final" });
         const failedAt = new Date().toISOString();
         await persistSocialCommentAutomationState({
           tenantId,
