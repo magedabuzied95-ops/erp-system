@@ -106,9 +106,62 @@ export const loadStorefrontHtmlShell = async (fetchImpl = fetch) => {
   return response.text();
 };
 
+/*
+  Every product and category page used to fetch the storefront's own index.html over the network
+  — through Cloudflare, no timeout — on EVERY request. Once each ad link carried its own
+  ?color=&variant= (2026-09-10) Meta and Google re-crawled thousands of new URLs at once, those
+  round trips stalled into Cloudflare 524s, and 2 of 5 product pages hung past 60s.
+
+  The shell only changes on a deploy, so it is held for 30s, concurrent requests share one fetch,
+  a fetch that has not answered in 8s is abandoned, and a failed refresh serves the last good
+  shell. The fetch itself still bypasses HTTP caches (see loadStorefrontHtmlShell), so a deploy is
+  picked up within the TTL.
+*/
+const SHELL_TTL_MS = 30 * 1000;
+const SHELL_FETCH_TIMEOUT_MS = 8 * 1000;
+
+export const createCachedShellLoader = (
+  load,
+  { ttlMs = SHELL_TTL_MS, timeoutMs = SHELL_FETCH_TIMEOUT_MS, now = () => Date.now(), fetchImpl = fetch } = {}
+) => {
+  let html = "";
+  let fetchedAt = 0;
+  let inflight = null;
+  const timedFetch = (url, options = {}) => fetchImpl(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
+  return async () => {
+    if (html && now() - fetchedAt < ttlMs) return html;
+    if (!inflight) {
+      inflight = Promise.resolve()
+        .then(() => load(timedFetch))
+        .then((fresh) => {
+          html = fresh;
+          fetchedAt = now();
+          return fresh;
+        })
+        .finally(() => {
+          inflight = null;
+        });
+    }
+    try {
+      return await inflight;
+    } catch (error) {
+      if (html) {
+        console.warn("[storefront-seo] shell refresh failed; serving the last good shell", {
+          error: error?.message || String(error),
+          age_ms: now() - fetchedAt,
+        });
+        return html;
+      }
+      throw error;
+    }
+  };
+};
+
+const cachedStorefrontHtmlShell = createCachedShellLoader(loadStorefrontHtmlShell);
+
 export const createStorefrontProductSeoPageHandler = ({
   loadProduct = loadProductSeoData,
-  loadShell = loadStorefrontHtmlShell,
+  loadShell = cachedStorefrontHtmlShell,
 } = {}) => async (req, res, next) => {
   try {
     const identifier = String(req.params.identifier || "").trim();
@@ -127,6 +180,9 @@ export const createStorefrontProductSeoPageHandler = ({
     res.set("Expires", "0");
     return res.status(200).send(html);
   } catch (error) {
+    // A request-timeout middleware may already have answered; a second response throws
+    // ERR_HTTP_HEADERS_SENT (seen in production during the 524 storm).
+    if (res.headersSent) return undefined;
     return next(error);
   }
 };

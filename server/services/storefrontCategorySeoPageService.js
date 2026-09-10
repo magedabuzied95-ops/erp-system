@@ -6,6 +6,7 @@ import {
   productHasLargeAvailableSize,
   seoCategoryByKey,
 } from "../../src/shared/lib/categorySeo.js";
+import { createCachedShellLoader } from "./storefrontProductSeoPageService.js";
 
 const API_ORIGIN = String(process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/, "");
 const STOREFRONT_ORIGIN = "https://m1store-egy.com";
@@ -142,9 +143,12 @@ export const loadCategoryProducts = async (definition, page = 1, fetchImpl = fet
   return { products, total };
 };
 
+const cachedCategoryHtmlShell = createCachedShellLoader(loadStorefrontCategoryHtmlShell);
+
 export const createStorefrontCategorySeoPageHandler = ({
   loadProducts = loadCategoryProducts,
-  loadShell = loadStorefrontCategoryHtmlShell,
+  // Same shell cache as the product pages: see createCachedShellLoader.
+  loadShell = cachedCategoryHtmlShell,
 } = {}) => async (req, res, next) => {
   try {
     const definition = seoCategoryByKey(req.params.categoryKey);
@@ -159,6 +163,9 @@ export const createStorefrontCategorySeoPageHandler = ({
     res.set("Expires", "0");
     return res.status(200).send(html);
   } catch (error) {
+    // A request-timeout middleware may already have answered; a second response throws
+    // ERR_HTTP_HEADERS_SENT (seen in production during the 524 storm).
+    if (res.headersSent) return undefined;
     return next(error);
   }
 };
