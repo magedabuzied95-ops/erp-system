@@ -917,7 +917,8 @@
       "createConfirmTitle": "Create a real Bosta shipment?",
       "createConfirmBody": "The order goes to Bosta, the courier collects {{amount}} from the customer on delivery, and the customer gets a WhatsApp message about the shipment.",
       "createConfirmYes": "Yes, create it",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "sendConfirmation": "Send confirmation message"
     },
     "detail": {
       "orderStatus": "Order status",
@@ -987,7 +988,8 @@
       "shipment": "Shipment: {{status}}",
       "staff_confirmed": "Confirmed by {{actor}}",
       "staff_ready_to_ship": "Marked ready to ship by {{actor}}",
-      "staff_shipment_created": "Bosta shipment created by {{actor}}"
+      "staff_shipment_created": "Bosta shipment created by {{actor}}",
+      "staff_confirmation_sent": "Confirmation message sent by {{actor}}"
     },
     "providers": {
       "bosta": "Bosta",
@@ -999,7 +1001,9 @@
       "confirm": "Order confirmed",
       "ready_to_ship": "Order is ready to ship",
       "create_shipment": "Bosta shipment created",
-      "print_awb": "Airway bill opened"
+      "print_awb": "Airway bill opened",
+      "send_confirmation": "Confirmation message sent to the customer on WhatsApp",
+      "send_confirmation_queued": "Confirmation message queued for sending"
     },
     "actionErrors": {
       "generic": "Could not complete the action",
@@ -1017,7 +1021,13 @@
       "BOSTA_AWB_EMPTY": "Bosta did not return the airway bill — try again shortly",
       "ONLINE_ORDERS_ACTIONS_DISABLED": "You are not allowed to do this",
       "NO_ORDERS_SELECTED": "Select at least one order",
-      "TOO_MANY_ORDERS": "Print at most 50 airway bills at a time"
+      "TOO_MANY_ORDERS": "Print at most 50 airway bills at a time",
+      "CONFIRMATION_NOT_NEEDED": "The confirmation message is only sent for new orders",
+      "CONFIRMATION_MISSING_PHONE": "This customer has no WhatsApp number",
+      "CONFIRMATION_ORDER_DISPATCHED": "The order is already out for shipping; the customer cannot confirm it now",
+      "CONFIRMATION_STATUS_NOT_CONFIRMABLE": "The order's status does not allow a confirmation request",
+      "CONFIRMATION_NOT_SENT": "Could not send the confirmation message",
+      "WHATSAPP_GATEWAY_ERROR": "WhatsApp refused the message. Check that the shop number is connected."
     },
     "access": {
       "title": "Handle shipping orders",

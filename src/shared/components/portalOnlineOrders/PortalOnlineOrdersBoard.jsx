@@ -17,6 +17,7 @@ import {
   Receipt,
   RefreshCw,
   Search,
+  Send,
   Truck,
   User,
   Users,
@@ -464,8 +465,8 @@ function timelineLabel(event, ui) {
   return ui.tb(`timeline.${event.kind}`);
 }
 
-const ACTION_ICON = { confirm: Check, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer };
-const ACTION_LABEL = { confirm: "actions.confirmOrder", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb" };
+const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer };
+const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb" };
 
 function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm }) {
   const actions = portalOrderActionsFor(order);
@@ -915,7 +916,7 @@ export default function PortalOnlineOrdersBoard({
       }
       const nextOrder = response?.order || null;
       setSelection((existing) => (existing && existing.id === orderId
-        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: ui.tb(`actionDone.${action}`) }
+        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: ui.tb(action === "send_confirmation" && response?.queued ? "actionDone.send_confirmation_queued" : `actionDone.${action}`) }
         : existing));
       if (nextOrder) {
         setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(orderId) ? { ...row, ...nextOrder } : row)) }));

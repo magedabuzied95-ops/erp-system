@@ -1,5 +1,5 @@
 import db from "../../database/db.js";
-import { markOrderConfirmedByStaff } from "../../services/whatsappOrderConfirmationService.js";
+import { markOrderConfirmedByStaff, sendOrderConfirmation } from "../../services/whatsappOrderConfirmationService.js";
 import { recordEmployeePortalAudit } from "../../services/employeePayrollPortalService.js";
 import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
@@ -15,7 +15,15 @@ import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shippin
 // Bosta create with its duplicate guard and customer notification, the AWB fetch —
 // and records who pressed the button on the order timeline and in the portal audit log.
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "ready_to_ship", "create_shipment", "print_awb"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb"];
+
+// Why sendOrderConfirmation declined, as a code the portal can say in Arabic.
+const CONFIRMATION_SEND_CODES = {
+  missing_phone: "CONFIRMATION_MISSING_PHONE",
+  order_already_dispatched: "CONFIRMATION_ORDER_DISPATCHED",
+  status_not_confirmable: "CONFIRMATION_STATUS_NOT_CONFIRMABLE",
+  order_missing: "order_not_found",
+};
 
 const text = (value = "") => String(value ?? "").trim();
 const normalized = (value = "") => text(value).toLowerCase().replace(/[\s-]+/g, "_");
@@ -79,6 +87,9 @@ const translateBostaError = (error) => {
 const defaultDeps = {
   loadOrder: getPortalOnlineOrder,
   confirm: markOrderConfirmedByStaff,
+  // The order page's own "إرسال رسالة التأكيد": a manual send, so only "no phone" and
+  // "already past dispatch" can stop it (see sendOrderConfirmation's force branch).
+  sendConfirmation: (orderId) => sendOrderConfirmation({ id: orderId }, { force: true }),
   markReady: markReadyToShip,
   createShipment: createBostaShipmentForOrder,
   fetchLabels: fetchBostaShipmentLabels,
@@ -108,6 +119,24 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
     if (normalized(updated?.status) !== "confirmed") {
       throw actionError(409, "ORDER_NOT_CONFIRMABLE", "This order cannot be confirmed from its current status");
     }
+  } else if (key === "send_confirmation") {
+    if (order.group !== "new") throw actionError(409, "CONFIRMATION_NOT_NEEDED", "Only a new order is sent a confirmation request");
+    let sent;
+    try {
+      sent = await deps.sendConfirmation(order.id);
+    } catch (error) {
+      // 409, not 5xx: a 5xx reaches the browser as an opaque CORS error.
+      throw actionError(409, "WHATSAPP_GATEWAY_ERROR", error?.message || "WhatsApp gateway refused the message");
+    }
+    // Queued IS success: the outbound queue paces and retries it.
+    if (!sent?.sent && !sent?.queued) {
+      const reason = text(sent?.reason);
+      throw actionError(409, CONFIRMATION_SEND_CODES[reason] || "CONFIRMATION_NOT_SENT", reason || "Confirmation request was not sent");
+    }
+    result = { queued: Boolean(sent.queued) };
+    await Promise.resolve()
+      .then(() => deps.appendTimeline({ orderId: order.id, action: "portal_confirmation_sent", status: text(order.status), actor: actorName, source: surface, label: "إرسال رسالة التأكيد" }))
+      .catch((error) => console.warn("[portal-order-action] timeline append failed", { orderId: order.id, message: error?.message }));
   } else if (key === "ready_to_ship") {
     if (status === "ready_to_ship") {
       // Already there — pressing it again is not an error.
@@ -149,7 +178,7 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
   })).catch((error) => console.warn("[portal-order-action] audit failed", { orderId: order.id, message: error?.message }));
 
   if (key === "print_awb") return result;
-  return { order: await deps.loadOrder({ tenantId, orderId: order.id }) };
+  return { ...result, order: await deps.loadOrder({ tenantId, orderId: order.id }) };
 };
 
 const BULK_PRINT_LIMIT = 50;

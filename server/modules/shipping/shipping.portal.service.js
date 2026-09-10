@@ -380,6 +380,7 @@ const shipmentTimeline = (order = {}) => {
 const PORTAL_SOURCES = new Set(["employee_portal", "manager_portal"]);
 const STAFF_TIMELINE_KINDS = {
   customer_confirmed_order: "staff_confirmed",
+  portal_confirmation_sent: "staff_confirmation_sent",
   portal_ready_to_ship: "staff_ready_to_ship",
   portal_bosta_created: "staff_shipment_created",
 };
@@ -392,7 +393,9 @@ const staffTimeline = (order = {}) =>
 const orderTimeline = (order = {}) => {
   const events = [{ at: order.created_at, kind: "created" }];
   const staff = staffTimeline(order);
-  if (order.whatsapp_confirmation_sent_at) events.push({ at: order.whatsapp_confirmation_sent_at, kind: "confirmation_sent" });
+  // A portal send stamps whatsapp_confirmation_sent_at too; tell it once, with the name.
+  const staffSent = staff.some((event) => event.kind === "staff_confirmation_sent" && Math.abs(new Date(event.at) - new Date(order.whatsapp_confirmation_sent_at)) < 120000);
+  if (order.whatsapp_confirmation_sent_at && !staffSent) events.push({ at: order.whatsapp_confirmation_sent_at, kind: "confirmation_sent" });
   // A staff confirm also stamps whatsapp_confirmed_at; do not tell it twice.
   const staffConfirmed = staff.some((event) => event.kind === "staff_confirmed" && Math.abs(new Date(event.at) - new Date(order.whatsapp_confirmed_at)) < 120000);
   if (order.whatsapp_confirmed_at && !staffConfirmed) events.push({ at: order.whatsapp_confirmed_at, kind: "customer_confirmed" });

@@ -145,6 +145,35 @@ test("the airway bill prints only for an order that has a parcel, and returns th
   assert.equal(result.pdf_base64, "JVBERi0=");
 });
 
+test("the confirmation message goes out through the order page's own manual send", async () => {
+  const sent = [];
+  const { deps, calls } = makeDeps(orderIn("new"), { sendConfirmation: async (id) => { sent.push(id); return { sent: true }; } });
+  const result = await runPortalOrderAction({ actor, surface: "manager_portal", orderId: 77, action: "send_confirmation", deps });
+  assert.deepEqual(sent, [77]);
+  assert.equal(result.queued, false);
+  assert.equal(calls.timeline[0].action, "portal_confirmation_sent");
+  assert.equal(calls.timeline[0].actor, "Omar");
+});
+
+test("a queued confirmation is a success; a declined one says why", async () => {
+  const queued = makeDeps(orderIn("new"), { sendConfirmation: async () => ({ sent: false, queued: true }) });
+  assert.equal((await runPortalOrderAction({ actor, orderId: 77, action: "send_confirmation", deps: queued.deps })).queued, true);
+
+  const noPhone = makeDeps(orderIn("new"), { sendConfirmation: async () => ({ sent: false, reason: "missing_phone" }) });
+  await assert.rejects(runPortalOrderAction({ actor, orderId: 77, action: "send_confirmation", deps: noPhone.deps }), { status: 409, code: "CONFIRMATION_MISSING_PHONE" });
+
+  const gateway = makeDeps(orderIn("new"), { sendConfirmation: async () => { throw new Error("socket closed"); } });
+  // 409, never 5xx: a 5xx reaches the browser as an opaque CORS error.
+  await assert.rejects(runPortalOrderAction({ actor, orderId: 77, action: "send_confirmation", deps: gateway.deps }), { status: 409, code: "WHATSAPP_GATEWAY_ERROR" });
+});
+
+test("a confirmation request is only sent for a new order", async () => {
+  const sent = [];
+  const { deps } = makeDeps(orderIn("confirmed"), { sendConfirmation: async (id) => { sent.push(id); return { sent: true }; } });
+  await assert.rejects(runPortalOrderAction({ actor, orderId: 77, action: "send_confirmation", deps }), { code: "CONFIRMATION_NOT_NEEDED" });
+  assert.equal(sent.length, 0);
+});
+
 test("a failing audit log never fails the action", async () => {
   const { deps } = makeDeps(orderIn("new"), {
     audit: () => {
@@ -155,7 +184,7 @@ test("a failing audit log never fails the action", async () => {
 });
 
 test("the screen offers exactly the next step of the flow", () => {
-  assert.deepEqual(portalOrderActionsFor(orderIn("new")), ["confirm"]);
+  assert.deepEqual(portalOrderActionsFor(orderIn("new")), ["confirm", "send_confirmation"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed")), ["ready_to_ship", "create_shipment"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { status: "ready_to_ship" })), ["create_shipment"]);
   assert.deepEqual(portalOrderActionsFor(orderIn("confirmed", { shipment: { provider: "mylerz" } })), ["ready_to_ship"]);

@@ -10,14 +10,16 @@ const lower = (value = "") => text(value).toLowerCase();
 // canCreateBostaShipmentFor accepts; anything else is another courier's parcel.
 const BOSTA_BOOKABLE_PROVIDERS = new Set(["", "bosta", "manual", "in_store_delivery", "in-store-delivery", "store_pickup", "none", "null"]);
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "ready_to_ship", "create_shipment", "print_awb"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb"];
 
 export const portalOrderActionsFor = (order = {}) => {
   const status = lower(order.status);
   const provider = lower(order.shipment?.provider);
   const hasParcel = Boolean(text(order.shipment?.tracking_number) || text(order.shipment?.delivery_id));
   const actions = [];
-  if (order.group === "new") actions.push("confirm");
+  // A new order can be confirmed by staff (usually after a call) or the customer can be
+  // asked to confirm it on WhatsApp — the order page's "إرسال رسالة التأكيد".
+  if (order.group === "new") actions.push("confirm", "send_confirmation");
   if (order.group === "confirmed") {
     if (status !== "ready_to_ship") actions.push("ready_to_ship");
     if (!hasParcel && BOSTA_BOOKABLE_PROVIDERS.has(provider)) actions.push("create_shipment");
@@ -43,6 +45,12 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "ONLINE_ORDERS_ACTIONS_DISABLED",
   "NO_ORDERS_SELECTED",
   "TOO_MANY_ORDERS",
+  "CONFIRMATION_NOT_NEEDED",
+  "CONFIRMATION_MISSING_PHONE",
+  "CONFIRMATION_ORDER_DISPATCHED",
+  "CONFIRMATION_STATUS_NOT_CONFIRMABLE",
+  "CONFIRMATION_NOT_SENT",
+  "WHATSAPP_GATEWAY_ERROR",
 ];
 
 export const pdfUrlFromBase64 = (base64) => {

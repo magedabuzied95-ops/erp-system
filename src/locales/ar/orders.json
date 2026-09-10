@@ -917,7 +917,8 @@
       "createConfirmTitle": "إنشاء شحنة حقيقية مع بوسطة؟",
       "createConfirmBody": "سيُرسل الأوردر إلى بوسطة ويُحصَّل {{amount}} من العميل عند الاستلام، وستصل للعميل رسالة واتساب بالشحنة.",
       "createConfirmYes": "نعم، أنشئ الشحنة",
-      "cancel": "إلغاء"
+      "cancel": "إلغاء",
+      "sendConfirmation": "إرسال رسالة التأكيد"
     },
     "detail": {
       "orderStatus": "حالة الأوردر",
@@ -987,7 +988,8 @@
       "shipment": "الشحنة: {{status}}",
       "staff_confirmed": "أكّد الأوردر: {{actor}}",
       "staff_ready_to_ship": "جهّزه للشحن: {{actor}}",
-      "staff_shipment_created": "أنشأ شحنة بوسطة: {{actor}}"
+      "staff_shipment_created": "أنشأ شحنة بوسطة: {{actor}}",
+      "staff_confirmation_sent": "أرسل رسالة التأكيد: {{actor}}"
     },
     "providers": {
       "bosta": "بوسطة",
@@ -999,7 +1001,9 @@
       "confirm": "تم تأكيد الأوردر",
       "ready_to_ship": "الأوردر جاهز للشحن",
       "create_shipment": "تم إنشاء الشحنة مع بوسطة",
-      "print_awb": "تم فتح البوليصة"
+      "print_awb": "تم فتح البوليصة",
+      "send_confirmation": "تم إرسال رسالة التأكيد للعميل على واتساب",
+      "send_confirmation_queued": "تم إدراج رسالة التأكيد في طابور الإرسال"
     },
     "actionErrors": {
       "generic": "تعذّر تنفيذ الإجراء",
@@ -1017,7 +1021,13 @@
       "BOSTA_AWB_EMPTY": "بوسطة لم ترجع البوليصة — حاول بعد قليل",
       "ONLINE_ORDERS_ACTIONS_DISABLED": "ليس لديك صلاحية تنفيذ هذا الإجراء",
       "NO_ORDERS_SELECTED": "حدّد أوردر واحد على الأقل",
-      "TOO_MANY_ORDERS": "اطبع 50 بوليصة كحد أقصى في المرة"
+      "TOO_MANY_ORDERS": "اطبع 50 بوليصة كحد أقصى في المرة",
+      "CONFIRMATION_NOT_NEEDED": "رسالة التأكيد تُرسل للأوردرات الجديدة فقط",
+      "CONFIRMATION_MISSING_PHONE": "لا يوجد رقم واتساب مسجل لهذا العميل",
+      "CONFIRMATION_ORDER_DISPATCHED": "الأوردر خرج للشحن بالفعل، لا يمكن طلب تأكيده من العميل",
+      "CONFIRMATION_STATUS_NOT_CONFIRMABLE": "حالة الأوردر لا تسمح بطلب تأكيد من العميل",
+      "CONFIRMATION_NOT_SENT": "تعذّر إرسال رسالة التأكيد",
+      "WHATSAPP_GATEWAY_ERROR": "تعذّر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل."
     },
     "access": {
       "title": "تجهيز أوردرات الشحن",
