@@ -71,3 +71,26 @@ test("both page handlers default to the cached shell, never the raw fetch", asyn
     assert.ok(source.includes(`const ${cached} = createCachedShellLoader(${raw});`), `${file} must build its cache from ${raw}`);
   }
 });
+
+test("the first fetch with nothing cached gets the long timeout; refreshes get the short one", async () => {
+  const seen = [];
+  let clock = 0;
+  const shell = createCachedShellLoader(
+    async (fetchImpl) => { await fetchImpl("https://example.test/index.html", {}); return "<html>x</html>"; },
+    { ttlMs: 1000, timeoutMs: 8000, coldTimeoutMs: 25000, now: () => clock, fetchImpl: async () => ({}), signalFor: (ms) => { seen.push(ms); return AbortSignal.timeout(ms); } },
+  );
+  await shell();
+  clock = 5000;
+  await shell();
+  assert.deepEqual(seen, [25000, 8000]);
+});
+
+test("warm() fills the cache and never throws", async () => {
+  let loads = 0;
+  const ok = createCachedShellLoader(async () => { loads += 1; return "<html>w</html>"; });
+  assert.equal(await ok.warm(), true);
+  assert.equal(await ok(), "<html>w</html>");
+  assert.equal(loads, 1);
+  const failing = createCachedShellLoader(async () => { throw new Error("down"); });
+  assert.equal(await failing.warm(), false);
+});

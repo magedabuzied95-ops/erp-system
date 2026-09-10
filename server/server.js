@@ -2477,6 +2477,14 @@ const bootstrapServer = ({ skipStartupSyncs = false } = {}) =>
       console.log("[server] socket.io ready");
       console.log("[server] AI system active (v1 + v2)");
       runStartupDiagnostics();
+      // The product/category SEO pages cache the storefront shell; fetch it now so the first
+      // crawler after a deploy is not the one waiting on a cold round trip to Vercel.
+      void Promise.all([
+        import("./services/storefrontProductSeoPageService.js").then((m) => m.warmStorefrontHtmlShell()),
+        import("./services/storefrontCategorySeoPageService.js").then((m) => m.warmStorefrontCategoryHtmlShell()),
+      ])
+        .then((warmed) => console.log("[storefront-seo] shell cache warmed", { product: warmed[0], category: warmed[1] }))
+        .catch((error) => console.warn("[storefront-seo] shell warm-up failed", { error: error?.message || String(error) }));
       void runDeferredStartupSyncs({ skipStartupSyncs });
       resolve();
     });

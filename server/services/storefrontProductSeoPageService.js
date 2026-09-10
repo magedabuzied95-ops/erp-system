@@ -119,16 +119,27 @@ export const loadStorefrontHtmlShell = async (fetchImpl = fetch) => {
 */
 const SHELL_TTL_MS = 30 * 1000;
 const SHELL_FETCH_TIMEOUT_MS = 8 * 1000;
+// With nothing cached there is no fallback, so the first fetch after a start is given longer:
+// an 8s cut-off turned the post-deploy cold fetch into four fast 500s.
+const SHELL_COLD_FETCH_TIMEOUT_MS = 25 * 1000;
 
 export const createCachedShellLoader = (
   load,
-  { ttlMs = SHELL_TTL_MS, timeoutMs = SHELL_FETCH_TIMEOUT_MS, now = () => Date.now(), fetchImpl = fetch } = {}
+  {
+    ttlMs = SHELL_TTL_MS,
+    timeoutMs = SHELL_FETCH_TIMEOUT_MS,
+    coldTimeoutMs = SHELL_COLD_FETCH_TIMEOUT_MS,
+    now = () => Date.now(),
+    fetchImpl = fetch,
+    signalFor = (ms) => AbortSignal.timeout(ms),
+  } = {}
 ) => {
   let html = "";
   let fetchedAt = 0;
   let inflight = null;
-  const timedFetch = (url, options = {}) => fetchImpl(url, { ...options, signal: AbortSignal.timeout(timeoutMs) });
-  return async () => {
+  const timedFetch = (url, options = {}) =>
+    fetchImpl(url, { ...options, signal: signalFor(html ? timeoutMs : coldTimeoutMs) });
+  const loader = async () => {
     if (html && now() - fetchedAt < ttlMs) return html;
     if (!inflight) {
       inflight = Promise.resolve()
@@ -155,9 +166,13 @@ export const createCachedShellLoader = (
       throw error;
     }
   };
+  // Called once the server listens, so the first crawler after a deploy finds the shell ready.
+  loader.warm = () => loader().then(() => true, () => false);
+  return loader;
 };
 
 const cachedStorefrontHtmlShell = createCachedShellLoader(loadStorefrontHtmlShell);
+export const warmStorefrontHtmlShell = () => cachedStorefrontHtmlShell.warm();
 
 export const createStorefrontProductSeoPageHandler = ({
   loadProduct = loadProductSeoData,

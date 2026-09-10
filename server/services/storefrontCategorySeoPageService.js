@@ -144,6 +144,7 @@ export const loadCategoryProducts = async (definition, page = 1, fetchImpl = fet
 };
 
 const cachedCategoryHtmlShell = createCachedShellLoader(loadStorefrontCategoryHtmlShell);
+export const warmStorefrontCategoryHtmlShell = () => cachedCategoryHtmlShell.warm();
 
 export const createStorefrontCategorySeoPageHandler = ({
   loadProducts = loadCategoryProducts,
