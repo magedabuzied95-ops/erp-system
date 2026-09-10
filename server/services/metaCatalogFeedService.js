@@ -148,24 +148,23 @@ const queryMetaCatalogRows = async () => {
       p.use_custom_compare_price,
       p.custom_compare_price,
       -- A curated offer is charged at its sale price with the global toggle off, so an ad that
-      -- quotes the normal price advertises more than the shop takes. Read through to_jsonb: the
-      -- offer flags are lazily added columns.
-      to_jsonb(p)->>'sale_price' AS product_sale_price,
-      to_jsonb(pv)->>'sale_price' AS variant_sale_price,
-      to_jsonb(p)->>'is_offer_story' AS product_is_offer_story,
-      to_jsonb(p)->>'is_offer' AS product_is_offer,
-      to_jsonb(p)->>'show_in_offers' AS product_show_in_offers,
-      to_jsonb(p)->>'promotion_enabled' AS product_promotion_enabled,
+      -- quotes the normal price advertises more than the shop takes. Plain column references on
+      -- purpose: every to_jsonb(row) here serialises the WHOLE row, and adding these through it
+      -- pushed the 8,760-row build past the query read timeout. is_offer_story is the only
+      -- offer flag that exists as a column — the aliases the resolver also accepts do not.
+      p.sale_price AS product_sale_price,
+      pv.sale_price AS variant_sale_price,
+      p.is_offer_story AS product_is_offer_story,
       -- Sale Mode's own inputs, so the day the global toggle goes on the feed decides with the
       -- same per-record flag, window and margin floor as POS instead of quoting a stale price.
-      to_jsonb(p)->>'sale_price_enabled' AS product_sale_price_enabled,
-      to_jsonb(p)->>'sale_start_at' AS product_sale_start_at,
-      to_jsonb(p)->>'sale_end_at' AS product_sale_end_at,
-      to_jsonb(p)->>'cost_price' AS product_cost_price,
-      to_jsonb(pv)->>'sale_price_enabled' AS variant_sale_price_enabled,
-      to_jsonb(pv)->>'sale_start_at' AS variant_sale_start_at,
-      to_jsonb(pv)->>'sale_end_at' AS variant_sale_end_at,
-      to_jsonb(pv)->>'cost_price' AS variant_cost_price,
+      p.sale_price_enabled AS product_sale_price_enabled,
+      p.sale_start_at AS product_sale_start_at,
+      p.sale_end_at AS product_sale_end_at,
+      p.cost_price AS product_cost_price,
+      pv.sale_price_enabled AS variant_sale_price_enabled,
+      pv.sale_start_at AS variant_sale_start_at,
+      pv.sale_end_at AS variant_sale_end_at,
+      pv.cost_price AS variant_cost_price,
       p.category_id,
       p.product_type,
       c.name AS category_name,
