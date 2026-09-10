@@ -19,7 +19,8 @@ import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import { compareCrocsEuSizes, isCrocsProduct, resolveCrocsEuSize } from "../../src/shared/lib/crocsSizes.js";
 import { getSetting } from "./settingsService.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
-import { resolveSaleModePrice } from "./saleModeService.js";
+import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
+import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "./adFeedPurchaseLinesSql.js";
 import { saveLinksForPublishedPost } from "./marketingCommentAutomationService.js";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -1574,8 +1575,10 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
     params.push(cleanText(filters.content_type));
     clauses.push(`q.content_type = $${params.length}`);
   }
+  const saleModeSettingsPromise = getWebsiteSettings({ tenantId }).catch(() => ({ sale_mode_enabled: false }));
   const result = await db.query(
     `
+    WITH ${AD_FEED_PURCHASE_CTES}
     SELECT
       q.*,
       pv.stock AS current_variant_stock,
@@ -1584,28 +1587,9 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
       pv.is_active AS current_variant_active,
       pv.deleted_at AS current_variant_deleted_at,
       COALESCE(p.status, 'active') AS current_product_status,
-      p.price AS preview_product_price,
-      p.selling_price AS preview_product_selling_price,
-      p.regular_price AS preview_product_regular_price,
-      p.sale_price AS preview_product_sale_price,
-      p.sale_price_enabled AS preview_product_sale_price_enabled,
-      p.sale_start_at AS preview_product_sale_start_at,
-      p.sale_end_at AS preview_product_sale_end_at,
-      p.sale_reason AS preview_product_sale_reason,
-      COALESCE(p.is_offer_story, FALSE) AS preview_is_offer_story,
-      p.use_custom_compare_price AS preview_use_custom_compare_price,
-      p.custom_compare_price AS preview_custom_compare_price,
-      pv.price AS preview_variant_price,
-      COALESCE(preview_purchase_price.purchase_selling_price, pv.selling_price) AS preview_variant_selling_price,
-      pv.regular_price AS preview_variant_regular_price,
-      COALESCE(preview_purchase_price.purchase_sale_price, pv.sale_price) AS preview_variant_sale_price,
-      CASE
-        WHEN preview_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
-        ELSE pv.sale_price_enabled
-      END AS preview_variant_sale_price_enabled,
-      pv.sale_start_at AS preview_variant_sale_start_at,
-      pv.sale_end_at AS preview_variant_sale_end_at,
-      pv.sale_reason AS preview_variant_sale_reason
+      p.id AS story_price_product_id,
+      pv.id AS story_price_variant_id,
+      ${STORY_PRICE_COLUMNS}
     FROM ai_marketing_content_queue q
     LEFT JOIN products p ON p.id = q.product_id AND p.tenant_id = q.tenant_id
     LEFT JOIN LATERAL (
@@ -1649,36 +1633,14 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
         candidate.id ASC
       LIMIT 1
     ) pv ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
-        NULLIF(pi.sale_price, 0) AS purchase_sale_price
-      FROM purchase_items pi
-      JOIN purchases pu ON pu.id = pi.purchase_id
-      WHERE pi.product_id = p.id
-        AND (
-          pi.variant_id = pv.id
-          OR (
-            COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
-            AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
-          )
-        )
-        AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
-        AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
-        AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
-        AND (
-          COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
-          OR NULLIF(pi.sale_price, 0) > 0
-        )
-      ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
-      LIMIT 1
-    ) preview_purchase_price ON TRUE
+    ${AD_FEED_PURCHASE_JOINS}
     WHERE ${clauses.join(" AND ")}
     ORDER BY q.scheduled_at ASC NULLS LAST, q.created_at DESC
     LIMIT 300
     `,
     params
   );
+  const saleModeSettings = (await saleModeSettingsPromise) || { sale_mode_enabled: false };
   return result.rows.map((rawRow) => {
     const row = normalizeQueueRow(rawRow);
     const currentStock = row.strategy_type === "last_size" && rawRow.current_variant_stock !== null
@@ -1696,31 +1658,17 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
     const design = linkedRow.design_json || {};
     const isStory = linkedRow.content_type === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
     if (!isStory) return linkedRow;
+    if (!rawRow.story_price_product_id) return linkedRow;
     const previewProduct = {
-      id: linkedRow.product_id,
-      price: rawRow.preview_product_price,
-      selling_price: rawRow.preview_product_selling_price,
-      regular_price: rawRow.preview_product_regular_price,
-      sale_price: rawRow.preview_product_sale_price,
-      sale_price_enabled: rawRow.preview_product_sale_price_enabled,
-      sale_start_at: rawRow.preview_product_sale_start_at,
-      sale_end_at: rawRow.preview_product_sale_end_at,
-      sale_reason: rawRow.preview_product_sale_reason,
-      is_offer_story: rawRow.preview_is_offer_story,
-      use_custom_compare_price: rawRow.preview_use_custom_compare_price,
-      custom_compare_price: rawRow.preview_custom_compare_price,
+      id: rawRow.story_price_product_id,
+      ...storyProductPriceFields(rawRow),
+      sale_mode_settings: saleModeSettings,
     };
-    const previewVariant = linkedRow.variant_id ? {
-      id: linkedRow.variant_id,
-      price: rawRow.preview_variant_price,
-      selling_price: rawRow.preview_variant_selling_price,
-      regular_price: rawRow.preview_variant_regular_price,
-      sale_price: rawRow.preview_variant_sale_price,
-      sale_price_enabled: rawRow.preview_variant_sale_price_enabled,
-      sale_start_at: rawRow.preview_variant_sale_start_at,
-      sale_end_at: rawRow.preview_variant_sale_end_at,
-      sale_reason: rawRow.preview_variant_sale_reason,
-    } : {};
+    // The size the lateral above recovered from the saved story, even when the row itself lost
+    // variant_id — the colour on the slide is what the customer is quoted for.
+    const previewVariant = rawRow.story_price_variant_id
+      ? { id: rawRow.story_price_variant_id, ...storyVariantPriceFields(rawRow) }
+      : {};
     const currentPrice = getProductPrice(previewProduct, previewVariant);
     const originalPrice = getProductOriginalPrice(previewProduct, previewVariant, currentPrice);
     if (!(currentPrice > 0)) return linkedRow;
@@ -2105,41 +2053,149 @@ const getProductImage = (product = {}, variant = {}) =>
   resolveAiContentMedia({ product, variant }).primary_image_url ||
   cleanText(variant.primary_image_url || variant.variant_image_url || variant.image_url || product.image_url || product.product_image_url || imageFromGallery(product.gallery_images));
 
+// Every price input the canonical resolver reads, for the product `p` and the size `pv`, plus
+// the size's invoice line (AD_FEED_PURCHASE_COLUMNS) — so a query selecting these must splice
+// AD_FEED_PURCHASE_CTES into its WITH list and AD_FEED_PURCHASE_JOINS after its pv join. That line
+// is the one the storefront picks, never a story-local "newest line of the colour", which let
+// another size's restock reprice this one.
+const STORY_PRICE_BASE_COLUMNS = `
+      p.price AS story_p_price,
+      p.selling_price AS story_p_selling_price,
+      p.regular_price AS story_p_regular_price,
+      p.purchase_selling_price AS story_p_purchase_selling_price,
+      p.manual_selling_price AS story_p_manual_selling_price,
+      p.manual_price_override_active AS story_p_manual_price_override_active,
+      p.sale_price AS story_p_sale_price,
+      p.sale_price_enabled AS story_p_sale_price_enabled,
+      p.sale_start_at AS story_p_sale_start_at,
+      p.sale_end_at AS story_p_sale_end_at,
+      p.sale_reason AS story_p_sale_reason,
+      p.cost_price AS story_p_cost_price,
+      p.category_id AS story_p_category_id,
+      p.brand_id AS story_p_brand_id,
+      COALESCE(p.is_offer_story, FALSE) AS story_p_is_offer_story,
+      p.use_custom_compare_price AS story_p_use_custom_compare_price,
+      p.custom_compare_price AS story_p_custom_compare_price,
+      pv.price AS story_v_price,
+      pv.selling_price AS story_v_selling_price,
+      pv.regular_price AS story_v_regular_price,
+      pv.manual_selling_price AS story_v_manual_selling_price,
+      pv.manual_price_override_active AS story_v_manual_price_override_active,
+      pv.sale_price_enabled AS story_v_sale_price_enabled,
+      pv.sale_start_at AS story_v_sale_start_at,
+      pv.sale_end_at AS story_v_sale_end_at,
+      pv.sale_reason AS story_v_sale_reason,
+      pv.cost_price AS story_v_cost_price`;
+
+const STORY_PRICE_COLUMNS = `${STORY_PRICE_BASE_COLUMNS},
+      ${AD_FEED_PURCHASE_COLUMNS}`;
+
+const storyProductPriceFields = (row = {}) => ({
+  price: row.story_p_price,
+  selling_price: row.story_p_selling_price,
+  regular_price: row.story_p_regular_price,
+  purchase_selling_price: row.story_p_purchase_selling_price,
+  manual_selling_price: row.story_p_manual_selling_price,
+  manual_price_override_active: row.story_p_manual_price_override_active,
+  sale_price: row.story_p_sale_price,
+  sale_price_enabled: row.story_p_sale_price_enabled,
+  sale_start_at: row.story_p_sale_start_at,
+  sale_end_at: row.story_p_sale_end_at,
+  sale_reason: row.story_p_sale_reason,
+  cost_price: row.story_p_cost_price,
+  category_id: row.story_p_category_id,
+  brand_id: row.story_p_brand_id,
+  is_offer_story: row.story_p_is_offer_story === true || String(row.story_p_is_offer_story || "").toLowerCase() === "true",
+  use_custom_compare_price: row.story_p_use_custom_compare_price,
+  custom_compare_price: row.story_p_custom_compare_price,
+});
+
+const storyVariantPriceFields = (row = {}) => ({
+  price: row.story_v_price,
+  selling_price: row.story_v_selling_price,
+  regular_price: row.story_v_regular_price,
+  manual_selling_price: row.story_v_manual_selling_price,
+  manual_price_override_active: row.story_v_manual_price_override_active,
+  // The size's winning invoice line, else its own column — exactly the storefront payload.
+  purchase_selling_price: row.variant_line_purchase_selling_price,
+  sale_price: row.variant_line_sale_price,
+  sale_price_enabled: row.story_v_sale_price_enabled,
+  sale_start_at: row.story_v_sale_start_at,
+  sale_end_at: row.story_v_sale_end_at,
+  sale_reason: row.story_v_sale_reason,
+  cost_price: row.story_v_cost_price,
+});
+
+// The resolver merges variant over product to evaluate the Sale Mode rules, so a variant key that
+// is merely absent from the row would shadow the product's own value with undefined.
+const definedPriceFields = (record = {}) =>
+  Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined && value !== null));
+
+const productPriceRecord = (product = {}) => definedPriceFields({
+  id: product.id,
+  product_id: product.id,
+  category_id: product.category_id,
+  brand_id: product.brand_id,
+  manual_selling_price: product.manual_selling_price,
+  manual_price_override_active: product.manual_price_override_active,
+  purchase_selling_price: product.purchase_selling_price,
+  selling_price: product.selling_price,
+  price: product.price,
+  regular_price: product.regular_price,
+  sale_price: product.sale_price,
+  sale_price_enabled: product.sale_price_enabled,
+  sale_start_at: product.sale_start_at,
+  sale_end_at: product.sale_end_at,
+  sale_reason: product.sale_reason,
+  cost_price: product.cost_price,
+  is_offer_story: product.is_offer_story,
+});
+
+const variantPriceRecord = (variant = {}) => definedPriceFields({
+  id: variant.id,
+  manual_selling_price: variant.manual_selling_price,
+  manual_price_override_active: variant.manual_price_override_active,
+  purchase_selling_price: variant.purchase_selling_price,
+  selling_price: variant.selling_price,
+  price: variant.price,
+  regular_price: variant.regular_price,
+  sale_price: variant.sale_price,
+  sale_price_enabled: variant.sale_price_enabled,
+  sale_start_at: variant.sale_start_at,
+  sale_end_at: variant.sale_end_at,
+  sale_reason: variant.sale_reason,
+  cost_price: variant.cost_price,
+});
+
+// What the customer pays for this size — the storefront's and POS's answer, never a story-local
+// one. This used to be a hand-rolled resolver that skipped the manual selling-price override and
+// read the colour's newest invoice line ahead of the size's own, so product 375 (SKECHERS
+// GLIDE-STEP) went out on a story at 1,450 while the shop sells every size at 1,550. The
+// loaders below hand it the size's own invoice line (adFeedPurchaseLinesSql, the storefront's
+// rule) as purchase_selling_price; the tier order and the Sale Mode / Offers decision belong to
+// resolveEffectiveCustomerPrice.
+const resolveStoryPrice = (product = {}, variant = {}) =>
+  resolveEffectiveCustomerPrice({
+    product: productPriceRecord(product),
+    variant: variantPriceRecord(variant || {}),
+    saleModeSettings: product.sale_mode_settings || { sale_mode_enabled: false },
+  });
+
 const getProductPrice = (product = {}, variant = {}) => {
-  const regularPrice = numberValue(
-    variant.selling_price || variant.regular_price || variant.price ||
-    product.selling_price || product.regular_price || product.price,
-    0
-  );
-  const storedSalePrice = numberValue(variant.sale_price || product.sale_price, 0);
-  const isOfferStory = product.is_offer_story === true || String(product.is_offer_story || "").toLowerCase() === "true";
-  if (isOfferStory && storedSalePrice > 0 && storedSalePrice < regularPrice) return storedSalePrice;
-  const salePriceEnabled = variant.sale_price_enabled ?? product.sale_price_enabled ?? false;
-  const resolved = resolveSaleModePrice(
-    {
-      ...product,
-      ...variant,
-      id: product.id,
-      product_id: product.id,
-      regular_price: regularPrice,
-      price: regularPrice,
-      sale_price: storedSalePrice,
-      sale_price_enabled: salePriceEnabled,
-    },
-    product.sale_mode_settings || { sale_mode_enabled: false }
-  );
-  return numberValue(resolved.final_price, 0) || regularPrice;
+  const effective = resolveStoryPrice(product, variant);
+  return effective.has_price ? numberValue(effective.active_price, 0) : 0;
 };
 
+// The strikethrough: the storefront's custom compare price, or the resolved normal price when a
+// sale or offer is pricing the story below it. Legacy selling_price/price columns are not a
+// compare price — a size priced by a manual override can carry a stale, higher legacy value.
 const getProductOriginalPrice = (product = {}, variant = {}, currentPrice = 0) => {
+  const useCustomComparePrice = product.use_custom_compare_price === true || String(product.use_custom_compare_price || "").toLowerCase() === "true";
   const candidates = [
-    product.use_custom_compare_price ? product.custom_compare_price : 0,
-    variant.selling_price,
-    variant.regular_price,
-    variant.price,
-    product.selling_price,
+    useCustomComparePrice ? product.custom_compare_price : 0,
+    resolveStoryPrice(product, variant).normal_price,
+    variant?.regular_price,
     product.regular_price,
-    product.price,
   ].map((value) => numberValue(value, 0)).filter((value) => value > currentPrice);
   return candidates.length ? Math.max(...candidates) : 0;
 };
@@ -2156,60 +2212,17 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
   const [result, saleModeSettings] = await Promise.all([
     db.query(
       `
+      WITH ${AD_FEED_PURCHASE_CTES}
       SELECT
         p.id,
-        p.price,
-        p.selling_price,
-        p.regular_price,
-        p.sale_price,
-        p.sale_price_enabled,
-        p.sale_start_at,
-        p.sale_end_at,
-        p.sale_reason,
-        COALESCE(p.is_offer_story, FALSE) AS is_offer_story,
-        p.use_custom_compare_price,
-        p.custom_compare_price,
         pv.id AS variant_id,
-        pv.price AS variant_price,
-        COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price) AS variant_selling_price,
-        pv.regular_price AS variant_regular_price,
-        COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price) AS variant_sale_price,
-        CASE
-          WHEN last_color_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
-          ELSE pv.sale_price_enabled
-        END AS variant_sale_price_enabled,
-        pv.sale_start_at AS variant_sale_start_at,
-        pv.sale_end_at AS variant_sale_end_at,
-        pv.sale_reason AS variant_sale_reason
+        ${STORY_PRICE_COLUMNS}
       FROM products p
       LEFT JOIN product_variants pv
         ON pv.product_id = p.id
        AND pv.id = $3::bigint
        AND pv.deleted_at IS NULL
-      LEFT JOIN LATERAL (
-        SELECT
-          COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
-          NULLIF(pi.sale_price, 0) AS purchase_sale_price
-        FROM purchase_items pi
-        JOIN purchases pu ON pu.id = pi.purchase_id
-        WHERE pi.product_id = p.id
-          AND (
-            pi.variant_id = pv.id
-            OR (
-              COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
-              AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
-            )
-          )
-          AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
-          AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
-          AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
-          AND (
-            COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
-            OR NULLIF(pi.sale_price, 0) > 0
-          )
-        ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
-        LIMIT 1
-      ) last_color_purchase_price ON TRUE
+      ${AD_FEED_PURCHASE_JOINS}
       WHERE p.id = $1
         AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint)
       LIMIT 1
@@ -2224,43 +2237,12 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
     const originalPrice = numberValue(item.old_crossed_price || item.original_price || design.old_crossed_price || design.original_price, 0);
     return { current_price: currentPrice, old_crossed_price: originalPrice > currentPrice ? originalPrice : 0 };
   }
-  const currentPrice = getProductPrice(
-    {
-      id: row.id,
-      price: row.price,
-      selling_price: row.selling_price,
-      regular_price: row.regular_price,
-      sale_price: row.sale_price,
-      sale_price_enabled: row.sale_price_enabled,
-      sale_start_at: row.sale_start_at,
-      sale_end_at: row.sale_end_at,
-      sale_reason: row.sale_reason,
-      is_offer_story: row.is_offer_story,
-      sale_mode_settings: saleModeSettings,
-    },
-    row.variant_id ? {
-      id: row.variant_id,
-      price: row.variant_price,
-      selling_price: row.variant_selling_price,
-      regular_price: row.variant_regular_price,
-      sale_price: row.variant_sale_price,
-      sale_price_enabled: row.variant_sale_price_enabled,
-      sale_start_at: row.variant_sale_start_at,
-      sale_end_at: row.variant_sale_end_at,
-      sale_reason: row.variant_sale_reason,
-    } : {}
-  );
-  const useCustomComparePrice = row.use_custom_compare_price === true || String(row.use_custom_compare_price || "").toLowerCase() === "true";
-  const compareCandidates = [
-    useCustomComparePrice ? row.custom_compare_price : 0,
-    row.variant_selling_price,
-    row.variant_regular_price,
-    row.selling_price,
-    row.regular_price,
-  ].map((value) => numberValue(value, 0)).filter((value) => value > currentPrice);
+  const product = { id: row.id, ...storyProductPriceFields(row), sale_mode_settings: saleModeSettings };
+  const variant = row.variant_id ? { id: row.variant_id, ...storyVariantPriceFields(row) } : {};
+  const currentPrice = getProductPrice(product, variant);
   return {
     current_price: currentPrice,
-    old_crossed_price: compareCandidates.length ? Math.max(...compareCandidates) : 0,
+    old_crossed_price: getProductOriginalPrice(product, variant, currentPrice),
   };
 };
 
@@ -3037,11 +3019,30 @@ const fetchQueueProductCoverImageUrl = async (tenantId, item = {}) => {
   return cleanImageUrl(result.rows[0]?.image_url);
 };
 
+// The price a story says is baked into its pixels. Publish reprices the item first
+// (hydrateQueueStoryMetadata), so an image rendered at an older price — or before stories priced
+// through the canonical resolver — must be rendered again rather than posted. Reads the same
+// fields, in the same order, as the render call below.
+const storyItemPriceStamp = (item = {}) => {
+  const design = item.design_json || {};
+  const current = numberValue(item.current_price || design.current_price || item.price || design.price || design.product_price, 0);
+  const compare = numberValue(item.old_crossed_price || design.old_crossed_price || item.original_price || design.original_price || design.compare_at_price, 0);
+  return `${current}|${compare > current ? compare : 0}`;
+};
+
 const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = false } = {}) => {
   if (!isStoryQueueItem(item)) return item;
   const existingAsset = queueStoryFinalAssetUrl(item);
+  const renderedPriceStamp = cleanText(item.metadata?.story_asset_price_stamp);
+  const priceStamp = storyItemPriceStamp(item);
   if (!force && finalGeneratedStoryAsset(item).isFinalGeneratedAsset && isValidRenderedStoryAsset(item, existingAsset)) {
-    return normalizeQueueRow(item);
+    if (renderedPriceStamp === priceStamp) return normalizeQueueRow(item);
+    console.warn("[story-asset-price-stale]", {
+      storyId: item.id || null,
+      productId: item.product_id || null,
+      renderedPrice: renderedPriceStamp || "unrecorded",
+      currentPrice: priceStamp,
+    });
   }
   if (!force && existingAsset && !isStoryAssetBoundToCurrentItem(item)) {
     console.warn("[story-asset-binding-miss]", {
@@ -3306,6 +3307,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_asset_snapshot: snapshot,
     story_asset_snapshots: snapshots,
     story_asset_generated_at: generatedAt,
+    story_asset_price_stamp: priceStamp,
     generation_stage: "ready",
   };
   const updated = await db.query(
@@ -3744,6 +3746,7 @@ const loadProducts = async (tenantId, { lean = false } = {}) => {
   const [result, saleModeSettings] = await Promise.all([
     db.query(
     `
+    ${lean ? "" : `WITH ${AD_FEED_PURCHASE_CTES}`}
     SELECT
       p.id,
       p.name,
@@ -3751,15 +3754,10 @@ const loadProducts = async (tenantId, { lean = false } = {}) => {
       p.canonical_slug,
       p.image_url,
       p.gallery_images,
-      p.price,
-      p.selling_price,
-      p.regular_price,
-      p.sale_price,
-      p.sale_price_enabled,
-      p.sale_start_at,
-      p.sale_end_at,
-      p.sale_reason,
-      COALESCE(p.is_offer_story, FALSE) AS is_offer_story,
+      ${STORY_PRICE_BASE_COLUMNS},
+      ${lean
+        ? "NULLIF(pv.purchase_selling_price, 0) AS variant_line_purchase_selling_price, NULLIF(pv.sale_price, 0) AS variant_line_sale_price"
+        : AD_FEED_PURCHASE_COLUMNS},
       p.id AS product_freshness_rank,
       p.gender,
       p.product_type,
@@ -3774,17 +3772,6 @@ const loadProducts = async (tenantId, { lean = false } = {}) => {
       pv.color,
       pv.size,
       pv.article_code,
-      pv.price AS variant_price,
-      ${lean ? "pv.selling_price" : "COALESCE(last_color_purchase_price.purchase_selling_price, pv.selling_price)"} AS variant_selling_price,
-      pv.regular_price AS variant_regular_price,
-      ${lean ? "pv.sale_price" : "COALESCE(last_color_purchase_price.purchase_sale_price, pv.sale_price)"} AS variant_sale_price,
-      ${lean ? "pv.sale_price_enabled" : `CASE
-        WHEN last_color_purchase_price.purchase_sale_price IS NOT NULL THEN TRUE
-        ELSE pv.sale_price_enabled
-      END`} AS variant_sale_price_enabled,
-      pv.sale_start_at AS variant_sale_start_at,
-      pv.sale_end_at AS variant_sale_end_at,
-      pv.sale_reason AS variant_sale_reason,
       pv.stock AS variant_stock,
       pv.is_active AS variant_is_active,
       pv.image_url AS variant_image_url,
@@ -3813,30 +3800,7 @@ const loadProducts = async (tenantId, { lean = false } = {}) => {
     LEFT JOIN categories c ON c.id = p.category_id
     LEFT JOIN brands b ON b.id = p.brand_id
     LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL
-    ${lean ? "" : `LEFT JOIN LATERAL (
-      SELECT
-        COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) AS purchase_selling_price,
-        NULLIF(pi.sale_price, 0) AS purchase_sale_price
-      FROM purchase_items pi
-      JOIN purchases pu ON pu.id = pi.purchase_id
-      WHERE pi.product_id = p.id
-        AND (
-          pi.variant_id = pv.id
-          OR (
-            COALESCE(TRIM(pi.metadata->>'color'), '') <> ''
-            AND LOWER(TRIM(pi.metadata->>'color')) = LOWER(TRIM(pv.color))
-          )
-        )
-        AND (pi.tenant_id = p.tenant_id OR pi.tenant_id IS NULL)
-        AND (pu.tenant_id = p.tenant_id OR pu.tenant_id IS NULL)
-        AND COALESCE(NULLIF(LOWER(TRIM(pu.status)), ''), 'received') NOT IN ('cancelled', 'canceled', 'void', 'deleted', 'draft')
-        AND (
-          COALESCE(NULLIF(pi.selling_price, 0), NULLIF(pi.regular_price, 0)) > 0
-          OR NULLIF(pi.sale_price, 0) > 0
-        )
-      ORDER BY pu.created_at DESC NULLS LAST, pi.id DESC
-      LIMIT 1
-    ) last_color_purchase_price ON TRUE`}
+    ${lean ? "" : AD_FEED_PURCHASE_JOINS}
     WHERE p.tenant_id = $1
       AND COALESCE(p.status, 'active') = 'active'
       AND COALESCE(pv.stock, 0) > 0
@@ -3856,15 +3820,7 @@ const loadProducts = async (tenantId, { lean = false } = {}) => {
       canonical_slug: row.canonical_slug || "",
       image_url: row.image_url || "",
       gallery_images: row.gallery_images,
-      price: row.price,
-      selling_price: row.selling_price,
-      regular_price: row.regular_price,
-      sale_price: row.sale_price,
-      sale_price_enabled: row.sale_price_enabled,
-      sale_start_at: row.sale_start_at,
-      sale_end_at: row.sale_end_at,
-      sale_reason: row.sale_reason,
-      is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
+      ...storyProductPriceFields(row),
       sale_mode_settings: saleModeSettings,
       freshness_rank: numberValue(row.product_freshness_rank, row.id),
       gender: row.gender || "",
@@ -3886,14 +3842,7 @@ const loadProducts = async (tenantId, { lean = false } = {}) => {
         color: row.color || "",
         size: row.size || "",
         article_code: row.article_code || "",
-        price: row.variant_price,
-        selling_price: row.variant_selling_price,
-        regular_price: row.variant_regular_price,
-        sale_price: row.variant_sale_price,
-        sale_price_enabled: row.variant_sale_price_enabled,
-        sale_start_at: row.variant_sale_start_at,
-        sale_end_at: row.variant_sale_end_at,
-        sale_reason: row.variant_sale_reason,
+        ...storyVariantPriceFields(row),
         stock: numberValue(row.variant_stock, 0),
         is_active: row.variant_is_active !== false,
         images: variantImages,
@@ -6723,6 +6672,10 @@ export const __aiMarketingCenterTestHooks = {
   publishedPlatformsFromResults,
   normalizeQueueRow,
   getProductPrice,
+  getProductOriginalPrice,
+  storyProductPriceFields,
+  storyVariantPriceFields,
+  storyItemPriceStamp,
   queueItemStoryPayload,
   currentStoryGeneratedAssetUrls,
   isStoryAssetBoundToCurrentItem,

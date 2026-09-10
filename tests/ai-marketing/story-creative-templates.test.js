@@ -182,12 +182,12 @@ test("AI center hydrates every story slide with storefront compare pricing and c
   assert.match(centerSource, /p\.use_custom_compare_price/);
   assert.match(centerSource, /p\.custom_compare_price/);
   assert.match(centerSource, /old_crossed_price: originalPrice/);
-  assert.match(centerSource, /last_color_purchase_price\.purchase_selling_price/);
-  assert.match(centerSource, /last_color_purchase_price\.purchase_sale_price/);
-  assert.match(centerSource, /isOfferStory && storedSalePrice > 0 && storedSalePrice < regularPrice/);
+  // Prices come from the canonical resolver over the storefront's invoice line — see
+  // story-canonical-price.test.js.
+  assert.match(centerSource, /resolveEffectiveCustomerPrice\(/);
+  assert.match(centerSource, /\$\{STORY_PRICE_COLUMNS\}/);
   assert.match(centerSource, /current_price: price/);
   assert.match(centerSource, /compare_at_price: originalPrice/);
-  assert.match(centerSource, /preview_purchase_price\.purchase_sale_price/);
   assert.match(centerSource, /design\.slides\.map\(\(slide\) => \(\{ \.\.\.slide, \.\.\.priceFields \}\)\)/);
   assert.doesNotMatch(centerSource, /!rawRow\.preview_product_price && !rawRow\.preview_product_selling_price/);
   assert.match(rendererSource, /slide\.old_crossed_price/);

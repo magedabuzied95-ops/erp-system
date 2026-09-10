@@ -57,8 +57,10 @@ test("the feeds qualify invoice lines exactly as the storefront does", () => {
   }
 });
 
-test("both feeds splice the shared definition instead of carrying their own", () => {
-  for (const file of ["metaCatalogFeedService.js", "googleMerchantFeedService.js"]) {
+test("the feeds and the AI stories splice the shared definition instead of carrying their own", () => {
+  // aiMarketingCenterService: its story-local "newest line of the colour" (and no manual-override
+  // tier) put product 375 on a story at 1,450 while the shop sold every size at 1,550.
+  for (const file of ["metaCatalogFeedService.js", "googleMerchantFeedService.js", "aiMarketingCenterService.js"]) {
     const source = readFileSync(new URL(`../../server/services/${file}`, import.meta.url), "utf8");
     for (const part of ["${AD_FEED_PURCHASE_CTES}", "${AD_FEED_PURCHASE_COLUMNS}", "${AD_FEED_PURCHASE_JOINS}"]) {
       assert.ok(source.includes(part), `${file} must splice ${part}`);

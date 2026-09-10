@@ -14,8 +14,11 @@ test("offer story queue pricing recovers the variant from saved story data", () 
   assert.match(source, /LEFT JOIN LATERAL \(\s*SELECT candidate\.\*/);
 });
 
-test("recovered offer variants still use purchase sale and selling prices", () => {
-  assert.match(source, /preview_purchase_price\.purchase_selling_price/);
-  assert.match(source, /preview_purchase_price\.purchase_sale_price/);
-  assert.match(source, /isOfferStory && storedSalePrice > 0 && storedSalePrice < regularPrice/);
+test("recovered offer variants are priced from the recovered size's invoice line", () => {
+  const list = source.slice(source.indexOf("export const listAiMarketingQueue"), source.indexOf("const hydrateQueueStoryMetadata"));
+  assert.match(list, /WITH \$\{AD_FEED_PURCHASE_CTES\}/);
+  assert.match(list, /\) pv ON TRUE\s*\$\{AD_FEED_PURCHASE_JOINS\}/);
+  assert.match(list, /pv\.id AS story_price_variant_id/);
+  assert.match(list, /rawRow\.story_price_variant_id\s*\?\s*\{ id: rawRow\.story_price_variant_id, \.\.\.storyVariantPriceFields\(rawRow\) \}/);
+  assert.match(list, /sale_mode_settings: saleModeSettings/);
 });
