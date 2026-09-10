@@ -177,6 +177,75 @@ export const ensureMetaCompatibleImageUrl = async (value = "") => {
   }
 };
 
+/*
+  The product catalogue crawler is a different consumer from the publish paths:
+  it reads PNG as happily as JPEG, and it pulls ~1,900 distinct images per feed
+  build. So it gets its own entry point with two differences from the publish
+  one: PNG is left alone, and by default NOTHING is converted inline — a feed
+  request must not sit on 1,000 sharp calls. It serves a rendition that already
+  exists, otherwise the original, and the warm-up below makes the missing ones.
+*/
+const CATALOG_READABLE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif"]);
+
+export const needsCatalogJpegRendition = (value = "") => {
+  const reference = parseUploadReference(value);
+  if (!reference) return false;
+  const extension = path.extname(reference.relativePath).toLowerCase();
+  if (!extension || VIDEO_EXTENSIONS.has(extension)) return false;
+  return !CATALOG_READABLE_EXTENSIONS.has(extension);
+};
+
+export const metaCatalogImageUrl = async (value = "", { convert = false } = {}) => {
+  const original = text(value);
+  if (!needsCatalogJpegRendition(original)) return original;
+
+  const reference = parseUploadReference(original);
+  const resolved = await resolveLocalUploadFile(reference.relativePath);
+  if (!resolved) return original;
+
+  const fileName = buildMetaJpegFileName(reference.relativePath, resolved.stats);
+  const outputPath = path.join(resolved.root, META_JPEG_DIR, fileName);
+  const publicUrl = new URL(`/uploads/${META_JPEG_DIR}/${fileName}`, reference.origin).toString();
+
+  if (await statFile(outputPath)) return publicUrl;
+  if (!convert) return original;
+
+  try {
+    await convertToMetaJpeg({ sourcePath: resolved.filePath, outputPath });
+    return publicUrl;
+  } catch (error) {
+    console.error("[meta-image-compat] catalog jpeg conversion failed; keeping the original url", {
+      relative_path: reference.relativePath,
+      error: error?.message || "conversion failed",
+    });
+    return original;
+  }
+};
+
+// Converts every catalogue image Meta cannot read that has no rendition yet.
+// Returns what it did so the feed can log it and the warm-up script can report.
+export const warmMetaCatalogImageRenditions = async (urls = [], { concurrency = CONVERSION_CONCURRENCY } = {}) => {
+  const pending = [...new Set((Array.isArray(urls) ? urls : []).map(text).filter(needsCatalogJpegRendition))];
+  const summary = { candidates: pending.length, converted: 0, reused: 0, failed: 0 };
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), pending.length || 1) }, async () => {
+    while (cursor < pending.length) {
+      const source = pending[cursor];
+      cursor += 1;
+      const before = await metaCatalogImageUrl(source);
+      if (before !== source) {
+        summary.reused += 1;
+        continue;
+      }
+      const after = await metaCatalogImageUrl(source, { convert: true });
+      if (after === source) summary.failed += 1;
+      else summary.converted += 1;
+    }
+  });
+  await Promise.all(runners);
+  return summary;
+};
+
 export const ensureMetaCompatibleImageUrls = async (urls = []) => {
   const list = Array.isArray(urls) ? urls : [];
   if (!list.length) return [];

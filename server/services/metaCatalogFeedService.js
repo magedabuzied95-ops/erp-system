@@ -3,6 +3,7 @@ import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
 import { resolveProductAudience } from "./productAudienceResolver.js";
+import { metaCatalogImageUrl, warmMetaCatalogImageRenditions } from "./metaImageCompatService.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -309,11 +310,62 @@ ${item.gender ? `      <g:gender>${xml(item.gender)}</g:gender>\n` : ""}${item.a
     </item>`;
 };
 
-export const buildMetaCatalogFeed = async () => {
+/*
+  Meta downloads and decodes every image itself, and it cannot read WebP — a
+  perfectly reachable .webp master reads to Meta as a missing or corrupt file,
+  which is an ineligible item with no useful error. Swap in the JPEG rendition
+  of anything it cannot read. The swap only ever serves renditions that already
+  exist; the ones still missing are made in the background so no crawl waits on
+  sharp, and the next build picks them up.
+*/
+let warmUpInFlight = false;
+
+export const applyMetaReadableImages = async (items = [], { warm = true } = {}) => {
+  const sources = new Set();
+  for (const item of items) {
+    if (item.image_link) sources.add(item.image_link);
+    for (const url of item.additional_image_link || []) sources.add(url);
+  }
+
+  const mapping = new Map();
+  await Promise.all([...sources].map(async (url) => {
+    mapping.set(url, await metaCatalogImageUrl(url));
+  }));
+
+  const readable = (url) => mapping.get(url) || url;
+  for (const item of items) {
+    if (item.image_link) item.image_link = readable(item.image_link);
+    if (Array.isArray(item.additional_image_link)) {
+      item.additional_image_link = [...new Set(item.additional_image_link.map(readable))];
+    }
+  }
+
+  if (warm && !warmUpInFlight) {
+    // Deliberately not awaited: the crawl gets today's renditions, tomorrow's
+    // crawl gets the ones being made right now. One at a time, so overlapping
+    // crawls cannot stack sharp runs on top of each other.
+    warmUpInFlight = true;
+    warmMetaCatalogImageRenditions([...sources])
+      .finally(() => {
+        warmUpInFlight = false;
+      })
+      .then((summary) => {
+        if (summary.converted || summary.failed) console.log("[meta-catalog-feed] jpeg renditions warmed", summary);
+      })
+      .catch((error) => {
+        console.error("[meta-catalog-feed] jpeg rendition warm-up failed", { error: error?.message || String(error) });
+      });
+  }
+
+  return items;
+};
+
+export const buildMetaCatalogFeed = async ({ warmImages = true } = {}) => {
   const storefrontUrl = storefrontBaseUrl() || DEFAULT_STOREFRONT_URL;
   const backendUrl = text(process.env.PUBLIC_BACKEND_URL || process.env.API_PUBLIC_URL || DEFAULT_BACKEND_URL).replace(/\/+$/g, "");
   const rows = await queryMetaCatalogRows();
   const items = rows.map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl }));
+  await applyMetaReadableImages(items, { warm: warmImages });
   const body = items.map(metaCatalogItemXml).join("\n");
 
   return {
