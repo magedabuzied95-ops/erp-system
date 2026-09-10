@@ -85,6 +85,9 @@ export const buildAutomationDraft = (post = {}) => {
     privateReply: true,
     aiFollowUp: true,
     createLead: false,
+    // Off unless someone turns it on for this post: hiding every customer comment keeps
+    // competitors from reading who is buying, and costs the engagement those comments carry.
+    hideComments: false,
     templateId: "product_comment_sales_flow",
     publicReplyTemplate: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
     privateReplyTemplate: `أهلاً {{customer_name}}\n{{product_name}} متاح بسعر {{price}}.\nالمقاسات المتاحة: {{available_sizes}}\nاطلبه مباشرة من هنا: {{product_link}}`,
@@ -107,6 +110,7 @@ export const normalizeAutomationConfig = (config = {}, post = {}) => {
     privateReply: settings.privateReply ?? settings.private_reply ?? fallbackDraft.privateReply,
     aiFollowUp: settings.aiFollowUp ?? settings.ai_follow_up ?? fallbackDraft.aiFollowUp,
     createLead: settings.createLead ?? settings.create_lead ?? fallbackDraft.createLead,
+    hideComments: settings.hideComments ?? settings.hide_comments ?? fallbackDraft.hideComments,
     publicReplyTemplate:
       clean(messageTemplates.publicReplyTemplate || messageTemplates.public_reply_template || config.public_reply_template || "") ||
       fallbackDraft.publicReplyTemplate,
@@ -133,6 +137,10 @@ export const serializeAutomationDraft = (draft = {}, post = {}) => {
       privateReply: Boolean(safeDraft.privateReply),
       aiFollowUp: Boolean(safeDraft.aiFollowUp),
       createLead: Boolean(safeDraft.createLead),
+      // Every toggle the panel draws has to appear in all THREE of these — the draft, the merge
+      // above, and this payload. A key missing from any one of them renders a switch that is
+      // always off and silently saves nothing.
+      hideComments: Boolean(safeDraft.hideComments),
     },
     message_templates: {
       publicReplyTemplate: clean(safeDraft.publicReplyTemplate),
