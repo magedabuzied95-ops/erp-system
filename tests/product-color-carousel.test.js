@@ -61,6 +61,12 @@ test("a colour tap is rewritten into the exact catalog wording before the AI see
 const orderRoutes = fs.readFileSync(
   new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8"
 );
+// The expansion moved out of the send route into a service once the AI auto-reply paths needed
+// the same colour carousel for a customer's product photo. Every rule below still applies — it
+// is one implementation, so it is checked in the one place it now lives.
+const carouselService = fs.readFileSync(
+  new URL("../server/services/aiProductColorCarouselService.js", import.meta.url), "utf8"
+);
 const inboxRenderer = fs.readFileSync(
   new URL("../src/modules/aiSupport/components/ProductCardMessage.jsx", import.meta.url), "utf8"
 );
@@ -68,7 +74,9 @@ const inboxRenderer = fs.readFileSync(
 test("the send route expands colours itself - the FE sends one card per request", () => {
   // Phase 13.4 FE-sequential means the adapter never sees two cards from the inbox, so the
   // carousel branch could not fire; the first live attempt left as a single image because of it.
-  assert.match(orderRoutes, /const expandProductCardsByColor = async/);
+  assert.match(carouselService, /export const expandProductCardsByColor = async/);
+  assert.match(orderRoutes, /import \{ expandProductCardsByColor \} from "\.\.\/services\/aiProductColorCarouselService\.js"/,
+    "the route uses the shared expander, not a second copy of the rules");
   const route = orderRoutes.slice(orderRoutes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
   const expandIndex = route.indexOf("expandProductCardsByColor({ tenantId, cards: enrichedProductCards })");
   const sendIndex = route.indexOf("sendWhatsAppCloudReply({");
@@ -77,7 +85,7 @@ test("the send route expands colours itself - the FE sends one card per request"
 });
 
 test("expansion failure keeps the original card - an upgrade, never a lost send", () => {
-  const fn = orderRoutes.slice(orderRoutes.indexOf("const expandProductCardsByColor"), orderRoutes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  const fn = carouselService;
   assert.match(fn, /catch \(expandError\)/);
   assert.match(fn, /expanded\.push\(card\)/, "the single card survives every failure path");
   assert.match(fn, /colorCards\.length >= 2/, "a one-colour product is not wrapped in a carousel");
@@ -145,7 +153,7 @@ test("expanded colour cards do not re-expand in the adapter", () => {
   // colours: duplicated photos, inflated counts, and overflow spilling out as loose images after
   // the carousel (live, a 23-colour Nike, 2026-08-28).
   const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
-  const fn = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  const fn = carouselService;
   assert.match(fn, /const \{ variants, variant, product, matched_variant, selected_variant, \.\.\.flatCard \} = colorCard/,
     "the expander strips the re-expansion triggers");
   assert.ok(!/expanded\.push\(\{\s*\r?\n?\s*\.\.\.card,\s*\r?\n?\s*\.\.\.colorCard/.test(fn),
@@ -154,7 +162,7 @@ test("expanded colour cards do not re-expand in the adapter", () => {
 
 test("more than ten colours are chunked, not dropped", () => {
   const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
-  const fn = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  const fn = carouselService;
   assert.match(fn, /\.slice\(0, 30\)/, "the colour cap is high enough for a big palette");
   assert.ok(fn.includes("limit: 30"), "expansion itself is not capped at 10");
   const adapter = fs.readFileSync(new URL("../server/services/aiChannelAdapterService.js", import.meta.url), "utf8");
@@ -171,7 +179,7 @@ test("the colour expansion reads the canonical price columns, never a hand-rolle
   // lives in src/shared/lib/currentSellingPrice.js and normalizeProductCards reaches it through
   // resolveCustomerDisplayPrice — but only if the variant row carries the columns.
   const routes = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
-  const fn = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  const fn = carouselService;
   const query = fn.slice(fn.indexOf("FROM product_variants") - 600, fn.indexOf("FROM product_variants"));
   for (const column of ["purchase_selling_price", "manual_selling_price", "manual_price_override_active"]) {
     assert.ok(query.includes(column), `the variant row must carry ${column} for the resolver to see it`);

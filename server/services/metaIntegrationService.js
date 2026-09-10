@@ -101,6 +101,7 @@ import {
   searchAiOrderProducts,
 } from "./aiAgentOrderService.js";
 import { searchAiVisualProductsPro } from "./aiVisualSearchProService.js";
+import { expandProductCardsByColor } from "./aiProductColorCarouselService.js";
 import { getConversationMemory, updateConversationMemory } from "./aiConversationMemory.js";
 import {
   loadAiConversationMemory,
@@ -15282,7 +15283,7 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
     metadata,
     detectedIntent,
   });
-  const guardedCards = visualCards
+  const baseGuardedCards = visualCards
     ? gatedCards.map((card) => ({
       ...card,
       product_source_confirmed: topConfirmationGuard.confirmed,
@@ -15290,6 +15291,51 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       card_reply_mode: topConfirmationGuard.confirmed ? card.card_reply_mode : "image_only",
     }))
     : gatedCards;
+  // ── A recognised photo answers with the whole product ────────────────────────────────────────
+  // Everything above deliberately narrows an exact image match to ONE card: the decision gate
+  // slices `accepted` to a single entry and both normalize passes cap at 1. That guard is about
+  // WHICH PRODUCT may be sent — it is what stops a photo of a Jordan from carding an Adidas — and
+  // it stays exactly as it is. But once the gate has named the product, a single card is the wrong
+  // answer to "do you have this?": the customer gets one colour and has to ask for the rest.
+  // So fan that one approved product back out into its colour cards, the colour they photographed
+  // first. Each card already carries its own photo, its own per-colour price and its own available
+  // sizes, and the channel adapters turn 2+ cards into one swipeable carousel on their own
+  // (Evolution on WhatsApp, the generic template on Messenger and Instagram). One product in,
+  // one product out — just all of it. Expansion is an upgrade: any failure keeps the single card.
+  const guardedCards = (visualCards && baseGuardedCards.length === 1)
+    ? await expandProductCardsByColor({
+      tenantId: config.tenant_id,
+      cards: baseGuardedCards,
+      leadColor: text(
+        baseGuardedCards[0]?.color ||
+        baseGuardedCards[0]?.matched_variant_color ||
+        metadata.matched_variant_color ||
+        ""
+      ),
+    }).catch((error) => {
+      console.warn("ai_inbox_visual_color_carousel_expansion_failed", {
+        tenant_id: config.tenant_id,
+        conversation_id: message.external_conversation_id,
+        product_id: baseGuardedCards[0]?.product_id || baseGuardedCards[0]?.id || null,
+        message: error?.message || "colour expansion failed",
+      });
+      return baseGuardedCards;
+    })
+    : baseGuardedCards;
+  const expandedToColorCarousel = guardedCards.length > baseGuardedCards.length;
+  if (expandedToColorCarousel) {
+    console.log("ai_inbox_visual_color_carousel", {
+      tenant_id: config.tenant_id,
+      conversation_id: message.external_conversation_id,
+      product_id: baseGuardedCards[0]?.product_id || baseGuardedCards[0]?.id || null,
+      lead_color: text(baseGuardedCards[0]?.color || baseGuardedCards[0]?.matched_variant_color || ""),
+      colors: guardedCards.length,
+      sizes_per_color: guardedCards.map((card) => ({
+        color: text(card.color || ""),
+        sizes: asArray(card.sizes || card.available_sizes).length,
+      })),
+    });
+  }
   const compressionMemorySnapshot = getConversationMemory(message.external_conversation_id) || {};
   if (
     checkoutStageAtLeast(compressionMemorySnapshot.checkoutStage || compressionMemorySnapshot.buyingStage || compressionMemorySnapshot.conversationStage || "", "checkout_collecting") &&
@@ -15498,7 +15544,12 @@ const sendAndLogProductCards = async ({ config, message, productCards = [], dete
       ...(Array.isArray(metadata.colors) ? metadata.colors : []),
       ...guardedCards.map((card) => card.color || card.matched_variant_color || ""),
     ].map(text).filter(Boolean).map((color) => color.toLowerCase()));
-    const hasMultipleColors = colorSet.size > 1 || guardedCards.some((card) => Number(card.color_variant_count || 0) > 1 || card.has_more_color_variants === true);
+    // "وفيه ألوان تانية كمان لو حابب أشوفهالك" is an OFFER, and offering what the customer is
+    // already looking at reads as if we did not send it. When the cards ARE the colour carousel,
+    // every colour is on screen, so the follow-up asks for the size and nothing else.
+    const hasMultipleColors = !expandedToColorCarousel && (
+      colorSet.size > 1 || guardedCards.some((card) => Number(card.color_variant_count || 0) > 1 || card.has_more_color_variants === true)
+    );
     const followupText = productPresentationFollowupText({
       conversationId: message.external_conversation_id,
       hasMultipleColors,

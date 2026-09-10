@@ -5815,6 +5815,10 @@ export const handleIncomingWebhook = async (payload = {}) => {
       message_id: normalized.messageId,
       instanceName: normalized.instance,
       trace_id: trace?.id || null,
+      // The materialized media rides along to the auto-reply too, not just into the inbox row.
+      // Without it a customer's product photo reached the AI as the bare word "صورة" and the
+      // reply had nothing to recognise — the picture was already downloaded and public by here.
+      visualAttachments: mediaDescriptor.visualAttachments,
       inbox,
     };
   } catch (error) {
@@ -5929,6 +5933,7 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     messageText: message.text,
     timestamp: message.received_at || message.timestamp,
     traceId: message.trace_id || null,
+    attachments: asArray(message.visualAttachments || message.visual_attachments),
   });
   console.info("[ai-auto-reply] stage=ai_generation_done", {
     messageId: text(message?.message_id || message?.messageId || ""),

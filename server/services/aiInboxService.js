@@ -38,6 +38,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
+import { firstInboundImageUrl, recogniseProductFromImage } from "./aiVisualProductRecognitionService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -329,6 +330,40 @@ const resolveAwaitingCustomerAction = (memory = null) => {
     return { action: "show_colors_sizes", lastQuestion };
   }
   return { action: "", lastQuestion };
+};
+
+// The reply that goes with a recognised photo. The cards carry the colours and the sizes, so the
+// text says only what a picture cannot: yes, we have it. Naming every colour in the text as well
+// would just repeat the carousel the customer is about to swipe.
+const buildVisualRecognitionPayload = ({ cards = [], recognition = {} } = {}) => {
+  const productName = text(cards[0]?.name || cards[0]?.product_name || cards[0]?.title || "");
+  const colorCount = cards.length;
+  const answer = colorCount > 1
+    ? `أيوه يا فندم، ${productName || "المنتج ده"} موجود عندنا 👌\nدي كل الألوان المتاحة والمقاسات اللي في كل لون — اختار اللي يعجبك 👇`
+    : `أيوه يا فندم، ${productName || "المنتج ده"} موجود عندنا 👌\nدي تفاصيله والمقاسات المتاحة 👇`;
+  return {
+    answer,
+    confidence: Number(recognition.score || 0.9),
+    detected_intent: "visual_search",
+    response_type: "product_card",
+    suggested_products: cards,
+    product_cards: cards,
+    channel_reply: { text: answer, product_cards: cards, response_type: "product_card" },
+    product_context: cards[0] || null,
+    visual_recognition: {
+      product_id: recognition.productId || null,
+      matched_color: text(recognition.matchedColor),
+      score: Number(recognition.score || 0),
+      reason: text(recognition.reason),
+      colors: colorCount,
+    },
+    ai_memory_patch: {
+      preferences: {
+        last_ai_question: answer,
+        awaiting_customer_action: colorCount > 1 ? "select_color" : "select_size",
+      },
+    },
+  };
 };
 
 const buildBareConfirmationPayload = ({ body = "", memory = null } = {}) => {
@@ -1131,7 +1166,7 @@ const syncWhatsappLiveMemoryToChannel = async ({ tenantId, sessionId, phone = ""
   return payload;
 };
 
-export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, customerName = "", messageText = "", timestamp = "", traceId = null, dryRun = false } = {}) => {
+export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, customerName = "", messageText = "", timestamp = "", traceId = null, dryRun = false, attachments = [] } = {}) => {
   const safeTenantId = number(tenantId, number(process.env.WHATSAPP_TENANT_ID, 1));
   const safePhone = text(phone);
   const safeSessionId = normalizeWhatsappSessionId(sessionId, safePhone);
@@ -1216,14 +1251,91 @@ export const generateWhatsappAiAutoReply = async ({ tenantId, phone, sessionId, 
     return { triggered: false, sent: false, reason: decision.reason };
   }
 
+  const inboundAttachments = asArray(attachments);
   const message = {
     external_conversation_id: safeSessionId,
     external_customer_id: safePhone,
     customer_name: customerName,
     message_text: body,
     timestamp: timestamp || new Date().toISOString(),
-    attachments: [],
+    attachments: inboundAttachments,
   };
+
+  // ── The customer sent a photo of a product ───────────────────────────────────────────────────
+  // An inbound image used to reach this pipeline as nothing but the word "صورة": the media was
+  // downloaded and made public by the gateway, but only the placeholder caption was handed to the
+  // AI, so a photo of a shoe sitting in our own stock came back as a generic text reply. Meta's
+  // channels had a vision path for this and WhatsApp never did.
+  //
+  // Recognise the picture instead, and answer with the product itself — one card per colour, the
+  // colour they photographed first, each card carrying that colour's own price and its own
+  // available sizes. Two or more cards leave the gateway as a single Evolution carousel, so the
+  // customer swipes the colours rather than asking for them one by one.
+  //
+  // An unrecognised photo is NOT an error: it falls straight through to the text pipeline below,
+  // which still answers. Recognition is an upgrade, never a new way for a message to go unanswered.
+  const inboundImageUrl = firstInboundImageUrl(inboundAttachments);
+  if (inboundImageUrl) {
+    const recognition = await recogniseProductFromImage({
+      tenantId: safeTenantId,
+      imageUrl: inboundImageUrl,
+      messageText: originalBody,
+      requestId: `whatsapp:${safeSessionId}`,
+    }).catch((error) => ({ matched: false, reason: error?.message || "recognition_failed" }));
+    if (recognition.matched && asArray(recognition.productCards).length) {
+      const visualCards = asArray(recognition.productCards);
+      const visualPayload = buildVisualRecognitionPayload({ cards: visualCards, recognition });
+      const visualReply = visualPayload.channel_reply;
+      logUnifiedDecisionEarlyReturn({
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        reason: "visual_product_recognition",
+        intent: visualPayload.detected_intent,
+        text: body,
+        conversationId: safeSessionId,
+      });
+      console.info("[whatsapp:visual-recognition-answered]", {
+        conversation_id: safeSessionId,
+        image_url: inboundImageUrl,
+        product_id: recognition.productId,
+        matched_color: recognition.matchedColor || "",
+        colors: visualCards.length,
+        match_reason: recognition.reason,
+      });
+      // Recorded through the plain memory writer, not the V2 patch helper: that helper is declared
+      // further down this same function and closes over the loaded memory, so reaching it from up
+      // here is a temporal-dead-zone crash — on the one path whose whole job is to answer a photo.
+      updateAiConversationMemory({
+        tenantId: safeTenantId,
+        sessionId: safeSessionId,
+        customerPhone: safePhone,
+        customerName,
+        message: originalBody,
+        suggestedProducts: visualCards,
+        preferencesPatch: {
+          last_ai_question: visualReply.text,
+          awaiting_customer_action: visualCards.length > 1 ? "select_color" : "select_size",
+          ...(recognition.matchedColor ? { last_selected_color: recognition.matchedColor } : {}),
+        },
+      }).then((memory) => syncWhatsappLiveMemoryToChannel({ tenantId: safeTenantId, sessionId: safeSessionId, phone: safePhone, memory })).catch(() => {});
+      await addAiPayloadTraceSteps({ traceId, aiPayload: visualPayload, messageText: body, replyText: visualReply.text, replyDecision: { ok: true } });
+      logAiWhatsappCardsOutput({ aiPayload: visualPayload, reply: visualReply, productCards: visualCards });
+      return {
+        triggered: true,
+        sent: false,
+        replyText: visualReply.text,
+        reply: visualReply,
+        aiPayload: visualPayload,
+        tenantId: safeTenantId,
+        sessionId: safeSessionId,
+        phone: safePhone,
+      };
+    }
+    console.info("[whatsapp:visual-recognition-fallthrough]", {
+      conversation_id: safeSessionId,
+      image_url: inboundImageUrl,
+      reason: recognition.reason || "no_match",
+    });
+  }
   const loadedMemory = await loadAiConversationMemory({
     tenantId: safeTenantId,
     sessionId: safeSessionId,

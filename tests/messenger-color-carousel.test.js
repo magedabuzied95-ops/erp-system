@@ -81,7 +81,11 @@ test("the carousel frames a square image so the whole product shows", () => {
   // a square frame + a padded square photo = the whole shoe, not a tall centre-crop
   const branch = meta.slice(meta.indexOf("let metaCarouselDone = false"), meta.indexOf("if (cards.length && !metaCarouselDone)"));
   assert.match(branch, /image_aspect_ratio: "square"/, "the generic template requests a square frame");
-  const expand = routes.slice(routes.indexOf("const expandProductCardsByColor"), routes.indexOf('router.post("/conversations/:conversationId/product-card/send"'));
+  // The expansion moved into aiProductColorCarouselService so the AI auto-reply paths could answer
+  // a customer's product photo with the same colour carousel this route sends by hand.
+  const expand = fs.readFileSync(
+    new URL("../server/services/aiProductColorCarouselService.js", import.meta.url), "utf8"
+  );
   assert.match(expand, /ensureSquareCardImageUrl\(rawImage\)/, "the colour photos are padded to a square canvas");
   assert.match(expand, /image_url: squared \|\| flatCard\.image_url/, "a failed square keeps the original photo");
 });
