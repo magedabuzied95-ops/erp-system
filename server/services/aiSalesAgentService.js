@@ -87,6 +87,14 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 // must not be thrown away in favour of what a photo looks like. Only a placeholder, or nothing at
 // all, means the picture is the whole message.
 const MEDIA_PLACEHOLDER_WORDS = "صورة|صوره|فيديو|ملف|مرفق|ملصق|رسالة صوتية|image|photo|video|file|sticker|voice note";
+// The media on an inbox message, wherever the row keeps it. normalizeInboxMessage exposes it as
+// `visual_attachments` — there is no `attachments` field on an inbox row — so anything that reads
+// only `attachments` sees no media at all. `attachments` is kept for raw provider shapes.
+export const inboxMessageMedia = (message = {}) => [
+  ...asArray(message?.visual_attachments),
+  ...asArray(message?.attachments),
+];
+
 export const messageIsOnlyMediaPlaceholder = (value = "") => {
   const trimmed = text(value);
   if (!trimmed) return true;
@@ -5916,8 +5924,31 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   // stage runs exactly as it does for a typed question — including the grounding gate, which
   // stays authoritative, and the per-colour `color_choices` the employee ticks and approves.
   // Nothing here decides a product on its own, and an unrecognised photo changes nothing at all.
-  const inboundImageUrl = firstInboundImageUrl(asArray(latestCustomerRow?.attachments));
+  // Inbox message rows carry their media as `visual_attachments` (summarizeInboxMessage and the
+  // transcript mapper both); there is no `attachments` field on them. Reading `attachments` alone
+  // returned [] for every photo, so this branch skipped silently in production — no match, no
+  // miss, no log. `attachments` stays as a fallback for callers that hand in a raw provider shape.
+  const latestCustomerMedia = inboxMessageMedia(latestCustomerRow);
+  const inboundImageUrl = firstInboundImageUrl(latestCustomerMedia);
+  if (latestCustomerMedia.length && !inboundImageUrl) {
+    // A media row we could not read as a photo is exactly the silent case that hid the bug above.
+    console.log("[ai-inbox] latest customer media has no usable image url", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      media: latestCustomerMedia.slice(0, 3).map((item) => ({
+        type: text(item?.type || item?.media_type),
+        mime_type: text(item?.mime_type || item?.mimeType),
+        has_url: Boolean(text(item?.url || item?.media_url || item?.image_url)),
+      })),
+    });
+  }
   let visualRecognition;
+  if (inboundImageUrl && !messageIsOnlyMediaPlaceholder(lastMessage)) {
+    console.log("[ai-inbox] photo carries a real caption; the caption is answered, not the picture", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+    });
+  }
   if (inboundImageUrl && messageIsOnlyMediaPlaceholder(lastMessage)) {
     visualRecognition = await recogniseProductFromImage({
       tenantId,

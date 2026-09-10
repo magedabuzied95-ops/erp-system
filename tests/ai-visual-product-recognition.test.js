@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import { firstInboundImageUrl } from "../server/services/aiVisualProductRecognitionService.js";
-import { messageIsOnlyMediaPlaceholder } from "../server/services/aiSalesAgentService.js";
+import { inboxMessageMedia, messageIsOnlyMediaPlaceholder, normalizeInboxMessage } from "../server/services/aiSalesAgentService.js";
 
 // A customer sends a photo of a product on WhatsApp, Messenger or Instagram and the answer is the
 // product itself: one card per colour, the colour they photographed first, each card carrying that
@@ -152,6 +152,28 @@ test("a REAL caption is never thrown away in favour of what the photo looks like
   }
 });
 
+test("a WhatsApp photo on a real inbox row is found where the row actually keeps it", () => {
+  // LIVE 2026-09-11: with the lookup fixed, a customer's photo still produced nothing — no match,
+  // no miss, no log. The branch read `latestCustomerRow.attachments`, and an inbox row has no such
+  // field: normalizeInboxMessage exposes the media as `visual_attachments`. So `firstInboundImageUrl`
+  // got [] for every photo and the branch never ran. Checked on the REAL mapper, not on a hand-made
+  // object, because a hand-made object is exactly what let the wrong field name through.
+  const photoUrl = "https://api.m1store-egy.com/uploads/whatsapp-media/ABC.jpg";
+  const row = normalizeInboxMessage({
+    id: 1,
+    session_id: "whatsapp:201022616025",
+    sender_type: "customer",
+    customer_message: "📷 صورة", // what saveWhatsappIncomingToAiInbox stores for an uncaptioned photo
+    visual_attachments: [{ type: "image", media_type: "image", url: photoUrl, media_url: photoUrl, mime_type: "image/jpeg" }],
+  });
+  assert.equal(firstInboundImageUrl(row.attachments || []), "", "premise: the old read finds nothing on a real row");
+  assert.equal(firstInboundImageUrl(inboxMessageMedia(row)), photoUrl, "the photo is found on the field the row carries");
+  assert.equal(messageIsOnlyMediaPlaceholder(row.customer_message), true, "and its text is recognised as the channel placeholder");
+  // The pipeline must read the media through the same helper this test exercises.
+  assert.match(salesAgent, /const latestCustomerMedia = inboxMessageMedia\(latestCustomerRow\);/);
+  assert.match(salesAgent, /const inboundImageUrl = firstInboundImageUrl\(latestCustomerMedia\);/);
+});
+
 test("the inbox reply resolves its conversation by key, never by a 100-row sweep", () => {
   // LIVE 2026-09-10: the assisted intake logged `generation_blocked:Conversation not found` for
   // EVERY WhatsApp message — 0 suggestions out of 413 in a week — because generateAiInboxReply
@@ -173,7 +195,7 @@ test("the inbox reply resolves its conversation by key, never by a 100-row sweep
 
 test("the inbox pipeline turns a photo into words instead of bypassing the grounding gate", () => {
   const branch = salesAgent.slice(
-    salesAgent.indexOf("const inboundImageUrl = firstInboundImageUrl(asArray(latestCustomerRow?.attachments))"),
+    salesAgent.indexOf("const latestCustomerMedia = inboxMessageMedia(latestCustomerRow)"),
     salesAgent.indexOf("let replyHarness = null")
   );
   assert.ok(branch.length > 0, "the branch sits with the other inbound-resolution steps");
