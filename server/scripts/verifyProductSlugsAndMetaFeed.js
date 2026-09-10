@@ -42,7 +42,7 @@ const verification = {
   target_feed_item: targetItem || null,
   target_matches_product_130:
     Number(result.target_product?.id || 0) === 130 &&
-    Boolean(targetItem?.link?.endsWith(`/product/${result.target_product.slug}`)),
+    Boolean(String(targetItem?.link || "").split("?")[0].endsWith(`/product/${result.target_product.slug}`)),
 };
 
 console.log(JSON.stringify(verification, null, 2));
