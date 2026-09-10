@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
+import { shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
 
 const daySql = "date_trunc('day', NOW())";
 const yesterdaySql = "date_trunc('day', NOW()) - INTERVAL '1 day'";
@@ -179,6 +180,10 @@ export const warmDashboardMetadataCache = async () => {
 };
 
 export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {}) => {
+  // The manager portal's اليوم tab counts the shop's own sales only; online orders live on
+  // أوردرات الشحن. Opt-in with a real boolean, so a query string ("true") can never flip it
+  // and the ERP dashboard is unchanged.
+  const shopOnly = filters?.excludeOnline === true ? await shopOnlyOrderClause({ alias: "o" }) : "";
   const params = [];
   const ordersTenant = tenantClause("o", tenantId, params);
   const ordersDate = dateClause("o", filters, params);
@@ -236,6 +241,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${ordersBranch}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${personalOrderClause("o")}
+            ${shopOnly}
             ${ordersTenant}
           `,
           params,
@@ -255,6 +261,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             AND o.created_at < ${yesterdayTo}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${personalOrderClause("o")}
+            ${shopOnly}
             ${yesterdayTenant}
           `,
           yesterdayParams,
@@ -334,6 +341,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
       todayOnly: filters.range === "today",
       windowStart,
       windowEnd,
+      shopOnly,
     }),
     tableExists("order_items") && tableExists("orders")
       ? safeQuery(
@@ -964,7 +972,7 @@ export const getAiInsights = async ({ tenantId = null } = {}) => {
   return insights;
 };
 
-export const getRecentInvoices = async ({ tenantId = null, limit = 8, todayOnly = false, windowStart = null, windowEnd = null } = {}) => {
+export const getRecentInvoices = async ({ tenantId = null, limit = 8, todayOnly = false, windowStart = null, windowEnd = null, shopOnly = "" } = {}) => {
   if (!(await tableExists("orders"))) return [];
   const params = [Number(limit) || 8];
   const ordersTenant = tenantClause("o", tenantId, params);
@@ -984,6 +992,7 @@ export const getRecentInvoices = async ({ tenantId = null, limit = 8, todayOnly 
     WHERE 1=1 ${ordersTenant}
       ${todayClause}
       ${personalOrderClause("o")}
+      ${shopOnly}
     ORDER BY o.created_at DESC
     LIMIT $1
     `,

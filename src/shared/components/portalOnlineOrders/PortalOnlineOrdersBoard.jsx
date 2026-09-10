@@ -7,6 +7,7 @@ import {
   Copy,
   ExternalLink,
   FileText,
+  ListChecks,
   Loader2,
   MapPin,
   MessageCircle,
@@ -42,6 +43,25 @@ const RANGES = ["today", "7d", "30d", "90d", "all"];
 const DEFAULT_RANGE = "30d";
 const POLL_MS = 60_000;
 const PROVIDER_KEYS = ["bosta", "in_store_delivery", "manual", "pickup"];
+const EMPTY_BULK = { running: "", done: 0, total: 0, confirming: false, results: null, error: "", notice: "" };
+
+// A window opened before the request (after an await it is a blocked popup); if the
+// browser refused it anyway, fall back to opening the blob in a new tab.
+const openPdf = (base64, printWindow) => {
+  const url = pdfUrlFromBase64(base64);
+  if (printWindow && !printWindow.closed) {
+    printWindow.location.href = url;
+  } else {
+    const link = document.createElement("a");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+};
 
 // The status tokens measure ~3.1–4.1:1 as text on their own soft fills (below AA), so a
 // tinted pill keeps the body ink and carries its colour in a dot instead.
@@ -290,13 +310,31 @@ const fullAddressText = (order = {}, ui) => {
   return parts.join("\n");
 };
 
-function OrderCard({ order, ui, onOpen }) {
+function ItemLine({ item, ui }) {
+  return (
+    <div className="flex items-center gap-3 rounded-[var(--radius-control)] bg-surface-soft p-2">
+      <ProductThumb src={item.image_url} size="h-20 w-20" />
+      <div className="min-w-0 flex-1">
+        <div className="line-clamp-2 text-sm font-black leading-5 text-text" dir="auto">{item.product_name}</div>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {item.size ? <Pill className="bg-surface text-text">{ui.tb("detail.size")}: <span dir="ltr">{item.size}</span></Pill> : null}
+          {item.color ? <Pill className="bg-surface text-text"><span dir="auto">{item.color}</span></Pill> : null}
+          {item.article_code ? <Pill className="bg-surface text-text">{ui.tb("detail.article")}: <span dir="ltr">{item.article_code}</span></Pill> : null}
+          {Number(item.quantity) > 1 ? <Pill className="bg-surface text-text">× {ui.count(item.quantity)}</Pill> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrderCard({ order, ui, onOpen, selectable = false, selected = false, onToggleSelect }) {
   const confirmation = getConfirmationState(order);
   const items = Array.isArray(order.items) ? order.items : [];
-  // One thumbnail per line (a placeholder when the line has no photo), so "+N" only
-  // ever means "N more products", never "N products without a picture".
-  const shownItems = items.slice(0, 4);
+  // What was ordered is read from the card itself: a photo big enough to recognise the
+  // shoe, with its name, size and article code beside it (owner request 2026-09-10).
+  const shownItems = items.slice(0, 2);
   const hiddenItems = Math.max(0, items.length - shownItems.length);
+  const activate = () => (selectable ? onToggleSelect?.(order) : onOpen(order));
   const location = locationLine(order);
   const collect = Number(order.money?.collect_on_delivery || 0);
   const tracking = text(order.shipment?.tracking_number);
@@ -306,20 +344,26 @@ function OrderCard({ order, ui, onOpen }) {
 
   return (
     <article
-      role="button"
+      role={selectable ? "checkbox" : "button"}
+      aria-checked={selectable ? selected : undefined}
       tabIndex={0}
-      onClick={() => onOpen(order)}
+      onClick={activate}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onOpen(order);
+          activate();
         }
       }}
-      className="portal-online-order-card cursor-pointer rounded-[var(--radius-card)] border border-border bg-surface p-3 text-start shadow-sm transition hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      className={`portal-online-order-card cursor-pointer rounded-[var(--radius-card)] border bg-surface p-3 text-start shadow-sm transition hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${selected ? "border-primary ring-2 ring-[var(--primary)]" : "border-border"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
+            {selectable ? (
+              <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 ${selected ? "border-transparent bg-primary text-primary-foreground" : "border-[var(--border-strong)] bg-surface"}`} aria-hidden="true">
+                {selected ? <Check className="h-3.5 w-3.5" /> : null}
+              </span>
+            ) : null}
             <span className="text-sm font-black text-text" dir="ltr">{order.order_number}</span>
             <Pill className="bg-surface-soft text-text-muted">{ui.tb(`sources.${order.source || "website"}`)}</Pill>
           </div>
@@ -348,14 +392,12 @@ function OrderCard({ order, ui, onOpen }) {
       </div>
 
       {items.length ? (
-        <div className="mt-2.5 flex items-center gap-1.5">
-          {shownItems.map((item) => <ProductThumb key={item.id} src={item.image_url} />)}
-          {hiddenItems > 0 ? (
-            <span className="grid h-12 min-w-12 place-items-center rounded-xl bg-surface-soft px-2 text-xs font-black text-text-muted">
-              {ui.tb("card.morePhotos", { count: hiddenItems })}
-            </span>
-          ) : null}
-          <span className="ms-auto text-xs font-black text-text-muted">{ui.tb("card.pieces", { count: ui.count(order.items_count) })}</span>
+        <div className="mt-2.5 space-y-2">
+          {shownItems.map((item) => <ItemLine key={item.id} item={item} ui={ui} />)}
+          <div className="flex items-center justify-between gap-2 text-xs font-black text-text-muted">
+            <span>{hiddenItems > 0 ? ui.tb("card.moreItems", { count: ui.count(hiddenItems) }) : ""}</span>
+            <span>{ui.tb("card.pieces", { count: ui.count(order.items_count) })}</span>
+          </div>
         </div>
       ) : null}
 
@@ -607,6 +649,7 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, onA
                     <div className="mt-1 flex flex-wrap gap-1">
                       {item.color ? <Pill className="bg-surface text-text">{ui.tb("detail.color")}: <span dir="auto">{item.color}</span></Pill> : null}
                       {item.size ? <Pill className="bg-surface text-text">{ui.tb("detail.size")}: <span dir="ltr">{item.size}</span></Pill> : null}
+                      {item.article_code ? <Pill className="bg-surface text-text">{ui.tb("detail.article")}: <span dir="ltr">{item.article_code}</span></Pill> : null}
                       <Pill className="bg-surface text-text">{ui.tb("detail.quantity")}: {ui.count(item.quantity)}</Pill>
                       {Number(item.returned_quantity) > 0 ? <TonePill tone="danger">{ui.tb("detail.returned", { count: ui.count(item.returned_quantity) })}</TonePill> : null}
                     </div>
@@ -734,7 +777,16 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, onA
   );
 }
 
-export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runAction = null, className = "" }) {
+export default function PortalOnlineOrdersBoard({
+  loadList,
+  loadDetail,
+  runAction = null,
+  printLabels = null,
+  // Where the multi-select bar floats: above the manager portal's bottom nav, or at the
+  // screen edge on the employee page, which has none.
+  bulkBarOffset = "calc(env(safe-area-inset-bottom) + 0.75rem)",
+  className = "",
+}) {
   const ui = useBoardText();
   const [canAct, setCanAct] = useState(false);
   const runActionRef = useRef(runAction);
@@ -857,19 +909,7 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runActio
     try {
       const response = await runActionRef.current(orderId, action);
       if (action === "print_awb") {
-        const url = pdfUrlFromBase64(response?.pdf_base64);
-        if (printWindow && !printWindow.closed) {
-          printWindow.location.href = url;
-        } else {
-          const link = document.createElement("a");
-          link.href = url;
-          link.target = "_blank";
-          link.rel = "noopener";
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-        }
-        window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+        openPdf(response?.pdf_base64, printWindow);
         patchSelection(orderId, { busy: "", confirming: "", notice: ui.tb("actionDone.print_awb") });
         return;
       }
@@ -888,6 +928,80 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runActio
     }
   }, [selection, patchSelection, actionErrorText, fetchPage, ui]);
 
+  // ---- Multi-select: book or print several orders at once (owner request 2026-09-10).
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [bulk, setBulk] = useState(EMPTY_BULK);
+  const printLabelsRef = useRef(printLabels);
+  printLabelsRef.current = printLabels;
+
+  const selectedOrders = useMemo(() => board.orders.filter((order) => selectedIds.has(String(order.id))), [board.orders, selectedIds]);
+  const creatableOrders = selectedOrders.filter((order) => portalOrderActionsFor(order).includes("create_shipment"));
+  const printableOrders = selectedOrders.filter((order) => portalOrderActionsFor(order).includes("print_awb"));
+  const creatableCollect = creatableOrders.reduce((sum, order) => sum + Number(order.money?.collect_on_delivery || 0), 0);
+
+  const toggleSelect = useCallback((order) => {
+    setBulk((current) => (current.running ? current : { ...current, confirming: false }));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      const key = String(order.id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+  const exitSelectMode = () => {
+    if (bulk.running) return;
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    setBulk(EMPTY_BULK);
+  };
+  const selectAllVisible = () => setSelectedIds(new Set(board.orders.map((order) => String(order.id))));
+
+  const runBulkCreate = async () => {
+    if (bulk.running || !creatableOrders.length || !runActionRef.current) return;
+    if (!bulk.confirming) {
+      setBulk({ ...EMPTY_BULK, confirming: true });
+      return;
+    }
+    // One order per request, in turn: every request stays far inside the 60s server
+    // timeout, Bosta is never hit in parallel, and each result is known as it lands.
+    const targets = creatableOrders;
+    setBulk({ ...EMPTY_BULK, running: "create", total: targets.length });
+    const results = [];
+    for (const [index, order] of targets.entries()) {
+      try {
+        const response = await runActionRef.current(order.id, "create_shipment");
+        results.push({ order, ok: true });
+        if (response?.order) {
+          setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(order.id) ? { ...row, ...response.order } : row)) }));
+        }
+      } catch (error) {
+        results.push({ order, ok: false, reason: actionErrorText(error) });
+      }
+      setBulk((current) => ({ ...current, done: index + 1 }));
+    }
+    setBulk((current) => ({ ...current, running: "", results }));
+    // Keep the ones that failed selected, so fixing and retrying is one tap.
+    setSelectedIds(new Set(results.filter((result) => !result.ok).map((result) => String(result.order.id))));
+    if (boardRef.current.page === 1) void fetchPage({ page: 1, silent: true });
+  };
+
+  const runBulkPrint = async () => {
+    if (bulk.running || !printableOrders.length || !printLabelsRef.current) return;
+    const printWindow = window.open("", "_blank");
+    setBulk({ ...EMPTY_BULK, running: "print" });
+    try {
+      const response = await printLabelsRef.current(printableOrders.map((order) => order.id));
+      openPdf(response?.pdf_base64, printWindow);
+      setBulk({ ...EMPTY_BULK, notice: ui.tb("bulk.printed", { count: ui.count(response?.printed || printableOrders.length) }) });
+    } catch (error) {
+      if (printWindow && !printWindow.closed) printWindow.close();
+      setBulk({ ...EMPTY_BULK, error: actionErrorText(error) });
+    }
+  };
+
+  const canBulk = canAct && Boolean(runAction);
   const counts = board.counts || {};
 
   return (
@@ -918,6 +1032,17 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runActio
         >
           <RefreshCw className={`h-4 w-4 ${board.loading ? "animate-spin" : ""}`} />
         </button>
+        {canBulk ? (
+          <button
+            type="button"
+            onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            aria-pressed={selectMode}
+            className={`inline-flex min-h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-control)] px-3 text-sm font-black ${selectMode ? "bg-primary text-primary-foreground" : "border border-border bg-surface text-text"}`}
+          >
+            <ListChecks className="h-4 w-4" />
+            <span>{selectMode ? ui.tb("bulk.done") : ui.tb("bulk.select")}</span>
+          </button>
+        ) : null}
       </div>
 
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
@@ -979,10 +1104,121 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runActio
       ) : (
         <div className={`grid gap-2.5 md:grid-cols-2 ${board.loading ? "opacity-60" : ""}`}>
           {board.orders.map((order) => (
-            <OrderCard key={order.id} order={order} ui={ui} onOpen={loadSelection} />
+            <OrderCard
+              key={order.id}
+              order={order}
+              ui={ui}
+              onOpen={loadSelection}
+              selectable={selectMode}
+              selected={selectedIds.has(String(order.id))}
+              onToggleSelect={toggleSelect}
+            />
           ))}
         </div>
       )}
+
+      {selectMode ? (
+        <>
+          {/* Room under the last card, so the floating bar never hides it. */}
+          <div className="h-48" aria-hidden="true" />
+          <div
+            className="portal-online-orders-bulkbar fixed inset-x-3 z-[45] mx-auto max-w-2xl rounded-[var(--radius-card)] border border-border bg-surface p-3 text-text shadow-2xl"
+            style={{ bottom: bulkBarOffset }}
+            role="region"
+            aria-label={ui.tb("bulk.select")}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-black">{ui.tb("bulk.selected", { count: ui.count(selectedOrders.length) })}</span>
+              <div className="flex items-center gap-1.5">
+                <button type="button" disabled={Boolean(bulk.running)} onClick={selectAllVisible} className="rounded-[var(--radius-control)] border border-border bg-surface px-2.5 py-1.5 text-xs font-black disabled:opacity-60">
+                  {ui.tb("bulk.selectAll")}
+                </button>
+                <button type="button" disabled={Boolean(bulk.running)} onClick={exitSelectMode} className="inline-flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface disabled:opacity-60" aria-label={ui.tb("actions.close")}>
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {bulk.running === "create" ? (
+              <div className="mt-2.5">
+                <div className="flex items-center gap-2 text-sm font-black">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {ui.tb("bulk.progress", { done: ui.count(bulk.done), total: ui.count(bulk.total) })}
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-soft">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${bulk.total ? Math.round((bulk.done / bulk.total) * 100) : 0}%` }} />
+                </div>
+              </div>
+            ) : bulk.confirming ? (
+              <div className="mt-2.5 rounded-[var(--radius-control)] bg-warning-subtle p-3">
+                <div className="text-sm font-black">{ui.tb("bulk.createConfirmTitle", { count: ui.count(creatableOrders.length) })}</div>
+                <div className="mt-1 text-xs font-bold leading-5">{ui.tb("bulk.createConfirmBody", { amount: ui.money(creatableCollect) })}</div>
+                <div className="mt-2.5 grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => void runBulkCreate()} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground">
+                    <Truck className="h-4 w-4" />
+                    {ui.tb("bulk.createConfirmYes")}
+                  </button>
+                  <button type="button" onClick={() => setBulk(EMPTY_BULK)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black">
+                    {ui.tb("actions.cancel")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2.5 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={!creatableOrders.length || Boolean(bulk.running)}
+                  onClick={() => void runBulkCreate()}
+                  className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground disabled:opacity-50"
+                >
+                  <Truck className="h-4 w-4" />
+                  {ui.tb("bulk.createShipments", { count: ui.count(creatableOrders.length) })}
+                </button>
+                <button
+                  type="button"
+                  disabled={!printableOrders.length || Boolean(bulk.running) || !printLabels}
+                  onClick={() => void runBulkPrint()}
+                  className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black disabled:opacity-50"
+                >
+                  {bulk.running === "print" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                  {ui.tb("bulk.printLabels", { count: ui.count(printableOrders.length) })}
+                </button>
+              </div>
+            )}
+
+            {selectedOrders.length && !creatableOrders.length && !printableOrders.length && !bulk.running ? (
+              <div className="mt-2 text-xs font-bold text-text-muted">{ui.tb("bulk.noneEligible")}</div>
+            ) : null}
+            {bulk.notice ? (
+              <div className="mt-2 flex items-center gap-2 rounded-[var(--radius-control)] bg-success-subtle px-3 py-2 text-xs font-black" role="status">
+                <Check className="h-4 w-4 shrink-0 text-success" />
+                {bulk.notice}
+              </div>
+            ) : null}
+            {bulk.error ? (
+              <div className="mt-2 flex items-start gap-2 rounded-[var(--radius-control)] bg-danger-subtle px-3 py-2 text-xs font-black" role="alert">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+                <span>{bulk.error}</span>
+              </div>
+            ) : null}
+            {bulk.results ? (
+              <div className="mt-2 space-y-1.5" role="status">
+                <div className="flex items-center gap-2 rounded-[var(--radius-control)] bg-success-subtle px-3 py-2 text-xs font-black">
+                  <Check className="h-4 w-4 shrink-0 text-success" />
+                  {ui.tb("bulk.summary", { ok: ui.count(bulk.results.filter((result) => result.ok).length) })}
+                  {bulk.results.some((result) => !result.ok) ? ` · ${ui.tb("bulk.failedCount", { count: ui.count(bulk.results.filter((result) => !result.ok).length) })}` : ""}
+                </div>
+                {bulk.results.filter((result) => !result.ok).map((result) => (
+                  <div key={result.order.id} className="flex items-start gap-2 rounded-[var(--radius-control)] bg-danger-subtle px-3 py-2 text-xs font-bold">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger" />
+                    <span><span dir="ltr" className="font-black">{result.order.order_number}</span> — {result.reason}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
 
       {board.hasMore && !board.error ? (
         <button

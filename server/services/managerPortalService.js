@@ -32,6 +32,7 @@ import { listEmployeePortalRequests, reviewEmployeePortalRequest } from "./emplo
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
+import { shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
 import { attachOperationVariantLabels } from "../utils/operationVariantLabels.js";
 
 const tokenBytes = 32;
@@ -899,8 +900,11 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
   const tenantId = numberOrNull(manager.tenant_id);
   const branchId = branchFilterValue(manager);
   const { windowStart, windowEnd } = await resolveManagerPortalDay();
+  // اليوم is the shop's own day: online orders are counted on أوردرات الشحن only (owner
+  // request 2026-09-10). Set AFTER the ...filters spread so no query string can undo it.
+  const shopOnly = await shopOnlyOrderClause({ alias: "o" });
   const [overview, staffDashboard, lowStock, aiInsights, refillAlerts, paymentBreakdown, leads, attendanceRows] = await Promise.all([
-    getDashboardOverview({ tenantId, filters: { ...filters, branchId: branchId || filters.branchId || null, range: "today", windowStart, windowEnd } }),
+    getDashboardOverview({ tenantId, filters: { ...filters, branchId: branchId || filters.branchId || null, range: "today", windowStart, windowEnd, excludeOnline: true } }),
     getStaffTaskDashboard({ tenantId, branchId }),
     getLowStock({ tenantId, limit: 12 }),
     getAiInsights({ tenantId }),
@@ -949,6 +953,7 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
           ${dayClause}
           ${tenantClause}
           ${branchClause}
+          ${shopOnly}
         `,
         params,
         []
@@ -1681,7 +1686,11 @@ export const getManagerPortalOperations = async ({ manager = {}, query = {} } = 
   ]);
   if (!hasOrders) return { operations: [], summary: emptyOperationsSummary(), range, kind: kindFilter, total: 0 };
 
-  const branchClause = branchId ? "AND o.branch_id = $2::bigint" : "";
+  // اليوم asks with exclude_online=1: its feed is the shop's day, online orders live on
+  // أوردرات الشحن. The operations tab itself still shows everything. The flag only ever
+  // narrows, and the SQL is built here, never taken from the request.
+  const shopOnly = ["1", "true"].includes(lower(query.exclude_online)) ? await shopOnlyOrderClause({ alias: "o" }) : "";
+  const branchClause = `${branchId ? "AND o.branch_id = $2::bigint" : ""}${shopOnly}`;
   const params = branchId ? [tenantId, branchId] : [tenantId];
 
   const cashJoinTemplate = hasCashEvents
@@ -2334,6 +2343,9 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
       orderScopeClause = ` AND o.branch_id = $${orderParams.length}`;
     }
   }
+  // Online orders never reach a till (no shift_id), so they belong to أوردرات الشحن, not
+  // to the day's accounts — and the clause keeps any shop sale that was paid at a till.
+  const shopOnly = await shopOnlyOrderClause({ alias: "o" });
   const orderRows = await safeQuery(
     `
     SELECT
@@ -2352,6 +2364,7 @@ export const getManagerPortalDaySummary = async ({ manager = {}, query = {} } = 
     WHERE ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
       ${personalOrderClause("o")}
+      ${shopOnly}
       ${orderWindowClause}
       ${orderScopeClause}
     ORDER BY o.created_at DESC

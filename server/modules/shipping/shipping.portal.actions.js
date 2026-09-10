@@ -151,3 +151,38 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
   if (key === "print_awb") return result;
   return { order: await deps.loadOrder({ tenantId, orderId: order.id }) };
 };
+
+const BULK_PRINT_LIMIT = 50;
+
+// Several airway bills in one PDF (the board's multi-select). Every id goes through the
+// same tenant + online-order read as a single action; ids that are not the caller's,
+// or have no Bosta parcel yet, are skipped and reported rather than failing the batch.
+// Bulk CREATE is deliberately not here: the board sends those one order per request,
+// so a long batch can never outlive the 60s request timeout while Bosta keeps booking.
+export const runPortalBulkPrint = async ({ actor = {}, surface = "employee_portal", orderIds = [], deps: injected = {} } = {}) => {
+  const deps = { ...defaultDeps, ...injected };
+  const ids = [...new Set((Array.isArray(orderIds) ? orderIds : []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  if (!ids.length) throw actionError(400, "NO_ORDERS_SELECTED", "Select at least one order");
+  if (ids.length > BULK_PRINT_LIMIT) throw actionError(400, "TOO_MANY_ORDERS", `Print at most ${BULK_PRINT_LIMIT} at a time`);
+  const tenantId = actor.tenant_id ?? null;
+  const printable = [];
+  const skipped = [];
+  for (const id of ids) {
+    try {
+      const order = await deps.loadOrder({ tenantId, orderId: id });
+      const hasParcel = Boolean(order.shipment?.tracking_number || order.shipment?.delivery_id);
+      if (hasParcel && normalized(order.shipment?.provider) === "bosta") printable.push(order.id);
+      else skipped.push({ id, order_number: order.order_number, code: "BOSTA_NO_PRINTABLE_LABEL" });
+    } catch (error) {
+      skipped.push({ id, code: error.code || "order_not_found" });
+    }
+  }
+  if (!printable.length) throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "None of the selected orders has a shipment to print", { skipped });
+  const labels = await deps.fetchLabels(printable);
+  Promise.resolve().then(() => deps.audit({
+    employee: actor,
+    action: "online_order_bulk_print_awb",
+    metadata: { order_ids: printable, skipped: skipped.length, surface },
+  })).catch((error) => console.warn("[portal-order-action] audit failed", { message: error?.message }));
+  return { pdf_base64: labels.pdf_base64, content_type: labels.content_type || "application/pdf", printed: printable.length, skipped };
+};

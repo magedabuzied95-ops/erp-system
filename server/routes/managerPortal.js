@@ -53,7 +53,7 @@ import {
 } from "../services/managerPortalService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
-import { runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
+import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -361,6 +361,19 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
   } catch (error) {
     if (!error.status || error.status >= 500) console.error("[manager-portal] online order action error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Action failed", payload: error.payload || null });
+  }
+});
+
+router.post("/:token/online-orders/print-labels", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await runPortalBulkPrint({ actor: manager, surface: "manager_portal", orderIds: req.body?.order_ids });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status || error.status >= 500) console.error("[manager-portal] bulk print error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Print failed", payload: error.payload || null });
   }
 });
 

@@ -896,7 +896,8 @@
       "noName": "عميل بدون اسم",
       "noPhone": "بدون رقم",
       "noAddress": "بدون عنوان",
-      "morePhotos": "+{{count}}"
+      "morePhotos": "+{{count}}",
+      "moreItems": "+{{count}} منتجات أخرى"
     },
     "actions": {
       "call": "اتصال",
@@ -972,7 +973,8 @@
       "cashier": "الكاشير",
       "createdBy": "أنشأه",
       "branch": "الفرع",
-      "timeline": "حركة الأوردر"
+      "timeline": "حركة الأوردر",
+      "article": "الأرتكل"
     },
     "timeline": {
       "created": "تم إنشاء الأوردر",
@@ -1013,7 +1015,9 @@
       "BOSTA_ZERO_COLLECTION": "مبلغ التحصيل صفر — راجع الدفع من صفحة الأوردرات في النظام",
       "BOSTA_NO_PRINTABLE_LABEL": "لا توجد بوليصة للطباعة بعد",
       "BOSTA_AWB_EMPTY": "بوسطة لم ترجع البوليصة — حاول بعد قليل",
-      "ONLINE_ORDERS_ACTIONS_DISABLED": "ليس لديك صلاحية تنفيذ هذا الإجراء"
+      "ONLINE_ORDERS_ACTIONS_DISABLED": "ليس لديك صلاحية تنفيذ هذا الإجراء",
+      "NO_ORDERS_SELECTED": "حدّد أوردر واحد على الأقل",
+      "TOO_MANY_ORDERS": "اطبع 50 بوليصة كحد أقصى في المرة"
     },
     "access": {
       "title": "تجهيز أوردرات الشحن",
@@ -1028,6 +1032,22 @@
       "reload": "تحديث الآن"
     },
     "version": "نسخة {{build}}",
-    "navLabel": "الشحن"
+    "navLabel": "الشحن",
+    "bulk": {
+      "select": "تحديد",
+      "done": "إنهاء",
+      "selectAll": "تحديد الكل",
+      "selected": "تم تحديد {{count}}",
+      "createShipments": "إنشاء شحنات ({{count}})",
+      "printLabels": "طباعة البوالص ({{count}})",
+      "createConfirmTitle": "إنشاء {{count}} شحنة حقيقية مع بوسطة؟",
+      "createConfirmBody": "سيُحصَّل إجمالي {{amount}} من العملاء عند الاستلام، وستصل لكل عميل رسالة واتساب بشحنته.",
+      "createConfirmYes": "نعم، أنشئ الشحنات",
+      "progress": "جاري إنشاء {{done}} من {{total}}…",
+      "summary": "تم إنشاء {{ok}} شحنة",
+      "failedCount": "تعذّر {{count}}",
+      "printed": "تم فتح {{count}} بوليصة للطباعة",
+      "noneEligible": "الأوردرات المحددة ليست جاهزة للشحن ولا عليها بوليصة — أكّد الأوردر أولًا"
+    }
   }
 }

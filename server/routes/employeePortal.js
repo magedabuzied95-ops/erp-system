@@ -56,7 +56,7 @@ import {
 import { getSettingsByCategory } from "../services/settingsService.js";
 import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../services/salesOpportunityService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
-import { runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
+import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -688,6 +688,23 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
   } catch (error) {
     if (!error.status || error.status >= 500) console.error("[employee-portal] online order action error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Action failed", payload: error.payload || null });
+  }
+});
+
+// Several airway bills in one PDF — same switch as the single actions.
+router.post("/:token/online-orders/print-labels", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    if (!(await employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }))) {
+      return res.status(403).json({ success: false, code: "ONLINE_ORDERS_ACTIONS_DISABLED", message: "Not allowed to act on online orders" });
+    }
+    const result = await runPortalBulkPrint({ actor: employee, surface: "employee_portal", orderIds: req.body?.order_ids });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status || error.status >= 500) console.error("[employee-portal] bulk print error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Print failed", payload: error.payload || null });
   }
 });
 

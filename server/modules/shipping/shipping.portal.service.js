@@ -1,6 +1,9 @@
 import db from "../../database/db.js";
 import { displayPublicOrderNumber } from "../../utils/publicOrderNumber.js";
 import { orderCodAmount, orderOwedAmount } from "./shipping.service.js";
+import { buildPortalOnlineSql, loadColumns, tableExists } from "./onlineOrderSql.js";
+
+export { buildPortalOnlineSql };
 
 // "أوردرات الشحن" for the employee and manager portals: every order that leaves the
 // shop in a parcel, whichever door it came in through. There is no single column that
@@ -25,97 +28,6 @@ export const PORTAL_ONLINE_GROUPS = ["new", "confirmed", "shipping", "delivered"
 export const PORTAL_ONLINE_RANGES = ["today", "7d", "30d", "90d", "all"];
 const DEFAULT_RANGE = "30d";
 const PAGE_SIZE = 30;
-
-const ONLINE_ORIGINS = ["website", "storefront", "web", "online", "web_chat", "whatsapp", "instagram", "facebook", "messenger", "tiktok"];
-// A courier value that means "no courier": the shop's own default, or a pickup.
-const NO_COURIER_PROVIDERS = ["", "manual", "in_store_delivery", "none", "pickup", "store_pickup"];
-
-const sqlList = (values) => values.map((value) => `'${value}'`).join(", ");
-const normalizedSql = (expr) => `LOWER(REPLACE(REPLACE(TRIM(COALESCE(${expr}, '')), ' ', '_'), '-', '_'))`;
-
-const COLUMN_CACHE_TTL_MS = 10 * 60 * 1000;
-// Per client, so a test's fake client can never answer for the real pool.
-const schemaCaches = new WeakMap();
-const schemaCacheFor = (client) => {
-  if (!schemaCaches.has(client)) schemaCaches.set(client, { columns: new Map(), tables: new Map() });
-  return schemaCaches.get(client);
-};
-
-const loadColumns = async (table, client = db) => {
-  const cache = schemaCacheFor(client).columns;
-  const cached = cache.get(table);
-  if (cached && Date.now() - cached.at < COLUMN_CACHE_TTL_MS) return cached.columns;
-  const result = await client.query(
-    `SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1`,
-    [table]
-  );
-  const columns = new Set(result.rows.map((row) => row.column_name));
-  cache.set(table, { at: Date.now(), columns });
-  return columns;
-};
-
-const tableExists = async (table, client = db) => {
-  const cache = schemaCacheFor(client).tables;
-  const cached = cache.get(table);
-  if (cached && Date.now() - cached.at < COLUMN_CACHE_TTL_MS) return cached.exists;
-  const result = await client.query("SELECT to_regclass($1) AS regclass", [table]);
-  const exists = Boolean(result.rows[0]?.regclass);
-  cache.set(table, { at: Date.now(), exists });
-  return exists;
-};
-
-// Every expression below is built against the columns this database actually has, so
-// an install that predates a column (origin_surface, ai_agent_conversation_id, the
-// Bosta block) still answers instead of failing the whole page.
-export const buildPortalOnlineSql = (columns) => {
-  const has = (name) => columns.has(name);
-  const col = (name) => (has(name) ? `o.${name}` : "NULL");
-  const firstCol = (...names) => {
-    const present = names.filter(has).map((name) => `NULLIF(TRIM(o.${name}::text), '')`);
-    return present.length ? `COALESCE(${present.join(", ")}, '')` : "''";
-  };
-
-  const trackingExpr = firstCol("shipping_tracking_number", "tracking_number");
-  const shippingStatusExpr = normalizedSql(firstCol("shipment_status", "shipping_status"));
-  const statusExpr = normalizedSql(col("status"));
-  const paymentStatusExpr = normalizedSql(col("payment_status"));
-
-  const originParts = [];
-  if (has("source")) originParts.push(`LOWER(COALESCE(o.source, '')) IN (${sqlList(ONLINE_ORIGINS)})`);
-  if (has("channel")) originParts.push(`LOWER(COALESCE(o.channel, '')) IN (${sqlList(ONLINE_ORIGINS)})`);
-  if (has("origin_surface")) originParts.push(`o.origin_surface IS NOT NULL`);
-  if (has("ai_agent_conversation_id")) originParts.push(`o.ai_agent_conversation_id IS NOT NULL`);
-  if (has("shipping_provider")) originParts.push(`LOWER(COALESCE(o.shipping_provider, '')) NOT IN (${sqlList(NO_COURIER_PROVIDERS)})`);
-  originParts.push(`${trackingExpr} <> ''`);
-  const onlineExpr = `(${originParts.join(" OR ")})`;
-
-  // Order of the branches is the order of precedence: an order that was shipped and
-  // then returned is "closed", not "shipping", because that is where it is now.
-  const groupExpr = `(CASE
-    WHEN ${statusExpr} IN ('cancelled', 'canceled', 'cancelled_by_customer', 'customer_cancelled', 'rejected', 'payment_rejected', 'returned', 'refunded', 'fully_refunded', 'return_completed')
-      OR ${shippingStatusExpr} IN ('returned', 'return', 'cancelled', 'canceled')
-      OR ${paymentStatusExpr} = 'rejected'
-      THEN 'closed'
-    WHEN ${statusExpr} IN ('delivered', 'completed', 'complete')
-      OR ${shippingStatusExpr} IN ('delivered', 'completed', 'complete')
-      THEN 'delivered'
-    WHEN ${statusExpr} IN ('shipment_created', 'shipped', 'shipping_created', 'out_for_delivery', 'in_transit')
-      OR ${shippingStatusExpr} IN ('created', 'shipment_created', 'shipping_created', 'shipped', 'picked', 'picked_up', 'pickup_done', 'in_transit', 'on_the_way', 'out_for_delivery', 'failed', 'failed_delivery', 'delivery_failed')
-      OR ${trackingExpr} <> ''
-      THEN 'shipping'
-    WHEN ${statusExpr} IN ('confirmed', 'paid', 'approved', 'ready_to_ship', 'processing', 'packed', 'ready', 'ready_for_shipping')
-      THEN 'confirmed'
-    ELSE 'new'
-  END)`;
-
-  const liveParts = [];
-  if (has("deleted_at")) liveParts.push("o.deleted_at IS NULL");
-  if (has("is_personal_transaction")) liveParts.push("o.is_personal_transaction IS DISTINCT FROM TRUE");
-  // An AI draft is a conversation that might become an order, not an order.
-  liveParts.push(`${statusExpr} <> 'ai_draft'`);
-
-  return { onlineExpr, groupExpr, liveExpr: liveParts.join(" AND "), trackingExpr };
-};
 
 const rangeClause = (range) => {
   switch (range) {
@@ -184,8 +96,27 @@ const buildBaseWhere = ({ columns, sql, tenantId, range, search }) => {
 
 const itemsForOrders = async (orderIds, client = db) => {
   if (!orderIds.length || !(await tableExists("order_items", client))) return new Map();
-  const [itemColumns, hasVariantImages] = await Promise.all([loadColumns("order_items", client), tableExists("product_variant_images", client)]);
+  const [itemColumns, variantColumns, hasVariantImages, hasColorGroups] = await Promise.all([
+    loadColumns("order_items", client),
+    loadColumns("product_variants", client),
+    tableExists("product_variant_images", client),
+    tableExists("product_color_groups", client),
+  ]);
   const itemCol = (name) => (itemColumns.has(name) ? `NULLIF(TRIM(oi.${name}::text), '')` : "NULL");
+  // Article code has two levels: the size row's own code, else its colour's code (see
+  // shared/articleCode.js) — the same resolution the product pages show.
+  const variantArticleExpr = variantColumns.has("article_code") ? "NULLIF(TRIM(pv.article_code), '')" : "NULL";
+  const colourArticleJoin = hasColorGroups && variantColumns.has("color_group_key")
+    ? `
+    LEFT JOIN LATERAL (
+      SELECT NULLIF(TRIM(pcg.color_article_code), '') AS code
+      FROM product_color_groups pcg
+      WHERE pcg.product_id = pv.product_id
+        AND pcg.color_group_key = pv.color_group_key
+      LIMIT 1
+    ) colour_article ON TRUE`
+    : "";
+  const colourArticleExpr = colourArticleJoin ? "colour_article.code" : "NULL";
   // Same image order as the POS order summary: the line's own snapshot, then the
   // variant, then the colour's gallery, then the product. Both LATERALs are equality
   // lookups, so a page of thirty orders stays one indexed query.
@@ -200,6 +131,7 @@ const itemsForOrders = async (orderIds, client = db) => {
       COALESCE(${itemCol("color")}, NULLIF(pv.color, ''), '') AS color,
       COALESCE(${itemCol("size")}, NULLIF(pv.size, ''), '') AS size,
       COALESCE(${itemCol("sku")}, '') AS sku,
+      COALESCE(${variantArticleExpr}, ${colourArticleExpr}, '') AS article_code,
       COALESCE(oi.quantity, 0)::numeric AS quantity,
       ${itemColumns.has("returned_quantity") ? "COALESCE(oi.returned_quantity, 0)::numeric" : "0::numeric"} AS returned_quantity,
       COALESCE(oi.sale_price, 0)::numeric AS unit_price,
@@ -217,6 +149,7 @@ const itemsForOrders = async (orderIds, client = db) => {
     FROM order_items oi
     LEFT JOIN product_variants pv ON pv.id = oi.variant_id
     LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+    ${colourArticleJoin}
     ${hasVariantImages ? `
     LEFT JOIN LATERAL (
       SELECT pvi.image_url
@@ -255,6 +188,7 @@ const itemsForOrders = async (orderIds, client = db) => {
       color: row.color,
       size: row.size,
       sku: row.sku,
+      article_code: row.article_code || "",
       quantity: number(row.quantity),
       returned_quantity: number(row.returned_quantity),
       unit_price: number(row.unit_price),

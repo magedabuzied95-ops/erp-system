@@ -41,6 +41,8 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "BOSTA_NO_PRINTABLE_LABEL",
   "BOSTA_AWB_EMPTY",
   "ONLINE_ORDERS_ACTIONS_DISABLED",
+  "NO_ORDERS_SELECTED",
+  "TOO_MANY_ORDERS",
 ];
 
 export const pdfUrlFromBase64 = (base64) => {

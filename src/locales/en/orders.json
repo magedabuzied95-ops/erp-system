@@ -896,7 +896,8 @@
       "noName": "Unnamed customer",
       "noPhone": "No phone",
       "noAddress": "No address",
-      "morePhotos": "+{{count}}"
+      "morePhotos": "+{{count}}",
+      "moreItems": "+{{count}} more products"
     },
     "actions": {
       "call": "Call",
@@ -972,7 +973,8 @@
       "cashier": "Cashier",
       "createdBy": "Created by",
       "branch": "Branch",
-      "timeline": "Order history"
+      "timeline": "Order history",
+      "article": "Article"
     },
     "timeline": {
       "created": "Order placed",
@@ -1013,7 +1015,9 @@
       "BOSTA_ZERO_COLLECTION": "The amount to collect is zero — check the payment on the Orders page",
       "BOSTA_NO_PRINTABLE_LABEL": "There is no airway bill to print yet",
       "BOSTA_AWB_EMPTY": "Bosta did not return the airway bill — try again shortly",
-      "ONLINE_ORDERS_ACTIONS_DISABLED": "You are not allowed to do this"
+      "ONLINE_ORDERS_ACTIONS_DISABLED": "You are not allowed to do this",
+      "NO_ORDERS_SELECTED": "Select at least one order",
+      "TOO_MANY_ORDERS": "Print at most 50 airway bills at a time"
     },
     "access": {
       "title": "Handle shipping orders",
@@ -1028,6 +1032,22 @@
       "reload": "Update now"
     },
     "version": "Version {{build}}",
-    "navLabel": "Shipping"
+    "navLabel": "Shipping",
+    "bulk": {
+      "select": "Select",
+      "done": "Done",
+      "selectAll": "Select all",
+      "selected": "{{count}} selected",
+      "createShipments": "Create shipments ({{count}})",
+      "printLabels": "Print airway bills ({{count}})",
+      "createConfirmTitle": "Create {{count}} real Bosta shipments?",
+      "createConfirmBody": "Couriers will collect {{amount}} in total on delivery, and each customer gets a WhatsApp message about their shipment.",
+      "createConfirmYes": "Yes, create them",
+      "progress": "Creating {{done}} of {{total}}…",
+      "summary": "{{ok}} shipments created",
+      "failedCount": "{{count}} failed",
+      "printed": "{{count}} airway bills opened for printing",
+      "noneEligible": "None of the selected orders is ready to ship or has an airway bill — confirm the order first"
+    }
   }
 }

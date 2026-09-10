@@ -1475,7 +1475,7 @@ export default function ManagerPortal() {
       managerPortalApi.sales(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.stockAlerts(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
       managerPortalApi.taskTemplates(token, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
-      managerPortalApi.operations(token, { range: "today", kind: "all", limit: 20 }, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
+      managerPortalApi.operations(token, { range: "today", kind: "all", limit: 20, exclude_online: 1 }, { timeoutMs: MANAGER_PORTAL_DEFERRED_TIMEOUT_MS }),
     ]);
 
     const now = Date.now();
@@ -1685,7 +1685,7 @@ export default function ManagerPortal() {
           managerPortalApi.notifications(token, { limit: 40 }),
           managerPortalApi.stockAlerts(token),
           // Never let the operations feed take the home down with it — the card just stays hidden.
-          managerPortalApi.operations(token, { range: "today", kind: "all", limit: 20 }).catch(() => null),
+          managerPortalApi.operations(token, { range: "today", kind: "all", limit: 20, exclude_online: 1 }).catch(() => null),
         ]);
         setDashboard(normalizeManagerPortalPayload("dashboardReload", dashboardRes?.dashboard || null));
         setNotifications(normalizeManagerPortalPayload("notificationsReload", Array.isArray(notificationsRes?.notifications) ? notificationsRes.notifications : []));
@@ -1850,6 +1850,7 @@ export default function ManagerPortal() {
     return response?.order || null;
   }, [token]);
   const runOnlineOrderAction = useCallback((orderId, action) => managerPortalApi.onlineOrderAction(token, orderId, action), [token]);
+  const printOnlineOrderLabels = useCallback((orderIds) => managerPortalApi.onlineOrdersPrintLabels(token, orderIds), [token]);
 
   useEffect(() => {
     const invoiceId = searchParams.get("invoice_id") || searchParams.get("invoiceId") || "";
@@ -4523,7 +4524,13 @@ export default function ManagerPortal() {
                   </div>
                 </header>
                 <Suspense fallback={<div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
-                  <PortalOnlineOrdersBoard loadList={loadOnlineOrders} loadDetail={loadOnlineOrder} runAction={runOnlineOrderAction} />
+                  <PortalOnlineOrdersBoard
+                    loadList={loadOnlineOrders}
+                    loadDetail={loadOnlineOrder}
+                    runAction={runOnlineOrderAction}
+                    printLabels={printOnlineOrderLabels}
+                    bulkBarOffset={isMobilePortal ? "calc(env(safe-area-inset-bottom) + 5.75rem)" : "1rem"}
+                  />
                 </Suspense>
               </section>
             </div>
