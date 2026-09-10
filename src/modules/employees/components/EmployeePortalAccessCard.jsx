@@ -4,6 +4,58 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 
 import { regenerateEmployeePortalToken } from "../../sales/services/salesEmployeesApi";
+import { getEmployeeOnlineOrdersAccess, setEmployeeOnlineOrdersAccess } from "../services/onlineOrdersAccessApi";
+
+// أوردرات الشحن: every employee can SEE the board; this switch lets one ACT on it
+// (confirm, ready to ship, create the Bosta parcel, print the airway bill).
+function OnlineOrdersAccessToggle({ employeeId }) {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEnabled(null);
+    getEmployeeOnlineOrdersAccess(employeeId)
+      .then((response) => { if (!cancelled) setEnabled(response?.enabled === true); })
+      .catch(() => { if (!cancelled) setEnabled(false); });
+    return () => { cancelled = true; };
+  }, [employeeId]);
+
+  const toggle = async (next) => {
+    setSaving(true);
+    try {
+      const response = await setEmployeeOnlineOrdersAccess(employeeId, next);
+      setEnabled(response?.enabled === true);
+      toast.success(t("orders.portalBoard.access.saved"));
+    } catch (error) {
+      toast.error(error?.message || t("orders.portalBoard.access.failed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <label className="mt-4 flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-white">{t("orders.portalBoard.access.title")}</div>
+        <div className="mt-1 text-xs leading-5 text-zinc-400">{t("orders.portalBoard.access.hint")}</div>
+      </div>
+      <span className="flex shrink-0 items-center gap-2">
+        <span className="text-xs font-black text-white">
+          {enabled === null ? "…" : enabled ? t("orders.portalBoard.access.on") : t("orders.portalBoard.access.off")}
+        </span>
+        <input
+          type="checkbox"
+          className="h-5 w-5 accent-[var(--primary)]"
+          checked={enabled === true}
+          disabled={enabled === null || saving}
+          onChange={(event) => void toggle(event.target.checked)}
+        />
+      </span>
+    </label>
+  );
+}
 
 const QRCodeCanvas = lazy(() => import("qrcode.react").then((module) => ({ default: module.QRCodeCanvas })));
 
@@ -121,6 +173,8 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
           {effectivePortalUrl || (isArabic ? "لم يتم إنشاء رابط بوابة الموظف بعد. اضغط إعادة إنشاء الرابط." : "No employee portal link yet. Generate one below.")}
         </div>
       </div>
+
+      <OnlineOrdersAccessToggle employeeId={employee.id} />
 
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         <button type="button" onClick={copyPortalLink} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">

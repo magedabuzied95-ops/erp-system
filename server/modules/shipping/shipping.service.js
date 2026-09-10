@@ -878,7 +878,10 @@ export const resolveOpenPackagePreference = ({ order = {}, defaultMode = "inheri
 };
 
 const loadOrderShipmentContext = async (client, orderId) => {
-  const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [orderId]);
+  // FOR UPDATE: two creates racing (a double tap, two staff on the portal) would both
+  // read "no live parcel" and book two with the courier. The row lock makes the second
+  // wait for the first to commit, then see its parcel and refuse (BOSTA_SHIPMENT_EXISTS).
+  const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1 FOR UPDATE", [orderId]);
   const order = orderResult.rows[0];
   if (!order) {
     const error = new Error("Order not found");

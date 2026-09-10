@@ -56,6 +56,8 @@ import {
 import { getSettingsByCategory } from "../services/settingsService.js";
 import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../services/salesOpportunityService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
+import { runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
+import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -647,8 +649,11 @@ router.get("/:token/online-orders", async (req, res) => {
     res.set("Cache-Control", "no-store, private");
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    const payload = await listPortalOnlineOrders({ tenantId: employee.tenant_id, query: req.query || {} });
-    return res.json({ success: true, ...payload });
+    const [payload, canAct] = await Promise.all([
+      listPortalOnlineOrders({ tenantId: employee.tenant_id, query: req.query || {} }),
+      employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }),
+    ]);
+    return res.json({ success: true, ...payload, permissions: { can_act: canAct } });
   } catch (error) {
     console.error("[employee-portal] online orders load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
@@ -665,6 +670,24 @@ router.get("/:token/online-orders/:orderId", async (req, res) => {
   } catch (error) {
     if (error.status !== 404) console.error("[employee-portal] online order load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load order" });
+  }
+});
+
+// Confirm / ready to ship / create the Bosta parcel / print its AWB — only for the
+// employees the admin switched on (the list itself stays visible to everyone).
+router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    if (!(await employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }))) {
+      return res.status(403).json({ success: false, code: "ONLINE_ORDERS_ACTIONS_DISABLED", message: "Not allowed to act on online orders" });
+    }
+    const result = await runPortalOrderAction({ actor: employee, surface: "employee_portal", orderId: req.params.orderId, action: req.params.action });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status || error.status >= 500) console.error("[employee-portal] online order action error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Action failed", payload: error.payload || null });
   }
 });
 

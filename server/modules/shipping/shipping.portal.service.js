@@ -431,7 +431,8 @@ export const listPortalOnlineOrders = async ({ tenantId = null, query = {}, clie
 const shipmentTimeline = (order = {}) => {
   const raw = Array.isArray(order.shipment_timeline) ? order.shipment_timeline : [];
   return raw
-    .filter((entry) => entry && typeof entry === "object" && entry.at)
+    // Portal actions are told once, by staffTimeline below, with the person's name.
+    .filter((entry) => entry && typeof entry === "object" && entry.at && !text(entry.action).startsWith("portal_"))
     .map((entry) => ({
       at: entry.at,
       kind: text(entry.action) === "courier_collected" ? "courier_collected" : text(entry.action) === "courier_settled" ? "courier_settled" : "shipment",
@@ -440,10 +441,28 @@ const shipmentTimeline = (order = {}) => {
     }));
 };
 
+// What staff did from the portals, with who did it. The confirmation engine writes a
+// staff confirm under its own action name, the rest are the portal's own.
+const PORTAL_SOURCES = new Set(["employee_portal", "manager_portal"]);
+const STAFF_TIMELINE_KINDS = {
+  customer_confirmed_order: "staff_confirmed",
+  portal_ready_to_ship: "staff_ready_to_ship",
+  portal_bosta_created: "staff_shipment_created",
+};
+
+const staffTimeline = (order = {}) =>
+  (Array.isArray(order.timeline) ? order.timeline : [])
+    .filter((entry) => entry && typeof entry === "object" && entry.at && PORTAL_SOURCES.has(text(entry.source)) && STAFF_TIMELINE_KINDS[text(entry.action)])
+    .map((entry) => ({ at: entry.at, kind: STAFF_TIMELINE_KINDS[text(entry.action)], actor: text(entry.actor) }));
+
 const orderTimeline = (order = {}) => {
   const events = [{ at: order.created_at, kind: "created" }];
+  const staff = staffTimeline(order);
   if (order.whatsapp_confirmation_sent_at) events.push({ at: order.whatsapp_confirmation_sent_at, kind: "confirmation_sent" });
-  if (order.whatsapp_confirmed_at) events.push({ at: order.whatsapp_confirmed_at, kind: "customer_confirmed" });
+  // A staff confirm also stamps whatsapp_confirmed_at; do not tell it twice.
+  const staffConfirmed = staff.some((event) => event.kind === "staff_confirmed" && Math.abs(new Date(event.at) - new Date(order.whatsapp_confirmed_at)) < 120000);
+  if (order.whatsapp_confirmed_at && !staffConfirmed) events.push({ at: order.whatsapp_confirmed_at, kind: "customer_confirmed" });
+  events.push(...staff);
   if (order.whatsapp_cancelled_at) events.push({ at: order.whatsapp_cancelled_at, kind: "customer_cancelled" });
   if (order.cancelled_at) events.push({ at: order.cancelled_at, kind: "cancelled" });
   events.push(...shipmentTimeline(order));

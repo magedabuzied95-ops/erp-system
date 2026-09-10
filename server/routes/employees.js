@@ -14,6 +14,7 @@ import {
   sendBranchPosChatRing,
 } from "../services/employeeChatService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
+import { employeeCanActOnOnlineOrders, setEmployeeOnlineOrdersAccess } from "../modules/shipping/shipping.portal.access.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -285,6 +286,31 @@ router.patch("/:employeeId/payroll-settings", protect, permit("employees", "edit
 router.post("/portal-token/repair-missing", protect, permit("employees", "edit"), repairMissingEmployeePayrollPortalTokens);
 router.post("/:employeeId/portal-token/regenerate", logPortalTokenRegenerateRouteHit, protect, permit("employees", "edit"), regenerateEmployeePayrollPortalToken);
 router.post("/manager-portal-token/repair-missing", protect, permit("employees", "edit"), repairMissingManagerPortalTokensRecord);
+
+// أوردرات الشحن: may this employee confirm / ship / print from their portal?
+router.get("/:employeeId/online-orders-access", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const enabled = await employeeCanActOnOnlineOrders({ employeeId: req.params.employeeId, tenantId: req.user?.tenant_id || req.user?.tenantId || null });
+    return res.json({ success: true, enabled });
+  } catch (error) {
+    console.error("[employees] online orders access read error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load access" });
+  }
+});
+
+router.patch("/:employeeId/online-orders-access", protect, permit("employees", "edit"), async (req, res) => {
+  try {
+    const result = await setEmployeeOnlineOrdersAccess({
+      employeeId: req.params.employeeId,
+      tenantId: req.user?.tenant_id || req.user?.tenantId || null,
+      enabled: req.body?.enabled === true,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employees] online orders access update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update access" });
+  }
+});
 router.post("/:employeeId/manager-portal-token/regenerate", logPortalTokenRegenerateRouteHit, protect, permit("employees", "edit"), regenerateManagerPortalTokenRecord);
 router.get("/:employeeId/penalties", protect, permit("employees", "view"), getEmployeePenalties);
 router.post("/:employeeId/penalties", protect, permit("employees", "edit"), createEmployeePenaltyRecord);

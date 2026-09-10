@@ -53,6 +53,7 @@ import {
 } from "../services/managerPortalService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
+import { runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -329,7 +330,8 @@ router.get("/:token/online-orders", async (req, res) => {
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
     const payload = await listPortalOnlineOrders({ tenantId: manager.tenant_id, query: req.query || {} });
-    return res.json({ success: true, ...payload });
+    // Every manager-portal holder may act (owner decision 2026-09-10).
+    return res.json({ success: true, ...payload, permissions: { can_act: true } });
   } catch (error) {
     console.error("[manager-portal] online orders error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
@@ -346,6 +348,19 @@ router.get("/:token/online-orders/:orderId", async (req, res) => {
   } catch (error) {
     if (error.status !== 404) console.error("[manager-portal] online order error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load order" });
+  }
+});
+
+router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const result = await runPortalOrderAction({ actor: manager, surface: "manager_portal", orderId: req.params.orderId, action: req.params.action });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error.status || error.status >= 500) console.error("[manager-portal] online order action error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Action failed", payload: error.payload || null });
   }
 });
 

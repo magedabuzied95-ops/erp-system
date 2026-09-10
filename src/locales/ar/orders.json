@@ -908,7 +908,15 @@
       "openLabel": "البوليصة",
       "openImage": "عرض الصورة",
       "close": "إغلاق",
-      "back": "رجوع"
+      "back": "رجوع",
+      "confirmOrder": "تأكيد الأوردر",
+      "readyToShip": "جاهز للشحن",
+      "createShipment": "إنشاء شحنة بوسطة",
+      "printAwb": "طباعة البوليصة",
+      "createConfirmTitle": "إنشاء شحنة حقيقية مع بوسطة؟",
+      "createConfirmBody": "سيُرسل الأوردر إلى بوسطة ويُحصَّل {{amount}} من العميل عند الاستلام، وستصل للعميل رسالة واتساب بالشحنة.",
+      "createConfirmYes": "نعم، أنشئ الشحنة",
+      "cancel": "إلغاء"
     },
     "detail": {
       "orderStatus": "حالة الأوردر",
@@ -974,13 +982,46 @@
       "cancelled": "تم إلغاء الأوردر",
       "courier_collected": "المندوب حصّل {{amount}}",
       "courier_settled": "تمت التسوية مع شركة الشحن",
-      "shipment": "الشحنة: {{status}}"
+      "shipment": "الشحنة: {{status}}",
+      "staff_confirmed": "أكّد الأوردر: {{actor}}",
+      "staff_ready_to_ship": "جهّزه للشحن: {{actor}}",
+      "staff_shipment_created": "أنشأ شحنة بوسطة: {{actor}}"
     },
     "providers": {
       "bosta": "بوسطة",
       "in_store_delivery": "توصيل المحل",
       "manual": "يدوي",
       "pickup": "استلام من الفرع"
+    },
+    "actionDone": {
+      "confirm": "تم تأكيد الأوردر",
+      "ready_to_ship": "الأوردر جاهز للشحن",
+      "create_shipment": "تم إنشاء الشحنة مع بوسطة",
+      "print_awb": "تم فتح البوليصة"
+    },
+    "actionErrors": {
+      "generic": "تعذّر تنفيذ الإجراء",
+      "ORDER_NOT_CONFIRMABLE": "لا يمكن تأكيد هذا الأوردر في حالته الحالية",
+      "ORDER_NOT_CONFIRMED": "أكّد الأوردر أولًا",
+      "ORDER_PAST_READY": "الأوردر تجاوز مرحلة التجهيز",
+      "BOSTA_SHIPMENT_EXISTS": "الأوردر عليه شحنة بالفعل",
+      "OTHER_COURIER": "الأوردر محجوز مع شركة شحن أخرى",
+      "BOSTA_DISABLED": "ربط بوسطة متوقف من الإعدادات",
+      "BOSTA_NOT_CONFIGURED": "بيانات ربط بوسطة غير مضبوطة",
+      "BOSTA_ADDRESS_INCOMPLETE": "العنوان ينقصه المحافظة أو المنطقة أو الحي — أكمله من صفحة الأوردرات في النظام",
+      "BOSTA_ADDRESS_TOO_SHORT": "العنوان قصير جدًا — أكمله من صفحة الأوردرات في النظام",
+      "BOSTA_ZERO_COLLECTION": "مبلغ التحصيل صفر — راجع الدفع من صفحة الأوردرات في النظام",
+      "BOSTA_NO_PRINTABLE_LABEL": "لا توجد بوليصة للطباعة بعد",
+      "BOSTA_AWB_EMPTY": "بوسطة لم ترجع البوليصة — حاول بعد قليل",
+      "ONLINE_ORDERS_ACTIONS_DISABLED": "ليس لديك صلاحية تنفيذ هذا الإجراء"
+    },
+    "access": {
+      "title": "تجهيز أوردرات الشحن",
+      "hint": "يسمح للموظف بتأكيد الأوردرات وتجهيزها وإنشاء شحنة بوسطة وطباعة البوليصة من بوابته. بدونه يرى الأوردرات فقط.",
+      "on": "مفعّل",
+      "off": "عرض فقط",
+      "saved": "تم حفظ صلاحية أوردرات الشحن",
+      "failed": "تعذّر حفظ الصلاحية"
     }
   }
 }

@@ -1540,6 +1540,15 @@ export const markOrderConfirmed = async (orderId) => {
   return order;
 };
 
+// A staff member confirmed the order with the customer (usually by phone) from the
+// employee / manager portal. Same engine and same guards as the customer's own tap —
+// only the actor and the source differ — and, like that path, it sends nothing.
+export const markOrderConfirmedByStaff = async ({ orderId, actorName = "", source = "staff_portal" } = {}) => {
+  const order = await applyConfirmationAction({ orderId, action: "confirm", source, actorType: "staff", actorUserName: actorName });
+  if (order) console.info("[order-confirmed-by-staff]", { orderId: order.id, orderNumber: orderNumber(order), source });
+  return order;
+};
+
 export const markOrderCancelled = async (orderId) => {
   const order = await applyConfirmationAction({ orderId, action: "cancel", source: "webhook", actorType: "system" });
   if (order) console.info("[whatsapp:order-cancelled]", { orderId: order.id, orderNumber: orderNumber(order) });

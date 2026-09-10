@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Truck } from "lucide-react";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import PortalOnlineOrdersBoard from "../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard";
-import { getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders } from "../services/employeePortalOnlineOrdersApi";
+import { getEmployeePortalOnlineOrder, getEmployeePortalOnlineOrders, runEmployeePortalOnlineOrderAction } from "../services/employeePortalOnlineOrdersApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 
 // أوردرات الشحن in the employee portal. Every employee sees it (owner decision,
@@ -17,6 +17,8 @@ export default function EmployeePortalOnlineOrders() {
   const dir = String(i18n.resolvedLanguage || i18n.language || "ar").startsWith("ar") ? "rtl" : "ltr";
 
   const loadList = useCallback((params) => getEmployeePortalOnlineOrders(token, params), [token]);
+  // The server decides whether this employee may act (permissions.can_act on the list).
+  const runAction = useCallback((orderId, action) => runEmployeePortalOnlineOrderAction(token, orderId, action), [token]);
   const loadDetail = useCallback(async (orderId) => {
     const response = await getEmployeePortalOnlineOrder(token, orderId);
     return response?.order || null;
@@ -47,7 +49,7 @@ export default function EmployeePortalOnlineOrders() {
           </div>
         </header>
 
-        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} />
+        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} runAction={runAction} />
       </div>
     </main>
   );

@@ -1847,6 +1847,7 @@ export default function ManagerPortal() {
     const response = await managerPortalApi.onlineOrder(token, orderId);
     return response?.order || null;
   }, [token]);
+  const runOnlineOrderAction = useCallback((orderId, action) => managerPortalApi.onlineOrderAction(token, orderId, action), [token]);
 
   useEffect(() => {
     const invoiceId = searchParams.get("invoice_id") || searchParams.get("invoiceId") || "";
@@ -4525,7 +4526,7 @@ export default function ManagerPortal() {
                   </div>
                 </header>
                 <Suspense fallback={<div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
-                  <PortalOnlineOrdersBoard loadList={loadOnlineOrders} loadDetail={loadOnlineOrder} />
+                  <PortalOnlineOrdersBoard loadList={loadOnlineOrders} loadDetail={loadOnlineOrder} runAction={runOnlineOrderAction} />
                 </Suspense>
               </section>
             </div>

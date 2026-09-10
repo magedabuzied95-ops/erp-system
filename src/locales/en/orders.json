@@ -908,7 +908,15 @@
       "openLabel": "Airway bill",
       "openImage": "View image",
       "close": "Close",
-      "back": "Back"
+      "back": "Back",
+      "confirmOrder": "Confirm order",
+      "readyToShip": "Ready to ship",
+      "createShipment": "Create Bosta shipment",
+      "printAwb": "Print airway bill",
+      "createConfirmTitle": "Create a real Bosta shipment?",
+      "createConfirmBody": "The order goes to Bosta, the courier collects {{amount}} from the customer on delivery, and the customer gets a WhatsApp message about the shipment.",
+      "createConfirmYes": "Yes, create it",
+      "cancel": "Cancel"
     },
     "detail": {
       "orderStatus": "Order status",
@@ -974,13 +982,46 @@
       "cancelled": "Order cancelled",
       "courier_collected": "Courier collected {{amount}}",
       "courier_settled": "Settled with the courier",
-      "shipment": "Shipment: {{status}}"
+      "shipment": "Shipment: {{status}}",
+      "staff_confirmed": "Confirmed by {{actor}}",
+      "staff_ready_to_ship": "Marked ready to ship by {{actor}}",
+      "staff_shipment_created": "Bosta shipment created by {{actor}}"
     },
     "providers": {
       "bosta": "Bosta",
       "in_store_delivery": "Shop delivery",
       "manual": "Manual",
       "pickup": "Store pickup"
+    },
+    "actionDone": {
+      "confirm": "Order confirmed",
+      "ready_to_ship": "Order is ready to ship",
+      "create_shipment": "Bosta shipment created",
+      "print_awb": "Airway bill opened"
+    },
+    "actionErrors": {
+      "generic": "Could not complete the action",
+      "ORDER_NOT_CONFIRMABLE": "This order cannot be confirmed in its current status",
+      "ORDER_NOT_CONFIRMED": "Confirm the order first",
+      "ORDER_PAST_READY": "The order is already past this step",
+      "BOSTA_SHIPMENT_EXISTS": "This order already has a shipment",
+      "OTHER_COURIER": "This order is booked with another courier",
+      "BOSTA_DISABLED": "The Bosta integration is turned off in settings",
+      "BOSTA_NOT_CONFIGURED": "The Bosta integration is not configured",
+      "BOSTA_ADDRESS_INCOMPLETE": "The address is missing its city, zone or district — complete it on the Orders page",
+      "BOSTA_ADDRESS_TOO_SHORT": "The address is too short — complete it on the Orders page",
+      "BOSTA_ZERO_COLLECTION": "The amount to collect is zero — check the payment on the Orders page",
+      "BOSTA_NO_PRINTABLE_LABEL": "There is no airway bill to print yet",
+      "BOSTA_AWB_EMPTY": "Bosta did not return the airway bill — try again shortly",
+      "ONLINE_ORDERS_ACTIONS_DISABLED": "You are not allowed to do this"
+    },
+    "access": {
+      "title": "Handle shipping orders",
+      "hint": "Lets this employee confirm orders, mark them ready, create the Bosta shipment and print the airway bill from their portal. Without it they can only view.",
+      "on": "On",
+      "off": "View only",
+      "saved": "Shipping orders access saved",
+      "failed": "Could not save the access"
     }
   }
 }

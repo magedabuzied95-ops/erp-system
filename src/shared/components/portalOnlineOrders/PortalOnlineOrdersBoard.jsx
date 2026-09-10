@@ -12,6 +12,7 @@ import {
   MessageCircle,
   Package,
   Phone,
+  Printer,
   Receipt,
   RefreshCw,
   Search,
@@ -25,6 +26,7 @@ import { formatInAppTimezone } from "../../lib/appTimezone";
 import { resolveProductImageUrl, resolveShippingProofImageUrl } from "../../lib/imageUrls";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
+import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor } from "./portalOrderActions";
 
 // أوردرات الشحن — one board, mounted by both the employee portal (its own page) and
 // the manager portal (a tab). The host only supplies how to fetch; everything the
@@ -415,10 +417,72 @@ function MoneyRow({ label, value, strong = false, tone = "" }) {
 function timelineLabel(event, ui) {
   if (event.kind === "shipment") return ui.tb("timeline.shipment", { status: ui.shippingLabel(event.status) });
   if (event.kind === "courier_collected") return ui.tb("timeline.courier_collected", { amount: ui.money(event.amount) });
+  if (event.kind.startsWith("staff_")) return ui.tb(`timeline.${event.kind}`, { actor: event.actor || "-" });
   return ui.tb(`timeline.${event.kind}`);
 }
 
-function OrderDetailSheet({ selection, ui, onClose, onRetry }) {
+const ACTION_ICON = { confirm: Check, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer };
+const ACTION_LABEL = { confirm: "actions.confirmOrder", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb" };
+
+function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm }) {
+  const actions = portalOrderActionsFor(order);
+  if (!actions.length && !state.notice && !state.actionError) return null;
+  const busy = Boolean(state.busy);
+  return (
+    <div className="portal-online-order-actions border-t border-border bg-surface px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-4">
+      {state.notice ? (
+        <div className="mb-2 flex items-center gap-2 rounded-[var(--radius-control)] bg-success-subtle px-3 py-2 text-xs font-black text-text" role="status">
+          <Check className="h-4 w-4 shrink-0 text-success" />
+          {state.notice}
+        </div>
+      ) : null}
+      {state.actionError ? (
+        <div className="mb-2 flex items-start gap-2 rounded-[var(--radius-control)] bg-danger-subtle px-3 py-2 text-xs font-black text-text" role="alert">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-danger" />
+          <span>{state.actionError}</span>
+        </div>
+      ) : null}
+      {state.confirming === "create_shipment" ? (
+        <div className="rounded-[var(--radius-control)] bg-warning-subtle p-3">
+          <div className="text-sm font-black text-text">{ui.tb("actions.createConfirmTitle")}</div>
+          <div className="mt-1 text-xs font-bold leading-5 text-text">
+            {ui.tb("actions.createConfirmBody", { amount: ui.money(order.money?.collect_on_delivery) })}
+          </div>
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <button type="button" disabled={busy} onClick={() => onAction("create_shipment")} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-primary-foreground disabled:opacity-60">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+              {ui.tb("actions.createConfirmYes")}
+            </button>
+            <button type="button" disabled={busy} onClick={onCancelConfirm} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
+              {ui.tb("actions.cancel")}
+            </button>
+          </div>
+        </div>
+      ) : actions.length ? (
+        <div className={`grid gap-2 ${actions.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+          {actions.map((action, index) => {
+            const Icon = ACTION_ICON[action];
+            const primary = index === 0;
+            return (
+              <button
+                key={action}
+                type="button"
+                disabled={busy}
+                onClick={() => onAction(action)}
+                className={`inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] px-3 text-sm font-black disabled:opacity-60 ${primary ? "bg-primary text-primary-foreground" : "border border-border bg-surface text-text"}`}
+              >
+                {state.busy === action ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                {ui.tb(ACTION_LABEL[action])}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, onAction, onCancelConfirm }) {
   const [imagePreview, setImagePreview] = useState("");
   const order = selection.order || {};
   useEffect(() => {
@@ -649,6 +713,7 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry }) {
             </Section>
           ) : null}
         </div>
+        {canAct ? <OrderActionBar order={order} ui={ui} state={selection} onAction={onAction} onCancelConfirm={onCancelConfirm} /> : null}
       </section>
 
       {imagePreview ? (
@@ -668,8 +733,11 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry }) {
   );
 }
 
-export default function PortalOnlineOrdersBoard({ loadList, loadDetail, className = "" }) {
+export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runAction = null, className = "" }) {
   const ui = useBoardText();
+  const [canAct, setCanAct] = useState(false);
+  const runActionRef = useRef(runAction);
+  runActionRef.current = runAction;
   const [group, setGroup] = useState("all");
   const [range, setRange] = useState(DEFAULT_RANGE);
   const [searchInput, setSearchInput] = useState("");
@@ -701,6 +769,7 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, classNam
       const payload = await loadListRef.current({ group, range, search, page });
       if (requestId !== requestRef.current) return;
       const orders = Array.isArray(payload?.orders) ? payload.orders : [];
+      setCanAct(Boolean(runActionRef.current) && payload?.permissions?.can_act === true);
       setBoard((current) => ({
         orders: page > 1 ? appendById(current.orders, orders) : orders,
         counts: payload?.counts || {},
@@ -760,6 +829,64 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, classNam
   }, []);
 
   const closeSelection = useCallback(() => setSelection(null), []);
+  const patchSelection = useCallback((orderId, patch) => {
+    setSelection((current) => (current && current.id === orderId ? { ...current, ...patch } : current));
+  }, []);
+
+  const actionErrorText = useCallback((error) => {
+    const code = text(error?.responseBody?.code || error?.code);
+    if (PORTAL_ACTION_ERROR_CODES.includes(code)) return ui.tb(`actionErrors.${code}`);
+    const message = text(error?.responseBody?.message || error?.message);
+    return message ? `${ui.tb("actionErrors.generic")} — ${message}` : ui.tb("actionErrors.generic");
+  }, [ui]);
+
+  const handleAction = useCallback(async (action) => {
+    const current = selection;
+    if (!current || !runActionRef.current || current.busy) return;
+    const orderId = current.id;
+    // A Bosta parcel is real (the courier is booked, the customer is messaged), so it
+    // takes a second, explicit tap that shows the amount the courier will collect.
+    if (action === "create_shipment" && current.confirming !== "create_shipment") {
+      patchSelection(orderId, { confirming: "create_shipment", actionError: "", notice: "" });
+      return;
+    }
+    // Opened before the request: a window opened after an await is a popup the browser blocks.
+    const printWindow = action === "print_awb" ? window.open("", "_blank") : null;
+    patchSelection(orderId, { busy: action, actionError: "", notice: "" });
+    try {
+      const response = await runActionRef.current(orderId, action);
+      if (action === "print_awb") {
+        const url = pdfUrlFromBase64(response?.pdf_base64);
+        if (printWindow && !printWindow.closed) {
+          printWindow.location.href = url;
+        } else {
+          const link = document.createElement("a");
+          link.href = url;
+          link.target = "_blank";
+          link.rel = "noopener";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
+        window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+        patchSelection(orderId, { busy: "", confirming: "", notice: ui.tb("actionDone.print_awb") });
+        return;
+      }
+      const nextOrder = response?.order || null;
+      setSelection((existing) => (existing && existing.id === orderId
+        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: ui.tb(`actionDone.${action}`) }
+        : existing));
+      if (nextOrder) {
+        setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(orderId) ? { ...row, ...nextOrder } : row)) }));
+      }
+      // The order may have moved tab; refresh the counts (and the first page) quietly.
+      if (boardRef.current.page === 1) void fetchPage({ page: 1, silent: true });
+    } catch (error) {
+      if (printWindow && !printWindow.closed) printWindow.close();
+      patchSelection(orderId, { busy: "", confirming: "", actionError: actionErrorText(error) });
+    }
+  }, [selection, patchSelection, actionErrorText, fetchPage, ui]);
+
   const counts = board.counts || {};
 
   return (
@@ -875,7 +1002,15 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, classNam
       ) : null}
 
       {selection ? (
-        <OrderDetailSheet selection={selection} ui={ui} onClose={closeSelection} onRetry={() => void loadSelection(selection.order)} />
+        <OrderDetailSheet
+          selection={selection}
+          ui={ui}
+          onClose={closeSelection}
+          onRetry={() => void loadSelection(selection.order)}
+          canAct={canAct}
+          onAction={(action) => void handleAction(action)}
+          onCancelConfirm={() => patchSelection(selection.id, { confirming: "" })}
+        />
       ) : null}
     </div>
   );
