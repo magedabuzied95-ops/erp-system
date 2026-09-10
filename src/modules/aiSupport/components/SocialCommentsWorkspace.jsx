@@ -6,6 +6,8 @@ import {
   Clock3,
   ChevronDown,
   ExternalLink,
+  Eye,
+  EyeOff,
   Image as ImageIcon,
   Loader2,
   MessageCircle,
@@ -26,6 +28,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../../../shared/api/api";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import SocialAutomationDrawer from "./socialAutomation/SocialAutomationDrawer.jsx";
+import { COMMENT_HIDDEN_REASON_LABELS, useCommentVisibility } from "../services/commentVisibility.js";
 import PostProductLinksDrawer from "./socialAutomation/PostProductLinksDrawer.jsx";
 import {
   applyAutomationTemplate,
@@ -1415,6 +1418,25 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   const isHighlighted = highlightedCommentKey === key;
   const nextReplyText = clean(replyDraft || previewReply || suggestedReply);
   const handleSelect = useCallback(() => onSelectComment?.(key), [key, onSelectComment]);
+  // The provider id, the same one the Like and Reply buttons send to Meta — never a local row id.
+  // Computed here from props, not from cardComment below: a hook reading a const declared later in
+  // the render is a temporal-dead-zone crash that takes the whole page down.
+  const visibility = useCommentVisibility(
+    clean(comment.platform || activePostPlatform || "facebook"),
+    resolveSocialCommentActionId(comment)
+  );
+  const handleVisibility = useCallback(
+    async (event) => {
+      event.stopPropagation();
+      try {
+        const entry = await visibility.toggle();
+        if (entry) toast.success(entry.hidden ? "اتخفى الكومنت" : "الكومنت رجع ظاهر");
+      } catch (error) {
+        toast.error(error?.message || "ميتا رفضت تغيير ظهور الكومنت");
+      }
+    },
+    [visibility]
+  );
   const handleReply = useCallback(
     (event) => {
       event.stopPropagation();
@@ -1525,6 +1547,33 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
             {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
             {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
           </button>
+          {/* Drawn only once the real state is known, so it never offers "hide" on a comment that
+              the automation already hid. */}
+          {visibility.enabled && visibility.loaded ? (
+            <>
+              {visibility.hidden ? (
+                <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-300/40 bg-amber-400/15 px-2 text-[11px] font-black text-[var(--text)]">
+                  <EyeOff className="h-3.5 w-3.5" />
+                  مخفي{COMMENT_HIDDEN_REASON_LABELS[visibility.reason] ? ` · ${COMMENT_HIDDEN_REASON_LABELS[visibility.reason]}` : ""}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={handleVisibility}
+                disabled={visibility.saving}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] disabled:opacity-50"
+              >
+                {visibility.saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : visibility.hidden ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
+                {visibility.hidden ? "إظهار" : "إخفاء"}
+              </button>
+            </>
+          ) : null}
         </div>
       </CommentTimelineCard>
     </div>

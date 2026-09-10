@@ -69,6 +69,7 @@ const getSocialCommentAutomationRouteDeps = async () => {
       .then((module) => ({
         listSocialCommentAutomationRuns: module.listRecentSocialCommentAutomationRuns,
         testSocialCommentAutomationRuntime: module.testSocialCommentAutomationRuntime,
+        recordSocialCommentVisibility: module.recordSocialCommentVisibility,
       }))
       .catch((error) => {
         socialCommentAutomationRouteDepsPromise = null;
@@ -1308,6 +1309,86 @@ router.post("/comments/:commentId/auto-reply-send", protect, permit("settings", 
     return res.json({ success: true, result });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to send auto reply" });
+  }
+});
+
+/* Which of these comments are hidden right now. The inbox draws comments from the conversation
+   feed, not from the runs table where hidden state lives, so the hide/unhide button asks here —
+   ONE request for every comment on screen, batched on the client. Threading the column through
+   the conversation projection instead would have meant touching the lean list the whole inbox
+   depends on, for a flag that only this button reads. */
+router.get("/visibility", protect, permit("settings", "view"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const platform = String(req.query?.platform || "").trim().toLowerCase();
+  const ids = String(req.query?.ids || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index)
+    .slice(0, 200);
+  if (!["facebook", "instagram"].includes(platform) || !ids.length) {
+    return res.json({ success: true, visibility: {} });
+  }
+  try {
+    const result = await db.query(
+      `
+      SELECT comment_id, hidden_at, hidden_reason
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND comment_id = ANY($3::text[])
+      `,
+      [tenantId, platform, ids]
+    );
+    const visibility = {};
+    for (const row of result.rows || []) {
+      visibility[row.comment_id] = {
+        hidden: Boolean(row.hidden_at),
+        hidden_at: row.hidden_at || null,
+        reason: row.hidden_reason || "",
+      };
+    }
+    return res.json({ success: true, visibility });
+  } catch (error) {
+    // Before the column exists on a fresh boot this reads as "nothing hidden", never as an error
+    // the inbox has to handle.
+    return res.json({ success: true, visibility: {}, degraded: true, message: error?.message || "" });
+  }
+});
+
+/* Hide or unhide one comment on Meta, by hand. The automation hides on its own (the word filter,
+   and posts that hide customer comments); this is the owner's way back when it was wrong, and the
+   manual hide beside it. The column is updated only after Meta accepts the call, so the UI never
+   shows a comment as visible that is still hidden, or the reverse. */
+router.post("/comments/:commentId/visibility", protect, permit("settings", "edit"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const commentId = String(req.params.commentId || "").trim();
+  const platform = String(req.body?.platform || req.query?.platform || "").trim().toLowerCase();
+  const hidden = req.body?.hidden === true || req.body?.hidden === "true";
+  if (!commentId || !["facebook", "instagram"].includes(platform)) {
+    return res.status(400).json({ success: false, message: "A comment id and a Facebook or Instagram platform are required" });
+  }
+  try {
+    // Both lazily, the way this router already loads the automation service — a top-level import
+    // of it here would close an import cycle through the webhook handlers.
+    const { setCommentHidden } = await import("../services/marketingCommentAutomationService.js");
+    const { recordSocialCommentVisibility } = await getSocialCommentAutomationRouteDeps();
+    await setCommentHidden(platform, commentId, tenantId, hidden);
+    await recordSocialCommentVisibility({ tenantId, platform, commentId, hidden, reason: hidden ? "manual" : "" });
+    return res.json({ success: true, comment_id: commentId, platform, hidden });
+  } catch (error) {
+    const metaMessage = error?.metaResponse?.error?.message || error?.message || "";
+    console.warn("SOCIAL_COMMENT_VISIBILITY_CHANGE_FAILED", {
+      tenant_id: tenantId,
+      platform,
+      comment_id: commentId,
+      hidden,
+      message: metaMessage,
+    });
+    return res.status(error?.status && error.status < 500 ? error.status : 502).json({
+      success: false,
+      message: metaMessage || (hidden ? "Meta refused to hide the comment" : "Meta refused to unhide the comment"),
+    });
   }
 });
 

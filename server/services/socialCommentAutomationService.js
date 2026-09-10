@@ -3994,6 +3994,13 @@ const executeSocialCommentAutomationRuntime = async ({
       stepData: { status: "sent" },
       run: async () => {
         await hideComment(normalizedPlatform, safeCommentId, safeTenantId);
+        await recordSocialCommentVisibility({
+          tenantId: safeTenantId,
+          platform: normalizedPlatform,
+          commentId: safeCommentId,
+          hidden: true,
+          reason: "hide_customer_comments",
+        });
         return { ok: true };
       },
     });
@@ -7205,6 +7212,12 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS resolved_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS duplicate_reason TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_found BOOLEAN NOT NULL DEFAULT FALSE`);
+      // One place that says whether the comment is hidden on Meta right now, and why. Three code
+      // paths hide a comment (the word filter, the per-post switch, and the DM worker) and one
+      // unhides it; without a shared column the UI could not tell which comments get an "unhide"
+      // button. Nullable: NULL means visible, which is every comment that existed before this.
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_reason TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS social_comment_automation_run_audits (
@@ -7544,6 +7557,38 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null, 
    The action is hide, never delete. It is one call to undo and the author still sees their own
    comment, so a false positive costs nothing and never reads as censorship.
    ════════════════════════════════════════════════════════════════════════════════════════════ */
+// Records what Meta was just told. Called only AFTER a hide or unhide call has succeeded, so the
+// column never claims a comment is hidden when the Graph call failed. `hidden_at` keeps the FIRST
+// time a comment was hidden across repeat hides; unhiding clears both columns.
+export const recordSocialCommentVisibility = async ({
+  tenantId = null,
+  platform = "",
+  commentId = "",
+  hidden = true,
+  reason = "",
+} = {}) => {
+  const safeTenantId = Number(tenantId || 0);
+  const safeCommentId = text(commentId);
+  if (!safeTenantId || !safeCommentId) return;
+  await db.query(
+    `
+    UPDATE social_comment_automation_runs
+    SET hidden_at = CASE WHEN $4::boolean THEN COALESCE(hidden_at, CURRENT_TIMESTAMP) ELSE NULL END,
+        hidden_reason = CASE WHEN $4::boolean THEN NULLIF($5::text, '') ELSE NULL END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $3::text
+    `,
+    [safeTenantId, text(platform).toLowerCase(), safeCommentId, hidden === true, text(reason)]
+  ).catch((error) => {
+    console.warn("SOCIAL_COMMENT_VISIBILITY_RECORD_FAILED", {
+      tenant_id: safeTenantId,
+      comment_id: safeCommentId,
+      hidden,
+      message: text(error?.message || ""),
+    });
+  });
+};
+
 export const moderateIncomingSocialComment = async ({ row = {} } = {}) => {
   const miss = { matched: false, hidden: false, word: "", error: "" };
   const tenantId = Number(row?.tenant_id || 0);
@@ -7575,6 +7620,7 @@ export const moderateIncomingSocialComment = async ({ row = {} } = {}) => {
   let error = "";
   try {
     await hideComment(platform, commentId, tenantId);
+    await recordSocialCommentVisibility({ tenantId, platform, commentId, hidden: true, reason: "banned_word" });
   } catch (hideError) {
     error = text(hideError?.message || "hide failed");
   }

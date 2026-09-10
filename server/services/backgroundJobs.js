@@ -4,6 +4,7 @@ import { sendWhatsappNotification } from "../utils/whatsapp.js";
 import { getSocialAutomationSettings } from "./socialAutomationSettingsService.js";
 import {
   persistSocialCommentAutomationState,
+  recordSocialCommentVisibility,
   buildSocialCommentSuggestedReply,
   PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT,
   resolveSocialCommentPublishedProductContext,
@@ -19,6 +20,7 @@ const hideCommentAfterPrivateReply = async ({ payload = {}, tenantId, platform, 
   if (payload?.hideAfterPrivateReply !== true) return;
   try {
     await hideComment(platform, commentId, tenantId);
+    await recordSocialCommentVisibility({ tenantId, platform, commentId, hidden: true, reason: "hide_customer_comments" });
     console.log("SOCIAL_COMMENT_HIDE_AFTER_PRIVATE_REPLY", {
       tenant_id: tenantId,
       platform,
