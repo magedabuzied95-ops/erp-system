@@ -938,6 +938,24 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       const slide = designSlides.find((candidate) =>
         trimString(candidate?.source_product_image_url || candidate?.variant_image_url || candidate?.image_url) === slideSource
       ) || designSlides[index] || {};
+      // Each colour is a slide with its own price. A slide that carries one owns its strike price
+      // too: borrowing the story's would print the first colour's discount on a colour sold at full
+      // price.
+      const slideOwnsPrice = Boolean(slide.current_price || slide.price);
+      const slideOriginalPrice =
+        slide.old_crossed_price ||
+        slide.old_price ||
+        slide.compare_at_price ||
+        slide.original_price ||
+        slide.regular_price ||
+        "";
+      const storyOriginalPrice =
+        story.old_crossed_price ||
+        story.old_price ||
+        story.compare_at_price ||
+        story.original_price ||
+        story.regular_price;
+      const originalPrice = slideOwnsPrice ? slideOriginalPrice : slideOriginalPrice || storyOriginalPrice;
       const slideStory = {
         ...story,
         ...slide,
@@ -945,28 +963,9 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         image_url: slideSource,
         price: slide.current_price || slide.price || story.current_price || story.price,
         current_price: slide.current_price || slide.price || story.current_price || story.price,
-        old_crossed_price:
-          slide.old_crossed_price ||
-          slide.old_price ||
-          slide.compare_at_price ||
-          slide.original_price ||
-          slide.regular_price ||
-          story.old_crossed_price ||
-          story.old_price ||
-          story.compare_at_price ||
-          story.original_price ||
-          story.regular_price,
-        compare_at_price:
-          slide.compare_at_price ||
-          slide.old_crossed_price ||
-          slide.old_price ||
-          slide.original_price ||
-          slide.regular_price ||
-          story.compare_at_price ||
-          story.old_crossed_price ||
-          story.old_price ||
-          story.original_price ||
-          story.regular_price,
+        old_crossed_price: originalPrice,
+        compare_at_price: originalPrice,
+        ...(slideOwnsPrice ? { old_price: "", original_price: "", regular_price: "" } : {}),
         currency: slide.currency || story.currency,
         available_sizes: Array.isArray(slide.available_sizes) && slide.available_sizes.length ? slide.available_sizes : story.available_sizes,
         sizes_label: slide.sizes_label || story.sizes_label,
@@ -977,6 +976,13 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         ...design,
         ...slide,
         image_url: slideSource,
+        ...(slideOwnsPrice ? {
+          old_crossed_price: originalPrice,
+          old_price: "",
+          compare_at_price: originalPrice,
+          original_price: "",
+          regular_price: "",
+        } : {}),
       };
       const storyTheme = resolveDesignedStoryTheme(slideStory, slideDesign);
       const storyText = {

@@ -378,7 +378,9 @@ const normalizeStorySlides = ({ form = {}, design = {}, mediaUrls = [] } = {}) =
     title: slide.title || slide.product_name || base.title,
     price: slide.price || base.price,
     current_price: slide.current_price || slide.price || base.current_price,
-    old_crossed_price: slide.old_crossed_price || slide.original_price || slide.compare_at_price || base.old_crossed_price,
+    // A colour's slide that carries its own price owns its strike price too, so the first
+    // colour's discount never lands on a colour sold at full price.
+    old_crossed_price: slide.old_crossed_price || slide.original_price || slide.compare_at_price || ((slide.current_price || slide.price) ? "" : base.old_crossed_price),
     currency: storyCurrency(slide.currency || base.currency),
     color_name: slide.color_name || slide.color || base.color_name,
     size_name: slide.size_name || slide.size || base.size_name,

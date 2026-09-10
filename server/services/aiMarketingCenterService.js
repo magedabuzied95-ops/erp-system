@@ -1641,8 +1641,19 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
     params
   );
   const saleModeSettings = (await saleModeSettingsPromise) || { sale_mode_enabled: false };
-  return result.rows.map((rawRow) => {
-    const row = normalizeQueueRow(rawRow);
+  const rows = result.rows.map((rawRow) => ({ rawRow, row: normalizeQueueRow(rawRow) }));
+  // Only stories still to go out need each colour's price; a published one is already its pixels.
+  const slidePricing = await fetchStoryVariantPricing(
+    tenantId,
+    rows
+      .filter(({ row }) => row.content_type === "story" && !["published", "archived"].includes(row.status))
+      .flatMap(({ row }) => storySlideVariantIds(row.design_json || {})),
+    saleModeSettings
+  ).catch((error) => {
+    console.warn("[ai-marketing-queue] slide pricing skipped", error?.message || error);
+    return new Map();
+  });
+  return rows.map(({ rawRow, row }) => {
     const currentStock = row.strategy_type === "last_size" && rawRow.current_variant_stock !== null
       ? {
           variant_id: row.variant_id,
@@ -1688,9 +1699,7 @@ export const listAiMarketingQueue = async (tenantId, filters = {}) => {
       design_json: {
         ...design,
         ...priceFields,
-        slides: Array.isArray(design.slides)
-          ? design.slides.map((slide) => ({ ...slide, ...priceFields }))
-          : design.slides,
+        slides: priceStorySlides(design.slides, slidePricing, { current_price: currentPrice, old_crossed_price: originalPrice }),
       },
     };
   });
@@ -1982,12 +1991,16 @@ const hydrateQueueStoryMetadata = async (tenantId, item = {}) => {
   const design = item.design_json || {};
   const isStory = item.content_type === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
   if (!isStory) return item;
-  const [availableSizes, link, pricing] = await Promise.all([
+  const [availableSizes, link, pricing, slidePricing] = await Promise.all([
     fetchAvailableSizesForQueueItem(tenantId, item),
     (!item.product_url || !design.product_url || !design.cta_url || !design.product_slug)
       ? fetchProductLinkForQueueItem(tenantId, item)
       : Promise.resolve(null),
     fetchPricingForQueueItem(tenantId, item),
+    fetchStoryVariantPricing(tenantId, storySlideVariantIds(design)).catch((error) => {
+      console.warn("[story-slide-pricing] fell back to the story price", { storyId: item.id || null, error: error?.message || error });
+      return new Map();
+    }),
   ]);
   const currentPrice = numberValue(pricing?.current_price, 0);
   const originalPrice = numberValue(pricing?.old_crossed_price, 0);
@@ -2002,18 +2015,7 @@ const hydrateQueueStoryMetadata = async (tenantId, item = {}) => {
       original_price: originalPrice,
       compare_at_price: originalPrice,
     } : {}),
-    slides: Array.isArray(nextDesign.slides)
-      ? nextDesign.slides.map((slide) => ({
-          ...slide,
-          price: currentPrice,
-          current_price: currentPrice,
-          ...(originalPrice > currentPrice ? {
-            old_crossed_price: originalPrice,
-            original_price: originalPrice,
-            compare_at_price: originalPrice,
-          } : {}),
-        }))
-      : nextDesign.slides,
+    slides: priceStorySlides(nextDesign.slides, slidePricing, pricing),
   } : nextDesign;
   const hydrated = {
     ...item,
@@ -2248,6 +2250,70 @@ const fetchPricingForQueueItem = async (tenantId, item = {}) => {
 
 const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) =>
   numberValue((await fetchPricingForQueueItem(tenantId, item)).current_price, 0);
+
+// A story is one slide per colour, and colours are priced apart. Spreading the story's price over
+// every slide sent product 61 (Nike Air Force 1) out as six stories all at the first colour's
+// 1,200. Each slide is priced from its own variant_id; the story's price is only the fallback for a
+// slide whose size is gone. The strike price is written even when empty so the first colour's
+// discount cannot survive the spread onto a colour sold at full price.
+const storySlidePriceFields = (pricing = {}) => {
+  const currentPrice = numberValue(pricing.current_price, 0);
+  const originalPrice = numberValue(pricing.old_crossed_price, 0);
+  const strikePrice = originalPrice > currentPrice ? originalPrice : null;
+  return {
+    price: currentPrice,
+    current_price: currentPrice,
+    old_crossed_price: strikePrice,
+    original_price: strikePrice,
+    compare_at_price: strikePrice,
+  };
+};
+
+const storySlideVariantIds = (design = {}) =>
+  Array.isArray(design.slides) ? design.slides.map((slide) => slide?.variant_id) : [];
+
+const priceStorySlides = (slides, variantPricing = new Map(), fallbackPricing = {}) =>
+  Array.isArray(slides)
+    ? slides.map((slide) => {
+        const own = variantPricing.get(String(slide?.variant_id || ""));
+        return { ...slide, ...storySlidePriceFields(numberValue(own?.current_price, 0) > 0 ? own : fallbackPricing) };
+      })
+    : slides;
+
+// The canonical price of every size the slides point at, keyed by variant id — one query for a
+// whole queue page.
+const fetchStoryVariantPricing = async (tenantId, variantIds = [], saleModeSettings = null) => {
+  const ids = Array.from(new Set(variantIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)));
+  if (!ids.length) return new Map();
+  const [result, settings] = await Promise.all([
+    db.query(
+      `
+      WITH ${AD_FEED_PURCHASE_CTES}
+      SELECT
+        p.id,
+        pv.id AS variant_id,
+        ${STORY_PRICE_COLUMNS}
+      FROM product_variants pv
+      JOIN products p ON p.id = pv.product_id
+      ${AD_FEED_PURCHASE_JOINS}
+      WHERE pv.id = ANY($1::bigint[])
+        AND pv.deleted_at IS NULL
+        AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint)
+      `,
+      [ids, tenantId]
+    ),
+    saleModeSettings ? Promise.resolve(saleModeSettings) : getWebsiteSettings({ tenantId }),
+  ]);
+  return new Map(result.rows.map((row) => {
+    const product = { id: row.id, ...storyProductPriceFields(row), sale_mode_settings: settings };
+    const variant = { id: row.variant_id, ...storyVariantPriceFields(row) };
+    const currentPrice = getProductPrice(product, variant);
+    return [String(row.variant_id), {
+      current_price: currentPrice,
+      old_crossed_price: getProductOriginalPrice(product, variant, currentPrice),
+    }];
+  }));
+};
 
 const getCurrentVariantStock = async (tenantId, variantId) => {
   const normalizedVariantId = Number(variantId);
@@ -3027,7 +3093,29 @@ const storyItemPriceStamp = (item = {}) => {
   const design = item.design_json || {};
   const current = numberValue(item.current_price || design.current_price || item.price || design.price || design.product_price, 0);
   const compare = numberValue(item.old_crossed_price || design.old_crossed_price || item.original_price || design.original_price || design.compare_at_price, 0);
-  return `${current}|${compare > current ? compare : 0}`;
+  const stamp = `${current}|${compare > current ? compare : 0}`;
+  // Every colour is its own slide at its own price, read the way storyImageService does: a slide
+  // that carries a price owns its strike price too. A story whose slides all match the story keeps
+  // the one-price stamp, so it is not re-rendered for nothing.
+  const slideStamps = (Array.isArray(design.slides) ? design.slides : []).filter(Boolean).map((slide) => {
+    const slideOwnsPrice = Boolean(slide.current_price || slide.price);
+    const slideCurrent = slideOwnsPrice ? numberValue(slide.current_price || slide.price, 0) : current;
+    const slideCompareOwn = numberValue(slide.old_crossed_price || slide.old_price || slide.compare_at_price || slide.original_price || slide.regular_price, 0);
+    const slideCompare = slideOwnsPrice ? slideCompareOwn : slideCompareOwn || compare;
+    return `${slideCurrent}|${slideCompare > slideCurrent ? slideCompare : 0}`;
+  });
+  return slideStamps.every((slideStamp) => slideStamp === stamp) ? stamp : [stamp, ...slideStamps].join(";");
+};
+
+// The design slide a rendered slide was drawn from — the same lookup storyImageService uses
+// (source image first, position second), so the colour, variant and price saved beside each image
+// are the ones printed on it even when the cover photo dropped out of the source list.
+const storyDesignSlideForSource = (slides, source = "", index = 0) => {
+  const designSlides = Array.isArray(slides) ? slides : [];
+  const target = cleanText(source);
+  return (target && designSlides.find((candidate) =>
+    cleanText(candidate?.source_product_image_url || candidate?.variant_image_url || candidate?.image_url) === target
+  )) || designSlides[index] || {};
 };
 
 const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = false } = {}) => {
@@ -3257,7 +3345,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       asset_id: `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     }))).map((slide, index) => ({
-      ...(Array.isArray(design.slides) ? design.slides[index] || {} : {}),
+      ...storyDesignSlideForSource(design.slides, slide.source_product_image_url || rawImages[index], index),
       ...slide,
       image_url: slide.rendered_asset_url || slide.image_url,
       rendered_asset_url: slide.rendered_asset_url || slide.image_url,
@@ -3307,7 +3395,9 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     story_asset_snapshot: snapshot,
     story_asset_snapshots: snapshots,
     story_asset_generated_at: generatedAt,
-    story_asset_price_stamp: priceStamp,
+    // Stamped from the slides actually drawn: a cover photo dropped from the sources must not leave
+    // its price in the stamp, or the next publish would re-render an image that is already right.
+    story_asset_price_stamp: storyItemPriceStamp({ ...item, design_json: nextDesign }),
     generation_stage: "ready",
   };
   const updated = await db.query(
@@ -4972,6 +5062,8 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
       slides: media.media_urls.map((url, slideIndex) => {
         const slideVariant = usableVariants(product).find((row) => variantMediaUrls(row).includes(url)) || variant || null;
         const slideAvailableSizes = contentType === "story" ? availableSizesForVariantGroup(product, slideVariant) : [];
+        const slidePrice = slideVariant ? getProductPrice(product, slideVariant) || price : price;
+        const slideOriginalPrice = slideVariant ? getProductOriginalPrice(product, slideVariant, slidePrice) : originalPrice;
         return {
           image_url: url,
           ...(contentType === "post" ? { cta_text: cta } : {}),
@@ -4982,13 +5074,7 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
           product_slug: storyProductSlug,
           product_url: storyProductUrl,
           cta_url: storyProductUrl,
-          price,
-          current_price: price,
-          ...(originalPrice > price ? {
-            old_crossed_price: originalPrice,
-            original_price: originalPrice,
-            compare_at_price: originalPrice,
-          } : {}),
+          ...storySlidePriceFields({ current_price: slidePrice, old_crossed_price: slideOriginalPrice }),
           variant_id: slideVariant?.id || null,
           color_name: cleanText(slideVariant?.color || ""),
           size_name: cleanText(slideVariant?.size || ""),
@@ -6676,6 +6762,9 @@ export const __aiMarketingCenterTestHooks = {
   storyProductPriceFields,
   storyVariantPriceFields,
   storyItemPriceStamp,
+  makeFocusedCreative,
+  priceStorySlides,
+  storyDesignSlideForSource,
   queueItemStoryPayload,
   currentStoryGeneratedAssetUrls,
   isStoryAssetBoundToCurrentItem,

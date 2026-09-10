@@ -93,7 +93,8 @@ test("a story image rendered at another price is re-rendered before it is publis
 
   const ensure = source.slice(source.indexOf("const ensureQueueStoryRenderedAsset"), source.indexOf("export const generateAiMarketingQueueStoryAsset"));
   assert.match(ensure, /if \(renderedPriceStamp === priceStamp\) return normalizeQueueRow\(item\);/);
-  assert.match(ensure, /story_asset_price_stamp: priceStamp,/);
+  // Stamped from the slides actually drawn, so each colour's price is part of the stamp.
+  assert.match(ensure, /story_asset_price_stamp: storyItemPriceStamp\(\{ \.\.\.item, design_json: nextDesign \}\),/);
 });
 
 test("every story price query reads the canonical inputs, never a hand-rolled line", () => {

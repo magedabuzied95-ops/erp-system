@@ -188,7 +188,10 @@ test("AI center hydrates every story slide with storefront compare pricing and c
   assert.match(centerSource, /\$\{STORY_PRICE_COLUMNS\}/);
   assert.match(centerSource, /current_price: price/);
   assert.match(centerSource, /compare_at_price: originalPrice/);
-  assert.match(centerSource, /design\.slides\.map\(\(slide\) => \(\{ \.\.\.slide, \.\.\.priceFields \}\)\)/);
+  // Each colour's slide is priced from its own variant, never the story's one price spread over all.
+  assert.match(centerSource, /slides: priceStorySlides\(design\.slides, slidePricing,/);
+  assert.match(centerSource, /slides: priceStorySlides\(nextDesign\.slides, slidePricing, pricing\)/);
+  assert.doesNotMatch(centerSource, /design\.slides\.map\(\(slide\) => \(\{ \.\.\.slide, \.\.\.priceFields \}\)\)/);
   assert.doesNotMatch(centerSource, /!rawRow\.preview_product_price && !rawRow\.preview_product_selling_price/);
   assert.match(rendererSource, /slide\.old_crossed_price/);
   assert.match(rendererSource, /slide\.compare_at_price/);
