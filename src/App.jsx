@@ -214,6 +214,7 @@ const Permissions = lazy(() => import("./modules/permissions/pages/Permissions")
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
+import PortalUpdateWatcher from "./shared/components/PortalUpdateWatcher";
 
 /* ======================================================
    FORBIDDEN
@@ -442,6 +443,7 @@ function App() {
     console.debug("[employee-app-route-hit]", employeeAppToken);
     return (
       <DebugErrorBoundary titleKey="common.errorBoundary.employeeAppCrashed">
+        <PortalUpdateWatcher />
         <Suspense fallback={<RouteSkeleton />}>
           <Routes>
             <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
@@ -464,6 +466,7 @@ function App() {
     <FeatureFlagProvider poll={enableErpAppRoutes}>
     <TenantProvider>
     <DebugErrorBoundary titleKey="common.errorBoundary.appCrashed">
+    <PortalUpdateWatcher />
     <Suspense fallback={<RouteSkeleton />}>
     <Routes>
 

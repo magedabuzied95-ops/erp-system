@@ -1022,6 +1022,11 @@
       "off": "View only",
       "saved": "Shipping orders access saved",
       "failed": "Could not save the access"
-    }
+    },
+    "update": {
+      "available": "A new version of the system is available",
+      "reload": "Update now"
+    },
+    "version": "Version {{build}}"
   }
 }

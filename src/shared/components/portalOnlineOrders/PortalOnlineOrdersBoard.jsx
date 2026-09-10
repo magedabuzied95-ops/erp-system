@@ -27,6 +27,7 @@ import { resolveProductImageUrl, resolveShippingProofImageUrl } from "../../lib/
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
 import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor } from "./portalOrderActions";
+import { currentBuildId } from "../../lib/portalBuildUpdate";
 
 // أوردرات الشحن — one board, mounted by both the employee portal (its own page) and
 // the manager portal (a tab). The host only supplies how to fetch; everything the
@@ -998,6 +999,8 @@ export default function PortalOnlineOrdersBoard({ loadList, loadDetail, runActio
       {board.loadedAt ? (
         <div className="text-center text-[11px] font-bold text-text-muted">
           {ui.tb("updatedAt", { time: formatInAppTimezone(board.loadedAt, { hour: "numeric", minute: "2-digit" }, ui.language === "ar" ? "ar-EG" : "en-GB") })}
+          {/* Which deployment this phone is running — a screenshot then answers "is it updated?". */}
+          {currentBuildId() ? <span dir="ltr"> · {ui.tb("version", { build: currentBuildId().slice(0, 7) })}</span> : null}
         </div>
       ) : null}
 
