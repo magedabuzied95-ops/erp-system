@@ -61,28 +61,38 @@ test("an unresolved variant falls back to its own stored purchase and sale price
   );
 });
 
-test("purchase price matches on variant id OR normalized color, with no precedence between them", () => {
-  // Both match modes must be alternatives inside ONE candidate set. A tiered design
-  // (exact variant first, color only as a fallback) would silently change prices,
-  // because a newer color-matched purchase legitimately outranks an older
-  // variant-id-matched one.
+test("a size's own purchase line outranks a colour line, and a colour line only reaches sizes with no price", () => {
+  // Owner decision, 2026-09-10: a size's own price is the price. The colour branch used to
+  // compete with the variant branch on recency alone, so restocking ONE size at a new price
+  // repriced every sibling size of that colour online (product 293: sizes 31-35 went from their
+  // own 650 to the restocked size's 400) while POS, the AI and both ad feeds kept 650.
+  // Simulated on production over all 8,809 sizes before the change: 0 disagree, 0 lose a price.
   assert.equal(matchBranches.length, 2, "the two match modes must form exactly one UNION ALL");
   assert.doesNotMatch(matchesSql, /\bUNION\b(?!\s+ALL)/, "UNION ALL is required; UNION would collapse distinct candidates");
   assert.doesNotMatch(matchesSql, /NOT EXISTS/, "no branch may be gated on the absence of the other");
 
   const [variantBranch, colorBranch] = matchBranches;
 
-  // Variant-id mode: keyed on the purchase item's variant, scoped to the same product.
+  // Variant-id mode: keyed on the purchase item's variant, scoped to the same product, rank 0.
   assert.match(variantBranch, /ON cr_variant\.variant_id = cpi\.pi_variant_id AND cr_variant\.product_id = cpi\.product_id/);
   assert.doesNotMatch(variantBranch, /match_color/, "the variant-id branch must not depend on color");
+  assert.match(variantBranch, /\b0 AS match_rank\b/);
 
-  // Color mode: keyed on normalized color, scoped to the same product.
+  // Color mode: keyed on normalized color, scoped to the same product, rank 1 ...
   assert.match(colorBranch, /JOIN candidate_rows cr_color ON cr_color\.product_id = cpi\.product_id/);
   assert.match(colorBranch, /cpi\.match_color = LOWER\(TRIM\(pv_color\.color\)\)/);
-  assert.doesNotMatch(colorBranch, /cpi\.pi_variant_id/, "the color branch must not depend on the variant id");
+  assert.match(colorBranch, /\b1 AS match_rank\b/);
+  // ... and gated: a line that names a size stays on that size, unless neither the size nor its
+  // product carries any price of its own (57 sizes are sellable only through the colour).
+  assert.match(colorBranch, /AND \( cpi\.pi_variant_id IS NULL OR \(/);
+  for (const alias of ["pv_color", "p_color"]) {
+    assert.match(
+      colorBranch,
+      new RegExp(`CASE WHEN ${alias}\\.manual_price_override_active THEN NULLIF\\(${alias}\\.manual_selling_price, 0\\) END, NULLIF\\(${alias}\\.purchase_selling_price, 0\\), NULLIF\\(${alias}\\.selling_price, 0\\), NULLIF\\(${alias}\\.price, 0\\), NULLIF\\(${alias}\\.regular_price, 0\\) \\) IS NULL`),
+      `${alias} must be checked for a price of its own across every Phase 1 tier`,
+    );
+  }
 
-  // Both branches must project the identical ordering key, which is what makes them
-  // compete on equal terms in the resolver below.
   for (const branch of matchBranches) {
     assert.match(branch, /cpi\.pu_created_at/);
     assert.match(branch, /cpi\.pi_id/);
@@ -100,12 +110,12 @@ test("color matching is LOWER/TRIM normalized on both sides and ignores empty me
   assert.match(colorBranch, /LOWER\(TRIM\(pv_color\.color\)\)/, "the variant color must be normalized the same way");
 });
 
-test("the newest qualifying purchase item wins, with a deterministic tie-break", () => {
+test("the size's own line wins first, then the newest qualifying line, with a deterministic tie-break", () => {
   assert.match(resolverSql, /SELECT DISTINCT ON \(variant_pk\)/, "exactly one row per variant");
   assert.match(
     resolverSql,
-    /ORDER BY variant_pk, pu_created_at DESC NULLS LAST, pi_id DESC/,
-    "recency first, then a unique-key tie-break",
+    /ORDER BY variant_pk, match_rank ASC, pu_created_at DESC NULLS LAST, pi_id DESC/,
+    "own line before colour line, then recency, then a unique-key tie-break",
   );
   assert.doesNotMatch(
     resolverSql,

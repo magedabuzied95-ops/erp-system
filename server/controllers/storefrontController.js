@@ -1654,6 +1654,7 @@ ${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${whe
   candidate_purchase_matches AS (
     SELECT
       cr_variant.variant_id AS variant_pk,
+      0 AS match_rank,
       cpi.pu_created_at,
       cpi.pi_id,
       cpi.purchase_selling_price,
@@ -1666,8 +1667,19 @@ ${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${whe
     WHERE (cpi.pi_tenant_id = p_variant.tenant_id OR cpi.pi_tenant_id IS NULL)
       AND (cpi.pu_tenant_id = p_variant.tenant_id OR cpi.pu_tenant_id IS NULL)
     UNION ALL
+    /*
+      A size's own price is the price (owner decision, 2026-09-10). This branch used to hand every
+      size of a colour the newest invoice line of THAT colour — including a line that names one
+      specific size — so restocking size 33 of product 293 at 400 repriced its sizes 31-35 from
+      their own 650 to 400 online, while POS, the AI and both ad feeds said 650: 31 sizes on 7
+      products disagreed. A line now spreads across the colour only when it names no size, or
+      when the size AND its product have no price of their own (57 sizes are sellable only that
+      way). Simulated on production against all 8,809 sizes before shipping: 0 disagree, 0 lose
+      their price.
+    */
     SELECT
       cr_color.variant_id AS variant_pk,
+      1 AS match_rank,
       cpi.pu_created_at,
       cpi.pi_id,
       cpi.purchase_selling_price,
@@ -1681,6 +1693,21 @@ ${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${whe
     JOIN products p_color ON p_color.id = cr_color.product_id
     WHERE (cpi.pi_tenant_id = p_color.tenant_id OR cpi.pi_tenant_id IS NULL)
       AND (cpi.pu_tenant_id = p_color.tenant_id OR cpi.pu_tenant_id IS NULL)
+      AND (
+        cpi.pi_variant_id IS NULL
+        OR (
+          COALESCE(
+            CASE WHEN pv_color.manual_price_override_active THEN NULLIF(pv_color.manual_selling_price, 0) END,
+            NULLIF(pv_color.purchase_selling_price, 0), NULLIF(pv_color.selling_price, 0),
+            NULLIF(pv_color.price, 0), NULLIF(pv_color.regular_price, 0)
+          ) IS NULL
+          AND COALESCE(
+            CASE WHEN p_color.manual_price_override_active THEN NULLIF(p_color.manual_selling_price, 0) END,
+            NULLIF(p_color.purchase_selling_price, 0), NULLIF(p_color.selling_price, 0),
+            NULLIF(p_color.price, 0), NULLIF(p_color.regular_price, 0)
+          ) IS NULL
+        )
+      )
   ),
   last_color_purchase_price AS (
     SELECT DISTINCT ON (variant_pk)
@@ -1690,7 +1717,8 @@ ${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${whe
       purchase_selling_price,
       purchase_sale_price
     FROM candidate_purchase_matches
-    ORDER BY variant_pk, pu_created_at DESC NULLS LAST, pi_id DESC
+    -- The size's own invoice line outranks a colour line, however much newer the colour line is.
+    ORDER BY variant_pk, match_rank ASC, pu_created_at DESC NULLS LAST, pi_id DESC
   )${fast ? `,
   -- One grouped pass over order_items for every candidate product, replacing the
   -- per-product correlated subquery in the default projection. Restricted to the
