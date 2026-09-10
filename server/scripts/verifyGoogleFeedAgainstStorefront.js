@@ -74,7 +74,10 @@ await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pool.length) }, asy
         if (pagePrice !== item.price) problems.push(`price feed ${item.price} vs page ${pagePrice}`);
         const pageInStock = String(schema.offers?.availability || "").toLowerCase().includes("instock");
         const feedInStock = item.availability === "instock";
-        if (pageInStock !== feedInStock) problems.push(`availability feed ${item.availability} vs page ${pageInStock ? "instock" : "outofstock"}`);
+        // Only one direction is a defect. The feed item is ONE size and the page speaks for the
+        // whole product, so "feed out of stock, page in stock" is just the product's other sizes.
+        // The reverse — advertising something the page itself calls unavailable — is real.
+        if (feedInStock && !pageInStock) problems.push("feed says in stock, the page says out of stock");
         if (JSON.stringify(schema).includes("[object Object]")) problems.push("schema carries an [object Object] url");
       }
       const image = await fetch(item.image, { method: "HEAD" });
