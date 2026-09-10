@@ -83,10 +83,12 @@ const tt = (key, options) => i18n.t(key, options);
 // Locale for numbers/dates follows the PORTAL language, not a fixed ar-EG.
 const portalLocale = () => (String(i18n.resolvedLanguage || i18n.language || "ar").startsWith("ar") ? "ar-EG" : "en-GB");
 
-const TABS = ["today", "staff", "tasks", "sales", "chat", "inventory", "more"];
+// أوردرات الشحن took the chat's place in the bottom bar (owner request 2026-09-10);
+// the chat moved to المزيد and stays reachable by URL and by its notifications.
+const TABS = ["today", "staff", "tasks", "sales", "shipping", "inventory", "more"];
 // Reachable by URL and by notification, but deliberately not in the bottom bar —
 // seven thumb targets is already the ceiling on a phone.
-const SECONDARY_TABS = ["notifications", "operations", "shipping"];
+const SECONDARY_TABS = ["notifications", "operations", "chat"];
 const OPERATION_KINDS = ["all", "exchange", "return", "edit", "delete"];
 // A deleted invoice is the one operation that removes money from the day rather than
 // moving it, so it never borrows the amber "edit" tone — it reads as red on sight.
@@ -2537,7 +2539,7 @@ export default function ManagerPortal() {
                 onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)}
                 className={`flex w-full items-center justify-between rounded-[var(--radius-control)] px-3 py-3 text-sm font-black transition ${ activeTab === tab ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "bg-white text-slate-700" }`}
               >
-                <span>{tab === "today" ? tt("managerPortal.common.today") : tab === "staff" ? tt("managerPortal.nav.team") : tab === "tasks" ? tt("managerPortal.nav.tasks") : tab === "sales" ? tt("managerPortal.sections.sales") : tab === "chat" ? tt("managerPortal.nav.chat") : tab === "inventory" ? tt("managerPortal.nav.stockCount") : tab === "notifications" ? tt("managerPortal.alerts.settings") : tt("managerPortal.nav.more")}</span>
+                <span>{tab === "today" ? tt("managerPortal.common.today") : tab === "staff" ? tt("managerPortal.nav.team") : tab === "tasks" ? tt("managerPortal.nav.tasks") : tab === "sales" ? tt("managerPortal.sections.sales") : tab === "shipping" ? tt("orders.portalBoard.navLabel") : tab === "chat" ? tt("managerPortal.nav.chat") : tab === "inventory" ? tt("managerPortal.nav.stockCount") : tab === "notifications" ? tt("managerPortal.alerts.settings") : tt("managerPortal.nav.more")}</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
             ))}
@@ -4186,7 +4188,7 @@ export default function ManagerPortal() {
               <Card title={tt("managerPortal.settings.title")} subtitle={tt("managerPortal.nav.more")} icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="manager-portal-more-actions grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
-                    { key: "shipping", label: tt("orders.portalBoard.entry"), icon: Truck, tone: "bg-emerald-500/15 text-emerald-500", onClick: () => setActiveTab("shipping") },
+                    { key: "chat", label: tt("managerPortal.nav.chat"), icon: MessageSquare, tone: "bg-emerald-500/15 text-emerald-500", onClick: () => setActiveTab("chat") },
                     { key: "alerts", label: tt("managerPortal.settings.alerts"), icon: Bell, tone: "bg-amber-500/15 text-amber-500", badge: unreadCount, onClick: () => setActiveTab("notifications") },
                     { key: "operations", label: tt("managerPortal.operations.title"), icon: ArrowLeftRight, tone: "bg-sky-500/15 text-sky-500", onClick: () => setActiveTab("operations") },
                     { key: "appearance", label: tt("managerPortal.settings.appearance"), sub: theme.mode === "dark" ? tt("managerPortal.settings.themeDark") : tt("managerPortal.settings.themeLight"), icon: theme.mode === "dark" ? SunMedium : Moon, tone: "bg-slate-500/15 text-slate-500", onClick: () => setTheme(theme.mode === "dark" ? "light" : "dark") },
@@ -4507,11 +4509,6 @@ export default function ManagerPortal() {
 
           {activeTab === "shipping" ? (
             <div className="manager-portal-tab manager-portal-tab--shipping space-y-4">
-              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
-                <Settings className="h-4 w-4" />
-                {tt("managerPortal.settings.back")}
-              </button>
-
               {/* Deliberately not the Card component: ManagerPortal.m1.css forces --text onto every bold
                   element inside .manager-portal-card in dark mode, which would wash out the
                   board's gold pills. The board is theme-token-only and needs no shell rules. */}
@@ -4724,8 +4721,8 @@ export default function ManagerPortal() {
         <div className="grid grid-cols-7 gap-0.5 px-1.5 py-1.5">
           {TABS.map((tab) => {
             const active = activeTab === tab;
-            const label = tab === "today" ? tt("managerPortal.common.today") : tab === "staff" ? tt("managerPortal.nav.team") : tab === "tasks" ? tt("managerPortal.nav.tasks") : tab === "sales" ? tt("managerPortal.sections.sales") : tab === "chat" ? tt("managerPortal.nav.chat") : tab === "inventory" ? tt("managerPortal.nav.stockCount") : tt("managerPortal.nav.more");
-            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "chat" ? MessageSquare : tab === "inventory" ? ClipboardCheck : Settings;
+            const label = tab === "today" ? tt("managerPortal.common.today") : tab === "staff" ? tt("managerPortal.nav.team") : tab === "tasks" ? tt("managerPortal.nav.tasks") : tab === "sales" ? tt("managerPortal.sections.sales") : tab === "shipping" ? tt("orders.portalBoard.navLabel") : tab === "chat" ? tt("managerPortal.nav.chat") : tab === "inventory" ? tt("managerPortal.nav.stockCount") : tt("managerPortal.nav.more");
+            const icon = tab === "today" ? Store : tab === "staff" ? Users : tab === "tasks" ? ClipboardList : tab === "sales" ? ShoppingCart : tab === "shipping" ? Truck : tab === "chat" ? MessageSquare : tab === "inventory" ? ClipboardCheck : Settings;
             const Icon = icon;
             return (
               <button key={tab} type="button" data-testid={`tab-${tab}`} onClick={() => tab === "inventory" ? openInventoryApprovals() : setActiveTab(tab)} className={`relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-control)] px-1 py-1.5 text-[9px] font-black leading-[1.2] transition ${active ? "bg-[linear-gradient(180deg,#ffffff,#e2e8f0)] text-slate-950 shadow-sm" : "text-slate-300"}`}>

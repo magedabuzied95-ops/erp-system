@@ -1027,6 +1027,7 @@
       "available": "نسخة جديدة من النظام متاحة",
       "reload": "تحديث الآن"
     },
-    "version": "نسخة {{build}}"
+    "version": "نسخة {{build}}",
+    "navLabel": "الشحن"
   }
 }

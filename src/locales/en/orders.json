@@ -1027,6 +1027,7 @@
       "available": "A new version of the system is available",
       "reload": "Update now"
     },
-    "version": "Version {{build}}"
+    "version": "Version {{build}}",
+    "navLabel": "Shipping"
   }
 }
