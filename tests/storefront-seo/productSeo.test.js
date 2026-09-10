@@ -135,3 +135,55 @@ test("a relative and an absolute row for the same file become one image", () => 
     "https://api.m1store-egy.com/uploads/products/other.jpg",
   ]);
 });
+
+// Product 293 in production: the product row says 400, its Mint sizes sell at 650, and the ad
+// for Mint links with ?color=Mint.
+const multiPriceProduct = {
+  ...baseProduct,
+  final_price: 400,
+  image_url: "https://images.example/default.jpg",
+  variants: [
+    { id: 1, color: "Mint", size: "40", stock: 2, final_price: 650, image_url: "https://images.example/mint.jpg" },
+    { id: 2, color: "Mint", size: "41", stock: 0, final_price: 650 },
+    { id: 3, color: "Pink", size: "40", stock: 0, final_price: 400, image_url: "https://images.example/pink.jpg" },
+  ],
+};
+
+test("a colour named in the link makes the offer speak for that colour", () => {
+  const seo = buildProductSeo(multiPriceProduct, { color: "mint" });
+  assert.equal(seo.productJsonLd.offers.price, "650.00");
+  assert.equal(seo.productJsonLd.offers.availability, "https://schema.org/InStock");
+  assert.equal(seo.productJsonLd.offers.url, "https://m1store-egy.com/product/nike-air-force-1-sneakers?color=Mint");
+  assert.equal(seo.productJsonLd.color, "Mint");
+  assert.equal(seo.productJsonLd.image[0], "https://images.example/mint.jpg");
+  // The canonical never carries the colour: one indexed page per product.
+  assert.equal(seo.canonical, "https://m1store-egy.com/product/nike-air-force-1-sneakers");
+});
+
+test("a colour that is out of stock is reported out of stock, not the product's other colours", () => {
+  const seo = buildProductSeo(multiPriceProduct, { color: "Pink" });
+  assert.equal(seo.productJsonLd.offers.price, "400.00");
+  assert.equal(seo.productJsonLd.offers.availability, "https://schema.org/OutOfStock");
+});
+
+test("no colour, or a colour the product does not have, keeps the product-wide offer", () => {
+  for (const color of ["", "Purple"]) {
+    const seo = buildProductSeo(multiPriceProduct, { color });
+    assert.equal(seo.productJsonLd.offers.price, "400.00");
+    assert.equal(seo.productJsonLd.offers.url, "https://m1store-egy.com/product/nike-air-force-1-sneakers");
+    assert.equal(seo.productJsonLd.color, "Mint, Pink");
+  }
+});
+
+test("the page handler passes ?color= through to the schema", async () => {
+  const { createStorefrontProductSeoPageHandler } = await import("../../server/services/storefrontProductSeoPageService.js");
+  const handler = createStorefrontProductSeoPageHandler({
+    loadProduct: async () => ({ status: 200, product: multiPriceProduct }),
+    loadShell: async () => "<html><head><title>x</title></head><body></body></html>",
+  });
+  let sent = "";
+  const res = { set() { return this; }, status() { return this; }, send(body) { sent = body; return this; } };
+  await handler({ params: { identifier: "nike-air-force-1-sneakers" }, query: { color: "Mint" } }, res, (error) => { throw error; });
+  assert.match(sent, /"price":"650\.00"/);
+  assert.match(sent, /\?color=Mint/);
+});

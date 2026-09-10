@@ -68,7 +68,19 @@ export const splitProductKeywords = (value = "") => {
   return unique(source.map(text)).slice(0, 15);
 };
 
-export const buildProductSeo = (product = {}) => {
+// The ad feeds are per colourway and link with ?color=. Nine products price their colourways
+// differently on purpose (Air Force 1 runs 900–1,850 by quality), so a Product schema that quotes
+// one product-wide price disagrees with the ad that brought the crawler there. When the link names
+// a colour this product has, the offer speaks for that colour: its price, its stock, its photo.
+// An unknown colour is ignored rather than trusted, and the canonical stays the bare product url.
+const variantsForColor = (variants = [], color = "") => {
+  const wanted = text(color).toLowerCase();
+  if (!wanted) return null;
+  const matching = variants.filter((variant) => text(variant.color || variant.color_name).toLowerCase() === wanted);
+  return matching.length ? matching : null;
+};
+
+export const buildProductSeo = (product = {}, { color = "" } = {}) => {
   const name = text(product.name || product.title);
   const brand = text(product.brand_name || product.brand || product.product_brand);
   const category = text(product.category || product.category_name || product.product_type);
@@ -81,12 +93,16 @@ export const buildProductSeo = (product = {}) => {
   );
   const title = buildProductSeoTitle(product);
   const url = productCanonicalUrl(product);
+  const allVariants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
+  const colorVariants = variantsForColor(allVariants, color);
+  const selectedColor = colorVariants ? text(colorVariants[0].color || colorVariants[0].color_name) : "";
+  const variants = colorVariants || allVariants;
   const images = unique([
+    ...(colorVariants ? colorVariants.map((variant) => mediaUrl(variant.image_url || variant.image)) : []),
     product.og_image_url,
     product.image_url,
     ...(Array.isArray(product.gallery_images) ? product.gallery_images : []),
   ].map(mediaUrl));
-  const variants = (Array.isArray(product.variants) ? product.variants : []).filter(Boolean);
   const sellableVariants = variants.filter((variant) => Number(variant.stock || 0) > 0);
   const available = variants.length
     ? sellableVariants.length > 0
@@ -105,15 +121,16 @@ export const buildProductSeo = (product = {}) => {
     priceCurrency: "EGP",
     availability,
     itemCondition: "https://schema.org/NewCondition",
-    url,
+    url: selectedColor ? `${url}?color=${encodeURIComponent(selectedColor)}` : url,
   };
   // Google merchant listings require Offer. AggregateOffer is supported only
   // for product snippets, so keep the schema price aligned with the initial
-  // price displayed on this product page.
+  // price displayed on this product page. A named colour's own price wins over the
+  // product-wide one: that is the price its page shows and the ad quoted.
   const offers = {
     "@type": "Offer",
     ...offerBase,
-    price: Number(fallbackPrice || prices[0] || 0).toFixed(2),
+    price: Number((colorVariants ? prices[0] || fallbackPrice : fallbackPrice || prices[0]) || 0).toFixed(2),
   };
   const merchantPolicies = product.merchant_policies || product.merchantPolicies || {};
   const shippingDetails = Array.isArray(merchantPolicies.shippingDetails) ? merchantPolicies.shippingDetails : [];
