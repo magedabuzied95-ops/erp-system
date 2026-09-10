@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import db from "../database/db.js";
 import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
+import { resolveProductAudience } from "./productAudienceResolver.js";
 
 export const GOOGLE_FEED_URL = "https://m1store-egy.com/feeds/google.xml";
 export const GOOGLE_FEED_TTL_MS = 24 * 60 * 60 * 1000;
@@ -73,16 +74,6 @@ const productIdentifier = (row = {}) => {
 const productLink = (row = {}) => {
   const identifier = productIdentifier(row);
   return identifier ? `${STOREFRONT_URL}/product/${encodeURIComponent(identifier)}` : "";
-};
-
-const normalizeAudience = (row = {}) => {
-  const raw = text(row.variant_audience || row.product_gender || parseArray(row.product_audiences)[0]).toLowerCase();
-  if (["men", "man", "male", "mens", "رجال", "رجالي"].includes(raw)) return { gender: "male", age_group: "adult" };
-  if (["women", "woman", "female", "ladies", "lady", "نساء", "نسائي", "حريمي"].includes(raw)) return { gender: "female", age_group: "adult" };
-  if (["kids", "kid", "children", "child", "boys", "girls", "اطفال", "أطفال", "طفل"].includes(raw)) {
-    return { gender: "unisex", age_group: "kids" };
-  }
-  return { gender: "", age_group: "" };
 };
 
 const gtinIsValid = (value = "") => {
@@ -161,7 +152,7 @@ export const buildGoogleMerchantItem = (row = {}) => {
     .map((url) => publicHttpsUrl(url))
     .filter((url) => url && url !== primaryImage);
   const categories = resolveMetaProductCategories(row);
-  const audience = normalizeAudience(row);
+  const audience = resolveProductAudience(row);
   const gtin = gtinIsValid(row.variant_barcode) ? text(row.variant_barcode) : "";
   const mpn = text(row.variant_article_code);
   const brand = text(row.brand_name);

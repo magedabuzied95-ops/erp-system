@@ -103,7 +103,7 @@ test("XML contains one escaped Google category tag and preserves pricing and con
   const output = metaCatalogItemXml(item);
 
   assert.equal(item.id, "SKU-20");
-  assert.equal(item.item_group_id, "10");
+  assert.equal(item.item_group_id, "10-black");
   assert.equal(item.price, "700.00 EGP");
   assert.equal(item.sale_price, "500.00 EGP");
   assert.equal((output.match(/<g:google_product_category>/g) || []).length, 1);

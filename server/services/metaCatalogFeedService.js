@@ -2,6 +2,7 @@ import db from "../database/db.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 import { resolveMetaProductCategories } from "./metaProductCategoryResolver.js";
+import { resolveProductAudience } from "./productAudienceResolver.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -42,12 +43,20 @@ const pickPrice = (...values) => {
   return 0;
 };
 
+// Gallery entries are stored either as plain urls or as objects, and String({}) used to
+// ship "[object Object]" to Meta as an image link.
+const galleryImageUrl = (entry) => {
+  if (typeof entry === "string") return text(entry);
+  if (!entry || typeof entry !== "object") return "";
+  return text(entry.url || entry.image_url || entry.imageUrl || entry.secure_url || entry.src || entry.path);
+};
+
 const parseGalleryImages = (value) => {
-  if (Array.isArray(value)) return value.map(text).filter(Boolean);
+  if (Array.isArray(value)) return value.map(galleryImageUrl).filter(Boolean);
   if (!value) return [];
   try {
     const parsed = typeof value === "string" ? JSON.parse(value) : value;
-    return Array.isArray(parsed) ? parsed.map(text).filter(Boolean) : [];
+    return Array.isArray(parsed) ? parsed.map(galleryImageUrl).filter(Boolean) : [];
   } catch {
     return [];
   }
@@ -73,11 +82,31 @@ const productIdentifier = (row = {}) => {
   return text(row.product_id);
 };
 
+// A colourway is what an ad promotes: its own photo, its own title, its sizes as the
+// variants inside it. Grouping by product alone let Meta pick one colour and bury the rest.
+const colorGroupKey = (value = "") => {
+  const color = text(value).toLowerCase();
+  if (!color) return "";
+  const ascii = color.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (ascii) return ascii;
+  return Buffer.from(color, "utf8").toString("hex").slice(0, 16);
+};
+
+export const metaItemGroupId = (row = {}) => {
+  const productId = text(row.product_id);
+  const colorKey = colorGroupKey(row.color);
+  return colorKey ? `${productId}-${colorKey}` : productId;
+};
+
 const buildMetaProductUrl = (row = {}, { storefrontUrl = "" } = {}) => {
   const identifier = productIdentifier(row);
   if (!identifier) return "";
   const base = text(storefrontUrl).replace(/\/+$/g, "");
-  const path = `/product/${encodeURIComponent(identifier)}`;
+  // The storefront honours ?color=, so the card lands on the colourway it advertised
+  // instead of whichever colour the product page defaults to.
+  const color = text(row.color);
+  const query = color ? `?color=${encodeURIComponent(color)}` : "";
+  const path = `/product/${encodeURIComponent(identifier)}${query}`;
   return base ? `${base}${path}` : path;
 };
 
@@ -130,6 +159,10 @@ const queryMetaCatalogRows = async () => {
       ) AS facebook_product_category,
       p.brand_id,
       b.name AS brand_name,
+      -- Read through to_jsonb so a tenant whose lazy column ensure never ran keeps a
+      -- working feed instead of a 500 on every Meta crawl.
+      to_jsonb(p)->>'gender' AS product_gender,
+      to_jsonb(pv)->>'audience' AS variant_audience,
       pv.id AS variant_id,
       pv.sku AS variant_sku,
       vsc.sku_count,
@@ -213,7 +246,10 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
   const brand = text(row.brand_name || "M1 Store");
   const color = text(row.color);
   const size = text(row.size);
-  const titleParts = [row.product_name, color, size].map(text).filter(Boolean);
+  // The size lives in <g:size>, never in the title: Meta prints the title on the ad card,
+  // and "Nike V2K - White & Pink - 39" reads like a stockroom row to a customer.
+  const titleParts = [row.product_name, color].map(text).filter(Boolean);
+  const audience = resolveProductAudience(row);
   const sellingPrice = resolveMetaCatalogCurrentPrice(row);
   const comparePrice = resolveMetaCatalogComparePrice(row, sellingPrice);
   const categories = resolveMetaProductCategories(row);
@@ -221,7 +257,7 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
   const productImage = absoluteUrl(row.product_image_url, backendUrl);
   const image = absoluteUrl(row.primary_color_image || row.variant_image_url || row.product_image_url, backendUrl) || fallbackImage;
   const gallery = [
-    ...(Array.isArray(row.color_gallery) ? row.color_gallery : []),
+    ...(Array.isArray(row.color_gallery) ? row.color_gallery.map(galleryImageUrl).filter(Boolean) : []),
     ...parseGalleryImages(row.gallery_images),
   ]
     .map((url) => absoluteUrl(url, backendUrl))
@@ -229,7 +265,7 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
 
   const item = {
     id,
-    item_group_id: productId,
+    item_group_id: metaItemGroupId(row),
     title: titleParts.join(" - "),
     description: text(row.description || row.product_name),
     link: buildMetaProductUrl(row, { storefrontUrl }),
@@ -241,7 +277,10 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
     brand,
     color,
     size,
+    gender: audience.gender,
+    age_group: audience.age_group,
     google_product_category: categories.googleProductCategory,
+    fb_product_category: categories.facebookProductCategory,
   };
   if (comparePrice > sellingPrice && sellingPrice > 0) {
     item.sale_price = formatPrice(sellingPrice);
@@ -263,10 +302,10 @@ export const metaCatalogItemXml = (item) => {
 ${additionalImages ? `${additionalImages}\n` : ""}      <g:availability>${xml(item.availability)}</g:availability>
       <g:price>${xml(item.price)}</g:price>
 ${item.sale_price ? `      <g:sale_price>${xml(item.sale_price)}</g:sale_price>\n` : ""}      <g:brand>${xml(item.brand)}</g:brand>
-${item.google_product_category ? `      <g:google_product_category>${xml(item.google_product_category)}</g:google_product_category>\n` : ""}      <g:currency>${xml(item.currency)}</g:currency>
+${item.google_product_category ? `      <g:google_product_category>${xml(item.google_product_category)}</g:google_product_category>\n` : ""}${item.fb_product_category ? `      <g:fb_product_category>${xml(item.fb_product_category)}</g:fb_product_category>\n` : ""}      <g:currency>${xml(item.currency)}</g:currency>
       <g:color>${xml(item.color)}</g:color>
       <g:size>${xml(item.size)}</g:size>
-      <g:condition>new</g:condition>
+${item.gender ? `      <g:gender>${xml(item.gender)}</g:gender>\n` : ""}${item.age_group ? `      <g:age_group>${xml(item.age_group)}</g:age_group>\n` : ""}      <g:condition>new</g:condition>
     </item>`;
 };
 
