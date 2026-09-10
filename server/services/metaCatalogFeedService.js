@@ -237,8 +237,11 @@ const queryMetaCatalogRows = async () => {
   return result.rows || [];
 };
 
-// Keep this priority in parity with resolveProductDetailsPricing in ProductDetails.jsx.
-// Meta intentionally ignores all sale_price fields, including stale variant values.
+// The size's own price, by the canonical Phase 1 contract — the same answer the storefront,
+// POS, the AI and the Google feed give. This used to swap a size's legacy price for the
+// PRODUCT's, to match the back-office ProductDetails page; owner decision 2026-09-10 is that the
+// size's own price is correct, and product 293 was advertised at 400 on every size while its
+// sizes sell at 650. Sale prices are decided later, by resolveMetaCatalogActivePrice.
 export const resolveMetaCatalogCurrentPrice = (row = {}) => {
   const product = {
     manual_selling_price: row.product_manual_selling_price,
@@ -256,10 +259,7 @@ export const resolveMetaCatalogCurrentPrice = (row = {}) => {
     price: row.variant_price,
     regular_price: row.variant_regular_price,
   };
-  const resolved = resolveCurrentSellingPrice({ product, variant });
-  const productLegacy = numberValue(product.selling_price) || numberValue(product.price) || numberValue(product.regular_price);
-  if (resolved.source === "variant_legacy_price" && productLegacy) return productLegacy;
-  return resolved.value;
+  return resolveCurrentSellingPrice({ product, variant }).value;
 };
 
 /*

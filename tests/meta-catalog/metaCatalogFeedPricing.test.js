@@ -48,7 +48,12 @@ test("missing or invalid compare-at price sends current price only", () => {
   }
 });
 
-test("Nike stale variant sale 550 cannot override current 650 and compare-at 900", () => {
+test("a dormant variant sale 550 never reaches the feed, and the size's own price is advertised", () => {
+  // The size carries its own 900 while the product row says 650. The storefront has always
+  // charged such a size its own price (its resolver is size-first); this feed used to swap in
+  // the product's 650 and so advertised less than checkout took. Owner decision 2026-09-10: the
+  // size's own price is correct. The stored 550 is dormant (no offer, Sale Mode off) and must
+  // never appear.
   const row = baseRow({
     product_name: "Nike Air Jordan 1 Low",
     variant_sku: "NAJ-J1-M-LOC-BLK-32",
@@ -64,14 +69,13 @@ test("Nike stale variant sale 550 cannot override current 650 and compare-at 900
   const item = buildMetaCatalogItem(row);
   const xml = metaCatalogItemXml(item);
 
-  assert.equal(resolveMetaCatalogCurrentPrice(row), 650);
-  assert.equal(resolveMetaCatalogComparePrice(row), 900);
+  assert.equal(resolveMetaCatalogCurrentPrice(row), 900);
   assert.equal(item.id, "NAJ-J1-M-LOC-BLK-32");
   assert.equal(item.price, "900.00 EGP");
-  assert.equal(item.sale_price, "650.00 EGP");
+  // A compare price equal to the selling price is not a discount: no strikethrough.
+  assert.equal(Object.hasOwn(item, "sale_price"), false);
   assert.match(xml, /<g:id>NAJ-J1-M-LOC-BLK-32<\/g:id>/);
   assert.match(xml, /<g:price>900\.00 EGP<\/g:price>/);
-  assert.match(xml, /<g:sale_price>650\.00 EGP<\/g:sale_price>/);
   assert.equal(xml.includes("550.00 EGP"), false);
   assert.equal(xml.includes("<g:sale_price_effective_date>"), false);
 });

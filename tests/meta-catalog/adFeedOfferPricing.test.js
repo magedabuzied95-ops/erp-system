@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildMetaCatalogItem, resolveMetaCatalogActivePrice } from "../../server/services/metaCatalogFeedService.js";
+import { buildMetaCatalogItem, resolveMetaCatalogActivePrice, resolveMetaCatalogCurrentPrice } from "../../server/services/metaCatalogFeedService.js";
 import { resolveGoogleFeedPricing } from "../../server/services/googleMerchantFeedService.js";
 
 // Product 568 in production: priced only by its purchase invoice, sitting in العروض with a
@@ -126,4 +126,31 @@ test("a manual override outranks the purchase-invoice price in BOTH feeds", asyn
   assert.equal(resolveGoogleFeedPricing(row).active_price, 1700);
   assert.equal(resolveGoogleFeedPricing(row).sale_price, 1700);
   assert.equal(resolveGoogleFeedPricing(row).price, 2300);
+});
+
+test("a size's own price is advertised, not the product row's", () => {
+  // Product 293: the product row says 400, sizes 31/32/34/35 carry their own 650, and since
+  // a195289 the storefront charges each size its own price. The Meta feed used to swap a
+  // size's legacy price for the product's and advertised 400 on every size.
+  const row = {
+    product_id: 293,
+    variant_id: 5217,
+    product_name: "Nike Sneakers",
+    product_type: "Sneakers",
+    color: "Mint",
+    size: "31",
+    variant_stock: 1,
+    product_selling_price: 400,
+    product_price: 650,
+    variant_selling_price: 650,
+    variant_price: 650,
+  };
+  assert.equal(resolveMetaCatalogCurrentPrice(row), 650);
+  assert.equal(resolveMetaCatalogActivePrice(row), 650);
+  assert.equal(resolveGoogleFeedPricing(row).active_price, 650);
+
+  // A size with no price of its own still falls back to the product.
+  const priceless = { ...row, variant_selling_price: 0, variant_price: 0 };
+  assert.equal(resolveMetaCatalogCurrentPrice(priceless), 400);
+  assert.equal(resolveGoogleFeedPricing(priceless).active_price, 400);
 });
