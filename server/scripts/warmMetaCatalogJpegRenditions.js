@@ -11,6 +11,7 @@
 import db from "../database/db.js";
 import { buildMetaCatalogFeed } from "../services/metaCatalogFeedService.js";
 import {
+  metaCatalogImageUrl,
   needsCatalogJpegRendition,
   warmMetaCatalogImageRenditions,
 } from "../services/metaImageCompatService.js";
@@ -34,7 +35,10 @@ console.log(JSON.stringify({
   distinct_images: sources.size,
   images_meta_cannot_read: unreadable.length,
   ...summary,
-  still_unreadable_in_feed: (feed.xml.match(/<g:image_link>[^<]*\.webp<\/g:image_link>/g) || []).length,
+  // Re-resolved, not read off feed.xml: that xml was built before the
+  // conversions ran, so counting it reports the work as still undone.
+  still_unreadable: (await Promise.all(unreadable.map((url) => metaCatalogImageUrl(url))))
+    .filter((url, index) => url === unreadable[index]).length,
   duration_ms: Date.now() - startedAt,
 }, null, 2));
 
