@@ -32,6 +32,7 @@ import {
 } from "./aiConversationMemory.js";
 import { ensureAiConversationMemorySchema } from "./aiConversationMemoryService.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
+import { firstInboundImageUrl, recogniseProductFromImage } from "./aiVisualProductRecognitionService.js";
 import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
@@ -79,6 +80,20 @@ const int = (value, fallback = 0) => {
 };
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const asArray = (value) => (Array.isArray(value) ? value : []);
+
+// An attachment with no caption reaches the inbox as a placeholder the channel wrote, not as
+// something the customer said — "📷 صورة" on WhatsApp, "[صورة]" from the Evolution reader. Those
+// words must not be mistaken for a question, and equally a REAL caption ("عندكم ده مقاس ٤٣؟")
+// must not be thrown away in favour of what a photo looks like. Only a placeholder, or nothing at
+// all, means the picture is the whole message.
+const MEDIA_PLACEHOLDER_WORDS = "صورة|صوره|فيديو|ملف|مرفق|ملصق|رسالة صوتية|image|photo|video|file|sticker|voice note";
+export const messageIsOnlyMediaPlaceholder = (value = "") => {
+  const trimmed = text(value);
+  if (!trimmed) return true;
+  // ️ (variation selector) and ‍ (ZWJ) ride along with emoji like 🖼️ and are not
+  // themselves Extended_Pictographic — without them "🖼️ ملصق" reads as a real sentence.
+  return new RegExp(`^[\\p{Extended_Pictographic}\\uFE0F\\u200D\\s]*\\[?\\s*(?:${MEDIA_PLACEHOLDER_WORDS})\\s*\\]?\\s*$`, "iu").test(trimmed);
+};
 const clonePipelineDebug = (value) => (value && typeof value === "object" ? JSON.parse(JSON.stringify(value)) : null);
 const normalizeProductCardsValue = (value) => {
   if (value == null) return [];
@@ -5868,8 +5883,51 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
     messageText: typedMessage,
     attachments: asArray(voiceRow?.attachments),
   });
-  const lastMessage = resolvedInbound.text || typedMessage;
+  let lastMessage = resolvedInbound.text || typedMessage;
   const voiceTranscription = resolvedInbound.source === "voice_transcript" ? resolvedInbound.transcription : null;
+
+  // ── A customer who sends a PHOTO instead of typing ───────────────────────────────────────────
+  // Same wall the voice note hit: every stage below matches on WORDS. An uncaptioned image is
+  // stored as the placeholder "📷 صورة", so understanding, retrieval and the grounding gate all
+  // ran against that — and a shoe sitting in our own stock resolved to no product at all.
+  //
+  // So do for a picture what transcription does for a voice note: turn it into the words the
+  // pipeline needs. Recognise the image, then hand the pipeline the product we matched, and every
+  // stage runs exactly as it does for a typed question — including the grounding gate, which
+  // stays authoritative, and the per-colour `color_choices` the employee ticks and approves.
+  // Nothing here decides a product on its own, and an unrecognised photo changes nothing at all.
+  const inboundImageUrl = firstInboundImageUrl(asArray(latestCustomerRow?.attachments));
+  let visualRecognition;
+  if (inboundImageUrl && messageIsOnlyMediaPlaceholder(lastMessage)) {
+    visualRecognition = await recogniseProductFromImage({
+      tenantId,
+      imageUrl: inboundImageUrl,
+      requestId: `ai-inbox:${conversationId}`,
+    }).catch((error) => ({ matched: false, reason: error?.message || "recognition_failed" }));
+    if (visualRecognition?.matched) {
+      const recognisedName = text(visualRecognition.productCards?.[0]?.name || "");
+      const recognisedColor = text(visualRecognition.matchedColor);
+      // Phrased the way a customer asks, because that is what `understandCustomerMessage` and the
+      // grounding gate are tuned to read. The colour rides along so the gate can offer the
+      // photographed colour first rather than treating every colour as equally likely.
+      const recognisedPhrase = [recognisedName, recognisedColor ? `لون ${recognisedColor}` : ""].filter(Boolean).join(" ");
+      if (recognisedPhrase) lastMessage = `عندكم ${recognisedPhrase}؟`;
+      console.log("[ai-inbox] photo recognised into words", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        product_id: visualRecognition.productId,
+        matched_color: recognisedColor,
+        colors: asArray(visualRecognition.productCards).length,
+        rewritten_message: lastMessage,
+      });
+    } else {
+      console.log("[ai-inbox] photo not recognised; the text pipeline answers it", {
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        reason: visualRecognition?.reason || "no_match",
+      });
+    }
+  }
   let replyHarness = null;
   // Read the customer before doing anything else. `understanding.legacy_intent` is the
   // same five-value enum `resolveIntent` produced, so every existing branch below is

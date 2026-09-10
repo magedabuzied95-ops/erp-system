@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import { firstInboundImageUrl } from "../server/services/aiVisualProductRecognitionService.js";
+import { messageIsOnlyMediaPlaceholder } from "../server/services/aiSalesAgentService.js";
 
 // A customer sends a photo of a product on WhatsApp, Messenger or Instagram and the answer is the
 // product itself: one card per colour, the colour they photographed first, each card carrying that
@@ -23,6 +24,9 @@ const meta = fs.readFileSync(
 );
 const carouselService = fs.readFileSync(
   new URL("../server/services/aiProductColorCarouselService.js", import.meta.url), "utf8"
+);
+const salesAgent = fs.readFileSync(
+  new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8"
 );
 
 // ── which attachment is the product photo ────────────────────────────────────────────────────
@@ -122,6 +126,45 @@ test("the visual reply leaves the colours and sizes to the cards", () => {
   // Listing every colour in the text as well makes the customer read the same catalogue twice —
   // the exact complaint that shrank the approve-and-send text leg.
   assert.ok(!/colors\.join/.test(builder), "the text does not re-narrate the carousel");
+});
+
+// ── The AI Inbox suggestion: the path that actually runs when auto-reply is off ───────────────
+
+test("a channel's own placeholder for an uncaptioned attachment is not a customer question", () => {
+  for (const placeholder of ["📷 صورة", "[صورة]", "صورة", "🎬 فيديو", "🖼️ ملصق", "📎 ملف", "", "   "]) {
+    assert.equal(messageIsOnlyMediaPlaceholder(placeholder), true, `${placeholder || "(empty)"} is a placeholder`);
+  }
+});
+
+test("a REAL caption is never thrown away in favour of what the photo looks like", () => {
+  // The customer's own words outrank the picture: "عندكم ده مقاس ٤٣؟" already says what they want,
+  // and rewriting the message from the image would lose the size they asked for.
+  for (const caption of [
+    "عندكم ده مقاس ٤٣؟",
+    "الجزمة دي بكام",
+    "الصورة دي بكام؟", // mentions the placeholder word inside a real sentence
+    "ده متوفر؟",
+    "فيه لون اسود؟",
+    "بكام",
+    "do you have this in 42",
+  ]) {
+    assert.equal(messageIsOnlyMediaPlaceholder(caption), false, `"${caption}" is a real question`);
+  }
+});
+
+test("the inbox pipeline turns a photo into words instead of bypassing the grounding gate", () => {
+  const branch = salesAgent.slice(
+    salesAgent.indexOf("const inboundImageUrl = firstInboundImageUrl(asArray(latestCustomerRow?.attachments))"),
+    salesAgent.indexOf("let replyHarness = null")
+  );
+  assert.ok(branch.length > 0, "the branch sits with the other inbound-resolution steps");
+  assert.match(branch, /messageIsOnlyMediaPlaceholder\(lastMessage\)/, "it only fires when the picture IS the message");
+  assert.match(branch, /lastMessage = `عندكم \$\{recognisedPhrase\}؟`/,
+    "the photo becomes words the pipeline already knows how to read");
+  // The gate stays authoritative: nothing here writes suggested_products or send_package.
+  assert.ok(!branch.includes("suggested_products"), "the branch never assigns product cards itself");
+  assert.ok(!branch.includes("send_package"), "and never builds the send package itself");
+  assert.match(branch, /\.catch\(\(error\) => \(\{ matched: false/, "a thrown recogniser degrades to a miss");
 });
 
 // ── Meta: recognition already worked, but it answered with ONE colour ─────────────────────────
