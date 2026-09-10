@@ -119,16 +119,20 @@ export const loadStorefrontHtmlShell = async (fetchImpl = fetch) => {
 */
 const SHELL_TTL_MS = 30 * 1000;
 const SHELL_FETCH_TIMEOUT_MS = 8 * 1000;
-// With nothing cached there is no fallback, so the first fetch after a start is given longer:
-// an 8s cut-off turned the post-deploy cold fetch into four fast 500s.
-const SHELL_COLD_FETCH_TIMEOUT_MS = 25 * 1000;
+// With nothing cached there is no fallback. Measured after a deploy: ONE connection to the
+// storefront got stuck — every request sharing that fetch failed together at the cut-off,
+// whether the cut-off was 8s or 25s — while the very next fresh fetch answered in ~0.5s. So a
+// cold fetch is retried on a fresh connection in short attempts rather than waited on longer.
+const SHELL_COLD_ATTEMPT_TIMEOUT_MS = 5 * 1000;
+const SHELL_COLD_ATTEMPTS = 4;
 
 export const createCachedShellLoader = (
   load,
   {
     ttlMs = SHELL_TTL_MS,
     timeoutMs = SHELL_FETCH_TIMEOUT_MS,
-    coldTimeoutMs = SHELL_COLD_FETCH_TIMEOUT_MS,
+    coldAttemptTimeoutMs = SHELL_COLD_ATTEMPT_TIMEOUT_MS,
+    coldAttempts = SHELL_COLD_ATTEMPTS,
     now = () => Date.now(),
     fetchImpl = fetch,
     signalFor = (ms) => AbortSignal.timeout(ms),
@@ -137,13 +141,26 @@ export const createCachedShellLoader = (
   let html = "";
   let fetchedAt = 0;
   let inflight = null;
-  const timedFetch = (url, options = {}) =>
-    fetchImpl(url, { ...options, signal: signalFor(html ? timeoutMs : coldTimeoutMs) });
+  const fetchShell = async () => {
+    // A warm refresh gets one attempt: the last good shell is the fallback.
+    const cold = !html;
+    const attempts = cold ? Math.max(1, coldAttempts) : 1;
+    const ms = cold ? coldAttemptTimeoutMs : timeoutMs;
+    let lastError = null;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await load((url, options = {}) => fetchImpl(url, { ...options, signal: signalFor(ms) }));
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  };
   const loader = async () => {
     if (html && now() - fetchedAt < ttlMs) return html;
     if (!inflight) {
       inflight = Promise.resolve()
-        .then(() => load(timedFetch))
+        .then(fetchShell)
         .then((fresh) => {
           html = fresh;
           fetchedAt = now();

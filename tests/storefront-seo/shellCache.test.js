@@ -72,17 +72,51 @@ test("both page handlers default to the cached shell, never the raw fetch", asyn
   }
 });
 
-test("the first fetch with nothing cached gets the long timeout; refreshes get the short one", async () => {
+test("a cold fetch uses short attempts; a warm refresh uses one longer attempt", async () => {
   const seen = [];
   let clock = 0;
   const shell = createCachedShellLoader(
     async (fetchImpl) => { await fetchImpl("https://example.test/index.html", {}); return "<html>x</html>"; },
-    { ttlMs: 1000, timeoutMs: 8000, coldTimeoutMs: 25000, now: () => clock, fetchImpl: async () => ({}), signalFor: (ms) => { seen.push(ms); return AbortSignal.timeout(ms); } },
+    { ttlMs: 1000, timeoutMs: 8000, coldAttemptTimeoutMs: 5000, now: () => clock, fetchImpl: async () => ({}), signalFor: (ms) => { seen.push(ms); return AbortSignal.timeout(ms); } },
   );
   await shell();
   clock = 5000;
   await shell();
-  assert.deepEqual(seen, [25000, 8000]);
+  assert.deepEqual(seen, [5000, 8000]);
+});
+
+test("a stuck first connection is retried on a fresh one, and every waiting request gets the shell", async () => {
+  // Production, right after a deploy: one connection to the storefront hung, and every request
+  // sharing that fetch failed together, while the next fresh fetch answered in ~0.5s.
+  let attempts = 0;
+  const shell = createCachedShellLoader(
+    async (fetchImpl) => { await fetchImpl("https://example.test/index.html", {}); return "<html>retried</html>"; },
+    {
+      coldAttempts: 4,
+      coldAttemptTimeoutMs: 20,
+      signalFor: (ms) => AbortSignal.timeout(ms),
+      fetchImpl: (url, { signal }) => {
+        attempts += 1;
+        if (attempts === 1) {
+          return new Promise((resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
+        }
+        return Promise.resolve({});
+      },
+    },
+  );
+  const results = await Promise.all(Array.from({ length: 4 }, () => shell()));
+  assert.ok(results.every((html) => html === "<html>retried</html>"));
+  assert.equal(attempts, 2);
+});
+
+test("a cold fetch gives up after its attempts are spent", async () => {
+  let attempts = 0;
+  const shell = createCachedShellLoader(
+    async () => { attempts += 1; throw new Error("storefront_shell_524"); },
+    { coldAttempts: 3 },
+  );
+  await assert.rejects(shell(), /storefront_shell_524/);
+  assert.equal(attempts, 3);
 });
 
 test("warm() fills the cache and never throws", async () => {
@@ -93,4 +127,23 @@ test("warm() fills the cache and never throws", async () => {
   assert.equal(loads, 1);
   const failing = createCachedShellLoader(async () => { throw new Error("down"); });
   assert.equal(await failing.warm(), false);
+});
+
+test("a failed warm refresh falls back after ONE attempt, not after a retry budget", async () => {
+  // Retrying here would make the waiting request sit through several timeouts before it got the
+  // shell it could have been served immediately.
+  let clock = 0;
+  let attempts = 0;
+  let fail = false;
+  const shell = createCachedShellLoader(async () => {
+    attempts += 1;
+    if (fail) throw new Error("storefront_shell_524");
+    return "<html>good</html>";
+  }, { ttlMs: 1000, coldAttempts: 4, now: () => clock });
+  await shell();
+  attempts = 0;
+  fail = true;
+  clock = 5000;
+  assert.equal(await shell(), "<html>good</html>");
+  assert.equal(attempts, 1);
 });
