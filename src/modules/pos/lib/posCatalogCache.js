@@ -7,7 +7,8 @@ import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/li
 // change to the pricing RULE leaves the watermark identical and a warm terminal would keep
 // selling at the old price. Curated Offers now set their own price, so bump this whenever
 // pricing logic changes: it is the only thing that re-normalizes an existing snapshot.
-export const POS_CATALOG_SCHEMA_VERSION = 6;
+// v7: cached variants keep their factories (manufacturer_id + manufacturer_ids).
+export const POS_CATALOG_SCHEMA_VERSION = 7;
 const POS_CATALOG_DB_NAME = "erp-pos-catalog-cache";
 const POS_CATALOG_DB_STORE = "kv";
 const POS_CATALOG_DB_KEY = "snapshot";
@@ -130,6 +131,11 @@ const sanitizePosCatalogVariant = (variant = {}) => {
     category_id: variant.category_id ?? null,
     parent_category_id: variant.parent_category_id ?? null,
     brand_id: variant.brand_id ?? null,
+    // The factory filter matches the colour's factories; without these a warm open
+    // only knew the product-level factory, which most products leave empty.
+    manufacturer_id: variant.manufacturer_id ?? variant.variant_manufacturer_id ?? null,
+    manufacturer_name: normalizeText(variant.manufacturer_name || variant.variant_manufacturer_name || ""),
+    manufacturer_ids: Array.isArray(variant.manufacturer_ids) ? variant.manufacturer_ids : [],
     stock,
     stock_quantity: stock,
     available: stock > 0,

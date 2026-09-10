@@ -337,6 +337,20 @@ export const normalizeClassificationInput = async (groupKey, value) => {
   return lookup.get(raw.toLowerCase()) || raw;
 };
 
+// normalizeClassificationInput hands back the raw text when nothing matches, so a
+// product could be saved with a grade no filter offers ("original") and then vanish
+// from every grade chip on the POS, the storefront and the pickers. Writes check
+// the resolved value against the ACTIVE options — a retired option is just as
+// unreachable from the filters as a typo.
+export const isActiveClassificationValue = async (groupKey, canonicalValue) => {
+  const value = normalizeText(canonicalValue).toLowerCase();
+  if (!value) return false;
+  const options = await fetchProductClassificationOptions(groupKey);
+  // No active options at all means the group is not in use: nothing to check against.
+  if (!options.length) return true;
+  return options.some((option) => normalizeText(option.value).toLowerCase() === value);
+};
+
 export const getClassificationFilterAliases = async (groupKey, value) => {
   const raw = normalizeText(value);
   if (!raw) return [];

@@ -91,6 +91,7 @@ import { canManagePosSalePrices } from "../lib/posSaleModeAccess";
 import { parseSaleModeEnabled, persistPosSaleModeEnabled, resolvePosSaleModeForLoad } from "../lib/posSaleModeSettings";
 import { countUniqueVariantColors, getVariantColorKey, mergeCatalogProducts } from "../lib/posCatalogMerge";
 import {
+  collectProductManufacturerIds,
   matchesQuickFilterGroups,
   moveWinterCollectionToEnd,
   normalizeMultiFilterValue,
@@ -1596,7 +1597,7 @@ const buildProductSearchText = (product, manufacturerLookup) => {
     product?.brand_name,
     product?.manufacturer,
     product?.manufacturer_name,
-    manufacturerLookup.get(String(product?.manufacturer_id || product?.variant_manufacturer_id || "").trim()) || "",
+    ...Array.from(collectProductManufacturerIds(product), (id) => manufacturerLookup.get(id) || ""),
     ...variants.flatMap((variant) => [
       variant.sku,
       variant.article_code,
@@ -1610,7 +1611,6 @@ const buildProductSearchText = (product, manufacturerLookup) => {
       variant.brand_name,
       variant.manufacturer,
       variant.manufacturer_name,
-      manufacturerLookup.get(String(variant.manufacturer_id || variant.variant_manufacturer_id || "").trim()) || "",
     ]),
   ]
     .filter(Boolean)
@@ -1620,15 +1620,7 @@ const buildProductSearchText = (product, manufacturerLookup) => {
 
 const buildSmartMeta = (product, manufacturerLookup, classificationOptions = {}) => {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const manufacturerIds = new Set(
-    [
-      product?.manufacturer_id,
-      product?.variant_manufacturer_id,
-      ...variants.flatMap((variant) => [variant.manufacturer_id, variant.variant_manufacturer_id]),
-    ]
-      .map((value) => String(value || "").trim())
-      .filter(Boolean)
-  );
+  const manufacturerIds = collectProductManufacturerIds(product);
   const manufacturerNames = [
     product?.manufacturer,
     product?.manufacturer_name,

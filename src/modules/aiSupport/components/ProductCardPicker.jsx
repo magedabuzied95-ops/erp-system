@@ -14,7 +14,7 @@ import { PosProductCard } from "../../pos/components/ProductGrid";
 import { MAX_BATCH_PRODUCTS } from "../lib/productSelection.js";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
-import { matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
+import { collectProductManufacturerIds, matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
 import "../../pos/pages/POSPro.m1.css";
 import "./ProductLinkPicker.m1.css";
 import { useTheme } from "../../../theme/useTheme";
@@ -204,11 +204,7 @@ const productBrandKey = (product = {}) => product.brand_id
 
 const productManufacturerMeta = (product = {}) => {
   const variants = asArray(product.variants);
-  const ids = new Set([
-    product.manufacturer_id,
-    product.variant_manufacturer_id,
-    ...variants.flatMap((variant) => [variant.manufacturer_id, variant.variant_manufacturer_id]),
-  ].map((value) => clean(value)).filter(Boolean));
+  const ids = collectProductManufacturerIds(product);
   const names = uniqueTextValues([
     product.manufacturer,
     product.manufacturer_name,
@@ -841,10 +837,21 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   }, [smartFilterSource]);
   const posManufacturerOptions = useMemo(() => {
     const map = new Map();
+    // A colour's second factory reaches us as a bare id; only a row whose own
+    // manufacturer_id is that id can name it. Falling back to the product's name
+    // would label the second factory with the first one's.
+    const namesById = new Map();
+    smartFilterSource.forEach(({ product }) => {
+      [product, ...asArray(product.variants)].forEach((row) => {
+        const id = clean(row?.manufacturer_id ?? row?.variant_manufacturer_id);
+        const name = clean(row?.manufacturer_name || row?.variant_manufacturer_name || row?.manufacturer);
+        if (id && name && !namesById.has(id)) namesById.set(id, name);
+      });
+    });
     smartFilterSource.forEach((row) => {
       row.manufacturerIds.forEach((id) => {
-        const name = clean(row.product.manufacturer_name || row.product.manufacturer || id);
-        if (!map.has(id)) map.set(id, { id, name });
+        const name = namesById.get(id);
+        if (name && !map.has(id)) map.set(id, { id, name });
       });
       row.manufacturerNames.forEach((normalizedName) => {
         const id = `name:${normalizedName}`;

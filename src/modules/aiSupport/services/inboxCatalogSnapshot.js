@@ -23,7 +23,8 @@ import { getCurrentUser, getCurrentTenant } from "../../../shared/auth/authStora
 // Bump when the stored product shape or the pricing rule changes: it is the only
 // thing that re-normalizes an existing snapshot (the catalog-version watermark
 // tracks DATA, not the code that shaped it).
-export const INBOX_CATALOG_SCHEMA_VERSION = 1;
+// v2: variants carry manufacturer_ids (every factory of the colour).
+export const INBOX_CATALOG_SCHEMA_VERSION = 2;
 
 const DB_NAME = "erp-inbox-product-catalog";
 const DB_VERSION = 1;

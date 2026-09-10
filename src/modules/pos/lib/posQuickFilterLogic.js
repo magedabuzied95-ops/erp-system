@@ -47,6 +47,21 @@ export const multiFilterMatches = (selected, candidate) => {
 
 const defaultNormalizeText = (value = "") => String(value || "").trim().toLowerCase();
 
+// Every factory a product is sold from. The editor saves factories per COLOUR
+// (product_variants.manufacturer_ids), and a colour can carry more than one; the
+// legacy single manufacturer_id only ever holds the first. Reading just that one
+// dropped the colour's other factories, so picking the second factory's chip hid
+// the product from the grid while the Products page listed it under that factory.
+export const collectProductManufacturerIds = (product = {}) => {
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const values = [product, ...variants].flatMap((row) => [
+    row?.manufacturer_id,
+    row?.variant_manufacturer_id,
+    ...(Array.isArray(row?.manufacturer_ids) ? row.manufacturer_ids : []),
+  ]);
+  return new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean));
+};
+
 export const matchesQuickFilterGroups = (
   {
     audienceKeys = [],

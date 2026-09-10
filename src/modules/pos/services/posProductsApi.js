@@ -168,6 +168,15 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     sourceProduct.manufacturer_id ??
     sourceProduct.variant_manufacturer_id ??
     null;
+  // A colour can be made by more than one factory; manufacturer_id holds only the
+  // first. The full list is what the factory filter has to match against.
+  const manufacturerIds = [
+    ...new Set(
+      [manufacturerId, ...(Array.isArray(row.manufacturer_ids) ? row.manufacturer_ids : [])]
+        .map((value) => normalizeText(value))
+        .filter(Boolean)
+    ),
+  ];
   const audience =
     normalizeText(row.audience ?? row.variant_audience ?? row.gender) ||
     inferPosAudienceFromProduct(
@@ -253,6 +262,7 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     manufacturer_name: pickFirstText(row.manufacturer_name, row.manufacturer, sourceProduct.manufacturer_name, sourceProduct.manufacturer),
     manufacturer_id: manufacturerId,
     variant_manufacturer_id: manufacturerId,
+    manufacturer_ids: manufacturerIds,
     low_stock_threshold: normalizeNumber(row.low_stock_threshold ?? row.low_stock_alert ?? sourceProduct.low_stock_threshold ?? 10),
   };
 };

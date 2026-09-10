@@ -26,7 +26,7 @@ import {
   buildThermalImageUrlMap,
   scheduleThermalColorArtworkJobs,
 } from "../services/thermalColorJobPlanner.js";
-import { normalizeClassificationInput } from "../services/productClassificationsService.js";
+import { isActiveClassificationValue, normalizeClassificationInput } from "../services/productClassificationsService.js";
 import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../utils/requestScope.js";
 import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
@@ -117,6 +117,13 @@ const PRODUCT_AUDIENCE_ALIASES = new Map([
 ]);
 
 const normalizeClassificationValue = (field, value) => normalizeClassificationInput(field, value);
+
+const unknownGradeResponse = (grade) => ({
+  success: false,
+  code: "PRODUCT_GRADE_UNKNOWN",
+  grade,
+  message: `الدرجة "${grade}" مش من خيارات الدرجة، فالمنتج مش هيظهر في أي فلتر. اختار درجة من القائمة`,
+});
 
 const normalizeAudienceText = (value = "") =>
   String(value || "")
@@ -4308,7 +4315,8 @@ const POS_VARIANT_KEEP_FIELDS = new Set([
   "regular_price", "variant_regular_price", "variant_price", "original_price", "selling_price", "price", "current_selling_price", "purchase_selling_price",
   "sale_price", "variant_sale_price", "stored_sale_price", "raw_sale_price", "sale_price_enabled", "sale_start_at", "sale_end_at", "sale_reason",
   "stock", "variant_stock", "quantity", "low_stock_alert", "low_stock_threshold",
-  "manufacturer_id", "variant_manufacturer_id", "manufacturerId", "manufacturer_name", "variant_manufacturer_name",
+  // manufacturer_ids: every factory of the colour — the POS factory filter matches them all.
+  "manufacturer_id", "variant_manufacturer_id", "manufacturerId", "manufacturer_ids", "manufacturer_name", "variant_manufacturer_name",
   "audience", "variant_audience", "gender", "product_type", "productType", "grade",
   "brand_id", "brand", "brand_name", "category_id", "category", "category_name",
   "is_pos_favorite", "isPosFavorite", "is_offer_story", "is_offer", "show_in_offers", "promotion_enabled",
@@ -5522,6 +5530,9 @@ export const createProduct = async (req, res) => {
         message: "يجب إدخال العلامة التجارية والفئة ونوع المنتج قبل حفظ المنتج",
       });
     }
+    if (!(await isActiveClassificationValue("grade", normalizedGrade))) {
+      return res.status(400).json(unknownGradeResponse(normalizedGrade));
+    }
     if (containsDataImageValue(image_url) || containsDataImageValue(gallery) || containsDataImageValue(gallery_images)) {
       return res.status(400).json({
         success: false,
@@ -6366,6 +6377,17 @@ export const updateProduct = async (req, res) => {
       : "";
     const nextStyleValue = bodyHas("style") ? normalizedStyle : String(currentProductRow.style || "").trim();
     const nextGradeValue = bodyHas("grade") ? normalizedGrade : String(currentProductRow.grade || "").trim();
+    // Only a grade being CHANGED is checked, so an old product still carrying a
+    // retired grade can have its price or stock edited without being blocked.
+    if (
+      nextGradeValue &&
+      nextGradeValue.toLowerCase() !== String(currentProductRow.grade || "").trim().toLowerCase() &&
+      !(await isActiveClassificationValue("grade", nextGradeValue))
+    ) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(400).json(unknownGradeResponse(nextGradeValue));
+    }
     const nextStatusValue = bodyHas("status") ? String(status || "active") : String(currentProductRow.status || "active");
     const nextSkuValue = bodyHas("sku") ? String(sku || "").trim() : String(currentProductRow.sku || "").trim();
     const nextBarcodeValue = bodyHas("barcode") ? String(barcode || "") : String(currentProductRow.barcode || "");
