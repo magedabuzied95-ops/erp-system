@@ -69,6 +69,7 @@ import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
+import PostAutomationSheet from "../components/socialAutomation/PostAutomationSheet.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import IntegrationsCenter from "../components/integrations/lazyIntegrationsCenter";
@@ -3553,6 +3554,8 @@ export default function AiInboxPwa() {
   const [socialThreadPlatformFilter, setSocialThreadPlatformFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [productLinksPost, setProductLinksPost] = useState(null);
+  // The phone's way to a post's automation switches — desktop reaches them through its drawer.
+  const [automationPost, setAutomationPost] = useState(null);
   const [socialActionLoading, setSocialActionLoading] = useState("");
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const mainScrollRef = useRef(null);
@@ -7281,6 +7284,7 @@ export default function AiInboxPwa() {
                 onLoadMore={loadMoreSocialComments}
                 loadingMore={socialCommentsLoadingMore}
                 onLinkProduct={(item) => setProductLinksPost(item)}
+                onOpenAutomation={(item) => setAutomationPost(item)}
                 onPrefetchItem={(item) => {
                   const postId = clean(item?.post_id || item?.conversation_id || item?.id || socialPostIdentity(item) || "");
                   if (!ENABLE_SOCIAL_FAST_CENTER || !postId) return;
@@ -7580,6 +7584,12 @@ export default function AiInboxPwa() {
             )}
           </div>
         </div>
+        <PostAutomationSheet
+          open={Boolean(automationPost)}
+          post={automationPost}
+          tenantId={tenantId}
+          onClose={() => setAutomationPost(null)}
+        />
         <PostProductLinksDrawer
           open={Boolean(productLinksPost)}
           post={productLinksPost}

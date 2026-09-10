@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Clock3, ExternalLink, Image as ImageIcon, Link2, MessageSquareText, Play, RefreshCw, User } from "lucide-react";
+import { Bot, Clock3, ExternalLink, Image as ImageIcon, Link2, MessageSquareText, Play, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
@@ -169,7 +169,7 @@ const socialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.product_name) === clean(right.product_name) &&
   Boolean(left.unread) === Boolean(right.unread);
 
-const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem, onPrefetchItem, onLinkProduct }) {
+const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem, onPrefetchItem, onLinkProduct, onOpenAutomation }) {
   const { t, i18n } = useTranslation();
   const language = i18n.resolvedLanguage === "ar" ? "ar" : "en";
   const platform = platformMeta(item.platform);
@@ -256,6 +256,22 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
               >
                 <Link2 className="h-3.5 w-3.5" />
                 {isProductLinked ? t("aiSupport.inbox.socialPanel.linkedEdit", { count: linkedProductsCount }) : t("aiSupport.inbox.socialPanel.linkProduct")}
+              </button>
+            ) : null}
+            {/* Only on a linked post: automation needs a product to sell, and on an unlinked post
+                the sheet would open onto switches that can never do anything. */}
+            {onOpenAutomation && isProductLinked ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onOpenAutomation(item, itemKey);
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 text-[10px] font-black text-slate-800 transition hover:bg-slate-50"
+              >
+                <Bot className="h-3.5 w-3.5" />
+                الأتمتة
               </button>
             ) : null}
           </div>
@@ -345,6 +361,7 @@ function SocialCommentsPanel({
   totalItemsCount,
   onPrefetchItem,
   onLinkProduct,
+  onOpenAutomation,
 }) {
   const { t } = useTranslation();
   const filters = mode === "posts" ? POST_FILTERS : COMMENT_FILTERS;
@@ -436,14 +453,14 @@ function SocialCommentsPanel({
               itemKey={(item, index) => clean(item.id || item.conversation_id || item.comment_id || item.post_id || index)}
               renderItem={(item) => {
                   if (mode === "posts") {
-                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} onLinkProduct={onLinkProduct} />;
+                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} onLinkProduct={onLinkProduct} onOpenAutomation={onOpenAutomation} />;
                   }
                   return <SocialCommentsPanelCommentRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} fallbackPlatform={item.platform || "facebook"} />;
                 }}
               />
             ) : filteredItems.slice(0, 50).map((item) => {
               if (mode === "posts") {
-                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} onLinkProduct={onLinkProduct} />;
+                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} onLinkProduct={onLinkProduct} onOpenAutomation={onOpenAutomation} />;
               }
               return <SocialCommentsPanelCommentRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} fallbackPlatform={item.platform || "facebook"} />;
             })}

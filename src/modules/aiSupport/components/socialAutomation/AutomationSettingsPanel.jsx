@@ -1,13 +1,19 @@
+/* The per-post switches, defined once. This same panel is drawn by the desktop automation drawer
+   and by the AI Inbox PWA's automation sheet, so a switch added here appears on both — and
+   tests/social-comment-automation-toggles.test.js reads the keys from this array to prove each one
+   is seeded, loaded, saved and read by the pipeline. */
+export const AUTOMATION_TOGGLES = [
+  { key: "enabled", label: "Enable automation", note: "Master switch for this post." },
+  { key: "likeComment", label: "Like comment", note: "Signal engagement and trust." },
+  { key: "publicReply", label: "Public reply", note: "Reply publicly on the post thread." },
+  { key: "privateReply", label: "Private reply", note: "Send a private follow-up message." },
+  { key: "aiFollowUp", label: "AI follow-up", note: "Open an AI conversation when needed." },
+  { key: "createLead", label: "Create lead", note: "Create a CRM opportunity from the comment." },
+  { key: "hideComments", label: "إخفاء كومنتات العملاء", note: "بعد الرد والرسالة — المنافس مش هيشوف مين بيشتري. العميل نفسه لسه شايف كومنته." },
+];
+
 export default function AutomationSettingsPanel({ settings = {}, onChange }) {
-  const toggles = [
-    { key: "enabled", label: "Enable automation", note: "Master switch for this post." },
-    { key: "likeComment", label: "Like comment", note: "Signal engagement and trust." },
-    { key: "publicReply", label: "Public reply", note: "Reply publicly on the post thread." },
-    { key: "privateReply", label: "Private reply", note: "Send a private follow-up message." },
-    { key: "aiFollowUp", label: "AI follow-up", note: "Open an AI conversation when needed." },
-    { key: "createLead", label: "Create lead", note: "Create a CRM opportunity from the comment." },
-    { key: "hideComments", label: "إخفاء كومنتات العملاء", note: "بعد الرد والرسالة — المنافس مش هيشوف مين بيشتري. العميل نفسه لسه شايف كومنته." },
-  ];
+  const toggles = AUTOMATION_TOGGLES;
 
   return (
     <section className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
