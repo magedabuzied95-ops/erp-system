@@ -47,6 +47,7 @@ import {
   TrendingDown,
   TrendingUp,
   Trophy,
+  Truck,
   Users,
   Volume2,
   VolumeX,
@@ -57,6 +58,7 @@ import toast from "react-hot-toast";
 // The chat (list, composer, recorder, media viewer, ring) only loads when the
 // tab is opened; a manager on attendance never downloads it.
 const SharedPortalChat = lazy(() => import("../../../shared/chat/SharedPortalChat"));
+const PortalOnlineOrdersBoard = lazy(() => import("../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard"));
 import { chatCacheScope } from "../../../shared/chat/chatCache";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { formatInAppTimezone, instantToWallClock, wallClockToInstant } from "../../../shared/lib/appTimezone";
@@ -84,7 +86,7 @@ const portalLocale = () => (String(i18n.resolvedLanguage || i18n.language || "ar
 const TABS = ["today", "staff", "tasks", "sales", "chat", "inventory", "more"];
 // Reachable by URL and by notification, but deliberately not in the bottom bar —
 // seven thumb targets is already the ceiling on a phone.
-const SECONDARY_TABS = ["notifications", "operations"];
+const SECONDARY_TABS = ["notifications", "operations", "shipping"];
 const OPERATION_KINDS = ["all", "exchange", "return", "edit", "delete"];
 // A deleted invoice is the one operation that removes money from the day rather than
 // moving it, so it never borrows the amber "edit" tone — it reads as red on sight.
@@ -1059,12 +1061,14 @@ export default function ManagerPortal() {
     setSettings((current) => mergeSettings(me?.notification_settings || current));
   }, [me]);
 
+  // Apply ?tab= when the URL changes — not on every tab change, or a deep link like
+  // ?tab=shipping pins the portal there and its own "back" button can never leave.
   useEffect(() => {
     const queryTab = searchParams.get("tab");
-    if (queryTab && (TABS.includes(queryTab) || SECONDARY_TABS.includes(queryTab)) && queryTab !== activeTab) {
+    if (queryTab && (TABS.includes(queryTab) || SECONDARY_TABS.includes(queryTab))) {
       setActiveTab(queryTab);
     }
-  }, [activeTab, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -1835,6 +1839,14 @@ export default function ManagerPortal() {
       setInvoiceSheet({ open: true, loading: false, invoice: null, error: invoiceError?.responseBody?.message || invoiceError?.message || tt("managerPortal.errors.loadInvoice") });
     }
   };
+
+  // أوردرات الشحن tab: the board owns its own filters, paging and refresh; the portal
+  // only says where to fetch from.
+  const loadOnlineOrders = useCallback((params) => managerPortalApi.onlineOrders(token, params), [token]);
+  const loadOnlineOrder = useCallback(async (orderId) => {
+    const response = await managerPortalApi.onlineOrder(token, orderId);
+    return response?.order || null;
+  }, [token]);
 
   useEffect(() => {
     const invoiceId = searchParams.get("invoice_id") || searchParams.get("invoiceId") || "";
@@ -4173,6 +4185,7 @@ export default function ManagerPortal() {
               <Card title={tt("managerPortal.settings.title")} subtitle={tt("managerPortal.nav.more")} icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="manager-portal-more-actions grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
+                    { key: "shipping", label: tt("orders.portalBoard.entry"), icon: Truck, tone: "bg-emerald-500/15 text-emerald-500", onClick: () => setActiveTab("shipping") },
                     { key: "alerts", label: tt("managerPortal.settings.alerts"), icon: Bell, tone: "bg-amber-500/15 text-amber-500", badge: unreadCount, onClick: () => setActiveTab("notifications") },
                     { key: "operations", label: tt("managerPortal.operations.title"), icon: ArrowLeftRight, tone: "bg-sky-500/15 text-sky-500", onClick: () => setActiveTab("operations") },
                     { key: "appearance", label: tt("managerPortal.settings.appearance"), sub: theme.mode === "dark" ? tt("managerPortal.settings.themeDark") : tt("managerPortal.settings.themeLight"), icon: theme.mode === "dark" ? SunMedium : Moon, tone: "bg-slate-500/15 text-slate-500", onClick: () => setTheme(theme.mode === "dark" ? "light" : "dark") },
@@ -4488,6 +4501,33 @@ export default function ManagerPortal() {
                   <EmptyState title={tt("managerPortal.operations.empty")} body={tt("managerPortal.operations.emptyHint")} />
                 )}
               </Card>
+            </div>
+          ) : null}
+
+          {activeTab === "shipping" ? (
+            <div className="manager-portal-tab manager-portal-tab--shipping space-y-4">
+              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                <Settings className="h-4 w-4" />
+                {tt("managerPortal.settings.back")}
+              </button>
+
+              {/* Deliberately not the Card component: ManagerPortal.m1.css forces --text onto every bold
+                  element inside .manager-portal-card in dark mode, which would wash out the
+                  board's gold pills. The board is theme-token-only and needs no shell rules. */}
+              <section className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm sm:p-4">
+                <header className="mb-3 flex items-center gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
+                    <Truck className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="m1-section-title text-text">{tt("orders.portalBoard.title")}</h2>
+                    <p className="mt-0.5 text-xs font-bold text-text-muted">{tt("orders.portalBoard.subtitle")}</p>
+                  </div>
+                </header>
+                <Suspense fallback={<div className="flex min-h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+                  <PortalOnlineOrdersBoard loadList={loadOnlineOrders} loadDetail={loadOnlineOrder} />
+                </Suspense>
+              </section>
             </div>
           ) : null}
 

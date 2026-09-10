@@ -52,6 +52,7 @@ import {
   loadManagerPortalByToken,
 } from "../services/managerPortalService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
+import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import {
   getManagerPortalPushPublicKey,
   getManagerPortalPushSubscriptionDebug,
@@ -317,6 +318,34 @@ router.get("/:token/invoices/:invoiceId", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] invoice detail error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load invoice details" });
+  }
+});
+
+// أوردرات الشحن — the same list the employee portal reads (one service), shop-wide
+// rather than branch-scoped: a website or inbox order carries no branch at all.
+router.get("/:token/online-orders", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const payload = await listPortalOnlineOrders({ tenantId: manager.tenant_id, query: req.query || {} });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[manager-portal] online orders error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
+  }
+});
+
+router.get("/:token/online-orders/:orderId", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const order = await getPortalOnlineOrder({ tenantId: manager.tenant_id, orderId: req.params.orderId });
+    return res.json({ success: true, order });
+  } catch (error) {
+    if (error.status !== 404) console.error("[manager-portal] online order error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load order" });
   }
 });
 

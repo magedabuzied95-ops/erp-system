@@ -55,6 +55,7 @@ import {
 } from "../services/displayRefillAlertService.js";
 import { getSettingsByCategory } from "../services/settingsService.js";
 import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../services/salesOpportunityService.js";
+import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -636,6 +637,34 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+// أوردرات الشحن: every employee sees the shop's online orders (owner decision,
+// 2026-09-10), across branches, because a website or inbox order has no branch.
+router.get("/:token/online-orders", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const payload = await listPortalOnlineOrders({ tenantId: employee.tenant_id, query: req.query || {} });
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error("[employee-portal] online orders load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });
+  }
+});
+
+router.get("/:token/online-orders/:orderId", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const order = await getPortalOnlineOrder({ tenantId: employee.tenant_id, orderId: req.params.orderId });
+    return res.json({ success: true, order });
+  } catch (error) {
+    if (error.status !== 404) console.error("[employee-portal] online order load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load order" });
   }
 });
 

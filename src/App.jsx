@@ -177,6 +177,7 @@ const StaffTasks = lazy(() => import("./modules/employees/pages/StaffTasks"));
 const EmployeePortal = lazy(() => import("./modules/employees/pages/EmployeePortal"));
 const EmployeePortalProducts = lazy(() => import("./modules/employees/pages/EmployeePortalProducts"));
 const EmployeePortalInventory = lazy(() => import("./modules/employees/pages/EmployeePortalInventory"));
+const EmployeePortalOnlineOrders = lazy(() => import("./modules/employees/pages/EmployeePortalOnlineOrders"));
 const EmployeeAppShell = lazy(() => import("./modules/employees/pages/EmployeeAppShell"));
 const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
 const ManagerPortal = lazy(() => import("./modules/managerPortal/pages/ManagerPortal"));
@@ -382,7 +383,7 @@ function App() {
   // <html> and let index.css lift field font-size on touch devices there.
   useEffect(() => {
     const path = location.pathname || "";
-    const isPortal = /^\/(employee-app|employee\/portal|manager-portal|manager\/)/.test(path);
+    const isPortal = /^\/(employee-app|employee-portal|employee\/portal|manager-portal|manager\/)/.test(path);
     if (isPortal) document.documentElement.setAttribute("data-portal-touch", "1");
     else document.documentElement.removeAttribute("data-portal-touch");
   }, [location.pathname]);
@@ -446,6 +447,7 @@ function App() {
             <Route path="/employee-app/:token/products" element={<EmployeePortalProducts />} />
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
+            <Route path="/employee-app/:token/online-orders" element={<EmployeePortalOnlineOrders />} />
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
             <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>
@@ -598,6 +600,11 @@ function App() {
       />
 
       <Route
+        path="/employee/portal/:token/online-orders"
+        element={<EmployeePortalOnlineOrders />}
+      />
+
+      <Route
         path="/employee-portal/:token"
         element={<EmployeePayrollPortal />}
       />
@@ -615,6 +622,11 @@ function App() {
       <Route
         path="/employee-portal/:token/inventory/:sessionId"
         element={<EmployeePortalInventory />}
+      />
+
+      <Route
+        path="/employee-portal/:token/online-orders"
+        element={<EmployeePortalOnlineOrders />}
       />
 
       <Route

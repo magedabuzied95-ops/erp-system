@@ -4,8 +4,14 @@ const text = (value = "") => String(value || "").trim();
 
 export const buildEmployeePortalHomePath = ({ pathname = "", token = "" } = {}) => {
   const safeToken = encodeURIComponent(text(token));
-  if (!safeToken) return pathname.startsWith("/employee/portal/") ? "/employee/portal" : "/employee-portal";
-  return pathname.startsWith("/employee/portal/") ? `/employee/portal/${safeToken}` : `/employee-portal/${safeToken}`;
+  // The installed app (/employee-app) must stay inside its own shell: sending it to
+  // /employee-portal would drop the person out of the PWA's routes.
+  const base = pathname.startsWith("/employee/portal/")
+    ? "/employee/portal"
+    : pathname.startsWith("/employee-app/")
+      ? "/employee-app"
+      : "/employee-portal";
+  return safeToken ? `${base}/${safeToken}` : base;
 };
 
 export const canNavigateEmployeePortalBack = () => {

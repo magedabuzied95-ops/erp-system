@@ -1,0 +1,882 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import {
+  AlertTriangle,
+  Check,
+  Clock,
+  Copy,
+  ExternalLink,
+  FileText,
+  Loader2,
+  MapPin,
+  MessageCircle,
+  Package,
+  Phone,
+  Receipt,
+  RefreshCw,
+  Search,
+  Truck,
+  User,
+  Users,
+  X,
+} from "lucide-react";
+import { formatCurrency, formatNumber } from "../../lib/currency";
+import { formatInAppTimezone } from "../../lib/appTimezone";
+import { resolveProductImageUrl, resolveShippingProofImageUrl } from "../../lib/imageUrls";
+import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
+import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
+
+// أوردرات الشحن — one board, mounted by both the employee portal (its own page) and
+// the manager portal (a tab). The host only supplies how to fetch; everything the
+// person sees is decided here so the two portals can never drift apart.
+//
+// Colours are theme tokens only (bg-surface, text-text-muted, bg-success-subtle …):
+// the ERP remaps raw Tailwind palette classes, and a board that renders inside two
+// different shells cannot lean on either shell's normalisation.
+
+const GROUPS = ["all", "new", "confirmed", "shipping", "delivered", "closed"];
+const RANGES = ["today", "7d", "30d", "90d", "all"];
+const DEFAULT_RANGE = "30d";
+const POLL_MS = 60_000;
+const PROVIDER_KEYS = ["bosta", "in_store_delivery", "manual", "pickup"];
+
+// The status tokens measure ~3.1–4.1:1 as text on their own soft fills (below AA), so a
+// tinted pill keeps the body ink and carries its colour in a dot instead.
+const TONES = {
+  warning: { fill: "bg-warning-subtle", dot: "bg-warning" },
+  info: { fill: "bg-info-subtle", dot: "bg-info" },
+  success: { fill: "bg-success-subtle", dot: "bg-success" },
+  danger: { fill: "bg-danger-subtle", dot: "bg-danger" },
+  muted: { fill: "bg-surface-soft", dot: "bg-text-muted" },
+  solid: { fill: "bg-primary", ink: "text-primary-foreground" },
+};
+
+const GROUP_TONE = {
+  new: "warning",
+  confirmed: "info",
+  shipping: "solid",
+  delivered: "success",
+  closed: "danger",
+};
+
+const CONFIRMATION_TONE = {
+  confirmed: "success",
+  cancelled: "danger",
+  edit_requested: "warning",
+  awaiting: "warning",
+  not_sent: "muted",
+};
+
+const text = (value = "") => String(value ?? "").trim();
+const lower = (value = "") => text(value).toLowerCase();
+
+const appendById = (previous, incoming) => {
+  const known = new Set(previous.map((order) => String(order.id)));
+  return [...previous, ...incoming.filter((order) => !known.has(String(order.id)))];
+};
+
+const phoneDigits = (value = "") => text(value).replace(/\D/g, "");
+const telHref = (phone = "") => {
+  const cleaned = text(phone).replace(/[^\d+]/g, "");
+  return cleaned ? `tel:${cleaned}` : "";
+};
+// Egyptian numbers arrive as 010…, +2010… or 2010…; wa.me wants 2010… .
+const whatsappHref = (phone = "") => {
+  let digits = phoneDigits(phone);
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0") && digits.length === 11) digits = `2${digits}`;
+  else if (digits.startsWith("1") && digits.length === 10) digits = `20${digits}`;
+  return `https://wa.me/${digits}`;
+};
+
+const copyToClipboard = async (value = "") => {
+  const content = String(value || "");
+  if (!content) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(content);
+      return true;
+    }
+  } catch {
+    // Fall through to the textarea path (iOS PWA, insecure context).
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = content;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  return copied;
+};
+
+const paymentMethodKey = (method = "") => {
+  const key = lower(method).replace(/[\s-]+/g, "_");
+  if (!key) return "";
+  if (key === "cod" || key.includes("cash_on_delivery")) return "cod";
+  if (key.includes("instapay")) return "instapay";
+  if (key.includes("vodafone")) return "vodafone_cash";
+  if (key.includes("wallet")) return "wallet";
+  if (["card", "paymob", "online", "visa", "credit", "apple_pay"].some((needle) => key.includes(needle))) return "card";
+  if (key === "cash") return "cash";
+  return "";
+};
+
+const paymentStatusKey = (status = "") => {
+  const key = lower(status).replace(/[\s-]+/g, "_");
+  if (["paid", "completed", "complete", "settled"].includes(key)) return "paid";
+  if (["partial", "partially_paid"].includes(key)) return "partial";
+  if (["unpaid", "pending", "awaiting_verification", ""].includes(key)) return "unpaid";
+  return "";
+};
+
+const proofStatusKey = (status = "") => {
+  const key = lower(status);
+  if (key === "pending") return "proofPending";
+  if (key === "approved") return "proofApproved";
+  if (key === "rejected") return "proofRejected";
+  return "";
+};
+
+function useBoardText() {
+  const { t, i18n } = useTranslation();
+  const language = String(i18n.resolvedLanguage || i18n.language || "ar").startsWith("ar") ? "ar" : "en";
+  const locale = language === "ar" ? "ar-EG" : "en-GB";
+  return useMemo(() => {
+    const tb = (key, options) => t(`orders.portalBoard.${key}`, options);
+    const money = (value) => formatCurrency(Number(value || 0), language);
+    const count = (value) => formatNumber(Number(value || 0), language);
+    const dateTime = (value) =>
+      value ? formatInAppTimezone(value, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }, locale) : "";
+    const statusLabel = (status) => tb(`statuses.${normalizeOrderLifecycleStatus(status, "pending")}`);
+    const shippingLabel = (status) => tb(`shippingStatuses.${normalizeShippingLifecycleStatus(status, "pending")}`);
+    const paymentMethodLabel = (method) => {
+      const key = paymentMethodKey(method);
+      return key ? tb(`payment.${key}`) : text(method) || "-";
+    };
+    const paymentStatusLabel = (status) => {
+      const key = paymentStatusKey(status);
+      return key ? tb(`payment.${key}`) : text(status) || "-";
+    };
+    const confirmationLabel = (state) => (state ? t(state.labelKey, state.fallback) : "");
+    const providerLabel = (provider) => {
+      const key = lower(provider).replace(/[\s-]+/g, "_");
+      if (!key) return "";
+      if (PROVIDER_KEYS.includes(key)) return tb(`providers.${key}`);
+      return key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+    return { t, tb, language, dir: language === "ar" ? "rtl" : "ltr", money, count, dateTime, statusLabel, shippingLabel, paymentMethodLabel, paymentStatusLabel, confirmationLabel, providerLabel };
+  }, [t, language, locale]);
+}
+
+function Pill({ className = "", children, title }) {
+  return (
+    <span title={title} className={`inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-black leading-5 ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+function TonePill({ tone = "muted", children }) {
+  const style = TONES[tone] || TONES.muted;
+  return (
+    <Pill className={`${style.fill} ${style.ink || "text-text"}`}>
+      {style.dot ? <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} /> : null}
+      <span className="truncate">{children}</span>
+    </Pill>
+  );
+}
+
+function CopyButton({ value, label, copiedLabel, className = "" }) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef(null);
+  useEffect(() => () => window.clearTimeout(timerRef.current), []);
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      onClick={async (event) => {
+        event.stopPropagation();
+        if (await copyToClipboard(value)) {
+          setCopied(true);
+          window.clearTimeout(timerRef.current);
+          timerRef.current = window.setTimeout(() => setCopied(false), 1600);
+        }
+      }}
+      className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface px-2.5 text-xs font-black text-text transition hover:bg-surface-hover ${className}`}
+      aria-label={label}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+      <span>{copied ? copiedLabel : label}</span>
+    </button>
+  );
+}
+
+function ContactButtons({ phone, ui, size = "sm" }) {
+  const tel = telHref(phone);
+  const wa = whatsappHref(phone);
+  if (!tel && !wa) return null;
+  const base = size === "lg"
+    ? "min-h-[var(--control-height-lg)] px-4 text-sm"
+    : "min-h-9 px-3 text-xs";
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      {tel ? (
+        <a
+          href={tel}
+          onClick={(event) => event.stopPropagation()}
+          className={`inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface font-black text-text transition hover:bg-surface-hover ${base}`}
+          aria-label={ui.tb("actions.call")}
+        >
+          <Phone className="h-4 w-4" />
+          <span>{ui.tb("actions.call")}</span>
+        </a>
+      ) : null}
+      {wa ? (
+        <a
+          href={wa}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          className={`inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-success-subtle font-black text-text transition hover:opacity-90 ${base}`}
+          aria-label={ui.tb("actions.whatsapp")}
+        >
+          <MessageCircle className="h-4 w-4 text-success" />
+          <span>{ui.tb("actions.whatsapp")}</span>
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+function ProductThumb({ src, size = "h-12 w-12", onOpen }) {
+  const [failed, setFailed] = useState(false);
+  const url = src && !failed ? resolveProductImageUrl(src) : "";
+  const body = url ? (
+    <img src={url} alt="" loading="lazy" onError={() => setFailed(true)} className={`${size} shrink-0 rounded-xl border border-border bg-surface-soft object-cover`} />
+  ) : (
+    <span className={`${size} grid shrink-0 place-items-center rounded-xl border border-border bg-surface-soft text-text-muted`}>
+      <Package className="h-5 w-5" />
+    </span>
+  );
+  if (!url || !onOpen) return body;
+  return (
+    <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(url); }} className="shrink-0 rounded-xl">
+      {body}
+    </button>
+  );
+}
+
+const locationLine = (order = {}) =>
+  [order.address?.governorate, order.address?.city, order.address?.district].map(text).filter(Boolean).filter((value, index, list) => list.indexOf(value) === index).join(" · ");
+
+const fullAddressText = (order = {}, ui) => {
+  const address = order.address || {};
+  const parts = [
+    locationLine(order),
+    address.street ? `${ui.tb("detail.street")}: ${address.street}` : "",
+    address.building ? `${ui.tb("detail.building")}: ${address.building}` : "",
+    address.floor ? `${ui.tb("detail.floor")}: ${address.floor}` : "",
+    address.apartment ? `${ui.tb("detail.apartment")}: ${address.apartment}` : "",
+    address.landmark ? `${ui.tb("detail.landmark")}: ${address.landmark}` : "",
+    address.full,
+  ].map(text).filter(Boolean);
+  return parts.join("\n");
+};
+
+function OrderCard({ order, ui, onOpen }) {
+  const confirmation = getConfirmationState(order);
+  const items = Array.isArray(order.items) ? order.items : [];
+  // One thumbnail per line (a placeholder when the line has no photo), so "+N" only
+  // ever means "N more products", never "N products without a picture".
+  const shownItems = items.slice(0, 4);
+  const hiddenItems = Math.max(0, items.length - shownItems.length);
+  const location = locationLine(order);
+  const collect = Number(order.money?.collect_on_delivery || 0);
+  const tracking = text(order.shipment?.tracking_number);
+  const statusText = order.group === "shipping" && text(order.shipping_status)
+    ? ui.shippingLabel(order.shipping_status)
+    : ui.statusLabel(order.status);
+
+  return (
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(order)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(order);
+        }
+      }}
+      className="portal-online-order-card cursor-pointer rounded-[var(--radius-card)] border border-border bg-surface p-3 text-start shadow-sm transition hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-sm font-black text-text" dir="ltr">{order.order_number}</span>
+            <Pill className="bg-surface-soft text-text-muted">{ui.tb(`sources.${order.source || "website"}`)}</Pill>
+          </div>
+          <div className="mt-0.5 text-[11px] font-bold text-text-muted">{ui.dateTime(order.created_at)}</div>
+        </div>
+        <div className="flex max-w-[55%] flex-col items-end gap-1">
+          <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{statusText}</TonePill>
+          {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
+        </div>
+      </div>
+
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 truncate text-sm font-black text-text">
+            <User className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+            <span className="truncate" dir="auto">{order.customer?.name || ui.tb("card.noName")}</span>
+          </div>
+          <div className="mt-0.5 text-xs font-bold text-text-muted" dir="ltr">{order.customer?.phone || ui.tb("card.noPhone")}</div>
+        </div>
+        <ContactButtons phone={order.customer?.phone} ui={ui} />
+      </div>
+
+      <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-text-muted">
+        <MapPin className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate" dir="auto">{location || text(order.address?.full) || ui.tb("card.noAddress")}</span>
+      </div>
+
+      {items.length ? (
+        <div className="mt-2.5 flex items-center gap-1.5">
+          {shownItems.map((item) => <ProductThumb key={item.id} src={item.image_url} />)}
+          {hiddenItems > 0 ? (
+            <span className="grid h-12 min-w-12 place-items-center rounded-xl bg-surface-soft px-2 text-xs font-black text-text-muted">
+              {ui.tb("card.morePhotos", { count: hiddenItems })}
+            </span>
+          ) : null}
+          <span className="ms-auto text-xs font-black text-text-muted">{ui.tb("card.pieces", { count: ui.count(order.items_count) })}</span>
+        </div>
+      ) : null}
+
+      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-[11px] font-bold text-text-muted">{ui.tb("card.total")}</span>
+          <span className="text-sm font-black text-text">{ui.money(order.money?.total)}</span>
+        </div>
+        {collect > 0 ? (
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[11px] font-bold text-text-muted">{ui.tb("card.collect")}</span>
+            <span className="text-sm font-black text-text">{ui.money(collect)}</span>
+          </div>
+        ) : null}
+        {tracking ? (
+          <Pill className="bg-surface-soft text-text">
+            <Truck className="h-3 w-3" />
+            <span dir="ltr">{tracking}</span>
+          </Pill>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function Section({ icon: Icon, title, action, children }) {
+  return (
+    <section className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-black text-text">
+          {Icon ? <Icon className="h-4 w-4 text-text-muted" /> : null}
+          {title}
+        </h3>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Field({ label, value, ltr = false, wide = false }) {
+  if (value === null || value === undefined || text(value) === "") return null;
+  return (
+    <div className={`rounded-[var(--radius-control)] bg-surface-soft px-3 py-2 ${wide ? "col-span-2" : ""}`}>
+      <div className="text-[11px] font-bold text-text-muted">{label}</div>
+      <div className="mt-0.5 whitespace-pre-line break-words text-sm font-black text-text" dir={ltr ? "ltr" : "auto"}>{value}</div>
+    </div>
+  );
+}
+
+function MoneyRow({ label, value, strong = false, tone = "" }) {
+  return (
+    <div className={`flex items-center justify-between gap-3 py-1.5 text-sm ${strong ? "border-t border-border pt-2.5" : ""}`}>
+      <span className="font-bold text-text-muted">{label}</span>
+      <span className={`font-black ${tone || "text-text"} ${strong ? "text-base" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function timelineLabel(event, ui) {
+  if (event.kind === "shipment") return ui.tb("timeline.shipment", { status: ui.shippingLabel(event.status) });
+  if (event.kind === "courier_collected") return ui.tb("timeline.courier_collected", { amount: ui.money(event.amount) });
+  return ui.tb(`timeline.${event.kind}`);
+}
+
+function OrderDetailSheet({ selection, ui, onClose, onRetry }) {
+  const [imagePreview, setImagePreview] = useState("");
+  const order = selection.order || {};
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      if (imagePreview) setImagePreview("");
+      else onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [imagePreview, onClose]);
+
+  const confirmation = getConfirmationState(order);
+  const items = Array.isArray(order.items) ? order.items : [];
+  const money = order.money || {};
+  const shipment = order.shipment || {};
+  const people = order.people || {};
+  const address = order.address || {};
+  const proofUrl = resolveShippingProofImageUrl(money.payment_proof_url);
+  const proofKey = proofStatusKey(money.transfer_proof_status);
+  const timeline = Array.isArray(order.timeline) ? order.timeline : [];
+  const addressText = fullAddressText(order, ui);
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-[rgba(2,6,23,0.55)] sm:items-center" dir={ui.dir}>
+      <button type="button" aria-label={ui.tb("actions.close")} onClick={onClose} className="absolute inset-0 cursor-default" />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={order.order_number}
+        className="portal-online-order-sheet relative flex max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background shadow-2xl sm:rounded-[1.75rem]"
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+          <div className="min-w-0">
+            <div className="text-[11px] font-black text-text-muted">{ui.tb("title")}</div>
+            <h2 className="mt-0.5 text-lg font-black text-text" dir="ltr">{order.order_number}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{ui.tb(`groups.${order.group || "new"}`)}</TonePill>
+              <Pill className="bg-surface-soft text-text-muted">{ui.tb(`sources.${order.source || "website"}`)}</Pill>
+              {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-primary text-primary-foreground"
+            aria-label={ui.tb("actions.close")}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:px-4">
+          {selection.loading ? (
+            <div className="flex items-center gap-2 rounded-[var(--radius-control)] bg-surface-soft px-3 py-2 text-xs font-bold text-text-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {ui.tb("loading")}
+            </div>
+          ) : null}
+          {selection.error ? (
+            <div className="flex items-center justify-between gap-2 rounded-[var(--radius-control)] bg-danger-subtle px-3 py-2 text-xs font-black text-text">
+              <span className="flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 text-danger" />{ui.tb("error.detail")}</span>
+              <button type="button" onClick={onRetry} className="underline">{ui.tb("error.retry")}</button>
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={ui.tb("detail.orderStatus")} value={ui.statusLabel(order.status)} />
+            <Field label={ui.tb("detail.shippingStatus")} value={ui.shippingLabel(order.shipping_status)} />
+            <Field label={ui.tb("detail.createdAt")} value={ui.dateTime(order.created_at)} />
+            <Field label={ui.tb("detail.source")} value={ui.tb(`sources.${order.source || "website"}`)} />
+          </div>
+
+          <Section icon={User} title={ui.tb("detail.customer")}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-base font-black text-text" dir="auto">{order.customer?.name || ui.tb("card.noName")}</div>
+                <div className="mt-0.5 text-sm font-bold text-text-muted" dir="ltr">{order.customer?.phone || ui.tb("card.noPhone")}</div>
+                {order.customer?.email ? <div className="mt-0.5 text-xs font-bold text-text-muted" dir="ltr">{order.customer.email}</div> : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <ContactButtons phone={order.customer?.phone} ui={ui} size="lg" />
+                <CopyButton value={order.customer?.phone} label={ui.tb("actions.copy")} copiedLabel={ui.tb("actions.copied")} className="min-h-[var(--control-height-lg)]" />
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            icon={MapPin}
+            title={ui.tb("detail.address")}
+            action={<CopyButton value={addressText} label={ui.tb("actions.copyAddress")} copiedLabel={ui.tb("actions.copied")} />}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <Field label={ui.tb("detail.governorate")} value={address.governorate} />
+              <Field label={ui.tb("detail.city")} value={address.city} />
+              <Field label={ui.tb("detail.district")} value={address.district !== address.city ? address.district : ""} />
+              <Field label={ui.tb("detail.street")} value={address.street} />
+              <Field label={ui.tb("detail.building")} value={address.building} />
+              <Field label={ui.tb("detail.floor")} value={address.floor} />
+              <Field label={ui.tb("detail.apartment")} value={address.apartment} />
+              <Field label={ui.tb("detail.landmark")} value={address.landmark} wide />
+              <Field label={ui.tb("detail.fullAddress")} value={address.full && address.full !== address.street ? address.full : ""} wide />
+              <Field label={ui.tb("detail.deliveryNotes")} value={order.delivery_notes} wide />
+              <Field label={ui.tb("detail.orderNotes")} value={order.order_notes} wide />
+            </div>
+            {!addressText ? <div className="text-sm font-bold text-text-muted">{ui.tb("card.noAddress")}</div> : null}
+          </Section>
+
+          <Section icon={Package} title={`${ui.tb("detail.products")} · ${ui.tb("card.pieces", { count: ui.count(order.items_count) })}`}>
+            <div className="space-y-2">
+              {items.map((item) => (
+                <div key={item.id} className="flex items-start gap-3 rounded-[var(--radius-control)] bg-surface-soft p-2">
+                  <ProductThumb src={item.image_url} size="h-20 w-20" onOpen={setImagePreview} />
+                  <div className="min-w-0 flex-1">
+                    <div className="line-clamp-2 text-sm font-black leading-5 text-text" dir="auto">{item.product_name}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {item.color ? <Pill className="bg-surface text-text">{ui.tb("detail.color")}: <span dir="auto">{item.color}</span></Pill> : null}
+                      {item.size ? <Pill className="bg-surface text-text">{ui.tb("detail.size")}: <span dir="ltr">{item.size}</span></Pill> : null}
+                      <Pill className="bg-surface text-text">{ui.tb("detail.quantity")}: {ui.count(item.quantity)}</Pill>
+                      {Number(item.returned_quantity) > 0 ? <TonePill tone="danger">{ui.tb("detail.returned", { count: ui.count(item.returned_quantity) })}</TonePill> : null}
+                    </div>
+                    {item.sku ? <div className="mt-1 truncate text-[11px] font-bold text-text-muted" dir="ltr">{item.sku}</div> : null}
+                  </div>
+                  <div className="shrink-0 text-end">
+                    <div className="text-sm font-black text-text">{ui.money(item.line_total)}</div>
+                    {Number(item.quantity) > 1 ? <div className="text-[11px] font-bold text-text-muted">{ui.money(item.unit_price)} × {ui.count(item.quantity)}</div> : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section icon={Receipt} title={ui.tb("detail.money")}>
+            <div>
+              <MoneyRow label={ui.tb("detail.subtotal")} value={ui.money(money.subtotal)} />
+              {Number(money.discount) > 0 ? (
+                <MoneyRow label={money.coupon_code ? ui.tb("detail.coupon", { code: money.coupon_code }) : ui.tb("detail.discount")} value={`- ${ui.money(money.discount)}`} />
+              ) : null}
+              <MoneyRow label={ui.tb("detail.shippingFee")} value={ui.money(money.shipping_fee)} />
+              <MoneyRow label={ui.tb("detail.total")} value={ui.money(money.total)} strong />
+              <MoneyRow label={ui.tb("detail.paid")} value={ui.money(money.paid)} />
+              <MoneyRow label={ui.tb("detail.owed")} value={ui.money(money.owed)} />
+              {Number(money.collect_on_delivery) > 0 ? (
+                <div className="mt-1.5 flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-warning-subtle px-3 py-2">
+                  <span className="flex items-center gap-1.5 text-sm font-black text-text"><span className="h-2 w-2 rounded-full bg-warning" />{ui.tb("detail.collect")}</span>
+                  <span className="text-base font-black text-text">{ui.money(money.collect_on_delivery)}</span>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-2.5 grid grid-cols-2 gap-2">
+              <Field label={ui.tb("detail.paymentMethod")} value={ui.paymentMethodLabel(money.payment_method)} />
+              <Field label={ui.tb("detail.paymentStatus")} value={ui.paymentStatusLabel(money.payment_status)} />
+              {proofKey ? <Field label={ui.tb("detail.paymentProof")} value={ui.tb(`payment.${proofKey}`)} wide /> : null}
+              {money.courier_collected_amount !== null && money.courier_collected_amount !== undefined ? (
+                <Field label={ui.tb("detail.courierCollected")} value={ui.money(money.courier_collected_amount)} wide />
+              ) : null}
+            </div>
+            {proofUrl ? (
+              <button type="button" onClick={() => setImagePreview(proofUrl)} className="mt-2 flex items-center gap-2 rounded-[var(--radius-control)] bg-surface-soft p-2 text-start">
+                <img src={proofUrl} alt="" loading="lazy" className="h-16 w-16 rounded-lg border border-border object-cover" />
+                <span className="text-xs font-black text-text">{ui.tb("detail.paymentProof")}</span>
+              </button>
+            ) : null}
+          </Section>
+
+          <Section icon={Truck} title={ui.tb("detail.shipment")}>
+            {shipment.tracking_number || shipment.delivery_id ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label={ui.tb("detail.provider")} value={ui.providerLabel(shipment.provider)} />
+                  <Field label={ui.tb("detail.shippingStatus")} value={ui.shippingLabel(order.shipping_status)} />
+                  <Field label={ui.tb("detail.trackingNumber")} value={shipment.tracking_number || shipment.delivery_id} ltr />
+                  <Field label={ui.tb("detail.lastSync")} value={ui.dateTime(shipment.last_synced_at)} />
+                  {shipment.allow_open_package !== null && shipment.allow_open_package !== undefined ? (
+                    <Field label={ui.tb("detail.openPackage")} value={shipment.allow_open_package ? ui.tb("detail.yes") : ui.tb("detail.no")} />
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <CopyButton value={shipment.tracking_number || shipment.delivery_id} label={ui.tb("actions.copy")} copiedLabel={ui.tb("actions.copied")} />
+                  {shipment.tracking_url ? (
+                    <a href={shipment.tracking_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface px-2.5 text-xs font-black text-text">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      {ui.tb("actions.trackShipment")}
+                    </a>
+                  ) : null}
+                  {shipment.label_url ? (
+                    <a href={shipment.label_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface px-2.5 text-xs font-black text-text">
+                      <FileText className="h-3.5 w-3.5" />
+                      {ui.tb("actions.openLabel")}
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm font-bold text-text-muted">{ui.tb("detail.noShipment")}</div>
+            )}
+          </Section>
+
+          {people.seller || people.cashier || people.created_by || people.branch ? (
+            <Section icon={Users} title={ui.tb("detail.people")}>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label={ui.tb("detail.seller")} value={people.seller} />
+                <Field label={ui.tb("detail.cashier")} value={people.cashier} />
+                <Field label={ui.tb("detail.createdBy")} value={people.created_by} />
+                <Field label={ui.tb("detail.branch")} value={people.branch} />
+              </div>
+            </Section>
+          ) : null}
+
+          {timeline.length ? (
+            <Section icon={Clock} title={ui.tb("detail.timeline")}>
+              <ol className="space-y-2">
+                {timeline.map((event, index) => (
+                  <li key={`${event.kind}-${event.at}-${index}`} className="flex items-start gap-2.5">
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-text">{timelineLabel(event, ui)}</div>
+                      <div className="text-[11px] font-bold text-text-muted">{ui.dateTime(event.at)}</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </Section>
+          ) : null}
+        </div>
+      </section>
+
+      {imagePreview ? (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-[rgba(0,0,0,0.88)] p-4" onClick={() => setImagePreview("")}>
+          <img src={imagePreview} alt="" className="max-h-full max-w-full rounded-2xl object-contain" />
+          <button
+            type="button"
+            onClick={() => setImagePreview("")}
+            className="absolute end-4 top-[calc(env(safe-area-inset-top)+1rem)] inline-flex h-11 w-11 items-center justify-center rounded-full bg-surface text-text"
+            aria-label={ui.tb("actions.close")}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function PortalOnlineOrdersBoard({ loadList, loadDetail, className = "" }) {
+  const ui = useBoardText();
+  const [group, setGroup] = useState("all");
+  const [range, setRange] = useState(DEFAULT_RANGE);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [board, setBoard] = useState({ orders: [], counts: {}, page: 1, hasMore: false, loading: true, loadingMore: false, error: "", loadedAt: 0 });
+  const [selection, setSelection] = useState(null);
+  const requestRef = useRef(0);
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const loadListRef = useRef(loadList);
+  loadListRef.current = loadList;
+  const loadDetailRef = useRef(loadDetail);
+  loadDetailRef.current = loadDetail;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  const fetchPage = useCallback(async ({ page = 1, silent = false } = {}) => {
+    const requestId = ++requestRef.current;
+    setBoard((current) => ({
+      ...current,
+      loading: page === 1 && !silent,
+      loadingMore: page > 1,
+      error: page === 1 && !silent ? "" : current.error,
+    }));
+    try {
+      const payload = await loadListRef.current({ group, range, search, page });
+      if (requestId !== requestRef.current) return;
+      const orders = Array.isArray(payload?.orders) ? payload.orders : [];
+      setBoard((current) => ({
+        orders: page > 1 ? appendById(current.orders, orders) : orders,
+        counts: payload?.counts || {},
+        page,
+        hasMore: Boolean(payload?.has_more),
+        loading: false,
+        loadingMore: false,
+        error: "",
+        loadedAt: Date.now(),
+      }));
+    } catch (error) {
+      if (requestId !== requestRef.current) return;
+      setBoard((current) => ({
+        ...current,
+        loading: false,
+        loadingMore: false,
+        error: error?.responseBody?.message || error?.message || ui.tb("error.title"),
+      }));
+    }
+  }, [group, range, search, ui]);
+
+  useEffect(() => {
+    void fetchPage({ page: 1 });
+  }, [fetchPage]);
+
+  // New orders keep arriving while the page is open. Refresh the first page quietly
+  // while it is on screen — never once the person has paged further, which would
+  // throw away what they scrolled to.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      const current = boardRef.current;
+      if (current.loading || current.loadingMore || current.page > 1) return;
+      if (Date.now() - current.loadedAt < POLL_MS - 5_000) return;
+      void fetchPage({ page: 1, silent: true });
+    };
+    const interval = window.setInterval(tick, POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [fetchPage]);
+
+  const loadSelection = useCallback(async (order) => {
+    setSelection({ id: order.id, order, loading: true, error: "" });
+    try {
+      const detail = await loadDetailRef.current(order.id);
+      setSelection((current) => (current && current.id === order.id
+        ? { ...current, order: { ...current.order, ...(detail || {}) }, loading: false, error: "" }
+        : current));
+    } catch (error) {
+      setSelection((current) => (current && current.id === order.id
+        ? { ...current, loading: false, error: error?.message || "error" }
+        : current));
+    }
+  }, []);
+
+  const closeSelection = useCallback(() => setSelection(null), []);
+  const counts = board.counts || {};
+
+  return (
+    <div className={`portal-online-orders space-y-3 ${className}`} dir={ui.dir}>
+      <div className="flex items-center gap-2">
+        <label className="relative flex min-w-0 flex-1 items-center">
+          <Search className="pointer-events-none absolute start-2.5 h-4 w-4 text-text-muted" />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder={ui.tb("searchPlaceholder")}
+            className={`min-h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface ps-8 text-sm font-bold text-text placeholder:text-text-muted ${searchInput ? "pe-9" : "pe-2"}`}
+            enterKeyHint="search"
+          />
+          {searchInput ? (
+            <button type="button" onClick={() => setSearchInput("")} className="absolute end-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-text-muted" aria-label={ui.tb("clearSearch")}>
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </label>
+        <button
+          type="button"
+          onClick={() => void fetchPage({ page: 1 })}
+          className="inline-flex min-h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text"
+          aria-label={ui.tb("refresh")}
+          title={ui.tb("refresh")}
+        >
+          <RefreshCw className={`h-4 w-4 ${board.loading ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]">
+        {RANGES.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setRange(key)}
+            aria-pressed={range === key}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black transition ${range === key ? "bg-text text-background" : "bg-surface-soft text-text-muted"}`}
+          >
+            {ui.tb(`ranges.${key}`)}
+          </button>
+        ))}
+      </div>
+
+      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist">
+        {GROUPS.map((key) => {
+          const active = group === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setGroup(key)}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-black transition ${active ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-surface text-text"}`}
+            >
+              <span>{ui.tb(`groups.${key}`)}</span>
+              <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] leading-5 ${active ? "bg-[rgba(255,255,255,0.22)]" : "bg-surface-soft text-text-muted"}`}>
+                {ui.count(counts[key] || 0)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {board.error && !board.loading ? (
+        <div className="flex flex-col items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-8 text-center">
+          <AlertTriangle className="h-6 w-6 text-danger" />
+          <div className="text-sm font-black text-text">{ui.tb("error.title")}</div>
+          <div className="text-xs font-bold text-text-muted">{board.error}</div>
+          <button type="button" onClick={() => void fetchPage({ page: 1 })} className="mt-1 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-xs font-black text-primary-foreground">
+            {ui.tb("error.retry")}
+          </button>
+        </div>
+      ) : board.loading && !board.orders.length ? (
+        <div className="space-y-2" aria-busy="true">
+          {[0, 1, 2].map((key) => (
+            <div key={key} className="h-44 animate-pulse rounded-[var(--radius-card)] border border-border bg-surface-soft" />
+          ))}
+        </div>
+      ) : !board.orders.length ? (
+        <div className="flex flex-col items-center gap-1.5 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-10 text-center">
+          <Truck className="h-7 w-7 text-text-muted" />
+          <div className="text-sm font-black text-text">{ui.tb("empty.title")}</div>
+          <div className="text-xs font-bold text-text-muted">{ui.tb("empty.body")}</div>
+        </div>
+      ) : (
+        <div className={`grid gap-2.5 md:grid-cols-2 ${board.loading ? "opacity-60" : ""}`}>
+          {board.orders.map((order) => (
+            <OrderCard key={order.id} order={order} ui={ui} onOpen={loadSelection} />
+          ))}
+        </div>
+      )}
+
+      {board.hasMore && !board.error ? (
+        <button
+          type="button"
+          disabled={board.loadingMore}
+          onClick={() => void fetchPage({ page: board.page + 1 })}
+          className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface text-sm font-black text-text disabled:opacity-60"
+        >
+          {board.loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          {ui.tb("loadMore")}
+        </button>
+      ) : null}
+
+      {board.loadedAt ? (
+        <div className="text-center text-[11px] font-bold text-text-muted">
+          {ui.tb("updatedAt", { time: formatInAppTimezone(board.loadedAt, { hour: "numeric", minute: "2-digit" }, ui.language === "ar" ? "ar-EG" : "en-GB") })}
+        </div>
+      ) : null}
+
+      {selection ? (
+        <OrderDetailSheet selection={selection} ui={ui} onClose={closeSelection} onRetry={() => void loadSelection(selection.order)} />
+      ) : null}
+    </div>
+  );
+}

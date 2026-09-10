@@ -16,6 +16,8 @@ export const managerPortalApi = {
   tasks: (token, options = {}) => api.get(`${tokenPath(token)}/tasks`, options),
   sales: (token, options = {}) => api.get(`${tokenPath(token)}/sales`, options),
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),
+  onlineOrders: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/online-orders`, { cache: "no-store", ...options, params }),
+  onlineOrder: (token, orderId) => api.get(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}`, { cache: "no-store" }),
   stockAlerts: (token, options = {}) => api.get(`${tokenPath(token)}/stock-alerts`, options),
   daySummary: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/day-summary`, { ...options, params }),
   inventoryApprovals: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/inventory-approvals`, { ...options, params }),
