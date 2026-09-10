@@ -51,6 +51,7 @@ const getSocialCommentsMetaIntegrationDeps = async () => {
         fetchMetaInstagramMediaForTenant: module.fetchMetaInstagramMediaForTenant,
         syncMetaInstagramCommentsForTenant: module.syncMetaInstagramCommentsForTenant,
         syncMetaFacebookCommentsForTenant: module.syncMetaFacebookCommentsForTenant,
+        reconcileDeletedSocialCommentsForPost: module.reconcileDeletedSocialCommentsForPost,
         fetchMetaPostPreviewDetails: module.fetchMetaPostPreviewDetails,
       }))
       .catch((error) => {
@@ -131,6 +132,12 @@ const SOCIAL_FAST_LIST_METRICS_WINDOW = 120;
 // Rows with no `item` (the poller's own, and every TikTok row) are kept.
 const socialCommentIsCommentRowSql = (alias = "") =>
   `COALESCE(NULLIF(${alias}raw_payload->>'item', ''), 'comment') = 'comment'`;
+// A comment deleted on the platform keeps its row (socialCommentDeletion.js) but is never shown
+// or counted. The column is added at boot (ensureSocialCommentVisibilityColumns).
+const socialCommentIsLiveRowSql = (alias = "") => `${alias}deleted_at IS NULL`;
+// Opening a thread waits this long for the deletion check before answering with what it has; a
+// slower check still lands, and the next open shows it.
+const SOCIAL_THREAD_DELETION_CHECK_BUDGET_MS = 2500;
 const socialFastListCache = new Map();
 const socialFastListDurationsMs = [];
 let socialFastListCacheHits = 0;
@@ -3734,6 +3741,7 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
         AND platform = $2::text
         AND post_id <> ''
         AND ${socialCommentIsCommentRowSql()}
+        AND ${socialCommentIsLiveRowSql()}
       GROUP BY post_id
       `,
       [safeTenantId, normalizedPlatform]
@@ -4202,6 +4210,31 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   }
   const channel = commentChannelForPlatform(normalizedPlatform);
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
+  // The sync above only ever adds. This is what takes a comment deleted on the post back out.
+  if (normalizedPlatform === "facebook" || normalizedPlatform === "instagram") {
+    const { reconcileDeletedSocialCommentsForPost } = await getSocialCommentsMetaIntegrationDeps();
+    const deletionCheck = reconcileDeletedSocialCommentsForPost({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      graphPostId: safePostId,
+      matchPostId: canonicalPostId || safePostId,
+    }).catch((error) => {
+      console.warn("SOCIAL_COMMENT_DELETION_CHECK_FAILED", {
+        tenant_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: safePostId,
+        message: error?.message || "",
+      });
+    });
+    let budgetTimer = null;
+    await Promise.race([
+      deletionCheck,
+      new Promise((resolve) => {
+        budgetTimer = setTimeout(resolve, SOCIAL_THREAD_DELETION_CHECK_BUDGET_MS);
+      }),
+    ]);
+    clearTimeout(budgetTimer);
+  }
   const sessionIds = buildSocialCommentThreadSessionVariants({ postId: canonicalPostId || safePostId, platform: normalizedPlatform });
   const sessionPatterns = Array.from(new Set(sessionIds.flatMap((value) => {
     const safeValue = text(value);
@@ -4246,7 +4279,8 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
         source.commenter_id AS source_commenter_id,
         source.commenter_name AS source_commenter_name,
         source.commenter_profile_picture_url AS source_commenter_profile_picture_url,
-        source.raw_payload AS source_raw_payload
+        source.raw_payload AS source_raw_payload,
+        source.deleted_at AS source_deleted_at
       FROM social_comment_automation_runs source
       WHERE source.tenant_id = msg.tenant_id
         AND source.platform = $5::text
@@ -4311,6 +4345,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     WHERE source.tenant_id = $1::bigint
       AND source.platform = $2::text
       AND ${socialCommentIsCommentRowSql("source.")}
+      AND ${socialCommentIsLiveRowSql("source.")}
       AND (
         source.post_id = $3::text
         OR regexp_replace(source.post_id, '^.*_', '') = regexp_replace($3::text, '^.*_', '')
@@ -4324,6 +4359,8 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   const mergedRows = [];
   const seenCommentIds = new Set();
   for (const row of [...(result.rows || []), ...(automationResult.rows || [])]) {
+    // The inbox copy of a comment has no deletion flag of its own; its ledger row carries it.
+    if (row.source_deleted_at) continue;
     const rowCommentId = text(row.comment_id || row.external_message_id || row.id || "");
     if (rowCommentId && seenCommentIds.has(rowCommentId)) continue;
     if (rowCommentId) seenCommentIds.add(rowCommentId);
@@ -4618,6 +4655,9 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   }
   if (hasRawPayloadColumn) {
     whereClauses.push(socialCommentIsCommentRowSql());
+  }
+  if (columns.has("deleted_at")) {
+    whereClauses.push(socialCommentIsLiveRowSql());
   }
   if (status) {
     const statusParamIndex = params.length + 1;

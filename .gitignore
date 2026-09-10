@@ -69,6 +69,7 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+!server/services/socialCommentDeletion.js
 !server/services/whatsappSalesFlowService.js
 !server/services/metaGraphRateLimiter.js
 !server/services/metaImageCompatService.js
@@ -128,6 +129,7 @@ server/services/*
 !server/services/tiktok*.js
 !server/services/aiMarketingStoryAutopilotService.js
 !server/services/socialCommentPlatforms.js
+!server/services/socialCommentDeletion.js
 !server/services/whatsappSalesFlowService.js
 !server/services/metaGraphRateLimiter.js
 !server/services/metaImageCompatService.js

@@ -7160,13 +7160,18 @@ const isSocialCommentAutomationSchemaInitEnabled = () => {
 
    Two nullable columns with no default: ADD COLUMN IF NOT EXISTS is a metadata-only change in
    Postgres — no table rewrite, no backfill, nothing that can collide with a unique key and take the
-   boot down. */
+   boot down.
+
+   deleted_at / deleted_reason ride the same door: a comment deleted on the platform is marked,
+   never removed, so the read paths drop it and a later listing that shows it again restores it. */
 let socialCommentVisibilityColumnsPromise = null;
 export const ensureSocialCommentVisibilityColumns = async (clientOrPool = db) => {
   if (!socialCommentVisibilityColumnsPromise) {
     socialCommentVisibilityColumnsPromise = (async () => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_reason TEXT NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS social_comment_automation_runs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS social_comment_automation_runs ADD COLUMN IF NOT EXISTS deleted_reason TEXT NULL`);
     })().catch((error) => {
       socialCommentVisibilityColumnsPromise = null;
       throw error;
@@ -7243,6 +7248,9 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
       // button. Nullable: NULL means visible, which is every comment that existed before this.
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS hidden_reason TEXT NULL`);
+      // Deleted on the platform (see socialCommentDeletion.js). NULL means it is still there.
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS deleted_reason TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS social_comment_automation_run_audits (
@@ -7616,6 +7624,50 @@ export const recordSocialCommentVisibility = async ({
       message: text(error?.message || ""),
     });
   });
+};
+
+/* Marks comments the platform says are gone (see socialCommentDeletion.js). The row stays — its
+   automation history and any order it led to still point at it — and every read path skips it.
+   `includeReplies` is for the webhook: Facebook deletes a comment's replies with it but sends one
+   `remove` for the parent only. `deleted_at` keeps the first time; restoring clears both columns. */
+export const markSocialCommentsDeleted = async ({
+  tenantId = null,
+  platform = "",
+  commentIds = [],
+  reason = "",
+  includeReplies = false,
+  deleted = true,
+} = {}) => {
+  const safeTenantId = Number(tenantId || 0);
+  const safePlatform = text(platform).toLowerCase();
+  const ids = [...new Set(asArray(commentIds).map((id) => text(id)).filter(Boolean))].slice(0, 500);
+  if (!safeTenantId || !safePlatform || !ids.length) return { updated: 0 };
+  await ensureSocialCommentAutomationSchema().catch(() => {});
+  const result = await db.query(
+    `
+    UPDATE social_comment_automation_runs
+    SET deleted_at = CASE WHEN $4::boolean THEN COALESCE(deleted_at, CURRENT_TIMESTAMP) ELSE NULL END,
+        deleted_reason = CASE WHEN $4::boolean THEN NULLIF($5::text, '') ELSE NULL END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND (
+        comment_id = ANY($3::text[])
+        OR ($6::boolean AND parent_comment_id <> '' AND parent_comment_id = ANY($3::text[]))
+      )
+      AND (deleted_at IS NULL) = $4::boolean
+    `,
+    [safeTenantId, safePlatform, ids, deleted === true, text(reason), includeReplies === true]
+  );
+  const updated = Number(result?.rowCount || 0);
+  console.log(deleted ? "SOCIAL_COMMENT_MARKED_DELETED" : "SOCIAL_COMMENT_DELETION_RESTORED", {
+    tenant_id: safeTenantId,
+    platform: safePlatform,
+    reason: text(reason),
+    comment_ids: ids.slice(0, 20),
+    updated,
+  });
+  return { updated };
 };
 
 export const moderateIncomingSocialComment = async ({ row = {} } = {}) => {

@@ -55,8 +55,14 @@ import {
 import {
   ensureSocialCommentAutomationSchema,
   extractSocialCommentWebhookEvents,
+  markSocialCommentsDeleted,
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
+import {
+  extractSocialCommentRemovalEvents,
+  isGraphObjectMissingError,
+  planSocialCommentDeletionReconcile,
+} from "./socialCommentDeletion.js";
 import {
   countMarketingCommentEventsLast24h,
   countMarketingWebhookRequestsLast24h,
@@ -9095,6 +9101,162 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
     }
   }
   return { success: true, comments_seen: commentsSeen, comments_saved: commentsSaved };
+};
+
+/* Finds comments deleted on the platform since we stored them (rules in socialCommentDeletion.js).
+   Runs when a thread is opened: list the post's live comment ids, then ask for each stored comment
+   the list lacks by its own id — only "does not exist" marks it deleted. Throttled per post, and a
+   comment Graph has just confirmed alive is not asked about again for a while. */
+const SOCIAL_COMMENT_RECONCILE_TTL_MS = 2 * 60 * 1000;
+const SOCIAL_COMMENT_RECONCILE_MAX_PAGES = 15;
+const SOCIAL_COMMENT_RECONCILE_MAX_CHECKS = 40;
+const SOCIAL_COMMENT_ALIVE_TTL_MS = 30 * 60 * 1000;
+const socialCommentReconcileState = new Map();
+const socialCommentAliveAt = new Map();
+
+const fetchLiveSocialCommentIds = async ({ platform = "facebook", postId = "", token = "" } = {}) => {
+  const ids = new Set();
+  let after = "";
+  for (let page = 0; page < SOCIAL_COMMENT_RECONCILE_MAX_PAGES; page += 1) {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(text(postId))}/comments`,
+      token,
+      // Facebook: `stream` lists replies alongside top-level comments. Instagram lists top-level
+      // comments only, so their replies come through the nested edge.
+      params: platform === "instagram"
+        ? { fields: "id,replies.limit(50){id}", limit: "100", ...(after ? { after } : {}) }
+        : { fields: "id", filter: "stream", limit: "100", ...(after ? { after } : {}) },
+    });
+    const rows = asArray(payload?.data);
+    for (const row of rows) {
+      if (text(row?.id)) ids.add(text(row.id));
+      for (const reply of asArray(row?.replies?.data)) {
+        if (text(reply?.id)) ids.add(text(reply.id));
+      }
+    }
+    const nextAfter = text(payload?.paging?.cursors?.after || "");
+    if (!payload?.paging?.next || !nextAfter || !rows.length) return { ids, complete: true };
+    after = nextAfter;
+  }
+  return { ids, complete: false };
+};
+
+export const reconcileDeletedSocialCommentsForPost = async ({
+  tenantId = null,
+  platform = "facebook",
+  graphPostId = "",
+  matchPostId = "",
+  force = false,
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safePlatform = lower(platform) === "instagram" ? "instagram" : "facebook";
+  const safeGraphPostId = text(graphPostId);
+  const safeMatchPostId = text(matchPostId || graphPostId);
+  if (!safeTenantId || !safeGraphPostId) return { success: false, reason: "missing_input" };
+  const key = `${safeTenantId}:${safePlatform}:${safeGraphPostId}`;
+  const state = socialCommentReconcileState.get(key) || {};
+  if (state.promise) return state.promise;
+  if (!force && state.at && Date.now() - state.at < SOCIAL_COMMENT_RECONCILE_TTL_MS) {
+    return { success: true, skipped: true, reason: "recently_reconciled" };
+  }
+  const budget = shouldDeferBackgroundGraphWork();
+  if (budget.defer) return { success: false, skipped: true, reason: budget.reason };
+
+  const promise = (async () => {
+    let token = "";
+    if (safePlatform === "instagram") {
+      const context = await resolveMetaInstagramContext({ tenantId: safeTenantId });
+      if (context.error) return { success: false, reason: context.error };
+      token = context.token;
+    } else {
+      const config = await getMetaIntegrationConfig({ tenantId: safeTenantId });
+      token = config ? getTokenForConfig(config) : "";
+    }
+    if (!token) return { success: false, reason: "token_missing" };
+
+    // Throws on any Graph failure — and then nothing is marked, which is the point.
+    const live = await fetchLiveSocialCommentIds({ platform: safePlatform, postId: safeGraphPostId, token });
+    const stored = await db.query(
+      `
+      SELECT comment_id, deleted_at
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND COALESCE(NULLIF(raw_payload->>'item', ''), 'comment') = 'comment'
+        AND (
+          post_id = $3::text
+          OR regexp_replace(post_id, '^.*_', '') = regexp_replace($3::text, '^.*_', '')
+          OR resolved_post_id = $3::text
+          OR resolved_platform_post_id = $3::text
+        )
+      `,
+      [safeTenantId, safePlatform, safeMatchPostId]
+    );
+    const aliveKey = (commentId) => `${safeTenantId}:${safePlatform}:${commentId}`;
+    const recentlyVerifiedIds = new Set(
+      asArray(stored.rows)
+        .map((row) => text(row.comment_id))
+        .filter((commentId) => Date.now() - Number(socialCommentAliveAt.get(aliveKey(commentId)) || 0) < SOCIAL_COMMENT_ALIVE_TTL_MS)
+    );
+    const plan = planSocialCommentDeletionReconcile({
+      storedRows: stored.rows,
+      liveIds: live.ids,
+      complete: live.complete,
+      maxChecks: SOCIAL_COMMENT_RECONCILE_MAX_CHECKS,
+      recentlyVerifiedIds,
+    });
+
+    const confirmedDeleted = [];
+    for (let index = 0; index < plan.toCheck.length; index += 5) {
+      const batch = plan.toCheck.slice(index, index + 5);
+      const outcomes = await Promise.all(batch.map(async (commentId) => {
+        try {
+          await callMetaGet({ endpoint: `/${encodeURIComponent(commentId)}`, token, params: { fields: "id" } });
+          socialCommentAliveAt.set(aliveKey(commentId), Date.now());
+          return { commentId, deleted: false };
+        } catch (error) {
+          return { commentId, deleted: isGraphObjectMissingError(error), rateLimited: isMetaRateLimitError(error) };
+        }
+      }));
+      outcomes.filter((outcome) => outcome.deleted).forEach((outcome) => confirmedDeleted.push(outcome.commentId));
+      if (outcomes.some((outcome) => outcome.rateLimited)) break;
+    }
+
+    const marked = confirmedDeleted.length
+      ? await markSocialCommentsDeleted({ tenantId: safeTenantId, platform: safePlatform, commentIds: confirmedDeleted, reason: "graph_missing" })
+      : { updated: 0 };
+    const restored = plan.toRestore.length
+      ? await markSocialCommentsDeleted({ tenantId: safeTenantId, platform: safePlatform, commentIds: plan.toRestore, deleted: false, reason: "graph_listed" })
+      : { updated: 0 };
+    const summary = {
+      success: true,
+      tenant_id: safeTenantId,
+      platform: safePlatform,
+      post_id: safeGraphPostId,
+      live_count: live.ids.size,
+      listing_complete: live.complete,
+      stored_count: asArray(stored.rows).length,
+      checked: plan.toCheck.length,
+      checks_deferred: plan.skippedChecks,
+      deleted: marked.updated,
+      restored: restored.updated,
+    };
+    if (plan.toCheck.length || plan.toRestore.length || !live.complete) {
+      console.log("SOCIAL_COMMENT_DELETION_RECONCILED", summary);
+    }
+    return summary;
+  })();
+
+  socialCommentReconcileState.set(key, { ...state, promise });
+  try {
+    return await promise;
+  } finally {
+    socialCommentReconcileState.set(key, { at: Date.now(), promise: null });
+    if (socialCommentAliveAt.size > 5000) {
+      const cutoff = Date.now() - SOCIAL_COMMENT_ALIVE_TTL_MS;
+      for (const [aliveEntry, at] of socialCommentAliveAt) if (at < cutoff) socialCommentAliveAt.delete(aliveEntry);
+    }
+  }
 };
 
 export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "scheduler", force = false } = {}) => {
@@ -25946,6 +26108,24 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];
+  // A comment deleted on Facebook arrives as `verb: "remove"`. The gate above only admits
+  // add/edited, so without this the deleted comment stayed in the thread forever.
+  const removalEvents = extractSocialCommentRemovalEvents({ body: payload });
+  for (const removal of removalEvents) {
+    await markSocialCommentsDeleted({
+      tenantId: config.tenant_id,
+      platform: removal.platform,
+      commentIds: [removal.comment_id],
+      reason: "webhook_remove",
+      includeReplies: true,
+    }).catch((error) => {
+      console.warn("SOCIAL_COMMENT_REMOVAL_WEBHOOK_FAILED", {
+        tenant_id: config.tenant_id,
+        comment_id: removal.comment_id,
+        message: text(error?.message || ""),
+      });
+    });
+  }
   const extractedMessages = await extractMetaWebhookMessages({ body: payload, tenantId: config.tenant_id });
   const messages = (Array.isArray(extractedMessages) ? extractedMessages : []).filter((message) => message?.message_text || message?.attachments?.length);
   const results = [];

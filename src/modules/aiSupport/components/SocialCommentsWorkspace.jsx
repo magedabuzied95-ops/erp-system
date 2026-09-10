@@ -1754,15 +1754,19 @@ function SocialCommentsWorkspace({
       return !commentId || !visibleIds.has(commentId);
     });
 
-    return [...pendingComments, ...mergedVisibleComments];
+    // Oldest first, newest at the bottom — a comment not in the thread yet is the newest thing.
+    return [...mergedVisibleComments, ...pendingComments];
   }, [optimisticCommentEntries, visibleComments]);
+  const newestVisibleComment = visibleComments[visibleComments.length - 1] || null;
   const selectedVisibleComment =
     visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
-    visibleComments[0] ||
-    null;
+    newestVisibleComment;
   const actionableComment = selectedVisibleComment || null;
+  // The window is the NEWEST comments, and "load older" grows it upwards. It used to be the
+  // oldest 50 with the button revealing newer ones below, so a busy post opened on week-old
+  // comments that no longer matched what the post itself showed.
   const commentsToRender = useMemo(
-    () => displayComments.slice(0, Math.max(50, commentWindowSize)),
+    () => displayComments.slice(Math.max(0, displayComments.length - Math.max(50, commentWindowSize))),
     [commentWindowSize, displayComments]
   );
   const hasMoreComments = displayComments.length > commentsToRender.length;
@@ -1782,7 +1786,7 @@ function SocialCommentsWorkspace({
     const nextSelected =
       visibleComments.find((comment) => comment.id === preferredKey) ||
       visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
-      visibleComments[0] ||
+      visibleComments[visibleComments.length - 1] ||
       null;
     const nextKey = clean(nextSelected?.id || "");
     if (nextKey && nextKey !== selectedCommentKey) {
@@ -1796,9 +1800,10 @@ function SocialCommentsWorkspace({
 
     const targetIndex = displayComments.findIndex((comment) => comment.id === targetKey);
     if (targetIndex < 0) return;
-    if (targetIndex < commentWindowSize) return;
+    const needed = displayComments.length - targetIndex;
+    if (needed <= commentWindowSize) return;
 
-    setCommentWindowSize((current) => Math.max(current, targetIndex + 1));
+    setCommentWindowSize((current) => Math.max(current, needed));
   }, [commentWindowSize, displayComments, selectedCommentKey]);
 
   useEffect(() => {
