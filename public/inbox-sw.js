@@ -2,7 +2,7 @@
 // install, which leaves the previous worker active -- the safe outcome.
 importScripts("/sw-image-cache.js");
 
-const VERSION = "ai-inbox-v19";
+const VERSION = "ai-inbox-v20";
 // Customer photos, message attachments and product cards all come from the API
 // origin, and the fetch handler below returns early for every cross-origin
 // request -- so an inbox with no connection showed no media at all. Versioned on

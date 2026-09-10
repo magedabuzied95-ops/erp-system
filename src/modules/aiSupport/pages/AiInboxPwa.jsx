@@ -4402,7 +4402,7 @@ export default function AiInboxPwa() {
     if (!("serviceWorker" in navigator)) return undefined;
     // `?v=` must move with VERSION inside inbox-sw.js, or clients keep running the
     // old worker and the cache-first `/assets/` rule strands them on a stale bundle.
-    navigator.serviceWorker.register("/inbox-sw.js?v=19", { scope: "/inbox" }).catch(() => null);
+    navigator.serviceWorker.register("/inbox-sw.js?v=20", { scope: "/inbox" }).catch(() => null);
     return undefined;
   }, []);
 
