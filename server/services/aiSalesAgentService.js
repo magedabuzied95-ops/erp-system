@@ -5930,7 +5930,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   // miss, no log. `attachments` stays as a fallback for callers that hand in a raw provider shape.
   const latestCustomerMedia = inboxMessageMedia(latestCustomerRow);
   const inboundImageUrl = firstInboundImageUrl(latestCustomerMedia);
-  if (latestCustomerMedia.length && !inboundImageUrl) {
+  if (!inboundImageUrl && (latestCustomerMedia.length || (text(lastMessage) && messageIsOnlyMediaPlaceholder(lastMessage)))) {
     // A media row we could not read as a photo is exactly the silent case that hid the bug above.
     console.log("[ai-inbox] latest customer media has no usable image url", {
       tenant_id: tenantId,

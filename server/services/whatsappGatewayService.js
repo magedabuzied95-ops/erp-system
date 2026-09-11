@@ -5781,6 +5781,12 @@ export const handleIncomingWebhook = async (payload = {}) => {
         message_id: normalized.messageId,
         instanceName: normalized.instance,
         trace_id: trace?.id || null,
+        // What kind of media this was, and the exact placeholder text the row was saved with. The
+        // webhook route needs both to let an uncaptioned PHOTO reach the assisted-reply intake —
+        // `text` is deliberately "" here, and that alone kept every photo out of it.
+        media_type: mediaDescriptor.type,
+        media_label: mediaMessage,
+        visualAttachments: mediaDescriptor.visualAttachments,
         inbox: {
           saved: Boolean(mediaRow),
           duplicate: !mediaRow,

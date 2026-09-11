@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-import { firstInboundImageUrl } from "../server/services/aiVisualProductRecognitionService.js";
+import os from "node:os";
+import path from "node:path";
+
+import { firstInboundImageUrl, readLocalUploadImage } from "../server/services/aiVisualProductRecognitionService.js";
 import { inboxMessageMedia, messageIsOnlyMediaPlaceholder, normalizeInboxMessage } from "../server/services/aiSalesAgentService.js";
 
 // A customer sends a photo of a product on WhatsApp, Messenger or Instagram and the answer is the
@@ -172,6 +175,48 @@ test("a WhatsApp photo on a real inbox row is found where the row actually keeps
   // The pipeline must read the media through the same helper this test exercises.
   assert.match(salesAgent, /const latestCustomerMedia = inboxMessageMedia\(latestCustomerRow\);/);
   assert.match(salesAgent, /const inboundImageUrl = firstInboundImageUrl\(latestCustomerMedia\);/);
+});
+
+test("an uncaptioned WhatsApp photo reaches the assisted-reply intake", () => {
+  // LIVE 2026-09-11, the fourth gate: the gateway saves a caption-less photo as a media-only row
+  // (trace reason `media_only_no_ai`) and returns `text: ""`, and the webhook route only called the
+  // intake `if (normalized.text && …)`. So a customer's product photo never produced a suggestion,
+  // however the pipeline behind it was fixed.
+  const route = fs.readFileSync(new URL("../server/routes/whatsappGateway.js", import.meta.url), "utf8");
+  const gate = route.slice(route.indexOf("const photoOnlyIntakeText ="), route.indexOf("fromMe: false,"));
+  assert.ok(gate.length > 0, "the photo-only intake gate exists");
+  assert.match(gate, /normalized\.media_type === "image"/, "only a PHOTO is let through — not voice, video or stickers");
+  assert.match(gate, /normalized\.inbox\?\.reason === "media_saved"/, "and only a freshly saved media row");
+  assert.match(gate, /const intakeText = normalized\.text \|\| photoOnlyIntakeText;/);
+  assert.match(gate, /if \(intakeText && normalized\.fromMe !== true/, "the store's own photos stay out");
+  assert.match(gate, /text: intakeText,/, "the intake gets the row's placeholder, which the pipeline reads as 'the picture is the message'");
+  // and the gateway tells the route what it saved
+  const mediaReturn = gateway.slice(gateway.indexOf('await finishTrace(trace, { status: "saved", reason: "media_only_no_ai" });'), gateway.indexOf('reason: mediaRow ? "media_saved" : "duplicate",'));
+  assert.match(mediaReturn, /media_type: mediaDescriptor\.type,/);
+  assert.match(mediaReturn, /media_label: mediaMessage,/);
+});
+
+test("a photo we saved is read off our own disk, never fetched back through the CDN", async () => {
+  // Handing OpenAI the public URL makes it fetch api.m1store-egy.com through Cloudflare, which may
+  // challenge a bot; every visual path that already works sends the bytes instead.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "visual-upload-"));
+  fs.mkdirSync(path.join(root, "uploads", "whatsapp-media"), { recursive: true });
+  fs.writeFileSync(path.join(root, "uploads", "whatsapp-media", "abc.jpg"), "JPEGDATA");
+  fs.writeFileSync(path.join(root, "secret.jpg"), "SECRET");
+  const base = "https://api.m1store-egy.com";
+  const read = await readLocalUploadImage(`${base}/uploads/whatsapp-media/abc.jpg`, { root });
+  assert.equal(read?.mimeType, "image/jpeg");
+  assert.equal(read?.buffer.toString(), "JPEGDATA");
+  // The path comes from a URL, so nothing may walk out of ./uploads.
+  for (const escape of ["/uploads/../secret.jpg", "/uploads/%2e%2e/secret.jpg", "/uploads/..%2fsecret.jpg", "/secret.jpg"]) {
+    assert.equal(await readLocalUploadImage(`${base}${escape}`, { root }), null, `${escape} stays inside ./uploads`);
+  }
+  assert.equal(await readLocalUploadImage(`${base}/uploads/whatsapp-media/missing.jpg`, { root }), null, "a missing file falls back to the URL");
+  assert.equal(await readLocalUploadImage(`${base}/uploads/whatsapp-media/abc.ogg`, { root }), null, "only image types are read");
+  // and the recogniser hands vision the bytes, keeping the URL only for when there are none
+  assert.match(recognition, /imageUrl: effectiveBuffer \? "" : safeImageUrl,/);
+  assert.match(recognition, /uploadedImageBuffer: effectiveBuffer,/);
+  fs.rmSync(root, { recursive: true, force: true });
 });
 
 test("the inbox reply resolves its conversation by key, never by a 100-row sweep", () => {

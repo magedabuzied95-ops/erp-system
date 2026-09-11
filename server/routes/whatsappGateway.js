@@ -661,14 +661,28 @@ router.post("/webhook", async (req, res) => {
     // Phase 10 (default OFF): pre-generate a grounded reply SUGGESTION for human approval. Fire-and-forget
     // so the webhook never waits on or fails because of it; it never sends and only runs on a genuinely
     // new persisted inbound text message that the autonomous path did not already auto-send.
-    if (normalized.text && normalized.fromMe !== true && normalized.inbox?.saved === true && normalized.inbox?.duplicate !== true) {
+    //
+    // An uncaptioned PHOTO arrives with no text at all: the gateway saves it as a media-only row
+    // ("📷 صورة", reason media_saved) and returns `text: ""`, so this text-only gate never let it
+    // through — a customer's product photo produced no suggestion, ever. A photo now goes in on the
+    // row's own placeholder text; generateAiInboxReply reads that as "the picture is the whole
+    // message" and turns the image into words for the grounded pipeline. Voice notes, videos,
+    // documents and stickers stay out: nothing downstream reads them, and a suggestion built on
+    // "🎤 رسالة صوتية" would be noise an employee has to dismiss.
+    const photoOnlyIntakeText = !normalized.text
+      && normalized.media_type === "image"
+      && normalized.inbox?.reason === "media_saved"
+      ? String(normalized.media_label || "📷 صورة")
+      : "";
+    const intakeText = normalized.text || photoOnlyIntakeText;
+    if (intakeText && normalized.fromMe !== true && normalized.inbox?.saved === true && normalized.inbox?.duplicate !== true) {
       handleInboundMessageIntake({
         tenantId: normalized.inbox?.message?.tenant_id,
         channel: "whatsapp",
         conversationId: normalized.inbox?.session_id || normalized.inbox?.message?.session_id,
         canonicalMessageId: normalized.inbox?.message?.id || null,
         providerMessageId: normalized.messageId || normalized.inbox?.message?.provider_message_id || "",
-        text: normalized.text,
+        text: intakeText,
         fromMe: false,
         autoSent: aiReply?.sent === true,
       }).catch(() => {});

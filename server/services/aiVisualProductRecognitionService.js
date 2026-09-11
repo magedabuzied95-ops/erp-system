@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import db from "../database/db.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import { expandProductCardsByColor } from "./aiProductColorCarouselService.js";
@@ -27,6 +30,35 @@ export const firstInboundImageUrl = (attachments = []) => {
     if (IMAGE_ATTACHMENT_TYPES.has(type) || mime.startsWith("image/")) return url;
   }
   return "";
+};
+
+const MIME_BY_EXTENSION = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+
+/**
+ * A customer photo the gateway saved under our own /uploads, read straight off this server's disk.
+ *
+ * Handing the vision model the public URL instead means OpenAI has to fetch
+ * api.m1store-egy.com through Cloudflare, which is free to challenge a bot — and a refused fetch
+ * reads as "no product in this picture". Every visual path that already works (the storefront
+ * search, Messenger/Instagram) sends the bytes; this does the same whenever the file is ours.
+ * Anything that is not a readable file inside ./uploads returns null and the URL is used as before.
+ */
+export const readLocalUploadImage = async (imageUrl = "", { root = process.cwd() } = {}) => {
+  try {
+    const { pathname } = new URL(text(imageUrl));
+    if (!pathname.startsWith("/uploads/")) return null;
+    const mimeType = MIME_BY_EXTENSION[path.extname(pathname).toLowerCase()];
+    if (!mimeType) return null;
+    const uploadsRoot = path.resolve(root, "uploads");
+    const filePath = path.resolve(root, `.${decodeURIComponent(pathname)}`);
+    // The path comes from a URL: never let "..", an encoded slash or a symlink-looking segment
+    // walk out of ./uploads.
+    if (!filePath.startsWith(`${uploadsRoot}${path.sep}`)) return null;
+    const buffer = await fs.readFile(filePath);
+    return buffer.length ? { buffer, mimeType } : null;
+  } catch {
+    return null;
+  }
 };
 
 const visualQueryFromUnderstanding = (understanding = {}) =>
@@ -94,12 +126,24 @@ export const recogniseProductFromImage = async ({
   const safeImageUrl = text(imageUrl);
   if (!safeImageUrl && !imageBuffer) return { matched: false, reason: "missing_image" };
 
+  // Bytes first: a file we already hold never depends on anyone fetching it back through the CDN.
+  const localImage = imageBuffer ? null : await readLocalUploadImage(safeImageUrl);
+  const effectiveBuffer = imageBuffer || localImage?.buffer || null;
+  const effectiveMime = mimeType || localImage?.mimeType || "";
+  console.log("[ai-visual-recognition] image source", {
+    tenant_id: tenantId || null,
+    source: imageBuffer ? "caller_buffer" : localImage ? "local_upload" : "remote_url",
+    bytes: effectiveBuffer?.length || 0,
+  });
+
   let understanding;
   try {
     understanding = await understandProductImageForSearch({
-      imageBuffer: imageBuffer || undefined,
-      mimeType: mimeType || undefined,
-      imageUrl: safeImageUrl,
+      imageBuffer: effectiveBuffer || undefined,
+      mimeType: effectiveMime || undefined,
+      // buildVisionImageInput prefers a URL whenever one is passed, so hand it the URL only when
+      // there are no bytes to send.
+      imageUrl: effectiveBuffer ? "" : safeImageUrl,
       requestId: requestId || `visual-recognition:${Date.now()}`,
     });
   } catch (error) {
@@ -120,7 +164,7 @@ export const recogniseProductFromImage = async ({
       detected: understanding?.detected || {},
       visualQuery,
       uploadedImageUrl: safeImageUrl,
-      uploadedImageBuffer: imageBuffer || null,
+      uploadedImageBuffer: effectiveBuffer,
     });
   } catch (error) {
     console.warn("[ai-visual-recognition] indexed search failed", {
