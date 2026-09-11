@@ -3384,12 +3384,17 @@ const linkCommentIdentitiesAfterProfileLearned = ({ tenantId = null, psid = "" }
   });
 };
 
+// force: ask Meta even when the stored profile is fresh — the manual "refresh" button.
+// The inbox list passes force: false and gets the shared policy instead (fresh cache ⇒
+// no call, a refusal is remembered): forcing it there re-asked Meta about every
+// nameless conversation on every list load — 207 calls in 15 minutes on 2026-09-11.
 export const refreshMessengerProfileForConversation = async ({
   tenantId,
   conversationId = "",
   externalCustomerId = "",
   pageId = "",
   dryRun = false,
+  force = true,
 } = {}) => {
   const scopedTenantId = numberOrNull(tenantId);
   const safeConversationId = text(conversationId);
@@ -3535,7 +3540,7 @@ export const refreshMessengerProfileForConversation = async ({
     },
     config: { tenant_id: scopedTenantId, facebook_page_id: resolvedPageId },
     facebookPageId: resolvedPageId,
-    forceRefresh: true,
+    forceRefresh: force !== false,
   });
 
   const graphName = text(message.raw?.messenger_profile?.name || message.display_name || message.customer_name || "");

@@ -6,6 +6,22 @@ const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 const SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
+const envDays = (name, fallback) => {
+  const parsed = Number(process.env[name]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+// Every AI-published item used to be re-measured every 6 hours and on every restart,
+// forever: ~450 items, two Graph calls each, and on 2026-09-11 all but a handful failed
+// (an expired story or a removed post has no metrics left to read). That alone put
+// the app over its hourly Graph quota. A post's numbers settle within days and a
+// story's insights exist for a day, so only recent items are measured; older ones
+// keep their last snapshot.
+const QUEUE_ANALYTICS_WINDOW_DAYS = envDays("MARKETING_ANALYTICS_QUEUE_WINDOW_DAYS", 7);
+const STORY_ANALYTICS_WINDOW_DAYS = envDays("MARKETING_ANALYTICS_STORY_WINDOW_DAYS", 2);
+// This many measured items in a row with nothing readable means Meta is refusing the
+// whole run (token, permission, an API change) — stop rather than spend the rest.
+const MAX_CONSECUTIVE_EMPTY_ITEMS = envDays("MARKETING_ANALYTICS_MAX_EMPTY_STREAK", 12);
+
 const trimString = (value) => String(value || "").trim();
 const nullableString = (value) => {
   const normalized = trimString(value);
@@ -206,6 +222,10 @@ const getPublishedAiQueueItemsForTenant = async (tenantId) => {
     columns.has("created_at") ? "created_at DESC NULLS LAST" : "",
     "id DESC",
   ].filter(Boolean).join(", ");
+  const publishedTimeColumns = ["published_at", "created_at"].filter((name) => columns.has(name));
+  const recencyClause = publishedTimeColumns.length
+    ? `AND COALESCE(${publishedTimeColumns.join(", ")}) > NOW() - ($2::numeric * INTERVAL '1 day')`
+    : "";
   const result = await db.query(
     `
     SELECT
@@ -225,11 +245,24 @@ const getPublishedAiQueueItemsForTenant = async (tenantId) => {
     FROM ai_marketing_content_queue
     WHERE tenant_id = $1::bigint
       AND (${publishedPredicates.join(" OR ")})
+      ${recencyClause}
     ORDER BY ${orderBy}
     `,
-    [tenantId]
+    recencyClause ? [tenantId, QUEUE_ANALYTICS_WINDOW_DAYS] : [tenantId]
   );
-  return result.rows || [];
+  return (result.rows || []).filter((item) => !isExpiredStoryForAnalytics(item));
+};
+
+// A story's insights live for a day on Meta; asking after that only collects errors.
+export const isExpiredStoryForAnalytics = (item = {}, now = Date.now()) => {
+  const results = safeJsonObject(item.platform_publish_results, {});
+  const isStory =
+    /story/i.test(`${item.content_type || ""} ${item.strategy_type || ""}`) ||
+    Object.values(results).some((entry) => entry && typeof entry === "object" && nullableString(entry.platform_story_id));
+  if (!isStory) return false;
+  const publishedAt = new Date(item.published_at || item.created_at || 0).getTime();
+  if (!Number.isFinite(publishedAt) || publishedAt <= 0) return false;
+  return now - publishedAt > STORY_ANALYTICS_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 };
 
 const getDistinctTenantIdsForSync = async () => {
@@ -645,7 +678,10 @@ export const syncMarketingAnalyticsForTenant = async ({ tenantId, platform = "",
     }
   }
 
+  let emptyStreak = 0;
+  let stoppedEarly = false;
   for (const item of aiQueueItems) {
+    if (stoppedEarly) break;
     const publishedDate = item.published_at || item.created_at || null;
     if (fromDate && publishedDate && new Date(publishedDate) < new Date(fromDate)) continue;
     if (toDate && publishedDate && new Date(publishedDate) > new Date(`${toDate}T23:59:59.999Z`)) continue;
@@ -653,6 +689,12 @@ export const syncMarketingAnalyticsForTenant = async ({ tenantId, platform = "",
     const candidates = buildAiQueueAnalyticsCandidates(item);
     for (const candidate of candidates) {
       if (platformFilter && candidate.platform !== platformFilter) continue;
+      if (emptyStreak >= MAX_CONSECUTIVE_EMPTY_ITEMS) {
+        stoppedEarly = true;
+        warnings.add(`Meta returned no metrics for ${emptyStreak} items in a row; the rest of this sync was skipped.`);
+        console.warn("[marketing-performance-sync] stopped early: Meta keeps returning nothing", { tenantId, empty_streak: emptyStreak });
+        break;
+      }
       console.log("[marketing-performance-sync] sync started", {
         tenantId,
         queue_id: candidate.queue_id,
@@ -664,6 +706,7 @@ export const syncMarketingAnalyticsForTenant = async ({ tenantId, platform = "",
           ? await fetchInstagramMetrics({ platformPostId: candidate.platform_post_id, accessToken })
           : await fetchFacebookMetrics({ platformPostId: candidate.platform_post_id, accessToken });
       metrics.warnings.forEach((warning) => warnings.add(warning));
+      emptyStreak = hasRealMetricValue(metrics) ? 0 : emptyStreak + 1;
       const saved = await insertAiQueuePerformanceSnapshot({
         tenantId,
         queueId: candidate.queue_id,
@@ -840,6 +883,19 @@ export const syncAllMarketingAnalytics = async () => {
 
 export const runMarketingPerformanceSync = syncAllMarketingAnalytics;
 
+const getLastAnalyticsSyncAt = async () => {
+  const result = await db.query(
+    `
+    SELECT GREATEST(
+      (SELECT MAX(synced_at) FROM marketing_post_analytics),
+      (SELECT MAX(synced_at) FROM ai_marketing_performance_snapshots)
+    ) AS last_synced_at
+    `
+  );
+  const value = result.rows?.[0]?.last_synced_at;
+  return value ? new Date(value) : null;
+};
+
 let analyticsSchedulerStarted = false;
 let analyticsSchedulerRunning = false;
 let analyticsSchedulerTimer = null;
@@ -862,7 +918,18 @@ export const startMarketingAnalyticsSyncScheduler = () => {
   };
 
   console.log("[marketing-analytics] scheduler started", { intervalMs: SYNC_INTERVAL_MS });
-  void runOnce();
+  // Every deploy used to start with a full sync. The interval is the schedule; a
+  // restart only runs one when the last sync is older than that.
+  void getLastAnalyticsSyncAt()
+    .then((lastSyncAt) => {
+      const ageMs = lastSyncAt ? Date.now() - lastSyncAt.getTime() : Number.POSITIVE_INFINITY;
+      if (ageMs < SYNC_INTERVAL_MS) {
+        console.log("[marketing-analytics] startup sync skipped: synced recently", { last_synced_at: lastSyncAt.toISOString(), age_ms: Math.round(ageMs) });
+        return;
+      }
+      return runOnce();
+    })
+    .catch(() => runOnce());
   analyticsSchedulerTimer = setInterval(() => {
     void runOnce();
   }, SYNC_INTERVAL_MS);

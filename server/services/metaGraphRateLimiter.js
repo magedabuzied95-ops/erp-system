@@ -369,7 +369,17 @@ export const describeGraphEndpoint = (url = "", method = "GET") => {
     .split("/")
     .filter(Boolean)
     .filter((segment, index) => !(index === 0 && /^v\d+(\.\d+)?$/.test(segment)))
-    .map((segment) => (/^[0-9_]{5,}$/.test(segment) || /^[A-Za-z0-9_-]{20,}$/.test(segment) ? "{id}" : segment))
+    .map((segment) => {
+      let decoded = segment;
+      try {
+        decoded = decodeURIComponent(segment);
+      } catch {
+        // keep the raw segment
+      }
+      // ?ids= batches arrive as one comma-joined path segment
+      if (/^[0-9_]{5,}(,[0-9_]{5,})+$/.test(decoded)) return "{ids}";
+      return /^[0-9_]{5,}$/.test(decoded) || /^[A-Za-z0-9_-]{20,}$/.test(decoded) ? "{id}" : segment;
+    })
     .join("/");
   return `${String(method || "GET").toUpperCase()} /${shape}`;
 };
@@ -379,13 +389,24 @@ export const graphCallerFromStack = (stack = "") => {
   for (const line of String(stack).split("\n")) {
     const match = line.match(/^\s*at (?:async )?([^\s(]+) \(/);
     if (!match) continue;
-    const name = match[1].replace(/^Object\./, "");
-    if (GENERIC_FRAMES.has(name) || name.startsWith("node:") || name.includes("metered")) continue;
+    // "process.processTicksAndRejections" is the event loop, not a caller; left in, it
+    // split one caller into two rows depending on where the await resumed.
+    const name = match[1].replace(/^(Object|process)\./, "");
+    if (GENERIC_FRAMES.has(name) || name.startsWith("node:") || name.includes("metered") || name.includes("processTicksAndRejections")) continue;
     if (names[names.length - 1] === name) continue;
     names.push(name);
     if (names.length >= 3) break;
   }
   return names.length ? names.join(" < ") : "unknown";
+};
+
+// The last error each caller|endpoint got, so "errors: 944" says what Meta answered.
+const meterLastErrors = new Map();
+const scrubGraphMessage = (value = "") => String(value || "").replace(/access_token=[^&\s]+/g, "access_token=***").slice(0, 160);
+const noteMeterError = (key, sample) => {
+  meterLastErrors.delete(key);
+  meterLastErrors.set(key, { ...sample, at: new Date().toISOString() });
+  if (meterLastErrors.size > 500) meterLastErrors.delete(meterLastErrors.keys().next().value);
 };
 
 const meterRecord = ({ caller = "unknown", endpoint = "", status = 0, failed = false } = {}) => {
@@ -411,6 +432,8 @@ export const getGraphUsageByCaller = ({ minutes = 60, top = 15 } = {}) => {
   const byCaller = new Map();
   const byEndpoint = new Map();
   const byPair = new Map();
+  const errorsByPair = new Map();
+  const errorsByCaller = new Map();
   let total = 0;
   let errors = 0;
   for (const [bucketAt, bucket] of meter.buckets) {
@@ -422,6 +445,8 @@ export const getGraphUsageByCaller = ({ minutes = 60, top = 15 } = {}) => {
       byCaller.set(caller, (byCaller.get(caller) || 0) + entry.calls);
       byEndpoint.set(endpoint, (byEndpoint.get(endpoint) || 0) + entry.calls);
       byPair.set(key, (byPair.get(key) || 0) + entry.calls);
+      errorsByPair.set(key, (errorsByPair.get(key) || 0) + entry.errors);
+      errorsByCaller.set(caller, (errorsByCaller.get(caller) || 0) + entry.errors);
     }
   }
   const rank = (map, shape) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, top).map(shape);
@@ -430,11 +455,12 @@ export const getGraphUsageByCaller = ({ minutes = 60, top = 15 } = {}) => {
     total_calls: total,
     errors,
     calls_per_minute: Math.round((total / Math.max(1, Number(minutes) || 60)) * 10) / 10,
-    by_caller: rank(byCaller, ([caller, calls]) => ({ caller, calls })),
+    by_caller: rank(byCaller, ([caller, calls]) => ({ caller, calls, errors: errorsByCaller.get(caller) || 0 })),
     by_endpoint: rank(byEndpoint, ([endpoint, calls]) => ({ endpoint, calls })),
     by_caller_endpoint: rank(byPair, ([key, calls]) => {
       const [caller, endpoint] = key.split("\u0000");
-      return { caller, endpoint, calls };
+      const errorCount = errorsByPair.get(key) || 0;
+      return { caller, endpoint, calls, errors: errorCount, ...(errorCount && meterLastErrors.has(key) ? { last_error: meterLastErrors.get(key) } : {}) };
     }),
     usage: { ...state.usage },
     pressure: currentPressure(),
@@ -464,6 +490,18 @@ export const installGraphFetchMeter = ({ report = true } = {}) => {
     try {
       const response = await originalFetch(input, init);
       meterRecord({ caller, endpoint, status: response.status });
+      if (response.status >= 400) {
+        // A copy of the body is read in the background; the caller's own read is untouched.
+        const key = `${caller}\u0000${endpoint}`;
+        response
+          .clone()
+          .json()
+          .then((body) => {
+            const error = body?.error || {};
+            noteMeterError(key, { status: response.status, code: Number(error.code || 0) || null, subcode: Number(error.error_subcode || 0) || null, message: scrubGraphMessage(error.message) });
+          })
+          .catch(() => noteMeterError(key, { status: response.status, code: null, subcode: null, message: "" }));
+      }
       try {
         noteGraphResponse(response);
       } catch {
@@ -496,6 +534,9 @@ export const installGraphFetchMeter = ({ report = true } = {}) => {
 };
 
 export const __metaGraphMeterTestHooks = {
-  reset: () => meter.buckets.clear(),
+  reset: () => {
+    meter.buckets.clear();
+    meterLastErrors.clear();
+  },
   record: meterRecord,
 };

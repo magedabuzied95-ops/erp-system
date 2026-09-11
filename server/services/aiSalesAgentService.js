@@ -1607,6 +1607,9 @@ const hydrateMessengerInboxConversation = async ({ tenantId, conversation = {} }
       externalCustomerId,
       pageId,
       dryRun: false,
+      // Every list load passes through here; the shared profile policy decides when
+      // Meta is actually asked (a fresh stored profile answers without a call).
+      force: false,
     });
     if (externalConversationId === DEBUG_MESSENGER_INBOX_CONVERSATION_ID) {
       console.log("messenger_inbox_profile_refresh_result", {
