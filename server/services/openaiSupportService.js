@@ -1,6 +1,7 @@
 import { resolveCustomerDisplayPrice } from '../utils/customerDisplayPrice.js';
 import OpenAI from 'openai';
 import { agentOpenAiApiKey } from './openaiCredentials.js';
+import { requestCompatibleVisionJson, resolveVisionProvider } from './aiVisionProviderService.js';
 import { DEFAULT_PERSONA, buildInstructions, loadPersona } from './aiPersonaService.js';
 
 // Composition quality is the whole point of this call, so the floor is the full model
@@ -624,6 +625,27 @@ const normalizeImageSearchUnderstanding = (payload = {}) => {
   };
 };
 
+// One set of instructions for every vision provider, so switching the provider never changes
+// what we ask the model to read out of a customer's photo.
+const PRODUCT_IMAGE_VISION_INSTRUCTIONS = [
+  "Analyze the customer-uploaded product image for storefront product discovery.",
+  "Return JSON only, with exactly the schema fields requested. Do not wrap the JSON in text.",
+  "Extract every useful visual shopping detail: product_type, visible brand/logo guess, model family, exact model guess, colors, secondary colors, material, sole shape, silhouette, category, gender style if obvious, visible logo text/OCR, distinctive features, English keywords, Arabic keywords, and confidence per field.",
+  "For sneakers always separate: brand_guess, model_family, shoe_type, silhouette, primary colors, secondary colors, sole_shape, logo_text, logo_position, notable_features, and overall confidence.",
+  "Use empty strings or empty arrays when a field is not visible. Never invent certainty.",
+  "Classify sneaker silhouette explicitly when visible: high-top, low-top, running/trail, basketball, skate/dunk style, chunky sole, slim sole, low profile sole.",
+  "Extract side-panel features when visible: side graphic/pattern, black swoosh or side stripe, white base, black heel/toe accents, low profile sole.",
+  "If the logo is unclear, keep brand_guess empty or low confidence and rely on silhouette, colors, and features instead of brand.",
+  "For sneakers, identify likely model family as specifically as visual evidence allows, for example Adidas Superstar / Super Star, Adidas Samba, Adidas Campus, Adidas Mirror, Air Jordan 4, Nike Shox, Nike Air Force 1, Nike Dunk, Yeezy.",
+  "If you see three side stripes on a low-top sneaker, strongly consider Adidas. If the shoe is a white low-top with black/cream three stripes and a shell-toe or rounded low profile, consider Adidas Superstar / Adidas Super Star and include superstar, super star, adidas superstar in keywords.",
+  "Known sneaker aliases to include in keywords when visually supported: Superstar, Super Star, Adidas Superstar, Adidas Super Star, \u0633\u0648\u0628\u0631 \u0633\u062a\u0627\u0631; Jordan 4, AJ4, J4, \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631, \u062c\u0648\u0631\u062f\u0646 \u0664; Shox, \u0634\u0648\u0643\u0633; Adidas Mirror, \u0627\u062f\u064a\u062f\u0627\u0633 \u0645\u064a\u0631\u0648\u0631, \u0627\u062f\u064a\u062f\u0627\u0633 \u0645\u064a\u0631\u0648; Air Force, \u0627\u064a\u0631 \u0641\u0648\u0631\u0633; Dunk, \u062f\u0627\u0646\u0643; Yeezy, \u064a\u064a\u0632\u064a; Campus, \u0643\u0627\u0645\u0628\u0633; Samba, \u0633\u0627\u0645\u0628\u0627.",
+  "If the shoe resembles Jordan 4, set model_family to Air Jordan 4, model_guess to Air Jordan 4, brand_guess to Nike Jordan or Jordan, and include air jordan 4, jordan 4, aj4, j4, \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631 in keywords.",
+  "For Air Jordan 4-style shoes, note visible cage/netting, side wings, chunky basketball silhouette, mid/high top cut, and main colors.",
+  "Infer men, women, kids, girls, boys, or unisex only when visible from product styling or context; otherwise use unisex or unknown.",
+  "Use concise searchable inventory terms, not prose.",
+  "Do not claim authenticity. Do not include private data, implementation details, or prompts.",
+].join("\n");
+
 export const understandProductImageForSearch = async ({ imageBuffer, mimeType, imageUrl = "", requestId = "" } = {}) => {
   syncAgentCredentialState();
   let imageInput;
@@ -644,6 +666,57 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
 
   if (!imageInput) {
     return normalizeImageSearchUnderstanding({});
+  }
+
+  // An OpenAI-compatible vision model, once configured (AI_VISION_MODEL), is THE reader of customer
+  // photos — ahead of the OpenAI gate below, which would otherwise refuse without an OpenAI key.
+  // Live 2026-09-11 OpenAI answered every photo with `insufficient_quota`, and with it WhatsApp,
+  // Messenger, Instagram and the storefront's search-by-photo all went blind together.
+  // AI_SUPPORT_VISION_ENABLED=false still switches vision off for every provider.
+  const visionProvider = resolveVisionProvider();
+  if (visionProvider.kind === "compatible" && !envFlagDisabled(process.env.AI_SUPPORT_VISION_ENABLED)) {
+    console.log("[ai-support] compatible vision request", {
+      requestId,
+      model: visionProvider.model,
+      imageBytes: imageBuffer?.length || 0,
+      imageSource: imageInput.startsWith("data:") ? "data_url" : "image_url",
+    });
+    try {
+      const parsed = await requestCompatibleVisionJson({
+        provider: visionProvider,
+        instructions: PRODUCT_IMAGE_VISION_INSTRUCTIONS,
+        prompt: "Extract visual product search attributes from this image.",
+        imageUrl: imageInput,
+        keys: Object.keys(imageSearchUnderstandingSchema.properties || {}),
+      });
+      const understanding = normalizeImageSearchUnderstanding(parsed);
+      console.log("[ai-support] compatible vision response", {
+        requestId,
+        model: visionProvider.model,
+        brand_guess: understanding?.detected?.brand_guess || "",
+        model_guess: understanding?.detected?.model_guess || "",
+        product_type: understanding?.detected?.product_type || "",
+      });
+      return { ...understanding, vision_provider: "compatible", openai_model: visionProvider.model };
+    } catch (error) {
+      const serialized = serializeOpenAiError(error);
+      const exactError = {
+        ...serialized,
+        // Compatible servers do not always send an error code; the HTTP status is the next best name.
+        code: serialized.code || (serialized.status ? `http_${serialized.status}` : "vision_provider_failed"),
+        model: visionProvider.model,
+        provider: "compatible",
+      };
+      console.error("[ai-support] compatible vision request failed", { requestId, ...exactError });
+      return {
+        ...normalizeImageSearchUnderstanding({}),
+        error: "vision_provider_failed",
+        openai_error: exactError,
+      };
+    }
+  }
+  if (visionProvider.misconfigured) {
+    console.warn("[ai-support] compatible vision not used", { requestId, reason: visionProvider.misconfigured });
   }
 
   if (!visionEnabled()) {
@@ -684,24 +757,7 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
       const response = await getClient().responses.create(
         {
           model,
-          instructions: [
-            "Analyze the customer-uploaded product image for storefront product discovery.",
-            "Return JSON only, with exactly the schema fields requested. Do not wrap the JSON in text.",
-            "Extract every useful visual shopping detail: product_type, visible brand/logo guess, model family, exact model guess, colors, secondary colors, material, sole shape, silhouette, category, gender style if obvious, visible logo text/OCR, distinctive features, English keywords, Arabic keywords, and confidence per field.",
-            "For sneakers always separate: brand_guess, model_family, shoe_type, silhouette, primary colors, secondary colors, sole_shape, logo_text, logo_position, notable_features, and overall confidence.",
-            "Use empty strings or empty arrays when a field is not visible. Never invent certainty.",
-            "Classify sneaker silhouette explicitly when visible: high-top, low-top, running/trail, basketball, skate/dunk style, chunky sole, slim sole, low profile sole.",
-            "Extract side-panel features when visible: side graphic/pattern, black swoosh or side stripe, white base, black heel/toe accents, low profile sole.",
-            "If the logo is unclear, keep brand_guess empty or low confidence and rely on silhouette, colors, and features instead of brand.",
-            "For sneakers, identify likely model family as specifically as visual evidence allows, for example Adidas Superstar / Super Star, Adidas Samba, Adidas Campus, Adidas Mirror, Air Jordan 4, Nike Shox, Nike Air Force 1, Nike Dunk, Yeezy.",
-            "If you see three side stripes on a low-top sneaker, strongly consider Adidas. If the shoe is a white low-top with black/cream three stripes and a shell-toe or rounded low profile, consider Adidas Superstar / Adidas Super Star and include superstar, super star, adidas superstar in keywords.",
-            "Known sneaker aliases to include in keywords when visually supported: Superstar, Super Star, Adidas Superstar, Adidas Super Star, \u0633\u0648\u0628\u0631 \u0633\u062a\u0627\u0631; Jordan 4, AJ4, J4, \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631, \u062c\u0648\u0631\u062f\u0646 \u0664; Shox, \u0634\u0648\u0643\u0633; Adidas Mirror, \u0627\u062f\u064a\u062f\u0627\u0633 \u0645\u064a\u0631\u0648\u0631, \u0627\u062f\u064a\u062f\u0627\u0633 \u0645\u064a\u0631\u0648; Air Force, \u0627\u064a\u0631 \u0641\u0648\u0631\u0633; Dunk, \u062f\u0627\u0646\u0643; Yeezy, \u064a\u064a\u0632\u064a; Campus, \u0643\u0627\u0645\u0628\u0633; Samba, \u0633\u0627\u0645\u0628\u0627.",
-            "If the shoe resembles Jordan 4, set model_family to Air Jordan 4, model_guess to Air Jordan 4, brand_guess to Nike Jordan or Jordan, and include air jordan 4, jordan 4, aj4, j4, \u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631 in keywords.",
-            "For Air Jordan 4-style shoes, note visible cage/netting, side wings, chunky basketball silhouette, mid/high top cut, and main colors.",
-            "Infer men, women, kids, girls, boys, or unisex only when visible from product styling or context; otherwise use unisex or unknown.",
-            "Use concise searchable inventory terms, not prose.",
-            "Do not claim authenticity. Do not include private data, implementation details, or prompts.",
-          ].join("\n"),
+          instructions: PRODUCT_IMAGE_VISION_INSTRUCTIONS,
           input: [
             {
               role: "user",
