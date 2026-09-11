@@ -1,4 +1,4 @@
-﻿import { memo, useCallback, useEffect, useMemo, useState } from "react";
+﻿import { memo, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -6,8 +6,8 @@ import {
   Clock3,
   ChevronDown,
   ExternalLink,
-  Eye,
   EyeOff,
+  Heart,
   Image as ImageIcon,
   Loader2,
   MessageCircle,
@@ -36,7 +36,19 @@ import {
   normalizeAutomationConfig,
   serializeAutomationDraft,
 } from "./socialAutomation/automationEngine.js";
-import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialCommentTimeline.jsx";
+import { getSocialCommentRealTimestamp, resolveCommentTimelineData } from "./socialCommentTimeline.jsx";
+import CustomerAvatar from "./CustomerAvatar.jsx";
+import { chromeModeFor } from "./messagePlatform.js";
+import { ThemeContext } from "../../../theme/themeContext";
+import {
+  commentChrome,
+  commentPlatformOf,
+  commentThreadCanvas,
+  compactCommentAge,
+  isPageAuthoredComment,
+  resolveCommentOwnId,
+  threadCommentsForDisplay,
+} from "../lib/socialCommentThread.js";
 
 import { useRef } from "react";
 
@@ -1386,6 +1398,9 @@ const getPostLinkedProducts = (post = {}) => {
   };
 };
 
+// The page's own face on its replies — the same mark the page uses on Facebook.
+const PAGE_AVATAR_SRC = "/branding/m-one-wordmark-white.png?v=20260716";
+
 const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceCommentRow({
   comment = {},
   selectedCommentKey = "",
@@ -1408,8 +1423,14 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   onReply,
   onPrivateMessage,
   registerCommentNode,
+  isReply = false,
+  variant = "desktop",
+  showPlatformMark = false,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // `language` is what the user picked; `resolvedLanguage` can still read "en" while the
+  // Arabic bundle is loading.
+  const language = String(i18n.language || i18n.resolvedLanguage || "ar").startsWith("en") ? "en" : "ar";
   const key = clean(comment.comment_id || comment.external_comment_id || comment.id || "");
   const actionKey = resolveSocialCommentActionId(comment) || key;
   const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
@@ -1488,99 +1509,293 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
     [activePostPlatform, comment, key, likeStatus]
   );
 
+  const data = useMemo(() => resolveCommentTimelineData(cardComment, activePostPlatform), [activePostPlatform, cardComment]);
+  const platform = commentPlatformOf(cardComment, activePostPlatform);
+  const isInstagram = platform === "instagram";
+  const chrome = commentChrome(platform, chromeModeFor(variant, useContext(ThemeContext)?.theme?.mode));
+  const pageAuthored = useMemo(() => isPageAuthoredComment(comment), [comment]);
+  const authorName = firstCommenterName(data.customerName) || (pageAuthored ? "" : "عميل");
+  const displayName = authorName || firstCommenterName(comment.customerName, comment.customer_name) || "M1 Store";
+  const liked = likeStatus === "sent";
+  const hidden = Boolean(visibility.enabled && visibility.loaded && visibility.hidden);
+  const selected = key === selectedCommentKey || isHighlighted;
+  const avatarSize = isReply ? 24 : 32;
+  const [expanded, setExpanded] = useState(false);
+  const longText = data.text.length > 280;
+  const timeLabel = compactCommentAge(data.createdAt, new Date(), language);
+  const fullTime = data.createdAt ? absoluteTime(data.createdAt) : "";
+  const handleCustomer = useCallback(
+    (event) => {
+      event.stopPropagation();
+      if (!pageAuthored) onSelectCustomer?.(cardComment, data);
+    },
+    [cardComment, data, onSelectCustomer, pageAuthored]
+  );
+  const handleExpand = useCallback((event) => {
+    event.stopPropagation();
+    setExpanded((current) => !current);
+  }, []);
+
+  // The row the platforms draw: a round face, then the author's name and what they
+  // wrote (inside Facebook's grey bubble; bare on Instagram), then one quiet line of
+  // text actions. Colours travel as inline styles — see commentChrome.
+  const actionStyle = { color: chrome.meta };
+  const actionClass = "inline-flex items-center gap-1 text-[12px] font-bold leading-4 hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-60";
+  const avatar = pageAuthored ? (
+    <img
+      src={PAGE_AVATAR_SRC}
+      alt=""
+      className="h-full w-full rounded-full object-contain p-[2px]"
+      style={{ background: "#000000" }}
+      loading="lazy"
+    />
+  ) : (
+    <CustomerAvatar
+      url={data.customerAvatarUrl}
+      name={authorName && authorName !== "عميل" ? authorName : ""}
+      className="h-full w-full rounded-full object-cover"
+      iconClassName={isReply ? "h-3.5 w-3.5" : "h-4 w-4"}
+    />
+  );
+  const nameNode = (
+    <button
+      type="button"
+      onClick={handleCustomer}
+      className={`max-w-full truncate text-start hover:underline ${isInstagram ? "text-[14px] font-semibold" : "text-[13px] font-semibold"}`}
+      style={{ color: chrome.ink }}
+    >
+      {displayName}
+    </button>
+  );
+  const textNode = (
+    <div
+      dir="auto"
+      className={`whitespace-pre-wrap break-words text-start ${isInstagram ? "text-[14px] leading-[18px]" : "text-[15px] leading-5"}`}
+      style={{ color: chrome.ink, ...(longText && !expanded ? { display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical", overflow: "hidden" } : null) }}
+    >
+      {data.text || t("aiSupport.inbox.commentTimeline.noCommentText")}
+    </div>
+  );
+
   return (
     <div
       ref={setCommentRef}
-      className={`w-full rounded-[22px] transition ${isHighlighted ? "ring-2 ring-[var(--primary)]/70 ring-offset-2 ring-offset-[var(--bg)]" : ""}`}
+      data-social-comment-key={key}
+      onClick={handleSelect}
+      className={`w-full cursor-default rounded-xl px-1.5 py-1 transition-colors ${hidden ? "opacity-60" : ""}`}
+      style={selected ? { background: chrome.selected } : undefined}
     >
-      <CommentTimelineCard
-        comment={cardComment}
-        selected={key === selectedCommentKey || isHighlighted}
-        onSelect={handleSelect}
-        onCustomerSelect={onSelectCustomer}
-        compact
-        authorOnLeft
-      >
-        {attachmentPreview ? (
-          <a
-            href={attachmentPreview}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-          >
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
-              <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
-              <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
-                {t("aiSupport.inbox.socialWorkspace.media")}
-              </span>
-            </div>
-          </a>
-        ) : null}
+      <div className="flex items-start gap-2">
+        <button
+          type="button"
+          onClick={handleCustomer}
+          className="relative shrink-0 overflow-hidden rounded-full"
+          style={{ width: avatarSize, height: avatarSize, background: chrome.avatarBg, color: chrome.avatarInk }}
+          aria-label={t("aiSupport.inbox.commentTimeline.openCustomerDetails", { name: displayName })}
+        >
+          {avatar}
+        </button>
 
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-[var(--border)] pt-2">
-          <button
-            type="button"
-            onClick={handleLike}
-            disabled={busy || likeStatus === "sent" || Boolean(likeLoadingKey)}
-            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[11px] font-black disabled:opacity-60 ${likeStatus === "sent" ? "border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--primary)]" : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] hover:border-[var(--primary)]"}`}
-          >
-            {likeLoadingKey === actionKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <ThumbsUp className={`h-4 w-4 ${likeStatus === "sent" ? "fill-current" : ""}`} />}
-            {likeStatus === "sent" ? "تم الإعجاب" : "إعجاب"}
-          </button>
-          <button
-            type="button"
-            onClick={handleReply}
-            disabled={busy || Boolean(replyLoadingKey)}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[var(--primary-active)] bg-[var(--primary)] px-2.5 text-[11px] font-black text-[var(--primary-contrast)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
-          >
-            {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            {t("aiSupport.inbox.socialWorkspace.reply")}
-          </button>
-          <button
-            type="button"
-            onClick={handlePrivateMessage}
-            disabled={busy || !privateMessageSupported || Boolean(privateMessageLoadingKey)}
-            title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
-            className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] disabled:opacity-50"
-          >
-            {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-            {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
-          </button>
-          {/* Drawn only once the real state is known, so it never offers "hide" on a comment that
-              the automation already hid. */}
-          {visibility.enabled && visibility.loaded ? (
-            <>
-              {visibility.hidden ? (
-                <span className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-300/40 bg-amber-400/15 px-2 text-[11px] font-black text-[var(--text)]">
-                  <EyeOff className="h-3.5 w-3.5" />
-                  مخفي{COMMENT_HIDDEN_REASON_LABELS[visibility.reason] ? ` · ${COMMENT_HIDDEN_REASON_LABELS[visibility.reason]}` : ""}
-                </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            {/* A column that hugs its start edge: the app's base styles set text-align: left,
+                so an inline bubble would drift to the far side of an RTL row. */}
+            <div className="flex min-w-0 flex-1 flex-col items-start">
+              {isInstagram ? (
+                <div className="min-w-0 max-w-full text-start">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    {nameNode}
+                    <span className="shrink-0 text-[12px]" style={{ color: chrome.meta }} title={fullTime}>
+                      {timeLabel}
+                    </span>
+                  </div>
+                  {textNode}
+                </div>
+              ) : (
+                <div className="relative max-w-full rounded-[18px] px-3 py-2 text-start" style={{ background: chrome.bubble }}>
+                  <div className="flex min-w-0 items-center">{nameNode}</div>
+                  {textNode}
+                  {liked ? (
+                    <span
+                      className="absolute -bottom-2 end-0 grid h-[18px] w-[18px] place-items-center rounded-full"
+                      style={{ background: chrome.accent, boxShadow: `0 0 0 2px ${chrome.canvas}` }}
+                      aria-hidden="true"
+                    >
+                      <ThumbsUp className="h-2.5 w-2.5" style={{ color: "#ffffff", fill: "#ffffff" }} />
+                    </span>
+                  ) : null}
+                </div>
+              )}
+              {longText ? (
+                <button type="button" onClick={handleExpand} className="mt-0.5 block text-[12px] font-semibold hover:underline" style={{ color: chrome.meta }}>
+                  {expanded
+                    ? t("aiSupport.inbox.commentTimeline.showLess", { defaultValue: "عرض أقل" })
+                    : t("aiSupport.inbox.commentTimeline.showMore", { defaultValue: "عرض المزيد" })}
+                </button>
               ) : null}
+            </div>
+            {isInstagram && !pageAuthored ? (
               <button
                 type="button"
-                onClick={handleVisibility}
-                disabled={visibility.saving}
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 text-[11px] font-black text-[var(--text)] hover:border-[var(--primary)] disabled:opacity-50"
+                onClick={handleLike}
+                disabled={busy || liked || Boolean(likeLoadingKey)}
+                className="mt-1 shrink-0 disabled:cursor-default"
+                aria-label={liked ? "تم الإعجاب" : "إعجاب"}
+                style={{ color: liked ? chrome.accent : chrome.meta }}
               >
-                {visibility.saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : visibility.hidden ? (
-                  <Eye className="h-4 w-4" />
-                ) : (
-                  <EyeOff className="h-4 w-4" />
-                )}
+                {likeLoadingKey === actionKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Heart className="h-3.5 w-3.5" style={liked ? { fill: chrome.accent } : undefined} />}
+              </button>
+            ) : null}
+          </div>
+
+          {attachmentPreview ? (
+            <a
+              href={attachmentPreview}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="mt-1 block w-fit overflow-hidden rounded-[18px]"
+            >
+              <img src={attachmentPreview} alt="" className="max-h-52 max-w-[220px] object-cover" loading="lazy" />
+            </a>
+          ) : null}
+
+          <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${isInstagram ? "mt-1" : "mt-1 px-3"}`}>
+            {!isInstagram ? (
+              <span className="text-[12px] leading-4" style={actionStyle} title={fullTime}>
+                {timeLabel}
+              </span>
+            ) : null}
+            {!isInstagram && !pageAuthored ? (
+              <button
+                type="button"
+                onClick={handleLike}
+                disabled={busy || liked || Boolean(likeLoadingKey)}
+                className={actionClass}
+                style={liked ? { color: chrome.accent } : actionStyle}
+              >
+                {likeLoadingKey === actionKey ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                {liked ? "تم الإعجاب" : "أعجبني"}
+              </button>
+            ) : null}
+            <button type="button" onClick={handleReply} disabled={busy || Boolean(replyLoadingKey)} className={actionClass} style={actionStyle}>
+              {replyLoadingKey === key ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              {t("aiSupport.inbox.socialWorkspace.reply")}
+            </button>
+            {!pageAuthored ? (
+              <button
+                type="button"
+                onClick={handlePrivateMessage}
+                disabled={busy || !privateMessageSupported || Boolean(privateMessageLoadingKey)}
+                title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
+                className={actionClass}
+                style={actionStyle}
+              >
+                {privateMessageLoadingKey === key ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                {privateMessageStatus === "sent" ? t("aiSupport.inbox.socialWorkspace.sent") : t("aiSupport.inbox.socialWorkspace.privateMessage")}
+              </button>
+            ) : null}
+            {/* Drawn only once the real state is known, so it never offers "hide" on a comment that
+                the automation already hid. */}
+            {!pageAuthored && visibility.enabled && visibility.loaded ? (
+              <button type="button" onClick={handleVisibility} disabled={visibility.saving} className={actionClass} style={actionStyle}>
+                {visibility.saving ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                 {visibility.hidden ? "إظهار" : "إخفاء"}
               </button>
-            </>
+            ) : null}
+            {showPlatformMark ? (
+              <span className="text-[11px] font-semibold" style={actionStyle}>
+                {isInstagram ? "Instagram" : "Facebook"}
+              </span>
+            ) : null}
+          </div>
+          {hidden ? (
+            <div className="mt-0.5 flex items-center gap-1 px-3 text-[11px] font-semibold" style={actionStyle}>
+              <EyeOff className="h-3 w-3" />
+              مخفي عن الناس{COMMENT_HIDDEN_REASON_LABELS[visibility.reason] ? ` · ${COMMENT_HIDDEN_REASON_LABELS[visibility.reason]}` : ""}
+            </div>
           ) : null}
         </div>
-      </CommentTimelineCard>
+      </div>
     </div>
   );
 });
 
-export { SocialCommentsWorkspaceCommentRow, normalizeSocialPostDisplay };
+// One comment and the replies filed under it, with the curved line Facebook draws
+// from the comment's face down to each reply. `renderRow` draws a single comment so
+// both workspaces and the PWA share one row.
+//
+// Geometry (logical, from the inline-start edge): a top-level face is 32px at 6px in,
+// so the spine runs at 22px; replies are indented 40px and their 24px face starts
+// at 46px, centred 16px below the reply's top. The lines are SVG strokes and
+// backgrounds, never borders — this app pins every border colour to its token.
+const ThreadElbow = ({ color }) => (
+  <svg
+    aria-hidden="true"
+    width="25"
+    height="17"
+    viewBox="0 0 25 17"
+    className="pointer-events-none absolute -start-[19px] top-0 rtl:-scale-x-100"
+    fill="none"
+  >
+    <path d="M1 0 V6 Q1 16 11 16 H25" stroke={color} strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const SocialCommentThreadGroup = memo(function SocialCommentThreadGroup({ group, variant = "desktop", renderRow, pendingPageReply = null }) {
+  const platform = commentPlatformOf(group.comment);
+  const chrome = commentChrome(platform, chromeModeFor(variant, useContext(ThemeContext)?.theme?.mode));
+  // Instagram indents a reply and draws no line; Facebook ties it to the comment.
+  const drawLines = platform !== "instagram";
+  const replies = group.replies || [];
+  const branches = [
+    ...replies.map((reply) => ({ key: resolveCommentOwnId(reply) || reply.id, node: renderRow(reply, { isReply: true }) })),
+    ...(pendingPageReply ? [{ key: "pending-page-reply", node: pendingPageReply }] : []),
+  ];
+  return (
+    <div className="w-full">
+      <div className="relative">
+        {drawLines && branches.length ? <span aria-hidden="true" className="absolute start-[21px] top-[38px] bottom-0 w-[2px]" style={{ background: chrome.thread }} /> : null}
+        {renderRow(group.comment, { isReply: false })}
+      </div>
+      {branches.length ? (
+        <div className="ps-10">
+          {branches.map((branch, index) => (
+            <div key={branch.key} className="relative">
+              {drawLines && index < branches.length - 1 ? <span aria-hidden="true" className="absolute -start-[19px] top-0 bottom-0 w-[2px]" style={{ background: chrome.thread }} /> : null}
+              {drawLines ? <ThreadElbow color={chrome.thread} /> : null}
+              {branch.node}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
+// The page's answer as the platform shows it, for a reply the ledger recorded as
+// sent before Meta echoed it back as a comment of its own.
+const SentPageReply = memo(function SentPageReply({ text = "", platform = "facebook", variant = "desktop" }) {
+  const chrome = commentChrome(platform, chromeModeFor(variant, useContext(ThemeContext)?.theme?.mode));
+  const isInstagram = platform === "instagram";
+  return (
+    <div className="flex w-full items-start gap-2 px-1.5 py-1">
+      <span className="shrink-0 overflow-hidden rounded-full" style={{ width: 24, height: 24, background: "#000000" }}>
+        <img src={PAGE_AVATAR_SRC} alt="" className="h-full w-full object-contain p-[2px]" loading="lazy" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col items-start">
+        <div className={isInstagram ? "max-w-full text-start" : "max-w-full rounded-[18px] px-3 py-2 text-start"} style={isInstagram ? undefined : { background: chrome.bubble }}>
+          <div className={isInstagram ? "text-[14px] font-semibold" : "text-[13px] font-semibold"} style={{ color: chrome.ink }}>M1 Store</div>
+          <div dir="auto" className={`whitespace-pre-wrap break-words ${isInstagram ? "text-[14px] leading-[18px]" : "text-[15px] leading-5"}`} style={{ color: chrome.ink }}>
+            {text}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+export { SocialCommentsWorkspaceCommentRow, SocialCommentThreadGroup, normalizeSocialPostDisplay };
 
 function SocialCommentsWorkspace({
   items = [],
@@ -1861,6 +2076,12 @@ function SocialCommentsWorkspace({
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
   const activePostType = postTypeMeta(activePostDetails);
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
+  const themeMode = useContext(ThemeContext)?.theme?.mode;
+  const commentGroups = useMemo(() => threadCommentsForDisplay(commentsToRender), [commentsToRender]);
+  const commentCanvas = useMemo(
+    () => commentThreadCanvas(commentsToRender, chromeModeFor("desktop", themeMode), activePostPlatform),
+    [activePostPlatform, commentsToRender, themeMode]
+  );
   const activePostPostId = clean(activePostDetails?.postId || activePostDetails?.id || activePostKey);
   const activePostSourceId = clean(activePostDetails?.sourcePostId || activePostDetails?.raw?.post_id || activePostDetails?.raw?.id || "");
   const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
@@ -2916,6 +3137,44 @@ function SocialCommentsWorkspace({
     </>
   );
 
+  const renderCommentRow = (comment, { isReply = false } = {}) => (
+    <SocialCommentsWorkspaceCommentRow
+      comment={comment}
+      selectedCommentKey={selectedCommentKey}
+      highlightedCommentKey={highlightedCommentKey}
+      activePostPlatform={activePostPlatform}
+      replyDraft={replyDraft}
+      previewReply={previewReply}
+      suggestedReply={suggestedReply}
+      replyLoadingKey={replyLoadingKey}
+      likeLoadingKey={likeLoadingKey}
+      likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
+      privateMessageLoadingKey={privateMessageLoadingKey}
+      privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
+      leadLoadingKey={leadLoadingKey}
+      ignoreLoadingKey={ignoreLoadingKey}
+      onSelectComment={setSelectedCommentKey}
+      onSelectCustomer={onSelectCustomer}
+      onLike={submitLike}
+      onCompose={prepareCommentComposer}
+      onReply={submitReply}
+      onPrivateMessage={submitPrivateMessage}
+      registerCommentNode={registerCommentNode}
+      isReply={isReply}
+      showPlatformMark={commentCanvas.mixed}
+    />
+  );
+  // The ledger can know a reply was sent before Meta echoes it back as the page's own
+  // comment. Until that echo is in the list, draw the reply where it will appear.
+  const pendingPageReplyFor = (group) => {
+    const comment = group.comment || {};
+    const replyText = clean(comment.replyText || comment.raw?.reply_text || comment.raw?.rendered_reply || comment.raw?.raw?.rendered_reply || "");
+    const replyStatus = clean(comment.raw?.reply_status || comment.raw?.raw?.reply_status || comment.replyStatus || "").toLowerCase();
+    if (!replyText || !["sent", "success", "replied", "posted", "done", "completed"].includes(replyStatus)) return null;
+    if ((group.replies || []).some((reply) => isPageAuthoredComment(reply))) return null;
+    return <SentPageReply text={replyText} platform={commentPlatformOf(comment, activePostPlatform)} />;
+  };
+
   if (streamlined) {
     const postPlatforms = (post) => {
       const values = asArray(post.platforms).length ? post.platforms : [post.platform];
@@ -3093,7 +3352,7 @@ function SocialCommentsWorkspace({
               </button>
             </header>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4" style={commentsToRender.length ? { background: commentCanvas.canvas } : undefined}>
               {activeThread.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{activeThread.error}</div> : null}
               {activeThread.loading && !commentsToRender.length ? (
                 <div className="grid h-full place-items-center"><Loader2 className="h-6 w-6 animate-spin text-[#d9aa20]" /></div>
@@ -3108,54 +3367,31 @@ function SocialCommentsWorkspace({
                 </div>
               ) : null}
 
-              <div className="flex w-full flex-col gap-3">
+              <div className="flex w-full flex-col gap-1.5">
                 {hasMoreComments ? (
                   <button type="button" onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))} className="mx-auto rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1.5 text-[11px] font-black text-[var(--text-secondary)]">
                     {t("aiSupport.inbox.socialWorkspace.loadOlderComments")}
                   </button>
                 ) : null}
-                {commentsToRender.map((comment) => {
-                  const replyText = clean(comment.replyText || comment.raw?.reply_text || comment.raw?.rendered_reply || "");
-                  return (
-                    <div key={comment.id || comment.createdTime} className="flex w-full flex-col gap-2">
-                      <div className="w-full">
-                        <SocialCommentsWorkspaceCommentRow
-                          comment={comment}
-                          selectedCommentKey={selectedCommentKey}
-                          highlightedCommentKey={highlightedCommentKey}
-                          activePostPlatform={activePostPlatform}
-                          replyDraft={replyDraft}
-                          previewReply={previewReply}
-                          suggestedReply={suggestedReply}
-                          replyLoadingKey={replyLoadingKey}
-                          likeLoadingKey={likeLoadingKey}
-                          likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
-                          privateMessageLoadingKey={privateMessageLoadingKey}
-                          privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
-                          leadLoadingKey={leadLoadingKey}
-                          ignoreLoadingKey={ignoreLoadingKey}
-                          onSelectComment={setSelectedCommentKey}
-                          onSelectCustomer={onSelectCustomer}
-                          onLike={submitLike}
-                          onCompose={prepareCommentComposer}
-                          onReply={submitReply}
-                          onPrivateMessage={submitPrivateMessage}
-                          registerCommentNode={registerCommentNode}
-                        />
-                      </div>
-                      {replyText ? (
-                        <div className="max-w-[78%] self-end rounded-2xl border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3.5 py-2.5 text-start">
-                          <div className="text-[10px] font-black text-[var(--primary)]">{t("aiSupport.inbox.socialWorkspace.sent")}</div>
-                          <div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--text)]">{replyText}</div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                {commentGroups.map((group) => (
+                  <SocialCommentThreadGroup
+                    key={group.comment.id || group.comment.createdTime}
+                    group={group}
+                    renderRow={renderCommentRow}
+                    pendingPageReply={pendingPageReplyFor(group)}
+                  />
+                ))}
               </div>
             </div>
 
             <footer className="border-t border-[var(--border)] bg-[var(--surface-raised)] p-2.5">
+              {actionableComment ? (
+                <div className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-bold text-[var(--muted)]">
+                  <span className="truncate">
+                    بترد على {firstCommenterName(actionableComment.customerName, actionableComment.customer_name) || "عميل"}
+                  </span>
+                </div>
+              ) : null}
               <div className="flex items-end gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-1.5 focus-within:border-[var(--primary)]">
                 <textarea
                   ref={composerRef}
@@ -3893,34 +4129,13 @@ function SocialCommentsWorkspace({
                       </div>
                     ) : null}
 
-                    {commentsToRender.map((comment) => (
-                      <div key={comment.id || `${comment.createdTime || ""}:comment`} className="w-full">
-                        <SocialCommentsWorkspaceCommentRow
-                          comment={comment}
-                          selectedCommentKey={selectedCommentKey}
-                          highlightedCommentKey={highlightedCommentKey}
-                          activePostPlatform={activePostPlatform}
-                          replyDraft={replyDraft}
-                          previewReply={previewReply}
-                          suggestedReply={suggestedReply}
-                          replyLoadingKey={replyLoadingKey}
-                          likeLoadingKey={likeLoadingKey}
-                          likeStatus={clean(likeStatusOverrides[comment.id] || comment.like_status || comment.raw?.like_status || "")}
-                          privateMessageLoadingKey={privateMessageLoadingKey}
-                          privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
-                          leadLoadingKey={leadLoadingKey}
-                          ignoreLoadingKey={ignoreLoadingKey}
-                          onSelectComment={setSelectedCommentKey}
-                          onSelectCustomer={onSelectCustomer}
-                          onLike={submitLike}
-                          onCompose={prepareCommentComposer}
-                          onReply={submitReply}
-                          onPrivateMessage={submitPrivateMessage}
-                          onCreateLead={handleCreateLead}
-                          onIgnore={handleIgnoreComment}
-                          registerCommentNode={registerCommentNode}
-                        />
-                      </div>
+                    {commentGroups.map((group) => (
+                      <SocialCommentThreadGroup
+                        key={group.comment.id || `${group.comment.createdTime || ""}:comment`}
+                        group={group}
+                        renderRow={renderCommentRow}
+                        pendingPageReply={pendingPageReplyFor(group)}
+                      />
                     ))}
                   </div>
 

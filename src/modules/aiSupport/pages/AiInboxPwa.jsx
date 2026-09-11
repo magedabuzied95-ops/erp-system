@@ -67,7 +67,8 @@ import { platformCanvas, resolveMessagePlatform } from "../components/messagePla
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardMessage from "../components/ProductCardMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
-import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
+import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow, SocialCommentThreadGroup } from "../components/SocialCommentsWorkspace.jsx";
+import { commentThreadCanvas, threadCommentsForDisplay } from "../lib/socialCommentThread.js";
 import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
 import PostAutomationSheet from "../components/socialAutomation/PostAutomationSheet.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
@@ -7531,35 +7532,23 @@ export default function AiInboxPwa() {
                         {t("aiSupport.inbox.pwa.noSocialComments")}
                       </div>
                     ) : null}
-                    {selectedSocialThread.comments.filter((comment) => {
-                      if (socialThreadPlatformFilter === "all") return true;
-                      const platform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook").toLowerCase();
-                      return socialThreadPlatformFilter === "instagram"
-                        ? platform.includes("instagram")
-                        : !platform.includes("instagram");
-                    }).map((comment, index) => {
-                      const commentPlatform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
-                      if (import.meta.env.DEV && index === 0 && commentPlatform.toLowerCase().includes("facebook")) {
-                        console.log({
-                          post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
-                          comment_id: clean(comment.comment_id || comment.id || ""),
-                          latest_comment: comment?.latest_comment || null,
-                          metadata: comment?.metadata || {},
-                          created_at: comment.created_at || "",
-                          updated_at: comment.updated_at || "",
-                          last_comment_at: comment.last_comment_at || "",
-                          latest_comment_at: comment.latest_comment_at || "",
-                          comment_created_time: comment.comment_created_time || "",
-                          source_created_time: comment.source_created_time || "",
-                        });
-                      }
-                      return (
+                    {(() => {
+                      const threadFallbackPlatform = clean(selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
+                      const visibleThreadComments = selectedSocialThread.comments.filter((comment) => {
+                        if (socialThreadPlatformFilter === "all") return true;
+                        const platform = clean(comment.platform || threadFallbackPlatform).toLowerCase();
+                        return socialThreadPlatformFilter === "instagram"
+                          ? platform.includes("instagram")
+                          : !platform.includes("instagram");
+                      });
+                      if (!visibleThreadComments.length) return null;
+                      const threadCanvas = commentThreadCanvas(visibleThreadComments, "light", threadFallbackPlatform);
+                      const renderPwaCommentRow = (comment, { isReply = false } = {}) => (
                         <SocialCommentsWorkspaceCommentRow
-                          key={clean(comment.comment_id || comment.id || comment.created_at || `${index}`)}
                           comment={comment}
                           selectedCommentKey=""
                           highlightedCommentKey=""
-                          activePostPlatform={commentPlatform}
+                          activePostPlatform={clean(comment.platform || threadFallbackPlatform)}
                           replyDraft={templateText || genericTemplateText}
                           replyLoadingKey={socialActionLoading.startsWith("reply:") ? socialActionLoading.slice("reply:".length) : ""}
                           privateMessageLoadingKey={socialActionLoading.startsWith("private:") ? socialActionLoading.slice("private:".length) : ""}
@@ -7571,9 +7560,24 @@ export default function AiInboxPwa() {
                           onPrivateMessage={handleSocialCommentPrivateMessage}
                           onCreateLead={handleSocialCommentCreateLead}
                           onIgnore={handleSocialCommentIgnore}
+                          variant="pwa"
+                          isReply={isReply}
+                          showPlatformMark={threadCanvas.mixed}
                         />
                       );
-                    })}
+                      return (
+                        <div className="space-y-1 rounded-2xl p-1.5" style={{ background: threadCanvas.canvas }}>
+                          {threadCommentsForDisplay(visibleThreadComments).map((group, index) => (
+                            <SocialCommentThreadGroup
+                              key={clean(group.comment.comment_id || group.comment.id || group.comment.created_at || `${index}`)}
+                              group={group}
+                              variant="pwa"
+                              renderRow={renderPwaCommentRow}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
