@@ -255,6 +255,28 @@ test("an unrecognised photo is held with a question, never answered with a produ
   assert.match(salesAgent, /shortlist_offered: visualShortlistCount,/, "…or that it offered a shortlist instead");
 });
 
+test("a recognised photo presents the product it recognised, not the conversation's memory", () => {
+  // LIVE 2026-09-11: recognised as product 119 (grey, 0.69) and rewritten to words — then read as a
+  // colour follow-up on the Air Jordan 4 an earlier wrong draft had left active, size 41 and all.
+  const block = salesAgent.slice(
+    salesAgent.indexOf("if (visualRecognition?.matched && asArray(visualRecognition.productCards).length) {"),
+    salesAgent.indexOf("if (photoWentUnrecognised) {\n    const visualShortlist") > -1
+      ? salesAgent.indexOf("if (photoWentUnrecognised) {\n    const visualShortlist")
+      : salesAgent.indexOf("const visualShortlist = [];")
+  );
+  assert.ok(block.length > 0, "the override exists");
+  assert.match(block, /product_id: visualRecognition\.productId,/, "the product comes from the image index");
+  assert.match(block, /color: visualRecognition\.matchedColor/, "in the photographed colour");
+  assert.match(block, /reply\.suggested_products = \[recognisedCard\];/);
+  assert.match(block, /reason === "visual_exact_inventory_match"\s*\r?\n\s*\? RECOGNISED_PHOTO_REPLY\s*\r?\n\s*: VISUAL_CLOSEST_PRODUCT_REPLY/,
+    "only an exact match may say 'موجود'; a close one says 'closest'");
+  const gateAt = salesAgent.indexOf("groundingResult = await applyInboxGroundingGate(");
+  const overrideAt = salesAgent.indexOf("if (visualRecognition?.matched && asArray(visualRecognition.productCards).length) {");
+  assert.ok(gateAt > -1 && overrideAt > gateAt && overrideAt < salesAgent.indexOf("const channelAdapterPayload = {"),
+    "after the gate and before the draft, so nothing downstream swaps the product back");
+  assert.match(salesAgent, /recognised_product_presented: visualProductPresented,/);
+});
+
 test("look-alikes become a shortlist of the brand the photo was read as", async () => {
   // LIVE 2026-09-11: the photo was read (Skechers, sneaker, grey) but the catalogue holds six grey
   // Skechers runners, so no single product reached the floor. Owner's call: offer the closest ones.

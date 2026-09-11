@@ -99,6 +99,10 @@ export const UNRECOGNISED_PHOTO_REPLY = "وصلتني الصورة يا فندم
 // the photo, which is exactly what was checked.
 export const VISUAL_CLOSEST_PRODUCT_REPLY = "ده أقرب موديل عندنا شبه الصورة يا فندم 👌 دي الألوان والمقاسات المتاحة، اختار اللي يعجبك 👇";
 
+// Only for an EXACT visual match (the same image, or a score the index itself calls exact). The card
+// that goes with it carries the colours and sizes, so the text does not list them again.
+export const RECOGNISED_PHOTO_REPLY = "أيوه يا فندم، ده موجود عندنا 👌 دي الألوان والمقاسات المتاحة، اختار اللي يعجبك 👇";
+
 export const inboxMessageMedia = (message = {}) => [
   ...asArray(message?.visual_attachments),
   ...asArray(message?.attachments),
@@ -5996,6 +6000,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   // "📷 صورة" and present whatever product it could find; the draft is held instead (see below).
   const photoWentUnrecognised = Boolean(inboundImageUrl && messageIsOnlyMediaPlaceholder(lastMessage));
   let visualShortlistCount = 0;
+  let visualProductPresented = false;
   let replyHarness = null;
   // Read the customer before doing anything else. `understanding.legacy_intent` is the
   // same five-value enum `resolveIntent` produced, so every existing branch below is
@@ -6434,6 +6439,45 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   // as `identity_disambiguation` choices — pick exactly one — the same shape the grounding gate uses
   // for "which one do you mean?". The chosen product then leaves through the product-card send
   // route, which fans it out into its colour carousel. No brand read, no shortlist: hold and ask.
+  // ── A RECOGNISED photo names its product from the image index, not from words ──────────────
+  // LIVE 2026-09-11: the photo was recognised (product 119, grey, score 0.69) and rewritten to
+  // "عندكم Skechers Running - Grey لون Grey؟" — and the pipeline read that as a colour follow-up about
+  // the product already active in the conversation's memory (an Air Jordan 4 an earlier wrong draft
+  // had left there), keeping its size 41 too. Words do not reliably out-rank conversation memory.
+  // The recogniser already holds the product itself, from evidence the text never had, so after the
+  // gate the draft presents THAT product. It leaves through the product-card route as its colour
+  // carousel; the employee can still change it. A close (non-exact) match says "closest", never "متوفر".
+  if (visualRecognition?.matched && asArray(visualRecognition.productCards).length) {
+    const lead = visualRecognition.productCards[0];
+    const recognisedCard = await enrichGroundedSendReadyCard({
+      tenantId,
+      identity: {
+        product_id: visualRecognition.productId,
+        id: visualRecognition.productId,
+        name: lead?.name || "",
+        variant_id: lead?.variant_id || null,
+        color: visualRecognition.matchedColor || lead?.color || null,
+        grounded: true,
+      },
+    }).catch(() => null);
+    if (recognisedCard) {
+      reply.suggested_products = [recognisedCard];
+      reply.visual_attachments = [];
+      reply.answer = visualRecognition.reason === "visual_exact_inventory_match"
+        ? RECOGNISED_PHOTO_REPLY
+        : VISUAL_CLOSEST_PRODUCT_REPLY;
+      reply.send_package = {
+        product_ambiguous: false,
+        card_choices: [],
+        selection_semantics: null,
+        color_choice_required: false,
+        color_choices: [],
+        channel: conversation.channel || conversation.source || "web_chat",
+      };
+      reply.confidence = Number(visualRecognition.score) || reply.confidence;
+      visualProductPresented = true;
+    }
+  }
   if (photoWentUnrecognised) {
     const visualShortlist = [];
     for (const choice of asArray(visualRecognition?.candidates).slice(0, 4)) {
@@ -6510,6 +6554,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
             matched_color: visualRecognition?.matchedColor || "",
             held_for_unrecognised_photo: photoWentUnrecognised && !visualShortlistCount,
             shortlist_offered: visualShortlistCount,
+            recognised_product_presented: visualProductPresented,
           }
         : null,
       // Which ERP tools the draft actually consulted, and whether every claim in it
