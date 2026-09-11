@@ -33,6 +33,7 @@ import {
   getMetaGraphBudgetSnapshot,
   runGraphRequest,
 } from "./metaGraphRateLimiter.js";
+import { commentPollKey, createCommentCountMemo, graphCommentCount, planCommentPoll } from "./socialCommentPollMemo.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "./inboundMediaService.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
 import {
@@ -5380,12 +5381,36 @@ const filterNewInstagramCommentEvents = async ({ tenantId = null, events = [] } 
   return candidates.filter((event) => !existingIds.has(text(event.comment_id)));
 };
 
+// What the comment poller last saw per post/media — see socialCommentPollMemo.js.
+const facebookCommentPollMemo = createCommentCountMemo();
+const instagramCommentPollMemo = createCommentCountMemo();
+
+// An opened thread re-reads its post from Meta at most this often; in between, the
+// webhook has already delivered anything new and the stored comments are current.
+const THREAD_COMMENT_SYNC_FRESH_MS = 90 * 1000;
+const threadCommentSyncAt = new Map();
+const rememberThreadCommentSync = (key) => {
+  threadCommentSyncAt.delete(key);
+  threadCommentSyncAt.set(key, Date.now());
+  if (threadCommentSyncAt.size > 2000) threadCommentSyncAt.delete(threadCommentSyncAt.keys().next().value);
+};
+
 const instagramCommentSyncCache = new Map();
 const INSTAGRAM_COMMENT_SYNC_TTL_MS = 5 * 60 * 1000;
 
-export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, mediaIds = [], limit = 100, posts: providedPosts = [], skipAutomation = true } = {}) => {
+//   onlyChanged  the poller's mode: read only media whose comments_count moved since
+//                the last read (see socialCommentPollMemo.js). An opened thread or an
+//                explicit mediaIds list always reads.
+export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, mediaIds = [], limit = 100, posts: providedPosts = [], skipAutomation = true, onlyChanged = false } = {}) => {
   const context = await resolveMetaInstagramContext({ tenantId });
   if (context.error) return { success: false, posts: [], comments_seen: 0, comments_saved: 0, graph_error: context.error };
+  // An opened thread (explicit media ids) read in the last minute and a half is
+  // current: skip the media list and the comments read entirely.
+  const explicitMediaIds = asArray(mediaIds).map(text).filter(Boolean);
+  if (explicitMediaIds.length && !asArray(providedPosts).length) {
+    const stale = explicitMediaIds.filter((id) => Date.now() - Number(threadCommentSyncAt.get(commentPollKey(context.safeTenantId, "instagram", id)) || 0) >= THREAD_COMMENT_SYNC_FRESH_MS);
+    if (!stale.length) return { success: true, skipped: true, reason: "recently_synced", posts: [], comments_seen: 0, comments_saved: 0 };
+  }
   let posts = asArray(providedPosts).filter((post) => post && typeof post === "object");
   if (!posts.length) {
     posts = await fetchMetaInstagramMediaPages({
@@ -5396,7 +5421,15 @@ export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, medi
   }
   const requestedIds = new Set(asArray(mediaIds).map(text).filter(Boolean));
   if (requestedIds.size) posts = posts.filter((post) => requestedIds.has(text(post.id)));
-  const postsWithComments = posts.filter((post) => Number(post.comments_count || 0) > 0).slice(0, 30);
+  const mediaKey = (post) => commentPollKey(context.safeTenantId, "instagram", post.id);
+  // A requested media with no comments has nothing to read, and is current too.
+  if (requestedIds.size) posts.filter((post) => graphCommentCount(post) === 0).forEach((post) => rememberThreadCommentSync(mediaKey(post)));
+  const pollPlan = onlyChanged && !requestedIds.size
+    ? planCommentPoll({ posts, memo: instagramCommentPollMemo, keyOf: mediaKey, firstReadsPerRun: 10 })
+    : null;
+  const postsWithComments = pollPlan
+    ? pollPlan.read.map((entry) => entry.post).slice(0, 30)
+    : posts.filter((post) => Number(post.comments_count || 0) > 0).slice(0, 30);
   let commentsSeen = 0;
   let commentsSaved = 0;
   const errors = [];
@@ -5435,6 +5468,10 @@ export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, medi
             })),
           });
         }
+        // Any read that got this far is "seen at this count", whichever path asked for
+        // it, so the poller does not read it again until the count moves.
+        instagramCommentPollMemo.remember(mediaKey(post), graphCommentCount(post));
+        rememberThreadCommentSync(mediaKey(post));
         return { seen: comments.length, saved: newEvents.length };
       } catch (error) {
         errors.push({ media_id: text(post.id), message: error?.message || "Unable to sync Instagram comments" });
@@ -5447,6 +5484,9 @@ export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, medi
   return {
     success: errors.length === 0,
     posts,
+    media_read: postsWithComments.length,
+    media_unchanged: pollPlan ? pollPlan.skipped.unchanged + pollPlan.skipped.empty : 0,
+    media_deferred: pollPlan ? pollPlan.skipped.deferred : 0,
     comments_seen: commentsSeen,
     comments_saved: commentsSaved,
     automation_skipped: Boolean(skipAutomation),
@@ -6086,7 +6126,26 @@ const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {})
     : null;
 };
 
-export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
+// A post's caption, picture and permalink do not change between two comments, yet
+// every poll, thread open and automation run asked Graph for them again (one to
+// three calls each). Answers are kept for half an hour per post.
+const POST_PREVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
+const postPreviewCache = new Map();
+export const fetchMetaPostPreviewDetails = async (options = {}) => {
+  const key = [numberOrNull(options?.tenantId) || 0, text(options?.postId), text(options?.pageId), text(options?.permalinkUrl)].join("|");
+  const cached = postPreviewCache.get(key);
+  if (cached && Date.now() - cached.at < POST_PREVIEW_CACHE_TTL_MS) return { ...cached.value };
+  const value = await fetchMetaPostPreviewDetailsFromGraph(options);
+  // A preview built from failed calls (rate limit, timeout) is not an answer to keep.
+  if (value && typeof value === "object" && text(value.reason_if_missing) !== "graph_errors") {
+    postPreviewCache.set(key, { at: Date.now(), value });
+    if (postPreviewCache.size > 2000) postPreviewCache.delete(postPreviewCache.keys().next().value);
+    return { ...value };
+  }
+  return value;
+};
+
+const fetchMetaPostPreviewDetailsFromGraph = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safePostId = text(postId);
   if (!safeTenantId || !safePostId) return null;
@@ -6603,6 +6662,19 @@ const socialCommentPictureExpiredSql = (column = "commenter_profile_picture_url"
 // an opened thread); without it this is the backlog sweep.
 export const listSocialCommenterLookupCandidates = async (options = {}) => loadSocialCommenterLookupRows(options);
 
+// Meta's picture link is signed and dies within days, and a dead one sends the
+// commenter back into the lookup queue — another Graph call for a face we already had.
+// A copy under /uploads never expires, so each commenter is asked about once. Any
+// failure keeps Meta's link.
+const hostSocialCommenterPicture = async ({ platform = "", commenterId = "", url = "" } = {}) => {
+  const [stored] = await materializeInboundAttachments({
+    channel: "commenter-avatars",
+    messageId: `${text(platform)}-${text(commenterId)}`,
+    attachments: [{ type: "image", url: text(url) }],
+  }).catch(() => []);
+  return stored?.materialized ? text(stored.url) : text(url);
+};
+
 const loadSocialCommenterLookupRows = async ({ tenantId, commenterIds = [], limit = 50 } = {}) => {
   const params = [
     numberOrNull(tenantId),
@@ -6757,7 +6829,9 @@ export const lookupSocialCommenterProfiles = async ({ tenantId = null, commenter
     const picture = text(enriched?.customer_avatar_url || "");
     const failure = metaProfileCoordinator.getFailure(coordinatorKey);
     const outcome = commenterLookupOutcome({ name, picture: picture && !isMetaAvatarExpired(picture) ? picture : "", failureKind: !name && !picture ? text(failure?.kind || (enriched ? "" : "unknown")) : "" });
-    const freshPicture = picture && !isMetaAvatarExpired(picture) ? picture : "";
+    const freshPicture = picture && !isMetaAvatarExpired(picture)
+      ? await hostSocialCommenterPicture({ platform: pick.platform, commenterId: pick.commenterId, url: picture })
+      : "";
     const updated = await recordSocialCommenterLookup({ tenantId: safeTenantId, platform: pick.platform, commenterId: pick.commenterId, name, picture: freshPicture, outcome });
     if (name || freshPicture) learned.set(`${pick.platform}:${pick.commenterId}`, { name: isUsableCommenterName(name) ? name : "", picture: freshPicture });
     const report = {
@@ -9261,10 +9335,13 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
   let commentsSeen = 0;
   let commentsSaved = 0;
   for (const postId of safePostIds) {
-    const post = await fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId, pageId }).catch(() => ({ id: postId }));
-    const resolvedPost = { ...(post || {}), id: text(post?.id || postId), post_id: text(post?.post_id || post?.id || postId) };
-    const feedIndex = buildMetaFeedPostAttributionIndex([resolvedPost]);
+    // Opening the same post again a minute later found nothing the webhook had not
+    // already delivered, at two Graph calls a time.
+    const freshKey = commentPollKey(safeTenantId, "facebook", postId);
+    if (Date.now() - Number(threadCommentSyncAt.get(freshKey) || 0) < THREAD_COMMENT_SYNC_FRESH_MS) continue;
+    let readFailed = false;
     const comments = await fetchMetaPostCommentsForPolling({ postId, token }).catch((error) => {
+      readFailed = true;
       console.warn("SOCIAL_FACEBOOK_THREAD_SYNC_FAILED", {
         tenant_id: safeTenantId,
         post_id: postId,
@@ -9272,6 +9349,17 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
       });
       return [];
     });
+    if (!readFailed) rememberThreadCommentSync(freshKey);
+    // Post details are only needed to store a new comment.
+    let postContext = null;
+    const resolvePostContext = async () => {
+      if (!postContext) {
+        const post = await fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId, pageId }).catch(() => ({ id: postId }));
+        const resolvedPost = { ...(post || {}), id: text(post?.id || postId), post_id: text(post?.post_id || post?.id || postId) };
+        postContext = { resolvedPost, feedIndex: buildMetaFeedPostAttributionIndex([resolvedPost]) };
+      }
+      return postContext;
+    };
     for (const comment of comments.slice(0, Math.min(50, Math.max(1, Number(limit) || 50)))) {
       commentsSeen += 1;
       const commentId = text(comment?.id || "");
@@ -9289,6 +9377,7 @@ export const syncMetaFacebookCommentsForTenant = async ({ tenantId = null, postI
         continue;
       }
       const enrichedComment = await fetchMetaCommentDetailsForPolling({ commentId, token }).catch(() => null);
+      const { resolvedPost, feedIndex } = await resolvePostContext();
       const effectiveComment = enrichedComment || comment;
       const isPageOwnedComment = text(effectiveComment?.from?.id || comment?.from?.id || "") === pageId;
       const attribution = resolveMetaPolledCommentAttribution({
@@ -9557,6 +9646,9 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
 
   const configs = await loadMetaCommentPollingConfigs({ tenantId });
   const totals = {
+    posts_read: 0,
+    posts_unchanged: 0,
+    posts_deferred: 0,
     posts_checked: 0,
     comments_seen: 0,
     comments_saved: 0,
@@ -9649,7 +9741,19 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
         posts_checked: posts.length,
       });
 
-      for (const post of posts) {
+      // The feed row already says how many comments each post has. A post whose count
+      // has not moved since we last read it has nothing new — reading it anyway was two
+      // Graph calls per post, a hundred posts a run, to find only stored comments.
+      const pollPlan = planCommentPoll({
+        posts,
+        memo: facebookCommentPollMemo,
+        keyOf: (post) => commentPollKey(safeTenantId, "facebook", post.id),
+      });
+      totals.posts_unchanged += pollPlan.skipped.unchanged + pollPlan.skipped.empty;
+      totals.posts_deferred += pollPlan.skipped.deferred;
+      totals.posts_read += pollPlan.read.length;
+
+      for (const { post, count: graphCommentTotal } of pollPlan.read) {
         // A limit hit on post 30 of 100 used to keep the loop grinding through the
         // remaining 70, spending the whole recovery window re-triggering it.
         const midScanBudget = shouldDeferBackgroundGraphWork();
@@ -9671,20 +9775,30 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
           comments_count: Number(post.comments_count || 0),
           error_message: "",
         });
-        const enrichedPost = await fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId: post.id, pageId }).catch((error) => {
-          if (isMetaRateLimitError(error)) throw error;
-          return null;
-        });
-        const resolvedPost = enrichedPost
-          ? {
-              ...post,
-              ...enrichedPost,
-              full_picture: enrichedPost.full_picture || enrichedPost.post_full_picture || post.full_picture || "",
-              caption: enrichedPost.caption || enrichedPost.post_caption || post.caption || "",
-              message: enrichedPost.message || enrichedPost.post_message || post.message || "",
-              permalink_url: enrichedPost.permalink_url || post.permalink_url || "",
-            }
-          : post;
+        // The post's preview details only matter for a comment we are about to store,
+        // so they are fetched on the first new comment, not for every post read.
+        let resolvedPostPromise = null;
+        const resolvePolledPost = () => {
+          if (!resolvedPostPromise) {
+            resolvedPostPromise = fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId: post.id, pageId })
+              .catch((error) => {
+                if (isMetaRateLimitError(error)) throw error;
+                return null;
+              })
+              .then((enrichedPost) => (enrichedPost
+                ? {
+                    ...post,
+                    ...enrichedPost,
+                    full_picture: enrichedPost.full_picture || enrichedPost.post_full_picture || post.full_picture || "",
+                    caption: enrichedPost.caption || enrichedPost.post_caption || post.caption || "",
+                    message: enrichedPost.message || enrichedPost.post_message || post.message || "",
+                    permalink_url: enrichedPost.permalink_url || post.permalink_url || "",
+                  }
+                : post));
+          }
+          return resolvedPostPromise;
+        };
+        let postReadCleanly = true;
         let comments = [];
         try {
           comments = await fetchMetaPostCommentsForPolling({ postId: post.id, token });
@@ -9732,6 +9846,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             if (isMetaRateLimitError(error)) throw error;
             return null;
           });
+          const resolvedPost = await resolvePolledPost();
           const effectiveComment = enrichedComment || comment;
           const commenterId = text(effectiveComment.from?.id || comment.from?.id || "");
           const commenterName = text(effectiveComment.from?.name || comment.from?.name || "");
@@ -9841,6 +9956,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             });
           } catch (error) {
             totals.errors += 1;
+            postReadCleanly = false;
             console.error("META_COMMENTS_POLL_ERROR", {
               tenant_id: safeTenantId,
               page_id: pageId,
@@ -9853,6 +9969,9 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             });
           }
         }
+        // Only a read that stored everything it found counts as "seen at this count";
+        // a failed save leaves the post to be read again next run.
+        if (postReadCleanly) facebookCommentPollMemo.remember(commentPollKey(safeTenantId, "facebook", post.id), graphCommentTotal);
       }
       await markMetaPollSuccess({ tenantId: safeTenantId, successAt: new Date() });
       console.log("META_POLL_SUCCESS", {
@@ -9860,6 +9979,9 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
         page_id: pageId,
         source,
         posts_checked: posts.length,
+        posts_read: pollPlan.read.length,
+        posts_unchanged: pollPlan.skipped.unchanged + pollPlan.skipped.empty,
+        posts_deferred: pollPlan.skipped.deferred,
         comments_seen: totals.comments_seen,
         comments_saved: totals.comments_saved,
         duplicates: totals.duplicates,
@@ -9911,6 +10033,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
           tenantId: safeTenantId,
           limit: 100,
           skipAutomation: false,
+          onlyChanged: true,
         });
         totals.instagram_posts_checked += asArray(instagramSync.posts).length;
         totals.instagram_comments_seen += Number(instagramSync.comments_seen || 0);

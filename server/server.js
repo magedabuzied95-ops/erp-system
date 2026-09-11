@@ -18,6 +18,7 @@ from "socket.io";
 import { fileURLToPath }
 from "url";
 import { emitToRooms, normalizeSocketRoomKey, setIo } from "./utils/socket.js";
+import { getGraphUsageByCaller, installGraphFetchMeter } from "./services/metaGraphRateLimiter.js";
 import { presenceConnect, presenceDisconnect } from "./services/chatPresenceService.js";
 import { isPerfDebugEnabled, runWithPerfContext, slowestPhaseFromTimings } from "./utils/perfDebug.js";
 import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.js";
@@ -39,6 +40,10 @@ import {
 } from "./services/metaReviewerAccessService.js";
 import { ensureInventoryCountSchema } from "./services/inventoryCountService.js";
 import { ensureBrandsTable } from "./controllers/brandsController.js";
+
+// Count every Meta Graph call by caller before anything starts making them
+// (GET /api/debug/meta-graph-usage, and a META_GRAPH_USAGE_REPORT log line).
+installGraphFetchMeter();
 
 const require = createRequire(import.meta.url);
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -1054,6 +1059,13 @@ app.post("/api/debug/meta-webhook-raw-events/clear", async (req, res) => {
       message: error?.message || "Failed to clear meta webhook raw events",
     });
   }
+});
+// Which code spends the shared Meta Graph budget: calls per caller and per endpoint
+// shape over the last ?minutes (default 60). Counts only — no ids, tokens or payloads.
+app.get("/api/debug/meta-graph-usage", (req, res) => {
+  const minutes = Math.min(24 * 60, Math.max(1, Number(req.query?.minutes || 60) || 60));
+  const top = Math.min(50, Math.max(1, Number(req.query?.top || 15) || 15));
+  return res.json({ success: true, ...getGraphUsageByCaller({ minutes, top }) });
 });
 app.get("/api/debug/meta-permissions", async (req, res) => {
   try {

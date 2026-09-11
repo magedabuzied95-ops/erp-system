@@ -215,6 +215,7 @@ server/scripts/timestamptz-fingerprint.json
 # ignores the whole directory, so without this line the deploy ships an import of a file that
 # does not exist.
 !server/services/metaCustomerProfileService.js
+!server/services/socialCommentPollMemo.js
 
 # Meta profile backfill state/lock files (server/scripts/backfillMetaCustomerProfiles.js) — local runs only
 server/data/backfill/

@@ -334,3 +334,168 @@ export const __metaGraphRateLimiterTestHooks = {
   worstBusinessUseCaseBucket,
   openBreaker,
 };
+
+// ---------------------------------------------------------------------------
+// Who is spending the budget.
+//
+// X-App-Usage says how full the bucket is, never who filled it — and a dozen
+// services call Graph with their own fetch. So every graph.facebook.com /
+// graph.instagram.com request made through the global fetch is counted here, by
+// the functions that asked for it (read off the stack: "callMetaGet <
+// fetchMetaPagePostsPage < runMetaCommentsPollingScan") and by endpoint shape
+// ("GET /{id}/comments"). One-minute buckets, kept for a day, no ids or tokens.
+// ---------------------------------------------------------------------------
+const GRAPH_HOST_PATTERN = /^https?:\/\/graph\.(facebook|instagram)\.com\//i;
+const METER_BUCKET_MS = 60 * 1000;
+const METER_KEEP_MS = 24 * 60 * 60 * 1000;
+const METER_REPORT_EVERY_MS = envNumber("META_GRAPH_USAGE_REPORT_MS", 15 * 60 * 1000);
+const meter = { buckets: new Map(), installed: false, reportTimer: null };
+
+// Plumbing that every caller passes through; naming it would say nothing.
+const GENERIC_FRAMES = new Set([
+  "callMetaGet", "callMetaPost", "callMetaPostForm", "callMetaDelete", "callInstagramGraph", "callGraph", "graphGet", "graphPost",
+  "runGraphRequest", "fetchWithTimeout", "meteredGraphFetch", "fetch", "run", "task", "attempt",
+  "processTicksAndRejections", "Promise.all", "Array.map", "Array.forEach", "new Promise", "Promise.then",
+]);
+
+export const describeGraphEndpoint = (url = "", method = "GET") => {
+  let pathname = "";
+  try {
+    pathname = new URL(String(url)).pathname;
+  } catch {
+    pathname = String(url).split("?")[0];
+  }
+  const shape = pathname
+    .split("/")
+    .filter(Boolean)
+    .filter((segment, index) => !(index === 0 && /^v\d+(\.\d+)?$/.test(segment)))
+    .map((segment) => (/^[0-9_]{5,}$/.test(segment) || /^[A-Za-z0-9_-]{20,}$/.test(segment) ? "{id}" : segment))
+    .join("/");
+  return `${String(method || "GET").toUpperCase()} /${shape}`;
+};
+
+export const graphCallerFromStack = (stack = "") => {
+  const names = [];
+  for (const line of String(stack).split("\n")) {
+    const match = line.match(/^\s*at (?:async )?([^\s(]+) \(/);
+    if (!match) continue;
+    const name = match[1].replace(/^Object\./, "");
+    if (GENERIC_FRAMES.has(name) || name.startsWith("node:") || name.includes("metered")) continue;
+    if (names[names.length - 1] === name) continue;
+    names.push(name);
+    if (names.length >= 3) break;
+  }
+  return names.length ? names.join(" < ") : "unknown";
+};
+
+const meterRecord = ({ caller = "unknown", endpoint = "", status = 0, failed = false } = {}) => {
+  const bucketAt = Math.floor(Date.now() / METER_BUCKET_MS) * METER_BUCKET_MS;
+  let bucket = meter.buckets.get(bucketAt);
+  if (!bucket) {
+    bucket = new Map();
+    meter.buckets.set(bucketAt, bucket);
+    const cutoff = bucketAt - METER_KEEP_MS;
+    for (const key of meter.buckets.keys()) if (key < cutoff) meter.buckets.delete(key);
+  }
+  const key = `${caller}\u0000${endpoint}`;
+  const entry = bucket.get(key) || { calls: 0, errors: 0, rate_limited: 0 };
+  entry.calls += 1;
+  if (failed || status >= 400) entry.errors += 1;
+  if (status === 429) entry.rate_limited += 1;
+  bucket.set(key, entry);
+};
+
+/** Graph calls in the last `minutes`, grouped by caller and by endpoint, busiest first. */
+export const getGraphUsageByCaller = ({ minutes = 60, top = 15 } = {}) => {
+  const since = Date.now() - Math.max(1, Number(minutes) || 60) * 60 * 1000;
+  const byCaller = new Map();
+  const byEndpoint = new Map();
+  const byPair = new Map();
+  let total = 0;
+  let errors = 0;
+  for (const [bucketAt, bucket] of meter.buckets) {
+    if (bucketAt + METER_BUCKET_MS < since) continue;
+    for (const [key, entry] of bucket) {
+      const [caller, endpoint] = key.split("\u0000");
+      total += entry.calls;
+      errors += entry.errors;
+      byCaller.set(caller, (byCaller.get(caller) || 0) + entry.calls);
+      byEndpoint.set(endpoint, (byEndpoint.get(endpoint) || 0) + entry.calls);
+      byPair.set(key, (byPair.get(key) || 0) + entry.calls);
+    }
+  }
+  const rank = (map, shape) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, top).map(shape);
+  return {
+    minutes: Math.max(1, Number(minutes) || 60),
+    total_calls: total,
+    errors,
+    calls_per_minute: Math.round((total / Math.max(1, Number(minutes) || 60)) * 10) / 10,
+    by_caller: rank(byCaller, ([caller, calls]) => ({ caller, calls })),
+    by_endpoint: rank(byEndpoint, ([endpoint, calls]) => ({ endpoint, calls })),
+    by_caller_endpoint: rank(byPair, ([key, calls]) => {
+      const [caller, endpoint] = key.split("\u0000");
+      return { caller, endpoint, calls };
+    }),
+    usage: { ...state.usage },
+    pressure: currentPressure(),
+    breaker_open: breakerMsRemaining() > 0,
+  };
+};
+
+/**
+ * Count every Graph request made through the global fetch. Installed once at boot;
+ * the request itself is passed through untouched, and the usage headers are read on
+ * every response so the pressure reading reflects all callers, not only the ones
+ * that remembered to call noteGraphResponse.
+ */
+export const installGraphFetchMeter = ({ report = true } = {}) => {
+  if (meter.installed || typeof globalThis.fetch !== "function") return false;
+  meter.installed = true;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async function meteredGraphFetch(input, init) {
+    const url = typeof input === "string" ? input : input?.url || String(input || "");
+    if (!GRAPH_HOST_PATTERN.test(url)) return originalFetch(input, init);
+    const previousLimit = Error.stackTraceLimit;
+    Error.stackTraceLimit = 30;
+    const stack = new Error().stack;
+    Error.stackTraceLimit = previousLimit;
+    const caller = graphCallerFromStack(stack);
+    const endpoint = describeGraphEndpoint(url, init?.method || input?.method || "GET");
+    try {
+      const response = await originalFetch(input, init);
+      meterRecord({ caller, endpoint, status: response.status });
+      try {
+        noteGraphResponse(response);
+      } catch {
+        // a header we cannot read never fails the caller's request
+      }
+      return response;
+    } catch (error) {
+      meterRecord({ caller, endpoint, failed: true });
+      throw error;
+    }
+  };
+  if (report) {
+    meter.reportTimer = setInterval(() => {
+      const snapshot = getGraphUsageByCaller({ minutes: 60, top: 10 });
+      if (!snapshot.total_calls) return;
+      console.log("META_GRAPH_USAGE_REPORT", JSON.stringify({
+        window_minutes: snapshot.minutes,
+        total_calls: snapshot.total_calls,
+        calls_per_minute: snapshot.calls_per_minute,
+        errors: snapshot.errors,
+        pressure: snapshot.pressure,
+        usage_source: snapshot.usage.source,
+        top_callers: snapshot.by_caller,
+        top_endpoints: snapshot.by_endpoint,
+      }));
+    }, METER_REPORT_EVERY_MS);
+    meter.reportTimer.unref?.();
+  }
+  return true;
+};
+
+export const __metaGraphMeterTestHooks = {
+  reset: () => meter.buckets.clear(),
+  record: meterRecord,
+};
