@@ -6480,7 +6480,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   }
   if (photoWentUnrecognised) {
     const visualShortlist = [];
-    for (const choice of asArray(visualRecognition?.candidates).slice(0, 4)) {
+    for (const choice of asArray(visualRecognition?.candidates).slice(0, 6)) {
       const card = await enrichGroundedSendReadyCard({
         tenantId,
         identity: { product_id: choice.product_id, id: choice.product_id, name: choice.name, color: choice.color || null, grounded: true },

@@ -277,6 +277,36 @@ test("a recognised photo presents the product it recognised, not the conversatio
   assert.match(salesAgent, /recognised_product_presented: visualProductPresented,/);
 });
 
+test("a score over the floor names a product only with evidence for the MODEL", async () => {
+  // LIVE 2026-09-11: "Skechers Running" scored 0.69 on brand + colour + category alone (modelScore 0)
+  // and was presented as the customer's shoe. It was the wrong model — six grey Skechers runners.
+  const { decideVisualMatch } = await import("../server/services/aiVisualProductRecognitionService.js");
+  const match = (product_id, score, { brandScore = 1, modelScore = 0 } = {}) =>
+    ({ product_id, score, product_name: `P${product_id}`, color: "Grey", score_breakdown: { brandScore, modelScore } });
+
+  const lookAlikes = decideVisualMatch({
+    search: { exactMatch: null, topMatches: [match("119", 0.69), match("201", 0.66), match("202", 0.64), match("203", 0.6), match("204", 0.58), match("205", 0.55), match("206", 0.5)] },
+    minScore: 0.62,
+  });
+  assert.equal(lookAlikes.accept, false, "brand + colour over the floor is still a guess between look-alikes");
+  assert.equal(lookAlikes.reason, "model_not_confirmed");
+  assert.deepEqual(lookAlikes.candidates.map((c) => c.product_id), ["119", "201", "202", "203", "204", "205"], "six to pick from, best first");
+
+  const named = decideVisualMatch({ search: { exactMatch: null, topMatches: [match("771", 0.84, { modelScore: 1 })] }, minScore: 0.62 });
+  assert.equal(named.accept, true, "the model read off the photo matches the product — that is a name");
+  assert.equal(named.reason, "visual_close_match");
+
+  const exact = decideVisualMatch({ search: { exactMatch: match("9", 0.9), topMatches: [match("9", 0.9)] }, minScore: 0.62 });
+  assert.equal(exact.accept, true);
+  assert.equal(exact.reason, "visual_exact_inventory_match");
+
+  const weakNamed = decideVisualMatch({ search: { exactMatch: null, topMatches: [match("5", 0.5, { modelScore: 1 })] }, minScore: 0.62 });
+  assert.equal(weakNamed.accept, false, "a named model under the floor is still not enough");
+  assert.equal(weakNamed.reason, "below_recognition_threshold");
+
+  assert.equal(decideVisualMatch({ search: { topMatches: [] } }).accept, false);
+});
+
 test("look-alikes become a shortlist of the brand the photo was read as", async () => {
   // LIVE 2026-09-11: the photo was read (Skechers, sneaker, grey) but the catalogue holds six grey
   // Skechers runners, so no single product reached the floor. Owner's call: offer the closest ones.
@@ -301,15 +331,15 @@ test("look-alikes become a shortlist of the brand the photo was read as", async 
 
 test("the inbox offers the shortlist as a pick-one choice, and holds only when there is none", () => {
   const hold = salesAgent.slice(salesAgent.indexOf("if (photoWentUnrecognised) {"), salesAgent.indexOf("const channelAdapterPayload = {"));
-  assert.match(hold, /asArray\(visualRecognition\?\.candidates\)\.slice\(0, 4\)/, "built from the recogniser's shortlist");
+  assert.match(hold, /asArray\(visualRecognition\?\.candidates\)\.slice\(0, 6\)/, "built from the recogniser's shortlist, six wide");
   assert.match(hold, /enrichGroundedSendReadyCard\(\{/, "each choice is enriched like a grounded card (customer-safe fields only)");
   assert.match(hold, /selection_semantics: "identity_disambiguation"/, "the employee picks exactly one — never a multi-product blast");
   assert.match(hold, /product_ambiguous: true/);
   assert.match(hold, /reply\.answer = VISUAL_CLOSEST_PRODUCT_REPLY;/);
   assert.match(hold, /reply\.answer = UNRECOGNISED_PHOTO_REPLY;/, "and with no shortlist it still holds and asks");
   assert.match(hold, /reply\.suggested_products = \[\];/, "no product is ever presented as THE product without a pick");
-  // the recogniser returns the shortlist only on a below-floor miss, from a wide enough search
-  assert.match(recognition, /reason: "below_recognition_threshold",\s*\r?\n\s*score,\s*\r?\n\s*candidates: closestBrandCandidates\(search\?\.topMatches\),/);
+  // the recogniser hands back the decision's shortlist on every miss, from a wide enough search
+  assert.match(recognition, /reason: decision\.reason,\s*\r?\n\s*score,\s*\r?\n\s*candidates: decision\.candidates,/);
   assert.match(recognition, /limit: 24,/);
 });
 
@@ -429,8 +459,10 @@ test("a recognised product with one colour still sends a real card", () => {
 
 test("a low-confidence guess is not presented as the customer's product", () => {
   assert.match(recognition, /below_recognition_threshold/);
-  assert.match(recognition, /!search\?\.exactMatch && score < minScore/,
-    "only an exact index match skips the score floor");
+  // The floor itself is proven by behaviour in "a score over the floor names a product only with
+  // evidence for the MODEL"; here, only that the recogniser defers to that one decision.
+  assert.match(recognition, /const decision = decideVisualMatch\(\{ search, minScore \}\);/);
+  assert.match(recognition, /if \(!decision\.accept\) \{/, "every non-accepted match returns a miss");
   assert.match(recognition, /matched: false, reason: "recognised_product_has_no_sendable_card"/,
     "a product we cannot card is a miss, not a blank send");
 });

@@ -85,6 +85,37 @@ export const closestBrandCandidates = (topMatches = [], { max = 4, minScore = 0.
   return picked;
 };
 
+/**
+ * Did the visual search NAME one product, or only narrow the photo down to look-alikes?
+ *
+ * A score over the floor is not, on its own, a name. LIVE 2026-09-11: a grey Skechers photo scored
+ * 0.69 for "Skechers Running" on brand + colour + category alone — the model the photo was read as
+ * matched no product (modelScore 0) — and it was presented as THE product. It was the wrong model:
+ * the catalogue holds six grey Skechers runners and brand + colour cannot tell them apart. The owner
+ * had already decided what that case gets: the closest models, to pick from.
+ *
+ * So one product is named only with evidence for the model itself — the index's own exact match
+ * (same image, or a score it calls exact), or a score over the floor WITH the model matched.
+ * Anything else returns a same-brand shortlist, wide enough (6) that the right look-alike is in it.
+ */
+export const decideVisualMatch = ({ search = null, minScore = MIN_RECOGNITION_SCORE } = {}) => {
+  const best = search?.exactMatch || asArray(search?.topMatches)[0] || null;
+  const score = Number(best?.score ?? best?.finalScore ?? 0);
+  if (!best?.product_id) {
+    return { accept: false, reason: search?.fallbackReason || "no_visual_match", best, score, candidates: [] };
+  }
+  if (search?.exactMatch) return { accept: true, reason: "visual_exact_inventory_match", best, score, candidates: [] };
+  const modelNamed = Number(best?.score_breakdown?.modelScore || 0) >= 1;
+  if (score >= minScore && modelNamed) return { accept: true, reason: "visual_close_match", best, score, candidates: [] };
+  return {
+    accept: false,
+    reason: score < minScore ? "below_recognition_threshold" : "model_not_confirmed",
+    best,
+    score,
+    candidates: closestBrandCandidates(search?.topMatches, { max: 6 }),
+  };
+};
+
 const visualQueryFromUnderstanding = (understanding = {}) =>
   [
     understanding?.detected?.brand_guess,
@@ -207,8 +238,8 @@ export const recogniseProductFromImage = async ({
     return { matched: false, reason: "visual_index_error", understanding, visualQuery };
   }
 
-  const best = search?.exactMatch || asArray(search?.topMatches)[0] || null;
-  const score = Number(best?.score || best?.finalScore || 0);
+  const decision = decideVisualMatch({ search, minScore });
+  const { best, score } = decision;
   console.log("[ai-visual-recognition] match", {
     tenant_id: tenantId || null,
     visual_query: visualQuery,
@@ -218,16 +249,16 @@ export const recogniseProductFromImage = async ({
     score,
     min_score: minScore,
     exact: Boolean(search?.exactMatch),
+    model_named: Number(best?.score_breakdown?.modelScore || 0) >= 1,
+    decision: decision.reason,
+    shortlist: decision.candidates.map((item) => ({ product_id: item.product_id, score: Math.round(item.score * 1000) / 1000 })),
   });
-  if (!best?.product_id) {
-    return { matched: false, reason: search?.fallbackReason || "no_visual_match", understanding, visualQuery, search };
-  }
-  if (!search?.exactMatch && score < minScore) {
+  if (!decision.accept) {
     return {
       matched: false,
-      reason: "below_recognition_threshold",
+      reason: decision.reason,
       score,
-      candidates: closestBrandCandidates(search?.topMatches),
+      candidates: decision.candidates,
       understanding,
       visualQuery,
       search,
@@ -263,7 +294,7 @@ export const recogniseProductFromImage = async ({
 
   return {
     matched: true,
-    reason: search?.exactMatch ? "visual_exact_inventory_match" : "visual_close_match",
+    reason: decision.reason,
     productId: best.product_id,
     matchedColor: text(best.color),
     score,
