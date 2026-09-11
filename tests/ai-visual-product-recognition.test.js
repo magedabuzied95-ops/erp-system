@@ -219,6 +219,41 @@ test("a photo we saved is read off our own disk, never fetched back through the 
   fs.rmSync(root, { recursive: true, force: true });
 });
 
+test("a vision provider that refuses is reported as unavailable, not as an empty picture", async () => {
+  // LIVE 2026-09-11: the miss read `no_visual_signal` while the real cause was OpenAI
+  // `insufficient_quota` — the vision helper does not throw on a refusal, it returns an empty
+  // reading with the provider error attached. Blank every key so this can never reach the network;
+  // a missing key is refused the same way a spent quota is.
+  const saved = { a: process.env.OPENAI_API_KEY, b: process.env.OPENAI_AGENT_API_KEY };
+  process.env.OPENAI_API_KEY = "";
+  process.env.OPENAI_AGENT_API_KEY = "";
+  try {
+    const { recogniseProductFromImage } = await import("../server/services/aiVisualProductRecognitionService.js");
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+    const result = await recogniseProductFromImage({ tenantId: 1, imageBuffer: png, mimeType: "image/png" });
+    assert.equal(result.matched, false);
+    assert.match(result.reason, /^vision_unavailable:/, `the provider's refusal is named (got ${result.reason})`);
+  } finally {
+    process.env.OPENAI_API_KEY = saved.a ?? "";
+    process.env.OPENAI_AGENT_API_KEY = saved.b ?? "";
+  }
+});
+
+test("an unrecognised photo is held with a question, never answered with a product", () => {
+  // LIVE 2026-09-11: vision was refused, the pipeline ran on "📷 صورة", and a grey Skechers photo
+  // was suggested back as "أيوه يا فندم. Air Jordan 4 for Men - black متوفر" — one tap from sent.
+  assert.match(salesAgent, /const photoWentUnrecognised = Boolean\(inboundImageUrl && messageIsOnlyMediaPlaceholder\(lastMessage\)\);/,
+    "decided AFTER the rewrite: still only a placeholder means the photo never became words");
+  const hold = salesAgent.slice(salesAgent.indexOf("if (photoWentUnrecognised) {"), salesAgent.indexOf("const channelAdapterPayload = {"));
+  assert.ok(hold.length > 0, "the hold runs after the grounding gate and before the draft is built");
+  assert.match(hold, /reply\.answer = UNRECOGNISED_PHOTO_REPLY;/);
+  assert.match(hold, /reply\.suggested_products = \[\];/, "no product card");
+  assert.match(hold, /reply\.send_package = null;/, "and no colour choices to tick");
+  const gateAt = salesAgent.indexOf("groundingResult = await applyInboxGroundingGate(");
+  assert.ok(gateAt > -1 && gateAt < salesAgent.indexOf("if (photoWentUnrecognised) {"), "the gate cannot re-add a card after the hold");
+  assert.match(salesAgent, /held_for_unrecognised_photo: photoWentUnrecognised,/, "the employee can see why the draft holds");
+});
+
 test("the inbox reply resolves its conversation by key, never by a 100-row sweep", () => {
   // LIVE 2026-09-10: the assisted intake logged `generation_blocked:Conversation not found` for
   // EVERY WhatsApp message — 0 suggestions out of 413 in a week — because generateAiInboxReply

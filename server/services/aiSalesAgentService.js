@@ -90,6 +90,10 @@ const MEDIA_PLACEHOLDER_WORDS = "صورة|صوره|فيديو|ملف|مرفق|م
 // The media on an inbox message, wherever the row keeps it. normalizeInboxMessage exposes it as
 // `visual_attachments` — there is no `attachments` field on an inbox row — so anything that reads
 // only `attachments` sees no media at all. `attachments` is kept for raw provider shapes.
+// What a customer who sent only a photo hears when we could not tell what is in it: we got it, we
+// are checking, and the one thing that would help. It promises nothing about stock or a model.
+export const UNRECOGNISED_PHOTO_REPLY = "وصلتني الصورة يا فندم 👌 ثواني أتأكدلك من الموديل ده. لو تعرف المقاس اللي محتاجه قولّي عليه.";
+
 export const inboxMessageMedia = (message = {}) => [
   ...asArray(message?.visual_attachments),
   ...asArray(message?.attachments),
@@ -5972,13 +5976,17 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
         rewritten_message: lastMessage,
       });
     } else {
-      console.log("[ai-inbox] photo not recognised; the text pipeline answers it", {
+      console.log("[ai-inbox] photo not recognised; the draft holds and asks instead", {
         tenant_id: tenantId,
         conversation_id: conversationId,
         reason: visualRecognition?.reason || "no_match",
       });
     }
   }
+  // Still nothing but a placeholder after the block above means the photo was never turned into
+  // words — unrecognised, or recognised with no usable name. Everything below would then run on
+  // "📷 صورة" and present whatever product it could find; the draft is held instead (see below).
+  const photoWentUnrecognised = Boolean(inboundImageUrl && messageIsOnlyMediaPlaceholder(lastMessage));
   let replyHarness = null;
   // Read the customer before doing anything else. `understanding.legacy_intent` is the
   // same five-value enum `resolveIntent` produced, so every existing branch below is
@@ -6404,6 +6412,19 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   } catch (gateError) {
     console.error("[ai-inbox] grounding gate error", { error: String(gateError?.message || gateError).slice(0, 140) });
   }
+  // ── A photo we could not recognise is never answered with a product ─────────────────────────
+  // LIVE 2026-09-11: vision failed (OpenAI insufficient_quota), so every stage above ran on the
+  // placeholder "📷 صورة" — and the composer and gate still found a product to present. A grey
+  // Skechers photo came back as "أيوه يا فندم. Air Jordan 4 for Men - black متوفر". A confident wrong
+  // product is worse than no answer: the customer believes it, and the employee can approve it in
+  // one tap. So the draft for an unrecognised photo is a holding reply that asks, with no card.
+  if (photoWentUnrecognised) {
+    reply.answer = UNRECOGNISED_PHOTO_REPLY;
+    reply.suggested_products = [];
+    reply.visual_attachments = [];
+    reply.send_package = null;
+    reply.confidence = Math.min(Number(reply.confidence) || 0, 0.3);
+  }
   const channelAdapterPayload = {
     channel: conversation.channel || conversation.source || "web_chat",
     text: reply.answer || "",
@@ -6440,6 +6461,17 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
       // misheard size is invisible once it becomes fluent Arabic.
       voice_transcription: voiceTranscription
         ? { text: voiceTranscription.text, model: voiceTranscription.model, language: voiceTranscription.language }
+        : null,
+      // Present only when the customer's message was a photo. Same reason as above: an employee
+      // must know the draft answers what we READ in a picture — or that we could not read it.
+      visual_recognition: inboundImageUrl
+        ? {
+            matched: visualRecognition?.matched === true,
+            reason: visualRecognition?.reason || (photoWentUnrecognised ? "not_attempted" : "caption_answered"),
+            product_id: visualRecognition?.productId || null,
+            matched_color: visualRecognition?.matchedColor || "",
+            held_for_unrecognised_photo: photoWentUnrecognised,
+          }
         : null,
       // Which ERP tools the draft actually consulted, and whether every claim in it
       // traced back to one. This is what makes a wrong number debuggable.

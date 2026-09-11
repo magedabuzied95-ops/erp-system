@@ -155,7 +155,13 @@ export const recogniseProductFromImage = async ({
   }
 
   const visualQuery = visualQueryFromUnderstanding(understanding) || text(messageText);
-  if (!visualQuery) return { matched: false, reason: "no_visual_signal", understanding };
+  if (!visualQuery) {
+    // The vision helper does not throw when the provider refuses — it hands back an empty reading
+    // with the provider's error attached. Report THAT, not "nothing in the picture": the first live
+    // miss read `no_visual_signal` while the real cause was OpenAI `insufficient_quota`.
+    const visionError = text(understanding?.openai_error?.code || understanding?.error || "");
+    return { matched: false, reason: visionError ? `vision_unavailable:${visionError}` : "no_visual_signal", understanding };
+  }
 
   let search;
   try {
