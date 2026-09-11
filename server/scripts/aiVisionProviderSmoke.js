@@ -42,6 +42,10 @@ const newestWhatsappPhoto = async () => {
 // Names that usually mean "accepts images" on OpenAI-compatible hosts. A guess to ORDER the probe,
 // never a verdict: every candidate is proven by actually sending it the photo.
 const LOOKS_IMAGE_CAPABLE = /(vision|[-_/]vl\b|vl-|scout|maverick|llava|pixtral|gemma-?3|llama-?4|qwen.*vl|multimodal|omni)/i;
+// Models that cannot be a vision chat model at all — speech, text-to-speech, guard classifiers,
+// embeddings. Everything else is tried. The first live probe (Groq, 2026-09-11) listed 14 models,
+// none of whose names looked image-capable, and so tried none: a name is not evidence either way.
+const CANNOT_READ_IMAGES = /(whisper|orpheus|tts|prompt-guard|safeguard|embed|rerank|moderation|distil)/i;
 
 const serverFor = () => {
   const origin = String(process.env.AI_VISION_BASE_URL || process.env.AI_TEXT_BASE_URL || process.env.OLLAMA_BASE_URL || "").trim().replace(/\/+$/, "");
@@ -83,9 +87,13 @@ if (arg("list") || arg("probe")) {
     console.error("could not list models:", error?.status || "", error?.message || error);
     process.exit(1);
   });
-  const likely = models.filter((id) => LOOKS_IMAGE_CAPABLE.test(id));
-  console.log(`\n${models.length} models; ${likely.length} look image-capable:`);
-  for (const id of models) console.log(`  ${LOOKS_IMAGE_CAPABLE.test(id) ? "*" : " "} ${id}`);
+  // Likely-looking names first, then every other model that is at least a chat model.
+  const likely = [
+    ...models.filter((id) => LOOKS_IMAGE_CAPABLE.test(id)),
+    ...models.filter((id) => !LOOKS_IMAGE_CAPABLE.test(id) && !CANNOT_READ_IMAGES.test(id)),
+  ];
+  console.log(`\n${models.length} models; ${likely.length} worth trying (* = name looks image-capable, - = skipped):`);
+  for (const id of models) console.log(`  ${LOOKS_IMAGE_CAPABLE.test(id) ? "*" : CANNOT_READ_IMAGES.test(id) ? "-" : " "} ${id}`);
   if (arg("list")) process.exit(0);
 
   const imagePath = typeof arg("image") === "string" ? arg("image") : await newestWhatsappPhoto();
