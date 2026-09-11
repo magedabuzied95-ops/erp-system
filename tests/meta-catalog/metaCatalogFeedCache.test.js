@@ -73,3 +73,34 @@ test("a size with no price anywhere is dropped, never advertised at its striketh
   assert.deepEqual(feed.items.map((item) => item.id), ["PRICED"]);
   assert.equal(feed.xml.includes("950.00 EGP"), false);
 });
+
+test("a SKU counts as taken twice only among the rows the feed publishes", async (t) => {
+  // Product 391 size 41 carried ADS-LOC-8-WHT-41 alone among live rows, but an archived row
+  // with the same SKU made the feed send 391-6818 while the pixel reported the SKU — Meta
+  // flagged the view as matching no catalogue item.
+  const feedModule = await import("../../server/services/metaCatalogFeedService.js");
+  const db = (await import("../../server/database/db.js")).default;
+  const realQuery = db.query;
+  t.after(() => {
+    db.query = realQuery;
+    clearMetaCatalogFeedCache();
+  });
+  let feedSql = "";
+  db.query = async (sql) => {
+    if (!String(sql).includes("FROM products p")) throw new Error("settings not needed here");
+    feedSql = String(sql);
+    return { rows: [] };
+  };
+  await feedModule.buildMetaCatalogFeed({ warmImages: false, force: true });
+  const skuCounts = feedSql.match(/variant_sku_counts AS \(([\s\S]*?)GROUP BY/)?.[1] || "";
+  assert.ok(skuCounts, "the feed query should still count SKUs");
+  for (const filter of [
+    /v\.deleted_at IS NULL/,
+    /v\.is_active IS DISTINCT FROM FALSE/,
+    /vp\.is_active IS DISTINCT FROM FALSE/,
+    /vp\.is_storefront_visible IS DISTINCT FROM FALSE/,
+    /LOWER\(TRIM\(vp\.status\)\)/,
+  ]) {
+    assert.match(skuCounts, filter);
+  }
+});

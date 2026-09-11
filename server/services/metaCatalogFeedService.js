@@ -124,11 +124,22 @@ const buildMetaProductUrl = (row = {}, { storefrontUrl = "" } = {}) => {
 
 const queryMetaCatalogRows = async () => {
   const result = await db.query(`
-    WITH variant_sku_counts AS (
-      SELECT LOWER(TRIM(sku)) AS sku_key, COUNT(*) AS sku_count
-      FROM product_variants
-      WHERE COALESCE(TRIM(sku), '') <> ''
-      GROUP BY LOWER(TRIM(sku))
+    WITH
+    -- A SKU is only "taken twice" when two PUBLISHED rows carry it. The pixel reports every
+    -- view by SKU (metaCatalogContentId), so a SKU the feed swaps for product-variant is a view
+    -- Meta cannot match. Counting archived colours, deleted sizes and hidden products here sent
+    -- 21 live sizes as 391-6818 while the pixel said ADS-LOC-8-WHT-41. Same filter as below.
+    variant_sku_counts AS (
+      SELECT LOWER(TRIM(v.sku)) AS sku_key, COUNT(*) AS sku_count
+      FROM product_variants v
+      JOIN products vp ON vp.id = v.product_id
+      WHERE COALESCE(TRIM(v.sku), '') <> ''
+        AND vp.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(NULLIF(LOWER(TRIM(vp.status)), ''), 'active') = 'active'
+        AND vp.is_storefront_visible IS DISTINCT FROM FALSE
+        AND v.is_active IS DISTINCT FROM FALSE
+        AND v.deleted_at IS NULL
+      GROUP BY LOWER(TRIM(v.sku))
     ),
     ${AD_FEED_PURCHASE_CTES},
     color_images AS (
