@@ -61,6 +61,30 @@ export const readLocalUploadImage = async (imageUrl = "", { root = process.cwd()
   }
 };
 
+/**
+ * The closest products to offer when no single one is certain enough to name.
+ *
+ * Only products of the brand the photo was READ as (brandScore 1): the reading is what makes a
+ * shortlist honest — six grey Skechers runners are a real "which one?", a Nike next to them is noise.
+ * No brand read ⇒ no shortlist, and the caller holds and asks instead. One entry per product (the
+ * index holds several images per product), best-scored first, and nothing below `minScore`.
+ */
+export const closestBrandCandidates = (topMatches = [], { max = 4, minScore = 0.3 } = {}) => {
+  const seen = new Set();
+  const picked = [];
+  for (const match of asArray(topMatches)) {
+    const productId = text(match?.product_id || match?.productId);
+    const score = Number(match?.score ?? match?.finalScore ?? 0);
+    if (!productId || seen.has(productId)) continue;
+    if (Number(match?.score_breakdown?.brandScore || 0) < 1) continue;
+    if (!(score >= minScore)) continue;
+    seen.add(productId);
+    picked.push({ product_id: productId, name: text(match?.product_name || match?.sourceTitle), color: text(match?.color), score });
+    if (picked.length >= max) break;
+  }
+  return picked;
+};
+
 const visualQueryFromUnderstanding = (understanding = {}) =>
   [
     understanding?.detected?.brand_guess,
@@ -171,6 +195,9 @@ export const recogniseProductFromImage = async ({
       visualQuery,
       uploadedImageUrl: safeImageUrl,
       uploadedImageBuffer: effectiveBuffer,
+      // Wider than the default 8: those are image rows, several per product, and a shortlist of
+      // look-alikes needs enough distinct products to choose from.
+      limit: 24,
     });
   } catch (error) {
     console.warn("[ai-visual-recognition] indexed search failed", {
@@ -196,7 +223,15 @@ export const recogniseProductFromImage = async ({
     return { matched: false, reason: search?.fallbackReason || "no_visual_match", understanding, visualQuery, search };
   }
   if (!search?.exactMatch && score < minScore) {
-    return { matched: false, reason: "below_recognition_threshold", score, understanding, visualQuery, search };
+    return {
+      matched: false,
+      reason: "below_recognition_threshold",
+      score,
+      candidates: closestBrandCandidates(search?.topMatches),
+      understanding,
+      visualQuery,
+      search,
+    };
   }
 
   const productCards = await cardsForRecognisedProduct({

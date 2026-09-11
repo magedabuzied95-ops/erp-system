@@ -94,6 +94,11 @@ const MEDIA_PLACEHOLDER_WORDS = "صورة|صوره|فيديو|ملف|مرفق|م
 // are checking, and the one thing that would help. It promises nothing about stock or a model.
 export const UNRECOGNISED_PHOTO_REPLY = "وصلتني الصورة يا فندم 👌 ثواني أتأكدلك من الموديل ده. لو تعرف المقاس اللي محتاجه قولّي عليه.";
 
+// Sent with the ONE product the employee picked from the visual shortlist, which leaves as its colour
+// carousel. "أقرب موديل" stays honest even after the pick: it is the closest thing in our stock to
+// the photo, which is exactly what was checked.
+export const VISUAL_CLOSEST_PRODUCT_REPLY = "ده أقرب موديل عندنا شبه الصورة يا فندم 👌 دي الألوان والمقاسات المتاحة، اختار اللي يعجبك 👇";
+
 export const inboxMessageMedia = (message = {}) => [
   ...asArray(message?.visual_attachments),
   ...asArray(message?.attachments),
@@ -5990,6 +5995,7 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   // words — unrecognised, or recognised with no usable name. Everything below would then run on
   // "📷 صورة" and present whatever product it could find; the draft is held instead (see below).
   const photoWentUnrecognised = Boolean(inboundImageUrl && messageIsOnlyMediaPlaceholder(lastMessage));
+  let visualShortlistCount = 0;
   let replyHarness = null;
   // Read the customer before doing anything else. `understanding.legacy_intent` is the
   // same five-value enum `resolveIntent` produced, so every existing branch below is
@@ -6421,12 +6427,41 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
   // Skechers photo came back as "أيوه يا فندم. Air Jordan 4 for Men - black متوفر". A confident wrong
   // product is worse than no answer: the customer believes it, and the employee can approve it in
   // one tap. So the draft for an unrecognised photo is a holding reply that asks, with no card.
+  //
+  // When the photo WAS read — a brand, a type, a colour — but the catalogue holds several look-alikes
+  // (live 2026-09-11: six grey Skechers runners; no single one reached the recognition floor), the
+  // honest answer is a shortlist, not a guess: the closest products of that brand go to the employee
+  // as `identity_disambiguation` choices — pick exactly one — the same shape the grounding gate uses
+  // for "which one do you mean?". The chosen product then leaves through the product-card send
+  // route, which fans it out into its colour carousel. No brand read, no shortlist: hold and ask.
   if (photoWentUnrecognised) {
-    reply.answer = UNRECOGNISED_PHOTO_REPLY;
+    const visualShortlist = [];
+    for (const choice of asArray(visualRecognition?.candidates).slice(0, 4)) {
+      const card = await enrichGroundedSendReadyCard({
+        tenantId,
+        identity: { product_id: choice.product_id, id: choice.product_id, name: choice.name, color: choice.color || null, grounded: true },
+      }).catch(() => null);
+      if (card) visualShortlist.push(card);
+    }
+    visualShortlistCount = visualShortlist.length;
     reply.suggested_products = [];
     reply.visual_attachments = [];
-    reply.send_package = null;
-    reply.confidence = Math.min(Number(reply.confidence) || 0, 0.3);
+    if (visualShortlist.length) {
+      reply.answer = VISUAL_CLOSEST_PRODUCT_REPLY;
+      reply.send_package = {
+        product_ambiguous: true,
+        card_choices: visualShortlist,
+        selection_semantics: "identity_disambiguation",
+        color_choice_required: false,
+        color_choices: [],
+        channel: conversation.channel || conversation.source || "web_chat",
+      };
+      reply.confidence = Math.min(Number(reply.confidence) || 0, 0.5);
+    } else {
+      reply.answer = UNRECOGNISED_PHOTO_REPLY;
+      reply.send_package = null;
+      reply.confidence = Math.min(Number(reply.confidence) || 0, 0.3);
+    }
   }
   const channelAdapterPayload = {
     channel: conversation.channel || conversation.source || "web_chat",
@@ -6473,7 +6508,8 @@ export const generateAiInboxReply = async ({ tenantId, conversationId, persist =
             reason: visualRecognition?.reason || (photoWentUnrecognised ? "not_attempted" : "caption_answered"),
             product_id: visualRecognition?.productId || null,
             matched_color: visualRecognition?.matchedColor || "",
-            held_for_unrecognised_photo: photoWentUnrecognised,
+            held_for_unrecognised_photo: photoWentUnrecognised && !visualShortlistCount,
+            shortlist_offered: visualShortlistCount,
           }
         : null,
       // Which ERP tools the draft actually consulted, and whether every claim in it

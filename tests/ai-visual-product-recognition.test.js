@@ -251,7 +251,44 @@ test("an unrecognised photo is held with a question, never answered with a produ
   assert.match(hold, /reply\.send_package = null;/, "and no colour choices to tick");
   const gateAt = salesAgent.indexOf("groundingResult = await applyInboxGroundingGate(");
   assert.ok(gateAt > -1 && gateAt < salesAgent.indexOf("if (photoWentUnrecognised) {"), "the gate cannot re-add a card after the hold");
-  assert.match(salesAgent, /held_for_unrecognised_photo: photoWentUnrecognised,/, "the employee can see why the draft holds");
+  assert.match(salesAgent, /held_for_unrecognised_photo: photoWentUnrecognised && !visualShortlistCount,/, "the employee can see why the draft holds");
+  assert.match(salesAgent, /shortlist_offered: visualShortlistCount,/, "…or that it offered a shortlist instead");
+});
+
+test("look-alikes become a shortlist of the brand the photo was read as", async () => {
+  // LIVE 2026-09-11: the photo was read (Skechers, sneaker, grey) but the catalogue holds six grey
+  // Skechers runners, so no single product reached the floor. Owner's call: offer the closest ones.
+  const { closestBrandCandidates } = await import("../server/services/aiVisualProductRecognitionService.js");
+  const row = (product_id, score, brandScore, extra = {}) => ({ product_id, score, product_name: `P${product_id}`, color: "Grey", score_breakdown: { brandScore }, ...extra });
+  const shortlist = closestBrandCandidates([
+    row("124", 0.41, 1),
+    row("124", 0.40, 1), // a second image of the same product
+    row("900", 0.39, 0), // another brand — noise next to a Skechers reading
+    row("512", 0.36, 1),
+    row("77", 0.20, 1),  // too weak to offer
+    row("601", 0.35, 1),
+    row("602", 0.34, 1),
+    row("603", 0.33, 1),
+  ]);
+  assert.deepEqual(shortlist.map((item) => item.product_id), ["124", "512", "601", "602"], "one per product, same brand, best first, at most four");
+  assert.equal(shortlist[0].name, "P124");
+  assert.equal(shortlist[0].color, "Grey", "the photographed colour rides along so the choice shows it");
+  assert.deepEqual(closestBrandCandidates([row("1", 0.9, 0)]), [], "no brand read ⇒ no shortlist ⇒ the draft holds and asks");
+  assert.deepEqual(closestBrandCandidates(null), []);
+});
+
+test("the inbox offers the shortlist as a pick-one choice, and holds only when there is none", () => {
+  const hold = salesAgent.slice(salesAgent.indexOf("if (photoWentUnrecognised) {"), salesAgent.indexOf("const channelAdapterPayload = {"));
+  assert.match(hold, /asArray\(visualRecognition\?\.candidates\)\.slice\(0, 4\)/, "built from the recogniser's shortlist");
+  assert.match(hold, /enrichGroundedSendReadyCard\(\{/, "each choice is enriched like a grounded card (customer-safe fields only)");
+  assert.match(hold, /selection_semantics: "identity_disambiguation"/, "the employee picks exactly one — never a multi-product blast");
+  assert.match(hold, /product_ambiguous: true/);
+  assert.match(hold, /reply\.answer = VISUAL_CLOSEST_PRODUCT_REPLY;/);
+  assert.match(hold, /reply\.answer = UNRECOGNISED_PHOTO_REPLY;/, "and with no shortlist it still holds and asks");
+  assert.match(hold, /reply\.suggested_products = \[\];/, "no product is ever presented as THE product without a pick");
+  // the recogniser returns the shortlist only on a below-floor miss, from a wide enough search
+  assert.match(recognition, /reason: "below_recognition_threshold",\s*\r?\n\s*score,\s*\r?\n\s*candidates: closestBrandCandidates\(search\?\.topMatches\),/);
+  assert.match(recognition, /limit: 24,/);
 });
 
 test("what the photo was read as goes first in the capped candidate set", async () => {
