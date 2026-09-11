@@ -358,3 +358,77 @@ export const resolveMetaCustomerDisplayName = ({
   }
   return { name: "", source: "none" };
 };
+
+/*
+ * Commenters.
+ *
+ * Business Asset User Profile Access covers anyone who engaged with the page, not
+ * only people who messaged it — and a Facebook commenter's `from.id` is the same
+ * page-scoped id Messenger uses (proven 2026-08-29). So a comment that arrived with
+ * an id but no picture (every webhook: Meta never puts a picture on `value.from`) or
+ * with no name can be named by asking for that id's profile, exactly as a DM is.
+ *
+ * What cannot be fixed this way: a comment Graph delivered with no `from` at all.
+ * There is no id to ask about.
+ *
+ * The lookup outcome is remembered on the comment rows themselves
+ * (raw_payload.profile_lookup = { status, at, kind }), so a restart does not ask Meta
+ * about every refused commenter again.
+ */
+// Meta said "no such user" / "not allowed": a deleted, blocked or private account.
+export const COMMENTER_LOOKUP_REFUSED_BACKOFF_MS = envNumber("COMMENTER_LOOKUP_REFUSED_BACKOFF_MS", 7 * 24 * 60 * 60 * 1000);
+// Anything else that went wrong (timeout, rate limit, 5xx).
+export const COMMENTER_LOOKUP_FAILED_BACKOFF_MS = envNumber("COMMENTER_LOOKUP_FAILED_BACKOFF_MS", 6 * 60 * 60 * 1000);
+// Meta answered but left something out (usually the picture): cosmetic, so rarely.
+export const COMMENTER_LOOKUP_INCOMPLETE_RETRY_MS = envNumber("COMMENTER_LOOKUP_INCOMPLETE_RETRY_MS", 24 * 60 * 60 * 1000);
+
+export const commenterProfileChannel = (platform = "") =>
+  text(platform).toLowerCase().includes("instagram") ? META_PROFILE_CHANNELS.INSTAGRAM : META_PROFILE_CHANNELS.MESSENGER;
+
+export const commenterLookupOutcome = ({ name = "", picture = "", failureKind = "" } = {}) => {
+  if (text(name) || text(picture)) return { status: text(name) && text(picture) ? "ok" : "incomplete", kind: "" };
+  if (["unavailable", "permission", "rejected", "token"].includes(failureKind)) return { status: "refused", kind: failureKind };
+  if (failureKind) return { status: "failed", kind: failureKind };
+  return { status: "incomplete", kind: "" };
+};
+
+const GENERIC_COMMENTER_NAMES = new Set(["customer", "unknown", "guest", "anonymous", "عميل", "العميل"]);
+export const isUsableCommenterName = (value = "") => {
+  const name = text(value);
+  return Boolean(name) && !isMetaScopedUserId(name) && !GENERIC_COMMENTER_NAMES.has(name.toLowerCase());
+};
+
+/*
+ * Which commenters are worth one profile lookup now. `rows` holds one entry per
+ * (platform, commenter) with what the ledger already stores and the last lookup.
+ * Returned in the order given (callers pass newest first), deduped, capped.
+ */
+export const selectCommenterLookups = ({ rows = [], selfIds = [], now = Date.now(), limit = 6 } = {}) => {
+  const self = new Set((Array.isArray(selfIds) ? selfIds : []).map(text).filter(Boolean));
+  const picked = [];
+  const seen = new Set();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (picked.length >= Math.max(0, Number(limit) || 0)) break;
+    const commenterId = text(row?.commenter_id);
+    const platform = text(row?.platform).toLowerCase() || "facebook";
+    if (!isMetaScopedUserId(commenterId) || self.has(commenterId)) continue;
+    if (row?.page_authored === true) continue;
+    const key = `${platform}:${commenterId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const picture = text(row?.commenter_profile_picture_url);
+    const missingName = !isUsableCommenterName(row?.commenter_name);
+    const missingPicture = !picture || isMetaAvatarExpired(picture, now);
+    if (!missingName && !missingPicture) continue;
+    const lookup = row?.profile_lookup && typeof row.profile_lookup === "object" ? row.profile_lookup : {};
+    const at = Date.parse(text(lookup.at)) || 0;
+    const status = text(lookup.status);
+    const since = now - at;
+    if (at && status === "refused" && since < COMMENTER_LOOKUP_REFUSED_BACKOFF_MS) continue;
+    if (at && status === "failed" && since < COMMENTER_LOOKUP_FAILED_BACKOFF_MS) continue;
+    // "ok" with a picture that has since expired is exactly the case worth re-asking.
+    if (at && (status === "incomplete" || status === "ok") && since < COMMENTER_LOOKUP_INCOMPLETE_RETRY_MS && !(picture && isMetaAvatarExpired(picture, now))) continue;
+    picked.push({ platform, commenterId, channel: commenterProfileChannel(platform), pageId: text(row?.page_id), missingName, missingPicture });
+  }
+  return picked;
+};

@@ -31,6 +31,7 @@ import {
   noteGraphRateLimitError,
   shouldDeferBackgroundGraphWork,
   getMetaGraphBudgetSnapshot,
+  runGraphRequest,
 } from "./metaGraphRateLimiter.js";
 import { inboundAttachmentLabel, materializeInboundAttachments } from "./inboundMediaService.js";
 import { createNotification, ensureNotificationsSchema } from "./notificationsService.js";
@@ -134,11 +135,18 @@ import {
   logUnifiedDecisionEarlyReturn,
 } from "./aiUnifiedDecisionService.js";
 import {
+  COMMENTER_LOOKUP_FAILED_BACKOFF_MS,
+  COMMENTER_LOOKUP_INCOMPLETE_RETRY_MS,
+  COMMENTER_LOOKUP_REFUSED_BACKOFF_MS,
+  META_PROFILE_CHANNELS,
   META_PROFILE_FETCH_TIMEOUT_MS,
   META_PROFILE_WEBHOOK_WAIT_MS,
   INSTAGRAM_PROFILE_FIELDS,
   MESSENGER_PROFILE_FIELDS,
   classifyMetaProfileError,
+  commenterLookupOutcome,
+  isUsableCommenterName,
+  selectCommenterLookups,
   isMetaAvatarExpired,
   isPlausibleMetaProfileName,
   metaProfileCoordinator,
@@ -6577,6 +6585,209 @@ export const linkSocialCommentIdentitiesFromInbox = async ({ tenantId = null, co
   return updated;
 };
 
+// A Meta-signed picture url past its signature (?ext=<unix> on lookaside/fbsbx,
+// ?oe=<hex unix> on fbcdn/cdninstagram) — the SQL twin of isMetaAvatarExpired.
+const socialCommentPictureExpiredSql = (column = "commenter_profile_picture_url") => `(
+  CASE
+    WHEN ${column} ~ '[?&]ext=[0-9]{9,11}(&|$)'
+      THEN to_timestamp(substring(${column} from '[?&]ext=([0-9]{9,11})')::bigint) <= NOW()
+    WHEN ${column} ~ '[?&]oe=[0-9A-Fa-f]{1,8}(&|$)'
+      THEN to_timestamp(('x' || lpad(substring(${column} from '[?&]oe=([0-9A-Fa-f]{1,8})'), 16, '0'))::bit(64)::bigint) <= NOW()
+    ELSE FALSE
+  END
+)`;
+
+// One row per (platform, commenter) whose stored identity is missing or whose
+// picture has expired, and whose last lookup is not inside its backoff — newest
+// commenters first. `commenterIds` narrows it to specific people (a fresh webhook,
+// an opened thread); without it this is the backlog sweep.
+export const listSocialCommenterLookupCandidates = async (options = {}) => loadSocialCommenterLookupRows(options);
+
+const loadSocialCommenterLookupRows = async ({ tenantId, commenterIds = [], limit = 50 } = {}) => {
+  const params = [
+    numberOrNull(tenantId),
+    COMMENTER_LOOKUP_REFUSED_BACKOFF_MS,
+    COMMENTER_LOOKUP_FAILED_BACKOFF_MS,
+    COMMENTER_LOOKUP_INCOMPLETE_RETRY_MS,
+  ];
+  let targetClause = "AND COALESCE(processed_at, created_at) > NOW() - INTERVAL '120 days'";
+  const targeted = Array.from(new Set(asArray(commenterIds).map((value) => text(value)).filter(Boolean)));
+  if (targeted.length) {
+    params.push(targeted);
+    targetClause = `AND commenter_id = ANY($${params.length}::text[])`;
+  }
+  params.push(Math.max(1, Math.min(500, Number(limit) || 50)));
+  const lookupAt = "(CASE WHEN COALESCE(raw_payload->'profile_lookup'->>'at', '') ~ '^[0-9]{4}-' THEN (raw_payload->'profile_lookup'->>'at')::timestamptz END)";
+  const lookupStatus = "COALESCE(raw_payload->'profile_lookup'->>'status', '')";
+  const expired = socialCommentPictureExpiredSql();
+  const result = await db.query(
+    `
+    SELECT
+      platform,
+      commenter_id,
+      (ARRAY_AGG(commenter_name ORDER BY updated_at DESC) FILTER (WHERE COALESCE(commenter_name, '') <> ''))[1] AS commenter_name,
+      (ARRAY_AGG(commenter_profile_picture_url ORDER BY updated_at DESC) FILTER (WHERE COALESCE(commenter_profile_picture_url, '') <> ''))[1] AS commenter_profile_picture_url,
+      (ARRAY_AGG(raw_payload->'profile_lookup' ORDER BY updated_at DESC) FILTER (WHERE raw_payload ? 'profile_lookup'))[1] AS profile_lookup,
+      (ARRAY_AGG(raw_payload->>'page_id') FILTER (WHERE COALESCE(raw_payload->>'page_id', '') <> ''))[1] AS page_id,
+      BOOL_OR(COALESCE(raw_payload->>'is_page_authored', '') = 'true' OR commenter_id = COALESCE(raw_payload->>'page_id', '')) AS page_authored,
+      MAX(COALESCE(processed_at, created_at)) AS last_seen_at
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform IN ('facebook', 'instagram')
+      AND commenter_id ~ '^[0-9]{5,}$'
+      ${targetClause}
+      AND (
+        COALESCE(commenter_name, '') = ''
+        OR commenter_name ~ '^[0-9]+$'
+        OR COALESCE(commenter_profile_picture_url, '') = ''
+        OR ${expired}
+      )
+      AND NOT (
+        ${lookupAt} IS NOT NULL
+        AND (
+          (${lookupStatus} = 'refused' AND ${lookupAt} > NOW() - ($2::bigint * INTERVAL '1 millisecond'))
+          OR (${lookupStatus} = 'failed' AND ${lookupAt} > NOW() - ($3::bigint * INTERVAL '1 millisecond'))
+          OR (${lookupStatus} IN ('ok', 'incomplete') AND ${lookupAt} > NOW() - ($4::bigint * INTERVAL '1 millisecond') AND NOT ${expired})
+        )
+      )
+    GROUP BY platform, commenter_id
+    ORDER BY MAX(COALESCE(processed_at, created_at)) DESC
+    LIMIT $${params.length}
+    `,
+    params
+  );
+  return asArray(result.rows);
+};
+
+// Writes what one lookup learned onto every comment of that commenter: a name only
+// where none is stored (an Instagram username stays — that is what Instagram shows),
+// a picture whenever Meta sent one (the stored one may be a dead signed link), and
+// the outcome so the backoff survives a restart. The page's own comments are never
+// touched.
+const recordSocialCommenterLookup = async ({ tenantId, platform, commenterId, name = "", picture = "", outcome = {} } = {}) => {
+  const result = await db.query(
+    `
+    UPDATE social_comment_automation_runs
+    SET
+      commenter_name = CASE
+        WHEN $4::text <> '' AND (COALESCE(commenter_name, '') = '' OR commenter_name ~ '^[0-9]+$' OR LOWER(commenter_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل'))
+          THEN $4::text
+        ELSE commenter_name
+      END,
+      commenter_profile_picture_url = CASE WHEN $5::text <> '' THEN $5::text ELSE commenter_profile_picture_url END,
+      raw_payload = COALESCE(raw_payload, '{}'::jsonb) || jsonb_build_object('profile_lookup', $6::jsonb)
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND commenter_id = $3::text
+      AND COALESCE(raw_payload->>'is_page_authored', '') <> 'true'
+    `,
+    [
+      numberOrNull(tenantId),
+      text(platform),
+      text(commenterId),
+      isUsableCommenterName(name) ? text(name) : "",
+      text(picture),
+      json({ status: outcome.status || "", kind: outcome.kind || "", at: nowIso() }),
+    ]
+  ).catch((error) => {
+    console.warn("SOCIAL_COMMENTER_PROFILE_RECORD_FAILED", {
+      tenant_id: numberOrNull(tenantId),
+      platform: text(platform),
+      message: error?.message || "",
+    });
+    return null;
+  });
+  return Number(result?.rowCount || 0);
+};
+
+/*
+ * Ask Meta who wrote these comments (Business Asset User Profile Access).
+ *
+ * Goes through enrichMessengerProfile — the same policy every DM uses: a fresh stored
+ * profile answers without a Graph call, one call is shared by concurrent callers, a
+ * refusal is remembered — and so the commenter also lands in ai_customer_profiles,
+ * which is what the customer drawer opens. Each Graph call rides the limiter's
+ * background lane; a sweep yields while the shared app budget is under pressure.
+ *
+ *   commenterIds  narrow to specific people (webhook, opened thread); else the backlog
+ *   limit         at most this many lookups this call
+ *   waitMs        return after this long with whatever has finished; the rest carry on
+ *
+ * Resolves to Map("<platform>:<commenterId>" → { name, picture }) of what was learned.
+ */
+export const lookupSocialCommenterProfiles = async ({ tenantId = null, commenterIds = [], limit = 4, waitMs = 0, source = "", onResult = null } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const learned = new Map();
+  if (!safeTenantId) return learned;
+  const budget = shouldDeferBackgroundGraphWork();
+  if (budget.defer) return learned;
+  const config = await getMetaIntegrationConfig({ tenantId: safeTenantId }).catch(() => null);
+  const selfIds = [config?.facebook_page_id, config?.page_id, config?.instagram_business_account_id, config?.instagram_account_id].map((value) => text(value)).filter(Boolean);
+  const rows = await loadSocialCommenterLookupRows({ tenantId: safeTenantId, commenterIds, limit: Math.max(limit * 4, 20) }).catch((error) => {
+    console.warn("SOCIAL_COMMENTER_PROFILE_CANDIDATES_FAILED", { tenant_id: safeTenantId, source, message: error?.message || "" });
+    return [];
+  });
+  const picks = selectCommenterLookups({ rows, selfIds, limit });
+  if (!picks.length) return learned;
+
+  const lookupOne = async (pick) => {
+    const conversationId = `${pick.channel}:${pick.commenterId}`;
+    const facebookPageId = pick.channel === META_PROFILE_CHANNELS.MESSENGER ? text(pick.pageId || config?.facebook_page_id || "") : "";
+    const instagramBusinessAccountId = pick.channel === META_PROFILE_CHANNELS.INSTAGRAM ? text(pick.pageId || config?.instagram_business_account_id || "") : "";
+    const coordinatorKey = metaProfileCoordinator.key({ tenantId: safeTenantId, channel: pick.channel, externalCustomerId: pick.commenterId });
+    const enriched = await runGraphRequest({
+      lane: "background",
+      label: `commenter-profile:${pick.channel}`,
+      run: () =>
+        enrichMessengerProfile({
+          message: {
+            channel: pick.channel,
+            external_conversation_id: conversationId,
+            external_customer_id: pick.commenterId,
+            customer_name: "",
+            customer_avatar_url: "",
+            raw: { sender_psid: pick.commenterId, customer_psid: pick.commenterId, page_id: facebookPageId },
+          },
+          config: { tenant_id: safeTenantId, facebook_page_id: facebookPageId, instagram_business_account_id: instagramBusinessAccountId },
+          facebookPageId,
+          instagramBusinessAccountId,
+        }),
+    }).catch(() => null);
+    const name = text(enriched?.customer_name || enriched?.display_name || "");
+    const picture = text(enriched?.customer_avatar_url || "");
+    const failure = metaProfileCoordinator.getFailure(coordinatorKey);
+    const outcome = commenterLookupOutcome({ name, picture: picture && !isMetaAvatarExpired(picture) ? picture : "", failureKind: !name && !picture ? text(failure?.kind || (enriched ? "" : "unknown")) : "" });
+    const freshPicture = picture && !isMetaAvatarExpired(picture) ? picture : "";
+    const updated = await recordSocialCommenterLookup({ tenantId: safeTenantId, platform: pick.platform, commenterId: pick.commenterId, name, picture: freshPicture, outcome });
+    if (name || freshPicture) learned.set(`${pick.platform}:${pick.commenterId}`, { name: isUsableCommenterName(name) ? name : "", picture: freshPicture });
+    const report = {
+      tenant_id: safeTenantId,
+      source,
+      platform: pick.platform,
+      commenter: maskIdForLog(pick.commenterId),
+      status: outcome.status,
+      kind: outcome.kind || null,
+      has_name: Boolean(name),
+      has_picture: Boolean(freshPicture),
+      rows_updated: updated,
+    };
+    console.log("SOCIAL_COMMENTER_PROFILE_LOOKUP", report);
+    if (typeof onResult === "function") onResult(report);
+  };
+
+  // Sequential: the limiter spaces background calls anyway, and a sweep should never
+  // put a burst on the shared budget.
+  const work = (async () => {
+    for (const pick of picks) {
+      if (shouldDeferBackgroundGraphWork().defer) break;
+      await lookupOne(pick).catch(() => {});
+    }
+  })();
+  if (Number(waitMs) > 0) await waitAtMost(work, Number(waitMs));
+  else await work;
+  return learned;
+};
+
 const maskSecret = (value = "") => {
   const safe = text(value);
   if (!safe) return "";
@@ -9745,6 +9956,30 @@ const linkSocialCommentIdentitiesForAllTenants = async () => {
   return linked;
 };
 
+const COMMENTER_PROFILE_SWEEP_PER_TICK = Math.max(0, Number(process.env.COMMENTER_PROFILE_SWEEP_PER_TICK ?? 2) || 0);
+
+const lookupSocialCommenterProfilesForAllTenants = async () => {
+  if (!COMMENTER_PROFILE_SWEEP_PER_TICK) return 0;
+  const snapshot = getMetaGraphBudgetSnapshot();
+  if (snapshot.breaker_open || Number(snapshot.pressure || 0) >= Number(snapshot.thresholds?.soft || 60)) return 0;
+  const tenants = await db.query(
+    `
+    SELECT DISTINCT tenant_id
+    FROM social_comment_automation_runs
+    WHERE platform IN ('facebook', 'instagram')
+      AND commenter_id ~ '^[0-9]{5,}$'
+      AND (COALESCE(commenter_name, '') = '' OR COALESCE(commenter_profile_picture_url, '') = '' OR ${socialCommentPictureExpiredSql()})
+    LIMIT 20
+    `
+  ).catch(() => ({ rows: [] }));
+  let learned = 0;
+  for (const row of asArray(tenants.rows)) {
+    const result = await lookupSocialCommenterProfiles({ tenantId: row.tenant_id, limit: COMMENTER_PROFILE_SWEEP_PER_TICK, source: "sweep" }).catch(() => new Map());
+    learned += result.size;
+  }
+  return learned;
+};
+
 export const startMetaCommentsPollingScheduler = () => {
   if (metaCommentsPollingSchedulerStarted) return;
   if (!getMetaPollingEnabled()) {
@@ -9775,6 +10010,16 @@ export const startMetaCommentsPollingScheduler = () => {
       await linkSocialCommentIdentitiesForAllTenants();
     } catch (error) {
       console.error("[meta-comments-poll] comment identity link error", {
+        message: error?.message || String(error),
+      });
+    }
+    try {
+      // The backlog: commenters stored with an id but no name or picture (or a picture
+      // whose signed link has run out). A few per tick, and only while the shared Graph
+      // budget is comfortable — the webhook and thread-open paths name the new ones.
+      await lookupSocialCommenterProfilesForAllTenants();
+    } catch (error) {
+      console.error("[meta-comments-poll] commenter profile sweep error", {
         message: error?.message || String(error),
       });
     } finally {
@@ -26150,6 +26395,17 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];
+  // A webhook never carries a picture, and a name only when Meta chooses to share it.
+  // Ask for the commenter's profile now, in the background, so the thread already
+  // shows their face and name by the time anyone opens it.
+  const commenterIdsToName = commentEvents
+    .filter((event) => event.is_page_authored !== true && text(event.commenter_id) && !text(event.commenter_profile_picture_url))
+    .map((event) => text(event.commenter_id));
+  if (commenterIdsToName.length) {
+    void lookupSocialCommenterProfiles({ tenantId: config.tenant_id, commenterIds: commenterIdsToName, limit: 3, source: "webhook" }).catch((error) => {
+      console.warn("SOCIAL_COMMENTER_PROFILE_LOOKUP_FAILED", { tenant_id: config.tenant_id, source: "webhook", message: error?.message || "" });
+    });
+  }
   // A comment deleted on Facebook arrives as `verb: "remove"`. The gate above only admits
   // add/edited, so without this the deleted comment stayed in the thread forever.
   const removalEvents = extractSocialCommentRemovalEvents({ body: payload });

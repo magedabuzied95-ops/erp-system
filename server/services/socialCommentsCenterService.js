@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { isMetaAvatarExpired } from "./metaCustomerProfileService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { likeComment } from "./marketingCommentAutomationService.js";
@@ -2464,8 +2465,15 @@ const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {},
 
   if (profileRow) {
     hydrated.customer_name = hydrated.customer_name || firstText(profileRow.display_name, profileRow.customer_name, profileRow.facebook_name, profileRow.messenger_name);
-    hydrated.customer_avatar_url = hydrated.customer_avatar_url || firstText(profileRow.profile_pic_url);
+    // A picture stored on the comment is a signed link that runs out; the profile's
+    // is refreshed by every lookup, so it wins once the stored one has expired.
+    const profilePicture = firstText(profileRow.profile_pic_url);
+    if (profilePicture && (!hydrated.customer_avatar_url || (isMetaAvatarExpired(hydrated.customer_avatar_url) && !isMetaAvatarExpired(profilePicture)))) {
+      hydrated.customer_avatar_url = profilePicture;
+    }
   }
+  // A link past its signature is a broken image, not a face: the initials are better.
+  if (hydrated.customer_avatar_url && isMetaAvatarExpired(hydrated.customer_avatar_url)) hydrated.customer_avatar_url = "";
 
   return hydrated;
 };
@@ -2520,7 +2528,7 @@ const normalizeSocialCommentTimelineRow = async ({ tenantId = null, row = {}, pl
     row.commenter_name,
     commenter.customer_name
   );
-  const fromAvatar = normalizeGraphPictureUrl(
+  const storedAvatar = normalizeGraphPictureUrl(
     row.from?.picture ||
     metadata.from?.picture ||
     row.customer_avatar_url ||
@@ -2528,6 +2536,7 @@ const normalizeSocialCommentTimelineRow = async ({ tenantId = null, row = {}, pl
     commenter.customer_avatar_url ||
     ""
   );
+  const fromAvatar = storedAvatar && !isMetaAvatarExpired(storedAvatar) ? storedAvatar : "";
   return {
     ...row,
     customer_name: commenter.customer_name || fromName || "",
@@ -4388,7 +4397,56 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
       })),
     });
   }
+  if (normalizedPlatform === "facebook" || normalizedPlatform === "instagram") {
+    await nameThreadCommenters({ tenantId: safeTenantId, platform: normalizedPlatform, rows: normalizedRows });
+  }
   return normalizedRows;
+};
+
+// Opening a thread asks Meta about the commenters in it that still have no face or
+// name (Business Asset User Profile Access), waits a moment, and patches whatever came
+// back into this very response. Slower answers still land in the ledger, so the next
+// open shows them.
+const SOCIAL_THREAD_COMMENTER_LOOKUP_BUDGET_MS = 1500;
+const nameThreadCommenters = async ({ tenantId = null, platform = "", rows = [] } = {}) => {
+  const needsIdentity = (row) => {
+    if (row?.raw_payload?.is_page_authored === true || row?.source_raw_payload?.is_page_authored === true) return false;
+    const picture = text(row.customer_avatar_url || row.commenter_profile_picture_url || "");
+    return isGenericSocialCommentName(row.customer_name || row.commenter_name || "") || !picture || isMetaAvatarExpired(picture);
+  };
+  const commenterIdOf = (row) => text(row?.commenter_id || row?.source_commenter_id || "");
+  const ids = Array.from(new Set(rows.filter((row) => commenterIdOf(row) && needsIdentity(row)).map(commenterIdOf)));
+  if (!ids.length) return;
+  let learned = new Map();
+  try {
+    const { lookupSocialCommenterProfiles } = await import("./metaIntegrationService.js");
+    learned = await lookupSocialCommenterProfiles({
+      tenantId,
+      commenterIds: ids.slice(0, 20),
+      limit: 8,
+      waitMs: SOCIAL_THREAD_COMMENTER_LOOKUP_BUDGET_MS,
+      source: "thread_open",
+    });
+  } catch (error) {
+    console.warn("SOCIAL_THREAD_COMMENTER_LOOKUP_FAILED", { tenant_id: tenantId, platform, message: error?.message || "" });
+    return;
+  }
+  if (!learned?.size) return;
+  for (const row of rows) {
+    const found = learned.get(`${platform}:${commenterIdOf(row)}`);
+    if (!found) continue;
+    const name = isGenericSocialCommentName(row.customer_name || "") && found.name ? found.name : text(row.customer_name || "");
+    const currentPicture = text(row.customer_avatar_url || "");
+    const picture = found.picture && (!currentPicture || isMetaAvatarExpired(currentPicture)) ? found.picture : currentPicture;
+    Object.assign(row, {
+      customer_name: name,
+      commenter_name: name,
+      customer_avatar_url: picture,
+      commenter_profile_picture_url: picture,
+      raw: { ...(row.raw || {}), from: { ...(row.raw?.from || {}), name, picture } },
+      metadata: { ...(row.metadata || {}), customer_name: name, commenter_name: name, customer_avatar_url: picture, commenter_profile_picture_url: picture },
+    });
+  }
 };
 
 const resolveSocialCommentAutoReplyDecision = async ({ tenantId = null, platform = "", postId = "", comment = {}, post = {}, settings = {}, template = null } = {}) => {
