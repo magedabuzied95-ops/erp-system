@@ -165,6 +165,21 @@ export const generateImageEmbedding = async (imageUrl = "", options = {}) => {
   }
 };
 
+// LIKE patterns for what a photo was read as — its brand and its model — used to put matching index
+// rows FIRST in the capped candidate set. `%`, `_` and `\` are escaped so a model name can never
+// widen the pattern; anything shorter than 3 letters would match half the catalogue and is dropped.
+export const visualCandidateLikeTerms = (attributes = {}) => {
+  const seen = new Set();
+  const terms = [];
+  for (const value of [attributes?.brand, attributes?.model]) {
+    const term = lower(value).replace(/\s+/g, " ").trim();
+    if (term.length < 3 || seen.has(term)) continue;
+    seen.add(term);
+    terms.push(`%${term.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`);
+  }
+  return terms;
+};
+
 export const normalizeVisualProText = (value = "") =>
   lower(value)
     .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
@@ -877,10 +892,19 @@ export const searchAiVisualProductsPro = async ({
       AND p.tenant_id = idx.tenant_id
     WHERE idx.tenant_id = $1
       AND ${productEligibility}
-    ORDER BY COALESCE(idx.last_indexed_at, idx.updated_at) DESC, idx.id DESC
+    ORDER BY
+      -- The set is capped at 2500 and used to be filled by recency alone, so a product indexed long
+      -- ago was never scored however well it matched (live 2026-09-11: the scan hit exactly 2500).
+      -- Rows naming what the photo was read as go first; recency fills whatever is left.
+      CASE
+        WHEN cardinality($2::text[]) > 0
+          AND lower(concat_ws(' ', idx.brand, ${productNameExpr}, idx.detected_brand, idx.detected_model, idx.text_aliases)) LIKE ANY($2::text[])
+        THEN 0 ELSE 1
+      END,
+      COALESCE(idx.last_indexed_at, idx.updated_at) DESC, idx.id DESC
     LIMIT 2500
     `,
-    [tenant]
+    [tenant, visualCandidateLikeTerms(attributes)]
   );
   const uploadedImageHashes = queryImages.map((image) => hashBuffer(image.imageBuffer || null)).filter(Boolean);
   const uploadedImageHash = uploadedImageHashes[0] || hashBuffer(uploadedImageBuffer);

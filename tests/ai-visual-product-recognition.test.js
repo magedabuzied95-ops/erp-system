@@ -254,6 +254,22 @@ test("an unrecognised photo is held with a question, never answered with a produ
   assert.match(salesAgent, /held_for_unrecognised_photo: photoWentUnrecognised,/, "the employee can see why the draft holds");
 });
 
+test("what the photo was read as goes first in the capped candidate set", async () => {
+  // LIVE 2026-09-11: the visual scan returned `searched_indexed_images: 2500` — exactly its cap —
+  // and the cap was filled by recency alone, so a product indexed long ago was never scored however
+  // well it matched. Rows naming the brand/model the photo was read as now go first.
+  const { visualCandidateLikeTerms } = await import("../server/services/aiVisualSearchProService.js");
+  assert.deepEqual(visualCandidateLikeTerms({ brand: "Skechers", model: "Skechers Gorun Ride 7" }), ["%skechers%", "%skechers gorun ride 7%"]);
+  assert.deepEqual(visualCandidateLikeTerms({ brand: "A_B", model: "50% off" }), ["%a\\_b%", "%50\\% off%"], "LIKE wildcards in a model name are literal");
+  assert.deepEqual(visualCandidateLikeTerms({ brand: "NB" }), [], "a 2-letter term would match half the catalogue");
+  assert.deepEqual(visualCandidateLikeTerms({ brand: "Nike", model: "nike" }), ["%nike%"]);
+  assert.deepEqual(visualCandidateLikeTerms({}), []);
+  const pro = fs.readFileSync(new URL("../server/services/aiVisualSearchProService.js", import.meta.url), "utf8");
+  const query = pro.slice(pro.indexOf("FROM ai_product_image_visual_index idx"), pro.indexOf("LIMIT 2500") + 20);
+  assert.match(query, /LIKE ANY\(\$2::text\[\]\)\s*\r?\n\s*THEN 0 ELSE 1\s*\r?\n\s*END,\s*\r?\n\s*COALESCE\(idx\.last_indexed_at/, "attribute matches sort before recency");
+  assert.match(pro, /\[tenant, visualCandidateLikeTerms\(attributes\)\]/);
+});
+
 test("the inbox reply resolves its conversation by key, never by a 100-row sweep", () => {
   // LIVE 2026-09-10: the assisted intake logged `generation_blocked:Conversation not found` for
   // EVERY WhatsApp message — 0 suggestions out of 413 in a week — because generateAiInboxReply
