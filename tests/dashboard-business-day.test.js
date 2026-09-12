@@ -65,6 +65,15 @@ test("the manager portal shows online as its own card, never inside the shop's s
   }
 });
 
+test("the dashboard KPI row is the store on its own, with online on its own card", () => {
+  const controller = read("../server/controllers/dashboardController.js");
+  assert.match(controller, /filters: \{ \.\.\.\(await resolveDashboardFilters\(req\)\), excludeOnline: true \}/, "set after the filters, server-side");
+  const service = read("../server/services/dashboardAnalyticsService.js");
+  const overview = service.slice(service.indexOf("export const getDashboardOverview"), service.indexOf("export const calculateTodayProfit"));
+  assert.match(overview, /const onlineOnly = await onlineOnlyOrderClause/, "online is counted even when the row is shop-only");
+  assert.match(overview, /\$\{shopOnly\}\s+\$\{ordersTenant\}\s+`,\s+params,\s+\[\{\}\],\s+"overview\.itemStats"/, "units follow the store too");
+});
+
 test("the page draws the online card and the hours from 05 to 04", () => {
   const page = read("../src/pages/Dashboard.jsx");
   assert.match(page, /k\.onlineSales\?\.value/);

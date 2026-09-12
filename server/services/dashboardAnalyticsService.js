@@ -276,9 +276,9 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
   // أوردرات الشحن. Opt-in with a real boolean, so a query string ("true") can never flip it
   // and the ERP dashboard is unchanged.
   const shopOnly = filters?.excludeOnline === true ? await shopOnlyOrderClause({ alias: "o" }) : "";
-  // The ERP dashboard's أونلاين card: everything the till did not sell. Skipped when the caller
-  // already removed online orders — there would be nothing left to count.
-  const onlineOnly = shopOnly ? "" : await onlineOnlyOrderClause({ alias: "o" }).catch(() => "");
+  // The أونلاين card: everything the till did not sell. Counted on its own query, so it is there
+  // whether or not the headline figures above it are shop-only.
+  const onlineOnly = await onlineOnlyOrderClause({ alias: "o" }).catch(() => "");
   const params = [];
   const ordersTenant = tenantClause("o", tenantId, params);
   const ordersDate = dateClause("o", filters, params);
@@ -460,6 +460,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
             ${ordersBranch}
             AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
             ${personalOrderClause("o")}
+            ${shopOnly}
             ${ordersTenant}
           `,
           params,

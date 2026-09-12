@@ -126,8 +126,12 @@ const route = (name, handler) => async (req, res) => {
   }
 };
 
+// The KPI row is the store on its own and online on its own (owner request 2026-09-12): sales,
+// invoices, average, units, discounts, the yesterday comparison and the recent-invoices list are
+// shop-only, exactly like the manager portal's اليوم, and the أونلاين card carries the rest. Set
+// here on the server, after the filters are built, so no query string can undo it.
 export const overview = route("overview", async (req) =>
-  getDashboardOverview({ tenantId: resolveTenantId(req), filters: await resolveDashboardFilters(req) })
+  getDashboardOverview({ tenantId: resolveTenantId(req), filters: { ...(await resolveDashboardFilters(req)), excludeOnline: true } })
 );
 
 export const salesTrend = route("salesTrend", (req) =>
