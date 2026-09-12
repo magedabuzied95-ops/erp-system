@@ -635,6 +635,24 @@ function LinkifiedText({ text = "", className = "", linkColor = "" }) {
 // twice it has been silently lost on the way to production — once to a hex
 // Tailwind never generated a class for, once to the theme layer re-pointing
 // whole colour families with `!important`. Inline survives both.
+// The message this one replied to, framed above the body the way WhatsApp frames it: a tinted box
+// with a coloured bar on the leading edge, who wrote it, and the first lines of what they wrote.
+function QuotedMessage({ quoted = null, skin, customerName = "" }) {
+  const quotedText = clean(quoted?.text);
+  if (!quotedText) return null;
+  const author = quoted.from_me ? "أنت" : clean(customerName) || "العميل";
+  return (
+    <div
+      dir="auto"
+      style={{ background: skin.darkInk ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.22)", borderInlineStart: `4px solid ${quoted.from_me ? "#53bdeb" : "#06cf9c"}` }}
+      className="mb-1 overflow-hidden rounded-md px-2 py-1"
+    >
+      <div style={{ color: quoted.from_me ? "#53bdeb" : "#06cf9c" }} className="text-[12.5px] font-semibold leading-4">{author}</div>
+      <div style={{ color: skin.meta }} className="mt-0.5 line-clamp-3 whitespace-pre-wrap break-words text-[13px] leading-[17px]">{quotedText}</div>
+    </div>
+  );
+}
+
 // The reply buttons a WhatsApp prompt went out with, drawn the way the customer's app draws them:
 // full-width rows under the body, split by hairlines. Inert here — only the customer can press them.
 function ReplyButtons({ buttons = [], skin }) {
@@ -1011,6 +1029,7 @@ function TranscriptMessage({
       <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName} showAvatar={showAvatar}>
         <ChatBubble skin={skin} radius={chrome.radius} side="in" flush={flush}>
           {story ? <StoryContext story={story} variant={variant} /> : null}
+          <QuotedMessage quoted={message.quoted_message} skin={skin} customerName={customerName} />
           <LinkifiedText text={text} className={textClass} linkColor={skin.link} />
           {attachments(flush ? "" : "mt-1.5")}
           {stampFor({ floating: flush })}
@@ -1078,6 +1097,7 @@ function TranscriptMessage({
   const replyButtons = asArray(message.suggested_actions).filter(
     (action) => action?.type === "whatsapp_reply_button" && clean(action.title)
   );
+  const footerText = clean(asArray(message.suggested_actions).find((action) => action?.type === "whatsapp_footer")?.title);
   const correctReply = isAi && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
     <button
       type="button"
@@ -1103,7 +1123,11 @@ function TranscriptMessage({
           </div>
         ) : null}
         {sourceComment ? <div className={authorLabel ? "mt-1" : ""}><SourceCommentContext context={sourceComment} variant={variant} /></div> : null}
+        <QuotedMessage quoted={message.quoted_message} skin={skin} customerName={customerName} />
         <LinkifiedText text={text} className={`${textClass} ${authorLabel || sourceComment ? "mt-0.5" : ""}`} linkColor={skin.link} />
+        {footerText ? (
+          <div dir="auto" style={{ color: skin.meta }} className="mt-1 text-[13px] leading-4">{footerText}</div>
+        ) : null}
         {/* `suggested_products` now promotes the row to a product-card message in
             both transcripts, so the cards and their caption are drawn by that
             branch and never reach this one. */}

@@ -8,7 +8,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { adjustVariantStock } from "./inventoryService.js";
-import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
+import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage, extractWhatsappQuotedMessageId } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, INVOICE_RECEIPT_GREETING, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
@@ -2201,9 +2201,10 @@ const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = fa
     INSERT INTO ai_support_messages (
       tenant_id, session_id, message_text, customer_message, ai_answer, confidence, needs_human_support,
       sources_used, suggested_products, visual_attachments, suggested_actions, detected_intent, fallback_reason,
-      sender_type, channel, customer_name, last_message, insert_source, provider_message_id, external_message_id
+      sender_type, channel, customer_name, last_message, insert_source, provider_message_id, external_message_id,
+      external_reply_id
     )
-    VALUES ($1, $2, $3, $3, '', 0, $6, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', $7, 'customer', 'whatsapp', $4, $3, $5, $8, $8)
+    VALUES ($1, $2, $3, $3, '', 0, $6, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', $7, 'customer', 'whatsapp', $4, $3, $5, $8, $8, $9)
     ON CONFLICT DO NOTHING
     `,
     [
@@ -2215,6 +2216,8 @@ const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = fa
       needsFollowup,
       needsFollowup ? "whatsapp_order_confirmation_followup" : "whatsapp_order_confirmation_other_reply",
       providerMessageId,
+      // The prompt the customer answered, so the bubble quotes it the way their phone does.
+      extractWhatsappQuotedMessageId(message.raw || {}),
     ]
   );
   console.info("[ai-support-insert]", {

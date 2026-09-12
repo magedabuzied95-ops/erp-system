@@ -4044,6 +4044,29 @@ const parseWhatsappTimestamp = (value) => {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : new Date().toISOString();
 };
 
+// The message a customer replied to. WhatsApp hangs it off whichever message type carries the
+// reply — extendedTextMessage for a swiped reply, buttonsResponseMessage for a tap on our buttons —
+// as contextInfo.stanzaId, so every object under the message is searched rather than a fixed list.
+export const extractWhatsappQuotedMessageId = (payload = {}) => {
+  const data = primaryEvolutionData(payload);
+  const roots = [data?.contextInfo, data?.message, data?.messages?.[0]?.message];
+  const seen = new Set();
+  const queue = roots.filter((value) => value && typeof value === "object");
+  for (let steps = 0; queue.length && steps < 200; steps += 1) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || seen.has(current)) continue;
+    seen.add(current);
+    const stanzaId = text(current.stanzaId || current.stanza_id || "");
+    if (stanzaId) return stanzaId;
+    // A quoted message's own body can hold contexts of ITS replies; never descend into it.
+    for (const [key, value] of Object.entries(current)) {
+      if (key === "quotedMessage") continue;
+      if (value && typeof value === "object") queue.push(value);
+    }
+  }
+  return "";
+};
+
 // A button/list tap arrives as a structured reply (buttonsResponseMessage etc.) whose only
 // plain-text content is the QUOTED original prompt — so the recursive text fallback used to
 // return the prompt (which contains ALL action labels) instead of what the customer chose.
@@ -5168,13 +5191,14 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       session_ref_id, tenant_id, session_id, channel, customer_name, last_message, message_text,
       customer_message, ai_answer, confidence, needs_human_support, sources_used, suggested_products,
       visual_attachments, suggested_actions, detected_intent, fallback_reason, sender_type, external_message_id, dedupe_key,
-      provider_message_id, whatsapp_instance, remote_jid, resolved_reply_jid, resolved_phone, source_path, insert_source
+      provider_message_id, whatsapp_instance, remote_jid, resolved_reply_jid, resolved_phone, source_path, insert_source,
+      external_reply_id
     )
-    VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, $15::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text, $11::text, $12::text, $13::text, $14::text)
+    VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, $15::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text, $11::text, $12::text, $13::text, $14::text, $16::text)
     ON CONFLICT DO NOTHING
     RETURNING *
     `,
-    [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid, resolvedReplyJid, resolvedPhone, "whatsapp_webhook", "whatsapp_webhook", JSON.stringify(visualAttachments)]
+    [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid, resolvedReplyJid, resolvedPhone, "whatsapp_webhook", "whatsapp_webhook", JSON.stringify(visualAttachments), extractWhatsappQuotedMessageId(message.raw || {})]
   );
 
   if (!inserted.rows[0]) {

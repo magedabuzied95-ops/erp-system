@@ -42,8 +42,12 @@ export const ORDER_CONFIRMATION_BUTTONS = [
 
 // Stored in the transcript row's suggested_actions. Inert in the inbox — only the customer can
 // press them — which is why they carry no order id.
-export const orderConfirmationTranscriptButtons = () =>
-  ORDER_CONFIRMATION_BUTTONS.map((button) => ({ type: "whatsapp_reply_button", id: button.action, title: button.title }));
+// The footer rides along: WhatsApp prints it in grey under the body, above the buttons.
+export const ORDER_CONFIRMATION_FOOTER = "M1 Store";
+export const orderConfirmationTranscriptButtons = () => [
+  { type: "whatsapp_footer", title: ORDER_CONFIRMATION_FOOTER },
+  ...ORDER_CONFIRMATION_BUTTONS.map((button) => ({ type: "whatsapp_reply_button", id: button.action, title: button.title })),
+];
 
 // Confirmation rows written before the buttons were stored carry only the button-less body. The
 // text fallback spells the actions out in its body, so a body WITHOUT them was the button form.

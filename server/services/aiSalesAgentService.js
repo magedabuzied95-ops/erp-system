@@ -974,6 +974,7 @@ export const normalizeInboxMessage = (row = {}) => {
     external_message_id: row.external_message_id || "",
     provider_message_id: row.provider_message_id || row.external_message_id || "",
     external_reply_id: row.external_reply_id || "",
+    quoted_message: row.quoted_message || null,
     dedupe_key: row.dedupe_key || "",
     customer_message: isOutbound ? "" : row.customer_message || body,
     ai_answer: row.ai_answer || (["assistant", "ai", "bot", "system"].includes(senderType) ? body : ""),
@@ -2170,6 +2171,37 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   } catch (enrichError) {
     console.warn("[ai-inbox] source-comment enrichment failed", { conversation_id: safeConversationId, message: enrichError?.message });
   }
+  // The message a customer replied to, quoted above their bubble as WhatsApp does. Looked up by
+  // provider id within the thread, so the quote resolves even when the original is older than
+  // this page. Reactions also use external_reply_id (for their target) and are left alone.
+  const quotedByProviderId = new Map();
+  try {
+    const wantedQuoteIds = [...new Set(result.rows
+      .filter((row) => text(row.external_reply_id) && lower(row.message_type) !== "reaction")
+      .map((row) => text(row.external_reply_id)))];
+    if (wantedQuoteIds.length) {
+      const quoted = await db.query(
+        `
+        SELECT DISTINCT ON (provider_message_id) provider_message_id, sender_type, message_text, customer_message, ai_answer, staff_message
+        FROM ai_support_messages
+        WHERE tenant_id = $1 AND session_id = $2 AND provider_message_id = ANY($3::text[])
+        ORDER BY provider_message_id, id ASC
+        `,
+        [tenantId, safeConversationId, wantedQuoteIds]
+      );
+      for (const row of quoted.rows) {
+        const quotedText = text(row.customer_message || row.ai_answer || row.staff_message || row.message_text);
+        if (!quotedText) continue;
+        quotedByProviderId.set(text(row.provider_message_id), {
+          provider_message_id: text(row.provider_message_id),
+          from_me: lower(row.sender_type) !== "customer",
+          text: quotedText.slice(0, 300),
+        });
+      }
+    }
+  } catch (quoteError) {
+    console.warn("[ai-inbox] quoted-message lookup failed", { conversation_id: safeConversationId, message: quoteError?.message });
+  }
   const fetchedMessages = result.rows.map((row) => {
     const canonicalSessionId = lower(row.channel || row.session_id || "").startsWith("whatsapp")
       ? normalizeWhatsappSessionId(row.session_id, row.resolved_phone || row.remote_jid || "")
@@ -2189,6 +2221,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
       : row;
     return normalizeInboxMessage({
       ...enriched,
+      quoted_message: lower(row.message_type) === "reaction" ? null : quotedByProviderId.get(text(row.external_reply_id)) || null,
       session_id: canonicalSessionId || row.session_id,
       conversation_id: canonicalSessionId || row.session_id,
       conversation_key: canonicalSessionId || row.session_id,
