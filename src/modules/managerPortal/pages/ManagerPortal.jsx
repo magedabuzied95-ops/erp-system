@@ -1350,7 +1350,6 @@ export default function ManagerPortal() {
     return { paid: difference >= 0, amount: Math.abs(difference), methods };
   };
   const dayBranches = Array.isArray(daySummary?.branches) ? daySummary.branches : [];
-  const dayInvoices = Array.isArray(daySummary?.invoices) ? daySummary.invoices : [];
   // The window the SERVER actually used, not the one the inputs happen to hold — a clamped or
   // defaulted range must read back as what was applied, or the card states a window it did
   // not use. The pickers seed from it too, so opening them shows the real 4am-to-4am day.
@@ -1402,15 +1401,14 @@ export default function ManagerPortal() {
           { label: tt("managerPortal.kpi.invoicesToday"), value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "slate", emphasis: true },
           { label: tt("managerPortal.kpi.onlineToday"), value: formatCurrency(dashboard?.online_sales_total || 0), icon: Globe, tone: "blue", emphasis: true },
           { label: tt("managerPortal.kpi.attendanceNow"), value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
-          { label: tt("managerPortal.kpi.pendingApprovals"), value: formatNumber(pendingInventoryApprovalsCount || 0), icon: CheckCircle2, tone: "amber" },
         ]
       : []
   ), [
     dashboard?.today_sales_total,
     dashboard?.invoice_count,
+    dashboard?.online_sales_total,
     dashboard?.active_employees_now,
     isMobilePortal,
-    pendingInventoryApprovalsCount,
   ]);
   const selectedChatThread = managerChatState.thread || null;
   const selectedChatEmployee = useMemo(() => {
@@ -3046,35 +3044,9 @@ export default function ManagerPortal() {
                     <div className="flex items-center justify-center py-6 text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /></div>
                   ) : (
                     <>
-                      {/* The invoices of whatever is selected — the drawer's own tape. */}
-                      <div>
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">{tt("managerPortal.dayAccounts.invoicesTitle")}</span>
-                          <span className="text-[11px] font-bold text-slate-500">{tt("managerPortal.dayAccounts.invoices", { count: formatNumber(daySummary?.sales?.invoice_count || 0) })}</span>
-                        </div>
-                        {dayInvoices.length ? (
-                          <div className="max-h-72 space-y-1 overflow-y-auto rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.03]">
-                            {dayInvoices.map((invoice) => (
-                              <div key={`day-invoice-${invoice.id}`} className="flex items-start justify-between gap-2 border-b border-slate-100 py-1.5 last:border-0 dark:border-white/5">
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-xs font-black text-slate-800 dark:text-slate-100">{portalText(invoice.invoice_number)}</span>
-                                  <span className="block truncate text-[11px] font-bold text-slate-500">
-                                    {[portalText(invoice.customer_name), portalText(invoice.seller_name), formatDateTime(invoice.at)].filter(Boolean).join(" · ")}
-                                  </span>
-                                </span>
-                                <span className="shrink-0 text-left">
-                                  <span className="block text-xs font-black text-emerald-600 dark:text-emerald-300">{formatCurrency(invoice.total || 0)}</span>
-                                  <span className="block text-[10px] font-bold text-slate-500">{paymentMethodLabel(invoice.payment_method)}</span>
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <EmptyState compact title={tt("managerPortal.dayAccounts.noInvoices")} body={tt("managerPortal.dayAccounts.subtitle")} />
-                        )}
-                      </div>
-
-                      {/* Everything that answers "so how much, and in what?" lives here, at the
+                      {/* The per-invoice tape was removed from here (owner request 2026-09-12):
+                          the totals below are what a manager reads on this card.
+                          Everything that answers "so how much, and in what?" lives here, at the
                           very bottom, under one heading — payment methods, then expenses, then
                           what should be left in the drawer. */}
                       <div className="space-y-2 border-t border-slate-200 pt-3 dark:border-white/10">
