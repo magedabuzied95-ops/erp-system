@@ -6,6 +6,7 @@ import {
   PROVISIONAL_MOVEMENT_TYPES,
   planProvisionalSettlements,
   planProvisionalStockAdds,
+  planProvisionalStockRemovals,
 } from "../server/utils/provisionalStock.js";
 import { buildProductEditChangeSummary } from "../server/utils/productEditChangeSummary.js";
 
@@ -75,8 +76,43 @@ test("a smaller invoice settles only its own quantity", () => {
   assert.equal(plan[0].quantity, 3);
 });
 
-test("the pending ledger reads exactly the three provisional movement types", () => {
-  assert.deepEqual(PROVISIONAL_MOVEMENT_TYPES, ["PROVISIONAL_STOCK_IN", "PROVISIONAL_STOCK_SETTLED", "PROVISIONAL_SETTLEMENT_REVERSED"]);
+test("the pending ledger reads every provisional movement type", () => {
+  assert.deepEqual(PROVISIONAL_MOVEMENT_TYPES, ["PROVISIONAL_STOCK_IN", "PROVISIONAL_STOCK_SETTLED", "PROVISIONAL_SETTLEMENT_REVERSED", "PROVISIONAL_STOCK_REMOVED"]);
+});
+
+test("lowering the quantity takes back the provisional units", () => {
+  const plan = planProvisionalStockRemovals({
+    previousVariants: [{ id: 1, default_purchase_qty: 1 }],
+    savedVariants: [{ id: 1, product_id: 138, color: "Black", size: "41", stock: 1, default_purchase_qty: 0 }],
+    pendingByVariant: new Map([[1, 1]]),
+  });
+  assert.deepEqual(plan, [{ variantId: 1, productId: 138, quantity: 1, color: "Black", size: "41" }]);
+});
+
+test("a removal never takes sold units, invoiced units, or more than the drop", () => {
+  // 5 added, 3 sold: lowering 5 -> 0 can only take the 2 on the shelf
+  assert.equal(planProvisionalStockRemovals({
+    previousVariants: [{ id: 1, default_purchase_qty: 5 }],
+    savedVariants: [{ id: 1, stock: 2, default_purchase_qty: 0 }],
+    pendingByVariant: new Map([[1, 5]]),
+  })[0].quantity, 2);
+  // 5 -> 3 takes 2, not all 5
+  assert.equal(planProvisionalStockRemovals({
+    previousVariants: [{ id: 1, default_purchase_qty: 5 }],
+    savedVariants: [{ id: 1, stock: 5, default_purchase_qty: 3 }],
+    pendingByVariant: new Map([[1, 5]]),
+  })[0].quantity, 2);
+  // nothing pending (invoiced or never provisional): a lower plan removes nothing
+  assert.deepEqual(planProvisionalStockRemovals({
+    previousVariants: [{ id: 1, default_purchase_qty: 5 }],
+    savedVariants: [{ id: 1, stock: 9, default_purchase_qty: 0 }],
+  }), []);
+  // pending left from a partial invoice, plan unchanged at 0: an unrelated save removes nothing
+  assert.deepEqual(planProvisionalStockRemovals({
+    previousVariants: [{ id: 1, default_purchase_qty: 0 }],
+    savedVariants: [{ id: 1, stock: 2, default_purchase_qty: 0 }],
+    pendingByVariant: new Map([[1, 2]]),
+  }), []);
 });
 
 test("the change summary names prices, new colours, new sizes and stock put on sale", () => {

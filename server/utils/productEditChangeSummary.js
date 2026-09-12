@@ -88,9 +88,15 @@ export const buildProductEditChangeSummary = ({
     .map((variant) => `${variantLabel(variant)} ${Number(beforeById.get(String(variant.id)).default_purchase_qty || 0)} ← ${Number(variant.default_purchase_qty || 0)}`);
   if (plannedChanges.length) changes.push(`كمية الشراء: ${listPreview(plannedChanges, 3)}`);
 
-  if (provisionalStockAdds.length) {
-    const total = provisionalStockAdds.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
-    changes.push(`اتضاف للمخزون ${total} قطعة قبل فاتورة الشراء: ${listPreview(provisionalStockAdds.map((entry) => `${variantLabel(entry)} +${entry.quantity}`), 3)}`);
+  const stockAdded = provisionalStockAdds.filter((entry) => Number(entry.quantity) > 0);
+  const stockRemoved = provisionalStockAdds.filter((entry) => Number(entry.quantity) < 0);
+  if (stockAdded.length) {
+    const total = stockAdded.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+    changes.push(`اتضاف للمخزون ${total} قطعة قبل فاتورة الشراء: ${listPreview(stockAdded.map((entry) => `${variantLabel(entry)} +${entry.quantity}`), 3)}`);
+  }
+  if (stockRemoved.length) {
+    const total = stockRemoved.reduce((sum, entry) => sum + Math.abs(Number(entry.quantity || 0)), 0);
+    changes.push(`اتشال من المخزون ${total} قطعة (كانت متضافة من غير فاتورة): ${listPreview(stockRemoved.map((entry) => `${variantLabel(entry)} -${Math.abs(entry.quantity)}`), 3)}`);
   }
 
   return changes;

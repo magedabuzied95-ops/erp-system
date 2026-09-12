@@ -17,7 +17,9 @@ import { adjustVariantStock } from "../services/inventoryService.js";
 export const PROVISIONAL_STOCK_IN = "PROVISIONAL_STOCK_IN";
 export const PROVISIONAL_STOCK_SETTLED = "PROVISIONAL_STOCK_SETTLED";
 export const PROVISIONAL_SETTLEMENT_REVERSED = "PROVISIONAL_SETTLEMENT_REVERSED";
-export const PROVISIONAL_MOVEMENT_TYPES = [PROVISIONAL_STOCK_IN, PROVISIONAL_STOCK_SETTLED, PROVISIONAL_SETTLEMENT_REVERSED];
+// Lowering the quantity again takes back provisional units that no invoice covers yet.
+export const PROVISIONAL_STOCK_REMOVED = "PROVISIONAL_STOCK_REMOVED";
+export const PROVISIONAL_MOVEMENT_TYPES = [PROVISIONAL_STOCK_IN, PROVISIONAL_STOCK_SETTLED, PROVISIONAL_SETTLEMENT_REVERSED, PROVISIONAL_STOCK_REMOVED];
 
 const toWholeQty = (value) => {
   const parsed = Number(value);
@@ -52,6 +54,35 @@ export const planProvisionalStockAdds = ({ previousVariants = [], savedVariants 
     if (Number(variant.stock || 0) > 0) continue;
     const pending = toWholeQty(pendingByVariant.get(id));
     const quantity = nextPlanned - pending;
+    if (quantity <= 0) continue;
+    plan.push({ variantId: id, productId: Number(variant.product_id) || null, quantity, color: variant.color || "", size: variant.size || "" });
+  }
+  return plan;
+};
+
+/**
+ * Pure: the undo of the above. A save that LOWERS the planned quantity of a variant with
+ * pending provisional units takes back the drop — never more than is pending above the new
+ * quantity, and never more than is still on the shelf (sold units stay sold). Only a real
+ * decrease in this save counts: a purchase invoice resets the planned quantity to 0 while
+ * leaving part of a partly-invoiced batch pending, and a later unrelated save must not
+ * read that as a removal.
+ */
+export const planProvisionalStockRemovals = ({ previousVariants = [], savedVariants = [], pendingByVariant = new Map() } = {}) => {
+  const previousPlanned = new Map(
+    previousVariants.map((variant) => [String(variant.id), toWholeQty(variant.default_purchase_qty)])
+  );
+  const plan = [];
+  const seen = new Set();
+  for (const variant of savedVariants) {
+    const id = Number(variant?.id);
+    if (!Number.isInteger(id) || id <= 0 || seen.has(id) || !previousPlanned.has(String(id))) continue;
+    seen.add(id);
+    const nextPlanned = toWholeQty(variant.default_purchase_qty);
+    const wasPlanned = previousPlanned.get(String(id));
+    if (nextPlanned >= wasPlanned) continue;
+    const pending = toWholeQty(pendingByVariant.get(id));
+    const quantity = Math.min(pending - nextPlanned, wasPlanned - nextPlanned, toWholeQty(variant.stock));
     if (quantity <= 0) continue;
     plan.push({ variantId: id, productId: Number(variant.product_id) || null, quantity, color: variant.color || "", size: variant.size || "" });
   }
@@ -99,11 +130,30 @@ export const loadPendingProvisionalQty = async (client, { tenantId = null, varia
 
 /** Product editor save: put provisional stock on the variants that qualify. Same transaction. */
 export const applyProvisionalStockFromEditor = async (client, { tenantId = null, productId = null, userId = null, previousVariants = [], savedVariants = [] } = {}) => {
-  const candidates = savedVariants.filter((variant) => Number(variant?.stock || 0) <= 0);
+  const previousPlanned = new Map(previousVariants.map((variant) => [String(variant.id), toWholeQty(variant.default_purchase_qty)]));
+  // Only rows whose planned quantity moved in this save can add or remove anything.
+  const candidates = savedVariants.filter((variant) =>
+    toWholeQty(variant?.default_purchase_qty) !== (previousPlanned.get(String(variant?.id)) ?? 0)
+  );
   if (!candidates.length) return [];
   const pendingByVariant = await loadPendingProvisionalQty(client, { tenantId, variantIds: candidates.map((variant) => variant.id) });
-  const plan = planProvisionalStockAdds({ previousVariants, savedVariants: candidates, pendingByVariant });
   const applied = [];
+  for (const entry of planProvisionalStockRemovals({ previousVariants, savedVariants: candidates, pendingByVariant })) {
+    const result = await adjustVariantStock(client, {
+      tenantId,
+      variantId: entry.variantId,
+      productId: entry.productId || productId,
+      quantityChange: -entry.quantity,
+      movementType: PROVISIONAL_STOCK_REMOVED,
+      referenceType: "product_edit",
+      referenceId: Number(productId) || null,
+      reason: "Quantity lowered in the product editor before a purchase invoice",
+      notes: `Provisional stock removed ${entry.color} / ${entry.size}`.trim(),
+      createdBy: userId || null,
+    });
+    applied.push({ ...entry, quantity: -entry.quantity, quantityAfter: result?.quantityAfter ?? null });
+  }
+  const plan = planProvisionalStockAdds({ previousVariants, savedVariants: candidates, pendingByVariant });
   for (const entry of plan) {
     const result = await adjustVariantStock(client, {
       tenantId,
