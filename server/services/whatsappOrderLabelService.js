@@ -31,6 +31,21 @@ const normalizeStatus = (value = "") => text(value).toLowerCase().replace(/[\s-]
 // start merging labels the shop deliberately spells differently.
 const labelKey = (value = "") => text(value).toLowerCase().replace(/\s+/g, " ");
 
+/*
+ * A switch that arrives as a string.
+ *
+ * The generic settings screen renders a json setting as text inputs, so `enabled` comes back
+ * as the STRING "true" from the one UI that actually edits this today. Requiring `=== true`
+ * would leave the operator looking at a setting that says true and a feature that is off —
+ * the exact silent failure this whole area keeps producing. Anything that is not a recognised
+ * yes is still a no.
+ */
+const flagIsOn = (value, fallback = false) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  return ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
+};
+
 export const normalizeStatusLabelConfig = (value) => {
   const source = value && typeof value === "object" ? value : {};
   const labels = source.labels && typeof source.labels === "object" ? source.labels : {};
@@ -40,8 +55,8 @@ export const normalizeStatusLabelConfig = (value) => {
     if (key) normalizedLabels[key] = text(name);
   }
   return {
-    enabled: source.enabled === true,
-    exclusive: source.exclusive !== false,
+    enabled: flagIsOn(source.enabled, false),
+    exclusive: flagIsOn(source.exclusive, true),
     labels: { ...WHATSAPP_STATUS_LABEL_DEFAULTS.labels, ...normalizedLabels },
   };
 };

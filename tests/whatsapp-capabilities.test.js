@@ -289,13 +289,24 @@ test("the order-status label mapping stays off until somebody turns it on", asyn
   // It writes visible marks on real customer chats. Anything short of an explicit true — an
   // empty object, a missing key, the string "true" from a form — must leave it off.
   assert.equal(normalizeStatusLabelConfig({}).enabled, false);
-  assert.equal(normalizeStatusLabelConfig({ enabled: "true" }).enabled, false);
   assert.equal(normalizeStatusLabelConfig({ enabled: true }).enabled, true);
+  assert.equal(normalizeStatusLabelConfig({ enabled: "nonsense" }).enabled, false);
+
+  /*
+   * The settings screen renders a json setting as TEXT inputs, so the one UI that edits this
+   * hands back the string "true". Requiring a real boolean would leave the operator looking at
+   * a setting that says true and a feature that is off.
+   */
+  assert.equal(normalizeStatusLabelConfig({ enabled: "true" }).enabled, true);
+  assert.equal(normalizeStatusLabelConfig({ enabled: "1" }).enabled, true);
+  assert.equal(normalizeStatusLabelConfig({ enabled: "false" }).enabled, false);
 
   // Exclusive is the opposite default: a chat wearing its whole history is noise, so only an
-  // explicit false turns the cleanup off.
+  // explicit no turns the cleanup off.
   assert.equal(normalizeStatusLabelConfig({}).exclusive, true);
   assert.equal(normalizeStatusLabelConfig({ exclusive: false }).exclusive, false);
+  assert.equal(normalizeStatusLabelConfig({ exclusive: "false" }).exclusive, false);
+  assert.equal(normalizeStatusLabelConfig({ exclusive: "" }).exclusive, true, "an empty field is not a decision");
 
   // Status keys arrive from a form and from our own code in different spellings.
   const config = normalizeStatusLabelConfig({ labels: { "Out For Delivery": "مع المندوب", "shipment-created": "تم الشحن" } });
