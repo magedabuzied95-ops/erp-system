@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import db from "../database/db.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
-import { shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
+import { onlineOnlyOrderClause, shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
 
 const daySql = "date_trunc('day', NOW())";
 const yesterdaySql = "date_trunc('day', NOW()) - INTERVAL '1 day'";
@@ -33,6 +33,42 @@ const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "", windowS
   if (range === "month") return { sql: "date_trunc('month', NOW())", endSql: "NOW()" };
   if (range === "custom" && dateFrom && dateTo) return { custom: true, dateFrom, dateTo };
   return { sql: "CURRENT_DATE", endSql: "CURRENT_DATE + INTERVAL '1 day'" };
+};
+
+/*
+ * The shop's trading day containing NOW, shifted by `dayOffset` days (-1 = the day before).
+ *
+ * Resolved by the database, whose session reads on the app zone, so the boundary is 05:00 Cairo
+ * wall clock on both sides of a DST change (`+ INTERVAL '1 day'`, never 24 hours). Returns null
+ * when the query fails, and the caller falls back to the calendar day rather than to a rolling 24
+ * hours — a rolling window would silently mix last night into today.
+ */
+export const resolveBusinessDayWindow = async ({ startHour, dayOffset = 0 } = {}) => {
+  const hour = Math.min(Math.max(Math.trunc(Number(startHour) || 0), 0), 23);
+  const offset = Math.trunc(Number(dayOffset) || 0);
+  try {
+    const result = await db.query(
+      `
+      SELECT day_start AS window_start, day_start + INTERVAL '1 day' AS window_end
+      FROM (
+        SELECT date_trunc('day', NOW() - make_interval(hours => $1::int))
+          + make_interval(hours => $1::int)
+          + make_interval(days => $2::int) AS day_start
+      ) t
+      `,
+      [hour, offset]
+    );
+    const row = result.rows[0];
+    if (!row?.window_start || !row?.window_end) return null;
+    return { windowStart: new Date(row.window_start), windowEnd: new Date(row.window_end) };
+  } catch (error) {
+    console.error("[dashboard] business-day window query failed — falling back to the calendar day", {
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+    recordDashboardFailure({ name: "businessDayWindow", code: String(error?.code || ""), message: String(error?.message || "") });
+    return null;
+  }
 };
 
 const dateClause = (alias, filters, params, column = "created_at") => {
@@ -224,6 +260,9 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
   // أوردرات الشحن. Opt-in with a real boolean, so a query string ("true") can never flip it
   // and the ERP dashboard is unchanged.
   const shopOnly = filters?.excludeOnline === true ? await shopOnlyOrderClause({ alias: "o" }) : "";
+  // The ERP dashboard's أونلاين card: everything the till did not sell. Skipped when the caller
+  // already removed online orders — there would be nothing left to count.
+  const onlineOnly = shopOnly ? "" : await onlineOnlyOrderClause({ alias: "o" }).catch(() => "");
   const params = [];
   const ordersTenant = tenantClause("o", tenantId, params);
   const ordersDate = dateClause("o", filters, params);
@@ -252,6 +291,14 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
   const purchaseTenant = tenantClause("p", tenantId, purchaseParams);
   const customerParams = [];
   const customerTenant = tenantClause("c", tenantId, customerParams);
+  let customerFrom = daySql;
+  let customerTo = "";
+  if (windowStart && windowEnd) {
+    customerParams.push(new Date(windowStart));
+    customerFrom = `$${customerParams.length}`;
+    customerParams.push(new Date(windowEnd));
+    customerTo = ` AND c.created_at < $${customerParams.length}`;
+  }
   const cashboxParams = [];
   const cashboxTenant = tenantClause("c", tenantId, cashboxParams);
 
@@ -265,6 +312,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
     activePos,
     recentInvoices,
     itemStatsToday,
+    onlineToday,
   ] = await Promise.all([
     tableExists("orders")
       ? safeQuery(
@@ -354,7 +402,7 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           `
           SELECT COUNT(*)::int AS count
           FROM customers c
-          WHERE c.created_at >= ${daySql}
+          WHERE c.created_at >= ${customerFrom}${customerTo}
             ${customerTenant}
           `,
           customerParams,
@@ -403,6 +451,28 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
           "overview.itemStats"
         )
       : [{}],
+    // Same filters as overview.today, plus the online side of the line. Kept a separate query
+    // (not a FILTER column on the one above) so the headline total is untouched by it.
+    tableExists("orders") && onlineOnly
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales,
+            COUNT(*)::int AS orders
+          FROM orders o
+          WHERE 1=1
+            ${ordersDate}
+            ${ordersBranch}
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${personalOrderClause("o")}
+            ${onlineOnly}
+            ${ordersTenant}
+          `,
+          params,
+          [{}],
+          "overview.online"
+        )
+      : [{}],
   ]);
 
   const t = today[0] || {};
@@ -438,7 +508,10 @@ export const getDashboardOverview = async ({ tenantId = null, filters = {} } = {
       lowStockProducts: { value: toNumber(productLow[0]?.count) + toNumber(variantLow[0]?.count), growth: 0 },
       pendingPurchaseOrders: { value: toNumber(pendingPurchases[0]?.count), growth: 0 },
       totalCustomersToday: { value: toNumber(customersToday[0]?.count), growth: 0 },
+      onlineSales: { value: toNumber(onlineToday[0]?.sales), orders: toNumber(onlineToday[0]?.orders), growth: 0 },
     },
+    // The window every figure above was counted in, so the page can say "من 5 ص" truthfully.
+    window: windowStart && windowEnd ? { start: new Date(windowStart).toISOString(), end: new Date(windowEnd).toISOString() } : null,
     recentInvoices,
   };
 };
@@ -913,7 +986,7 @@ export const getMarketingAnalytics = async ({ tenantId = null, filters = {} } = 
   return { channels: rows, attributedSales: rows.filter((row) => row.source !== "direct").reduce((sum, row) => sum + toNumber(row.sales), 0) };
 };
 
-export const getPosLive = async ({ tenantId = null } = {}) => {
+export const getPosLive = async ({ tenantId = null, filters = {} } = {}) => {
   const cashboxParams = [];
   const cashboxTenant = tenantClause("c", tenantId, cashboxParams);
   const orderParams = [];
@@ -949,8 +1022,8 @@ export const getPosLive = async ({ tenantId = null } = {}) => {
           "posLive.lastInvoice"
         )
       : [{}],
-    getHourlySales({ tenantId }),
-    getPaymentAnalytics({ tenantId }),
+    getHourlySales({ tenantId, filters }),
+    getPaymentAnalytics({ tenantId, filters }),
   ]);
   return {
     activeCashiers: sessions.length,

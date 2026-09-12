@@ -12,6 +12,7 @@ import {
   getPosLive,
   getSalesTrend,
   getTopProducts,
+  resolveBusinessDayWindow,
   trackDashboardFailures,
 } from "../services/dashboardAnalyticsService.js";
 
@@ -30,6 +31,25 @@ export const dashboardFilters = (req) => {
     dateTo: cashierOnlyToday ? "" : req.query.date_to || req.query.dateTo || "",
     branchId: req.query.branch_id || req.query.branchId || "",
   };
+};
+
+/*
+ * The dashboard's "today" is the shop's trading day: 05:00 → 05:00 the next morning (owner
+ * request 2026-09-12). A sale rung up at 02:00 belongs to last night's takings, not to a new day
+ * that has barely started. "yesterday" is the trading day before it. 7d / month / custom keep
+ * their calendar meaning — nobody reads a month as starting at 05:00 on the 1st.
+ *
+ * Deliberately NOT the manager portal's `pos.business_day_start_hour` (04:00): that setting is
+ * the portal's, and moving it would move the portal's day card too.
+ */
+export const DASHBOARD_DAY_START_HOUR = 5;
+const DAY_OFFSETS = { today: 0, yesterday: -1 };
+
+export const resolveDashboardFilters = async (req) => {
+  const filters = dashboardFilters(req);
+  if (!(filters.range in DAY_OFFSETS)) return filters;
+  const window = await resolveBusinessDayWindow({ startHour: DASHBOARD_DAY_START_HOUR, dayOffset: DAY_OFFSETS[filters.range] });
+  return window ? { ...filters, ...window } : filters;
 };
 
 /*
@@ -106,16 +126,16 @@ const route = (name, handler) => async (req, res) => {
   }
 };
 
-export const overview = route("overview", (req) =>
-  getDashboardOverview({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
+export const overview = route("overview", async (req) =>
+  getDashboardOverview({ tenantId: resolveTenantId(req), filters: await resolveDashboardFilters(req) })
 );
 
 export const salesTrend = route("salesTrend", (req) =>
   getSalesTrend({ tenantId: resolveTenantId(req), days: isCashier(req.user) ? 1 : req.query.days, filters: dashboardFilters(req) })
 );
 
-export const topProducts = route("topProducts", (req) =>
-  getTopProducts({ tenantId: resolveTenantId(req), limit: req.query.limit, filters: dashboardFilters(req) })
+export const topProducts = route("topProducts", async (req) =>
+  getTopProducts({ tenantId: resolveTenantId(req), limit: req.query.limit, filters: await resolveDashboardFilters(req) })
 );
 
 export const lowStock = route("lowStock", (req) =>
@@ -126,23 +146,27 @@ export const liveActivity = route("liveActivity", (req) =>
   getLiveActivity({ tenantId: resolveTenantId(req), limit: req.query.limit })
 );
 
-export const branchPerformance = route("branchPerformance", (req) =>
-  getBranchPerformance({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
+export const branchPerformance = route("branchPerformance", async (req) =>
+  getBranchPerformance({ tenantId: resolveTenantId(req), filters: await resolveDashboardFilters(req) })
 );
 
-export const paymentAnalytics = route("paymentAnalytics", (req) =>
-  getPaymentAnalytics({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
+export const paymentAnalytics = route("paymentAnalytics", async (req) =>
+  getPaymentAnalytics({ tenantId: resolveTenantId(req), filters: await resolveDashboardFilters(req) })
 );
 
-export const hourlySales = route("hourlySales", (req) =>
-  getHourlySales({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
+export const hourlySales = route("hourlySales", async (req) =>
+  getHourlySales({ tenantId: resolveTenantId(req), filters: await resolveDashboardFilters(req) })
 );
 
-export const marketing = route("marketing", (req) =>
-  getMarketingAnalytics({ tenantId: resolveTenantId(req), filters: dashboardFilters(req) })
+export const marketing = route("marketing", async (req) =>
+  getMarketingAnalytics({ tenantId: resolveTenantId(req), filters: await resolveDashboardFilters(req) })
 );
 
-export const posLive = route("posLive", (req) => getPosLive({ tenantId: resolveTenantId(req) }));
+// Always the live trading day, whatever range the page is showing.
+export const posLive = route("posLive", async (req) => {
+  const window = await resolveBusinessDayWindow({ startHour: DASHBOARD_DAY_START_HOUR });
+  return getPosLive({ tenantId: resolveTenantId(req), filters: { range: "today", ...(window || {}) } });
+});
 
 export const inventory = route("inventory", (req) => getInventoryIntelligence({ tenantId: resolveTenantId(req) }));
 

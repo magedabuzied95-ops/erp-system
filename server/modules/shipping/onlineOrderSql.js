@@ -110,3 +110,16 @@ export const shopOnlyOrderClause = async ({ alias = "o", client = db } = {}) => 
   const tillFree = columns.has("shift_id") ? ` AND ${alias}.shift_id IS NULL` : "";
   return ` AND NOT (${aliased}${tillFree})`;
 };
+
+// The exact complement of shopOnlyOrderClause — the ERP dashboard's أونلاين card. Built from
+// the same expression so shop + online always add up to the day's total: an order is on one
+// side of the line or the other, never both and never neither.
+export const onlineOnlyOrderClause = async ({ alias = "o", client = db } = {}) => {
+  if (!/^[a-z_][a-z0-9_]*$/i.test(alias)) throw new Error("Invalid SQL alias");
+  if (!(await tableExists("orders", client))) return " AND FALSE";
+  const columns = await loadColumns("orders", client);
+  const { onlineExpr } = buildPortalOnlineSql(columns);
+  const aliased = alias === "o" ? onlineExpr : onlineExpr.replace(/\bo\./g, `${alias}.`);
+  const tillFree = columns.has("shift_id") ? ` AND ${alias}.shift_id IS NULL` : "";
+  return ` AND (${aliased}${tillFree})`;
+};

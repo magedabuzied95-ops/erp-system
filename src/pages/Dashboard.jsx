@@ -24,6 +24,7 @@ import {
   TrendingUp,
   Users,
   Warehouse,
+  Globe,
   Plus,
   Store,
   TimerReset,
@@ -519,10 +520,11 @@ function Dashboard() {
   const gr = (g) => (g > 0 ? "emerald" : g < 0 ? "rose" : "slate");
   const grText = (g) => `${percent(g)} ${copy.vsYesterday || (isArabic ? "عن أمس" : "vs yesterday")}`;
   const L = (ar, en) => (isArabic ? ar : en);
-  // 7 primary KPIs — all from authoritative overview data; comparison shown only
+  // 8 primary KPIs — all from authoritative overview data; comparison shown only
   // where a real yesterday figure exists (net sales, invoices).
   const executiveCards = [
     { label: L("صافي مبيعات اليوم", "Net sales today"), value: formatCurrency(k.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: salesGrowth >= 0 ? "emerald" : "rose", detail: grText(salesGrowth), deltaTone: gr(salesGrowth), to: canOpenReports ? "/reports" : null },
+    { label: L("مبيعات الأونلاين اليوم", "Online sales today"), value: formatCurrency(k.onlineSales?.value || 0), icon: Globe, tone: Number(k.onlineSales?.value || 0) > 0 ? "emerald" : "slate", detail: L(`${number(k.onlineSales?.orders || 0)} طلب · غير نقطة البيع`, `${number(k.onlineSales?.orders || 0)} orders · not POS`), to: "/orders" },
     { label: L("عدد فواتير اليوم", "Invoices today"), value: number(k.todayOrders?.value ?? overview.today?.orders), icon: ReceiptText, tone: "slate", detail: grText(ordersGrowth), deltaTone: gr(ordersGrowth), to: "/orders" },
     { label: L("متوسط قيمة الفاتورة", "Avg invoice value"), value: formatCurrency(k.averageOrderValue?.value || 0), icon: ShoppingCart, tone: "slate", detail: L("لكل فاتورة", "per invoice") },
     { label: L("القطع المباعة اليوم", "Units sold today"), value: number(k.unitsSold?.value || 0), icon: Boxes, tone: "slate", detail: L("إجمالي القطع", "total units") },
@@ -599,7 +601,7 @@ function Dashboard() {
       </div>
 
       {/* ROW 1 — primary KPIs */}
-      <section className="dashboard-kpi-grid relative z-10 mt-5 grid gap-3 grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+      <section className="dashboard-kpi-grid relative z-10 mt-5 grid gap-3 grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
         {executiveCards.map((card) => <ExecutiveCard key={card.label} {...card} loading={loading} />)}
       </section>
 
@@ -693,7 +695,11 @@ function HourlySalesCard({ hourlySales = [], loading, isArabic }) {
   const rows = React.useMemo(() => {
     const map = new Map((hourlySales || []).map((r) => [Number(r.hour), Number(r.sales || 0)]));
     const out = [];
-    for (let h = 8; h <= 23; h += 1) out.push({ hour: h, label: String(h).padStart(2, "0"), sales: map.get(h) || 0 });
+    // The trading day runs 05:00 → 05:00, so the small hours come AFTER 23:00, not before 08:00.
+    for (let i = 0; i < 24; i += 1) {
+      const h = (5 + i) % 24;
+      out.push({ hour: h, label: String(h).padStart(2, "0"), sales: map.get(h) || 0 });
+    }
     return out;
   }, [hourlySales]);
   const hasData = rows.some((r) => r.sales > 0);
