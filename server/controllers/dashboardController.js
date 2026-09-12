@@ -12,6 +12,7 @@ import {
   getPosLive,
   getSalesTrend,
   getTopProducts,
+  trackDashboardFailures,
 } from "../services/dashboardAnalyticsService.js";
 
 const resolveTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
@@ -31,7 +32,21 @@ export const dashboardFilters = (req) => {
   };
 };
 
-const send = (res, data) => res.status(200).json({ success: true, data });
+/*
+ * `degraded` is only present when something actually failed.
+ *
+ * It names the queries that blew up while this response was being built, so a zero on screen
+ * can be told apart from a zero in the database. Without it the marketing card reported "0
+ * sales from marketing" for weeks while its query was being rejected outright — and that is a
+ * number people make spending decisions on.
+ */
+const send = (res, data, failures = []) => res.status(200).json({
+  success: true,
+  data,
+  ...(failures.length
+    ? { degraded: failures.map((failure) => failure.name), degraded_detail: failures }
+    : {}),
+});
 const ERP_PERF_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.ERP_PERF_DEBUG || "").toLowerCase());
 const isPoolTimeout = (error = {}) =>
   String(error?.message || "").toLowerCase().includes("timeout exceeded when trying to connect");
@@ -61,13 +76,23 @@ const route = (name, handler) => async (req, res) => {
   });
 
   try {
-    const data = await handler(req);
+    const { result: data, failures } = await trackDashboardFailures(() => handler(req));
     if (ERP_PERF_DEBUG) console.log("[erp-perf] dashboard route end", {
       requestId: req.id,
       name,
       durationMs: Date.now() - startedAt,
     });
-    return send(res, data);
+    if (failures.length) {
+      // Warn, not error: the response still went out. This is the line that says a panel is
+      // lying, and it names the query so it can be found without reading every log above it.
+      console.warn("[dashboard] degraded response", {
+        requestId: req.id,
+        name,
+        failed_queries: failures.map((failure) => failure.name),
+        codes: failures.map((failure) => failure.code).filter(Boolean),
+      });
+    }
+    return send(res, data, failures);
   } catch (error) {
     console.error("[dashboard] route thrown", {
       requestId: req.id,

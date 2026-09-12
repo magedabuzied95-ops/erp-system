@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import db from "../database/db.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
 import { shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
@@ -130,6 +132,43 @@ export const personalOrderClause = (alias = "o") => ` AND COALESCE(${alias}.is_p
 const emptyRows = [];
 const LOW_STOCK_ALERT_MAX = 2;
 
+/*
+ * Which dashboard queries failed while answering THIS request.
+ *
+ * `safeQuery` swallowing an error and returning [] is what keeps one broken panel from taking
+ * the whole dashboard down — that part is right and stays. What was wrong is that the caller
+ * could not tell the two apart afterwards: a card drawing 0 because a query blew up looked
+ * exactly like a card drawing 0 because the shop genuinely sold nothing. The marketing card
+ * lived in that gap for weeks, and "0 sales from marketing" is a sentence somebody acts on.
+ *
+ * AsyncLocalStorage rather than a module-level array because several dashboards are answered
+ * at once: failures have to belong to the request that caused them.
+ */
+const dashboardFailureStore = new AsyncLocalStorage();
+
+/**
+ * Runs one dashboard handler and reports what broke underneath it.
+ *
+ * @returns {Promise<{result: any, failures: Array<{name: string, code: string, message: string}>}>}
+ */
+export const trackDashboardFailures = async (run) => {
+  const store = { failures: [] };
+  const result = await dashboardFailureStore.run(store, run);
+  return { result, failures: store.failures };
+};
+
+// Exported for the test that proves two dashboards answered at the same time do not inherit
+// each other's failures — the single property that made AsyncLocalStorage worth using here.
+export const __testing = { recordDashboardFailure: (entry) => recordDashboardFailure(entry) };
+
+const recordDashboardFailure = (entry) => {
+  const store = dashboardFailureStore.getStore();
+  // No store means a caller outside a tracked request — a cron, a script, a test. Nothing to
+  // report to, and the log below still carries it.
+  if (!store) return;
+  store.failures.push(entry);
+};
+
 const safeQuery = async (sql, params = [], fallback = emptyRows, name = "dashboardQuery") => {
   const startedAt = Date.now();
   logPerf("[dashboard] query start", { name, params: params.length });
@@ -145,6 +184,7 @@ const safeQuery = async (sql, params = [], fallback = emptyRows, name = "dashboa
       code: error.code,
       stack: error.stack,
     });
+    recordDashboardFailure({ name, code: String(error.code || ""), message: String(error.message || "") });
     return fallback;
   }
 };
@@ -555,8 +595,9 @@ export const getHourlySales = async ({ tenantId = null, filters = {} } = {}) => 
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
       ${personalOrderClause("o")}
       ${ordersTenant}
-    GROUP BY hour
-    ORDER BY hour
+    -- Ordinal here too: same shadowing rule, same one-ALTER-TABLE distance from failing.
+    GROUP BY 1
+    ORDER BY 1
     `,
     params,
     emptyRows,
@@ -822,7 +863,10 @@ export const getPaymentAnalytics = async ({ tenantId = null, filters = {} } = {}
       AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
       ${personalOrderClause("o")}
       ${ordersTenant}
-    GROUP BY method
+    -- Ordinal, for the same reason the marketing query uses one: orders happens not to have a
+    -- "method" column today, so this worked by luck rather than by rule. One future ALTER TABLE
+    -- would have broken it exactly the way the marketing card broke.
+    GROUP BY 1
     ORDER BY amount DESC
     `,
     params,
@@ -851,7 +895,15 @@ export const getMarketingAnalytics = async ({ tenantId = null, filters = {} } = 
       ${ordersBranch}
       ${ordersTenant}
       ${personalOrderClause("o")}
-    GROUP BY source
+    -- GROUP BY 1, never GROUP BY source.
+    --
+    -- orders has a real column called "source" (the POS/online origin), and Postgres resolves
+    -- a GROUP BY name to an INPUT column before an output alias. So GROUP BY source grouped by
+    -- o.source, left o.marketing_source neither grouped nor aggregated, and the whole query was
+    -- rejected with 42803 — every time, since the day that column was added. safeQuery swallowed
+    -- it, so the card drew a 0 and the shop read "marketing brought nothing" instead of "this is
+    -- broken". The ordinal cannot be shadowed by any column, present or future.
+    GROUP BY 1
     ORDER BY sales DESC
     `,
     params,
