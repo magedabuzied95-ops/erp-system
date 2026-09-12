@@ -127,34 +127,18 @@ test("pages are cached separately", () => {
 
 // ---- wiring --------------------------------------------------------------
 
-test("the picker sends its POS filters to the server", () => {
-  assert.match(picker, /const serverFilters = useMemo\(\(\) => \(\{/);
-  assert.match(picker, /searchCustomerProducts\(\{ search: term, filters: serverFilters, page: 1/);
-  // Membership rather than the literal array: a localized picker legitimately gained a
-  // `t` dependency, and pinning the exact list failed a test about which changes
-  // retrigger the fetch. See ai-inbox-picker-perf for the same reasoning.
-  const deps = picker.match(/\}, \[open, sizeMode, sizeCatalogFallback[^\]]*\]\);/);
-  assert.ok(deps, "the catalog effect's dependency array must still be recognisable");
-  assert.ok(deps[0].includes("serverFilters"), "filters must retrigger the server query");
-  assert.ok(deps[0].includes("search"), "search must retrigger the server query");
+// The picker itself no longer pages: product-card mode loads the whole warm
+// catalog and filters in memory (see ai-inbox-picker-perf), because counts and
+// chips computed from one 24-row page read 0. The endpoint contract below still
+// serves other bounded callers.
+
+test("the picker filters the whole catalog in memory", () => {
+  assert.doesNotMatch(picker, /searchCustomerProducts\(/);
+  assert.match(picker, /const filteredProducts = useMemo\(\(\) => smartFilterSource\.filter/);
 });
 
-test("changing a filter restarts at page 1 and newest wins", () => {
-  assert.match(picker, /const querySignature = `\$\{term\}\|\$\{JSON\.stringify\(serverFilters\)\}`/);
-  assert.match(picker, /requestId !== searchRequestIdRef\.current\) return;/);
-  assert.match(picker, /controller\.abort\(\);/);
-  assert.match(picker, /setResultPage\(1\);/);
-});
-
-test("load more appends deduped by product identity and cannot double-fire", () => {
-  assert.match(picker, /if \(sizeMode \|\| loadingMore \|\| !hasMoreResults\) return;/);
-  assert.match(picker, /const seen = new Set\(asArray\(current\)\.map/);
-  assert.match(picker, /const fresh = asArray\(data\)\.filter\(\(item\) => !seen\.has/);
-});
-
-test("a filter change mid-flight discards a late page-2 response", () => {
-  const loadMore = picker.slice(picker.indexOf("const loadMoreProducts"), picker.indexOf("// Product-card mode: pull the brand/type facets"));
-  assert.match(loadMore, /if \(requestId !== searchRequestIdRef\.current\) return;/);
+test("changing a search or filter scrolls the list back to its first step", () => {
+  assert.match(picker, /setVisibleLimit\(PICKER_RENDER_STEP\);\s*\n\s*\}, \[search, brand, manufacturer, gender, productType, grade\]\);/);
 });
 
 // ---- backend -------------------------------------------------------------
@@ -198,7 +182,7 @@ test("pricing parity: the same normalization pipeline is still used", () => {
   assert.doesNotMatch(service, /by-size/, "the by-size raw price must never back product cards");
 });
 
-test("the picker still never downloads the whole catalog", () => {
+test("the bounded search helper still asks for one page", () => {
   assert.match(service, /export const PICKER_PAGE_SIZE = 24/);
   const searchFn = service.slice(service.indexOf("export const searchCustomerProducts"), service.indexOf("export const __resetPickerSearchCacheForTests"));
   assert.match(searchFn, /params,/);

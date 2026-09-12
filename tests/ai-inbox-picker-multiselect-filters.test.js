@@ -175,16 +175,10 @@ test("a multi-select page is never served as unfiltered", () => {
 
 // ---- picker wiring + untouched guarantees --------------------------------
 
-test("the picker sends the whole brand/manufacturer selection", () => {
-  assert.match(picker, /brand: selectedList\(brand\)/);
-  assert.match(picker, /manufacturer: selectedList\(manufacturer\)/);
-  assert.doesNotMatch(picker, /brand: singleValue\(brand\)/);
-  assert.doesNotMatch(picker, /manufacturer: singleValue\(manufacturer\)/);
-});
-
-test("pagination, page size and the load-more guard are unchanged", () => {
-  assert.match(picker, /searchCustomerProducts\(\{ search: term, filters: serverFilters, page: 1, limit: PICKER_PAGE_SIZE/);
-  assert.match(picker, /if \(sizeMode \|\| loadingMore \|\| !hasMoreResults\) return;/);
+test("the picker matches the whole brand/manufacturer selection", () => {
+  // Filtering now runs in memory over the full catalog, so the entire multi-selection
+  // reaches the shared POS matcher rather than a server param.
+  assert.match(picker, /genders: normalizeMultiFilterValue\(gender\)\.map\(normalizeAudienceValue\),\s*\n\s*brands: brand,\s*\n\s*manufacturers: manufacturer,/);
 });
 
 test("the pricing/stock pipeline is still the shared one", () => {

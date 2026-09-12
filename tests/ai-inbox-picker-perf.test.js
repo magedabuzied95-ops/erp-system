@@ -19,8 +19,15 @@ const controller = fs.readFileSync(new URL("../server/controllers/productsContro
 
 const catalogEffect = picker.slice(
   picker.indexOf("if (sizeMode && !sizeCatalogFallback) return undefined;"),
-  picker.indexOf("}, [open, sizeMode, sizeCatalogFallback, search, serverFilters]);")
+  picker.indexOf("}, [open, sizeMode, sizeCatalogFallback, t]);")
 );
+
+// 2026-09: the bounded 24-row page was reverted for product-card mode. Every POS
+// filter count and brand/factory chip was computed from that one page, so the
+// order picker's filter drawer read 0 everywhere and most models never showed.
+// It now uses the SAME warm catalog as the PWA "إرسال منتج" sheet: the IndexedDB
+// snapshot paints first and the multi-MB download only runs when the catalog
+// watermark moved. Search and filters run in memory over the whole catalog.
 
 // ---- no full catalog on picker open --------------------------------------
 
@@ -30,20 +37,20 @@ test('"إرسال منتج" opens the picker in product-card mode (not sizeMode)
   assert.match(inbox, /sizeMode: Boolean\(options\.sizeMode\)/);
 });
 
-test("product-card mode never downloads the whole catalog", () => {
-  // loadCustomerProductCatalog is now reachable ONLY from the sizeMode fallback.
+test("product-card mode loads every model through the warm catalog, not one page", () => {
   assert.match(catalogEffect, /if \(sizeMode\) \{/);
   const afterSizeGuard = catalogEffect.slice(catalogEffect.indexOf("// Product-card mode"));
   assert.ok(afterSizeGuard.length > 0, "product-card branch must exist");
-  assert.doesNotMatch(afterSizeGuard, /loadCustomerProductCatalog/);
-  assert.match(afterSizeGuard, /searchCustomerProducts\(/);
+  assert.match(afterSizeGuard, /loadCustomerProductCatalogWarm\(\{/);
+  assert.doesNotMatch(afterSizeGuard, /searchCustomerProducts\(/, "a bounded page starves the filter counts");
+  assert.match(afterSizeGuard, /onSnapshot: /, "the cached snapshot must paint before the revalidation");
 });
 
-test("the bounded request carries an explicit limit", () => {
-  assert.match(picker, /searchCustomerProducts\(\{ search: term, filters: serverFilters, page: 1, limit: PICKER_PAGE_SIZE/);
+test("the rendered list grows in steps without refetching", () => {
+  assert.match(picker, /const PICKER_RENDER_STEP = \d+;/);
+  assert.match(picker, /visibleProducts\.slice\(0, visibleLimit\)/);
+  assert.match(picker, /setVisibleLimit\(\(current\) => current \+ PICKER_RENDER_STEP\)/);
   assert.match(query, /export const PICKER_PAGE_SIZE = (\d+)/);
-  const size = Number((query.match(/export const PICKER_PAGE_SIZE = (\d+)/) || [])[1]);
-  assert.ok(size > 0 && size <= 48, `page size ${size} must be within the server cap of 48`);
 });
 
 test("an absent limit is exactly what made the server return everything", () => {
@@ -76,30 +83,21 @@ test("no bespoke price or stock maths was introduced in the picker service", () 
 
 // ---- search behaviour ----------------------------------------------------
 
-test("search is server-side, debounced, abortable and stale-guarded", () => {
-  assert.match(catalogEffect, /const controller = new AbortController\(\);/);
-  assert.match(catalogEffect, /signal: controller\.signal/);
-  assert.match(catalogEffect, /const delay = term && isNewQuery \? 300 : 0;/);
-  assert.match(catalogEffect, /requestId !== searchRequestIdRef\.current\) return;/);
-  assert.match(catalogEffect, /controller\.abort\(\);/);
-});
-
-test("the effect re-runs on search AND on filter changes so both query the server", () => {
-  // Membership, not an exact array. Pinning the literal list meant that adding a
-  // legitimate dependency — `t`, once the picker was localized — failed a test whose
-  // subject is which CHANGES retrigger the fetch. The named deps are the ones that
-  // must never be dropped: losing `search` or `serverFilters` silently returns stale
-  // results for a query the customer already changed.
+test("search and filters never refetch the catalog", () => {
+  // Typing or picking a chip filters the loaded catalog in memory; re-running the
+  // loader per keystroke would re-download or re-read the snapshot each time.
   const deps = picker.match(/\}, \[open, sizeMode, sizeCatalogFallback[^\]]*\]\);/);
   assert.ok(deps, "the catalog effect's dependency array must still be recognisable");
-  for (const dep of ["open", "sizeMode", "sizeCatalogFallback", "search", "serverFilters"]) {
+  for (const dep of ["open", "sizeMode", "sizeCatalogFallback"]) {
     assert.ok(deps[0].includes(dep), `dependency array must still include ${dep}`);
   }
+  assert.ok(!/\bsearch\b/.test(deps[0]), "search must not retrigger the catalog load");
+  assert.match(picker, /return matchesQuery\(product, search\);/);
 });
 
-test("an aborted request never surfaces as an error to the user", () => {
-  assert.match(catalogEffect, /err\?\.name === "AbortError"/);
-  assert.match(catalogEffect, /ERR_CANCELED/);
+test("a closed picker drops a late catalog response", () => {
+  assert.match(catalogEffect, /if \(!active\) return;/);
+  assert.match(catalogEffect, /active = false;/);
 });
 
 test("the server search covers name, barcode, SKU and variant article codes", () => {
@@ -144,12 +142,6 @@ test("sale-mode settings are cached separately, not refetched per keystroke", ()
   assert.match(service, /if \(saleModeRequest\) return saleModeRequest;/);
 });
 
-test("reopening with an unchanged term skips the debounce", () => {
-  // The signature now covers search AND filters, so an unchanged query — not just
-  // an unchanged term — is what skips the debounce.
-  assert.match(catalogEffect, /const isNewQuery = querySignature !== lastSearchTermRef\.current;/);
-});
-
 test("nothing sensitive is cached", () => {
   const added = service.slice(service.indexOf("// ---- Bounded, search-first"));
   for (const banned of ["token", "Authorization", "password", "credential"]) {
@@ -164,7 +156,7 @@ test("the modal shell renders independently of product loading", () => {
   // old anchor was absent and `indexOf` returned -1 — slicing from -700 silently
   // scanned the wrong end of the file and the assertion became meaningless rather than
   // failing honestly. Anchor on the key, and prove the anchor exists first.
-  const anchor = 't("aiSupport.inbox.picker.loading")';
+  const anchor = 't("aiSupport.inbox.picker.loadingCatalog")';
   const at = picker.indexOf(anchor);
   assert.ok(at > 0, "the loading indicator must still exist to be scoped");
 

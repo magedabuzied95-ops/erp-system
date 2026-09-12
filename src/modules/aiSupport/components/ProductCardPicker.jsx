@@ -7,7 +7,7 @@ import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../uti
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
-import { loadCustomerProductCatalog, searchCustomerProducts, PICKER_PAGE_SIZE } from "../services/customerProductCatalog";
+import { loadCustomerProductCatalog, loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
 import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
@@ -20,6 +20,8 @@ import "./ProductLinkPicker.m1.css";
 import { useTheme } from "../../../theme/useTheme";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
+// Rows rendered per "show more" step; the catalog itself is loaded in full.
+const PICKER_RENDER_STEP = 80;
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const money = (value) => formatCurrency(value);
@@ -433,32 +435,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // A restock request is about a size that is NOT in stock: show sold-out
   // products and sizes there, everywhere else the picker only offers what can ship.
   const stockFilter = restockMode ? "all" : "in_stock";
-  // Filters the SERVER applies across the whole catalog. Previously every POS
-  // smart filter ran client-side over the current page, so a filter could only
-  // ever match among the 24 rows that happened to be fetched — picking a brand
-  // showed "1 product" while many more matched in the ERP. The client predicates
-  // below are kept as a harmless second pass (they also cover the multi-select
-  // case the endpoint cannot express yet: it accepts one brand/manufacturer, so
-  // only a single selection is pushed server-side).
-  const singleValue = (value) => {
-    const values = asArray(value).map((item) => clean(item)).filter(Boolean);
-    return values.length === 1 ? values[0] : "";
-  };
-  // brand/manufacturer are multi-select: the ENTIRE selection now goes to the
-  // server, which matches any of them (OR within the filter) and ANDs that
-  // against the other filters. Previously only a single selection was pushed
-  // server-side, so picking two brands fell back to filtering the current page.
-  const selectedList = (value) => asArray(value).map((item) => clean(item)).filter(Boolean);
-  const serverFilters = useMemo(() => ({
-    brand: selectedList(brand),
-    manufacturer: selectedList(manufacturer),
-    gender: singleValue(gender),
-    product_type: productType && productType !== "all" ? productType : "",
-    grade: grade && grade !== "all" ? grade : "",
-    color: filterColor !== "all" ? filterColor : "",
-    size: filterSize !== "all" ? filterSize : "",
-    inStockOnly: stockFilter === "in_stock",
-  }), [brand, manufacturer, gender, productType, grade, filterColor, filterSize, stockFilter]);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -486,15 +462,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // fall back to deriving sizes/facets/counts from the full catalog like before.
   const [sizeCatalogFallback, setSizeCatalogFallback] = useState(false);
   const previousOpenRef = useRef(false);
-  // Newest-wins guard for the server-side product search, plus the last term we
-  // actually committed (used to skip the debounce when the term did not change,
-  // e.g. reopening the picker — that path should feel instant).
-  const searchRequestIdRef = useRef(0);
-  const lastSearchTermRef = useRef(null);
-  const [resultTotal, setResultTotal] = useState(null);
-  const [hasMoreResults, setHasMoreResults] = useState(false);
-  const [resultPage, setResultPage] = useState(1);
-  const [loadingMore, setLoadingMore] = useState(false);
+  // The whole catalog is in memory, so "show more" only reveals rows already
+  // loaded — it never waits on the network.
+  const [visibleLimit, setVisibleLimit] = useState(PICKER_RENDER_STEP);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
   // shared SmartPosFilters drawer, instead of the lightweight PWA list.
@@ -540,78 +510,44 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       };
     }
 
-    // Product-card mode ("إرسال منتج"): fetch ONE bounded, server-filtered page
-    // instead of the whole catalog. Same endpoint and same normalization/pricing
-    // pipeline as before — only bounded — so prices and stock stay identical.
-    // The modal shell, search box and filter button already render independently
-    // of `loading`, so only the results area waits. Debounced + aborted +
-    // stale-guarded: typing never queues a pile of requests and a slow earlier
-    // response can never overwrite a newer one.
-    const term = clean(search);
-    const controller = new AbortController();
-    const requestId = searchRequestIdRef.current + 1;
-    searchRequestIdRef.current = requestId;
-    const querySignature = `${term}|${JSON.stringify(serverFilters)}`;
-    const isNewQuery = querySignature !== lastSearchTermRef.current;
-    const delay = term && isNewQuery ? 300 : 0;
-    let cancelled = false;
+    // Product-card mode ("إرسال منتج" / order / restock): the WHOLE catalog, the
+    // same warm source the PWA product sheet uses. It used to be one server page
+    // of 24 rows, and every POS filter count and brand/factory chip was computed
+    // from that page — so the drawer showed 0 everywhere and most models never
+    // appeared. The persisted snapshot paints instantly; the network only runs
+    // when the catalog watermark moved. Search and filters then run in memory.
+    let active = true;
     setError("");
     setLoading(true);
-    const timer = window.setTimeout(() => {
-      // page 1 for any new query — changing a filter must restart pagination,
-      // never append onto results from the previous filter.
-      searchCustomerProducts({ search: term, filters: serverFilters, page: 1, limit: PICKER_PAGE_SIZE, signal: controller.signal })
-        .then(({ products: data, total, hasMore }) => {
-          if (cancelled || requestId !== searchRequestIdRef.current) return;
-          lastSearchTermRef.current = querySignature;
-          setProducts(asArray(data));
-          setResultTotal(total);
-          setHasMoreResults(Boolean(hasMore));
-          setResultPage(1);
-        })
-        .catch((err) => {
-          if (cancelled || requestId !== searchRequestIdRef.current) return;
-          if (err?.name === "AbortError" || err?.name === "CanceledError" || err?.code === "ERR_CANCELED") return;
-          setError(err?.message || t("aiSupport.inbox.picker.catalogLoadFailed"));
-        })
-        .finally(() => {
-          if (!cancelled && requestId === searchRequestIdRef.current) setLoading(false);
-        });
-    }, delay);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [open, sizeMode, sizeCatalogFallback, search, serverFilters, t]);
-
-  // Append the next page of MATCHES. One in-flight request per page, and the
-  // result is merged by product id so rapid clicking cannot duplicate rows.
-  const loadMoreProducts = useCallback(() => {
-    if (sizeMode || loadingMore || !hasMoreResults) return;
-    const nextPage = resultPage + 1;
-    const requestId = searchRequestIdRef.current;
-    setLoadingMore(true);
-    searchCustomerProducts({ search: clean(search), filters: serverFilters, page: nextPage, limit: PICKER_PAGE_SIZE })
-      .then(({ products: data, total, hasMore }) => {
-        // A filter/search change during the fetch bumps the sequence — drop this.
-        if (requestId !== searchRequestIdRef.current) return;
-        setProducts((current) => {
-          const seen = new Set(asArray(current).map((item) => String(item?.id ?? item?.product_id ?? "")));
-          const fresh = asArray(data).filter((item) => !seen.has(String(item?.id ?? item?.product_id ?? "")));
-          return [...asArray(current), ...fresh];
-        });
-        setResultTotal(total);
-        setHasMoreResults(Boolean(hasMore));
-        setResultPage(nextPage);
+    loadCustomerProductCatalogWarm({
+      onSnapshot: ({ products: data }) => {
+        if (!active) return;
+        setProducts(asArray(data));
+        setLoading(false);
+      },
+    })
+      .then(({ products: data } = {}) => {
+        if (active && asArray(data).length) setProducts(asArray(data));
       })
-      .catch(() => {})
-      .finally(() => setLoadingMore(false));
-  }, [sizeMode, loadingMore, hasMoreResults, resultPage, search, serverFilters]);
+      .catch((err) => {
+        if (active) setError(err?.message || t("aiSupport.inbox.picker.catalogLoadFailed"));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, sizeMode, sizeCatalogFallback, t]);
+
+  // A new search or filter starts from the top of the list again.
+  useEffect(() => {
+    setVisibleLimit(PICKER_RENDER_STEP);
+  }, [search, brand, manufacturer, gender, productType, grade]);
 
   // Product-card mode: pull the brand/type facets once from the same tiny
-  // endpoint the size flow uses, so the POS filter dropdowns stay complete even
-  // though the results list is now a single bounded page. Facets only — the size
+  // endpoint the size flow uses, so the dropdowns are complete before the catalog
+  // finishes loading. Facets only — the size
   // list and match count are sizeMode concerns. Never blocks the results area.
   useEffect(() => {
     if (!open || sizeMode) return undefined;
@@ -1604,7 +1540,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 )
               ) : visibleProducts.length ? (
                 <div className={posPickerMode ? "grid grid-cols-2 gap-2" : desktopInboxMode ? "ai-inbox-product-picker-desktop__product-grid grid gap-3" : "grid gap-2"}>
-                  {visibleProducts.slice(0, 80).map((product) => {
+                  {visibleProducts.slice(0, visibleLimit).map((product) => {
                     const isActive = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
                     const isSelected = selectedProductIds.includes(String(product.product_id || product.id || ""));
                     const previewVariant = findMatchingVariant(product, isActive ? selectedColor : "", isActive ? selectedSize : "") || asArray(product.variants)[0] || null;
@@ -1670,23 +1606,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                       </button>
                     );
                   })}
-                  {/* Results are server-filtered pages, so "load more" fetches the
-                      next page of MATCHES rather than revealing already-loaded rows.
-                      The total comes from a COUNT over the same WHERE, which is what
-                      distinguishes "only 1 match exists" from "filtering is broken". */}
-                  {!sizeMode && hasMoreResults ? (
+                  {visibleProducts.length > visibleLimit ? (
                     <button
                       type="button"
-                      onClick={loadMoreProducts}
-                      disabled={loadingMore}
-                      className="col-span-full mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-xs font-black text-slate-100 transition hover:border-amber-300/25 disabled:opacity-50"
+                      onClick={() => setVisibleLimit((current) => current + PICKER_RENDER_STEP)}
+                      className="col-span-full mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-xs font-black text-slate-100 transition hover:border-amber-300/25"
                     >
-                      {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                      {loadingMore
-                        ? t("aiSupport.inbox.picker.loading")
-                        : resultTotal !== null
-                          ? t("aiSupport.inbox.picker.loadMoreProgress", { visible: visibleProducts.length, total: resultTotal })
-                          : t("aiSupport.inbox.picker.loadMore")}
+                      {t("aiSupport.inbox.picker.loadMoreProgress", { visible: visibleLimit, total: visibleProducts.length })}
                     </button>
                   ) : null}
                 </div>
