@@ -1053,6 +1053,124 @@ export const getStatus = async ({ instance = "" } = {}) => {
   return { ...current, configured: true, connected, state: state || "unknown", raw: data };
 };
 
+/* ==========================================================================================
+ * WhatsApp profile name (Baileys / WhatsApp Web transport).
+ *
+ * This is the name WhatsApp shows above a chat to someone who has NOT saved the number —
+ * on Evolution it is the account's own "push name", the same field the WhatsApp app edits
+ * under Settings > Profile. Evolution v2.4 exposes it as POST /chat/updateProfileName.
+ *
+ * It does NOT log the device out, does not touch the socket, and does not affect webhooks,
+ * the outbound queue or Status/Story publishing: Baileys sends a single presence-level
+ * profile update over the live session. A dropped session is the one case it cannot run,
+ * which is why the caller is told to connect first rather than being handed a socket error.
+ *
+ * What it is NOT: a verified business display name. That is an OBA/Meta Verified property of
+ * a WhatsApp Business Account on the Cloud API, granted by Meta review — nothing in this
+ * transport can grant it. See docs/decisions/whatsapp-profile-name-vs-business-name.md.
+ * ========================================================================================== */
+
+// WhatsApp truncates a push name past 25 characters, so a longer one would be silently
+// cut on the customer's screen rather than rejected here.
+const WHATSAPP_PROFILE_NAME_MAX = 25;
+const EVOLUTION_PROFILE_TIMEOUT_MS = 15000;
+
+const evolutionInstanceRecord = async (instanceName) => {
+  const payload = await evolutionFetch(
+    `/instance/fetchInstances?instanceName=${encodeURIComponent(instanceName)}`,
+    { method: "GET", timeoutMs: EVOLUTION_PROFILE_TIMEOUT_MS }
+  );
+  const list = Array.isArray(payload) ? payload : Array.isArray(payload?.instances) ? payload.instances : [payload];
+  // Evolution moved this shape between versions: a flat record on 2.4, wrapped in
+  // {instance: {...}} on older builds. Read both, then pick the one we asked for —
+  // an unfiltered build answers with every instance on the server.
+  const records = list.filter(Boolean).map((entry) => entry?.instance || entry);
+  return records.find((entry) => text(entry?.name || entry?.instanceName) === instanceName) || records[0] || null;
+};
+
+const whatsappProfileShape = (instanceName, record) => ({
+  instanceName,
+  profile_name: text(record?.profileName || record?.profile_name || ""),
+  profile_picture_url: text(record?.profilePicUrl || record?.profilePictureUrl || ""),
+  owner_jid: text(record?.ownerJid || record?.owner || ""),
+  connection_status: text(record?.connectionStatus || record?.status || ""),
+});
+
+export const getWhatsappProfile = async ({ instance = "" } = {}) => {
+  if (isCloudTransport(instance)) {
+    throw gatewayError(
+      "Profile name is read from the Meta WhatsApp Manager for a Cloud number, not from this gateway",
+      "WHATSAPP_PROFILE_CLOUD_UNSUPPORTED",
+      409
+    );
+  }
+  const current = requireEvolutionConfig(instance);
+  const record = await evolutionInstanceRecord(current.instanceName);
+  return whatsappProfileShape(current.instanceName, record);
+};
+
+export const updateWhatsappProfileName = async ({ instance = "", name = "" } = {}) => {
+  if (isCloudTransport(instance)) {
+    throw gatewayError(
+      "A Cloud number's display name is changed in the Meta WhatsApp Manager and reviewed by Meta, not through this gateway",
+      "WHATSAPP_PROFILE_CLOUD_UNSUPPORTED",
+      409
+    );
+  }
+  const desired = text(name);
+  if (!desired) throw gatewayError("A profile name is required", "WHATSAPP_PROFILE_NAME_REQUIRED", 400);
+  if (desired.length > WHATSAPP_PROFILE_NAME_MAX) {
+    throw gatewayError(
+      `A WhatsApp profile name is at most ${WHATSAPP_PROFILE_NAME_MAX} characters`,
+      "WHATSAPP_PROFILE_NAME_TOO_LONG",
+      400
+    );
+  }
+
+  const current = requireEvolutionConfig(instance);
+
+  // Refuse on a dead session instead of letting Baileys throw "Connection Closed".
+  // The write needs the live socket, and the operator's next step is the QR, not a retry.
+  const status = await getStatus({ instance: current.instanceName }).catch(() => null);
+  if (!status?.connected) {
+    throw gatewayError(
+      "WhatsApp is not connected, so the profile name cannot be changed. Re-pair the session first.",
+      "WHATSAPP_NOT_CONNECTED",
+      409
+    );
+  }
+
+  const before = await evolutionInstanceRecord(current.instanceName).catch(() => null);
+  const previousName = text(before?.profileName || "");
+
+  await evolutionFetch(`/chat/updateProfileName/${encodeURIComponent(current.instanceName)}`, {
+    method: "POST",
+    body: JSON.stringify({ name: desired }),
+    timeoutMs: EVOLUTION_PROFILE_TIMEOUT_MS,
+  });
+
+  // Evolution answers the update before its own instance row has caught up, so a read
+  // taken immediately can still show the old name. Report what Evolution confirms, and
+  // keep the requested name separate from the read-back so a stale row never reads as
+  // a failed write.
+  const after = await evolutionInstanceRecord(current.instanceName).catch(() => null);
+  const readBack = text(after?.profileName || "");
+
+  console.info("[whatsapp:profile-name-updated]", {
+    instanceName: current.instanceName,
+    previousName,
+    requestedName: desired,
+    readBack,
+  });
+
+  return {
+    ...whatsappProfileShape(current.instanceName, after || before),
+    requested_name: desired,
+    previous_name: previousName,
+    changed: readBack !== previousName || previousName !== desired,
+  };
+};
+
 // Pairing material for a dropped session.
 //
 // A WhatsApp session dies on its own — the phone is offline too long, the

@@ -7,6 +7,7 @@ import {
   connectInstance,
   getRecentEvolutionWebhookEvents,
   getStatus,
+  getWhatsappProfile,
   handleIncomingWebhook,
   loadOrderForWhatsapp,
   mayDecideOrderConfirmation,
@@ -15,6 +16,7 @@ import {
   sendWhatsAppButtonsDebugTest,
   syncWhatsappCustomerProfilePictures,
   triggerWhatsappAiAutoReply,
+  updateWhatsappProfileName,
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
 import { applyConfirmationAction, processConfirmationReply, sendOrderConfirmation } from "../services/whatsappOrderConfirmationService.js";
@@ -406,6 +408,36 @@ router.post("/instance/connect", protect, permit("settings", "edit"), async (req
     return res.json({ success: true, ...result });
   } catch (error) {
     return sendError(res, error, "Failed to start WhatsApp pairing");
+  }
+});
+
+// The name a customer who has not saved the number sees above the chat. Read and write
+// both sit behind settings, because this is the shop's public identity on WhatsApp — and
+// the Evolution API key never leaves the server, exactly as the pairing route keeps it.
+router.get("/profile", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const profile = await getWhatsappProfile({ instance: req.query?.instance || "" });
+    return res.json({ success: true, profile });
+  } catch (error) {
+    return sendError(res, error, "Failed to load the WhatsApp profile");
+  }
+});
+
+router.post("/profile/name", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const result = await updateWhatsappProfileName({
+      instance: req.body?.instance || "",
+      name: req.body?.name || "",
+    });
+    console.info("[whatsapp:profile-name-change]", {
+      instanceName: result.instanceName,
+      requestedName: result.requested_name,
+      previousName: result.previous_name,
+      userId: req.user?.id || null,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to update the WhatsApp profile name");
   }
 });
 
