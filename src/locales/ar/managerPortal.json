@@ -258,7 +258,9 @@
     "salesToday": "مبيعات اليوم",
     "invoicesToday": "الفواتير اليوم",
     "attendanceNow": "الحضور الآن",
-    "pendingApprovals": "اعتمادات معلقة"
+    "pendingApprovals": "اعتمادات معلقة",
+    "onlineToday": "أونلاين اليوم",
+    "onlineOrders": "{{n}} طلب · غير نقطة البيع"
   },
   "errors": {
     "loadPortal": "تعذر تحميل بوابة المدير.",

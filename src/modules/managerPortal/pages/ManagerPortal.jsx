@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Suspense, lazy, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
@@ -26,6 +26,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Globe,
   Loader2,
   MessageSquare,
   Megaphone,
@@ -1399,6 +1400,7 @@ export default function ManagerPortal() {
       ? [
           { label: tt("managerPortal.kpi.salesToday"), value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: "cyan", emphasis: true },
           { label: tt("managerPortal.kpi.invoicesToday"), value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "slate", emphasis: true },
+          { label: tt("managerPortal.kpi.onlineToday"), value: formatCurrency(dashboard?.online_sales_total || 0), icon: Globe, tone: "blue", emphasis: true },
           { label: tt("managerPortal.kpi.attendanceNow"), value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
           { label: tt("managerPortal.kpi.pendingApprovals"), value: formatNumber(pendingInventoryApprovalsCount || 0), icon: CheckCircle2, tone: "amber" },
         ]
@@ -2883,8 +2885,9 @@ export default function ManagerPortal() {
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
                     <MiniMetric label={tt("managerPortal.kpi.salesToday")} value={formatCurrency(dashboard?.today_sales_total || 0)} icon={ShoppingCart} tone="green" />
+                    <MiniMetric label={tt("managerPortal.kpi.onlineToday")} value={formatCurrency(dashboard?.online_sales_total || 0)} sub={tt("managerPortal.kpi.onlineOrders", { n: formatNumber(dashboard?.online_order_count || 0) })} icon={Globe} tone="blue" />
                     <MiniMetric label={tt("managerPortal.stats.invoiceCount")} value={formatNumber(dashboard?.invoice_count || 0)} icon={ClipboardList} tone="cyan" />
                     <MiniMetric label={tt("managerPortal.sections.hotLeads")} value={formatNumber(dedupedLeads.length || 0)} icon={Bot} tone="red" />
                     <MiniMetric label={tt("managerPortal.notifications.categories.employeeChat")} value={formatNumber(employeeMessageNotifications.length || 0)} icon={MessageSquare} tone="blue" />

@@ -258,7 +258,9 @@
     "salesToday": "Today's sales",
     "invoicesToday": "Today's invoices",
     "attendanceNow": "Attendance now",
-    "pendingApprovals": "Pending approvals"
+    "pendingApprovals": "Pending approvals",
+    "onlineToday": "Online today",
+    "onlineOrders": "{{n}} orders · not POS"
   },
   "errors": {
     "loadPortal": "Unable to load the manager portal.",

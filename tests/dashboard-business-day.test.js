@@ -49,6 +49,20 @@ test("the dashboard's today and yesterday are 05:00 trading days; wider ranges s
   assert.match(overview, /onlineSales: \{ value: toNumber\(onlineToday\[0\]\?\.sales\)/);
 });
 
+test("the manager portal shows online as its own card, never inside the shop's sales", () => {
+  const service = read("../server/services/managerPortalService.js");
+  const fn = service.slice(service.indexOf("export const getManagerPortalDashboard"), service.indexOf("export const getManagerPortalStaff"));
+  assert.match(fn, /excludeOnline: true \}/, "the sales figure stays shop-only");
+  assert.match(fn, /\$\{onlineOnly\}\s+`,\s+\[tenantId, windowStart, windowEnd\]/, "same day window as the sales card");
+  assert.match(fn, /online_sales_total: Number\(onlineRows\?\.\[0\]\?\.sales/);
+  const portal = read("../src/modules/managerPortal/pages/ManagerPortal.jsx");
+  assert.equal((portal.match(/tt\("managerPortal\.kpi\.onlineToday"\)/g) || []).length, 2, "desktop and mobile");
+  for (const lang of ["ar", "en"]) {
+    const kpi = JSON.parse(read(`../src/locales/${lang}/managerPortal.json`)).kpi;
+    assert.ok(kpi.onlineToday && kpi.onlineOrders.includes("{{n}}"), lang);
+  }
+});
+
 test("the page draws the online card and the hours from 05 to 04", () => {
   const page = read("../src/pages/Dashboard.jsx");
   assert.match(page, /k\.onlineSales\?\.value/);

@@ -32,7 +32,7 @@ import { listEmployeePortalRequests, reviewEmployeePortalRequest } from "./emplo
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
 import { diffOperationItems } from "../utils/orderOperationDiff.js";
-import { shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
+import { onlineOnlyOrderClause, shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
 import { attachOperationVariantLabels } from "../utils/operationVariantLabels.js";
 
 const tokenBytes = 32;
@@ -903,7 +903,8 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
   // اليوم is the shop's own day: online orders are counted on أوردرات الشحن only (owner
   // request 2026-09-10). Set AFTER the ...filters spread so no query string can undo it.
   const shopOnly = await shopOnlyOrderClause({ alias: "o" });
-  const [overview, staffDashboard, lowStock, aiInsights, refillAlerts, paymentBreakdown, leads, attendanceRows] = await Promise.all([
+  const onlineOnly = await onlineOnlyOrderClause({ alias: "o" });
+  const [overview, staffDashboard, lowStock, aiInsights, refillAlerts, paymentBreakdown, leads, attendanceRows, onlineRows] = await Promise.all([
     getDashboardOverview({ tenantId, filters: { ...filters, branchId: branchId || filters.branchId || null, range: "today", windowStart, windowEnd, excludeOnline: true } }),
     getStaffTaskDashboard({ tenantId, branchId }),
     getLowStock({ tenantId, limit: 12 }),
@@ -995,6 +996,27 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
       branchId ? [tenantId, branchId] : [tenantId],
       []
     ),
+    // The أونلاين card (owner request 2026-09-12): the day's online orders, kept OUT of the sales
+    // figure beside it. Same day window and the exact complement of shopOnly, so the two cards add
+    // up to the ERP dashboard's total. No branch filter on purpose — أوردرات الشحن shows every
+    // branch's online orders, and this card has to agree with that board, not with the till.
+    tableExists("orders").then((ordersExist) => (ordersExist
+      ? safeQuery(
+          `
+          SELECT
+            COALESCE(SUM(COALESCE(o.total_amount, o.total, 0)), 0) AS sales,
+            COUNT(*)::int AS orders
+          FROM orders o
+          WHERE o.created_at >= $2 AND o.created_at < $3
+            AND ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+            AND LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+            ${personalOrderClause("o")}
+            ${onlineOnly}
+          `,
+          [tenantId, windowStart, windowEnd],
+          []
+        )
+      : [])).catch(() => []),
   ]);
 
   const todaySales = Number(overview?.today?.sales || 0);
@@ -1019,6 +1041,8 @@ export const getManagerPortalDashboard = async ({ manager = {}, filters = {}, pr
     generated_at: new Date().toISOString(),
     today_sales_total: todaySales,
     invoice_count: Number(overview?.today?.orders || 0),
+    online_sales_total: Number(onlineRows?.[0]?.sales || 0),
+    online_order_count: Number(onlineRows?.[0]?.orders || 0),
     payment_breakdown: paymentBreakdown,
     active_employees_now: activeEmployeesNow,
     late_employees: lateEmployees,
