@@ -123,10 +123,17 @@ const run = async () => {
     { label: "apply label", path: `/label/handleLabel/${instance}` },
     { label: "archive chat", path: `/chat/archiveChat/${instance}` },
     { label: "mark chat unread", path: `/chat/markChatUnread/${instance}` },
-    { label: "block contact", path: `/message/updateBlockStatus/${instance}` },
+    // Both spellings are probed on purpose. `/message/updateBlockStatus` is what the Evolution
+    // docs show and it 404s on v2.3.7; `/chat/` is where this build actually keeps it, and where
+    // every other contact operation already lives. Keeping the losing candidate in the list
+    // means a build that moves it back announces itself instead of failing silently.
+    { label: "block contact (chat — what we call)", path: `/chat/updateBlockStatus/${instance}` },
+    { label: "block contact (message — docs spelling)", path: `/message/updateBlockStatus/${instance}`, optional: true },
     { label: "recall message", path: `/chat/deleteMessageForEveryone/${instance}`, method: "DELETE" },
-    { label: "contact profile", path: `/chat/fetchProfile/${instance}` },
-    { label: "business profile", path: `/chat/fetchBusinessProfile/${instance}` },
+    // Reads, so a 200 to an empty body is the endpoint answering about the instance itself —
+    // expected, and nothing was written.
+    { label: "contact profile", path: `/chat/fetchProfile/${instance}`, read: true },
+    { label: "business profile", path: `/chat/fetchBusinessProfile/${instance}`, read: true },
     // GET, and with no groupJid on purpose — probed with the verb it is actually called with,
     // because Express answers a known path called with the wrong method with a 404 too.
     { label: "group invite code", path: `/group/inviteCode/${instance}`, method: "GET" },
@@ -141,21 +148,25 @@ const run = async () => {
     const result = await probe({ ...entry, method, body: method === "GET" ? null : {} });
     // A 400 here is the GOOD answer: the route exists and refused an empty payload.
     const verdict = result.status === 404
-      ? "NOT FOUND — wrong path OR wrong method for this build"
+      ? entry.optional
+        ? "not on this build (expected — we call the other spelling)"
+        : "NOT FOUND — wrong path OR wrong method for this build"
       : result.status === 400 || result.status === 422
         ? "EXISTS (empty body refused, as expected)"
         : result.status === 401 || result.status === 403
           ? "AUTH — the api key was refused"
           : result.status === 0
             ? result.verdict
-            : `EXISTS but answered ${result.status} to an empty body — check it did nothing`;
-    shapeResults.push({ ...result, verdict });
+            : entry.read
+              ? "EXISTS (a read, answered about the instance itself)"
+              : `EXISTS but answered ${result.status} to an empty body — check it did nothing`;
+    shapeResults.push({ ...result, verdict, optional: entry.optional === true });
   }
   for (const result of shapeResults) {
     console.log(`${result.verdict.padEnd(52)} ${result.label}  [${result.status}] ${result.path}`);
   }
 
-  const broken = [...results, ...shapeResults].filter((result) => result.status === 404);
+  const broken = [...results, ...shapeResults].filter((result) => result.status === 404 && result.optional !== true);
   console.log("");
   if (broken.length) {
     console.log(`${broken.length} endpoint(s) are not on this build — fix the path in whatsappCapabilitiesService before enabling the feature that uses it:`);

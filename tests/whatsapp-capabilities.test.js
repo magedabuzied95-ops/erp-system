@@ -12,6 +12,7 @@ import {
   sendWhatsappPoll,
   sendWhatsappPresence,
   sendWhatsappStatus,
+  setWhatsappBlockStatus,
   whatsappNumberIsReachable,
 } from "../server/services/whatsappCapabilitiesService.js";
 import { extractWhatsappCallEvent } from "../server/services/whatsappGatewayService.js";
@@ -179,6 +180,22 @@ test("a broken number check never becomes a reason to stop messaging customers",
   assert.equal(result.reachable, false);
   assert.equal(result.known, true);
   assert.equal(result.reason, "not_on_whatsapp");
+});
+
+test("blocking a contact goes to the path the live build actually has", async () => {
+  // Proven against v2.3.7 on 2026-09-12: `/message/updateBlockStatus` — the spelling in the
+  // Evolution docs — answers 404, and blocking lives under `/chat/` with every other contact
+  // operation. A wrong path here fails exactly like a feature that does not work.
+  const { calls } = await withStubbedGateway({}, () =>
+    setWhatsappBlockStatus({ phone: "01012345678", blocked: true })
+  );
+  assert.match(calls[0].url, /\/chat\/updateBlockStatus\/m1-test$/);
+  assert.equal(calls[0].body.status, "block");
+
+  const { calls: unblockCalls } = await withStubbedGateway({}, () =>
+    setWhatsappBlockStatus({ phone: "01012345678", blocked: false })
+  );
+  assert.equal(unblockCalls[0].body.status, "unblock");
 });
 
 test("a WhatsApp call is recognised in every shape Evolution sends it", () => {
