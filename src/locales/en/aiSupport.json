@@ -1731,6 +1731,7 @@
       "searchPlaceholder": "Search by product name or barcode",
       "smartPosFilters": "Smart POS filters",
       "loadingCatalog": "Loading product catalogue...",
+      "loadingAllModels": "Loading the rest of the models...",
       "product": "Product",
       "sizeValue": "Size: {{size}}",
       "noCardsForSize": "No cards are available for this size",

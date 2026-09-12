@@ -1739,6 +1739,7 @@
       "searchPlaceholder": "ابحث باسم المنتج أو الباركود",
       "smartPosFilters": "فلاتر نقطة البيع الذكية",
       "loadingCatalog": "جاري تحميل كتالوج المنتجات...",
+      "loadingAllModels": "بيتحمّل باقي الموديلات...",
       "product": "منتج",
       "sizeValue": "المقاس: {{size}}",
       "noCardsForSize": "لا توجد بطاقات متاحة لهذا المقاس",

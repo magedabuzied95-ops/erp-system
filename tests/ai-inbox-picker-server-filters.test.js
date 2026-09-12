@@ -133,7 +133,8 @@ test("pages are cached separately", () => {
 // serves other bounded callers.
 
 test("the picker filters the whole catalog in memory", () => {
-  assert.doesNotMatch(picker, /searchCustomerProducts\(/);
+  // The only bounded request left is the unfiltered head-start page; filters never reach it.
+  assert.doesNotMatch(picker, /searchCustomerProducts\(\{[^}]*search: /);
   assert.match(picker, /const filteredProducts = useMemo\(\(\) => smartFilterSource\.filter/);
 });
 

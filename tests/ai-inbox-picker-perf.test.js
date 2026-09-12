@@ -42,8 +42,25 @@ test("product-card mode loads every model through the warm catalog, not one page
   const afterSizeGuard = catalogEffect.slice(catalogEffect.indexOf("// Product-card mode"));
   assert.ok(afterSizeGuard.length > 0, "product-card branch must exist");
   assert.match(afterSizeGuard, /loadCustomerProductCatalogWarm\(\{/);
-  assert.doesNotMatch(afterSizeGuard, /searchCustomerProducts\(/, "a bounded page starves the filter counts");
   assert.match(afterSizeGuard, /onSnapshot: /, "the cached snapshot must paint before the revalidation");
+});
+
+test("a cold tab paints one bounded page only until the full catalog lands", () => {
+  const afterSizeGuard = catalogEffect.slice(catalogEffect.indexOf("// Product-card mode"));
+  // The head-start page must never replace the full catalog once it is shown.
+  assert.match(afterSizeGuard, /if \(!fullCatalogShown\) \{\s*\n\s*setCatalogPartial\(true\);/);
+  assert.match(afterSizeGuard, /if \(!active \|\| fullCatalogShown \|\| !asArray\(data\)\.length\) return;/);
+  assert.match(picker, /const PICKER_FIRST_PAINT_LIMIT = (\d+);/);
+  const limit = Number((picker.match(/const PICKER_FIRST_PAINT_LIMIT = (\d+);/) || [])[1]);
+  assert.ok(limit > 0 && limit <= 48, "the head-start page must stay within the server cap");
+});
+
+test("the inbox prewarms the catalog off the critical path, and a tab reuses it", () => {
+  assert.match(inbox, /loadCustomerProductCatalogWarm\(\)\.catch\(\(\) => \{\}\)/);
+  assert.match(inbox, /requestIdleCallback\(warm/);
+  assert.match(service, /let warmMemory = null;/);
+  assert.match(service, /if \(!force && warmInFlight\) \{/, "a picker opened mid-prewarm must share the build");
+  assert.match(service, /warmMemory\.key === key/, "the in-memory catalog is per tenant and user");
 });
 
 test("the rendered list grows in steps without refetching", () => {

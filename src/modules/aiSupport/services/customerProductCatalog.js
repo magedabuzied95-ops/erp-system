@@ -6,6 +6,7 @@ import { PICKER_PAGE_SIZE, buildPickerParams, pickerQueryKey } from "./pickerQue
 import {
   SNAPSHOT_FRESH_MS,
   readCatalogSnapshot,
+  resolveSnapshotKey,
   snapshotAgeMs,
   touchCatalogSnapshot,
   writeCatalogSnapshot,
@@ -177,6 +178,21 @@ const asProducts = (value) => (Array.isArray(value) ? value : []);
 //
 // `onSnapshot` fires once per improvement (cached -> re-priced -> fresh), so the
 // caller can render the first one and drop its spinner.
+// The last catalog this tab served. Reading the IndexedDB snapshot back costs a
+// structured clone of ~9k variants on every open, and a cold tab paid the ~3.5s
+// server build; keeping the result in memory makes every open after the first
+// (or after the inbox prewarm) paint with no wait at all.
+let warmMemory = null;
+let warmInFlight = null;
+
+// Same identity rule as the snapshot: one account's catalog is never served to another.
+const currentWarmMemory = () => {
+  const key = resolveSnapshotKey();
+  return warmMemory && key && warmMemory.key === key ? warmMemory : null;
+};
+
+export const peekWarmCatalog = () => currentWarmMemory()?.products || null;
+
 export const loadCustomerProductCatalogWarm = async ({ headers, onSnapshot, force = false } = {}) => {
   const emit = (products, meta) => {
     if (typeof onSnapshot !== "function") return;
@@ -187,6 +203,33 @@ export const loadCustomerProductCatalogWarm = async ({ headers, onSnapshot, forc
       // A render error in the consumer must never abort the revalidation.
     }
   };
+
+  const memory = force ? null : currentWarmMemory();
+  if (memory) {
+    emit(memory.products, { fromCache: true, stale: false });
+    if (Date.now() - memory.loadedAt < SNAPSHOT_FRESH_MS) {
+      return { products: memory.products, fromCache: true, refreshed: false };
+    }
+  }
+  // A prewarm already running: wait for it instead of starting a second build.
+  if (!force && warmInFlight) {
+    const shared = await warmInFlight;
+    emit(shared?.products, { fromCache: false, stale: false });
+    return shared;
+  }
+
+  const run = loadCustomerProductCatalogWarmUncached({ headers, emit, force });
+  warmInFlight = run;
+  try {
+    const result = await run;
+    if (asProducts(result?.products).length) warmMemory = { key: resolveSnapshotKey(), products: result.products, loadedAt: Date.now() };
+    return result;
+  } finally {
+    if (warmInFlight === run) warmInFlight = null;
+  }
+};
+
+const loadCustomerProductCatalogWarmUncached = async ({ headers, emit, force }) => {
 
   const snapshot = force ? null : await readCatalogSnapshot().catch(() => null);
   let servedProducts = null;

@@ -141,6 +141,7 @@ import { AI_INBOX_DEFAULT_LABELS, aiInboxLabelsFromConversation, customAiInboxLa
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 import inboxCache from "../services/inboxCache/inboxCache";
+import { loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
 import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversationSessionId, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
@@ -6711,6 +6712,24 @@ export default function AiInbox({ reviewerMode = false }) {
     };
   }, []);
   const canViewAiDebug = useMemo(() => canViewAiDebugPanel(getCurrentUser?.() || {}), []);
+  // Warm the product catalog in the background once the inbox has settled. The
+  // picker shows every model and the full catalog takes seconds to build
+  // server-side; doing it here means opening the picker paints instantly. Delayed
+  // and idle-scheduled so it never competes with the conversation list loading.
+  useEffect(() => {
+    let idleHandle = null;
+    const warm = () => {
+      loadCustomerProductCatalogWarm().catch(() => {});
+    };
+    const timer = window.setTimeout(() => {
+      if (typeof window.requestIdleCallback === "function") idleHandle = window.requestIdleCallback(warm, { timeout: 5000 });
+      else warm();
+    }, 4000);
+    return () => {
+      window.clearTimeout(timer);
+      if (idleHandle !== null && typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idleHandle);
+    };
+  }, []);
   const openProductCardPicker = useCallback((options = {}) => {
     const selectMode = Boolean(options.selectMode);
     setProductCardPickerConfig({

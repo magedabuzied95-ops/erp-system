@@ -7,7 +7,7 @@ import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../uti
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { getProductAudienceValues } from "../../../shared/lib/productAudiences";
-import { loadCustomerProductCatalog, loadCustomerProductCatalogWarm } from "../services/customerProductCatalog";
+import { loadCustomerProductCatalog, loadCustomerProductCatalogWarm, searchCustomerProducts } from "../services/customerProductCatalog";
 import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pickerSizesApi";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
@@ -22,6 +22,8 @@ import { useTheme } from "../../../theme/useTheme";
 const asArray = (value) => (Array.isArray(value) ? value : []);
 // Rows rendered per "show more" step; the catalog itself is loaded in full.
 const PICKER_RENDER_STEP = 80;
+// The bounded head-start page shown while a cold tab builds the full catalog (server cap 48).
+const PICKER_FIRST_PAINT_LIMIT = 48;
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const money = (value) => formatCurrency(value);
@@ -465,6 +467,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // The whole catalog is in memory, so "show more" only reveals rows already
   // loaded — it never waits on the network.
   const [visibleLimit, setVisibleLimit] = useState(PICKER_RENDER_STEP);
+  // True while only the fast first page is on screen and the full catalog is still loading.
+  const [catalogPartial, setCatalogPartial] = useState(false);
   const isDesktopViewport = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true;
   // The order composer uses the same dark product surface as POS, including the
   // shared SmartPosFilters drawer, instead of the lightweight PWA list.
@@ -517,28 +521,48 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     // appeared. The persisted snapshot paints instantly; the network only runs
     // when the catalog watermark moved. Search and filters then run in memory.
     let active = true;
+    let fullCatalogShown = false;
+    const showFullCatalog = (data) => {
+      if (!active || !asArray(data).length) return;
+      fullCatalogShown = true;
+      setProducts(asArray(data));
+      setCatalogPartial(false);
+      setLoading(false);
+    };
     setError("");
     setLoading(true);
-    loadCustomerProductCatalogWarm({
-      onSnapshot: ({ products: data }) => {
-        if (!active) return;
-        setProducts(asArray(data));
-        setLoading(false);
-      },
-    })
-      .then(({ products: data } = {}) => {
-        if (active && asArray(data).length) setProducts(asArray(data));
-      })
+    // A tab that already holds the catalog emits synchronously, before this line
+    // returns, so the first-page request below is skipped entirely.
+    const warm = loadCustomerProductCatalogWarm({ onSnapshot: ({ products: data }) => showFullCatalog(data) });
+    // Cold tab: the full catalog takes seconds to build server-side. Paint one
+    // bounded page (well under a second) so the picker is usable at once, and
+    // swap in every model the moment the full catalog lands.
+    if (!fullCatalogShown) {
+      setCatalogPartial(true);
+      searchCustomerProducts({ filters: { inStockOnly: stockFilter === "in_stock" }, page: 1, limit: PICKER_FIRST_PAINT_LIMIT })
+        .then(({ products: data } = {}) => {
+          if (!active || fullCatalogShown || !asArray(data).length) return;
+          setProducts(asArray(data));
+          setLoading(false);
+        })
+        .catch(() => {
+          // The full catalog is still coming; a failed first page only costs the head start.
+        });
+    }
+    warm
+      .then(({ products: data } = {}) => showFullCatalog(data))
       .catch((err) => {
-        if (active) setError(err?.message || t("aiSupport.inbox.picker.catalogLoadFailed"));
+        if (active && !fullCatalogShown) setError(err?.message || t("aiSupport.inbox.picker.catalogLoadFailed"));
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (!active) return;
+        setCatalogPartial(false);
+        setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [open, sizeMode, sizeCatalogFallback, t]);
+  }, [open, sizeMode, sizeCatalogFallback, stockFilter, t]);
 
   // A new search or filter starts from the top of the list again.
   useEffect(() => {
@@ -1479,6 +1503,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               {t("aiSupport.inbox.picker.smartPosFilters")}
               {activeFilterCount ? <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
             </button>
+
+            {catalogPartial && !loading ? (
+              <div className={`inline-flex items-center justify-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-500" : "text-slate-400"}`} role="status">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {t("aiSupport.inbox.picker.loadingAllModels")}
+              </div>
+            ) : null}
 
             <div className={inlineFullscreenMode ? "min-h-0 flex-1 overflow-y-auto pr-1 pb-24" : desktopInboxMode ? "ai-inbox-product-picker-desktop__products min-h-0 overflow-y-auto" : "min-h-0 flex-1 overflow-y-auto pr-1"}>
               {loading ? (
