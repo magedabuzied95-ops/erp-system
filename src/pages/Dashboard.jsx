@@ -274,6 +274,9 @@ function Dashboard() {
   // Without this, the net-sales tile handed every cashier the enterprise
   // Reports Center — company revenue, expenses, profit, payroll, customers.
   const canOpenReports = hasPermission("reports.view", user);
+  // Marketing numbers follow the marketing permission, not the dashboard's: a cashier who can see
+  // today's till total has no business reading which campaign brought in how much.
+  const canViewMarketing = hasPermission("marketing.view", user);
   const [data, setData] = React.useState(emptyDashboard);
   const [loading, setLoading] = React.useState(true);
   const [lastUpdated, setLastUpdated] = React.useState(null);
@@ -625,6 +628,14 @@ function Dashboard() {
         <StockAttentionCard lowStock={data.lowStock || []} loading={loading} isArabic={isArabic} />
       </div>
 
+      {/* ROW 3b — where the money came from. Full width so the sources lay out as tiles, and its
+          own row so it never reshapes the three-card row above for viewers who cannot see it. */}
+      {canViewMarketing ? (
+        <div className="relative z-10 mt-4">
+          <MarketingSourcesCard marketing={data.marketing} loading={loading} isArabic={isArabic} canOpenAttribution={canViewMarketing} />
+        </div>
+      ) : null}
+
       {/* ROW 4 — action center */}
       <AttentionCenter overview={overview} inventory={data.inventory} liveActivity={data.liveActivity} isArabic={isArabic} />
 
@@ -689,6 +700,101 @@ function DashEmpty({ text }) {
 }
 function DashRow({ label, value }) {
   return <div className="flex items-center justify-between gap-2"><span className="text-text-muted">{label}</span><span className="max-w-[60%] truncate text-left font-bold text-text">{value}</span></div>;
+}
+
+const SOURCE_LABELS = {
+  direct: ["مباشر", "Direct"],
+  facebook: ["فيسبوك", "Facebook"],
+  instagram: ["إنستجرام", "Instagram"],
+  messenger: ["ماسنجر", "Messenger"],
+  tiktok: ["تيك توك", "TikTok"],
+  whatsapp: ["واتساب", "WhatsApp"],
+  google: ["جوجل", "Google"],
+  storefront: ["المتجر", "Storefront"],
+  website: ["الموقع", "Website"],
+};
+const SOURCE_COLORS = ["#10b981", "#38bdf8", "#f472b6", "#a78bfa", "#f59e0b"];
+
+/*
+ * Where today's orders came from.
+ *
+ * This panel existed once, in the tab strip the August redesign removed — and it would not have
+ * shown anything even then, because its query was rejected on every request (GROUP BY source
+ * shadowed by the orders.source column) and the section hid itself whenever its data came back
+ * empty. Nobody had ever seen these numbers.
+ *
+ * It is a SUMMARY, not a second attribution screen: /marketing/attribution already owns the
+ * platform, post and campaign breakdown. This answers the one question worth a glance from the
+ * dashboard — how much of today's money came from marketing at all — and links to the rest.
+ *
+ * "Direct" is every order that carries no campaign source, which includes every till sale. A
+ * card showing only Direct is therefore not broken; it says no order has been tied to a
+ * campaign in this window, and it says that in words rather than as an empty chart.
+ */
+function MarketingSourcesCard({ marketing, loading, isArabic, canOpenAttribution }) {
+  const rows = (marketing?.channels || [])
+    .map((row) => ({ source: String(row.source || "direct").toLowerCase(), orders: Number(row.orders || 0), sales: Number(row.sales || 0) }))
+    .filter((row) => row.orders > 0 || row.sales > 0)
+    .sort((a, b) => b.sales - a.sales);
+  const total = rows.reduce((sum, row) => sum + row.sales, 0);
+  const attributed = rows.filter((row) => row.source !== "direct").reduce((sum, row) => sum + row.sales, 0);
+  const onlyDirect = rows.length > 0 && rows.every((row) => row.source === "direct");
+  const share = total ? Math.round((attributed / total) * 100) : 0;
+  const label = (source) => (SOURCE_LABELS[source] ? SOURCE_LABELS[source][isArabic ? 0 : 1] : source);
+
+  return (
+    <div className={DASH_CARD}>
+      <div className={DASH_CARD_HEAD}>
+        <div className="min-w-0">
+          <h3 className={DASH_CARD_TITLE}>{isArabic ? "مصادر الطلبات" : "Order sources"}</h3>
+          {!loading && rows.length ? (
+            <div className="mt-0.5 text-[11px] font-semibold text-text-muted">
+              {isArabic
+                ? `من التسويق: ${formatCurrency(attributed)} · ${share}% من المبيعات`
+                : `From marketing: ${formatCurrency(attributed)} · ${share}% of sales`}
+            </div>
+          ) : null}
+        </div>
+        {canOpenAttribution ? (
+          <Link to="/marketing/attribution" className="shrink-0 text-[11px] font-bold text-emerald-300 hover:underline">
+            {isArabic ? "التحليل الكامل" : "Full breakdown"}
+          </Link>
+        ) : null}
+      </div>
+      {loading ? <SkeletonLine className="mt-3 h-24 w-full" /> : rows.length ? (
+        <>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {rows.slice(0, 5).map((row, index) => {
+              const percent = total ? Math.round((row.sales / total) * 100) : 0;
+              return (
+                <div key={row.source} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-3">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex min-w-0 items-center gap-1.5 font-bold text-text">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: SOURCE_COLORS[index % SOURCE_COLORS.length] }} />
+                      <span className="truncate">{label(row.source)}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold text-text-muted">{percent}%</span>
+                  </div>
+                  <div className="mt-2 text-base font-black text-text">{formatCurrency(row.sales)}</div>
+                  <div className="text-[11px] font-semibold text-text-muted">{isArabic ? `${row.orders} طلب` : `${row.orders} orders`}</div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
+                    <div className="h-full rounded-full" style={{ width: `${percent}%`, background: SOURCE_COLORS[index % SOURCE_COLORS.length] }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {onlyDirect ? (
+            <div className="mt-3 text-xs font-semibold text-text-muted">
+              {isArabic
+                ? "كل الطلبات في الفترة دي مباشرة — مفيش طلب اتربط بحملة تسويقية لسه."
+                : "Every order in this window is direct — none has been tied to a marketing campaign yet."}
+            </div>
+          ) : null}
+        </>
+      ) : <DashEmpty text={isArabic ? "لا توجد طلبات في هذه الفترة" : "No orders in this window"} />}
+    </div>
+  );
 }
 
 function HourlySalesCard({ hourlySales = [], loading, isArabic }) {

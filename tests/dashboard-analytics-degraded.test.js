@@ -72,6 +72,26 @@ test("a failure recorded outside a tracked request does not throw", () => {
   assert.doesNotThrow(() => __testing.recordDashboardFailure({ name: "orphan", code: "", message: "" }));
 });
 
+test("the order-sources card is rendered, not just computed", () => {
+  /*
+   * The previous marketing panel lived in `secondarySections`, which the August redesign stopped
+   * rendering while leaving the computation in place — so the data was fetched on every load,
+   * stored, and drawn nowhere. A panel that exists only as a definition is the exact failure to
+   * guard against, so this asserts the card is USED in the page, not merely declared.
+   */
+  const dashboard = read("../src/pages/Dashboard.jsx");
+  assert.match(dashboard, /function MarketingSourcesCard\(/);
+  assert.match(dashboard, /<MarketingSourcesCard marketing=\{data\.marketing\}/);
+
+  // Marketing numbers follow the marketing permission. A cashier can see the till total without
+  // being shown which campaign brought in how much.
+  assert.match(dashboard, /const canViewMarketing = hasPermission\("marketing\.view", user\)/);
+  assert.match(dashboard, /\{canViewMarketing \? \(\s*<div[^>]*>\s*<MarketingSourcesCard/);
+
+  // A summary that points at the real screen, not a second attribution page.
+  assert.match(dashboard, /to="\/marketing\/attribution"/);
+});
+
 test("the dashboard route actually reports what broke", () => {
   // The tracker is useless unwired: without these two the response still looks perfectly
   // healthy while a panel is drawing a number that came from an exception.
