@@ -13,37 +13,46 @@ const safeNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const buildOrderFilters = ({ platform = "", from = null, to = null } = {}) => {
-  const clauses = ["o.tenant_id = $1::bigint"];
-  if (normalizePlatform(platform) !== "all") {
+/*
+ * A WHERE clause and its parameters, built together.
+ *
+ * They used to be built apart, and that was the entire bug. The clauses wrote $2/$3/$4 only when
+ * a platform or a date was chosen, while every query always sent the same four values. The page
+ * opens with "all platforms" and no dates, so its very first request carried a SQL that
+ * referenced $1 alone next to four bound values, and Postgres refused it outright: "bind message
+ * supplies 4 parameters, but prepared statement requires 1". The attribution screen had never
+ * loaded in its default state. Choosing only an end date broke it differently — $4 with nothing
+ * typing $2 or $3.
+ *
+ * Here a placeholder exists only because its value was just pushed, so the count cannot disagree.
+ * A query that needs more (a LIMIT) appends to the returned array and numbers from its length.
+ * Every call returns a NEW array, which is what makes that safe across the parallel queries below.
+ */
+const buildFilters = (alias, [platformColumn, sourceColumn], { tenantId, platform = "", from = null, to = null } = {}) => {
+  const params = [tenantId];
+  const bind = (value) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  const clauses = [`${alias}.tenant_id = $1::bigint`];
+  const selectedPlatform = normalizePlatform(platform);
+  if (selectedPlatform !== "all") {
+    const placeholder = bind(selectedPlatform);
     clauses.push(
-      "($2::text = 'all' OR LOWER(COALESCE(o.marketing_platform, o.marketing_source, '')) = $2::text OR LOWER(COALESCE(o.marketing_source, '')) = $2::text)"
+      `(LOWER(COALESCE(${alias}.${platformColumn}, ${alias}.${sourceColumn}, '')) = ${placeholder}::text OR LOWER(COALESCE(${alias}.${sourceColumn}, '')) = ${placeholder}::text)`
     );
   }
-  if (from) {
-    clauses.push("o.created_at >= $3::timestamp");
-  }
-  if (to) {
-    clauses.push("o.created_at <= $4::timestamp + INTERVAL '23 hours 59 minutes 59 seconds'");
-  }
-  return clauses.join(" AND ");
+  if (from) clauses.push(`${alias}.created_at >= ${bind(from)}::timestamp`);
+  if (to) clauses.push(`${alias}.created_at <= ${bind(to)}::timestamp + INTERVAL '23 hours 59 minutes 59 seconds'`);
+  return { where: clauses.join(" AND "), params };
 };
 
-const buildEventFilters = ({ platform = "", from = null, to = null } = {}) => {
-  const clauses = ["e.tenant_id = $1::bigint"];
-  if (normalizePlatform(platform) !== "all") {
-    clauses.push(
-      "($2::text = 'all' OR LOWER(COALESCE(e.platform, e.source, '')) = $2::text OR LOWER(COALESCE(e.source, '')) = $2::text)"
-    );
-  }
-  if (from) {
-    clauses.push("e.created_at >= $3::timestamp");
-  }
-  if (to) {
-    clauses.push("e.created_at <= $4::timestamp + INTERVAL '23 hours 59 minutes 59 seconds'");
-  }
-  return clauses.join(" AND ");
-};
+const buildOrderFilters = (filters) => buildFilters("o", ["marketing_platform", "marketing_source"], filters);
+const buildEventFilters = (filters) => buildFilters("e", ["platform", "source"], filters);
+
+// For the test that walks every platform/date combination and checks the one rule Postgres
+// enforces: the highest placeholder equals the number of bound values, with none skipped.
+export const __testing = { buildOrderFilters, buildEventFilters };
 
 const buildQueryParams = ({ tenantId, platform = "", from = null, to = null, limit = 20, offset = 0 } = {}) => {
   const normalizedPlatform = normalizePlatform(platform);
@@ -58,7 +67,7 @@ const buildQueryParams = ({ tenantId, platform = "", from = null, to = null, lim
 };
 
 const getOrdersBase = async (tenantId, platform, from, to) => {
-  const where = buildOrderFilters({ platform, from, to });
+  const { where, params } = buildOrderFilters({ tenantId, platform, from, to });
   const result = await db.query(
     `
     SELECT
@@ -83,13 +92,13 @@ const getOrdersBase = async (tenantId, platform, from, to) => {
         OR o.attribution_type IS NOT NULL
       )
     `,
-    [tenantId, platform, from, to]
+    params
   );
   return result.rows || [];
 };
 
 const getEventsBase = async (tenantId, platform, from, to) => {
-  const where = buildEventFilters({ platform, from, to });
+  const { where, params } = buildEventFilters({ tenantId, platform, from, to });
   const result = await db.query(
     `
     SELECT
@@ -106,7 +115,7 @@ const getEventsBase = async (tenantId, platform, from, to) => {
     FROM marketing_attribution_events e
     WHERE ${where}
     `,
-    [tenantId, platform, from, to]
+    params
   );
   return result.rows || [];
 };
@@ -208,6 +217,14 @@ const mergePostAggregates = (ordersMap, eventsMap) => {
 export const buildMarketingAttributionDashboard = async ({ tenantId, platform = "", from = null, to = null, limit = 20 } = {}) => {
   await ensureMarketingSchema();
   const filters = buildQueryParams({ tenantId, platform, from, to, limit });
+  // One builder call per query: each returns its own params array, so the campaign query can
+  // append its LIMIT without renumbering anybody else's placeholders.
+  const campaignFilter = buildOrderFilters(filters);
+  campaignFilter.params.push(filters.limit);
+  const campaignLimit = `$${campaignFilter.params.length}`;
+  const storyFilter = buildOrderFilters(filters);
+  const timelineFilter = buildOrderFilters(filters);
+  const platformFilter = buildOrderFilters(filters);
 
   const [orderRows, eventRows, topCampaignRows, storyVsPostRows, salesOverTimeRows, platformComparisonRows] = await Promise.all([
     getOrdersBase(filters.tenantId, filters.platform, filters.from, filters.to),
@@ -221,7 +238,7 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
         COALESCE(SUM(COALESCE(o.total, 0)), 0)::numeric AS revenue,
         COALESCE(MAX(o.created_at), MAX(o.updated_at)) AS last_event_at
       FROM orders o
-      WHERE ${buildOrderFilters({ platform: filters.platform, from: filters.from, to: filters.to })}
+      WHERE ${campaignFilter.where}
         AND (
           o.marketing_source IS NOT NULL
           OR o.marketing_platform IS NOT NULL
@@ -230,11 +247,13 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
           OR o.attribution_type IS NOT NULL
         )
         AND o.marketing_campaign IS NOT NULL
-      GROUP BY campaign, platform
+      -- Ordinals, not "campaign, platform": a GROUP BY name binds to an input column before an
+      -- output alias, which is exactly how the dashboard's marketing card was rejected for weeks.
+      GROUP BY 1, 2
       ORDER BY revenue DESC, orders DESC
-      LIMIT $5::int
+      LIMIT ${campaignLimit}::int
       `,
-      [filters.tenantId, filters.platform, filters.from, filters.to, filters.limit]
+      campaignFilter.params
     ),
     db.query(
       `
@@ -243,7 +262,7 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
         COUNT(*)::int AS orders,
         COALESCE(SUM(COALESCE(o.total, 0)), 0)::numeric AS revenue
       FROM orders o
-      WHERE ${buildOrderFilters({ platform: filters.platform, from: filters.from, to: filters.to })}
+      WHERE ${storyFilter.where}
         AND (
           o.marketing_source IS NOT NULL
           OR o.marketing_platform IS NOT NULL
@@ -252,10 +271,10 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
           OR o.attribution_type IS NOT NULL
         )
         AND o.marketing_post_id IS NOT NULL
-      GROUP BY tracking_kind
+      GROUP BY 1
       ORDER BY revenue DESC, orders DESC
       `,
-      [filters.tenantId, filters.platform, filters.from, filters.to]
+      storyFilter.params
     ),
     db.query(
       `
@@ -264,7 +283,7 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
         COUNT(*)::int AS orders,
         COALESCE(SUM(COALESCE(o.total, 0)), 0)::numeric AS revenue
       FROM orders o
-      WHERE ${buildOrderFilters({ platform: filters.platform, from: filters.from, to: filters.to })}
+      WHERE ${timelineFilter.where}
         AND (
           o.marketing_source IS NOT NULL
           OR o.marketing_platform IS NOT NULL
@@ -275,7 +294,7 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
       GROUP BY DATE_TRUNC('day', o.created_at)
       ORDER BY day ASC
       `,
-      [filters.tenantId, filters.platform, filters.from, filters.to]
+      timelineFilter.params
     ),
     db.query(
       `
@@ -285,7 +304,7 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
         COALESCE(SUM(COALESCE(o.total, 0)), 0)::numeric AS revenue,
         COALESCE(MAX(o.created_at), MAX(o.updated_at)) AS last_event_at
       FROM orders o
-      WHERE ${buildOrderFilters({ platform: filters.platform, from: filters.from, to: filters.to })}
+      WHERE ${platformFilter.where}
         AND (
           o.marketing_source IS NOT NULL
           OR o.marketing_platform IS NOT NULL
@@ -296,7 +315,7 @@ export const buildMarketingAttributionDashboard = async ({ tenantId, platform = 
       GROUP BY LOWER(COALESCE(o.marketing_platform, o.marketing_source, 'other'))
       ORDER BY revenue DESC, orders DESC
       `,
-      [filters.tenantId, filters.platform, filters.from, filters.to]
+      platformFilter.params
     ),
   ]);
 
