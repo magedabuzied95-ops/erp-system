@@ -260,6 +260,7 @@
     "attendanceNow": "الحضور الآن",
     "pendingApprovals": "اعتمادات معلقة",
     "onlineToday": "أونلاين اليوم",
+    "vsYesterday": "{{value}} عن أمس",
     "onlineOrders": "{{n}} طلب · غير نقطة البيع"
   },
   "errors": {

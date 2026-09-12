@@ -682,7 +682,15 @@ const Card = ({ title, subtitle, icon: Icon, children, action, className = "", b
   </section>
 );
 
-const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
+const trendOf = (growth) => (growth > 0 ? "up" : growth < 0 ? "down" : "");
+const growthTone = (growth, fallback = "slate") => (growth < 0 ? "red" : fallback);
+const growthText = (growth) => {
+  const value = Number(growth || 0);
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return tt("managerPortal.kpi.vsYesterday", { value: sign + Math.abs(value).toFixed(1) + "%" });
+};
+
+const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "", subTone = "" }) => {
   // Top-accent rail. slate/cyan/blue were neutral-or-wrong-accent and become
   // tokens; emerald/amber/rose are status hues and stay (see the scope note).
   const tones = {
@@ -701,7 +709,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
           {/* 1.9rem / 2.05rem is the Manager headline KPI size. It is LARGER than
               any MetricCard density and must not be swapped for one. */}
           <div className="manager-portal-mini-metric-value mt-1 text-[1.9rem] font-black leading-none tracking-tight text-text sm:text-[2.05rem]">{value || formatNumber(0)}</div>
-          {sub ? <div className="mt-0.5 truncate text-[11px] font-bold text-text-muted">{sub}</div> : null}
+          {sub ? <div data-trend={subTone || undefined} className="manager-portal-metric-sub mt-0.5 truncate text-[11px] font-bold text-text-muted">{sub}</div> : null}
         </div>
         {Icon ? <div className="manager-portal-mini-metric-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-[var(--text-secondary)] shadow-[var(--shadow-card)]"><Icon className="h-4 w-4" /></div> : null}
       </div>
@@ -709,7 +717,7 @@ const MiniMetric = ({ label, value, icon: Icon, tone = "slate", sub = "" }) => {
   );
 };
 
-const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = false }) => {
+const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = false, sub = "", subTone = "" }) => {
   // This used to be a six-entry tone map in which all six entries were byte-for-byte
   // the SAME fixed-dark navy (`border-slate-800 bg-[#0f172a] text-white`) — the
   // `tone` prop selected nothing. Per-tone differentiation lives in index.css,
@@ -725,6 +733,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
           <div className="min-w-0 flex-1">
             <div className={`text-[10px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
             <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.25rem] ${valueText}`}>{value || formatNumber(0)}</div>
+            {sub ? <div data-trend={subTone || undefined} className="manager-portal-metric-sub mt-1 truncate text-[10px] font-bold">{sub}</div> : null}
           </div>
           {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconChip}`}><Icon className="h-4 w-4" /></div> : null}
         </div>
@@ -737,6 +746,7 @@ const CompactStatCard = ({ label, value, icon: Icon, tone = "slate", emphasis = 
         <div className="min-w-0 flex-1">
           <div className={`text-[10px] font-black leading-5 tracking-normal ${labelText}`}>{label}</div>
           <div className={`manager-portal-compact-stat-value mt-1 text-2xl font-black leading-none sm:text-[1.15rem] ${valueText}`}>{value || formatNumber(0)}</div>
+          {sub ? <div data-trend={subTone || undefined} className="manager-portal-metric-sub mt-1 truncate text-[10px] font-bold">{sub}</div> : null}
         </div>
         {Icon ? <div className={`manager-portal-compact-stat-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${iconChip}`}><Icon className="h-4 w-4" /></div> : null}
       </div>
@@ -1394,13 +1404,17 @@ export default function ManagerPortal() {
     growth: formatPercent(salesGrowthPercent),
     growthTone: salesGrowthPercent >= 0 ? "green" : "red",
   }), [dashboard?.today_sales_total, dashboard?.invoice_count, sales?.overview?.today?.orders, sales?.overview?.today?.sales, salesGrowthPercent]);
+  // Green/red touches follow the ERP dashboard (owner request 2026-09-12): a card is tinted only
+  // when its number means something — up or down against yesterday, or a count that needs a look.
+  const salesGrowth = Number(dashboard?.overview?.kpis?.todaySales?.growth || 0);
+  const invoicesGrowth = Number(dashboard?.overview?.kpis?.todayOrders?.growth || 0);
   const mobileDashboardStats = useMemo(() => (
     isMobilePortal
       ? [
-          { label: tt("managerPortal.kpi.salesToday"), value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: "cyan", emphasis: true },
-          { label: tt("managerPortal.kpi.invoicesToday"), value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "slate", emphasis: true },
-          { label: tt("managerPortal.kpi.onlineToday"), value: formatCurrency(dashboard?.online_sales_total || 0), icon: Globe, tone: "blue", emphasis: true },
-          { label: tt("managerPortal.kpi.attendanceNow"), value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: "green" },
+          { label: tt("managerPortal.kpi.salesToday"), value: formatCurrency(dashboard?.today_sales_total || 0), icon: ShoppingCart, tone: growthTone(salesGrowth, "green"), sub: growthText(salesGrowth), subTone: trendOf(salesGrowth) },
+          { label: tt("managerPortal.kpi.invoicesToday"), value: formatNumber(dashboard?.invoice_count || 0), icon: ClipboardList, tone: "slate", sub: growthText(invoicesGrowth), subTone: trendOf(invoicesGrowth) },
+          { label: tt("managerPortal.kpi.onlineToday"), value: formatCurrency(dashboard?.online_sales_total || 0), icon: Globe, tone: Number(dashboard?.online_sales_total || 0) > 0 ? "green" : "slate" },
+          { label: tt("managerPortal.kpi.attendanceNow"), value: formatNumber(dashboard?.active_employees_now || 0), icon: Users, tone: Number(dashboard?.active_employees_now || 0) > 0 ? "green" : "slate" },
         ]
       : []
   ), [
@@ -1409,6 +1423,8 @@ export default function ManagerPortal() {
     dashboard?.online_sales_total,
     dashboard?.active_employees_now,
     isMobilePortal,
+    salesGrowth,
+    invoicesGrowth,
   ]);
   const selectedChatThread = managerChatState.thread || null;
   const selectedChatEmployee = useMemo(() => {
@@ -2878,25 +2894,25 @@ export default function ManagerPortal() {
               {isMobilePortal ? (
                 <div className="manager-portal-mobile-stat-grid grid grid-cols-2 gap-2">
                   {mobileDashboardStats.map((item) => (
-                    <CompactStatCard key={item.label} label={item.label} value={item.value} icon={item.icon} tone={item.tone} emphasis={item.emphasis} />
+                    <CompactStatCard key={item.label} label={item.label} value={item.value} icon={item.icon} tone={item.tone} emphasis={item.emphasis} sub={item.sub} subTone={item.subTone} />
                   ))}
                 </div>
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-                    <MiniMetric label={tt("managerPortal.kpi.salesToday")} value={formatCurrency(dashboard?.today_sales_total || 0)} icon={ShoppingCart} tone="green" />
-                    <MiniMetric label={tt("managerPortal.kpi.onlineToday")} value={formatCurrency(dashboard?.online_sales_total || 0)} sub={tt("managerPortal.kpi.onlineOrders", { n: formatNumber(dashboard?.online_order_count || 0) })} icon={Globe} tone="blue" />
-                    <MiniMetric label={tt("managerPortal.stats.invoiceCount")} value={formatNumber(dashboard?.invoice_count || 0)} icon={ClipboardList} tone="cyan" />
-                    <MiniMetric label={tt("managerPortal.sections.hotLeads")} value={formatNumber(dedupedLeads.length || 0)} icon={Bot} tone="red" />
-                    <MiniMetric label={tt("managerPortal.notifications.categories.employeeChat")} value={formatNumber(employeeMessageNotifications.length || 0)} icon={MessageSquare} tone="blue" />
+                    <MiniMetric label={tt("managerPortal.kpi.salesToday")} value={formatCurrency(dashboard?.today_sales_total || 0)} sub={growthText(salesGrowth)} subTone={trendOf(salesGrowth)} icon={ShoppingCart} tone={growthTone(salesGrowth, "green")} />
+                    <MiniMetric label={tt("managerPortal.kpi.onlineToday")} value={formatCurrency(dashboard?.online_sales_total || 0)} sub={tt("managerPortal.kpi.onlineOrders", { n: formatNumber(dashboard?.online_order_count || 0) })} icon={Globe} tone={Number(dashboard?.online_sales_total || 0) > 0 ? "green" : "slate"} />
+                    <MiniMetric label={tt("managerPortal.stats.invoiceCount")} value={formatNumber(dashboard?.invoice_count || 0)} sub={growthText(invoicesGrowth)} subTone={trendOf(invoicesGrowth)} icon={ClipboardList} tone="slate" />
+                    <MiniMetric label={tt("managerPortal.sections.hotLeads")} value={formatNumber(dedupedLeads.length || 0)} icon={Bot} tone={dedupedLeads.length ? "red" : "slate"} />
+                    <MiniMetric label={tt("managerPortal.notifications.categories.employeeChat")} value={formatNumber(employeeMessageNotifications.length || 0)} icon={MessageSquare} tone="slate" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-                    <MiniMetric label={tt("managerPortal.stats.presentNow")} value={formatNumber(dashboard?.active_employees_now || 0)} icon={Users} tone="green" />
-                    <MiniMetric label={tt("managerPortal.stats.absent")} value={formatNumber(dashboard?.absent_employees || 0)} icon={X} tone="slate" />
-                    <MiniMetric label={tt("managerPortal.stats.late")} value={formatNumber(dashboard?.late_employees || 0)} icon={Clock3} tone="amber" />
-                    <MiniMetric label={tt("managerPortal.stats.openTasks")} value={formatNumber(dashboard?.pending_tasks || 0)} icon={ClipboardList} tone="blue" />
-                    <MiniMetric label={tt("managerPortal.stats.overdueTasks")} value={formatNumber(dashboard?.overdue_tasks || 0)} icon={AlertTriangle} tone="red" />
+                    <MiniMetric label={tt("managerPortal.stats.presentNow")} value={formatNumber(dashboard?.active_employees_now || 0)} icon={Users} tone={Number(dashboard?.active_employees_now || 0) > 0 ? "green" : "slate"} />
+                    <MiniMetric label={tt("managerPortal.stats.absent")} value={formatNumber(dashboard?.absent_employees || 0)} icon={X} tone={Number(dashboard?.absent_employees || 0) > 0 ? "red" : "slate"} />
+                    <MiniMetric label={tt("managerPortal.stats.late")} value={formatNumber(dashboard?.late_employees || 0)} icon={Clock3} tone={Number(dashboard?.late_employees || 0) > 0 ? "amber" : "slate"} />
+                    <MiniMetric label={tt("managerPortal.stats.openTasks")} value={formatNumber(dashboard?.pending_tasks || 0)} icon={ClipboardList} tone="slate" />
+                    <MiniMetric label={tt("managerPortal.stats.overdueTasks")} value={formatNumber(dashboard?.overdue_tasks || 0)} icon={AlertTriangle} tone={Number(dashboard?.overdue_tasks || 0) > 0 ? "red" : "slate"} />
                   </div>
                 </>
               )}

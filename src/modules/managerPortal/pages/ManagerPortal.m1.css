@@ -459,3 +459,63 @@ html[data-theme="light"] .manager-portal-shell :where(.manager-portal-card, .man
 .manager-portal-shell .manager-portal-compact-stat :where([class*="text-cyan-"], [class*="text-sky-"]) {
   color: var(--primary) !important;
 }
+
+/* ==========================================================================
+   STATUS TINTS ON THE KPI CARDS — the ERP dashboard's green / red / amber touches
+   (owner request 2026-09-12), in BOTH themes.
+
+   The tone is decided in ManagerPortal.jsx by meaning (growth below zero is red, a count
+   that needs a look is amber/red, a positive sales figure is green); slate stays neutral.
+   Colour lives on the surface tint, the border, the icon chip and the "vs yesterday" line
+   — never on the headline number, which stays --text so it reads in either theme.
+
+   Selectors are deliberately heavy (html + shell + doubled class + tone): the generic
+   repaint rules above and the mobile-dark block in index.css all set background/border
+   with !important, and this block has to win over every one of them.
+   ========================================================================== */
+/* Ink = the hue pulled toward black on a light page, toward white on a dark one, so the
+   coloured text keeps its contrast in both. Declared on the shell with no var() inside, so it
+   inherits cleanly; the actual mix is written on each element that uses it. */
+html .manager-portal-shell { --mp-ink-base: #000; --mp-ink-pct: 70%; }
+html[data-theme="dark"] .manager-portal-shell { --mp-ink-base: #fff; --mp-ink-pct: 76%; }
+
+html .manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat)[data-tone="green"] { --mp-tone: var(--success); }
+html .manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat)[data-tone="red"] { --mp-tone: var(--danger); }
+html .manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat)[data-tone="amber"] { --mp-tone: var(--warning); }
+
+html .manager-portal-shell.manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat):is([data-tone="green"], [data-tone="red"], [data-tone="amber"]) {
+  background: color-mix(in srgb, var(--mp-tone) 9%, var(--surface)) !important;
+  background-image: none !important;
+  border-color: color-mix(in srgb, var(--mp-tone) 34%, var(--border)) !important;
+  border-top-width: 1px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+html[data-theme="dark"] .manager-portal-shell.manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat):is([data-tone="green"], [data-tone="red"], [data-tone="amber"]) {
+  background: color-mix(in srgb, var(--mp-tone) 12%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--mp-tone) 30%, var(--border)) !important;
+}
+
+/* The neutral cards lose the old coloured top rail too, so tinted and neutral read as one set. */
+html .manager-portal-shell.manager-portal-shell .manager-portal-mini-metric[data-tone="slate"] {
+  border-top-width: 1px !important;
+  border-color: var(--border) !important;
+}
+
+html .manager-portal-shell.manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat):is([data-tone="green"], [data-tone="red"], [data-tone="amber"]) :is(.manager-portal-mini-metric-icon, .manager-portal-compact-stat-icon) {
+  background: color-mix(in srgb, var(--mp-tone) 16%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--mp-tone) 30%, var(--border)) !important;
+  color: color-mix(in srgb, var(--mp-tone) var(--mp-ink-pct), var(--mp-ink-base)) !important;
+}
+
+/* "+6.3% عن أمس" — green up, red down, muted when flat. */
+html .manager-portal-shell.manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat) .manager-portal-metric-sub {
+  color: var(--muted) !important;
+}
+html .manager-portal-shell.manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat) .manager-portal-metric-sub[data-trend="up"] {
+  --mp-tone: var(--success);
+  color: color-mix(in srgb, var(--mp-tone) var(--mp-ink-pct), var(--mp-ink-base)) !important;
+}
+html .manager-portal-shell.manager-portal-shell :is(.manager-portal-mini-metric, .manager-portal-compact-stat) .manager-portal-metric-sub[data-trend="down"] {
+  --mp-tone: var(--danger);
+  color: color-mix(in srgb, var(--mp-tone) var(--mp-ink-pct), var(--mp-ink-base)) !important;
+}

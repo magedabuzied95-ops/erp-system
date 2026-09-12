@@ -260,6 +260,7 @@
     "attendanceNow": "Attendance now",
     "pendingApprovals": "Pending approvals",
     "onlineToday": "Online today",
+    "vsYesterday": "{{value}} vs yesterday",
     "onlineOrders": "{{n}} orders · not POS"
   },
   "errors": {
