@@ -69,6 +69,30 @@ const census = async () => {
   const candidates = await listSocialCommenterLookupCandidates({ tenantId: TENANT_ID, limit: 500 });
   const byPlatform = candidates.reduce((acc, row) => ({ ...acc, [row.platform]: (acc[row.platform] || 0) + 1 }), {});
   log(`commenters worth a lookup now (missing/expired, outside backoff): ${candidates.length}`, byPlatform);
+
+  // A row still missing a face that the lookup will never pick up: why not. Without
+  // this the census says "2 candidates" while dozens of comments show initials.
+  const unreachable = await db.query(
+    `
+    SELECT
+      platform,
+      COUNT(*) FILTER (WHERE commenter_id !~ '^[0-9]{5,}$') AS id_not_scoped,
+      COUNT(*) FILTER (WHERE commenter_id ~ '^[0-9]{5,}$' AND COALESCE(processed_at, created_at) <= NOW() - INTERVAL '120 days') AS older_than_window,
+      COUNT(*) FILTER (WHERE commenter_id ~ '^[0-9]{5,}$' AND raw_payload ? 'profile_lookup') AS in_backoff,
+      COUNT(*) AS total
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1
+      AND platform IN ('facebook', 'instagram')
+      AND COALESCE(raw_payload->>'is_page_authored', '') <> 'true'
+      AND COALESCE(NULLIF(raw_payload->>'item', ''), 'comment') = 'comment'
+      AND COALESCE(commenter_profile_picture_url, '') = ''
+    GROUP BY platform
+    ORDER BY platform
+    `,
+    [TENANT_ID]
+  );
+  log("comments with no picture, by why the lookup cannot reach them:");
+  for (const row of unreachable.rows) log(JSON.stringify(row));
   return 0;
 };
 

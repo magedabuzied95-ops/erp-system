@@ -5552,12 +5552,38 @@ export const fetchMetaInstagramMediaForTenant = async ({ tenantId = null, limit 
   }
 };
 
+// Meta answers a hundred posts with attachments and comment summaries with HTTP 500
+// code 1, "Please reduce the amount of data you're asking for" — seen on every scan
+// (2026-09-12), which left the Facebook poller with no posts at all and only the
+// webhook carrying comments. The page size steps down until Graph accepts it.
+export const META_PAGE_FEED_POLL_PAGE_SIZES = [25, 10, 5];
+const isGraphTooMuchDataError = (error = {}) => {
+  const code = Number(error?.meta?.code || error?.metaResponse?.error?.code || error?.code || 0) || 0;
+  const message = text(error?.message || error?.meta?.message || "").toLowerCase();
+  return code === 1 || message.includes("reduce the amount of data");
+};
+
 const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
-  const page = await fetchMetaPagePostsPage({ pageId, token, limit: 100 }).catch((error) => {
-    if (isMetaRateLimitError(error)) throw error;
-    return { posts: [] };
-  });
-  return Array.isArray(page?.posts) ? page.posts.slice(0, 100) : [];
+  for (const limit of META_PAGE_FEED_POLL_PAGE_SIZES) {
+    try {
+      const page = await fetchMetaPagePostsPage({ pageId, token, limit });
+      return Array.isArray(page?.posts) ? page.posts.slice(0, limit) : [];
+    } catch (error) {
+      if (isMetaRateLimitError(error)) throw error;
+      if (!isGraphTooMuchDataError(error) || limit === META_PAGE_FEED_POLL_PAGE_SIZES.at(-1)) {
+        console.warn("META_COMMENTS_POLL_FEED_FAILED", {
+          page_id: text(pageId),
+          limit,
+          status: error?.status || null,
+          code: error?.meta?.code || error?.code || "",
+          message: text(error?.message).slice(0, 160),
+        });
+        return [];
+      }
+      console.warn("META_COMMENTS_POLL_FEED_TOO_LARGE", { page_id: text(pageId), limit, next_limit: META_PAGE_FEED_POLL_PAGE_SIZES[META_PAGE_FEED_POLL_PAGE_SIZES.indexOf(limit) + 1] });
+    }
+  }
+  return [];
 };
 
 const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
