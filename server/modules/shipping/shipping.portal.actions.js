@@ -182,7 +182,31 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
   })).catch((error) => console.warn("[portal-order-action] audit failed", { orderId: order.id, message: error?.message }));
 
   if (key === "print_awb") return result;
-  return { ...result, order: await deps.loadOrder({ tenantId, orderId: order.id }) };
+  const refreshed = await deps.loadOrder({ tenantId, orderId: order.id });
+
+  /*
+   * The order's new state goes onto the customer's WhatsApp chat.
+   *
+   * This board is where the team actually confirms orders and marks them ready, and it writes
+   * the status straight to the row — it deliberately does not go through the shipping
+   * notifier. Without this hook the label mapping would only ever see Bosta's own transitions
+   * and the customer's own confirm tap, so the two statuses staff change most often would be
+   * the two that never reached the chat.
+   *
+   * Compared against the status read before the action, so a second press that changed
+   * nothing does not re-label. Fire-and-forget: the action has already succeeded.
+   */
+  if (normalized(refreshed?.status) !== status) {
+    void import("../../services/whatsappOrderLabelService.js")
+      .then((module) => module.syncWhatsappOrderStatusLabel({
+        phone: text(refreshed?.customer?.phone || refreshed?.customer_phone || order?.customer?.phone || order?.customer_phone),
+        status: text(refreshed?.status),
+        previousStatus: text(order?.status),
+        orderId: order.id,
+      }))
+      .catch((error) => console.warn("[whatsapp-order-label] portal hook failed", { orderId: order.id, message: error?.message || String(error) }));
+  }
+  return { ...result, order: refreshed };
 };
 
 const BULK_PRINT_LIMIT = 50;

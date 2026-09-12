@@ -327,6 +327,13 @@ test("a status change reaches the label hook from both paths that change one", (
     read("../server/services/whatsappOrderConfirmationService.js"),
     /whatsappOrderLabelService\.js[\s\S]{0,200}syncWhatsappOrderStatusLabel/
   );
+  // The shipping board writes status straight to the row rather than through the notifier,
+  // so the two transitions staff perform most often — confirm and ready-to-ship — need their
+  // own hook or they are the only ones that never reach the chat.
+  assert.match(
+    read("../server/modules/shipping/shipping.portal.actions.js"),
+    /whatsappOrderLabelService\.js[\s\S]{0,200}syncWhatsappOrderStatusLabel/
+  );
   // Same gitignore trap as the capabilities service: unlisted means it deploys as nothing.
   assert.match(read("../.gitignore"), /^!server\/services\/whatsappOrderLabelService\.js$/m);
 });
