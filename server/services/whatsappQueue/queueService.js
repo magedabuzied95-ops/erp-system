@@ -155,6 +155,33 @@ export const enqueueWhatsappMessage = async ({
   if (!type) throw new Error("WHATSAPP_QUEUE_AUTOMATION_TYPE_REQUIRED");
   if (!phone) throw new Error("WHATSAPP_QUEUE_RECIPIENT_REQUIRED");
 
+  /*
+   * Does this number have WhatsApp at all?
+   *
+   * Every recipient here was typed into the POS by a human. A landline, a transposed digit,
+   * a customer who never installed WhatsApp — each one currently becomes a queued row, a
+   * send, a failure, a retry cycle and a delivery status nobody can explain. Asking costs
+   * one call, cached for a day, and the answer only changes when somebody installs or
+   * uninstalls the app.
+   *
+   * It blocks on a DEFINITE "not on WhatsApp" and nothing else. An unreachable gateway, a
+   * LID target, an unanswered lookup — all of those fall through and queue exactly as
+   * before, because a broken check must never become a reason to stop messaging customers.
+   */
+  if (String(process.env.WHATSAPP_QUEUE_NUMBER_CHECK ?? "true").toLowerCase() !== "false") {
+    const { whatsappNumberIsReachable } = await import("../whatsappCapabilitiesService.js");
+    const reachability = await whatsappNumberIsReachable({ phone, instance: text(instance) });
+    if (reachability.known && !reachability.reachable && reachability.reason === "not_on_whatsapp") {
+      logLifecycle("skipped-no-whatsapp", {
+        automation_type: type,
+        order_id: orderId || null,
+        customer_id: customerId || null,
+        phone_suffix: phone.slice(-4),
+      });
+      return { queued: false, duplicate: false, skipped: true, reason: "not_on_whatsapp" };
+    }
+  }
+
   const resolved = settings || await loadWhatsappQueueSettings();
   const rules = rulesForAutomation(type, resolved);
   const category = whatsappAutomationCategory(type);

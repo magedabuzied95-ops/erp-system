@@ -602,6 +602,18 @@ router.post("/webhook", async (req, res) => {
         skipReason: normalized.skipReason || normalized.replyTargetReason || "evolution_noise",
       });
     }
+    // A call is recorded in the thread, never answered. Nothing below this line — the sales
+    // flow, the intake, the auto-reply — applies to a customer who rang instead of writing,
+    // and a missed call replied to with a sales pitch is worse than one nobody noticed.
+    if (normalized?.event === "call") {
+      return res.status(200).json({
+        success: true,
+        received: true,
+        event: "call",
+        handled: normalized.handled === true,
+        reason: normalized.reason || "",
+      });
+    }
     // ── Deterministic sales flow ───────────────────────────────────────────────────────────────
     // The same colour → size → summary → confirm → address path Messenger and Instagram run. It
     // gets first refusal on a colour-card tap and on the replies that follow one, and returns
@@ -725,5 +737,309 @@ router.post("/webhook", async (req, res) => {
     return res.status(200).json({ success: false, received: true });
   }
 });
+
+/* ==========================================================================================
+ * The rest of the Evolution surface.
+ *
+ * `whatsappCapabilitiesService` holds the calls; this is how the ERP reaches them. Each one
+ * is a thin pass-through on purpose — the validation, the addressing and the clamping all
+ * live in the service, so a future caller that is not HTTP gets the same rules.
+ *
+ * Everything that only READS is `settings:view`; everything that sends, changes the
+ * instance, or touches a customer's chat is `settings:edit`.
+ * ========================================================================================== */
+
+const capability = (handler) => async (req, res) => {
+  try {
+    const result = await handler({ body: req.body || {}, query: req.query || {}, user: req.user || null });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "WhatsApp capability call failed");
+  }
+};
+
+const loadCapabilities = () => import("../services/whatsappCapabilitiesService.js");
+
+// ── Presence, read receipts, reachability ────────────────────────────────────────────────
+
+router.post("/presence", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappPresence } = await loadCapabilities();
+  return sendWhatsappPresence({
+    phone: body.phone || body.remoteJid || "",
+    presence: body.presence || "composing",
+    delayMs: body.delayMs,
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/messages/read", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { markWhatsappMessagesRead } = await loadCapabilities();
+  return markWhatsappMessagesRead({
+    messages: Array.isArray(body.messages) ? body.messages : [body],
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/numbers/check", protect, permit("settings", "view"), capability(async ({ body }) => {
+  const { checkWhatsappNumbers } = await loadCapabilities();
+  return checkWhatsappNumbers({
+    phones: Array.isArray(body.phones) ? body.phones : [body.phone],
+    instance: body.instance || "",
+    useCache: body.useCache !== false,
+  });
+}));
+
+// ── The message types the gateway never sent ─────────────────────────────────────────────
+
+router.post("/send/voice", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappVoiceNote } = await loadCapabilities();
+  return sendWhatsappVoiceNote({ phone: body.phone, audio: body.audio || body.url, instance: body.instance || "" });
+}));
+
+router.post("/send/poll", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappPoll } = await loadCapabilities();
+  return sendWhatsappPoll({
+    phone: body.phone,
+    question: body.question || body.name,
+    options: body.options || body.values,
+    selectableCount: body.selectableCount,
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/send/location", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappLocation } = await loadCapabilities();
+  return sendWhatsappLocation({
+    phone: body.phone,
+    latitude: body.latitude,
+    longitude: body.longitude,
+    name: body.name,
+    address: body.address,
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/send/contact", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappContactCard } = await loadCapabilities();
+  return sendWhatsappContactCard({
+    phone: body.phone,
+    contacts: Array.isArray(body.contacts) ? body.contacts : [body.contact].filter(Boolean),
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/send/sticker", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappSticker } = await loadCapabilities();
+  return sendWhatsappSticker({ phone: body.phone, sticker: body.sticker || body.url, instance: body.instance || "" });
+}));
+
+router.post("/send/video-note", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { sendWhatsappVideoNote } = await loadCapabilities();
+  return sendWhatsappVideoNote({ phone: body.phone, video: body.video || body.url, instance: body.instance || "" });
+}));
+
+/*
+ * A Status goes to the customer list, not to one customer. `allContacts` is never defaulted
+ * on in the service, so publishing to everybody has to be asked for explicitly here too.
+ */
+router.post("/send/status", protect, permit("settings", "edit"), capability(async ({ body, user }) => {
+  const { sendWhatsappStatus } = await loadCapabilities();
+  const result = await sendWhatsappStatus({
+    type: body.type,
+    content: body.content,
+    caption: body.caption,
+    backgroundColor: body.backgroundColor,
+    font: body.font,
+    allContacts: body.allContacts === true,
+    recipients: body.recipients,
+    instance: body.instance || "",
+  });
+  console.info("[whatsapp:status-published]", {
+    type: result.type,
+    all_contacts: result.allContacts,
+    recipients: result.recipients,
+    user_id: user?.id || null,
+  });
+  return result;
+}));
+
+// ── Chat operations ──────────────────────────────────────────────────────────────────────
+
+router.post("/chat/archive", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { archiveWhatsappChat } = await loadCapabilities();
+  return archiveWhatsappChat({
+    chatJid: body.chatJid || body.remoteJid || body.phone,
+    lastMessageId: body.lastMessageId || body.messageId,
+    fromMe: body.fromMe === true,
+    archive: body.archive !== false,
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/chat/unread", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { markWhatsappChatUnread } = await loadCapabilities();
+  return markWhatsappChatUnread({
+    chatJid: body.chatJid || body.remoteJid || body.phone,
+    lastMessageId: body.lastMessageId || body.messageId,
+    fromMe: body.fromMe === true,
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/chat/block", protect, permit("settings", "edit"), capability(async ({ body, user }) => {
+  const { setWhatsappBlockStatus } = await loadCapabilities();
+  const result = await setWhatsappBlockStatus({
+    phone: body.phone,
+    blocked: body.blocked !== false,
+    instance: body.instance || "",
+  });
+  console.info("[whatsapp:block-status-change]", {
+    blocked: result.blocked,
+    phone_suffix: String(body.phone || "").slice(-4),
+    user_id: user?.id || null,
+  });
+  return result;
+}));
+
+router.post("/messages/delete", protect, permit("settings", "edit"), capability(async ({ body, user }) => {
+  const { deleteWhatsappMessageForEveryone } = await loadCapabilities();
+  const result = await deleteWhatsappMessageForEveryone({
+    chatJid: body.chatJid || body.remoteJid || body.phone,
+    messageId: body.messageId,
+    fromMe: body.fromMe !== false,
+    participant: body.participant,
+    instance: body.instance || "",
+  });
+  console.info("[whatsapp:message-recalled]", {
+    message_id: result.messageId,
+    user_id: user?.id || null,
+  });
+  return result;
+}));
+
+router.get("/contacts/profile", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { fetchWhatsappProfile } = await loadCapabilities();
+  return fetchWhatsappProfile({ phone: query.phone || "", instance: query.instance || "" });
+}));
+
+router.get("/contacts/business-profile", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { fetchWhatsappBusinessProfile } = await loadCapabilities();
+  return fetchWhatsappBusinessProfile({ phone: query.phone || "", instance: query.instance || "" });
+}));
+
+// ── Labels ───────────────────────────────────────────────────────────────────────────────
+
+router.get("/labels", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { listWhatsappLabels } = await loadCapabilities();
+  return listWhatsappLabels({ instance: query.instance || "" });
+}));
+
+router.post("/labels/apply", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { setWhatsappChatLabel } = await loadCapabilities();
+  return setWhatsappChatLabel({
+    phone: body.phone,
+    labelId: body.labelId,
+    action: body.action || "add",
+    instance: body.instance || "",
+  });
+}));
+
+// ── Groups ───────────────────────────────────────────────────────────────────────────────
+
+router.get("/groups", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { listWhatsappGroups } = await loadCapabilities();
+  return listWhatsappGroups({ instance: query.instance || "", withParticipants: query.participants === "true" });
+}));
+
+router.post("/groups", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { createWhatsappGroup } = await loadCapabilities();
+  return createWhatsappGroup({
+    subject: body.subject,
+    description: body.description,
+    participants: body.participants,
+    instance: body.instance || "",
+  });
+}));
+
+router.get("/groups/invite", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { fetchWhatsappGroupInviteCode } = await loadCapabilities();
+  return fetchWhatsappGroupInviteCode({ groupJid: query.groupJid || "", instance: query.instance || "" });
+}));
+
+router.post("/groups/participants", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { updateWhatsappGroupParticipants } = await loadCapabilities();
+  return updateWhatsappGroupParticipants({
+    groupJid: body.groupJid,
+    action: body.action,
+    participants: body.participants,
+    instance: body.instance || "",
+  });
+}));
+
+router.post("/groups/leave", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { leaveWhatsappGroup } = await loadCapabilities();
+  return leaveWhatsappGroup({ groupJid: body.groupJid, instance: body.instance || "" });
+}));
+
+// ── Instance settings, profile, privacy, proxy ───────────────────────────────────────────
+
+router.get("/instance/settings", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { fetchWhatsappInstanceSettings } = await loadCapabilities();
+  return fetchWhatsappInstanceSettings({ instance: query.instance || "" });
+}));
+
+router.post("/instance/settings", protect, permit("settings", "edit"), capability(async ({ body, user }) => {
+  const { applyWhatsappInstanceSettings } = await loadCapabilities();
+  const result = await applyWhatsappInstanceSettings({
+    rejectCall: body.rejectCall === true,
+    msgCall: body.msgCall || "",
+    groupsIgnore: body.groupsIgnore !== false,
+    alwaysOnline: body.alwaysOnline === true,
+    readMessages: body.readMessages === true,
+    readStatus: body.readStatus === true,
+    syncFullHistory: body.syncFullHistory === true,
+    instance: body.instance || "",
+  });
+  console.info("[whatsapp:instance-settings-change]", {
+    instanceName: result.instanceName,
+    reject_call: body.rejectCall === true,
+    always_online: body.alwaysOnline === true,
+    user_id: user?.id || null,
+  });
+  return result;
+}));
+
+router.post("/profile/status", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { updateWhatsappProfileStatus } = await loadCapabilities();
+  return updateWhatsappProfileStatus({ status: body.status, instance: body.instance || "" });
+}));
+
+router.post("/profile/picture", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { updateWhatsappProfilePicture } = await loadCapabilities();
+  return updateWhatsappProfilePicture({ pictureUrl: body.pictureUrl || body.url, instance: body.instance || "" });
+}));
+
+router.get("/privacy", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const { fetchWhatsappPrivacySettings } = await loadCapabilities();
+  return fetchWhatsappPrivacySettings({ instance: query.instance || "" });
+}));
+
+router.post("/privacy", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { updateWhatsappPrivacySettings } = await loadCapabilities();
+  return updateWhatsappPrivacySettings({ ...body, instance: body.instance || "" });
+}));
+
+router.post("/proxy", protect, permit("settings", "edit"), capability(async ({ body }) => {
+  const { setWhatsappProxy } = await loadCapabilities();
+  return setWhatsappProxy({
+    enabled: body.enabled === true,
+    host: body.host,
+    port: body.port,
+    protocol: body.protocol,
+    username: body.username,
+    password: body.password,
+    instance: body.instance || "",
+  });
+}));
 
 export default router;

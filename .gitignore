@@ -136,6 +136,7 @@ server/services/*
 !server/services/aiProductColorCarouselService.js
 !server/services/aiVisualProductRecognitionService.js
 !server/services/aiVisionProviderService.js
+!server/services/whatsappCapabilitiesService.js
 # Surveillance Center. Same shape as the analytics package above: the directory
 # itself must be un-ignored before anything inside it can be matched, and the
 # nested provider/transport/media/repository folders need the `**` to survive.

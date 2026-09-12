@@ -426,6 +426,10 @@ const requiredWebhookEvents = [
   "CHATS_DELETE",
   "PRESENCE_UPDATE",
   "CONNECTION_UPDATE",
+  // A WhatsApp call carries no message, so it was never in this list and never reached the
+  // webhook at all: a customer ringing the store's own number was invisible to everything
+  // we own. `handleIncomingWebhook` records it in the thread as a missed call.
+  "CALL",
 ];
 
 const missingRequiredEvents = (events = []) => {

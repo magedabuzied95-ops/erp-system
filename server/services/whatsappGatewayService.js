@@ -28,6 +28,11 @@ import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/
 import { autoRegisterWhatsappCustomer, ensureWhatsappCustomerAvatarSchema } from "./whatsappCustomerAutoRegistrationService.js";
 import { extractWhatsappReactionEvent } from "../utils/whatsappReaction.js";
 import whatsappCloud from "./whatsappCloudProvider.js";
+import {
+  WHATSAPP_PRESENCE,
+  safeMarkWhatsappMessagesRead,
+  safeSendWhatsappPresence,
+} from "./whatsappCapabilitiesService.js";
 
 const provider = () => String(process.env.WHATSAPP_GATEWAY_PROVIDER || "evolution").trim().toLowerCase();
 
@@ -4206,6 +4211,47 @@ const materializeEvolutionWebhookMedia = async ({ payload = {}, descriptor = {},
 };
 
 /**
+ * Reads a voice note.
+ *
+ * A large share of customers speak rather than type, and until this ran every one of those
+ * messages reached the pipeline as the literal label "🎤 رسالة صوتية": saved to the inbox as
+ * that string, handed to understanding as that string, answered as that string. The
+ * assistant was not answering spoken orders badly — it could not read them at all.
+ *
+ * The audio has to have been re-hosted by `materializeEvolutionWebhookMedia` first. The
+ * transcriber deliberately refuses to follow a provider URL, because Evolution's media link
+ * is signed and expires long before anything downstream would follow it.
+ *
+ * Never throws, and returns empty when the feature is off: a failed transcription has to
+ * degrade to exactly today's behaviour — the audio bubble with its label.
+ */
+const transcribeWhatsappVoiceNote = async ({ descriptor = {}, messageId = "" } = {}) => {
+  if (text(descriptor?.type) !== "audio") return { text: "", reason: "not_audio" };
+  const attachment = asArray(descriptor?.visualAttachments)[0];
+  if (!attachment?.url) return { text: "", reason: "no_local_media" };
+  try {
+    const { isVoiceTranscriptionEnabled, transcribeVoiceAttachment } = await import("./aiVoiceTranscriptionService.js");
+    if (!isVoiceTranscriptionEnabled()) return { text: "", reason: "disabled" };
+    const result = await transcribeVoiceAttachment(attachment);
+    const transcript = text(result?.text);
+    if (result?.transcribed !== true || !transcript) return { text: "", reason: text(result?.reason) || "not_transcribed" };
+    console.info("[whatsapp:voice-transcribed]", {
+      message_id: messageId,
+      chars: transcript.length,
+      duration_ms: result.duration_ms || 0,
+      model: text(result.model),
+    });
+    return { text: transcript, reason: "ok", transcription: result };
+  } catch (error) {
+    console.warn("[whatsapp:voice-transcription-failed]", {
+      message_id: messageId,
+      message: error?.message || String(error),
+    });
+    return { text: "", reason: "error" };
+  }
+};
+
+/**
  * Pick the JID of the chat this webhook belongs to.
  *
  * `data.sender` is the *connected instance* in Evolution, not the customer. It
@@ -5334,6 +5380,127 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   };
 };
 
+/*
+ * A customer ringing the store.
+ *
+ * A WhatsApp call is not a message: it carries no message id and no text, so the inbound
+ * gate dropped it at `missing_message_id` and nobody ever learned it happened. The number
+ * that takes every order has been ringing into a phone nobody watches, and the CALL event
+ * was never even subscribed to.
+ *
+ * The call is recorded as an inbound row so it lands in the thread, in order, beside the
+ * conversation it interrupted. It deliberately does NOT trigger an auto-reply: answering a
+ * missed call with a sales pitch is worse than not answering it at all.
+ */
+const recentWhatsappCallIds = new Map();
+const WHATSAPP_CALL_DEDUPE_TTL_MS = 5 * 60 * 1000;
+
+const rememberWhatsappCallId = (callId = "") => {
+  const id = text(callId);
+  if (!id) return false;
+  const now = Date.now();
+  for (const [key, at] of recentWhatsappCallIds.entries()) {
+    if (now - at > WHATSAPP_CALL_DEDUPE_TTL_MS) recentWhatsappCallIds.delete(key);
+  }
+  // One call produces several events as it rings, is rejected and times out. The thread
+  // wants one row per call, not one per ring.
+  if (recentWhatsappCallIds.has(id)) return false;
+  recentWhatsappCallIds.set(id, now);
+  return true;
+};
+
+export const extractWhatsappCallEvent = (payload = {}) => {
+  const eventName = text(
+    payload?.event || payload?.type || payload?.body?.event || payload?.data?.event || ""
+  ).toLowerCase().replace(/_/g, ".");
+  if (eventName !== "call") return { isCall: false };
+  const raw = payload?.data ?? payload?.body?.data ?? null;
+  const entry = (Array.isArray(raw) ? raw[0] : raw) || {};
+  const from = text(entry?.from || entry?.chatId || entry?.peerJid || entry?.id || "");
+  return {
+    isCall: true,
+    callId: text(entry?.id || entry?.callId || ""),
+    from,
+    phone: normalizeEgyptPhone(from),
+    lid: normalizeWhatsappLid(from),
+    isVideo: entry?.isVideo === true,
+    isGroup: entry?.isGroup === true,
+    status: text(entry?.status || ""),
+    instance: text(payload?.instance || payload?.instanceName || entry?.instance || ""),
+  };
+};
+
+const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
+  console.info("[whatsapp:call-event]", {
+    call_id: call.callId,
+    status: call.status,
+    is_video: call.isVideo === true,
+    from_suffix: call.phone ? call.phone.slice(-4) : "",
+    instance: call.instance,
+  });
+  if (call.isGroup === true) return { event: "call", handled: false, reason: "group_call" };
+  const chatJid = call.lid ? `${call.lid}@lid` : call.phone ? `${call.phone}@s.whatsapp.net` : "";
+  if (!chatJid) return { event: "call", handled: false, reason: "unknown_caller" };
+  // Dedupe on the call id when Evolution supplies one, and on the caller otherwise — a call
+  // with no id at all still must not write one row per ring.
+  if (!rememberWhatsappCallId(call.callId || `${chatJid}:${call.status || "ring"}`)) {
+    return { event: "call", handled: false, reason: "duplicate_call_event" };
+  }
+  const tenantId = tenantIdForWhatsapp(payload || {});
+  const sessionId = normalizeWhatsappSessionId(chatJid, call.phone);
+  if (!tenantId || !sessionId) return { event: "call", handled: false, reason: "unresolved_conversation" };
+  const label = call.isVideo ? "📞 مكالمة فيديو من العميل" : "📞 مكالمة من العميل";
+  try {
+    await upsertChannelConversationMapping({
+      tenantId,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      externalConversationId: sessionId,
+      externalCustomerId: call.phone || "",
+      metadata: {
+        phone: call.phone,
+        lid_jid: call.lid ? `${call.lid}@lid` : "",
+        remote_jid: chatJid,
+        instance: call.instance,
+        source: "evolution_api",
+        last_message: label,
+      },
+      lastMessageAt: new Date().toISOString(),
+    });
+    const row = await appendInboundAiSupportMessage({
+      tenantId,
+      sessionId,
+      message: label,
+      messageType: "call",
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      deliveryStatus: "received",
+      externalMessageId: call.callId ? `call:${call.callId}` : "",
+      providerMessageId: call.callId ? `call:${call.callId}` : "",
+      source: "whatsapp_provider_call",
+      sourcePath: "whatsapp_provider_call",
+      insertSource: "whatsapp_provider_call",
+      whatsappInstance: call.instance,
+      remoteJid: chatJid,
+      resolvedReplyJid: chatJid,
+      resolvedPhone: call.phone,
+    });
+    return {
+      event: "call",
+      handled: true,
+      call_id: call.callId,
+      status: call.status,
+      is_video: call.isVideo === true,
+      phone: call.phone,
+      inbox: { saved: Boolean(row), session_id: sessionId },
+    };
+  } catch (error) {
+    console.warn("[whatsapp:call-event-save-failed]", {
+      call_id: call.callId,
+      message: error?.message || String(error),
+    });
+    return { event: "call", handled: false, reason: "save_failed" };
+  }
+};
+
 export const handleIncomingWebhook = async (payload = {}) => {
   const eventCandidates = [
     payload?.event,
@@ -5369,6 +5536,10 @@ export const handleIncomingWebhook = async (payload = {}) => {
   console.info("[whatsapp:event-detected]", {
     received_events: eventCandidates.map((value) => String(value)),
   });
+  // Handled before the envelope: a call has no message key at all, so every step below it
+  // would read it as a malformed message and drop it.
+  const callEvent = extractWhatsappCallEvent(payload);
+  if (callEvent.isCall) return handleWhatsappCallEvent({ payload, call: callEvent });
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   // WhatsApp's username rollout is still moving. Dump the whole envelope for the
@@ -5738,6 +5909,22 @@ export const handleIncomingWebhook = async (payload = {}) => {
       inbox: { saved: Boolean(outboundRow), reason: outboundRow ? "from_me_saved" : "from_me" },
     };
   }
+  // A spoken message becomes a written one here, before anything downstream reads `text` —
+  // the inbox row, the trace, the intent pass, the auto-reply gate. Done any later, each of
+  // those would have to be taught about voice separately, and the one that was missed would
+  // keep answering an empty message.
+  //
+  // A transcript is CUSTOMER TEXT, never a fact: it feeds understanding like any typed
+  // message, and the grounding gate remains the only authority on price and stock, so a
+  // misheard word cannot become a false claim about the catalog.
+  if (!normalized.text && mediaDescriptor.type === "audio") {
+    const voice = await transcribeWhatsappVoiceNote({ descriptor: mediaDescriptor, messageId: normalized.messageId });
+    if (voice.text) {
+      normalized.text = voice.text;
+      normalized.voice_transcript = true;
+      normalized.voice_transcript_model = text(voice.transcription?.model);
+    }
+  }
   console.info("[evolution:message-extracted]", {
     event: normalized.event,
     rawEvent: normalized.rawEvent || "",
@@ -5746,6 +5933,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
     phone: normalized.phone,
     messageId: normalized.messageId,
     textPreview: normalized.text.slice(0, 160),
+    voice_transcript: normalized.voice_transcript === true,
     fromMe: normalized.fromMe,
   });
   console.info("[evolution:inbound-normalized]", {
@@ -6074,6 +6262,37 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     inbox_duplicate: message?.inbox?.duplicate === true,
     ai_support_message_id: text(message?.inbox?.message?.id || message?.inbox?.message?.external_message_id || ""),
   });
+  /*
+   * Two things the customer has never seen: the blue tick saying their message was read,
+   * and "بيكتب…" while the answer is being written. A reply that materialises out of
+   * nothing, with no warning, is the single clearest tell that nobody is on the other side.
+   *
+   * Both are decoration on top of the answer and neither may delay it or fail it, which is
+   * why they are fired without being awaited and why the helpers swallow their own errors.
+   * `WHATSAPP_LIVE_PRESENCE=false` turns them off without a deploy.
+   */
+  const liveFeedbackEnabled = String(process.env.WHATSAPP_LIVE_PRESENCE ?? "true").toLowerCase() !== "false";
+  const presenceInstance = text(message.instance || message.instanceName || "");
+  const presenceTarget = text(message.resolvedReplyJid || message.remoteJid || message.phone || "");
+  if (liveFeedbackEnabled && presenceTarget) {
+    void safeMarkWhatsappMessagesRead({
+      messages: [{
+        remoteJid: text(message.remoteJid || message.resolvedReplyJid || presenceTarget),
+        id: text(message.message_id || message.messageId),
+        fromMe: false,
+      }],
+      instance: presenceInstance,
+    });
+    // Held for as long as the answer usually takes. Evolution clears the indicator itself
+    // when the delay runs out, so an assistant that dies mid-thought does not leave the
+    // customer watching a chat that types forever.
+    void safeSendWhatsappPresence({
+      phone: presenceTarget,
+      presence: WHATSAPP_PRESENCE.TYPING,
+      delayMs: Number(process.env.WHATSAPP_TYPING_HINT_MS || 8000),
+      instance: presenceInstance,
+    });
+  }
   const generated = await generateWhatsappAiAutoReply({
     tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
     phone: message.phone,
@@ -6084,6 +6303,17 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
     traceId: message.trace_id || null,
     attachments: asArray(message.visualAttachments || message.visual_attachments),
   });
+  // The answer has left (or failed). Clearing the indicator explicitly means the customer
+  // does not keep watching "بيكتب…" for the remainder of the hold when the reply came back
+  // faster than the hint, or when it never came at all.
+  if (liveFeedbackEnabled && presenceTarget) {
+    void safeSendWhatsappPresence({
+      phone: presenceTarget,
+      presence: WHATSAPP_PRESENCE.PAUSED,
+      delayMs: 0,
+      instance: presenceInstance,
+    });
+  }
   console.info("[ai-auto-reply] stage=ai_generation_done", {
     messageId: text(message?.message_id || message?.messageId || ""),
     conversation_id: text(message?.inbox?.session_id || message?.conversation_id || message?.conversationIdentity || `whatsapp:${message?.phone || ""}`),
