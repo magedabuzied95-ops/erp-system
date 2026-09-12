@@ -138,6 +138,7 @@ import {
   isUsefulCommenterName,
   looksLikeMessageName,
   messageIdentityKeys,
+  messagesConflict,
   normalizeProductCardsValue,
   normalizeValidationSummary,
   transcriptDayKey,
@@ -403,7 +404,7 @@ const messagePrimaryKey = (message = {}) => messageIdentityKeys(message)[0] || "
 
 const messagesShareIdentity = (left = {}, right = {}) => {
   const leftKeys = new Set(messageIdentityKeys(left));
-  return messageIdentityKeys(right).some((key) => leftKeys.has(key));
+  return messageIdentityKeys(right).some((key) => leftKeys.has(key)) && !messagesConflict(left, right);
 };
 
 const mergeMessagesByIdentity = (messages = []) => {

@@ -696,7 +696,7 @@ function BubbleStamp({ skin, time, status, showTicks = false, floating = false, 
   );
 }
 
-function ChatRow({ side, align, avatarUrl = "", customerName = "", showAvatar = false, variant = "desktop", children }) {
+function ChatRow({ side, align, avatarUrl = "", customerName = "", showAvatar = false, variant = "desktop", wide = false, children }) {
   const avatarSize = variant === "pwa" ? "h-6 w-6" : "h-7 w-7";
   return (
     <div className={`flex items-end gap-1.5 ${align === "right" ? "justify-end" : "justify-start"}`}>
@@ -715,7 +715,15 @@ function ChatRow({ side, align, avatarUrl = "", customerName = "", showAvatar = 
           <span aria-hidden="true" className={`${avatarSize} shrink-0`} />
         )
       ) : null}
-      <div className={`flex min-w-0 max-w-[78%] flex-col ${side === "in" ? "items-start" : "items-end"}`}>{children}</div>
+      {/* WhatsApp Web caps a bubble at about two thirds of the chat and never lets it grow past a
+          readable column; 78% of a wide desktop thread made a long order summary a banner. A card
+          carousel scrolls sideways, so it keeps the wider row. */}
+      <div
+        style={{ maxWidth: variant === "pwa" || wide ? "78%" : "min(65%, 460px)" }}
+        className={`flex min-w-0 flex-col ${side === "in" ? "items-start" : "items-end"}`}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -914,7 +922,7 @@ function TranscriptMessage({
   const failed = clean(message.delivery_status).toLowerCase() === "failed";
   const isInternalNote = clean(message.message_type).toLowerCase() === "internal_note";
   const showTicks = side === "out" && !isInternalNote && isTickableDeliveryStatus(message.delivery_status);
-  const textClass = compact ? "text-[14px] leading-5.5" : "text-[14.5px] leading-6";
+  const textClass = compact ? "text-[14px] leading-5.5" : "text-[14.2px] leading-[19px]";
 
   const stampFor = (options = {}) => (
     <BubbleStamp
@@ -973,7 +981,7 @@ function TranscriptMessage({
     // because the row's kind decided the whole render.
     const caption = bodyText(clean(message.ai_answer) || clean(message.staff_message) || clean(message.message_text) || clean(message.text));
     return shell(
-      <ChatRow side="out" align="right" variant={variant}>
+      <ChatRow side="out" align="right" variant={variant} wide>
         {standalone ? (
           <div data-ai-message-bubble="true" className="flex max-w-full flex-col items-end gap-1.5">
             {clean(caption) ? (

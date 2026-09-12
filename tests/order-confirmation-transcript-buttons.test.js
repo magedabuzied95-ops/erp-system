@@ -62,3 +62,44 @@ test("the bubble draws the reply buttons", () => {
   assert.match(bubble, /action\?\.type === "whatsapp_reply_button"/);
   assert.match(bubble, /<ReplyButtons buttons=\{replyButtons\} skin=\{skin\} \/>/);
 });
+
+test("cached summary snapshots joined by the session id no longer swallow the real rows", async () => {
+  const { messageIdentityKeys, messagesConflict } = await import("../src/modules/aiSupport/lib/conversationHelpers.js");
+  // Same shape as the desktop inbox's mergeMessagesByIdentity.
+  const merge = (messages) => {
+    const merged = [];
+    const indexes = new Map();
+    for (const message of messages) {
+      const keys = messageIdentityKeys(message);
+      const found = keys.reduce((hit, key) => hit ?? indexes.get(key), undefined);
+      if (found !== undefined && !messagesConflict(merged[found], message)) {
+        merged[found] = { ...merged[found], ...message };
+        messageIdentityKeys(merged[found]).forEach((key) => indexes.set(key, found));
+      } else {
+        const next = merged.push(message) - 1;
+        keys.forEach((key) => indexes.set(key, next));
+      }
+    }
+    return merged;
+  };
+  const SESSION_ROW_ID = "4242";
+  const cached = [
+    { id: "709362", provider_message_id: "3EB0D39A" },
+    { id: SESSION_ROW_ID, provider_message_id: "3EB0984F" }, // summary snapshot at 15:23
+    { id: SESSION_ROW_ID, provider_message_id: "3A5DA255" }, // summary snapshot at 15:31
+  ];
+  const page = [
+    { id: "709362", provider_message_id: "3EB0D39A" },
+    { id: "709492", provider_message_id: "3EB0984F" },
+    { id: "709493", provider_message_id: "3A5DA255" },
+    { id: "709494", provider_message_id: "" },
+    { id: "709495", provider_message_id: "3EB008A7" },
+  ];
+  const ids = merge([...cached, ...page]).map((message) => message.id);
+  for (const id of ["709362", "709492", "709493", "709494", "709495"]) {
+    assert.ok(ids.includes(id), `row ${id} is its own bubble`);
+  }
+  // A provider echo of our own row is still one message.
+  assert.equal(merge([{ id: "sending-1", client_request_id: "r1" }, { id: "900", client_request_id: "r1", provider_message_id: "P" }]).length, 1);
+  assert.equal(merge([{ id: "900", provider_message_id: "P" }, { id: "900", provider_message_id: "P", delivery_status: "read" }]).length, 1);
+});

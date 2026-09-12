@@ -194,6 +194,22 @@ export const messageIdentityKeys = (message = {}) =>
     clean(message.id || ""),
   ].filter(Boolean);
 
+// Sharing ONE identity key is not proof of being one message. Every list-summary snapshot of a
+// thread used to carry the session's id as its own, so the cache held a chain of snapshots joined
+// by that id — and each real row whose provider id one snapshot carried was folded into the same
+// bubble. Three messages of a thread rendered as one. Two server-issued identities that disagree
+// (provider ids, or database ids when either side lacks a provider id) are two messages.
+const providerIdentity = (message = {}) =>
+  clean(message.provider_message_id || message.providerMessageId || message.external_message_id || message.externalMessageId || "");
+export const messagesConflict = (left = {}, right = {}) => {
+  const leftProvider = providerIdentity(left);
+  const rightProvider = providerIdentity(right);
+  if (leftProvider && rightProvider) return leftProvider !== rightProvider;
+  const leftId = clean(left.id || "");
+  const rightId = clean(right.id || "");
+  return /^\d+$/.test(leftId) && /^\d+$/.test(rightId) && leftId !== rightId;
+};
+
 export const isFromMeMessage = (message = {}) =>
   message?.from_me === true ||
   message?.fromMe === true ||

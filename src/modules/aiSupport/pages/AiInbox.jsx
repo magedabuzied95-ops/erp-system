@@ -170,6 +170,7 @@ import {
   isUsefulCommenterName,
   looksLikeMessageName,
   messageIdentityKeys,
+  messagesConflict,
   normalizeProductCardsValue,
   messageProductCards,
   isProductCardMessageType,
@@ -1540,7 +1541,7 @@ const mergeMessagesByIdentity = (messages = []) => {
     const message = raw && typeof raw === "object" ? raw : {};
     const keys = messageIdentityKeys(message);
     const existingIndex = keys.reduce((found, key) => found ?? identityIndexes.get(key), undefined);
-    if (existingIndex !== undefined) {
+    if (existingIndex !== undefined && !messagesConflict(merged[existingIndex], message)) {
       merged[existingIndex] = { ...merged[existingIndex], ...message };
       messageIdentityKeys(merged[existingIndex]).forEach((key) => identityIndexes.set(key, existingIndex));
     } else {
