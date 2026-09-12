@@ -121,6 +121,25 @@ test("an uncaptioned attachment still gives the conversation list a preview", ()
   assert.match(body, /previewMessage: caption \|\| \(attachmentKind === "video"/);
 });
 
+/*
+ * Also caught live: Evolution logged the photo as sent, and the row said failed.
+ * The WhatsApp gateway reports `success` and throws on failure — it has never
+ * had the `sent` / `delivery_status` pair the route was reading off it, so every
+ * delivered photo was recorded as undelivered.
+ */
+test("a WhatsApp send that succeeded is not recorded as failed", () => {
+  const route = routeSource.slice(routeSource.indexOf('"/conversations/:conversationId/attachment"'));
+  const body = route.slice(0, route.indexOf("test-meta-send"));
+  const whatsappStart = body.indexOf("sendWhatsappMediaMessage");
+  const whatsappBranch = body.slice(whatsappStart, body.indexOf("sendTelegramMedia", whatsappStart));
+  assert.ok(whatsappBranch.length > 0, "the WhatsApp branch was not found in the route");
+  assert.match(whatsappBranch, /sent: true/);
+  assert.match(whatsappBranch, /delivery_status: "sent"/);
+  // ...and the provider id, which lives under result.key.id, without which the
+  // delivery ticks can never be reconciled onto the row.
+  assert.match(whatsappBranch, /result\?\.result\?\.key\?\.id/);
+});
+
 test("Telegram maps a clip to sendVideo, not sendDocument", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

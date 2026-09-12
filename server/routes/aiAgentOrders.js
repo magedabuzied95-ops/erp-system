@@ -7042,7 +7042,23 @@ router.post(
           mediaType: attachmentKind,
           caption,
           instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
-        }).catch((error) => ({
+        }).then((result) => ({
+          /*
+           * The WhatsApp gateway reports `success` and throws on failure — it has
+           * never had the `sent` / `delivery_status` pair that the Meta and
+           * Telegram senders return. Reading those off it meant every delivered
+           * photo was recorded as "failed": the customer had the picture and the
+           * operator was shown a red bubble and told it had not been delivered.
+           *
+           * The provider id lives under result.key.id rather than at the top
+           * level too, and without it the row can never be reconciled with the
+           * delivery acks, so the ticks would stay stuck.
+           */
+          ...result,
+          sent: true,
+          delivery_status: "sent",
+          message_id: envText(result?.result?.key?.id || result?.result?.message_id || result?.message_id || ""),
+        })).catch((error) => ({
           sent: false,
           delivery_status: "failed",
           delivery_error: error?.message || `WhatsApp did not accept the ${attachmentKind}`,
