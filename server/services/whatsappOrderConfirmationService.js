@@ -1844,6 +1844,24 @@ async function applyConfirmationAction({
         action: normalizedAction,
       });
     }
+    /*
+     * The customer's chat carries the new state too.
+     *
+     * After the commit, never inside it: a label is an outward call to WhatsApp, and holding a
+     * database transaction open across one is how a slow gateway becomes a locked orders table.
+     * Fire-and-forget and self-silencing — the order is already confirmed or cancelled, and a
+     * label that did not stick must not turn that into a failure.
+     */
+    if (updated && text(updated.status) !== text(current?.status)) {
+      void import("./whatsappOrderLabelService.js")
+        .then((module) => module.syncWhatsappOrderStatusLabel({
+          phone: text(updated.customer_phone || updated.phone || current?.customer_phone),
+          status: text(updated.status),
+          previousStatus: text(current?.status),
+          orderId: updated.id || orderIdValue,
+        }))
+        .catch((error) => console.warn("[whatsapp-order-label] hook failed", { message: error?.message || String(error) }));
+    }
     return updated;
   } catch (error) {
     if (shouldManageTransaction) {

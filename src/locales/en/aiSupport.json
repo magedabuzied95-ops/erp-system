@@ -1079,7 +1079,9 @@
       "loadMore": "Load older conversations",
       "loadingMore": "Loading…",
       "emptyLeadFilterWindowed": "Nothing matches in the conversations loaded so far. Load older conversations to widen the search.",
-      "emptyMetaConversations": "No Meta conversations yet. Activity appears here once messages and comments start arriving."
+      "emptyMetaConversations": "No Meta conversations yet. Activity appears here once messages and comments start arriving.",
+      "customerTyping": "typing…",
+      "customerRecording": "recording audio…"
     },
     "emoji": {
       "choose": "Choose emoji",

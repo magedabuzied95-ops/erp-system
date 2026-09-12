@@ -1525,6 +1525,14 @@ const VISIBILITY_FRESH_MS = 20000;
 // for a DM they just sent themselves reads as a broken integration.
 const REVIEWER_POLL_MS = 8000;
 
+// How long a "typing" indicator survives with no further word from WhatsApp.
+//
+// WhatsApp does not promise a "stopped typing" event — a customer who locks their phone
+// mid-sentence just goes silent — so the indicator has to expire on its own or the row types
+// forever. Evolution repeats `composing` every few seconds while the customer is still at it,
+// which is what makes a window this short safe: a real typist keeps refreshing it.
+const PRESENCE_TTL_MS = 12000;
+
 const mergeMessagesByIdentity = (messages = []) => {
   const merged = [];
   const identityIndexes = new Map();
@@ -1760,7 +1768,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -1943,6 +1951,25 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                 {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
                 {lastComment ? <div dir="auto" className="line-clamp-2 text-left text-[12.5px] font-medium leading-4.5 text-slate-200">{lastComment}</div> : null}
               </div>
+            </div>
+          ) : presence ? (
+            /*
+             * The customer is at the keyboard RIGHT NOW. It replaces the preview rather than
+             * sitting beside it: the last message stops being the useful thing the moment a
+             * new one is being written, and a row that grows an extra line would make the
+             * whole list jump every time somebody starts typing.
+             */
+            <div className="mt-1.5 flex items-center gap-1.5 text-[12.5px] leading-4.5 text-emerald-300">
+              <span className="flex items-center gap-0.5" aria-hidden="true">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" style={{ animationDelay: "-0.3s" }} />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" style={{ animationDelay: "-0.15s" }} />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" />
+              </span>
+              <span dir="auto" className="font-bold">
+                {presence === "recording"
+                  ? t("aiSupport.inbox.ui.customerRecording")
+                  : t("aiSupport.inbox.ui.customerTyping")}
+              </span>
             </div>
           ) : (
             <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
@@ -2214,7 +2241,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2367,6 +2394,25 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
             <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
               {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
               <div dir="auto" className="line-clamp-2 text-left text-[12.5px] font-medium leading-4.5 text-slate-200">{commentPreview}</div>
+            </div>
+          ) : presence ? (
+            /*
+             * The customer is at the keyboard RIGHT NOW. It replaces the preview rather than
+             * sitting beside it: the last message stops being the useful thing the moment a
+             * new one is being written, and a row that grows an extra line would make the
+             * whole list jump every time somebody starts typing.
+             */
+            <div className="mt-1.5 flex items-center gap-1.5 text-[12.5px] leading-4.5 text-emerald-300">
+              <span className="flex items-center gap-0.5" aria-hidden="true">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" style={{ animationDelay: "-0.3s" }} />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" style={{ animationDelay: "-0.15s" }} />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-300" />
+              </span>
+              <span dir="auto" className="font-bold">
+                {presence === "recording"
+                  ? t("aiSupport.inbox.ui.customerRecording")
+                  : t("aiSupport.inbox.ui.customerTyping")}
+              </span>
             </div>
           ) : (
             <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
@@ -4391,6 +4437,10 @@ export default function AiInbox({ reviewerMode = false }) {
   const [aiReply, setAiReply] = useState({ sessionId: "", text: "", loading: false, error: "", validation: null, confidence_engine: null });
   const [modeSaving, setModeSaving] = useState(false);
   const [unseenSessions, setUnseenSessions] = useState([]);
+  // conversationKey -> { state: "composing" | "recording", at: epoch ms }. Socket-only and
+  // deliberately not persisted: presence is true for seconds, so a reload starting from
+  // "nobody is typing" is the correct state rather than a lost one.
+  const [presenceBySession, setPresenceBySession] = useState({});
   const [toolsTab, setToolsTab] = useState("customer");
   const [profileOpen, setProfileOpen] = useState(() => (
     typeof window !== "undefined" && window.matchMedia("(min-width: 1440px)").matches
@@ -5116,13 +5166,56 @@ export default function AiInbox({ reviewerMode = false }) {
         setUnseenSessions((current) => [...new Set([conversationKey, ...current])].slice(0, 20));
       }
     };
+    /*
+     * Presence is the one inbox signal that must never be trusted for long.
+     *
+     * WhatsApp does not reliably send a "stopped typing": a customer who locks their phone
+     * mid-sentence simply goes quiet, and a naive listener leaves that row typing forever.
+     * So every presence carries its own expiry and the row clears itself, with an explicit
+     * stop only shortening the wait rather than being required.
+     */
+    const onPresence = (payload = {}) => {
+      const sessionId = payload.session_id || "";
+      if (!sessionId) return;
+      const key = normalizeConversationChannel({ channel: payload.channel }) === "whatsapp"
+        ? normalizeWhatsappSessionIdentity(sessionId, payload.phone || "")
+        : sessionId;
+      if (!key) return;
+      const state = payload.recording === true ? "recording" : payload.typing === true ? "composing" : "";
+      setPresenceBySession((current) => {
+        if (!state) {
+          if (!current[key]) return current;
+          const next = { ...current };
+          delete next[key];
+          return next;
+        }
+        if (current[key]?.state === state) return current;
+        return { ...current, [key]: { state, at: Date.now() } };
+      });
+    };
     const offMessage = subscribeRealtime("ai_inbox:message", onMessage);
     const offRefresh = subscribeRealtime("ai_inbox:refresh", refresh);
+    const offPresence = subscribeRealtime("ai_inbox:presence", onPresence);
     return () => {
       offMessage();
       offRefresh();
+      offPresence();
     };
   }, [pageVisible, requestRefresh, selectedSessionId]);
+
+  // The expiry sweep for the presence above. One timer for the whole list rather than one
+  // per row, and it only runs while something is actually typing.
+  useEffect(() => {
+    if (!Object.keys(presenceBySession).length) return undefined;
+    const timer = window.setInterval(() => {
+      const cutoff = Date.now() - PRESENCE_TTL_MS;
+      setPresenceBySession((current) => {
+        const next = Object.fromEntries(Object.entries(current).filter(([, entry]) => entry.at > cutoff));
+        return Object.keys(next).length === Object.keys(current).length ? current : next;
+      });
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [presenceBySession]);
 
   useEffect(() => {
     if (!toast.text) return undefined;
@@ -9314,6 +9407,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            key={itemKey}
 	                            item={item}
 	                            accountLabel={conversationAccountLabel(item)}
+	                            presence={presenceBySession[itemKey]?.state || ""}
 	                            unseen={unseenSessions.includes(itemKey)}
 	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}
@@ -10182,6 +10276,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            <ConversationListItem
 	                              key={itemKey}
 	                              item={item}
+	                              presence={presenceBySession[itemKey]?.state || ""}
 	                              unseen={unseenSessions.includes(itemKey)}
 	                              active={selectedConversation?.conversation_key === itemKey}
 	                              onSelect={handleSelectConversation}

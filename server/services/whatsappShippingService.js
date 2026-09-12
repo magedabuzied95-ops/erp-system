@@ -281,6 +281,25 @@ export const sendShipmentDelivered = (order = {}) => sendShippingNotification(or
 
 export const sendShipmentNotificationForStatus = (order = {}, status = "") => {
   const normalized = text(status || order.shipment_status || order.shipping_status).toLowerCase().replace(/[\s-]+/g, "_");
+  /*
+   * The chat gets the status too, not just the message.
+   *
+   * This runs for EVERY status, including the ones below that send nothing — a cancelled or
+   * returned order still has to stop showing "مع المندوب" on the customer's chat, and this is
+   * the one place every shipping transition already passes through.
+   *
+   * Fire-and-forget: the label is a convenience for staff, and it must never delay or fail the
+   * notification the customer is actually waiting for.
+   */
+  void import("./whatsappOrderLabelService.js")
+    .then((module) => module.syncWhatsappOrderStatusLabel({
+      phone: phoneForOrder(order),
+      status: normalized || text(order.status),
+      previousStatus: text(order.previous_status),
+      instance: text(order.whatsapp_instance),
+      orderId: order.id || null,
+    }))
+    .catch((error) => console.warn("[whatsapp-order-label] hook failed", { message: error?.message || String(error) }));
   if (["shipment_created", "created"].includes(normalized)) return sendShipmentCreated(order);
   if (["shipped", "in_transit", "picked_up", "picked"].includes(normalized)) return sendShipmentShipped(order);
   if (normalized === "out_for_delivery") return sendShipmentOutForDelivery(order);

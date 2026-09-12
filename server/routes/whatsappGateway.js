@@ -614,6 +614,18 @@ router.post("/webhook", async (req, res) => {
         reason: normalized.reason || "",
       });
     }
+    // Presence is a socket emit and nothing else — no row, no flow, no reply. It arrives
+    // often enough that letting it fall through would run the whole inbound pipeline for a
+    // customer who has merely put their thumb on the keyboard.
+    if (normalized?.event === "presence") {
+      return res.status(200).json({
+        success: true,
+        received: true,
+        event: "presence",
+        handled: normalized.handled === true,
+        reason: normalized.reason || "",
+      });
+    }
     // ── Deterministic sales flow ───────────────────────────────────────────────────────────────
     // The same colour → size → summary → confirm → address path Messenger and Instagram run. It
     // gets first refusal on a colour-card tap and on the replies that follow one, and returns
@@ -945,6 +957,65 @@ router.get("/contacts/business-profile", protect, permit("settings", "view"), ca
 router.get("/labels", protect, permit("settings", "view"), capability(async ({ query }) => {
   const { listWhatsappLabels } = await loadCapabilities();
   return listWhatsappLabels({ instance: query.instance || "" });
+}));
+
+/*
+ * The status -> label mapping, and whether it can actually work.
+ *
+ * Reading the setting alone would not answer the question that matters: the mapping is by NAME,
+ * so a name that was never created in WhatsApp Business is configured and silently inert. This
+ * resolves every configured name against the live label list and says which ones are missing,
+ * which is the difference between "the labels are off" and "the labels are on and doing
+ * nothing".
+ */
+router.get("/labels/status-map", protect, permit("settings", "view"), capability(async ({ query }) => {
+  const [{ loadStatusLabelConfig }, { listWhatsappLabels }] = await Promise.all([
+    import("../services/whatsappOrderLabelService.js"),
+    loadCapabilities(),
+  ]);
+  const config = await loadStatusLabelConfig();
+  let available = [];
+  let lookupError = "";
+  try {
+    ({ labels: available } = await listWhatsappLabels({ instance: query.instance || "" }));
+  } catch (error) {
+    lookupError = error?.message || String(error);
+  }
+  const byName = new Map(available.map((label) => [String(label.name || "").trim().toLowerCase(), label]));
+  const statuses = Object.entries(config.labels).map(([status, name]) => {
+    const wanted = String(name || "").trim();
+    const match = wanted ? byName.get(wanted.toLowerCase()) : null;
+    return {
+      status,
+      label: wanted,
+      label_id: match?.id || "",
+      exists_in_whatsapp: wanted ? Boolean(match) : null,
+    };
+  });
+  return {
+    config,
+    statuses,
+    available_labels: available,
+    missing_labels: statuses.filter((row) => row.exists_in_whatsapp === false).map((row) => row.label),
+    lookup_error: lookupError,
+  };
+}));
+
+router.post("/labels/status-map", protect, permit("settings", "edit"), capability(async ({ body, user }) => {
+  const [{ normalizeStatusLabelConfig, clearWhatsappLabelCache }, { setSetting }] = await Promise.all([
+    import("../services/whatsappOrderLabelService.js"),
+    import("../services/settingsService.js"),
+  ]);
+  const config = normalizeStatusLabelConfig(body?.config ?? body);
+  await setSetting("whatsapp.status_labels", config, "ai_channels", user?.id || null);
+  // The next apply must see labels created in WhatsApp a minute ago, not a ten-minute-old list.
+  clearWhatsappLabelCache();
+  console.info("[whatsapp:status-label-map-updated]", {
+    enabled: config.enabled,
+    exclusive: config.exclusive,
+    user_id: user?.id || null,
+  });
+  return { config };
 }));
 
 router.post("/labels/apply", protect, permit("settings", "edit"), capability(async ({ body }) => {

@@ -5534,6 +5534,84 @@ const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
   }
 };
 
+/* ==========================================================================================
+ * The customer is typing.
+ *
+ * `PRESENCE_UPDATE` has been in the webhook subscription all along and was thrown away on
+ * arrival: it carries no message id, so the inbound gate dropped it at `missing_message_id`.
+ * We were paying for the event and showing nothing — the operator could not tell a customer
+ * who had walked away from one who was mid-sentence.
+ *
+ * Nothing is persisted. Presence is true for a few seconds and then it is a lie, so it lives
+ * only on the socket; a refresh of the inbox starts from no presence at all, which is the
+ * correct default.
+ * ========================================================================================== */
+const lastWhatsappPresenceByChat = new Map();
+const WHATSAPP_PRESENCE_STATE_TTL_MS = 5 * 60 * 1000;
+
+export const extractWhatsappPresenceEvent = (payload = {}) => {
+  const eventName = text(
+    payload?.event || payload?.type || payload?.body?.event || payload?.data?.event || ""
+  ).toLowerCase().replace(/_/g, ".");
+  if (eventName !== "presence.update") return { isPresence: false };
+  const data = payload?.data ?? payload?.body?.data ?? {};
+  const chatJid = text(data?.id || data?.remoteJid || data?.chatId || "");
+  const presences = data?.presences && typeof data.presences === "object" ? data.presences : {};
+  // Keyed by participant JID. In a 1:1 chat that is the chat itself, but Evolution has been
+  // seen keying it by the participant instead, so fall back to whatever single entry is there.
+  const entry = presences[chatJid] || Object.values(presences)[0] || {};
+  const state = text(entry?.lastKnownPresence || entry?.presence || data?.presence || "").toLowerCase();
+  return {
+    isPresence: true,
+    chatJid,
+    lid: normalizeWhatsappLid(chatJid),
+    phone: normalizeEgyptPhone(chatJid),
+    state,
+    typing: state === "composing",
+    recording: state === "recording",
+    instance: text(payload?.instance || payload?.instanceName || data?.instance || ""),
+  };
+};
+
+const handleWhatsappPresenceEvent = async ({ payload = {}, presence = {} } = {}) => {
+  if (isGroupJid(presence.chatJid)) return { event: "presence", handled: false, reason: "group_jid" };
+  if (!presence.chatJid || !presence.state) return { event: "presence", handled: false, reason: "incomplete_presence" };
+
+  /*
+   * Evolution repeats `composing` for as long as the customer keeps typing. Emitting each
+   * repeat would push a socket event per keystroke burst to every open inbox, so only a
+   * CHANGE of state travels — which is also the only thing the UI reacts to.
+   */
+  const now = Date.now();
+  for (const [key, entry] of lastWhatsappPresenceByChat.entries()) {
+    if (now - entry.at > WHATSAPP_PRESENCE_STATE_TTL_MS) lastWhatsappPresenceByChat.delete(key);
+  }
+  const previous = lastWhatsappPresenceByChat.get(presence.chatJid);
+  if (previous?.state === presence.state) return { event: "presence", handled: false, reason: "unchanged" };
+  lastWhatsappPresenceByChat.set(presence.chatJid, { state: presence.state, at: now });
+
+  const tenantId = tenantIdForWhatsapp(payload || {});
+  const sessionId = normalizeWhatsappSessionId(presence.chatJid, presence.phone);
+  if (!tenantId || !sessionId) return { event: "presence", handled: false, reason: "unresolved_conversation" };
+
+  emitToRooms([`tenant:${tenantId}`], "ai_inbox:presence", {
+    tenant_id: tenantId,
+    session_id: sessionId,
+    channel: AI_AGENT_CHANNELS.WHATSAPP,
+    phone: presence.phone,
+    presence: presence.state,
+    typing: presence.typing === true,
+    recording: presence.recording === true,
+    at: new Date().toISOString(),
+  });
+  return {
+    event: "presence",
+    handled: true,
+    session_id: sessionId,
+    presence: presence.state,
+  };
+};
+
 export const handleIncomingWebhook = async (payload = {}) => {
   const eventCandidates = [
     payload?.event,
@@ -5573,6 +5651,10 @@ export const handleIncomingWebhook = async (payload = {}) => {
   // would read it as a malformed message and drop it.
   const callEvent = extractWhatsappCallEvent(payload);
   if (callEvent.isCall) return handleWhatsappCallEvent({ payload, call: callEvent });
+  // Same reason as the call above: presence carries no message key, so everything below
+  // would read it as a malformed message and drop it — which is exactly what used to happen.
+  const presenceEvent = extractWhatsappPresenceEvent(payload);
+  if (presenceEvent.isPresence) return handleWhatsappPresenceEvent({ payload, presence: presenceEvent });
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   // WhatsApp's username rollout is still moving. Dump the whole envelope for the

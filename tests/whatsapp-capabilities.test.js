@@ -16,7 +16,7 @@ import {
   whatsappCapabilityState,
   whatsappNumberIsReachable,
 } from "../server/services/whatsappCapabilitiesService.js";
-import { extractWhatsappCallEvent } from "../server/services/whatsappGatewayService.js";
+import { extractWhatsappCallEvent, extractWhatsappPresenceEvent } from "../server/services/whatsappGatewayService.js";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -249,6 +249,75 @@ test("the process can say which capabilities are live, and why one is not", asyn
   assert.equal(state.call_events.subscribed, true);
   // No credential may ever reach this payload: it is served over an API and printed to logs.
   assert.equal(JSON.stringify(state).toLowerCase().includes("key"), false);
+});
+
+test("a customer typing is read out of the presence event we already paid for", () => {
+  // PRESENCE_UPDATE was in the webhook subscription all along and was dropped on arrival for
+  // having no message id. These are the shapes it actually arrives in.
+  const typing = extractWhatsappPresenceEvent({
+    event: "presence.update",
+    instance: "m1",
+    data: { id: "201012345678@s.whatsapp.net", presences: { "201012345678@s.whatsapp.net": { lastKnownPresence: "composing" } } },
+  });
+  assert.equal(typing.isPresence, true);
+  assert.equal(typing.typing, true);
+  assert.equal(typing.phone, "201012345678");
+
+  // Evolution has been seen keying the map by participant rather than by the chat.
+  const recording = extractWhatsappPresenceEvent({
+    event: "PRESENCE_UPDATE",
+    data: { id: "201012345678@s.whatsapp.net", presences: { "999@s.whatsapp.net": { lastKnownPresence: "recording" } } },
+  });
+  assert.equal(recording.recording, true);
+  assert.equal(recording.typing, false);
+
+  // A username customer has a LID and no phone; the chat is still addressable.
+  const lidChat = extractWhatsappPresenceEvent({
+    event: "presence.update",
+    data: { id: "99887@lid", presences: { "99887@lid": { lastKnownPresence: "paused" } } },
+  });
+  assert.equal(lidChat.lid, "99887");
+  assert.equal(lidChat.phone, "");
+  assert.equal(lidChat.typing, false, "paused is a stop, not a start");
+
+  assert.equal(extractWhatsappPresenceEvent({ event: "messages.upsert", data: {} }).isPresence, false);
+});
+
+test("the order-status label mapping stays off until somebody turns it on", async () => {
+  const { normalizeStatusLabelConfig } = await import("../server/services/whatsappOrderLabelService.js");
+
+  // It writes visible marks on real customer chats. Anything short of an explicit true — an
+  // empty object, a missing key, the string "true" from a form — must leave it off.
+  assert.equal(normalizeStatusLabelConfig({}).enabled, false);
+  assert.equal(normalizeStatusLabelConfig({ enabled: "true" }).enabled, false);
+  assert.equal(normalizeStatusLabelConfig({ enabled: true }).enabled, true);
+
+  // Exclusive is the opposite default: a chat wearing its whole history is noise, so only an
+  // explicit false turns the cleanup off.
+  assert.equal(normalizeStatusLabelConfig({}).exclusive, true);
+  assert.equal(normalizeStatusLabelConfig({ exclusive: false }).exclusive, false);
+
+  // Status keys arrive from a form and from our own code in different spellings.
+  const config = normalizeStatusLabelConfig({ labels: { "Out For Delivery": "مع المندوب", "shipment-created": "تم الشحن" } });
+  assert.equal(config.labels.out_for_delivery, "مع المندوب");
+  assert.equal(config.labels.shipment_created, "تم الشحن");
+  // A status the caller did not mention keeps its default rather than vanishing from the map.
+  assert.equal(config.labels.delivered, "تم التسليم");
+});
+
+test("a status change reaches the label hook from both paths that change one", () => {
+  // The hook is the whole feature: the service can be perfect and label nothing if no status
+  // transition calls it. These are the two places a status actually moves.
+  assert.match(
+    read("../server/services/whatsappShippingService.js"),
+    /whatsappOrderLabelService\.js[\s\S]{0,200}syncWhatsappOrderStatusLabel/
+  );
+  assert.match(
+    read("../server/services/whatsappOrderConfirmationService.js"),
+    /whatsappOrderLabelService\.js[\s\S]{0,200}syncWhatsappOrderStatusLabel/
+  );
+  // Same gitignore trap as the capabilities service: unlisted means it deploys as nothing.
+  assert.match(read("../.gitignore"), /^!server\/services\/whatsappOrderLabelService\.js$/m);
 });
 
 test("the capabilities service is allowlisted past the server/services gitignore", () => {
