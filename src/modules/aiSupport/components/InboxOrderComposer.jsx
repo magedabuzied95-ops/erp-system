@@ -38,7 +38,14 @@ const money = (value) => formatCurrency(value);
 const filterLabel = (t, item = {}) => (item.labelKey ? t(item.labelKey) : item.label || "");
 
 const shippingLocationId = (item = {}) => clean(item.id || item.provider_city_id || item.provider_zone_id || item.provider_district_id);
-const shippingLocationLabel = (item = {}) => clean(item.name_ar || item.name_en || item.name || item.city_name_ar || item.zone_name_ar || item.district_name_ar);
+// `item || {}`, not a `= {}` default: the selected city/zone/district is `null`
+// when a saved or customer-typed address carries an id the loaded list does not
+// hold, and a default parameter only covers `undefined` — so "save invoice"
+// threw on the click and no request was ever sent.
+const shippingLocationLabel = (item) => {
+  const location = item || {};
+  return clean(location.name_ar || location.name_en || location.name || location.city_name_ar || location.zone_name_ar || location.district_name_ar);
+};
 const AI_INBOX_SHIPPING_PROVIDERS = [
   { id: "bosta", label: "Bosta" },
   { id: "mylerz", label: "Mylerz" },
@@ -384,8 +391,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     customer_name: customerName,
     customer_phone: customerPhone,
     customer_address: streetAddress,
-    governorate: shippingProvider === "bosta" ? shippingLocationLabel(selectedCity) : governorate,
-    city_area: shippingProvider === "bosta" ? shippingLocationLabel(selectedDistrict) || shippingLocationLabel(selectedZone) : cityArea,
+    // The saved address's own names stand in when the loaded list has no row for its id.
+    governorate: shippingProvider === "bosta" ? shippingLocationLabel(selectedCity) || governorate : governorate,
+    city_area: shippingProvider === "bosta" ? shippingLocationLabel(selectedDistrict) || shippingLocationLabel(selectedZone) || cityArea : cityArea,
     shipping_provider: shippingProvider,
     shipping_provider_id: shippingProvider,
     shipping_city_id: shippingCityId,

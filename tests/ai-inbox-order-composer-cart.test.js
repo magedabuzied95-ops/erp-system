@@ -108,3 +108,12 @@ test("both locales carry every new composer key", () => {
     assert.ok(ar[key], `missing ar key: ${key}`);
   });
 });
+
+test("a saved address whose city id is not in the loaded list does not crash save", () => {
+  const composer = read("../src/modules/aiSupport/components/InboxOrderComposer.jsx");
+  // selectedCity is `null` then, and a `= {}` default does not cover null:
+  // "can't access property name_ar" threw on the click and no request was sent.
+  assert.doesNotMatch(composer, /const shippingLocationLabel = \(item = \{\}\)/);
+  assert.match(composer, /const location = item \|\| \{\};/);
+  assert.match(composer, /shippingLocationLabel\(selectedCity\) \|\| governorate/);
+});
