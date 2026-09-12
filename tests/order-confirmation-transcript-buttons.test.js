@@ -111,3 +111,12 @@ test("opening a thread always loads its newest page once, whatever the cache hol
     assert.match(source, /if \(!neverLoaded && selectedThreadStaleAt <= selectedThreadHydratedAt\) return undefined;/);
   }
 });
+
+test("the customer's tap is one row in the thread, not the webhook row plus a rewritten copy", () => {
+  const service = read("server/services/whatsappOrderConfirmationService.js");
+  assert.match(service, /const alreadySaved = providerMessageId/, "skips when the webhook row is there");
+  assert.match(service, /if \(!alreadySaved\) await db\.query\(/);
+  assert.match(service, /insert_source, provider_message_id, external_message_id\s*\)/, "carries the provider id so a later row folds into it");
+  assert.match(service, /\$5, \$8, \$8\)\s*ON CONFLICT DO NOTHING/, "a race with the webhook row can never throw after the order is confirmed");
+  assert.match(service, /customer_text: originalBody,/, "the thread shows what the customer sent");
+});

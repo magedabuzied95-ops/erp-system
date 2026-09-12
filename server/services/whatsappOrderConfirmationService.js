@@ -2183,23 +2183,38 @@ const forwardToAiInbox = async ({ message = {}, order = null, needsFollowup = fa
       [tenantId, conversationId, text(order?.customer_name), originalBody]
     );
   }
-  await db.query(
+  // The customer's message is ONE bubble, as on their phone. This row used to be written on top of
+  // the webhook's own row for the same tap, with a rewritten body ("✅ تأكيد الطلب INV-1468"), so
+  // the thread showed the customer saying it twice. It now carries the provider message id: skipped
+  // when the real row is already there, and folded into it when that row lands afterwards.
+  const providerMessageId = text(message.messageId || message.message_id || "");
+  const alreadySaved = providerMessageId
+    ? await db.query(
+      `SELECT 1 FROM ai_support_messages
+       WHERE tenant_id = $1 AND session_id = $2 AND (provider_message_id = $3 OR external_message_id = $3)
+       LIMIT 1`,
+      [tenantId, conversationId, providerMessageId]
+    ).then((result) => result.rowCount > 0).catch(() => false)
+    : false;
+  if (!alreadySaved) await db.query(
     `
     INSERT INTO ai_support_messages (
       tenant_id, session_id, message_text, customer_message, ai_answer, confidence, needs_human_support,
       sources_used, suggested_products, visual_attachments, suggested_actions, detected_intent, fallback_reason,
-      sender_type, channel, customer_name, last_message, insert_source
+      sender_type, channel, customer_name, last_message, insert_source, provider_message_id, external_message_id
     )
-    VALUES ($1, $2, $3, $3, '', 0, $6, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', $7, 'customer', 'whatsapp', $4, $3, $5)
+    VALUES ($1, $2, $3, $3, '', 0, $6, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, 'whatsapp_customer_reply', $7, 'customer', 'whatsapp', $4, $3, $5, $8, $8)
+    ON CONFLICT DO NOTHING
     `,
     [
       tenantId,
       conversationId,
-      originalBody,
+      text(message.customer_text) || originalBody,
       text(order?.customer_name),
       needsFollowup ? "whatsapp_order_confirmation_needs_followup" : "whatsapp_order_confirmation",
       needsFollowup,
       needsFollowup ? "whatsapp_order_confirmation_followup" : "whatsapp_order_confirmation_other_reply",
+      providerMessageId,
     ]
   );
   console.info("[ai-support-insert]", {
@@ -2416,6 +2431,9 @@ export const processConfirmationReply = async (message = {}) => {
         text: actionMessage,
         original_message: actionMessage,
         normalized_for_intent: actionMessage,
+        // What the customer actually sent is what the thread shows; the order-tagged label stays
+        // the session preview and the intent text.
+        customer_text: originalBody,
         canonical_signals: intentPayload.canonicalSignals,
         intent_tokens: intentPayload.intentTokens,
       },
