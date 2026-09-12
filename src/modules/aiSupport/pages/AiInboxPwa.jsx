@@ -6451,7 +6451,10 @@ export default function AiInboxPwa() {
       );
       const order = response?.order || {};
       const number = order.public_order_number || order.invoice_number || order.id || "";
-      if (confirmed) {
+      if (confirmed && response?.duplicate && !response?.confirmed) {
+        // The same invoice was already saved moments ago; its link went out then.
+        toast.success(t("aiSupport.inbox.order.invoiceAlreadySaved", { number }));
+      } else if (confirmed) {
         const invoiceUrl = clean(response?.invoice_url);
         if (invoiceUrl) {
           try {

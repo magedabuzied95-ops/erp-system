@@ -794,6 +794,7 @@
       "pickerAddCountToOrder": "Add {{count}} to order",
       "draftCreated": "Draft order {{number}} created",
       "invoiceSaved": "Invoice {{number}} saved and sent to the customer",
+      "invoiceAlreadySaved": "Invoice {{number}} is already saved",
       "invoiceSavedSendFailed": "Invoice {{number}} was saved, but sending failed: {{reason}}",
       "invoiceSavedNoLink": "Invoice {{number}} saved — no invoice link to send",
       "saveFailed": "Could not save the order",

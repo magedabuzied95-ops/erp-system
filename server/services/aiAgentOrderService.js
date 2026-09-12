@@ -1424,21 +1424,44 @@ export const createAiOrderDraftLines = async (payload = {}) => {
   });
   const orderTotal = Math.max(0, subtotal - discountAmount + shippingCost);
   const idempotencyKey = text(payload.idempotency_key || payload.idempotencyKey || "");
-  const hash = idempotencyKey
+  // The dedupe key is the whole submitted invoice, not just its lines. Keyed on
+  // lines + phone alone, switching the payment method (or the discount, the
+  // shipping price, the address) and pressing save again matched the earlier
+  // draft, so the seller's change was dropped and nothing was confirmed. An
+  // identical double tap still lands on the same key.
+  let hash = idempotencyKey
     ? intentHash({ conversationId, idempotencyKey })
     : intentHash({
         conversationId,
         phone,
         lines: mergedLines.map((line) => `${line.variant_id}x${line.quantity}`).sort().join(","),
+        payment_method: paymentMethod,
+        discount: `${discountType}:${discountAmount}`,
+        shipping_cost: shippingCost,
+        address: [
+          payload.shipping_provider, payload.governorate, payload.city_area, payload.shipping_city_id,
+          payload.shipping_zone_id, payload.shipping_district_id, payload.street_address || payload.customer_address,
+          payload.building_number, payload.floor_number, payload.apartment_number,
+        ].map(text).join("|"),
       });
 
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    const existing = await client.query(
+    let existing = await client.query(
       `SELECT * FROM orders WHERE tenant_id = $1 AND ai_agent_conversation_id = $2 AND ai_agent_intent_hash = $3 LIMIT 1`,
       [tenantId, conversationId, hash]
     );
+    // A finished order from earlier is not a double tap: the same customer can
+    // buy the same thing again later in the same thread. Only a still-open draft
+    // or something created in the last few minutes counts as the same submit.
+    const REPEAT_WINDOW_MS = 10 * 60 * 1000;
+    const found = existing.rows[0];
+    if (!idempotencyKey && found && found.ai_agent_status !== "ai_draft"
+      && Date.now() - new Date(found.created_at).getTime() > REPEAT_WINDOW_MS) {
+      hash = intentHash({ base: hash, at: Date.now() });
+      existing = { rows: [] };
+    }
     if (existing.rows[0]) {
       await client.query("COMMIT");
       return {

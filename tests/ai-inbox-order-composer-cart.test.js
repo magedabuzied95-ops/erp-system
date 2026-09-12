@@ -40,9 +40,29 @@ test("a short line blocks the whole order instead of silently shipping less", ()
 
 test("the route confirms in the same request and returns the invoice link", () => {
   assert.match(route, /createAiOrderDraftLines\(\{/);
-  assert.match(route, /req\.body\?\.confirm === true && !draft\.duplicate/);
+  // A duplicate that is still a draft is confirmed too ("create draft" then "save").
+  assert.match(route, /req\.body\?\.confirm === true && \(!draft\.duplicate \|\| draft\.order\?\.ai_agent_status === "ai_draft"\)/);
   assert.match(route, /confirmAiOrder\(\{/);
   assert.match(route, /invoice_url: invoiceUrl/);
+});
+
+test("changing the payment method, discount, shipping or address is a new submit, not a duplicate", () => {
+  const fn = service.slice(service.indexOf("export const createAiOrderDraftLines"), service.indexOf("export const confirmAiOrder"));
+  const hash = fn.slice(fn.indexOf("let hash ="), fn.indexOf("const client = await db.connect()"));
+  // Keyed on lines + phone only, picking InstaPay after a COD attempt matched the
+  // old order and the save silently did nothing.
+  assert.match(hash, /payment_method: paymentMethod/);
+  assert.match(hash, /discount: /);
+  assert.match(hash, /shipping_cost: shippingCost/);
+  assert.match(hash, /address: \[/);
+  // A finished order from long ago must not block the same customer re-buying.
+  assert.match(fn, /REPEAT_WINDOW_MS/);
+});
+
+test("a save that lands on an already-saved invoice does not resend its link", () => {
+  assert.match(inbox, /confirm && response\?\.duplicate && !response\?\.confirmed/);
+  assert.match(inbox, /confirmed && response\?\.duplicate && !response\?\.confirmed/);
+  assert.match(inbox, /invoiceAlreadySaved/);
 });
 
 test("the composer posts a cart and offers both draft and save", () => {

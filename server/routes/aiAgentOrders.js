@@ -5168,7 +5168,9 @@ router.post("/conversations/:conversationId/create-draft-order", protect, inboxR
       });
 
       let confirmed = null;
-      if (req.body?.confirm === true && !draft.duplicate) {
+      // A duplicate that is still a draft is confirmed too: "create draft" then
+      // "save invoice" on the same form used to return that draft unconfirmed.
+      if (req.body?.confirm === true && (!draft.duplicate || draft.order?.ai_agent_status === "ai_draft")) {
         // Same call the autonomous path uses: locks each variant row, refuses on
         // insufficient stock, decrements with a SALE_OUT movement.
         confirmed = await confirmAiOrder({
