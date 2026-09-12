@@ -20,16 +20,29 @@ export const WHATSAPP_STATUS_LABEL_DEFAULTS = {
   // first. Without this a chat ends up wearing its whole history at once, which is noise
   // rather than state.
   exclusive: true,
+  /*
+   * Four, not one per status.
+   *
+   * Every label here is one the shop has to create BY HAND on the phone — proven 2026-09-12:
+   * this Evolution build exposes findLabels and handleLabel and no creation route at all, so
+   * the mapping's real cost is measured in trips through the WhatsApp app, and a name that was
+   * never created is a status that silently does nothing.
+   *
+   * These four are the ones staff filter a chat list by. The rest are left empty on purpose:
+   * an unlabelled status is skipped cleanly, and any of them can be filled in later by adding
+   * a name here and creating it on the phone — "مرتجع" for `returned` being the obvious next
+   * one if returns start needing their own view.
+   */
   labels: {
     pending: "",
-    pending_confirmation: "بانتظار التأكيد",
+    pending_confirmation: "",
     confirmed: "تم التأكيد",
     edit_requested: "",
-    ready_to_ship: "جاهز للشحن",
+    ready_to_ship: "",
     shipment_created: "تم الشحن",
-    out_for_delivery: "مع المندوب",
+    out_for_delivery: "",
     delivered: "تم التسليم",
-    returned: "مرتجع",
+    returned: "",
     cancelled: "ملغي",
     cancelled_by_customer: "ملغي",
   },
