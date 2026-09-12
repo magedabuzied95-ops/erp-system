@@ -25,6 +25,7 @@ import {
   RotateCcw,
   Banknote,
   CheckCircle2,
+  Pencil,
   BadgeCheck,
   Clock3,
   BellRing,
@@ -1040,6 +1041,8 @@ const PosVariantColorPicker = ({
   onSelect,
   label,
   defaultLabel,
+  getEditHref,
+  editLabel,
 }) => (
   <div>
     <div className="flex min-w-0 items-center justify-between gap-2">
@@ -1059,15 +1062,16 @@ const PosVariantColorPicker = ({
         const selected = String(selectedColorKey || "") === String(option.key || "");
         const codeLabel = option.hintFull || option.hint;
         const title = codeLabel ? `${option.color || defaultLabel} — ${codeLabel}` : option.color || defaultLabel;
+        const editHref = getEditHref ? getEditHref(option) : "";
         return (
+          <div key={option.key} className="relative min-w-0">
           <button
-            key={option.key}
             type="button"
             title={title}
             aria-label={title}
             aria-pressed={selected}
             onClick={() => onSelect?.(option.key)}
-            className={`group relative aspect-square min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${
+            className={`group relative aspect-square w-full min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${
               selected
                 ? "border-emerald-400 bg-emerald-500/15 ring-2 ring-emerald-400/35"
                 : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10"
@@ -1099,6 +1103,21 @@ const PosVariantColorPicker = ({
               </span>
             ) : null}
           </button>
+          {/* A sibling of the tile, not inside it: a link nested in a button is
+              invalid and would also select the colour on the way out. */}
+          {editHref ? (
+            <a
+              href={editHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${editLabel} — ${option.color || defaultLabel}`}
+              aria-label={`${editLabel} — ${option.color || defaultLabel}`}
+              className="pos-product-edit absolute left-1 top-1 flex h-6 w-6 items-center justify-center rounded-full border border-sky-200/50 bg-zinc-950/90 text-sky-200 shadow-md backdrop-blur transition hover:border-sky-200 hover:text-white"
+            >
+              <Pencil className="h-3 w-3" />
+            </a>
+          ) : null}
+          </div>
         );
       })}
     </div>
@@ -8407,6 +8426,10 @@ function POSPro() {
       return {
         key,
         color,
+        groupKey: String(preferredVariant?.color_group_key ?? preferredVariant?.colorGroupKey ?? "").trim(),
+        variantIds: colorVariants
+          .map((variant) => String(variant.variant_id ?? "").trim())
+          .filter((value) => value && value !== "null" && value !== "undefined"),
         hint,
         hintFull: hintCode,
         imageUrl: rawImageUrl ? getDisplayImageUrl(rawImageUrl) : "",
@@ -8439,6 +8462,22 @@ function POSPro() {
     );
     setSelectedSize(firstForColor?.size || "");
   }, [activeProduct]);
+
+  // The pencil on each colour tile opens the product editor on THAT colour block.
+  // The variant ids are the exact match; the group key and the name are fallbacks
+  // for a colour whose rows the editor regrouped.
+  const canEditCatalogProduct = useMemo(() => hasPermission("products.edit"), [currentUser]);
+  const activeProductEditId = String(activeProduct?.product_id ?? activeProduct?.id ?? "").trim();
+  const getVariantColorEditHref = useMemo(() => {
+    if (!canEditCatalogProduct || !activeProductEditId || /^(undefined|null)$/.test(activeProductEditId)) return undefined;
+    return (option) => {
+      const params = new URLSearchParams({ focus: "color" });
+      if (option.variantIds?.length) params.set("variantIds", option.variantIds.join(","));
+      if (option.groupKey) params.set("colorGroupKey", option.groupKey);
+      if (option.color) params.set("color", option.color);
+      return `/products/${encodeURIComponent(activeProductEditId)}/edit?${params.toString()}`;
+    };
+  }, [canEditCatalogProduct, activeProductEditId]);
 
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
@@ -9560,6 +9599,8 @@ function POSPro() {
                     onSelect={handleSelectVariantColor}
                     label={t("pos.labels.color")}
                     defaultLabel={t("pos.labels.default")}
+                    getEditHref={getVariantColorEditHref}
+                    editLabel={t("pos.productGrid.editProduct")}
                   />
                 </div>
 
@@ -9709,6 +9750,8 @@ function POSPro() {
                         onSelect={handleSelectVariantColor}
                         label={t("pos.labels.color")}
                         defaultLabel={t("pos.labels.default")}
+                        getEditHref={getVariantColorEditHref}
+                        editLabel={t("pos.productGrid.editProduct")}
                       />
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">

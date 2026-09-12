@@ -1110,6 +1110,38 @@ function ProductEdit() {
     return () => window.clearTimeout(timer);
   }, [searchParams, colorGroups]);
 
+  // ?focus=color — opened from the POS colour tile's pencil: open that colour's
+  // block and scroll to it, once, when the groups first load (not on every edit).
+  const [focusedColorGroupId, setFocusedColorGroupId] = useState("");
+  const colorFocusAppliedRef = useRef(false);
+  useEffect(() => {
+    if (colorFocusAppliedRef.current || loading || !colorGroups.length) return undefined;
+    if (String(searchParams.get("focus") || "").trim().toLowerCase() !== "color") return undefined;
+    const variantIds = new Set(
+      String(searchParams.get("variantIds") || "").split(",").map((value) => value.trim()).filter(Boolean)
+    );
+    const groupKey = String(searchParams.get("colorGroupKey") || "").trim();
+    const colorKey = normalizeColorKey(searchParams.get("color") || "");
+    const targetGroup =
+      (variantIds.size
+        ? colorGroups.find((group) => (group.sizes || []).some((row) => variantIds.has(String(row.variantId || "").trim())))
+        : null) ||
+      (groupKey ? colorGroups.find((group) => String(group.color_group_key || group.id || "").trim() === groupKey) : null) ||
+      (colorKey ? colorGroups.find((group) => normalizeColorKey(group.color) === colorKey) : null);
+    colorFocusAppliedRef.current = true;
+    if (!targetGroup?.id) return undefined;
+    setExpandedGroupId(targetGroup.id);
+    setFocusedColorGroupId(targetGroup.id);
+    // No cleanup on purpose: a later colorGroups update (image hydration) must not
+    // cancel the one-shot scroll or leave the highlight on forever.
+    window.setTimeout(() => {
+      const node = document.querySelector(`[data-color-group-id="${CSS.escape(String(targetGroup.id))}"]`);
+      (node || colorGroupsSectionRef.current)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+    window.setTimeout(() => setFocusedColorGroupId(""), 4000);
+    return undefined;
+  }, [searchParams, colorGroups, loading]);
+
   const descriptionContext = useMemo(
     () => ({
       name: product.name,
@@ -4337,7 +4369,8 @@ function ProductEdit() {
                 return (
                 <div
                   key={group.id}
-                  className={`overflow-visible rounded-[var(--radius-card)] border bg-surface-soft transition ${ draggedColorGroupId === group.id ? "opacity-40" : "" } ${ dragOverColorGroupId === group.id && draggedColorGroupId !== group.id ? "border-primary shadow-[0_0_0_1px_var(--primary)]" : isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_var(--danger-soft),0_0_28px_var(--danger-soft)]" : "border-border" }`}
+                  data-color-group-id={group.id}
+                  className={`overflow-visible rounded-[var(--radius-card)] border bg-surface-soft transition ${ draggedColorGroupId === group.id ? "opacity-40" : "" } ${ dragOverColorGroupId === group.id && draggedColorGroupId !== group.id ? "border-primary shadow-[0_0_0_1px_var(--primary)]" : focusedColorGroupId === group.id ? "border-primary shadow-[0_0_0_2px_var(--primary)]" : isMissingImageHighlight ? "border-red-300/60 shadow-[0_0_0_1px_var(--danger-soft),0_0_28px_var(--danger-soft)]" : "border-border" }`}
                   onDragOver={(event) => {
                     if (!draggedColorGroupId) return;
                     event.preventDefault();
