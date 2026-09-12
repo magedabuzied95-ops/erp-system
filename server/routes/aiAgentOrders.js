@@ -7091,6 +7091,16 @@ router.post(
         sessionId,
         clientRequestId: requestClientRequestId(req),
         message: caption,
+        /*
+         * The bubble keeps the caption exactly as it was typed — empty stays
+         * empty, so an uncaptioned photo renders as a photo and not as a photo
+         * with the words "صورة" written under it. The CONVERSATION LIST is what
+         * needs a preview, and it takes this one instead of being blanked.
+         */
+        preserveExactMessage: true,
+        previewMessage: caption || (attachmentKind === "video"
+          ? "🎬 فيديو"
+          : "📷 صورة"),
         messageType: attachmentKind,
         staffUserId: req.user?.id || null,
         staffUserName: userDisplayName(req.user),

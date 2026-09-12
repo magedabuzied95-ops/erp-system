@@ -97,6 +97,30 @@ test("an uncaptioned attachment is a message in its own right", () => {
   assert.match(metaSource, /const textPostWouldBeEmpty = !safeMessage && imageResults\.length > 0/);
 });
 
+/*
+ * Caught live, sending to a real number: the photo reached WhatsApp and the
+ * route THEN answered 400 "Reply message is required", because the transcript
+ * writer counted only text and product cards. The customer had the picture; the
+ * operator was told it failed and shown nothing, so they sent it again. That is
+ * the whole of "I send a picture and sometimes it doesn't arrive".
+ */
+test("an uncaptioned attachment is a message the transcript will accept", () => {
+  const logSource = read("../server/services/aiSupportLogService.js");
+  assert.match(
+    logSource,
+    /!\(safeMessage \|\| safeProductCards\.length \|\| safeVisualAttachments\.length\)/
+  );
+});
+
+test("an uncaptioned attachment still gives the conversation list a preview", () => {
+  // The forced last_message UPDATE writes whatever it is given, so an empty
+  // caption blanked the inbox row. The caption stays exact for the bubble.
+  const route = routeSource.slice(routeSource.indexOf('"/conversations/:conversationId/attachment"'));
+  const body = route.slice(0, route.indexOf("test-meta-send"));
+  assert.match(body, /preserveExactMessage: true/);
+  assert.match(body, /previewMessage: caption \|\| \(attachmentKind === "video"/);
+});
+
 test("Telegram maps a clip to sendVideo, not sendDocument", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

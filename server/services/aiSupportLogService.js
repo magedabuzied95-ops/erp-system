@@ -455,7 +455,16 @@ const persistOutboundTranscriptRow = async ({
     insertSource: safeInsertSource,
     productCards: safeProductCards,
   });
-  if (!safeTenantId || !safeSessionId || !(safeMessage || safeProductCards.length)) {
+  /*
+   * A photo with nothing written under it IS the message.
+   *
+   * Counting only text and product cards meant an uncaptioned attachment was
+   * refused HERE — after the channel had already accepted it. The customer got
+   * the photo, the row was never written, and the operator was told the send
+   * failed and shown nothing, so they sent it again. That is the whole of
+   * "I send a picture and sometimes it doesn't arrive": it arrived every time.
+   */
+  if (!safeTenantId || !safeSessionId || !(safeMessage || safeProductCards.length || safeVisualAttachments.length)) {
     throw Object.assign(new Error("Reply message is required"), { status: 400 });
   }
   await ensureAiSupportLogSchema();
