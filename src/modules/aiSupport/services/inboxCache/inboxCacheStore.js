@@ -77,6 +77,34 @@ export const projectConversationRow = (conversation = {}) => {
 // keeps dedup keys intact; the newest-N cap bounds size.
 export const projectMessage = (message = {}) => (message && typeof message === "object" ? message : {});
 
+/*
+ * A message whose media lives only in THIS browser session cannot be cached.
+ *
+ * The composer paints an attachment bubble from a local object URL before the
+ * upload starts, and keeps that bubble — still pointing at the local preview —
+ * when the send fails, so the operator can see which photo did not go. A blob:
+ * URL dies with the page, so caching such a row means that after one reload the
+ * thread shows an empty player or a broken tile, for good: nothing on the server
+ * will ever replace a row the server never received.
+ *
+ * Only the local ones are refused. The moment the send succeeds the bubble is
+ * replaced by the stored row, whose URL is a real one, and that caches normally.
+ */
+const BLOB_URL_FIELDS = ["url", "image_url", "media_url", "attachment_url", "file_url", "preview_url", "thumbnail_url", "src"];
+
+export const isCacheableMessage = (message = {}) => {
+  if (!message || typeof message !== "object") return false;
+  const isBlob = (value) => clean(value).startsWith("blob:");
+  if (BLOB_URL_FIELDS.some((field) => isBlob(message[field]))) return false;
+  const attachments = [
+    ...(Array.isArray(message.visual_attachments) ? message.visual_attachments : []),
+    ...(Array.isArray(message.attachments) ? message.attachments : []),
+  ];
+  return !attachments.some((attachment) => (
+    attachment && typeof attachment === "object" && BLOB_URL_FIELDS.some((field) => isBlob(attachment[field]))
+  ));
+};
+
 // Newest-N by created_at, oldest→newest order preserved.
 export const boundMessages = (messages = [], limit = MAX_MESSAGES_PER_THREAD) => {
   const list = Array.isArray(messages) ? messages.slice() : [];
@@ -204,7 +232,7 @@ export const writeThread = async (adapter, ns, conversationKey, messages, mergeF
   const merged = typeof mergeFn === "function"
     ? mergeFn([...existingMessages, ...incoming])
     : [...existingMessages, ...incoming];
-  const bounded = boundMessages(merged.map(projectMessage));
+  const bounded = boundMessages(merged.map(projectMessage).filter(isCacheableMessage));
   await adapter.set(threadKey(ns, key), { messages: bounded, cachedAt: nowMs() });
   await touchThreadIndex(adapter, ns, key);
   return true;
@@ -232,7 +260,7 @@ const touchThreadIndex = async (adapter, ns, key) => {
 export const replaceThread = async (adapter, ns, conversationKey, messages) => {
   if (!adapter || !ns || !clean(conversationKey)) return false;
   const key = clean(conversationKey);
-  const bounded = boundMessages((Array.isArray(messages) ? messages : []).map(projectMessage));
+  const bounded = boundMessages((Array.isArray(messages) ? messages : []).map(projectMessage).filter(isCacheableMessage));
   if (!bounded.length) return false; // never blank a thread from here
   await adapter.set(threadKey(ns, key), { messages: bounded, cachedAt: nowMs() });
   await touchThreadIndex(adapter, ns, key);

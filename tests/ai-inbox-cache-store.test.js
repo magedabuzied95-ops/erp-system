@@ -8,6 +8,8 @@ import {
   writeList,
   readThread,
   writeThread,
+  replaceThread,
+  isCacheableMessage,
   readLastThread,
   writeLastThread,
   sweepExpired,
@@ -284,4 +286,40 @@ test("replaceThread refuses to blank a thread with an empty window", async () =>
   assert.equal(await replaceThread(adapter, NS, "conv:2", []), false);
   const read = await readThread(adapter, NS, "conv:2");
   assert.deepEqual(read.messages.map((m) => m.id), [5]);
+});
+
+/*
+ * A bubble whose picture lives only in this browser session.
+ *
+ * The composer paints an attachment from a local object URL before the upload
+ * starts, and keeps that bubble when the send fails so the operator can see
+ * WHICH photo did not go. blob: dies with the page, so caching such a row left
+ * an empty player in the thread after every reload, permanently — the server
+ * never received that message, so nothing would ever replace it.
+ */
+test("a local-preview bubble is never written to the cache", async () => {
+  const adapter = createMemoryAdapter();
+  const ns = buildNamespace({ tenantId: 1, userId: 7 });
+  const stored = { id: 900, created_at: "2026-09-12T02:00:00.000Z", message_type: "image", visual_attachments: [{ type: "image", url: "/uploads/inbox/real.jpg" }] };
+  const pending = { id: "sending-attachment-abc", created_at: "2026-09-12T02:01:00.000Z", message_type: "video", delivery_status: "failed", visual_attachments: [{ type: "video", url: "blob:https://erp.example.com/abc-123" }] };
+
+  await writeThread(adapter, ns, "whatsapp:2010", [stored, pending], mergeByIdentity);
+  const back = await readThread(adapter, ns, "whatsapp:2010");
+  assert.deepEqual(back.messages.map((m) => m.id), [900]);
+});
+
+test("the same rule applies to the overwrite path, and real URLs still cache", async () => {
+  const adapter = createMemoryAdapter();
+  const ns = buildNamespace({ tenantId: 1, userId: 7 });
+  const pending = { id: "sending-attachment-xyz", created_at: "2026-09-12T02:03:00.000Z", visual_attachments: [{ type: "image", url: "blob:https://erp.example.com/xyz" }] };
+  const delivered = { id: 901, created_at: "2026-09-12T02:04:00.000Z", visual_attachments: [{ type: "image", url: "https://api.example.com/uploads/inbox/1-x.jpg" }] };
+
+  await replaceThread(adapter, ns, "whatsapp:2011", [pending, delivered]);
+  const back = await readThread(adapter, ns, "whatsapp:2011");
+  assert.deepEqual(back.messages.map((m) => m.id), [901]);
+
+  // A loose blob on the message itself (not in an attachment array) counts too.
+  assert.equal(isCacheableMessage({ id: 5, image_url: "blob:https://x/y" }), false);
+  // An ordinary text bubble, optimistic or not, is unaffected.
+  assert.equal(isCacheableMessage({ id: "sending-1", message_text: "hi" }), true);
 });
