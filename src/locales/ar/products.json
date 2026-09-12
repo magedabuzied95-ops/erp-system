@@ -643,6 +643,7 @@
     "stockQty": "كمية المخزون",
     "actualWarehouseStock": "الكمية الفعلية في المخزن",
     "newSizeNoWarehouseStock": "مقاس جديد — لا يوجد له رصيد مخزن بعد",
+    "zeroStockQtyGoesOnSale": "لو زوّدت الكمية هتنزل للبيع فوراً، وتفضل في فاتورة المشتريات لحد ما تعمل بيها فاتورة",
     "articleCodeColorHelp": "كود الأرتكل يخص هذا اللون. المخزون يُدار لكل مقاس.",
     "saveProduct": "حفظ المنتج",
     "updateProduct": "تحديث المنتج",

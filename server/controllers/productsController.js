@@ -46,6 +46,9 @@ import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSear
 import { normalizeCartonColors, normalizePurchaseMode, validatePurchasePatternConfiguration } from "../services/purchasePatternService.js";
 import { normalizeSizeGroupKey, normalizeSizeGroupKeys } from "../utils/sizeGroups.js";
 import { wholePoundPriceErrors, wholePoundVariantPriceErrors } from "../utils/priceValidation.js";
+import { applyProvisionalStockFromEditor } from "../utils/provisionalStock.js";
+import { buildProductEditChangeSummary } from "../utils/productEditChangeSummary.js";
+import { sendManagerProductEditedPush } from "../services/managerPortalPushService.js";
 
 const invalidateProductStorefrontCache = async (tenantId) => {
   const scopes = new Set([tenantId || "public", "public"]);
@@ -6769,6 +6772,7 @@ export const updateProduct = async (req, res) => {
     let missingArchivedVariants = [];
     let archivedVariants = [];
     let activeVariantsAfterSave = activeVariantsBeforeSave;
+    let provisionalStockAdds = [];
     if (shouldSyncVariants) {
       savedVariants = [];
       // Two queries, once, instead of five to eight per variant. Everything the loop
@@ -6822,6 +6826,16 @@ export const updateProduct = async (req, res) => {
         savedVariantIds: savedVariants.map((variant) => variant.id),
       });
       archivedVariants = [...explicitlyArchivedVariants, ...missingArchivedVariants];
+      // A colour/size with no stock whose quantity was raised goes on sale now; its
+      // planned quantity keeps it on the purchase page until an invoice replaces it.
+      const archivedVariantIdSet = new Set(archivedVariants.map((variant) => String(variant.id)));
+      provisionalStockAdds = await applyProvisionalStockFromEditor(client, {
+        tenantId,
+        productId,
+        userId: req.user?.id || null,
+        previousVariants: activeVariantsBeforeSave,
+        savedVariants: savedVariants.filter((variant) => !archivedVariantIdSet.has(String(variant.id))),
+      });
       await syncColorGroupStorefrontVisibility(client, {
         productId,
         tenantId,
@@ -6962,6 +6976,27 @@ export const updateProduct = async (req, res) => {
     await invalidateProductStorefrontCache(tenantId).catch((error) => {
       console.warn("[products:update] storefront cache invalidation skipped", error?.message || error);
     });
+    // Manager portal: every product save, with what it changed. After COMMIT and never
+    // awaited — a push that fails or hangs must not touch the save.
+    try {
+      const productEditChanges = buildProductEditChangeSummary({
+        previousProduct: currentProductRow,
+        nextProduct: updated.rows[0] || {},
+        previousVariants: activeVariantsBeforeSave,
+        nextVariants: activeVariantsAfterSave,
+        provisionalStockAdds,
+      });
+      void sendManagerProductEditedPush({
+        tenantId,
+        product: { ...(updated.rows[0] || {}), id: productId },
+        changes: productEditChanges,
+        actorName: req.user?.full_name || req.user?.name || req.user?.username || "",
+      }).catch((error) => {
+        console.warn("[products:update] manager product-edit push failed", { productId, message: error?.message || error });
+      });
+    } catch (error) {
+      console.warn("[products:update] manager product-edit summary failed", { productId, message: error?.message || error });
+    }
     console.log("[products:update] transaction commit", {
       productId,
       savedVariantsCount: savedVariants.length,

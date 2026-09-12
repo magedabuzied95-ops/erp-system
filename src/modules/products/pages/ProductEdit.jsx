@@ -4940,6 +4940,12 @@ function ProductEdit() {
                                       {t("products.editor.newSizeNoWarehouseStock", "New size — no warehouse stock yet.")}
                                     </p>
                                   )}
+                                  {/* The server turns a raised quantity on a zero-stock row into stock on sale. */}
+                                  {!(Number(row.available_stock) > 0) ? (
+                                    <p className="mt-0.5 text-[10px] leading-4 text-text-muted">
+                                      {t("products.editor.zeroStockQtyGoesOnSale", "Raising the quantity puts it on sale now; it stays on the purchase list until a purchase invoice.")}
+                                    </p>
+                                  ) : null}
                                 </div>
                                 <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">

@@ -18,6 +18,7 @@ import { buildReorderDraftLines, ensureSmartReorderSchema, getSmartReorderSugges
 import { createSystemNotification } from "../services/notificationsService.js";
 import { syncProductPricingFromVariants } from "../services/productPricingSyncService.js";
 import { runRequiredPurchaseAccounting } from "../services/purchaseTransactionService.js";
+import { loadOpenProvisionalSettlementsForPurchase, reverseProvisionalSettlementsForPurchase, settleProvisionalStockForPurchase } from "../utils/provisionalStock.js";
 
 const router = express.Router();
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -944,22 +945,33 @@ const resetConsumedDefaultPurchaseQty = async (client, { tenantId, items = [] })
       values.push(variantIds);
       targetClauses.push(`id = ANY($${values.length}::bigint[])`);
     }
-    if (productIds.length && columns.has("product_id")) {
-      values.push(productIds);
+    // Whole-product reset only for lines that name no variant. A line for one colour/size
+    // used to clear the planned quantity of every colour of the product, so buying one
+    // colour dropped the others off the purchase page before they were ever invoiced.
+    const variantlessProductIds = Array.from(new Set(
+      consumedItems
+        .filter((item) => !(Number.isInteger(Number(item.variant_id)) && Number(item.variant_id) > 0))
+        .map((item) => Number(item.product_id))
+        .filter((productId) => Number.isInteger(productId) && productId > 0)
+    ));
+    if (variantlessProductIds.length && columns.has("product_id")) {
+      values.push(variantlessProductIds);
       targetClauses.push(`product_id = ANY($${values.length}::bigint[])`);
     }
     const tenantClause = columns.has("tenant_id") ? "AND (tenant_id = $1 OR tenant_id IS NULL)" : "";
     const updatedAt = columns.has("updated_at") ? ", updated_at = CURRENT_TIMESTAMP" : "";
-    const result = await client.query(
-      `
-      UPDATE product_variants
-      SET default_purchase_qty = 0${updatedAt}
-      WHERE (${targetClauses.join(" OR ")})
-        ${tenantClause}
-      RETURNING id
-      `,
-      values
-    );
+    const result = targetClauses.length
+      ? await client.query(
+          `
+          UPDATE product_variants
+          SET default_purchase_qty = 0${updatedAt}
+          WHERE (${targetClauses.join(" OR ")})
+            ${tenantClause}
+          RETURNING id
+          `,
+          values
+        )
+      : { rows: [] };
     resetIds.push(...result.rows.map((row) => row.id));
   }
 
@@ -2889,6 +2901,11 @@ const getPurchaseStockReversalState = async (client, { tenantId, purchase, items
     );
     console.timeEnd("[purchase-delete] stock recalculation variant lookup");
     result.rows.forEach((row) => variantStock.set(Number(row.id), Number(row.stock || 0)));
+    // Units this invoice took over from the product editor come back before its stock-out.
+    const openSettlements = await loadOpenProvisionalSettlementsForPurchase(client, { tenantId, purchaseId: purchase?.id });
+    openSettlements.forEach((quantity, variantId) => {
+      if (variantStock.has(variantId)) variantStock.set(variantId, variantStock.get(variantId) + quantity);
+    });
   }
 
   const productStock = new Map();
@@ -3748,6 +3765,10 @@ const applyReceivedPurchaseLineDeltas = async (client, { tenantId, purchase, nex
 };
 
 const reverseReceivedPurchase = async (client, { tenantId, purchase, userId, reason = "", stepRef = null }) => {
+  // Give back what this invoice's provisional settlements took before its stock goes out:
+  // those units were on the shelf before the invoice and are still there without it.
+  setPurchaseDeleteStep(stepRef, "provisional stock settlement reversal");
+  await reverseProvisionalSettlementsForPurchase(client, { tenantId, purchaseId: purchase.id, userId });
   const items = (Array.isArray(purchase.items) ? purchase.items : []).map(normalizePurchaseItem);
   const warehouseId = await ensureDefaultWarehouseForPurchase(client, tenantId, purchase.warehouse_id);
   const movementRows = [];
@@ -4609,6 +4630,14 @@ router.post(
         }
       }
 
+      await settleProvisionalStockForPurchase(client, {
+        tenantId,
+        purchaseId: purchase.id,
+        referenceType: "purchase",
+        items: purchase.items || [],
+        userId: req.user?.id || null,
+      });
+
       await stampProductsRestocked(client, {
         tenantId,
         productIds: (purchase.items || [])
@@ -4827,6 +4856,14 @@ router.post(
           });
         }
       }
+
+      await settleProvisionalStockForPurchase(client, {
+        tenantId,
+        purchaseId: purchase.id,
+        referenceType: "purchase_adjustment",
+        items,
+        userId: req.user?.id || null,
+      });
 
       await stampProductsRestocked(client, {
         tenantId,
@@ -5404,6 +5441,15 @@ router.post(
         }));
         // Captured for a POST-COMMIT restock emit (Phase 5). Do NOT emit inside the transaction.
         restockMovements = Array.isArray(stockResult?.stockRows) ? stockResult.stockRows : [];
+        // Units already put on sale from the product editor are what this invoice buys:
+        // it replaces them instead of counting them a second time.
+        await runStep("provisional stock settlement", () => settleProvisionalStockForPurchase(client, {
+          tenantId,
+          purchaseId: purchase.id,
+          referenceType: "purchase",
+          items: itemsWithInsertedIds,
+          userId: req.user?.id || null,
+        }));
       }
 
       await runStep("variant lookup/create/update", () => batchUpdateVariantPricingAfterPurchase(client, {

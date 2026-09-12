@@ -2616,6 +2616,43 @@ function POSPro() {
     }
   }, [editingOrder?.id, products, saleModeSettings]);
 
+  // Coming back to the POS tab (the colour pencil edits the product in another tab) asks
+  // the tiny catalog-version watermark whether anything sellable changed — stock put on
+  // sale in the product editor included — and reloads the catalog only when it did.
+  const knownCatalogVersionRef = useRef("");
+  const catalogVersionCheckRef = useRef({ inFlight: false, lastAt: 0 });
+  useEffect(() => {
+    const checkCatalogVersion = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      if (editingOrder?.id || !knownCatalogVersionRef.current) return;
+      const state = catalogVersionCheckRef.current;
+      if (state.inFlight || Date.now() - state.lastAt < 15_000) return;
+      state.inFlight = true;
+      state.lastAt = Date.now();
+      try {
+        const version = await getPosCatalogVersion({});
+        if (!version || version === knownCatalogVersionRef.current) return;
+        await refreshCatalogProducts({
+          setProducts,
+          manageLoading: false,
+          saleModeSettings,
+          catalogVersion: version,
+        });
+        knownCatalogVersionRef.current = version;
+      } catch (error) {
+        console.debug("[pos] catalog version check skipped", error?.message || error);
+      } finally {
+        state.inFlight = false;
+      }
+    };
+    window.addEventListener("focus", checkCatalogVersion);
+    document.addEventListener("visibilitychange", checkCatalogVersion);
+    return () => {
+      window.removeEventListener("focus", checkCatalogVersion);
+      document.removeEventListener("visibilitychange", checkCatalogVersion);
+    };
+  }, [editingOrder?.id, saleModeSettings]);
+
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
@@ -2664,6 +2701,7 @@ function POSPro() {
           }),
         ]);
         const freshCatalogVersion = versionResult.status === "fulfilled" ? (versionResult.value || "") : "";
+        if (freshCatalogVersion) knownCatalogVersionRef.current = freshCatalogVersion;
         const websiteSettings = websiteSettingsResult.status === "fulfilled" ? websiteSettingsResult.value : null;
         const publicSettings = publicSettingsResult.status === "fulfilled" ? publicSettingsResult.value : null;
         // Authority order: /website/settings -> /settings/public -> last persisted

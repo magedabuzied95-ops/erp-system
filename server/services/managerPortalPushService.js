@@ -874,3 +874,72 @@ export const sendManagerInvoiceDeletedPush = async ({
     },
   });
 };
+
+// Every save of the product editor, so the manager knows who touched which product and
+// what moved — a price, a colour, a size, a quantity, stock put on sale before its invoice.
+export const sendManagerProductEditedPush = async ({
+  tenantId = null,
+  product = {},
+  changes = [],
+  actorName = "",
+} = {}) => {
+  const productId = numberOrNull(product.id);
+  if (!productId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
+  const normalizedTenantId = numberOrNull(tenantId ?? product.tenant_id);
+  const productName = text(product.name) || `منتج ${productId}`;
+  const actor = text(actorName);
+  const lines = (Array.isArray(changes) ? changes : []).map(text).filter(Boolean);
+  const title = `تعديل منتج · ${productName}`;
+  const detail = lines.length ? lines.join(" · ") : "اتحفظ من غير تغيير في السعر أو الألوان أو الكميات";
+  const body = actor ? `${actor} — ${detail}` : detail;
+  // Unique per save: the 10-minute dedupe would otherwise swallow the second edit of the
+  // same product, and that one is just as much news.
+  const entityId = `product-edit-${productId}-${Date.now()}`;
+
+  console.info("[manager-push:product-edited]", {
+    tenantId: normalizedTenantId,
+    product_id: productId,
+    change_count: lines.length,
+  });
+
+  createNotification({
+    tenant_id: normalizedTenantId || null,
+    role_key: "manager",
+    branch_id: null,
+    type: "product_updated",
+    category: "stock",
+    priority: "medium",
+    title,
+    message: body.slice(0, 1000),
+    entity_type: "product_edit",
+    entity_id: entityId,
+    metadata: {
+      type: "product_updated",
+      product_id: productId,
+      product_name: productName,
+      actor_name: actor,
+      changes: lines,
+    },
+  }).catch((error) => console.warn("[manager-push:product-edited-notification-failed]", { product_id: productId, message: error?.message || String(error) }));
+
+  return sendToManagerSubscriptions({
+    tenantId: normalizedTenantId,
+    branchId: null,
+    category: "stock",
+    logLabels: {
+      attempt: "[manager-push:product-edited-send-attempt]",
+      success: "[manager-push:product-edited-send-success]",
+      failed: "[manager-push:product-edited-send-failed]",
+    },
+    buildPayload: (row) => ({
+      title,
+      body: body.slice(0, 300),
+      tag: `manager-product-edit-${productId}`,
+      data: {
+        type: "product_updated",
+        product_id: productId,
+        url: `/manager-portal/${encodeURIComponent(row.portal_token)}`,
+      },
+    }),
+  });
+};

@@ -643,6 +643,7 @@
     "stockQty": "Stock Qty",
     "actualWarehouseStock": "Actual warehouse stock",
     "newSizeNoWarehouseStock": "New size — no warehouse stock yet",
+    "zeroStockQtyGoesOnSale": "Raising the quantity puts it on sale now; it stays on the purchase list until a purchase invoice",
     "articleCodeColorHelp": "Article code applies to this color. Stock is managed per size row.",
     "saveProduct": "Save Product",
     "updateProduct": "Update Product",
