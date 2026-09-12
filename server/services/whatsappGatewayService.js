@@ -1461,30 +1461,44 @@ export const WHATSAPP_MEDIA_SEND_TIMEOUT_MS = Math.max(
   5_000
 );
 
-export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance = "" } = {}) => {
+/*
+ * A photo or a clip: one transport, one mediatype word apart.
+ *
+ * Evolution's /message/sendMedia takes both; what separates them is `mediatype`
+ * and the mimetype the recipient's phone reads to decide whether to draw a
+ * thumbnail with a play button or a still. Splitting this into two near-copies
+ * would mean the LID addressing, the timeout and the payload logging all had to
+ * be kept in step twice.
+ */
+export const sendWhatsappMediaMessage = async ({ phone, mediaUrl, mediaType = "image", caption = "", instance = "" } = {}) => {
+  const kind = text(mediaType).toLowerCase() === "video" ? "video" : "image";
   // Same LID addressing as sendTextMessage: a username customer has no number,
   // so product photos have to travel over the LID too.
   const lid = normalizeWhatsappLid(phone);
   const normalizedPhone = lid ? `${lid}@lid` : normalizeEgyptPhone(phone);
-  const media = resolvePublicImageUrl(imageUrl);
+  const media = resolvePublicImageUrl(mediaUrl);
   const safeCaption = text(caption).slice(0, 500);
-  const mimetype = imageMimeType(media) || "image/jpeg";
+  const mimetype = (kind === "video" ? videoMimeType(media) || "video/mp4" : imageMimeType(media) || "image/jpeg");
   if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
-  if (!isPublicImageUrl(media)) throw gatewayError("A valid public image URL is required", "WHATSAPP_IMAGE_URL_REQUIRED", 400);
+  if (!isPublicImageUrl(media)) {
+    throw gatewayError(
+      `A valid public ${kind} URL is required`,
+      kind === "video" ? "WHATSAPP_VIDEO_URL_REQUIRED" : "WHATSAPP_IMAGE_URL_REQUIRED",
+      400
+    );
+  }
   if (isCloudTransport(instance)) {
     refuseCloudLid(lid);
-    return whatsappCloud.sendImage({
-      phone: normalizedPhone,
-      imageUrl: media,
-      caption: safeCaption,
-      phoneNumberId: resolveWhatsappTransport(instance).phoneNumberId,
-    });
+    const phoneNumberId = resolveWhatsappTransport(instance).phoneNumberId;
+    return kind === "video"
+      ? whatsappCloud.sendVideo({ phone: normalizedPhone, videoUrl: media, caption: safeCaption, phoneNumberId })
+      : whatsappCloud.sendImage({ phone: normalizedPhone, imageUrl: media, caption: safeCaption, phoneNumberId });
   }
   const current = requireEvolutionConfig(instance);
   const endpoint = `/message/sendMedia/${encodeURIComponent(current.instanceName)}`;
   const payload = {
     number: normalizedPhone,
-    mediatype: "image",
+    mediatype: kind,
     mimetype,
     media,
     caption: safeCaption,
@@ -1568,11 +1582,11 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
       phoneSuffix: normalizedPhone.slice(-4),
       imageUrl: media,
     });
-    return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, imageUrl: media, result: data };
+    return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, imageUrl: media, mediaUrl: media, mediaType: kind, result: data };
   } catch (rawError) {
     const error = rawError?.name === "AbortError"
       ? gatewayError(
-        `WhatsApp did not answer within ${Math.round(WHATSAPP_MEDIA_SEND_TIMEOUT_MS / 1000)}s while fetching the image`,
+        `WhatsApp did not answer within ${Math.round(WHATSAPP_MEDIA_SEND_TIMEOUT_MS / 1000)}s while fetching the ${kind}`,
         "WHATSAPP_MEDIA_SEND_TIMEOUT",
         504
       )
@@ -1600,6 +1614,14 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
     clearTimeout(timer);
   }
 };
+
+// Every existing caller sends a product photo, so the image signature stays as
+// it was rather than making dozens of call sites name a mediatype.
+export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance = "" } = {}) =>
+  sendWhatsappMediaMessage({ phone, mediaUrl: imageUrl, mediaType: "image", caption, instance });
+
+export const sendVideoMessage = async ({ phone, videoUrl, caption = "", instance = "" } = {}) =>
+  sendWhatsappMediaMessage({ phone, mediaUrl: videoUrl, mediaType: "video", caption, instance });
 
 /*
  * A file, not a photo. The Bosta airway bill is a PDF, and pushing it through
@@ -3447,6 +3469,17 @@ const imageMimeType = (url = "") => {
   if (clean.endsWith(".webp")) return "image/webp";
   if (clean.endsWith(".gif")) return "image/gif";
   if (clean.endsWith(".jpg") || clean.endsWith(".jpeg")) return "image/jpeg";
+  return "";
+};
+
+// The recipient's phone reads the mimetype to decide whether to draw a still or
+// a thumbnail with a play button, so a clip sent as image/jpeg arrives broken.
+const videoMimeType = (url = "") => {
+  const clean = text(url).split(/[?#]/)[0].toLowerCase();
+  if (clean.endsWith(".mov")) return "video/quicktime";
+  if (clean.endsWith(".3gp") || clean.endsWith(".3gpp")) return "video/3gpp";
+  if (clean.endsWith(".m4v")) return "video/x-m4v";
+  if (clean.endsWith(".mp4")) return "video/mp4";
   return "";
 };
 

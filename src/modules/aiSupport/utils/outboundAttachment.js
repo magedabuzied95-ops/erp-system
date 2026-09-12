@@ -26,19 +26,49 @@ export const OUTBOUND_IMAGE_TARGET_BYTES = 900 * 1024;
 // the animation away, so it is passed through exactly as it was picked.
 const PASSTHROUGH_TYPES = ["image/gif", "image/svg+xml"];
 
+/*
+ * What the channels will carry. Deliberately narrower than "any video": WhatsApp,
+ * Messenger and Instagram all want H.264/AAC in an MP4-family container, and the
+ * server turns the rest away — so a .mkv is refused here, before it has been
+ * uploaded, where the message can still say what to do about it.
+ */
+export const SENDABLE_VIDEO_EXTENSIONS = /\.(mp4|mov|m4v|3gpp?)$/i;
+export const SENDABLE_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/3gpp", "video/x-m4v"];
+export const MAX_OUTBOUND_VIDEO_BYTES = 16 * 1024 * 1024;
+
 const clean = (value = "") => String(value || "").trim();
 
 export const isImageFile = (file) => {
   if (!file) return false;
   const type = clean(file.type).toLowerCase();
+  if (type.startsWith("video/")) return false;
   if (type.startsWith("image/")) return true;
   // A file dragged out of some Windows apps arrives with an empty type, so the
   // extension is the only thing left to go on.
   return /\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(clean(file.name));
 };
 
+export const isVideoFile = (file) => {
+  if (!file) return false;
+  if (clean(file.type).toLowerCase().startsWith("video/")) return true;
+  return /\.(mp4|mov|m4v|3gpp?|webm|mkv|avi)$/i.test(clean(file.name));
+};
+
+export const isSendableVideoFile = (file) => {
+  if (!isVideoFile(file)) return false;
+  const type = clean(file.type).toLowerCase();
+  if (SENDABLE_VIDEO_TYPES.includes(type)) return true;
+  return SENDABLE_VIDEO_EXTENSIONS.test(clean(file.name));
+};
+
+/** "image" | "video" | "" — what the operator actually handed the composer. */
+export const attachmentKindOf = (file) => {
+  if (isVideoFile(file)) return "video";
+  return isImageFile(file) ? "image" : "";
+};
+
 /**
- * Every image file carried by a paste or a drop.
+ * Every sendable file carried by a paste or a drop.
  *
  * A pasted screenshot is a File in `clipboardData.files` on Chrome and only an
  * item of kind "file" on some builds, so both are read and de-duplicated.
@@ -48,7 +78,7 @@ export const attachmentFilesFromTransfer = (transfer) => {
   const files = [];
   const seen = new Set();
   const push = (file) => {
-    if (!file || !isImageFile(file)) return;
+    if (!file || !attachmentKindOf(file)) return;
     const identity = `${file.name || "clipboard"}:${file.size}:${file.lastModified || 0}`;
     if (seen.has(identity)) return;
     seen.add(identity);
@@ -60,6 +90,21 @@ export const attachmentFilesFromTransfer = (transfer) => {
     push(typeof item.getAsFile === "function" ? item.getAsFile() : null);
   }
   return files;
+};
+
+/**
+ * Why this file cannot be sent, as a translation key suffix — "" when it can.
+ *
+ * Checked BEFORE the upload so a clip that a channel would refuse is turned away
+ * in the composer, rather than after the operator has watched 16 MB go up.
+ */
+export const attachmentProblem = (file) => {
+  const kind = attachmentKindOf(file);
+  if (!kind) return "attachmentUnsupported";
+  if (kind !== "video") return "";
+  if (!isSendableVideoFile(file)) return "videoFormatUnsupported";
+  if (Number(file.size || 0) > MAX_OUTBOUND_VIDEO_BYTES) return "videoTooLarge";
+  return "";
 };
 
 /** A pasted screenshot is always called "image.png"; give it a real name. */

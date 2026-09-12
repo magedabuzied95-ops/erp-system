@@ -618,11 +618,17 @@
       "sendCommentReplyTitle": "إرسال رد علني على الكومنت",
       "noteSaved": "تم حفظ الملاحظة الداخلية.",
       "attachImage": "إرسال صورة",
+      "attachMedia": "إرسال صورة أو فيديو",
       "attachImageNoteMode": "ارجع لوضع الرد عشان تبعت صورة",
       "imagePreview": "📷 صورة",
       "imageSent": "تم إرسال الصورة.",
       "imageSendFailed": "الصورة لم تُسلَّم.",
-      "attachmentNotAnImage": "صور بس دلوقتي — الفيديو لسه مش بيتبعت من هنا."
+      "videoPreview": "🎬 فيديو",
+      "videoSent": "تم إرسال الفيديو.",
+      "videoSendFailed": "الفيديو لم يُسلَّم.",
+      "attachmentUnsupported": "صور وفيديوهات بس.",
+      "videoFormatUnsupported": "صيغة الفيديو دي مش بتتبعت — حوّله MP4 الأول.",
+      "videoTooLarge": "الفيديو أكبر من ١٦ ميجا، وده أكتر من اللي واتساب بيشيله."
     },
     "delivery": {
       "sending": "جاري الإرسال",

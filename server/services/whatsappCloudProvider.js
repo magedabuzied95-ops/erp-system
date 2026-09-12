@@ -212,6 +212,28 @@ export const sendImage = async ({ phone, imageUrl, caption = "", phoneNumberId =
 };
 
 /*
+ * Same shape as sendImage, one Graph type apart. A clip pushed through
+ * `type: image` is refused outright, so the inbox's video attachment needs its
+ * own call rather than a wider image one.
+ */
+export const sendVideo = async ({ phone, videoUrl, caption = "", phoneNumberId = "" } = {}) => {
+  const to = toGraphRecipient(phone);
+  const link = text(videoUrl);
+  if (!to) throw cloudError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  if (!link) throw cloudError("A video URL is required", "WHATSAPP_VIDEO_REQUIRED", 400);
+  return postMessage({
+    phoneNumberId,
+    message: {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "video",
+      video: { link, ...(text(caption) ? { caption: text(caption) } : {}) },
+    },
+  });
+};
+
+/*
  * A PDF is a document, not an image: Graph rejects a `type: image` whose link is
  * a PDF, and the filename is what the recipient's phone shows in the file bubble,
  * so an airway bill without one arrives as an unnamed blob.
@@ -430,6 +452,7 @@ export default {
   cloudErrorMeaning,
   sendText,
   sendImage,
+  sendVideo,
   sendDocument,
   sendReaction,
   sendInteractiveButtons,

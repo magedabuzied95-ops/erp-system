@@ -81,7 +81,7 @@ import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/R
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
 import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
 import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
-import { attachmentFilesFromTransfer, prepareOutboundImage } from "../utils/outboundAttachment.js";
+import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
 import {
@@ -6542,6 +6542,13 @@ export default function AiInboxPwa() {
     const sessionId = selectedConversation?.session_id;
     if (!rawFile || !sessionId) return;
     if (attachmentSendingRef.current) return;
+    // Refused before the upload, not after it — see the desktop sendAttachment.
+    const problem = attachmentProblem(rawFile);
+    if (problem) {
+      toast.error(t(`aiSupport.inbox.composer.${problem}`));
+      return;
+    }
+    const attachmentKind = attachmentKindOf(rawFile);
     attachmentSendingRef.current = true;
     const canonicalSessionId = selectedConversationRouteId || sessionId;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
@@ -6564,19 +6571,24 @@ export default function AiInboxPwa() {
       staff_message: caption,
       message_text: caption,
       sender_type: "staff",
-      message_type: "image",
+      message_type: attachmentKind,
       manual_message: true,
       staff_user_name: "Staff",
       delivery_status: "sending",
       created_at: now,
       visual_attachments: previewUrl
-        ? [{ type: "image", url: previewUrl, mime_type: rawFile.type || "image/jpeg", file_name: rawFile.name || "" }]
+        ? [{
+          type: attachmentKind,
+          url: previewUrl,
+          mime_type: rawFile.type || (attachmentKind === "video" ? "video/mp4" : "image/jpeg"),
+          file_name: rawFile.name || "",
+        }]
         : [],
     };
     patchConversation(conversationIdentifier, (conversation) => ({
       ...conversation,
       messages: [...asArray(conversation.messages), optimistic],
-      latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
+      latest_message_preview: caption || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoPreview" : "aiSupport.inbox.composer.imagePreview"),
       last_activity_at: now,
       updated_at: now,
     }));
@@ -6609,9 +6621,9 @@ export default function AiInboxPwa() {
       // The transcript row is written even when the channel refused it, so the
       // 201 is not by itself proof of delivery.
       if (payload?.delivery_status === "failed") {
-        toast.error(payload?.delivery_error || t("aiSupport.inbox.composer.imageSendFailed"));
+        toast.error(payload?.delivery_error || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed"));
       } else {
-        toast.success(t("aiSupport.inbox.composer.imageSent"));
+        toast.success(t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSent" : "aiSupport.inbox.composer.imageSent"));
       }
     } catch (error) {
       // The failed bubble keeps the local preview, so the operator can see
@@ -6624,7 +6636,7 @@ export default function AiInboxPwa() {
             : item
         )),
       }));
-      toast.error(error?.message || t("aiSupport.inbox.composer.imageSendFailed"));
+      toast.error(error?.message || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed"));
     } finally {
       attachmentSendingRef.current = false;
       setSending(false);
@@ -8276,7 +8288,7 @@ export default function AiInboxPwa() {
               <input
                 ref={imageInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/*,video/mp4,video/quicktime,video/3gpp,.mp4,.mov,.m4v,.3gp"
                 onChange={handleImageAttachmentChange}
                 className="hidden"
                 aria-hidden="true"

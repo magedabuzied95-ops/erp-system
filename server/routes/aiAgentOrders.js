@@ -5,7 +5,12 @@ import db from "../database/db.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
-import inboxAttachmentUpload, { INBOX_ATTACHMENT_URL_PREFIX } from "../config/inboxAttachmentUpload.js";
+import inboxAttachmentUpload, {
+  INBOX_ATTACHMENT_IMAGE_MAX_BYTES,
+  INBOX_ATTACHMENT_URL_PREFIX,
+  INBOX_ATTACHMENT_VIDEO_MAX_BYTES,
+  inboxAttachmentKind,
+} from "../config/inboxAttachmentUpload.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { emitToRooms } from "../utils/socket.js";
 import {
@@ -146,7 +151,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
-import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
+import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappMediaMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
 import { normalizeAiInboxConversationLabels } from "../../shared/aiInboxConversationLabels.js";
@@ -6937,7 +6942,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
 });
 
 /*
- * Send an image an operator picked from their own machine.
+ * Send a photo or a clip an operator picked from their own machine.
  *
  * Until now the inbox could send TEXT on every channel and IMAGES only as part
  * of a product card, so answering "ابعتلي صورة المقاس من قريب" meant leaving the
@@ -6948,6 +6953,10 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
  * so the file is stored under /uploads/inbox first and sent by its public URL.
  * That is also why the upload and the send are ONE request: a file uploaded but
  * never sent is an orphan on disk that nothing will ever clean up.
+ *
+ * A video travels the same road — the same directory, the same public URL, the
+ * same one-request shape. Only the word the transport is given for its kind
+ * changes, and the ceiling it is held to.
  */
 router.post(
   "/conversations/:conversationId/attachment",
@@ -6958,8 +6967,10 @@ router.post(
       if (!error) return next();
       return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
         success: false,
-        message: error.code === "LIMIT_FILE_SIZE" ? "The image is larger than the channel will accept." : (error.message || "Attachment upload rejected"),
-        code: error.code === "LIMIT_FILE_SIZE" ? "ATTACHMENT_TOO_LARGE" : "ATTACHMENT_REJECTED",
+        message: error.code === "LIMIT_FILE_SIZE"
+          ? `The file is larger than the channel will accept (${Math.round(Math.max(INBOX_ATTACHMENT_IMAGE_MAX_BYTES, INBOX_ATTACHMENT_VIDEO_MAX_BYTES) / (1024 * 1024))} MB).`
+          : (error.message || "Attachment upload rejected"),
+        code: error.code === "LIMIT_FILE_SIZE" ? "ATTACHMENT_TOO_LARGE" : (error.code || "ATTACHMENT_REJECTED"),
       });
     });
   },
@@ -6968,10 +6979,23 @@ router.post(
     const conversationId = envText(req.params.conversationId);
     const caption = envText(req.body?.caption || "");
     if (!req.file) {
-      return sendError(res, Object.assign(new Error("An image file is required"), { status: 400 }), "An image file is required");
+      return sendError(res, Object.assign(new Error("An image or video file is required"), { status: 400 }), "An image or video file is required");
     }
+    const attachmentKind = inboxAttachmentKind(req.file) === "video" ? "video" : "image";
     const relativeUrl = `${INBOX_ATTACHMENT_URL_PREFIX}/${req.file.filename}`;
     const discardUpload = () => unlink(req.file.path).catch(() => {});
+
+    // multer only knows the size once the bytes have landed, so the per-kind cap
+    // is checked here — a 12 MB photo is refused while a 12 MB clip is fine.
+    const kindLimit = attachmentKind === "video" ? INBOX_ATTACHMENT_VIDEO_MAX_BYTES : INBOX_ATTACHMENT_IMAGE_MAX_BYTES;
+    if (Number(req.file.size || 0) > kindLimit) {
+      await discardUpload();
+      return res.status(413).json({
+        success: false,
+        message: `That ${attachmentKind} is larger than ${Math.round(kindLimit / (1024 * 1024))} MB, which is more than the channel will accept.`,
+        code: "ATTACHMENT_TOO_LARGE",
+      });
+    }
 
     try {
       const resolved = await resolveProductCardSendConversation({ tenantId, conversationId });
@@ -7012,22 +7036,28 @@ router.post(
       } else if (!recipientId) {
         sendResult = { sent: false, delivery_status: "failed", delivery_error: "The conversation has no reachable recipient id." };
       } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
-        sendResult = await sendImageMessage({
+        sendResult = await sendWhatsappMediaMessage({
           phone: recipientId,
-          imageUrl: relativeUrl,
+          mediaUrl: relativeUrl,
+          mediaType: attachmentKind,
           caption,
           instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
         }).catch((error) => ({
           sent: false,
           delivery_status: "failed",
-          delivery_error: error?.message || "WhatsApp did not accept the image",
-          error_code: error?.code || "WHATSAPP_IMAGE_SEND_FAILED",
+          delivery_error: error?.message || `WhatsApp did not accept the ${attachmentKind}`,
+          error_code: error?.code || "WHATSAPP_MEDIA_SEND_FAILED",
         }));
       } else if (normalizedChannel === TELEGRAM_CHANNEL) {
-        sendResult = await sendTelegramMedia({ chatId: recipientId, mediaUrl: relativeUrl, mediaType: "photo", caption }).catch((error) => ({
+        sendResult = await sendTelegramMedia({
+          chatId: recipientId,
+          mediaUrl: relativeUrl,
+          mediaType: attachmentKind === "video" ? "video" : "photo",
+          caption,
+        }).catch((error) => ({
           sent: false,
           delivery_status: "failed",
-          delivery_error: error?.message || "Telegram did not accept the image",
+          delivery_error: error?.message || `Telegram did not accept the ${attachmentKind}`,
           error_code: error?.code || "TELEGRAM_MEDIA_SEND_FAILED",
         }));
       } else {
@@ -7037,14 +7067,14 @@ router.post(
           recipientId,
           messageText: caption,
           conversationId: sessionId,
-          attachments: [{ type: "image", image_url: relativeUrl }],
+          attachments: [{ type: attachmentKind, image_url: relativeUrl, mime_type: req.file.mimetype || "" }],
           facebookPageId: channelMetadata.page_id || channelMetadata.facebook_page_id || "",
           instagramBusinessAccountId: channelMetadata.instagram_business_account_id || channelMetadata.instagram_account_id || "",
         }).catch((error) => ({
           sent: false,
           delivery_status: "failed",
-          delivery_error: error?.message || "Meta did not accept the image",
-          error_code: error?.code || "META_IMAGE_SEND_FAILED",
+          delivery_error: error?.message || `Meta did not accept the ${attachmentKind}`,
+          error_code: error?.code || "META_MEDIA_SEND_FAILED",
         }));
       }
 
@@ -7061,7 +7091,7 @@ router.post(
         sessionId,
         clientRequestId: requestClientRequestId(req),
         message: caption,
-        messageType: "image",
+        messageType: attachmentKind,
         staffUserId: req.user?.id || null,
         staffUserName: userDisplayName(req.user),
         source: safeChannel,
@@ -7073,7 +7103,7 @@ router.post(
         providerMessageId: sendResult?.message_id || "",
         remoteJid: normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP ? recipientId : "",
         visualAttachments: [{
-          type: "image",
+          type: attachmentKind,
           url: relativeUrl,
           mime_type: req.file.mimetype || "",
           file_name: req.file.originalname || req.file.filename,
@@ -7087,6 +7117,7 @@ router.post(
         success: true,
         message,
         url: relativeUrl,
+        attachment_kind: attachmentKind,
         delivery_status: deliveryStatus,
         delivery_error: deliveryError,
       });

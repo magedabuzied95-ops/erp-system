@@ -618,11 +618,17 @@
       "sendCommentReplyTitle": "Post a public reply on the comment",
       "noteSaved": "Internal note saved.",
       "attachImage": "Send an image",
+      "attachMedia": "Send a photo or a video",
       "attachImageNoteMode": "Switch to Reply to send an image",
       "imagePreview": "📷 Image",
       "imageSent": "Image sent.",
       "imageSendFailed": "The image was not delivered.",
-      "attachmentNotAnImage": "Images only for now — a video cannot be sent from the composer yet."
+      "videoPreview": "🎬 Video",
+      "videoSent": "Video sent.",
+      "videoSendFailed": "The video was not delivered.",
+      "attachmentUnsupported": "Photos and videos only.",
+      "videoFormatUnsupported": "That video format cannot be sent — save it as MP4 first.",
+      "videoTooLarge": "That video is over 16 MB, which is more than WhatsApp will carry."
     },
     "delivery": {
       "sending": "Sending",

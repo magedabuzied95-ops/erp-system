@@ -2639,7 +2639,8 @@ const metaSendErrorPayload = (error = {}) => ({
 
 const metaSendPayloadType = ({ messageText = "", attachments = [], productCards = [] } = {}) => {
   if (Array.isArray(productCards) && productCards.length) return "product";
-  if (imageAttachmentUrls(attachments).length) return "image";
+  const media = mediaAttachmentDescriptors(attachments);
+  if (media.length) return media.some((item) => item.mediaType === "video") ? "video" : "image";
   if (text(messageText)) return "text";
   return "unknown";
 };
@@ -12525,7 +12526,11 @@ const postMetaMessage = async ({ token, recipientId, messageText, sendContext = 
   return payload;
 };
 
-const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext = {} }) => {
+const postMetaImageMessage = async ({ token, recipientId, imageUrl, mediaType = "image", sendContext = {} }) => {
+  // Messenger and Instagram both take a clip through the same attachment shape;
+  // only the declared type differs, and a video pushed as `type: image` is
+  // refused outright.
+  const attachmentType = text(mediaType).toLowerCase() === "video" ? "video" : "image";
   console.log("[meta-send] graphApiCalled", {
     channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
     pageId: maskIdForLog(sendContext.resolved_page_id || ""),
@@ -12554,7 +12559,7 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, sendContext 
         messaging_type: "RESPONSE",
         message: {
           attachment: {
-            type: "image",
+            type: attachmentType,
             payload: { url: text(imageUrl), is_reusable: true },
           },
         },
@@ -12699,6 +12704,29 @@ const imageAttachmentUrls = (attachments = []) =>
     .map((attachment) => text(extractImageUrlFromAttachment(attachment)))
     .filter((url, index, urls) => /^https?:\/\//i.test(url) && urls.indexOf(url) === index)
     .slice(0, 6);
+
+/*
+ * The same attachments, with the kind kept.
+ *
+ * imageAttachmentUrls throws the declared type away, which is fine for the call
+ * sites that only need to know a photo exists. The outbound send does need it:
+ * an operator's clip has to reach Graph as `type: video`, and reading it back
+ * off a bare URL would mean guessing from the extension.
+ */
+const mediaAttachmentDescriptors = (attachments = []) => {
+  const seen = new Set();
+  const descriptors = [];
+  for (const attachment of Array.isArray(attachments) ? attachments : []) {
+    const url = text(extractImageUrlFromAttachment(attachment));
+    if (!/^https?:\/\//i.test(url) || seen.has(url)) continue;
+    seen.add(url);
+    const declared = text(attachment?.type || attachment?.media_type || attachment?.mime_type || "").toLowerCase();
+    const isVideo = declared === "video" || declared.startsWith("video/") || /\.(mp4|mov|m4v|3gpp?)(\?|#|$)/i.test(url);
+    descriptors.push({ url, mediaType: isVideo ? "video" : "image" });
+    if (descriptors.length >= 6) break;
+  }
+  return descriptors;
+};
 
 let commerceSchemaReadyPromise = null;
 
@@ -25613,7 +25641,12 @@ export const sendMetaInboxOutboundMessage = async ({
     has_product_cards: cards.length > 0,
     has_image_url: cards.some((card) => Boolean(card.image_url || card.image || card.main_image)),
   });
-  if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length)) {
+  // A photo with nothing written under it IS the message. Counting only text and
+  // product cards meant an operator's uncaptioned attachment was refused here as
+  // "message required" — the Messenger/Instagram half of "I sent it and it never
+  // arrived", since the transcript row was written either way.
+  const mediaAttachments = mediaAttachmentDescriptors(attachments);
+  if (!scopedTenantId || !safeRecipientId || (!safeMessage && !cards.length && !mediaAttachments.length)) {
     throw Object.assign(new Error("tenant_id, recipient id, and message are required"), { status: 400, code: "META_SEND_INPUT_REQUIRED" });
   }
   const payloadType = metaSendPayloadType({ messageText: safeMessage, attachments, productCards: cards });
@@ -26232,9 +26265,9 @@ export const sendMetaInboxOutboundMessage = async ({
     }
   }
   try {
-    for (const imageUrl of imageAttachmentUrls(attachments)) {
+    for (const { url: imageUrl, mediaType } of mediaAttachmentDescriptors(attachments)) {
       try {
-        const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl, sendContext });
+        const imageResult = await postMetaImageMessage({ token, recipientId: safeRecipientId, imageUrl, mediaType, sendContext });
         imageResults.push(imageResult);
         console.log("ai_inbox_messenger_send_image_success", {
           tenant_id: scopedTenantId,
@@ -26242,6 +26275,7 @@ export const sendMetaInboxOutboundMessage = async ({
           channel: normalizedChannel,
           conversation_id: conversationId || "",
           image_url: imageUrl,
+          media_type: mediaType,
         });
       } catch (error) {
         console.warn("ai_inbox_messenger_send_image_failure", {
@@ -26251,12 +26285,17 @@ export const sendMetaInboxOutboundMessage = async ({
           conversation_id: conversationId || "",
           recipient_id: maskIdForLog(safeRecipientId),
           image_url: imageUrl,
+          media_type: mediaType,
           status: error?.status || "",
           message: error?.message || "Meta image send failed",
         });
       }
     }
-    if (!leadTextSentBeforeCarousel) {
+    // An uncaptioned attachment has already been sent above; posting the empty
+    // body after it would be refused by Graph and fail a send that in fact
+    // reached the customer. The message id then comes off the attachment result.
+    const textPostWouldBeEmpty = !safeMessage && imageResults.length > 0;
+    if (!leadTextSentBeforeCarousel && !textPostWouldBeEmpty) {
       meta = await postMetaMessage({
         token,
         recipientId: safeRecipientId,

@@ -178,7 +178,7 @@ import {
   transcriptDayLabel,
   transcriptRowTime,
 } from "../lib/conversationHelpers";
-import { attachmentFilesFromTransfer, prepareOutboundImage } from "../utils/outboundAttachment.js";
+import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
 
 // Loaded on demand: the integrations center pulls in the whole Meta/marketing
 // API surface, which the inbox itself never touches.
@@ -3115,8 +3115,8 @@ function ManualReplyComposer({
             type="button"
             onClick={() => imageInputRef.current?.click()}
             disabled={loading || noteMode || !canSendLive}
-            title={noteMode ? t("aiSupport.inbox.composer.attachImageNoteMode") : t("aiSupport.inbox.composer.attachImage")}
-            aria-label={t("aiSupport.inbox.composer.attachImage")}
+            title={noteMode ? t("aiSupport.inbox.composer.attachImageNoteMode") : t("aiSupport.inbox.composer.attachMedia")}
+            aria-label={t("aiSupport.inbox.composer.attachMedia")}
             className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
           >
             <ImageIcon className="h-5 w-5" />
@@ -3124,7 +3124,7 @@ function ManualReplyComposer({
           <input
             ref={imageInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/quicktime,video/3gpp,.mp4,.mov,.m4v,.3gp"
             className="hidden"
             aria-hidden="true"
             onChange={(event) => {
@@ -7632,6 +7632,15 @@ export default function AiInbox({ reviewerMode = false }) {
     const sessionId = selectedConversation?.session_id;
     if (!rawFile || !sessionId) return;
     if (attachmentSendingRef.current) return;
+    // Refused here, before the upload: a clip in a container no channel carries,
+    // or one over the WhatsApp ceiling, would otherwise be rejected only after
+    // the operator had watched the whole transfer go up.
+    const problem = attachmentProblem(rawFile);
+    if (problem) {
+      setToast({ tone: "rose", text: t(`aiSupport.inbox.composer.${problem}`) });
+      return;
+    }
+    const attachmentKind = attachmentKindOf(rawFile);
     attachmentSendingRef.current = true;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const caption = clean(replyText);
@@ -7653,19 +7662,24 @@ export default function AiInbox({ reviewerMode = false }) {
       staff_message: caption,
       message_text: caption,
       sender_type: "staff",
-      message_type: "image",
+      message_type: attachmentKind,
       manual_message: true,
       staff_user_name: "Staff",
       delivery_status: "sending",
       created_at: now,
       visual_attachments: previewUrl
-        ? [{ type: "image", url: previewUrl, mime_type: rawFile.type || "image/jpeg", file_name: rawFile.name || "" }]
+        ? [{
+          type: attachmentKind,
+          url: previewUrl,
+          mime_type: rawFile.type || (attachmentKind === "video" ? "video/mp4" : "image/jpeg"),
+          file_name: rawFile.name || "",
+        }]
         : [],
     };
     patchConversation(conversationIdentifier, (conversation) => ({
       ...conversation,
       messages: [...asArray(conversation.messages), optimistic],
-      latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
+      latest_message_preview: caption || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoPreview" : "aiSupport.inbox.composer.imagePreview"),
       last_activity_at: now,
       updated_at: now,
     }));
@@ -7700,10 +7714,11 @@ export default function AiInbox({ reviewerMode = false }) {
       if (previewUrl) window.setTimeout(() => URL.revokeObjectURL(previewUrl), 10_000);
       // The row is written even when the channel refused it, so report the
       // delivery status rather than assuming the 201 means delivered.
+      const failedKey = attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed";
       if (payload?.delivery_status === "failed") {
-        setToast({ tone: "rose", text: payload?.delivery_error || t("aiSupport.inbox.composer.imageSendFailed") });
+        setToast({ tone: "rose", text: payload?.delivery_error || t(failedKey) });
       } else {
-        setToast({ tone: "emerald", text: t("aiSupport.inbox.composer.imageSent") });
+        setToast({ tone: "emerald", text: t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSent" : "aiSupport.inbox.composer.imageSent") });
       }
     } catch (err) {
       // The bubble stays, marked failed, still showing the local preview — the
@@ -7717,7 +7732,7 @@ export default function AiInbox({ reviewerMode = false }) {
             : item
         )),
       }));
-      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.composer.imageSendFailed") });
+      setToast({ tone: "rose", text: err?.message || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed") });
     } finally {
       attachmentSendingRef.current = false;
       setAttachmentSending(false);
@@ -7725,7 +7740,7 @@ export default function AiInbox({ reviewerMode = false }) {
   }, [api, headers, patchConversation, replyText, selectedConversation, selectedConversationRouteId, setReplyText, setToast, t, tenantId]);
 
   const handleAttachmentRejected = useCallback(() => {
-    setToast({ tone: "rose", text: t("aiSupport.inbox.composer.attachmentNotAnImage") });
+    setToast({ tone: "rose", text: t("aiSupport.inbox.composer.attachmentUnsupported") });
   }, [setToast, t]);
 
   const sendCurrentReply = async (overrideText = "", options = {}) => {

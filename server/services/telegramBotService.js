@@ -109,6 +109,9 @@ const telegramMediaMethod = (type = "") => {
   const normalized = text(type).toLowerCase();
   if (["photo", "image", "sticker"].includes(normalized)) return { method: "sendPhoto", field: "photo" };
   if (["voice", "audio", "ptt"].includes(normalized)) return { method: "sendVoice", field: "voice" };
+  // Without this a clip fell through to sendDocument and arrived as a file the
+  // customer had to download rather than a player they could tap.
+  if (["video", "clip", "animation"].includes(normalized)) return { method: "sendVideo", field: "video" };
   return { method: "sendDocument", field: "document" };
 };
 
