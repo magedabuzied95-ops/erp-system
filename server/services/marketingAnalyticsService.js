@@ -301,17 +301,27 @@ const getDistinctTenantIdsForSync = async () => {
   return Array.from(new Set([...result.rows.map((row) => row.tenant_id), ...queueTenants.rows.map((row) => row.tenant_id)]));
 };
 
+// A story published as one slide per colour records all of its media ids in one
+// field ("18426…,18114…,17956…"). Sent to Graph as written that is a single object id
+// which does not exist — 22 such calls failed on 2026-09-12. Each id is its own
+// candidate now.
+export const splitPlatformPostIds = (value = "") =>
+  String(value ?? "")
+    .split(/[,\s]+/)
+    .map((id) => id.trim())
+    .filter(Boolean);
+
 const addCandidate = (items, platform, platformPostId, sourcePost) => {
-  const normalizedPostId = nullableString(platformPostId);
-  if (!normalizedPostId) return;
-  if (items.some((item) => item.platform === platform && item.platform_post_id === normalizedPostId)) return;
-  items.push({
-    post_id: sourcePost.id,
-    platform,
-    platform_post_id: normalizedPostId,
-    title: sourcePost.title || "",
-    published_at: sourcePost.published_at || sourcePost.created_at || null,
-  });
+  for (const normalizedPostId of splitPlatformPostIds(platformPostId)) {
+    if (items.some((item) => item.platform === platform && item.platform_post_id === normalizedPostId)) continue;
+    items.push({
+      post_id: sourcePost.id,
+      platform,
+      platform_post_id: normalizedPostId,
+      title: sourcePost.title || "",
+      published_at: sourcePost.published_at || sourcePost.created_at || null,
+    });
+  }
 };
 
 const buildAnalyticsCandidates = (post = {}) => {
@@ -348,6 +358,46 @@ const extractMetricValue = (payload, name) => {
   return toNumber(value, null);
 };
 
+/*
+ * What Meta has already refused for one object, so the next sync does not ask again.
+ *
+ * Two refusals repeat forever otherwise, and both were in the 2026-09-12 reading:
+ *   100/33  the object is gone (a deleted post, an expired story) — neither call works
+ *   100     "Tried accessing nonexisting field (insights)" — the object exists but has
+ *           no insights at all (a photo id, a story slide), so only the insights call
+ *           is pointless.
+ * Remembered in this process for a day; a restart costs one more ask per object.
+ */
+const REFUSAL_MEMORY_MS = 24 * 60 * 60 * 1000;
+const objectRefusals = new Map();
+
+export const classifyAnalyticsRefusal = (error = {}) => {
+  const code = Number(error?.metaResponse?.error?.code || error?.code || 0) || 0;
+  const subcode = Number(error?.metaResponse?.error?.error_subcode || 0) || 0;
+  const message = String(error?.metaResponse?.error?.message || error?.message || "").toLowerCase();
+  if (code === 100 && (subcode === 33 || message.includes("does not exist"))) return "object_missing";
+  if (message.includes("nonexisting field (insights)") || message.includes("nonexisting field(insights)")) return "no_insights";
+  return "";
+};
+
+const rememberRefusal = (platform, platformPostId, kind) => {
+  if (!kind) return;
+  const key = `${platform}|${platformPostId}`;
+  const entry = objectRefusals.get(key) || { at: Date.now(), kinds: new Set() };
+  entry.kinds.add(kind);
+  entry.at = Date.now();
+  objectRefusals.delete(key);
+  objectRefusals.set(key, entry);
+  while (objectRefusals.size > 5000) objectRefusals.delete(objectRefusals.keys().next().value);
+};
+
+const wasRefused = (platform, platformPostId, kind) => {
+  const entry = objectRefusals.get(`${platform}|${platformPostId}`);
+  if (!entry) return false;
+  if (Date.now() - entry.at > REFUSAL_MEMORY_MS) return false;
+  return entry.kinds.has(kind) || entry.kinds.has("object_missing");
+};
+
 const fetchFacebookMetrics = async ({ platformPostId, accessToken }) => {
   const metrics = {
     likes: null,
@@ -359,6 +409,10 @@ const fetchFacebookMetrics = async ({ platformPostId, accessToken }) => {
     clicks: null,
     warnings: [],
   };
+  if (wasRefused("facebook", platformPostId, "object_missing")) {
+    metrics.warnings.push("Facebook object was refused earlier today; skipped.");
+    return metrics;
+  }
 
   try {
     const summary = await callMetaGet({
@@ -374,8 +428,13 @@ const fetchFacebookMetrics = async ({ platformPostId, accessToken }) => {
     metrics.likes = toNumber(summary?.reactions?.summary?.total_count ?? summary?.reactions?.data?.length, null);
     metrics.shares = toNumber(summary?.shares?.count ?? summary?.shares, null);
   } catch (error) {
+    const refusal = classifyAnalyticsRefusal(error);
+    rememberRefusal("facebook", platformPostId, refusal);
     metrics.warnings.push(`Facebook post counts unavailable: ${error?.message || "Meta request failed"}`);
+    if (refusal === "object_missing") return metrics;
   }
+
+  if (wasRefused("facebook", platformPostId, "no_insights")) return metrics;
 
   try {
     const insights = await callMetaGet({
@@ -391,6 +450,7 @@ const fetchFacebookMetrics = async ({ platformPostId, accessToken }) => {
     metrics.reach = extractMetricValue(insights, "post_impressions_unique");
     metrics.clicks = extractMetricValue(insights, "post_clicks");
   } catch (error) {
+    rememberRefusal("facebook", platformPostId, classifyAnalyticsRefusal(error));
     if (isPermissionLimitedError(error)) {
       metrics.warnings.push("Facebook reach/impressions require additional Meta permissions and were skipped.");
     } else {
@@ -412,6 +472,10 @@ const fetchInstagramMetrics = async ({ platformPostId, accessToken }) => {
     clicks: null,
     warnings: [],
   };
+  if (wasRefused("instagram", platformPostId, "object_missing")) {
+    metrics.warnings.push("Instagram object was refused earlier today; skipped.");
+    return metrics;
+  }
 
   try {
     const summary = await callMetaGet({
@@ -426,15 +490,22 @@ const fetchInstagramMetrics = async ({ platformPostId, accessToken }) => {
     metrics.likes = toNumber(summary?.like_count, null);
     metrics.comments = toNumber(summary?.comments_count, null);
   } catch (error) {
+    const refusal = classifyAnalyticsRefusal(error);
+    rememberRefusal("instagram", platformPostId, refusal);
     metrics.warnings.push(`Instagram post counts unavailable: ${error?.message || "Meta request failed"}`);
+    if (refusal === "object_missing") return metrics;
   }
+
+  if (wasRefused("instagram", platformPostId, "no_insights")) return metrics;
 
   try {
     const insights = await callMetaGet({
       path: `/${encodeURIComponent(platformPostId)}/insights`,
       label: "instagram_media_insights",
       params: {
-        metric: "impressions,reach,saved,engagement",
+        // `engagement` was retired: Graph answered "metric[3] must be one of …" and
+        // threw the whole request away, so reach and saves never arrived either.
+        metric: "impressions,reach,saved,total_interactions",
         access_token: accessToken,
       },
     });
@@ -443,6 +514,7 @@ const fetchInstagramMetrics = async ({ platformPostId, accessToken }) => {
     metrics.reach = extractMetricValue(insights, "reach");
     metrics.saves = extractMetricValue(insights, "saved");
   } catch (error) {
+    rememberRefusal("instagram", platformPostId, classifyAnalyticsRefusal(error));
     if (isPermissionLimitedError(error)) {
       metrics.warnings.push("Instagram reach/impressions require additional Meta permissions and were skipped.");
     } else {
