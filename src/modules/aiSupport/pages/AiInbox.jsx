@@ -7051,8 +7051,13 @@ export default function AiInbox({ reviewerMode = false }) {
   const selectedThreadStaleAt = Number(selectedConversation?.thread_stale_at || 0);
   const selectedThreadHydratedAt = Number(selectedConversation?.thread_hydrated_at || 0);
   useEffect(() => {
-    if (!selectedConversation?.session_id || !selectedThreadStaleAt) return undefined;
-    if (selectedThreadStaleAt <= selectedThreadHydratedAt) return undefined;
+    if (!selectedConversation?.session_id) return undefined;
+    // A thread that has never loaded its newest page this session is behind by definition. What
+    // is on screen is the device cache plus the list's one-message summary, and the count-based
+    // shortcut above trusts that pair — which is how INV-1468 showed our prompt and our answer
+    // with the customer's tap missing between them, reload after reload.
+    const neverLoaded = !selectedThreadHydratedAt;
+    if (!neverLoaded && selectedThreadStaleAt <= selectedThreadHydratedAt) return undefined;
     let timer = 0;
     const attempt = () => {
       if (isLoadingOlderRef.current || isHydratingConversationRef.current || isRefreshingRef.current) {

@@ -103,3 +103,11 @@ test("cached summary snapshots joined by the session id no longer swallow the re
   assert.equal(merge([{ id: "sending-1", client_request_id: "r1" }, { id: "900", client_request_id: "r1", provider_message_id: "P" }]).length, 1);
   assert.equal(merge([{ id: "900", provider_message_id: "P" }, { id: "900", provider_message_id: "P", delivery_status: "read" }]).length, 1);
 });
+
+test("opening a thread always loads its newest page once, whatever the cache holds", () => {
+  for (const page of ["src/modules/aiSupport/pages/AiInbox.jsx", "src/modules/aiSupport/pages/AiInboxPwa.jsx"]) {
+    const source = read(page);
+    assert.match(source, /const neverLoaded = !selectedThreadHydratedAt;/, `${page} treats a never-loaded thread as behind`);
+    assert.match(source, /if \(!neverLoaded && selectedThreadStaleAt <= selectedThreadHydratedAt\) return undefined;/);
+  }
+});
