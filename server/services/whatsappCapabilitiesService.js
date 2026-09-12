@@ -617,7 +617,7 @@ export const deleteWhatsappMessageForEveryone = async ({
 /**
  * Block or unblock a contact.
  *
- * Under `/chat/`, not `/message/`: the live build (v2.3.7) answered `/message/updateBlockStatus`
+ * Under `/chat/`, not `/message/`: the live build (Evolution 2.4.0) answered `/message/updateBlockStatus`
  * with a 404, and blocking is a contact operation, which is where every other one sits —
  * archiveChat, markChatUnread, fetchProfile are all `/chat/` on this build too.
  */

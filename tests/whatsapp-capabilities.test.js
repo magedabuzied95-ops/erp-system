@@ -184,7 +184,7 @@ test("a broken number check never becomes a reason to stop messaging customers",
 });
 
 test("blocking a contact goes to the path the live build actually has", async () => {
-  // Proven against v2.3.7 on 2026-09-12: `/message/updateBlockStatus` — the spelling in the
+  // Proven against Evolution 2.4.0 on 2026-09-12: `/message/updateBlockStatus` — the spelling in the
   // Evolution docs — answers 404, and blocking lives under `/chat/` with every other contact
   // operation. A wrong path here fails exactly like a feature that does not work.
   const { calls } = await withStubbedGateway({}, () =>
