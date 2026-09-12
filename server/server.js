@@ -2488,6 +2488,12 @@ const bootstrapServer = ({ skipStartupSyncs = false } = {}) =>
       console.log("[server] listening on host/port", { host: HOST, port: PORT });
       console.log("[server] socket.io ready");
       console.log("[server] AI system active (v1 + v2)");
+      // Which WhatsApp capabilities are actually live in THIS process. The flags come from the
+      // .env dotenv loads at runtime, so they are invisible to `printenv` inside the container —
+      // without this line, "did the flag take?" cannot be answered from production at all.
+      void import("./services/whatsappCapabilitiesService.js")
+        .then((module) => module.logWhatsappCapabilityState())
+        .catch((error) => console.warn("[whatsapp-capabilities] state log failed", { message: error?.message || String(error) }));
       runStartupDiagnostics();
       // The product/category SEO pages cache the storefront shell; fetch it now so the first
       // crawler after a deploy is not the one waiting on a cold round trip to Vercel.

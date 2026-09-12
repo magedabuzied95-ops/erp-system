@@ -760,6 +760,19 @@ const capability = (handler) => async (req, res) => {
 
 const loadCapabilities = () => import("../services/whatsappCapabilitiesService.js");
 
+/*
+ * What is actually switched on in the running process.
+ *
+ * The flags live in the .env dotenv loads at runtime, so they never reach the container's
+ * environment and `printenv` reports nothing for them — which reads identically to a flag
+ * that failed to apply. This is the answer, from the process itself. Flags and timings only,
+ * no credentials.
+ */
+router.get("/capabilities/status", protect, permit("settings", "view"), capability(async () => {
+  const { whatsappCapabilityState } = await loadCapabilities();
+  return { capabilities: await whatsappCapabilityState() };
+}));
+
 // ── Presence, read receipts, reachability ────────────────────────────────────────────────
 
 router.post("/presence", protect, permit("settings", "edit"), capability(async ({ body }) => {

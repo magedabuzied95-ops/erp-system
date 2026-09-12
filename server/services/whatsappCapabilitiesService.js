@@ -899,10 +899,75 @@ export const setWhatsappProxy = async ({
   return { success: true, instanceName, enabled: enabled === true, result };
 };
 
+/* ==========================================================================================
+ * Is any of this actually on?
+ *
+ * The flags are read from the `.env` the server loads with dotenv at runtime, which means
+ * `printenv` inside the container shows NOTHING for them — the variables live in the Node
+ * process, not in the container's environment. That made "did the flag take?" unanswerable
+ * with the tools that work against production, and an answer of "no output" reads exactly
+ * like a flag that failed to apply.
+ *
+ * So the process reports on itself: this is logged once at boot and served by
+ * GET /api/whatsapp/capabilities/status. No secrets — flags and timings only.
+ */
+export const whatsappCapabilityState = async () => {
+  let voiceTranscription;
+  try {
+    const { isVoiceTranscriptionEnabled } = await import("./aiVoiceTranscriptionService.js");
+    const enabled = isVoiceTranscriptionEnabled();
+    voiceTranscription = {
+      enabled,
+      // The flag alone is not enough: the transcriber also needs a working text-generation
+      // client, so a flag that is on with no client is a feature that is still off.
+      reason: enabled
+        ? "on"
+        : ["1", "true", "yes", "on"].includes(text(process.env.AI_VOICE_TRANSCRIPTION_ENABLED).toLowerCase())
+          ? "flag_on_but_no_ai_client"
+          : "flag_off",
+      model: text(process.env.AI_VOICE_TRANSCRIPTION_MODEL) || "whisper-1",
+      language: text(process.env.AI_VOICE_TRANSCRIPTION_LANGUAGE) || "ar",
+    };
+  } catch (error) {
+    voiceTranscription = { enabled: false, reason: `load_failed: ${error?.message || error}` };
+  }
+
+  return {
+    instance: defaultInstance(),
+    gateway_configured: Boolean(apiUrl() && apiKey()),
+    voice_transcription: voiceTranscription,
+    live_presence: {
+      enabled: String(process.env.WHATSAPP_LIVE_PRESENCE ?? "true").toLowerCase() !== "false",
+      typing_hint_ms: number(process.env.WHATSAPP_TYPING_HINT_MS, 8000),
+    },
+    queue_number_check: {
+      enabled: String(process.env.WHATSAPP_QUEUE_NUMBER_CHECK ?? "true").toLowerCase() !== "false",
+      timeout_ms: Math.max(number(process.env.WHATSAPP_NUMBER_CHECK_TIMEOUT_MS, 3500), 1000),
+      cached_numbers: numberExistsCache.size,
+    },
+    // Subscribed in evolutionWebhookSyncService's required event list; the handler that
+    // records a missed call lives in whatsappGatewayService.
+    call_events: { subscribed: true },
+  };
+};
+
+export const logWhatsappCapabilityState = async () => {
+  try {
+    const state = await whatsappCapabilityState();
+    console.log("[whatsapp-capabilities] state", state);
+    return state;
+  } catch (error) {
+    console.warn("[whatsapp-capabilities] state unavailable", { message: error?.message || String(error) });
+    return null;
+  }
+};
+
 export const __testing = { normalizeEgyptPhone, resolveSendTarget, resolveChatJid, evolutionErrorMessage };
 
 export default {
   WHATSAPP_PRESENCE,
+  whatsappCapabilityState,
+  logWhatsappCapabilityState,
   sendWhatsappPresence,
   safeSendWhatsappPresence,
   markWhatsappMessagesRead,

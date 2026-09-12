@@ -13,6 +13,7 @@ import {
   sendWhatsappPresence,
   sendWhatsappStatus,
   setWhatsappBlockStatus,
+  whatsappCapabilityState,
   whatsappNumberIsReachable,
 } from "../server/services/whatsappCapabilitiesService.js";
 import { extractWhatsappCallEvent } from "../server/services/whatsappGatewayService.js";
@@ -215,6 +216,39 @@ test("a WhatsApp call is recognised in every shape Evolution sends it", () => {
   assert.equal(fromLid.isVideo, true);
 
   assert.equal(extractWhatsappCallEvent({ event: "messages.upsert", data: {} }).isCall, false);
+});
+
+test("the process can say which capabilities are live, and why one is not", async () => {
+  /*
+   * This exists because production could not answer the question. The flags are read from the
+   * .env dotenv loads at runtime, so `printenv` inside the container prints nothing for them —
+   * and "no output" reads exactly like a flag that failed to apply.
+   *
+   * The distinction that matters is the third state: the flag is on but there is no AI client,
+   * so the feature is off for a reason no flag check would reveal.
+   */
+  const previous = process.env.AI_VOICE_TRANSCRIPTION_ENABLED;
+  try {
+    delete process.env.AI_VOICE_TRANSCRIPTION_ENABLED;
+    const off = await whatsappCapabilityState();
+    assert.equal(off.voice_transcription.enabled, false);
+    assert.equal(off.voice_transcription.reason, "flag_off");
+
+    process.env.AI_VOICE_TRANSCRIPTION_ENABLED = "true";
+    const flagged = await whatsappCapabilityState();
+    assert.equal(flagged.voice_transcription.enabled, false);
+    assert.equal(flagged.voice_transcription.reason, "flag_on_but_no_ai_client");
+  } finally {
+    if (previous === undefined) delete process.env.AI_VOICE_TRANSCRIPTION_ENABLED;
+    else process.env.AI_VOICE_TRANSCRIPTION_ENABLED = previous;
+  }
+
+  const state = await whatsappCapabilityState();
+  assert.equal(state.live_presence.enabled, true, "presence is on unless explicitly disabled");
+  assert.equal(state.queue_number_check.enabled, true, "the number check is on unless explicitly disabled");
+  assert.equal(state.call_events.subscribed, true);
+  // No credential may ever reach this payload: it is served over an API and printed to logs.
+  assert.equal(JSON.stringify(state).toLowerCase().includes("key"), false);
 });
 
 test("the capabilities service is allowlisted past the server/services gitignore", () => {
