@@ -30,7 +30,9 @@ test("the online clause is the exact complement of the shop-only clause", async 
 
 test("the dashboard's today and yesterday are 05:00 trading days; wider ranges stay calendar", () => {
   const controller = read("../server/controllers/dashboardController.js");
-  assert.match(controller, /DASHBOARD_DAY_START_HOUR = 5;/);
+  assert.match(read("../server/services/dashboardAnalyticsService.js"), /DEFAULT_BUSINESS_DAY_START_HOUR = 5;/);
+  assert.match(read("../shared/settingsRegistry.js"), /\["pos\.business_day_start_hour", "pos", "number", 5,/, "one setting, same default");
+  assert.doesNotMatch(read("../server/services/managerPortalService.js"), /const DEFAULT_BUSINESS_DAY_START_HOUR/, "the portal has no day of its own");
   assert.match(controller, /const DAY_OFFSETS = \{ today: 0, yesterday: -1 \};/);
   for (const handler of ["overview", "topProducts", "paymentAnalytics", "hourlySales", "marketing", "branchPerformance"]) {
     const start = controller.indexOf(`route("${handler}"`);
@@ -38,7 +40,7 @@ test("the dashboard's today and yesterday are 05:00 trading days; wider ranges s
     assert.match(controller.slice(start, start + 260), /await resolveDashboardFilters\(req\)/, `${handler} reads the trading day`);
   }
   const posLive = controller.slice(controller.indexOf('route("posLive"'));
-  assert.match(posLive.slice(0, 400), /resolveBusinessDayWindow\(\{ startHour: DASHBOARD_DAY_START_HOUR \}\)/, "the payment donut reads posLive");
+  assert.match(posLive.slice(0, 400), /resolveBusinessDayWindow\(\{ startHour: await resolveBusinessDayStartHour\(\) \}\)/, "the payment donut reads posLive");
 
   const service = read("../server/services/dashboardAnalyticsService.js");
   const windowFn = service.slice(service.indexOf("export const resolveBusinessDayWindow"));

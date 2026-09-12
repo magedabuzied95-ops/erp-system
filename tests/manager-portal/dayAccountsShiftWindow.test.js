@@ -208,7 +208,7 @@ test("the day card answers at all — it used to throw ReferenceError on every c
   }
 });
 
-test("the shop's day runs 04:00 to 04:00, so a night that trades past midnight stays whole", async () => {
+test("the shop's day runs 05:00 to 05:00 by default, so a night that trades past midnight stays whole", async () => {
   const restore = installFakeDb();
   try {
     const summary = await daySummary();
@@ -218,9 +218,9 @@ test("the shop's day runs 04:00 to 04:00, so a night that trades past midnight s
       "23:00 and 01:30 are the SAME night; 03:00 belongs to the previous day and 05:00 to the next"
     );
     assert.equal(summary.sales.total, 1800);
-    assert.equal(summary.window.from, new Date(businessDayStart(4)).toISOString());
-    assert.equal(summary.window.to, new Date(businessDayStart(4) + DAY).toISOString());
-    assert.equal(summary.window.business_day_start_hour, 4);
+    assert.equal(summary.window.from, new Date(businessDayStart(5)).toISOString());
+    assert.equal(summary.window.to, new Date(businessDayStart(5) + DAY).toISOString());
+    assert.equal(summary.window.business_day_start_hour, 5);
     assert.equal(summary.window.is_custom, false);
   } finally {
     restore();

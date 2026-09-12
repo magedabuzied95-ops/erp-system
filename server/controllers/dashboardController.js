@@ -12,6 +12,7 @@ import {
   getPosLive,
   getSalesTrend,
   getTopProducts,
+  resolveBusinessDayStartHour,
   resolveBusinessDayWindow,
   trackDashboardFailures,
 } from "../services/dashboardAnalyticsService.js";
@@ -39,16 +40,15 @@ export const dashboardFilters = (req) => {
  * that has barely started. "yesterday" is the trading day before it. 7d / month / custom keep
  * their calendar meaning — nobody reads a month as starting at 05:00 on the 1st.
  *
- * Deliberately NOT the manager portal's `pos.business_day_start_hour` (04:00): that setting is
- * the portal's, and moving it would move the portal's day card too.
+ * The start hour is the shared `pos.business_day_start_hour` setting (default 05:00) — the same
+ * day the manager portal reads, so the two surfaces always agree.
  */
-export const DASHBOARD_DAY_START_HOUR = 5;
 const DAY_OFFSETS = { today: 0, yesterday: -1 };
 
 export const resolveDashboardFilters = async (req) => {
   const filters = dashboardFilters(req);
   if (!(filters.range in DAY_OFFSETS)) return filters;
-  const window = await resolveBusinessDayWindow({ startHour: DASHBOARD_DAY_START_HOUR, dayOffset: DAY_OFFSETS[filters.range] });
+  const window = await resolveBusinessDayWindow({ startHour: await resolveBusinessDayStartHour(), dayOffset: DAY_OFFSETS[filters.range] });
   return window ? { ...filters, ...window } : filters;
 };
 
@@ -164,7 +164,7 @@ export const marketing = route("marketing", async (req) =>
 
 // Always the live trading day, whatever range the page is showing.
 export const posLive = route("posLive", async (req) => {
-  const window = await resolveBusinessDayWindow({ startHour: DASHBOARD_DAY_START_HOUR });
+  const window = await resolveBusinessDayWindow({ startHour: await resolveBusinessDayStartHour() });
   return getPosLive({ tenantId: resolveTenantId(req), filters: { range: "today", ...(window || {}) } });
 });
 

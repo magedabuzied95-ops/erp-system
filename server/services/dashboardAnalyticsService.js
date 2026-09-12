@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import db from "../database/db.js";
+import { getSetting } from "./settingsService.js";
 import { groupLowStockAlerts } from "../utils/lowStockAlertGrouping.js";
 import { onlineOnlyOrderClause, shopOnlyOrderClause } from "../modules/shipping/onlineOrderSql.js";
 
@@ -43,6 +44,21 @@ const resolveDateRange = ({ range = "today", dateFrom = "", dateTo = "", windowS
  * when the query fails, and the caller falls back to the calendar day rather than to a rolling 24
  * hours — a rolling window would silently mix last night into today.
  */
+/*
+ * ONE shop day for the whole product (owner request 2026-09-12: "وحد"). The ERP dashboard and the
+ * manager portal both read `pos.business_day_start_hour` through this, so the two can never again
+ * disagree about which night a sale belongs to. Default 05:00; editable in Settings → Shifts.
+ */
+export const DEFAULT_BUSINESS_DAY_START_HOUR = 5;
+
+export const resolveBusinessDayStartHour = async () => {
+  const stored = await getSetting("pos.business_day_start_hour", DEFAULT_BUSINESS_DAY_START_HOUR)
+    .catch(() => DEFAULT_BUSINESS_DAY_START_HOUR);
+  const hour = Number(stored);
+  if (!Number.isFinite(hour)) return DEFAULT_BUSINESS_DAY_START_HOUR;
+  return Math.min(Math.max(Math.trunc(hour), 0), 23);
+};
+
 export const resolveBusinessDayWindow = async ({ startHour, dayOffset = 0 } = {}) => {
   const hour = Math.min(Math.max(Math.trunc(Number(startHour) || 0), 0), 23);
   const offset = Math.trunc(Number(dayOffset) || 0);

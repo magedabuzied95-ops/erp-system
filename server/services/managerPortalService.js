@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import db from "../database/db.js";
 import { nextMonth as nextPayrollMonth } from "../utils/advanceDeductionMonth.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { calculateTodayProfit, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause } from "./dashboardAnalyticsService.js";
+import { calculateTodayProfit, DEFAULT_BUSINESS_DAY_START_HOUR, getDashboardOverview, getHourlySales, getLowStock, getSalesTrend, getTopProducts, getAiInsights, personalOrderClause, resolveBusinessDayStartHour } from "./dashboardAnalyticsService.js";
 import { aggregatePaymentDistribution } from "./managerPortalPaymentDistribution.js";
 import { getSetting } from "./settingsService.js";
 import { verifyProfitToken, nullProfitFieldsInOverview, stripInvoiceProfit, stripProfitFromInsights, buildDailyProfitBlock } from "./managerProfitLock.js";
@@ -799,18 +799,11 @@ export const getManagerPortalInvoiceDetailsBatch = async ({ manager = {}, invoic
    The manager can also name the window outright: ?from=<instant>&to=<instant>.
 ====================================================== */
 
-const DEFAULT_BUSINESS_DAY_START_HOUR = 4;
+// The start hour and its default live in dashboardAnalyticsService now — one shop day shared with
+// the ERP dashboard, so the two surfaces cannot drift apart again.
 // A manager asking for a decade of invoices would time the request out and truncate against
 // the row cap anyway. Wide enough for any real question, bounded enough to stay answerable.
 const MAX_WINDOW_DAYS = 92;
-
-const resolveBusinessDayStartHour = async () => {
-  const stored = await getSetting("pos.business_day_start_hour", DEFAULT_BUSINESS_DAY_START_HOUR)
-    .catch(() => DEFAULT_BUSINESS_DAY_START_HOUR);
-  const hour = Number(stored);
-  if (!Number.isFinite(hour)) return DEFAULT_BUSINESS_DAY_START_HOUR;
-  return Math.min(Math.max(Math.trunc(hour), 0), 23);
-};
 
 const parseInstant = (value) => {
   const raw = clean(value);

@@ -122,7 +122,7 @@ test("the manager portal home passes the shop's day to every money query on it",
 
     const resolved = seen.find((q) => /AS window_start/.test(q.text));
     assert.ok(resolved, "the home must resolve the business day at all");
-    assert.deepEqual(resolved.params, [4], "and resolve it with the configured start hour");
+    assert.deepEqual(resolved.params, [5], "and resolve it with the configured start hour");
 
     const invoices = invoiceListSql(seen);
     assert.ok(invoices, "the invoice feed query must have run");
