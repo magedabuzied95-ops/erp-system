@@ -42,7 +42,7 @@ const probe = async ({ label, path, method = "GET", body = null }) => {
       parsed = raw;
     }
     const verdict = response.status === 404
-      ? "PATH NOT FOUND — the service calls a path this build does not have"
+      ? "NOT FOUND — wrong path OR wrong method for this build"
       : response.status === 401 || response.status === 403
         ? "AUTH — the api key was refused"
         : response.ok
@@ -91,7 +91,71 @@ const run = async () => {
     console.log(`${result.verdict.padEnd(52)} ${result.label}  [${result.status}] ${result.path}`);
   }
 
-  const broken = results.filter((result) => result.status === 404);
+  /*
+   * Tier two: does the path exist, without using it?
+   *
+   * The endpoints below all SEND something, so they cannot be called for real against a live
+   * customer number. They can still be proven, because Evolution validates the body before it
+   * does anything: an empty body is refused by the DTO, and the status code says which kind of
+   * refusal it was. 404 means the path is wrong for this build; 400/422 means the path is
+   * there and only the (deliberately empty) payload was rejected — nothing was delivered.
+   *
+   * Deliberately NOT probed, because an empty body is not obviously harmless on them:
+   *   /settings/set            — could apply a default settings object to the live instance
+   *   /chat/updateProfileName|Status|Picture, /chat/updatePrivacySettings
+   *                            — could overwrite the store's own profile with nothing
+   *   /proxy/set               — could disable a proxy that is carrying the session
+   *   /message/sendStatus      — a Status is a broadcast; not worth any chance of publishing
+   *   /group/create|leaveGroup|updateParticipant
+   *                            — group membership is real even when the payload is junk
+   * Those stay unproven until the first real call, which is why each one is behind an
+   * explicit operator action rather than automatic behaviour.
+   */
+  const shapeProbes = [
+    { label: "send voice note", path: `/message/sendWhatsAppAudio/${instance}` },
+    { label: "send poll", path: `/message/sendPoll/${instance}` },
+    { label: "send location", path: `/message/sendLocation/${instance}` },
+    { label: "send contact card", path: `/message/sendContact/${instance}` },
+    { label: "send sticker", path: `/message/sendSticker/${instance}` },
+    { label: "send video note", path: `/message/sendPtv/${instance}` },
+    { label: "typing indicator", path: `/chat/sendPresence/${instance}` },
+    { label: "read receipt", path: `/chat/markMessageAsRead/${instance}` },
+    { label: "apply label", path: `/label/handleLabel/${instance}` },
+    { label: "archive chat", path: `/chat/archiveChat/${instance}` },
+    { label: "mark chat unread", path: `/chat/markChatUnread/${instance}` },
+    { label: "block contact", path: `/message/updateBlockStatus/${instance}` },
+    { label: "recall message", path: `/chat/deleteMessageForEveryone/${instance}`, method: "DELETE" },
+    { label: "contact profile", path: `/chat/fetchProfile/${instance}` },
+    { label: "business profile", path: `/chat/fetchBusinessProfile/${instance}` },
+    // GET, and with no groupJid on purpose — probed with the verb it is actually called with,
+    // because Express answers a known path called with the wrong method with a 404 too.
+    { label: "group invite code", path: `/group/inviteCode/${instance}`, method: "GET" },
+  ];
+
+  console.log("\nPath-existence probes (empty body — refused by validation, nothing is sent):\n");
+  const shapeResults = [];
+  for (const entry of shapeProbes) {
+    const method = entry.method || "POST";
+    // fetch throws outright on a GET carrying a body, which reads as "gateway unreachable"
+    // and hides whether the path is there at all. A GET probe goes out bare.
+    const result = await probe({ ...entry, method, body: method === "GET" ? null : {} });
+    // A 400 here is the GOOD answer: the route exists and refused an empty payload.
+    const verdict = result.status === 404
+      ? "NOT FOUND — wrong path OR wrong method for this build"
+      : result.status === 400 || result.status === 422
+        ? "EXISTS (empty body refused, as expected)"
+        : result.status === 401 || result.status === 403
+          ? "AUTH — the api key was refused"
+          : result.status === 0
+            ? result.verdict
+            : `EXISTS but answered ${result.status} to an empty body — check it did nothing`;
+    shapeResults.push({ ...result, verdict });
+  }
+  for (const result of shapeResults) {
+    console.log(`${result.verdict.padEnd(52)} ${result.label}  [${result.status}] ${result.path}`);
+  }
+
+  const broken = [...results, ...shapeResults].filter((result) => result.status === 404);
   console.log("");
   if (broken.length) {
     console.log(`${broken.length} endpoint(s) are not on this build — fix the path in whatsappCapabilitiesService before enabling the feature that uses it:`);
@@ -100,6 +164,7 @@ const run = async () => {
     return;
   }
   console.log("Every probed endpoint exists on this build.");
+  console.log("Unproven by design (they mutate the instance or broadcast): /settings/set, /chat/updateProfileStatus, /chat/updateProfilePicture, /chat/updatePrivacySettings, /proxy/set, /message/sendStatus, /group/create, /group/leaveGroup, /group/updateParticipant.");
 };
 
 run().catch((error) => {
