@@ -1448,6 +1448,14 @@ export const editWhatsappTextMessage = async ({ remoteJid = "", targetMessageId 
   };
 };
 
+// Comfortably under the platform's own 60s request timeout, so a stuck media
+// send fails as a WhatsApp error the operator can read instead of as the
+// server's generic "Request timed out".
+export const WHATSAPP_MEDIA_SEND_TIMEOUT_MS = Math.max(
+  Number(process.env.WHATSAPP_MEDIA_SEND_TIMEOUT_MS || 40_000),
+  5_000
+);
+
 export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance = "" } = {}) => {
   // Same LID addressing as sendTextMessage: a username customer has no number,
   // so product photos have to travel over the LID too.
@@ -1514,6 +1522,13 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
   let response = null;
   let raw = "";
   let data = null;
+  // Evolution downloads the media off OUR server before it answers, so this
+  // call is as slow as that fetch. Unbounded, a gateway that hangs on the
+  // download held the operator's request open until the platform's own 60s
+  // timeout answered 503 — which reads as "the photo vanished" rather than as a
+  // WhatsApp failure. Bounded here so the transcript row records a real error.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WHATSAPP_MEDIA_SEND_TIMEOUT_MS);
   try {
     response = await fetch(`${current.apiUrl}${endpoint}`, {
       method: "POST",
@@ -1522,6 +1537,7 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
         "Content-Type": "application/json",
       },
       body: requestBody,
+      signal: controller.signal,
     });
     raw = await response.text();
     try {
@@ -1548,7 +1564,14 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
       imageUrl: media,
     });
     return { success: true, provider: current.provider, instanceName: current.instanceName, phone: normalizedPhone, imageUrl: media, result: data };
-  } catch (error) {
+  } catch (rawError) {
+    const error = rawError?.name === "AbortError"
+      ? gatewayError(
+        `WhatsApp did not answer within ${Math.round(WHATSAPP_MEDIA_SEND_TIMEOUT_MS / 1000)}s while fetching the image`,
+        "WHATSAPP_MEDIA_SEND_TIMEOUT",
+        504
+      )
+      : rawError;
     console.error("[whatsapp:evolution-image-error]", {
       instanceName: current.instanceName,
       phoneSuffix: normalizedPhone.slice(-4),
@@ -1568,6 +1591,8 @@ export const sendImageMessage = async ({ phone, imageUrl, caption = "", instance
       });
     }
     throw error;
+  } finally {
+    clearTimeout(timer);
   }
 };
 

@@ -18,6 +18,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileArchive, FileSpreadsheet, FileText, ImageOff, Mic, Paperclip, Pause, Play, X, ZoomIn } from "lucide-react";
 
+import { resolveChatMediaUrl } from "../../../shared/lib/imageUrls.js";
+
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const MAX_ITEMS_PER_KIND = 4;
@@ -130,7 +132,7 @@ export const messageStoryContext = (message = {}) => {
     const metadata = attachment.metadata && typeof attachment.metadata === "object" ? attachment.metadata : {};
     return {
       kind,
-      url: attachmentUrl(attachment) || clean(metadata.story_asset_url),
+      url: resolveChatMediaUrl(attachmentUrl(attachment) || clean(metadata.story_asset_url)),
       storyId: clean(metadata.story_id),
       productId: metadata.story_product_id || null,
       productName: clean(metadata.story_product_name),
@@ -173,7 +175,10 @@ export const messageMediaGroups = (message = {}) => {
     // A story is context for the message, not a photo the customer sent us, so
     // the bubble quotes it above the text instead of tiling it in the gallery.
     if (storyAttachmentKind(attachment)) continue;
-    const url = attachmentUrl(attachment);
+    // Resolved BEFORE the de-duplication: the same file can reach here once as
+    // `/uploads/inbox/x.jpg` from the row and once absolute from the realtime
+    // event, and they are one attachment, not two.
+    const url = resolveChatMediaUrl(attachmentUrl(attachment));
     if (!url || seen.has(url)) continue;
     seen.add(url);
     const kind = attachmentKind(attachment);

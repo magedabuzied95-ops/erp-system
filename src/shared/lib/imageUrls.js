@@ -115,6 +115,31 @@ export const resolveEmployeeProfileImageUrl = (value) => {
   return joinAssetUrl(`/uploads/${imageUrl}`);
 };
 
+/**
+ * Media hanging off a chat message (an inbox attachment, a story frame).
+ *
+ * Most of it arrives absolute from WhatsApp/Meta/Cloudinary and passes straight
+ * through. What does NOT is a file WE stored: the attachment route hands back
+ * `/uploads/inbox/...`, and the admin app is served from a different origin than
+ * the API, so that path resolves to the SPA — which answers index.html with a
+ * 200 and paints a broken bubble. Unlike resolveProductImageUrl this never
+ * guesses a directory for a bare name: a chat attachment is not a product asset.
+ */
+export const resolveChatMediaUrl = (value) => {
+  const mediaUrl = String(value || "").trim();
+  if (!mediaUrl) return "";
+  if (mediaUrl.startsWith("data:") || mediaUrl.startsWith("blob:")) return mediaUrl;
+  if (/^https?:\/\//i.test(mediaUrl)) return normalizeReachableUrl(mediaUrl);
+  if (/^\/\//.test(mediaUrl) && typeof window !== "undefined") {
+    return normalizeReachableUrl(`${window.location.protocol}${mediaUrl}`);
+  }
+  if (!/^\/?uploads\//i.test(mediaUrl) && !mediaUrl.startsWith("/")) return mediaUrl;
+
+  const baseUrl = getBackendAssetBaseUrl();
+  if (!baseUrl) return mediaUrl;
+  return `${baseUrl}/${trimSlashes(mediaUrl)}`;
+};
+
 export const isInvalidShippingProofUrl = (value) => {
   const proofUrl = String(value || "").trim();
   if (!proofUrl) return false;

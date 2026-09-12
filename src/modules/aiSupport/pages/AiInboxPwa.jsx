@@ -81,6 +81,7 @@ import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/R
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
 import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
 import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
+import { attachmentFilesFromTransfer, prepareOutboundImage } from "../utils/outboundAttachment.js";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
 import {
@@ -1949,7 +1950,7 @@ function MessageText({ text = "" }) {
   );
 }
 
-function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null }) {
+function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null, onPasteFiles = null }) {
   const internalEditorRef = useRef(null);
   const editorRef = externalEditorRef || internalEditorRef;
   const allowLineBreakRef = useRef(false);
@@ -1985,6 +1986,22 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
       data-placeholder={placeholder}
       data-ai-inbox-composer="true"
       onInput={(event) => onChange?.(String(event.currentTarget.innerText || "").replace(/\u00a0/g, " "))}
+      onPaste={(event) => {
+        // An image pasted into a contentEditable is dropped in as an <img> the
+        // editor then reads back as empty text, which is why a copied photo
+        // simply vanished here. Route it to the attachment send instead.
+        if (onPasteFiles?.(event.clipboardData)) {
+          event.preventDefault();
+          return;
+        }
+        // Text pastes as TEXT: a copy out of a browser otherwise carries its
+        // markup into the box, fonts, colours and all.
+        const plain = event.clipboardData?.getData?.("text/plain");
+        if (typeof plain !== "string") return;
+        event.preventDefault();
+        document.execCommand("insertText", false, plain);
+        onChange?.(String(event.currentTarget.innerText || "").replace(/\u00a0/g, " "));
+      }}
       onKeyDown={(event) => {
         if (event.key !== "Enter") return;
         if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
@@ -2029,6 +2046,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
   onSubmit,
   onSetText,
   onPickImage,
+  onPasteFiles,
   sendTone = "sky",
 }) {
   const { t } = useTranslation();
@@ -2123,6 +2141,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           value={seedText}
           onChange={handleChange}
           onSubmit={onSubmit}
+          onPasteFiles={onPasteFiles}
           placeholder={placeholder}
         />
         <button
@@ -6514,40 +6533,79 @@ export default function AiInboxPwa() {
    * button existed but nothing behind it did. The channel senders all accept
    * media by URL, so the file is uploaded and sent in one request; see
    * POST /conversations/:id/attachment.
+   *
+   * The bubble is painted from a local preview first and the file is downscaled
+   * before it is uploaded — see the desktop sendAttachment for why a photo used
+   * to leave the operator staring at a composer that looked stuck.
    */
-  const handleImageAttachmentChange = useCallback(async (event) => {
-    const file = event.target.files?.[0] || null;
-    // Reset before the await: picking the same file twice must fire onChange
-    // again, and it will not while the value is still set.
-    event.target.value = "";
+  const sendAttachmentFile = useCallback(async (rawFile) => {
     const sessionId = selectedConversation?.session_id;
-    if (!file || !sessionId) return;
+    if (!rawFile || !sessionId) return;
     if (attachmentSendingRef.current) return;
     attachmentSendingRef.current = true;
     const canonicalSessionId = selectedConversationRouteId || sessionId;
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const caption = cleanMessageText(readComposerText());
-    const form = new FormData();
-    form.append("file", file);
-    form.append("tenant_id", String(tenantId || ""));
-    if (caption) form.append("caption", caption);
-    form.append("client_request_id", buildClientRequestId());
+    const clientRequestId = buildClientRequestId();
+    const optimisticId = `sending-attachment-${clientRequestId}`;
+    const now = new Date().toISOString();
+    let previewUrl = "";
+    try {
+      previewUrl = URL.createObjectURL(rawFile);
+    } catch {
+      previewUrl = "";
+    }
+    const optimistic = {
+      id: optimisticId,
+      session_id: sessionId,
+      client_request_id: clientRequestId,
+      customer_message: "",
+      ai_answer: "",
+      staff_message: caption,
+      message_text: caption,
+      sender_type: "staff",
+      message_type: "image",
+      manual_message: true,
+      staff_user_name: "Staff",
+      delivery_status: "sending",
+      created_at: now,
+      visual_attachments: previewUrl
+        ? [{ type: "image", url: previewUrl, mime_type: rawFile.type || "image/jpeg", file_name: rawFile.name || "" }]
+        : [],
+    };
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      messages: [...asArray(conversation.messages), optimistic],
+      latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
+      last_activity_at: now,
+      updated_at: now,
+    }));
+    setComposerText("");
     setSending(true);
     try {
+      const file = await prepareOutboundImage(rawFile);
+      const form = new FormData();
+      form.append("file", file);
+      form.append("tenant_id", String(tenantId || ""));
+      if (caption) form.append("caption", caption);
+      form.append("client_request_id", clientRequestId);
       const payload = await api.post(
         aiInboxConversationEndpoint(canonicalSessionId, "/attachment"),
         form,
         { headers, perfComponent: "AiInboxPwa.sendAttachment" }
       );
-      if (payload?.message) {
-        patchConversation(selectedConversation.conversation_key || sessionId, (conversation) => ({
-          ...conversation,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
-          latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
-          last_activity_at: payload.message.created_at || new Date().toISOString(),
-          updated_at: payload.message.created_at || new Date().toISOString(),
-        }));
-      }
-      setComposerText("");
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: payload?.message
+          ? mergeMessagesByIdentity([
+              ...asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+              payload.message,
+            ])
+          : asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+        last_activity_at: payload?.message?.created_at || now,
+        updated_at: payload?.message?.created_at || now,
+      }));
+      if (previewUrl) window.setTimeout(() => URL.revokeObjectURL(previewUrl), 10_000);
       // The transcript row is written even when the channel refused it, so the
       // 201 is not by itself proof of delivery.
       if (payload?.delivery_status === "failed") {
@@ -6556,12 +6614,38 @@ export default function AiInboxPwa() {
         toast.success(t("aiSupport.inbox.composer.imageSent"));
       }
     } catch (error) {
+      // The failed bubble keeps the local preview, so the operator can see
+      // which photo did not go; that is why the URL is not released here.
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          item.id === optimisticId
+            ? { ...item, delivery_status: "failed", delivery_error: error?.message || "" }
+            : item
+        )),
+      }));
       toast.error(error?.message || t("aiSupport.inbox.composer.imageSendFailed"));
     } finally {
       attachmentSendingRef.current = false;
       setSending(false);
     }
   }, [headers, patchConversation, readComposerText, selectedConversation, selectedConversationRouteId, setComposerText, t, tenantId]);
+
+  const handleImageAttachmentChange = useCallback((event) => {
+    const file = event.target.files?.[0] || null;
+    // Reset before anything async: picking the same file twice must fire
+    // onChange again, and it will not while the value is still set.
+    event.target.value = "";
+    if (file) sendAttachmentFile(file);
+  }, [sendAttachmentFile]);
+
+  /* Ctrl+V a screenshot straight into the reply box. */
+  const handleComposerPasteFiles = useCallback((transfer) => {
+    const [file] = attachmentFilesFromTransfer(transfer);
+    if (!file) return false;
+    sendAttachmentFile(file);
+    return true;
+  }, [sendAttachmentFile]);
 
   const toggleConversationAi = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
@@ -8213,6 +8297,7 @@ export default function AiInboxPwa() {
                 onSubmit={sendManualReply}
                 onSetText={setComposerText}
                 onPickImage={openImagePicker}
+                onPasteFiles={handleComposerPasteFiles}
                 sendTone={composerMode !== "note" && Boolean(activeAiSuggestionText) && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "amber" : "sky"}
               />
             </div>

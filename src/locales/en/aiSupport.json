@@ -621,7 +621,8 @@
       "attachImageNoteMode": "Switch to Reply to send an image",
       "imagePreview": "📷 Image",
       "imageSent": "Image sent.",
-      "imageSendFailed": "The image was not delivered."
+      "imageSendFailed": "The image was not delivered.",
+      "attachmentNotAnImage": "Images only for now — a video cannot be sent from the composer yet."
     },
     "delivery": {
       "sending": "Sending",

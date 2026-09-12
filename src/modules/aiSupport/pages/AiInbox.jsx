@@ -178,6 +178,7 @@ import {
   transcriptDayLabel,
   transcriptRowTime,
 } from "../lib/conversationHelpers";
+import { attachmentFilesFromTransfer, prepareOutboundImage } from "../utils/outboundAttachment.js";
 
 // Loaded on demand: the integrations center pulls in the whole Meta/marketing
 // API surface, which the inbox itself never touches.
@@ -2912,6 +2913,7 @@ function ManualReplyComposer({
   composerMode = "reply",
   onComposerModeChange,
   onAttachImage,
+  onAttachmentRejected,
 }) {
   const { t } = useTranslation();
   const imageInputRef = useRef(null);
@@ -2920,6 +2922,27 @@ function ManualReplyComposer({
   // A note never touches the channel, so channel availability is irrelevant to
   // it — an operator can record one on a conversation they cannot reply to.
   const noteMode = composerMode === "note" && !isCommentConversation;
+  /*
+   * Copy a photo, click the composer, Ctrl+V. Until now that did nothing at all:
+   * the only way in was the file picker, so an operator with an image on the
+   * clipboard had to save it to disk first. The same handler serves a drop, and
+   * both go through the ONE send path the picker uses.
+   */
+  const attachmentsAllowed = Boolean(onAttachImage) && !loading && !noteMode && canSendLive;
+  const [attachmentDropActive, setAttachmentDropActive] = useState(false);
+  const acceptTransferFiles = (transfer, { announceRejection = false } = {}) => {
+    if (!attachmentsAllowed) return false;
+    const [file] = attachmentFilesFromTransfer(transfer);
+    if (!file) {
+      // A drop is always deliberate, so a video (the composer sends images
+      // only) has to say so rather than do nothing. A paste says nothing: most
+      // pastes are text and have no business raising an error.
+      if (announceRejection && Number(transfer?.files?.length || 0) > 0) onAttachmentRejected?.();
+      return false;
+    }
+    onAttachImage(file);
+    return true;
+  };
   const submitLabel = noteMode
     ? t("aiSupport.inbox.composer.saveNote")
     : isCommentConversation
@@ -3054,7 +3077,23 @@ function ManualReplyComposer({
         dir="ltr"
         data-ai-inbox-composer-shell="true"
         data-composer-mode={noteMode ? "note" : "reply"}
-        className={`flex min-w-0 items-end rounded-2xl border p-1.5 shadow-[0_2px_8px_rgba(15,23,42,0.10)] transition dark:shadow-none ${noteMode
+        onDragOver={(event) => {
+          if (!attachmentsAllowed || !event.dataTransfer?.types?.includes?.("Files")) return;
+          event.preventDefault();
+          setAttachmentDropActive(true);
+        }}
+        onDragLeave={(event) => {
+          // Moving between the shell's own children fires dragleave; ignore
+          // those or the highlight flickers off under the cursor.
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          setAttachmentDropActive(false);
+        }}
+        onDrop={(event) => {
+          if (!attachmentsAllowed) return;
+          setAttachmentDropActive(false);
+          if (acceptTransferFiles(event.dataTransfer, { announceRejection: true })) event.preventDefault();
+        }}
+        className={`flex min-w-0 items-end rounded-2xl border p-1.5 shadow-[0_2px_8px_rgba(15,23,42,0.10)] transition dark:shadow-none ${attachmentDropActive ? "border-amber-500 ring-2 ring-amber-500/20 dark:border-amber-300/70" : ""} ${noteMode
           ? "border-amber-400/70 bg-amber-50 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-amber-300/40 dark:bg-[#241f14]"
           : "border-slate-300 bg-slate-50 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/10 dark:border-white/15 dark:bg-[#181b18] dark:focus-within:border-amber-300/50 dark:focus-within:ring-amber-300/10"}`}
       >
@@ -3106,6 +3145,11 @@ function ManualReplyComposer({
               resizeTextarea();
             }}
             onInput={resizeTextarea}
+            onPaste={(event) => {
+              // Only swallow the paste when the clipboard actually held an
+              // image — pasting text has to keep working exactly as before.
+              if (acceptTransferFiles(event.clipboardData)) event.preventDefault();
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
@@ -7572,36 +7616,88 @@ export default function AiInbox({ reviewerMode = false }) {
    *
    * The composer text rides along as the caption and is cleared on success, so
    * "here it is 👇" plus a photo is one action rather than two messages.
+   *
+   * The bubble is painted from a LOCAL preview before a single byte is uploaded.
+   * The round trip is upload + channel send + the channel fetching the file back
+   * off our disk — seconds, on a link an operator shares with the shop. Waiting
+   * for all of it with nothing on screen is what made sending a photo feel
+   * broken; the bubble now says "sending" and is reconciled with the stored row.
+   *
+   * The file is downscaled first (see prepareOutboundImage). A 5 MB camera photo
+   * becomes ~300 KB with nothing the customer can see lost, which is most of the
+   * wait removed, and it stops the channel size cap from rejecting a send the
+   * operator has already waited through.
    */
-  const sendAttachment = useCallback(async (file) => {
+  const sendAttachment = useCallback(async (rawFile) => {
     const sessionId = selectedConversation?.session_id;
-    if (!file || !sessionId) return;
+    if (!rawFile || !sessionId) return;
     if (attachmentSendingRef.current) return;
     attachmentSendingRef.current = true;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const caption = clean(replyText);
-    const form = new FormData();
-    form.append("file", file);
-    form.append("tenant_id", String(tenantId || ""));
-    if (caption) form.append("caption", caption);
-    form.append("client_request_id", buildClientRequestId());
+    const clientRequestId = buildClientRequestId();
+    const optimisticId = `sending-attachment-${clientRequestId}`;
+    const now = new Date().toISOString();
+    let previewUrl = "";
+    try {
+      previewUrl = URL.createObjectURL(rawFile);
+    } catch {
+      previewUrl = "";
+    }
+    const optimistic = {
+      id: optimisticId,
+      session_id: sessionId,
+      client_request_id: clientRequestId,
+      customer_message: "",
+      ai_answer: "",
+      staff_message: caption,
+      message_text: caption,
+      sender_type: "staff",
+      message_type: "image",
+      manual_message: true,
+      staff_user_name: "Staff",
+      delivery_status: "sending",
+      created_at: now,
+      visual_attachments: previewUrl
+        ? [{ type: "image", url: previewUrl, mime_type: rawFile.type || "image/jpeg", file_name: rawFile.name || "" }]
+        : [],
+    };
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      messages: [...asArray(conversation.messages), optimistic],
+      latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
+      last_activity_at: now,
+      updated_at: now,
+    }));
+    setReplyText("");
     setAttachmentSending(true);
     try {
+      const file = await prepareOutboundImage(rawFile);
+      const form = new FormData();
+      form.append("file", file);
+      form.append("tenant_id", String(tenantId || ""));
+      if (caption) form.append("caption", caption);
+      form.append("client_request_id", clientRequestId);
       const payload = await api.post(
         aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/attachment"),
         form,
         { headers, perfComponent: "AiInbox.sendAttachment" }
       );
-      if (payload?.message) {
-        patchConversation(conversationIdentifier, (conversation) => ({
-          ...conversation,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
-          latest_message_preview: caption || t("aiSupport.inbox.composer.imagePreview"),
-          last_activity_at: payload.message.created_at || new Date().toISOString(),
-          updated_at: payload.message.created_at || new Date().toISOString(),
-        }));
-      }
-      setReplyText("");
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: payload?.message
+          ? mergeMessagesByIdentity([
+              ...asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+              payload.message,
+            ])
+          : asArray(conversation.messages).filter((item) => item.id !== optimisticId),
+        last_activity_at: payload?.message?.created_at || now,
+        updated_at: payload?.message?.created_at || now,
+      }));
+      // The stored row carries the server URL now, so the local preview has
+      // nothing left pointing at it. Released a beat later so the swap has
+      // certainly painted before the blob goes away.
+      if (previewUrl) window.setTimeout(() => URL.revokeObjectURL(previewUrl), 10_000);
       // The row is written even when the channel refused it, so report the
       // delivery status rather than assuming the 201 means delivered.
       if (payload?.delivery_status === "failed") {
@@ -7610,12 +7706,27 @@ export default function AiInbox({ reviewerMode = false }) {
         setToast({ tone: "emerald", text: t("aiSupport.inbox.composer.imageSent") });
       }
     } catch (err) {
+      // The bubble stays, marked failed, still showing the local preview — the
+      // operator can see WHICH photo did not go. The preview URL is therefore
+      // not released here.
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          item.id === optimisticId
+            ? { ...item, delivery_status: "failed", delivery_error: err?.message || "" }
+            : item
+        )),
+      }));
       setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.composer.imageSendFailed") });
     } finally {
       attachmentSendingRef.current = false;
       setAttachmentSending(false);
     }
-  }, [api, headers, patchConversation, replyText, selectedConversation, selectedConversationRouteId, setToast, t, tenantId]);
+  }, [api, headers, patchConversation, replyText, selectedConversation, selectedConversationRouteId, setReplyText, setToast, t, tenantId]);
+
+  const handleAttachmentRejected = useCallback(() => {
+    setToast({ tone: "rose", text: t("aiSupport.inbox.composer.attachmentNotAnImage") });
+  }, [setToast, t]);
 
   const sendCurrentReply = async (overrideText = "", options = {}) => {
     if (isCommentConversation(selectedConversation || {})) {
@@ -9429,6 +9540,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         composerMode={composerMode}
                         onComposerModeChange={setComposerMode}
                         onAttachImage={sendAttachment}
+                        onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                         onCreateCustomer={createLeadCustomer}
@@ -9952,6 +10064,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         composerMode={composerMode}
                         onComposerModeChange={setComposerMode}
                         onAttachImage={sendAttachment}
+                        onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                         onCreateCustomer={createLeadCustomer}

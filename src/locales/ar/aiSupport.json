@@ -621,7 +621,8 @@
       "attachImageNoteMode": "ارجع لوضع الرد عشان تبعت صورة",
       "imagePreview": "📷 صورة",
       "imageSent": "تم إرسال الصورة.",
-      "imageSendFailed": "الصورة لم تُسلَّم."
+      "imageSendFailed": "الصورة لم تُسلَّم.",
+      "attachmentNotAnImage": "صور بس دلوقتي — الفيديو لسه مش بيتبعت من هنا."
     },
     "delivery": {
       "sending": "جاري الإرسال",
