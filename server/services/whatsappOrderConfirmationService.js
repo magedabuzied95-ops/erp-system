@@ -21,7 +21,7 @@ import {
 } from "../../shared/whatsappAutomationDefaults.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
-import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount } from "../utils/orderConfirmationMessage.js";
+import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount, orderConfirmationTranscriptButtons } from "../utils/orderConfirmationMessage.js";
 import { summariseItems } from "./whatsappTemplates.js";
 
 /*
@@ -938,6 +938,8 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
           source: "whatsapp_order_confirmation",
           customer_name: text(current?.customer_name),
           message,
+          // Written onto the row only when the buttons actually went out (see the queue worker).
+          buttons: orderConfirmationTranscriptButtons(),
         },
       },
       directSend: null,
@@ -1014,6 +1016,7 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       message,
       messageType: "text",
       senderType: "system",
+      suggestedActions: deliveryMode.startsWith("interactive") ? orderConfirmationTranscriptButtons() : [],
       source: "whatsapp_order_confirmation",
       channel: "whatsapp",
       deliveryStatus: "sent",

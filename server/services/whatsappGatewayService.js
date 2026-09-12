@@ -22,7 +22,7 @@ import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
-import { buildCodOrderConfirmationMessage } from "../utils/orderConfirmationMessage.js";
+import { buildCodOrderConfirmationMessage, ORDER_CONFIRMATION_BUTTONS } from "../utils/orderConfirmationMessage.js";
 import { getConversationMemory } from "./aiConversationMemory.js";
 import { resolveFollowupContext, summarizeConversationMemoryV2 } from "../utils/aiConversationMemoryV2.js";
 import { autoRegisterWhatsappCustomer, ensureWhatsappCustomerAvatarSchema } from "./whatsappCustomerAutoRegistrationService.js";
@@ -1712,23 +1712,11 @@ const buildOrderConfirmationButtonsPayload = ({ phone = "", title = "", text = "
   const safeFooter = String(footer || "").trim();
   const safeOrderId = String(orderId || "").trim();
   const suffix = safeOrderId ? (useSafeIds ? `_${safeOrderId}` : `:${safeOrderId}`) : "";
-  const buttons = [
-    {
-      type: "reply",
-      displayText: "✅ تأكيد الطلب",
-      id: `confirm_order${suffix}`,
-    },
-    {
-      type: "reply",
-      displayText: "✏️ تعديل الطلب",
-      id: `edit_order${suffix}`,
-    },
-    {
-      type: "reply",
-      displayText: "❌ إلغاء الطلب",
-      id: `cancel_order${suffix}`,
-    },
-  ].slice(0, Math.max(1, Math.min(3, Number(buttonCount) || 3)));
+  const buttons = ORDER_CONFIRMATION_BUTTONS.map((button) => ({
+    type: "reply",
+    displayText: button.title,
+    id: `${button.action}${suffix}`,
+  })).slice(0, Math.max(1, Math.min(3, Number(buttonCount) || 3)));
   return {
     number: normalizeEgyptPhone(phone),
     title: safeTitle,

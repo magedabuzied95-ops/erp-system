@@ -203,7 +203,11 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
         order_id: row.order_id,
         error: buttonsError?.message || String(buttonsError),
       });
-      return gateway.sendTextMessage({ phone, message: text(send.fallbackText) || body, instance });
+      const textResult = await gateway.sendTextMessage({ phone, message: text(send.fallbackText) || body, instance });
+      // runOnSent logs what the customer got: the links text, with no buttons under it.
+      return textResult && typeof textResult === "object"
+        ? { ...textResult, delivery_mode: "link_text" }
+        : { delivery_mode: "link_text" };
     }
   }
 
@@ -292,15 +296,19 @@ export const runOnSent = async (row, sendResult) => {
    * message. The queue rewrote send.fallbackText to the variant's full text (header and body) when
    * it chose one, so that string wins whenever a variant was chosen.
    */
-  const transcriptMessage = row.message_variant_id
+  const fellBackToText = text(sendResult?.delivery_mode) === "link_text";
+  const transcriptMessage = row.message_variant_id || fellBackToText
     ? (text(send.fallbackText) || text(row.rendered_body))
     : (text(transcript.message) || text(row.rendered_body));
+  // Reply buttons are part of what the customer received, so the thread shows them under the body.
+  const transcriptButtons = !fellBackToText && Array.isArray(transcript.buttons) ? transcript.buttons : [];
   const saved = await appendWhatsappOutboundSupportReply({
     tenantId,
     sessionId,
     message: transcriptMessage,
     messageType: "text",
     senderType: "system",
+    suggestedActions: transcriptButtons,
     source: text(transcript.source) || `whatsapp_${row.automation_type}`,
     channel: "whatsapp",
     deliveryStatus: "sent",

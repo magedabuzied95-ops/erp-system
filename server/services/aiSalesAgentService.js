@@ -37,6 +37,7 @@ import { guardAIReply } from "./aiSafetyGuard.js";
 import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
+import { inferOrderConfirmationButtons } from "../utils/orderConfirmationMessage.js";
 import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema, getTenantStyleProfile } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
@@ -997,7 +998,9 @@ export const normalizeInboxMessage = (row = {}) => {
     product_cards: normalizeInboxProductCards(row),
     productCards: normalizeInboxProductCards(row),
     visual_attachments: asArray(row.visual_attachments),
-    suggested_actions: asArray(row.suggested_actions),
+    suggested_actions: asArray(row.suggested_actions).length
+      ? asArray(row.suggested_actions)
+      : inferOrderConfirmationButtons({ detectedIntent: row.detected_intent, body }),
     // Source-comment context: a comment_inbound row carries the post it was left on; a
     // comment_private_reply DM row now carries the same context plus the customer's comment text,
     // so the AI Inbox can show an inline preview of the post the DM answered. Dropping these here is
@@ -2734,6 +2737,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     const summaryMessage = conversation.latest_message_id
       ? summarizeInboxMessage(normalizeInboxMessage({
           ...conversation,
+          // The spread carries the SESSION's id. As the message's identity it never matched the
+          // real row, so a thread holding that row got the preview appended as a second copy.
+          id: conversation.latest_message_id,
           created_at: conversation.latest_message_created_at || conversation.updated_at,
           customer_message: isOutboundMessageRow(conversation) ? "" : conversation.customer_message || conversation.message_text || "",
           message_text: conversation.message_text || conversation.customer_message || "",

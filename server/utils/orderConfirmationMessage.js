@@ -32,6 +32,29 @@ export const formatAmount = (value) => {
   });
 };
 
+// The three reply buttons the confirmation prompt carries. The send payload and the inbox
+// transcript read the same list, so the thread shows the buttons the customer actually got.
+export const ORDER_CONFIRMATION_BUTTONS = [
+  { action: "confirm_order", title: "✅ تأكيد الطلب" },
+  { action: "edit_order", title: "✏️ تعديل الطلب" },
+  { action: "cancel_order", title: "❌ إلغاء الطلب" },
+];
+
+// Stored in the transcript row's suggested_actions. Inert in the inbox — only the customer can
+// press them — which is why they carry no order id.
+export const orderConfirmationTranscriptButtons = () =>
+  ORDER_CONFIRMATION_BUTTONS.map((button) => ({ type: "whatsapp_reply_button", id: button.action, title: button.title }));
+
+// Confirmation rows written before the buttons were stored carry only the button-less body. The
+// text fallback spells the actions out in its body, so a body WITHOUT them was the button form.
+export const inferOrderConfirmationButtons = ({ detectedIntent = "", body = "" } = {}) => {
+  if (clean(detectedIntent) !== "whatsapp_order_confirmation") return [];
+  const value = clean(body);
+  if (!value.endsWith("برجاء التأكيد")) return [];
+  if (ORDER_CONFIRMATION_BUTTONS.some((button) => value.includes(button.title))) return [];
+  return orderConfirmationTranscriptButtons();
+};
+
 // WhatsApp truncates a long interactive body, and a truncated body can swallow the closing line
 // that tells the customer to press a button. Cap the list and say what was left out.
 const PRODUCT_LINE_CAP = 5;

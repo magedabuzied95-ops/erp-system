@@ -635,6 +635,26 @@ function LinkifiedText({ text = "", className = "", linkColor = "" }) {
 // twice it has been silently lost on the way to production — once to a hex
 // Tailwind never generated a class for, once to the theme layer re-pointing
 // whole colour families with `!important`. Inline survives both.
+// The reply buttons a WhatsApp prompt went out with, drawn the way the customer's app draws them:
+// full-width rows under the body, split by hairlines. Inert here — only the customer can press them.
+function ReplyButtons({ buttons = [], skin }) {
+  if (!buttons.length) return null;
+  return (
+    <div className="-mx-2.5 -mb-1.5 mt-1.5">
+      {buttons.map((button, index) => (
+        <div
+          key={`${button.id || ""}:${index}`}
+          dir="auto"
+          style={{ color: skin.link, borderTop: `1px solid ${skin.meta}` }}
+          className="px-2.5 py-2 text-center text-[13.5px] font-semibold leading-5"
+        >
+          {button.title}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ChatBubble({ skin, radius, side, flush = false, className = "", style = null, children }) {
   return (
     <div
@@ -1047,6 +1067,9 @@ function TranscriptMessage({
           ? "النظام"
           : "";
   const AuthorIcon = isAi ? Bot : isInternalNote ? Info : UserCheck;
+  const replyButtons = asArray(message.suggested_actions).filter(
+    (action) => action?.type === "whatsapp_reply_button" && clean(action.title)
+  );
   const correctReply = isAi && onOpenCorrection && message.message_type !== "comment_suggestion" ? (
     <button
       type="button"
@@ -1083,6 +1106,7 @@ function TranscriptMessage({
           <p style={{ color: dangerColor }} className="mt-1 text-[11px] font-bold leading-4">{message.delivery_error}</p>
         ) : null}
         {stampFor({ floating: flush, trailing: correctReply })}
+        <ReplyButtons buttons={replyButtons} skin={skin} />
       </ChatBubble>
     </ChatRow>
   );

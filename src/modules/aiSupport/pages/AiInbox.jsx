@@ -4799,9 +4799,17 @@ export default function AiInbox({ reviewerMode = false }) {
             ...asArray(existing.messages),
             ...asArray(summary.messages),
           ]);
+          // The summary carries only the LATEST message. Merged into a loaded thread it lands
+          // after whatever the thread last saw, skipping every message in between — a customer's
+          // reply vanished between our prompt and our answer to it. A latest message the thread
+          // has never seen means the thread is behind, so it is refetched instead of trusted.
+          const knownKeys = new Set(asArray(existing.messages).flatMap(messageIdentityKeys));
+          const threadBehind = existing.conversationHydrated === true
+            && asArray(summary.messages).some((message) => !messageIdentityKeys(message).some((key) => knownKeys.has(key)));
           return {
             ...existing,
             ...summary,
+            ...(threadBehind ? { thread_stale_at: Date.now() } : {}),
             // Phase 13.2 — never let a stale list/cache page overwrite a newer/cleared AI draft (monotonic).
             ...reconcileConversationDraft(existing, summary),
             messages: mergedMessages,
@@ -5085,7 +5093,28 @@ export default function AiInbox({ reviewerMode = false }) {
   }, []);
 
   useEffect(() => {
-    const refresh = () => {
+    const refresh = (payload = {}) => {
+      // A refresh is how the server says "this thread changed" when it wrote rows without
+      // broadcasting them one by one — the customer's button tap, the order-confirmation reply.
+      // The list refetch below only brings the latest message, so a loaded thread is marked
+      // behind and refetches its own page.
+      const sessionId = clean(payload?.session_id || "");
+      if (sessionId) {
+        const whatsappKey = sessionId.toLowerCase().startsWith("whatsapp:") ? normalizeWhatsappSessionIdentity(sessionId, "") : "";
+        const staleAt = Date.now();
+        setInbox((current) => {
+          let changed = false;
+          const conversations = asArray(current.conversations).map((conversation) => {
+            const matches = conversation.session_id === sessionId
+              || conversation.conversation_key === sessionId
+              || (whatsappKey && conversation.conversation_key === whatsappKey);
+            if (!matches || conversation.conversationHydrated !== true) return conversation;
+            changed = true;
+            return { ...conversation, thread_stale_at: staleAt };
+          });
+          return changed ? { ...current, conversations } : current;
+        });
+      }
       if (pageVisible) requestRefresh("socket", { silent: true, force: true });
     };
     const onMessage = (payload = {}) => {
@@ -6912,6 +6941,7 @@ export default function AiInbox({ reviewerMode = false }) {
     }
     isLoadingOlderRef.current = true;
     setOlderMessagesLoading(true);
+    const requestStartedAt = Date.now();
     try {
       const payload = reviewerMode
         ? await api.get(metaReviewerConversationEndpoint(selectedConversation?.channel || selectedConversation?.source, selectedConversationRouteId || sessionId, "/messages"), {
@@ -6957,6 +6987,9 @@ export default function AiInbox({ reviewerMode = false }) {
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
           next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
           conversationHydrated: true,
+          // Only the newest page answers "is this thread current?". A mark that arrived while the
+          // request was in flight is newer than this stamp, so it still triggers a refetch.
+          ...(shouldHydrateFullPage ? { thread_hydrated_at: requestStartedAt } : {}),
         };
       });
     } catch (err) {
@@ -7008,6 +7041,28 @@ export default function AiInbox({ reviewerMode = false }) {
     if (primedNeedsRevalidation) hydratedThreadsRef.current.add(key);
     void loadOlderMessages({ forceHydrate: primedNeedsRevalidation });
   }, [loadOlderMessages, selectedConversation?.messages?.length, selectedConversation?.session_id]);
+
+  // A loaded thread marked behind (see the list merge and the ai_inbox:refresh handler) refetches
+  // its newest page. Waits out an in-flight load rather than racing it; the stamp comparison makes
+  // it run once per mark.
+  const loadOlderMessagesRef = useRef(loadOlderMessages);
+  loadOlderMessagesRef.current = loadOlderMessages;
+  const selectedThreadStaleAt = Number(selectedConversation?.thread_stale_at || 0);
+  const selectedThreadHydratedAt = Number(selectedConversation?.thread_hydrated_at || 0);
+  useEffect(() => {
+    if (!selectedConversation?.session_id || !selectedThreadStaleAt) return undefined;
+    if (selectedThreadStaleAt <= selectedThreadHydratedAt) return undefined;
+    let timer = 0;
+    const attempt = () => {
+      if (isLoadingOlderRef.current || isHydratingConversationRef.current || isRefreshingRef.current) {
+        timer = window.setTimeout(attempt, 500);
+        return;
+      }
+      void loadOlderMessagesRef.current({ forceHydrate: true });
+    };
+    timer = window.setTimeout(attempt, 250);
+    return () => window.clearTimeout(timer);
+  }, [selectedConversation?.session_id, selectedThreadStaleAt, selectedThreadHydratedAt]);
 
   // ── Meta review account: the live message path ──────────────────────────────
   // A reviewer socket is deliberately kept out of every tenant room, so it never

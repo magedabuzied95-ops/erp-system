@@ -4616,6 +4616,23 @@ export default function AiInboxPwa() {
       try {
         const payloadTenantId = clean(payload.tenant_id || payload.tenantId || "");
         if (payloadTenantId && payloadTenantId !== clean(tenantId)) return;
+        // A refresh is how the server says "this thread changed" when it wrote rows without
+        // broadcasting them one by one — the customer's button tap, the order-confirmation reply.
+        // The summary refresh keeps a loaded thread's messages as they were, so mark it behind and
+        // let it refetch its own page.
+        if (clean(payload?.session_id || payload?.sessionId || "")) {
+          const refreshKeys = normalizeRealtimeConversationKeys(payload);
+          const staleAt = Date.now();
+          setConversations((current) => {
+            let changed = false;
+            const next = current.map((conversation) => {
+              if (conversation.conversationHydrated !== true || !conversationMatchesRealtimeKeys(conversation, refreshKeys)) return conversation;
+              changed = true;
+              return { ...conversation, thread_stale_at: staleAt };
+            });
+            return changed ? next : current;
+          });
+        }
         requestRefresh("socket", { silent: true, force: true });
       } catch (error) {
         console.warn("[AiInboxPwa][realtime-refresh-error]", {
@@ -5645,6 +5662,7 @@ export default function AiInboxPwa() {
     }
     isLoadingOlderRef.current = true;
     setOlderLoading(true);
+    const requestStartedAt = Date.now();
     try {
       const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
         params: { tenant_id: tenantId, ...(before ? { before, before_id: beforeId } : {}), limit: 30 },
@@ -5661,7 +5679,15 @@ export default function AiInboxPwa() {
         const existing = shouldHydrateFullPage
           ? inboxCache.reconcileWithServerPage(asArray(conversation.messages), incoming, messageIdentityKeys)
           : asArray(conversation.messages);
-        const mergedMessages = mergeMessagesByIdentity([...incoming, ...existing]);
+        // A full page merged over a window that reaches further back (or holds messages the page
+        // is newer than) must come out in time order — first-seen order would put the older
+        // history after the newest page.
+        const mergedMessages = shouldHydrateFullPage
+          ? inboxCache.orderMessages(
+              mergeMessagesByIdentity([...existing, ...incoming]),
+              mergeMessagesByIdentity([...incoming, ...existing])
+            )
+          : mergeMessagesByIdentity([...incoming, ...existing]);
         // Replace-write (not union) so dropped messages leave the cached record
         // too — a union write would resurrect them next session.
         if (shouldHydrateFullPage) inboxCache.replaceThreadNow(conversationCacheKey, mergedMessages);
@@ -5673,6 +5699,9 @@ export default function AiInboxPwa() {
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
           next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
           conversationHydrated: true,
+          // Only the newest page answers "is this thread current?". A mark that arrived while the
+          // request was in flight is newer than this stamp, so it still triggers a refetch.
+          ...(shouldHydrateFullPage ? { thread_hydrated_at: requestStartedAt } : {}),
         };
       });
     } catch (loadError) {
@@ -5698,6 +5727,26 @@ export default function AiInboxPwa() {
     if (primedNeedsRevalidate) revalidatedThreadsRef.current.add(key);
     void loadOlderMessages({ forceHydrate: primedNeedsRevalidate });
   }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, selectedConversation, tab]);
+
+  // A loaded thread marked behind by an ai_inbox:refresh refetches its newest page, once per mark.
+  const loadOlderMessagesRef = useRef(loadOlderMessages);
+  loadOlderMessagesRef.current = loadOlderMessages;
+  const selectedThreadStaleAt = Number(selectedConversation?.thread_stale_at || 0);
+  const selectedThreadHydratedAt = Number(selectedConversation?.thread_hydrated_at || 0);
+  useEffect(() => {
+    if (!selectedConversation?.session_id || tab !== "conversations" || !selectedThreadStaleAt) return undefined;
+    if (selectedThreadStaleAt <= selectedThreadHydratedAt) return undefined;
+    let timer = 0;
+    const attempt = () => {
+      if (isLoadingOlderRef.current || isHydratingConversationRef.current) {
+        timer = window.setTimeout(attempt, 500);
+        return;
+      }
+      void loadOlderMessagesRef.current({ forceHydrate: true });
+    };
+    timer = window.setTimeout(attempt, 250);
+    return () => window.clearTimeout(timer);
+  }, [selectedConversation?.session_id, selectedThreadStaleAt, selectedThreadHydratedAt, tab]);
 
   const reactToMessage = useCallback(async ({ emoji = "", targetMessageId = "", remoteJid = "", targetFromMe = false } = {}) => {
     // The live conversation, without taking a dependency on it (see the ref).
