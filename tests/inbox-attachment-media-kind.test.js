@@ -140,6 +140,30 @@ test("a WhatsApp send that succeeded is not recorded as failed", () => {
   assert.match(whatsappBranch, /result\?\.result\?\.key\?\.id/);
 });
 
+/*
+ * The third layer, caught the same way: the row was written and delivered, and
+ * the transcript then refused to draw it. Both surfaces decide what KIND of row
+ * a message is by looking for text in customer_message / ai_answer /
+ * staff_message, and an uncaptioned attachment has none — so the operator's own
+ * photo never appeared in their own thread. Only WhatsApp's echo of it did,
+ * seconds later and from the other direction, which reads as "it didn't send".
+ */
+test("both inboxes draw a staff attachment that has no caption", () => {
+  for (const page of ["../src/modules/aiSupport/pages/AiInbox.jsx", "../src/modules/aiSupport/pages/AiInboxPwa.jsx"]) {
+    const source = read(page);
+    assert.match(
+      source,
+      /const hasStaffAttachment =\s*\r?\n\s*clean\(normalizedMessage\.sender_type\)\.toLowerCase\(\) === "staff" &&/,
+      `${page} no longer recognises a caption-less staff attachment`
+    );
+    assert.match(
+      source,
+      /Boolean\(clean\(normalizedMessage\.staff_message\)\) \|\| hasStaffAttachment/,
+      `${page} does not fold the attachment into the staff-row test`
+    );
+  }
+});
+
 test("Telegram maps a clip to sendVideo, not sendDocument", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

@@ -5335,7 +5335,13 @@ export default function AiInboxPwa() {
         const hasProductCards = cards.length > 0;
         const isFromMe = isFromMeMessage(normalizedMessage);
         const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
-        const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !hasProductCards;
+        // Same drop as the desktop workspace: an uncaptioned attachment has no
+        // text in any of the three columns below, so the operator's own photo
+        // never reached their thread. See AiInbox.jsx selectedTranscriptRows.
+        const hasStaffAttachment =
+          clean(normalizedMessage.sender_type).toLowerCase() === "staff" &&
+          (asArray(normalizedMessage.visual_attachments).length > 0 || asArray(normalizedMessage.attachments).length > 0);
+        const isStaff = (Boolean(clean(normalizedMessage.staff_message)) || hasStaffAttachment) && !hasProductCards;
         const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
         const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;

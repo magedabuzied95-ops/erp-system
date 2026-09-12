@@ -6562,7 +6562,17 @@ export default function AiInbox({ reviewerMode = false }) {
           (normalizedMessage.thread_kind === "comment" && (normalizedMessage.sender_type === "customer" || normalizedMessage.sender_type === "user" || normalizedMessage.direction === "inbound"));
         const isFromMe = isFromMeMessage(normalizedMessage);
         const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
-        const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !isProductCardMessage;
+        /*
+         * A photo or a clip with no caption has no text in ANY of the three
+         * columns this kind test reads, so the row was dropped and the
+         * operator's own attachment never appeared in their thread — only
+         * WhatsApp's echo of it, seconds later and from the other direction.
+         * The attachment is the message; it makes the row a staff row.
+         */
+        const hasStaffAttachment =
+          clean(normalizedMessage.sender_type).toLowerCase() === "staff" &&
+          (asArray(normalizedMessage.visual_attachments).length > 0 || asArray(normalizedMessage.attachments).length > 0);
+        const isStaff = (Boolean(clean(normalizedMessage.staff_message)) || hasStaffAttachment) && !isProductCardMessage;
         const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
         const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !isProductCardMessage && !isCommentMessage) return null;
