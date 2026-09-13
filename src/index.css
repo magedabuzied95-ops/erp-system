@@ -8162,7 +8162,10 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     color: var(--sf-footer-bar-ink, #ffffff) !important;
   }
 
+  /* Black bar under a near-black footer: without a rule the two merge into one
+     block. home.css drew this line on the homepage only; every page needs it. */
   body.storefront-shell.storefront-dark .sf-footer .sf-footer__bar {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
     background: var(--sf-footer-bar-bg, #070707) !important;
     color: var(--sf-footer-bar-ink, #8d8981) !important;
   }
