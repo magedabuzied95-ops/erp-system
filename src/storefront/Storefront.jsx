@@ -6963,7 +6963,10 @@ function useBodyStorefrontDark() {
   return dark;
 }
 
-function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, wishlist = [], toggleWishlist }) {
+// The same three audiences the homepage rows switch between.
+const RECOMMENDATION_AUDIENCES = ["men", "women", "kids"];
+
+function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, wishlist = [], toggleWishlist, genders = [], activeGender = "", onGenderChange }) {
   const { i18n } = useTranslation();
   const dark = useBodyStorefrontDark();
   const isRtl = normalizeLanguage(i18n.language || "ar") === "ar";
@@ -7022,12 +7025,26 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
     (product) => wishlist.some((entry) => String(entry?.id) === String(product?.id)),
     [wishlist]
   );
-  if (!loading && !cards.length) return null;
+  const genderLabel = useCallback(
+    (value) => (isRtl ? GENDER_LABELS[value]?.ar : GENDER_LABELS[value]?.en) || value,
+    [isRtl]
+  );
+  // An audience the visitor picked and that came back empty keeps its switch, so
+  // they can pick another. A rail empty with no audience applied simply goes.
+  const keepWhenEmpty = genders.length > 1 && Boolean(activeGender);
+  if (!loading && !cards.length && !keepWhenEmpty) return null;
   return (
     <div className="sf-related-rail m1h m1h--embedded min-w-0" data-theme={dark ? "dark" : "light"} dir={isRtl ? "rtl" : "ltr"}>
       <HomeFilteredRail
         title={title}
         subtitle={subtitle}
+        genders={genders}
+        activeGender={activeGender}
+        genderLabel={genderLabel}
+        onGenderChange={onGenderChange}
+        keepWhenEmpty={keepWhenEmpty}
+        emptyLabel={isRtl ? "مفيش منتجات هنا دلوقتي." : "Nothing here right now."}
+        autoplay
         cards={cards}
         loading={loading}
         viewAllHref={href || "/products"}
@@ -7055,11 +7072,16 @@ function RelatedProductsContent({ currentProduct, ...props }) {
   // Family alone still mixed a men's shoe with kids' and women's. The audience
   // narrows it to who the open product is actually for. A product with no
   // audience keeps the wider match rather than filtering itself down to nothing.
-  const audience = recommendationText(
+  const productAudience = normalizeAudienceValue(recommendationText(
     currentProduct?.gender ||
     (Array.isArray(currentProduct?.audiences) ? currentProduct.audiences[0] : "") ||
     (Array.isArray(currentProduct?.product_audiences) ? currentProduct.product_audiences[0] : "")
-  );
+  ));
+  // Each rail carries the homepage's رجالي / حريمي / أطفال switch. It opens on
+  // the product's own audience and re-asks the server when changed, exactly as
+  // a homepage row does. The two rails switch independently.
+  const [audience, setAudience] = useState(productAudience);
+  const [brandAudience, setBrandAudience] = useState(productAudience);
   // Grade is the third axis: a shopper looking at a Vietnamese import wants other
   // Vietnamese imports, not the mirror of the same shoe. It only ever narrows here
   // — on its own it used to be the whole filter, which is how a bag page ended up
@@ -7077,11 +7099,14 @@ function RelatedProductsContent({ currentProduct, ...props }) {
   ).toString();
   const similarHref = similarQuery ? `/products?${similarQuery}` : "/products";
   const similarResult = useProducts({ ...similarFilter, limit: 15, in_stock: 1, grouping: "product" });
-  const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product" });
+  const brandResult = useProducts({ brand: brand || "__no_brand__", limit: 15, in_stock: 1, grouping: "product", ...(brandAudience ? { gender: brandAudience } : {}) });
+  const brandHref = brand
+    ? `/products?${new URLSearchParams({ brand, ...(brandAudience ? { gender: brandAudience } : {}) }).toString()}`
+    : "/products";
   return (
     <div className="sf-related-products mt-5">
-      <StorefrontRecommendationRail title={sfText("storefront.products.relatedProducts")} subtitle={sfText("storefront.products.relatedSubtitle")} href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
-      <StorefrontRecommendationRail title={brand ? sfText("storefront.products.moreFromBrand", undefined, { brand }) : sfText("storefront.products.sameBrand")} subtitle={sfText("storefront.products.sameBrand")} href={brand ? `/products?brand=${encodeURIComponent(brand)}` : "/products"} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} {...props} />
+      <StorefrontRecommendationRail title={sfText("storefront.products.relatedProducts")} subtitle={sfText("storefront.products.relatedSubtitle")} href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} genders={RECOMMENDATION_AUDIENCES} activeGender={audience} onGenderChange={setAudience} {...props} />
+      <StorefrontRecommendationRail title={brand ? sfText("storefront.products.moreFromBrand", undefined, { brand }) : sfText("storefront.products.sameBrand")} subtitle={sfText("storefront.products.sameBrand")} href={brandHref} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} genders={brand ? RECOMMENDATION_AUDIENCES : []} activeGender={brandAudience} onGenderChange={setBrandAudience} {...props} />
     </div>
   );
 }

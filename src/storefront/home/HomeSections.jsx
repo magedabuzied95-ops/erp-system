@@ -233,6 +233,83 @@ function useRailPaging(railRef, itemCount) {
   return { ...state, page };
 }
 
+const RAIL_AUTOPLAY_INTERVAL_MS = 3500;
+
+/**
+ * Advances a snapping rail one card at a time, and back to the first card after
+ * the last. It stands still while the visitor is using the rail (pointer over
+ * it, a finger on it, keyboard focus inside), while the rail is off screen or
+ * the tab hidden, and entirely under reduced motion — a row that moves under a
+ * thumb is a row that cannot be tapped.
+ */
+function useRailAutoplay(railRef, itemCount) {
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail || itemCount < 2 || typeof window === "undefined") return undefined;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return undefined;
+
+    let held = false;
+    let visible = true;
+    let resumeTimer = 0;
+    const hold = () => {
+      held = true;
+      window.clearTimeout(resumeTimer);
+    };
+    // A touch ends before the momentum scroll does, so let the rail settle.
+    const release = () => {
+      window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => {
+        held = false;
+      }, 1500);
+    };
+    const onFocusOut = (event) => {
+      if (!rail.contains(event.relatedTarget)) release();
+    };
+
+    const advance = () => {
+      if (held || !visible || document.hidden) return;
+      const first = rail.firstElementChild;
+      if (!first) return;
+      const gap = parseFloat(getComputedStyle(rail).columnGap) || 0;
+      const step = first.getBoundingClientRect().width + gap;
+      const max = rail.scrollWidth - rail.clientWidth;
+      if (max <= 2) return;
+      // scrollLeft runs negative in RTL, so compare distance travelled.
+      const travelled = Math.abs(rail.scrollLeft);
+      const sign = getComputedStyle(rail).direction === "rtl" ? -1 : 1;
+      if (travelled >= max - 2) rail.scrollTo({ left: 0, behavior: "smooth" });
+      else rail.scrollBy({ left: step * sign, behavior: "smooth" });
+    };
+
+    const observer = typeof IntersectionObserver !== "undefined"
+      ? new IntersectionObserver(([entry]) => {
+          visible = Boolean(entry?.isIntersecting);
+        })
+      : null;
+    observer?.observe(rail);
+
+    rail.addEventListener("pointerenter", hold);
+    rail.addEventListener("pointerleave", release);
+    rail.addEventListener("touchstart", hold, { passive: true });
+    rail.addEventListener("touchend", release, { passive: true });
+    rail.addEventListener("focusin", hold);
+    rail.addEventListener("focusout", onFocusOut);
+    const interval = window.setInterval(advance, RAIL_AUTOPLAY_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(resumeTimer);
+      observer?.disconnect();
+      rail.removeEventListener("pointerenter", hold);
+      rail.removeEventListener("pointerleave", release);
+      rail.removeEventListener("touchstart", hold);
+      rail.removeEventListener("touchend", release);
+      rail.removeEventListener("focusin", hold);
+      rail.removeEventListener("focusout", onFocusOut);
+    };
+  }, [itemCount, railRef]);
+}
+
 function ProductCollection({
   variant,
   title,
@@ -332,10 +409,17 @@ export function HomeFilteredRail({
   prevLabel = "",
   nextLabel = "",
   isRtl = true,
+  // Off on the homepage. The product page turns it on: its rails sit below the
+  // fold with nothing else moving, and a still row there reads as finished.
+  autoplay = false,
+  // A row whose audience switch emptied it must keep the switch on screen, or
+  // the visitor has no way back to the audience that had products.
+  keepWhenEmpty = false,
 }) {
   const railRef = useRef(null);
   const { start, end, page } = useRailPaging(railRef, cards.length);
   const items = loading && !cards.length ? Array.from({ length: 8 }) : cards;
+  useRailAutoplay(railRef, autoplay && !loading ? cards.length : 0);
 
   // A row with nothing to show is not a row. It happens when a whole audience
   // sells out, and an empty rail under a heading reads as a broken page.
@@ -344,7 +428,7 @@ export function HomeFilteredRail({
   // emptied it, and taking the row away takes the control with it and leaves
   // them with no way back. The header stays and says so instead.
   const isEmpty = !loading && !cards.length;
-  if (isEmpty && !control) return null;
+  if (isEmpty && !control && !keepWhenEmpty) return null;
 
   return (
     <section className="m1h-block">

@@ -134,6 +134,27 @@ test("product page rails render the homepage filtered row and its cards", () => 
   assert.match(homeStyles, /\.m1h--embedded \.m1h-rail \{\s*margin-inline: 0;/);
 });
 
+test("product page rails carry the homepage audience switch and move on their own", () => {
+  const homeSections = readFileSync(new URL("../src/storefront/home/HomeSections.jsx", import.meta.url), "utf8");
+  // The switch opens on the product's own audience and re-queries, per rail.
+  assert.match(storefrontSource, /const RECOMMENDATION_AUDIENCES = \["men", "women", "kids"\];/);
+  assert.match(storefrontSource, /const \[audience, setAudience\] = useState\(productAudience\);/);
+  assert.match(storefrontSource, /genders=\{RECOMMENDATION_AUDIENCES\} activeGender=\{audience\} onGenderChange=\{setAudience\}/);
+  assert.match(storefrontSource, /grouping: "product", \.\.\.\(brandAudience \? \{ gender: brandAudience \} : \{\}\)/);
+  // A picked audience that came back empty keeps its switch on screen.
+  assert.match(storefrontSource, /const keepWhenEmpty = genders\.length > 1 && Boolean\(activeGender\);/);
+  assert.match(homeSections, /if \(isEmpty && !control && !keepWhenEmpty\) return null;/);
+  // Autoplay is opt-in: on for the product page, off for the homepage rows.
+  assert.match(homeSections, /autoplay = false,/);
+  assert.match(homeSections, /useRailAutoplay\(railRef, autoplay && !loading \? cards\.length : 0\);/);
+  assert.match(homeSections, /prefers-reduced-motion: reduce/);
+  const rail = storefrontSource.slice(
+    storefrontSource.indexOf("function StorefrontRecommendationRail"),
+    storefrontSource.indexOf("function RelatedProductsContent")
+  );
+  assert.match(rail, /\n        autoplay\n/);
+});
+
 test("customer recent products include brand and crossed-price fields", () => {
   const controller = readFileSync(new URL("../server/controllers/storefrontController.js", import.meta.url), "utf8");
   assert.match(controller, /b\.name AS brand_name/);
