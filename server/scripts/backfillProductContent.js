@@ -203,6 +203,8 @@ const restore = async (state) => {
 };
 
 const main = async () => {
+  // Wait out per-minute windows inside each request instead of failing the product.
+  process.env.AI_TEXT_RATE_LIMIT_WAITS = process.env.AI_TEXT_RATE_LIMIT_WAITS || "6";
   const provider = resolveTextProvider();
   const state = loadState();
   if (RESTORE) {

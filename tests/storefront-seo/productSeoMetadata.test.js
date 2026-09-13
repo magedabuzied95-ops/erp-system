@@ -527,3 +527,15 @@ test("model copy drops colour names, stock phrases and quality claims, and the c
   assert.equal(ar.features.length, 3);
   assert.match(ar.headline, /^كوتشي Adidas حريمي • /);
 });
+
+test("the SEO context names the model without the catalogue colours", async () => {
+  const previous = process.env.AI_TEXT_PROVIDER;
+  process.env.AI_TEXT_PROVIDER = "off";
+  try {
+    const seo = await generateProductSeoMetadata({ current: { name: "Adidas Advantage Black Orange Sneakers For Men", product_type: "sneakers", gender: "men" } });
+    assert.equal(seo.meta_title, "كوتشي Adidas Advantage رجالي");
+  } finally {
+    if (previous === undefined) delete process.env.AI_TEXT_PROVIDER;
+    else process.env.AI_TEXT_PROVIDER = previous;
+  }
+});

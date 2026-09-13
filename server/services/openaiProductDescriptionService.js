@@ -155,6 +155,9 @@ const chatCompletionJson = async (client, { model, timeout, instructions, prompt
 };
 
 const MAX_RATE_LIMIT_WAIT_MS = 30_000;
+// The HTTP routes wait out one window; a batch job (the backfill) raises this so a
+// product is not dropped, and its finished languages re-requested, over a 2 s window.
+const maxRateLimitWaits = () => positiveNumber(process.env.AI_TEXT_RATE_LIMIT_WAITS, 1);
 
 /* Seconds the provider asks us to wait, from the Retry-After header or from
  * the message ("try again in 12.3s"); 0 when it names nothing usable. */
@@ -223,7 +226,7 @@ export const requestStructuredJson = async ({
       // Free hosted tiers meter output tokens per minute. When the provider says
       // how long the window is, wait it out once (bounded so the HTTP route,
       // cut at 95 s, still answers) and retry the same request format.
-      if (status === 429 && rateLimitWaits < 1) {
+      if (status === 429 && rateLimitWaits < maxRateLimitWaits()) {
         const waitMs = rateLimitWaitMs(error);
         if (waitMs > 0) {
           rateLimitWaits += 1;
@@ -1362,7 +1365,9 @@ export const localizeSeoColor =(value = "") => localizeColorName(value);
 const compactSeoContext = (input = {}) => {
   const current = input.current || input;
   return {
-    product_name: cleanText(current.product_name || current.name || input.product_name || input.name),
+    // One listing covers every colourway: the search title names the model, not
+    // the colours baked into the catalogue name.
+    product_name: cleanModelName(current.product_name || current.name || input.product_name || input.name),
     brand: realBrand(current.brand || current.brand_name || input.brand),
     manufacturer: cleanText(current.manufacturer || input.manufacturer),
     category: cleanText(current.category || input.category),
