@@ -2819,20 +2819,21 @@ export const updateAiSupportMessageDeliveryStatus = async ({
       source_path = COALESCE(NULLIF($11, ''), source_path),
       insert_source = COALESCE(NULLIF($12, ''), insert_source),
       updated_at = NOW()
+    -- A status belongs to the ONE message whose id it carries. This used to fall back to "the
+    -- newest outbound row of the session" when the id matched nothing, and stamp the unknown id
+    -- onto it. A message typed on the phone reaches us twice under two ids (Evolution's echo and
+    -- the Cloud wamid), so every tick for it re-stamped the latest staff row with yet another
+    -- provider id: an open inbox read each one as a new message and showed that bubble six times,
+    -- until a reload, while the row's real id was lost. An unknown id now updates nothing.
     WHERE id = (
       SELECT id
       FROM ai_support_messages
       WHERE tenant_id = $1
-        AND (
-          provider_message_id = $3
-          OR external_message_id = $3
-          OR ($2 <> '' AND session_id = $2 AND COALESCE(sender_type, '') <> 'customer')
-        )
-      ORDER BY CASE
-        WHEN provider_message_id = $3 THEN 0
-        WHEN external_message_id = $3 THEN 1
-        ELSE 2
-      END, created_at DESC, id DESC
+        AND (provider_message_id = $3 OR external_message_id = $3)
+        -- $2 (the session) is no longer a match condition; it stays referenced so Postgres can
+        -- still type the parameter list the callers send.
+        AND $2::text IS NOT NULL
+      ORDER BY CASE WHEN provider_message_id = $3 THEN 0 ELSE 1 END, created_at DESC, id DESC
       LIMIT 1
     )
     RETURNING *

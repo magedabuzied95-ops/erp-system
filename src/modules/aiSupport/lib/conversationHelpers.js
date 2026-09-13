@@ -202,6 +202,13 @@ export const messageIdentityKeys = (message = {}) =>
 const providerIdentity = (message = {}) =>
   clean(message.provider_message_id || message.providerMessageId || message.external_message_id || message.externalMessageId || "");
 export const messagesConflict = (left = {}, right = {}) => {
+  // One database row is one message, whatever provider id each snapshot of it carried. A row's
+  // provider id can change between two socket events (a status that learnt the Cloud wamid of a
+  // message first saved under Evolution's id), and treating that as two messages stacked the
+  // same bubble once per event until a reload.
+  const leftRowId = clean(left.id || "");
+  const rightRowId = clean(right.id || "");
+  if (/^\d+$/.test(leftRowId) && leftRowId === rightRowId) return false;
   const leftProvider = providerIdentity(left);
   const rightProvider = providerIdentity(right);
   if (leftProvider && rightProvider) return leftProvider !== rightProvider;
