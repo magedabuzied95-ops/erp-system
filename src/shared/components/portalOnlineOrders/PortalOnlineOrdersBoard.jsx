@@ -374,7 +374,7 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
           activate();
         }
       }}
-      className={`portal-online-order-card cursor-pointer rounded-[var(--radius-card)] border bg-surface p-3 text-start shadow-sm transition hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${selected ? "border-primary ring-2 ring-[var(--primary)]" : "border-border"}`}
+      className={`portal-online-order-card min-w-0 cursor-pointer rounded-[var(--radius-card)] border bg-surface p-3 text-start shadow-sm transition hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${selected ? "border-primary ring-2 ring-[var(--primary)]" : "border-border"}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -1180,7 +1180,10 @@ export default function PortalOnlineOrdersBoard({
           <div className="text-xs font-bold text-text-muted">{ui.tb("empty.body")}</div>
         </div>
       ) : (
-        <div className={`grid gap-2.5 md:grid-cols-2 ${board.loading ? "opacity-60" : ""}`}>
+        // grid-cols-1 = minmax(0, 1fr). A bare `grid` gives an auto track, which grows to
+        // the card's min-content — a long customer name is nowrap, so the card ran past the
+        // phone edge and clipped the WhatsApp button, the product name and the COD amount.
+        <div className={`grid grid-cols-1 gap-2.5 md:grid-cols-2 ${board.loading ? "opacity-60" : ""}`}>
           {board.orders.map((order) => (
             <OrderCard
               key={order.id}
