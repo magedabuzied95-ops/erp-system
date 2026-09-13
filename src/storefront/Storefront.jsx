@@ -1874,7 +1874,7 @@ const LazyStorefrontProductDetailPage = lazy(() => importWithChunkRetry(() => im
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));
 const LazyStorefrontProductGallery = lazy(() => importWithChunkRetry(() => import("./components/StorefrontProductGallery")));
-const LazyStorefrontCartPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.CartPageRoute })));
+const LazyStorefrontCartPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontCartPage.jsx")));
 const LazyStorefrontTrackOrderPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.TrackOrderPage })));
 const LazyStorefrontAccountPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAccountPage.jsx")).then((module) => ({ default: module.StorefrontAccountPage })));
 const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontWishlistPage")));
@@ -11589,8 +11589,11 @@ function Storefront() {
           cart={cart}
           updateCart={updateCart}
           removeFromCart={removeFromCart}
-          helpers={helpers}
-          components={components}
+          recent={recent}
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onAddToCart={onAddToCart}
+          saleModeEnabled={storefrontSalePricesEnabled}
         />
       );
     }
@@ -11735,7 +11738,7 @@ function Storefront() {
         />
       ) : null}
       {!hideFloatingWhatsApp ? <StorefrontWhatsAppFloat /> : null}
-      <CompareTray hidden={isCheckoutPage || isOfferStoryPage || cartDrawerOpen || mobileMenuOpen || currentStorefrontPath === ROOT_PATHS.compare} />
+      <CompareTray hidden={isCheckoutPage || currentStorefrontPath === ROOT_PATHS.cart ||isOfferStoryPage || cartDrawerOpen || mobileMenuOpen || currentStorefrontPath === ROOT_PATHS.compare} />
       {/* The bottom nav is gone: every destination it carried is now in the
           header — menu, search, wishlist and bag — so it was a second navigation
           competing with the first, and it covered a row of the page on every
@@ -11772,6 +11775,7 @@ export {
   StepPill,
   StorefrontPageFallback,
   buildAvailableSizeOptions,
+  cartDrawerBundleShares,
   buildAvailableSizeOptionsFromFacets,
   cleanDisplayText,
   classificationColor,
@@ -11797,6 +11801,7 @@ export {
   normalizeFilterKey,
   mirrorProductTitle,
   productAudienceValues,
+  productUrl,
   productCardKey,
   productFromDetailsResponse,
   productShareUrl,
@@ -11809,6 +11814,7 @@ export {
   truthyFlag,
   uniqueClassificationOptions,
   useBodyScrollLock,
+  usePublicBundleConfig,
   useProducts,
   useStorefrontProductFacets,
   prefetchStorefrontProducts,

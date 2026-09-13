@@ -656,7 +656,9 @@
     "editQuantityHint": "You can adjust quantities here before continuing",
     "currentTotal": "Current total",
     "summaryHint": "The final total and shipping are shown clearly before you place the order.",
-    "totalsEyebrow": "Cart totals"
+    "totalsEyebrow": "Cart totals",
+    "discount": "Discount",
+    "shippingAtCheckout": "Calculated at checkout"
   },
   "success": {
     "awaitingVerificationSubtitle": "We will review the transfer proof, then start preparing the order.",

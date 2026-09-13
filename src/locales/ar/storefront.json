@@ -417,7 +417,9 @@
     "editQuantityHint": "يمكن تعديل الكمية من هنا قبل المتابعة",
     "currentTotal": "الإجمالي الحالي",
     "summaryHint": "الإجمالي النهائي والشحن يظهران لك بوضوح قبل إنهاء الطلب.",
-    "totalsEyebrow": "إجمالي السلة"
+    "totalsEyebrow": "إجمالي السلة",
+    "discount": "الخصم",
+    "shippingAtCheckout": "بيتحسب في صفحة الدفع"
   },
   "checkout": {
     "actions": {
