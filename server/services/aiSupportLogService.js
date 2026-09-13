@@ -11,6 +11,44 @@ const toText = (value, fallback = "") => String(value ?? fallback).trim();
 const repairText = (value, fallback = "") => repairCorruptedArabicValue(toText(value, fallback));
 
 const jsonValue = (value) => JSON.stringify(value === undefined ? null : value);
+// Fills identity keys only on rows still missing one, one row per key, and never a key another
+// row already holds. 2026-09-13: the old whole-table UPDATE met a message whose id matched an
+// existing row's key, hit idx_ai_support_messages_identity_key, and because it runs at boot the
+// backend and its rollback both crash-looped. A row left without a key is harmless; a backend
+// that cannot start is not — so a failure here is logged, never thrown.
+const backfillMessageIdentityKeys = async (clientOrPool) => {
+  await clientOrPool.query(`
+    UPDATE ai_support_messages
+    SET idempotency_key = COALESCE(NULLIF(client_request_id, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''))
+    WHERE COALESCE(idempotency_key, '') = ''
+      AND COALESCE(NULLIF(client_request_id, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) IS NOT NULL
+  `).catch((error) => logSqlError("identity_backfill_idempotency_key", error));
+  await clientOrPool.query(`
+    UPDATE ai_support_messages AS m
+    SET message_identity_key = candidate.identity_key
+    FROM (
+      SELECT id, tenant_id, session_id, identity_key,
+             ROW_NUMBER() OVER (PARTITION BY tenant_id, session_id, identity_key ORDER BY id) AS rank
+      FROM (
+        SELECT id, tenant_id, session_id,
+          'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' ||
+            COALESCE(NULLIF(client_request_id, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) AS identity_key
+        FROM ai_support_messages
+        WHERE COALESCE(message_identity_key, '') = ''
+          AND COALESCE(NULLIF(client_request_id, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) IS NOT NULL
+      ) AS keyed
+    ) AS candidate
+    WHERE m.id = candidate.id
+      AND candidate.rank = 1
+      AND NOT EXISTS (
+        SELECT 1 FROM ai_support_messages AS existing
+        WHERE existing.tenant_id = candidate.tenant_id
+          AND existing.session_id = candidate.session_id
+          AND existing.message_identity_key = candidate.identity_key
+      )
+  `).catch((error) => logSqlError("identity_backfill_message_identity_key", error));
+};
+
 const logSqlError = (stage, error, extra = {}) => {
   console.error("[ai-support-transcript-sql-error]", {
     stage,
@@ -1096,23 +1134,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           )
       `).catch((error) => logSqlError("channel_repair_channel_conversations_by_prefix", error));
       await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
-      await clientOrPool.query(`
-        UPDATE ai_support_messages
-        SET message_identity_key = CASE
-          WHEN COALESCE(NULLIF(message_identity_key, ''), '') <> '' THEN message_identity_key
-          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || client_request_id
-          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || provider_message_id
-          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || external_message_id
-          ELSE ''
-        END,
-        idempotency_key = CASE
-          WHEN COALESCE(NULLIF(idempotency_key, ''), '') <> '' THEN idempotency_key
-          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN client_request_id
-          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN provider_message_id
-          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN external_message_id
-          ELSE ''
-        END
-      `);
+      await backfillMessageIdentityKeys(clientOrPool);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS ai_inbound_ai_reply_locks (
           id BIGSERIAL PRIMARY KEY,
@@ -1184,23 +1206,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           AND COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) IS NOT NULL
       `);
       await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
-      await clientOrPool.query(`
-        UPDATE ai_support_messages
-        SET message_identity_key = CASE
-          WHEN COALESCE(NULLIF(message_identity_key, ''), '') <> '' THEN message_identity_key
-          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || client_request_id
-          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || provider_message_id
-          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN 'msg:' || tenant_id::text || '|' || session_id || '|' || COALESCE(NULLIF(sender_type, ''), 'outbound') || '|' || external_message_id
-          ELSE ''
-        END,
-        idempotency_key = CASE
-          WHEN COALESCE(NULLIF(idempotency_key, ''), '') <> '' THEN idempotency_key
-          WHEN COALESCE(NULLIF(client_request_id, ''), '') <> '' THEN client_request_id
-          WHEN COALESCE(NULLIF(provider_message_id, ''), '') <> '' THEN provider_message_id
-          WHEN COALESCE(NULLIF(external_message_id, ''), '') <> '' THEN external_message_id
-          ELSE ''
-        END
-      `);
+      await backfillMessageIdentityKeys(clientOrPool);
       await clientOrPool.query(`
         DELETE FROM ai_support_messages newer
         USING ai_support_messages older
