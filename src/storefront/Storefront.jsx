@@ -6872,199 +6872,24 @@ const recommendationText = (value) => {
   return String(value || "").trim();
 };
 
-function RecommendationProductTile({ product, wishlist = [], toggleWishlist, saleModeEnabled, onAddToCart }) {
-  const variant = firstDisplayVariant(Array.isArray(product?.variants) ? product.variants : []);
-  const pricing = getDisplayPricing(product, parseSaleModeEnabled(saleModeEnabled, false), variant || {});
-  const image = productCardPrimaryImageFor(product, variant);
-  const brand = recommendationText(product?.brand?.name || product?.brand_name || product?.brand);
-  const inWishlist = wishlist.some((item) => String(item?.id) === String(product?.id));
-  // Same two-photo swap as the grid card, on the same shared classes so both
-  // surfaces stay on one timing. Only swap once the second photo has decoded --
-  // fading to a half-loaded image reads as a flicker.
-  const secondaryImage = useMemo(
-    () => productCardSecondaryImageFor(product || {}, variant, null, image),
-    [image, product, variant]
-  );
-  const secondaryImageUrl = useMemo(() => resolveCardImageUrl(secondaryImage), [secondaryImage]);
-  const primaryImageUrl = useMemo(() => resolveCardImageUrl(image), [image]);
-  const hasSecondaryImage = Boolean(secondaryImageUrl && secondaryImageUrl !== primaryImageUrl);
-  const [secondaryImageReady, setSecondaryImageReady] = useState(false);
-  useEffect(() => {
-    setSecondaryImageReady(false);
-    if (!hasSecondaryImage || typeof window === "undefined") return undefined;
-    let cancelled = false;
-    const preloadImage = new Image();
-    preloadImage.decoding = "async";
-    preloadImage.onload = () => {
-      if (!cancelled) setSecondaryImageReady(true);
-    };
-    preloadImage.src = imageFor(secondaryImageUrl);
-    if (preloadImage.complete && preloadImage.naturalWidth > 0) setSecondaryImageReady(true);
-    return () => {
-      cancelled = true;
-    };
-  }, [hasSecondaryImage, secondaryImageUrl]);
-  const showSecondaryImage = hasSecondaryImage && secondaryImageReady;
-  const tileFallbackImages = useMemo(
-    () => productCardFallbackImages(product || {}, variant, null, image),
-    [image, product, variant]
-  );
-  // The same quick-add the grid card runs, on the same helpers, so a rail tile and
-  // a listing card resolve colour and size identically.
-  const tileVariants = useMemo(() => (Array.isArray(product?.variants) ? product.variants : []), [product]);
-  const sellableTileVariants = useMemo(() => tileVariants.filter(variantHasStock), [tileVariants]);
-  const tileColorGroups = useMemo(
-    () => getProductColorGroups({ ...product, variants: sellableTileVariants.length ? sellableTileVariants : tileVariants }),
-    [product, sellableTileVariants, tileVariants]
-  );
-  const canQuickAdd = sellableTileVariants.length > 0 && typeof onAddToCart === "function";
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [quickAddColorKey, setQuickAddColorKey] = useState("");
-  const [quickAddVariantId, setQuickAddVariantId] = useState("");
-  const [quickAddQty, setQuickAddQty] = useState(1);
-  const openVariantSheet = useCallback(() => {
-    const nextGroup = tileColorGroups.length === 1 ? tileColorGroups[0] : null;
-    const availableSizes = getSizeOptionsForColorGroup(nextGroup, product).filter((item) => variantHasStock(item.variant));
-    setQuickAddColorKey(nextGroup?.key || "");
-    setQuickAddVariantId(availableSizes.length === 1 ? availableSizes[0]?.variant?.id || "" : "");
-    setQuickAddQty(1);
-    setQuickAddOpen(true);
-  }, [product, tileColorGroups]);
-  const closeVariantSheet = useCallback(() => {
-    setQuickAddOpen(false);
-    setQuickAddColorKey("");
-    setQuickAddVariantId("");
-    setQuickAddQty(1);
-  }, []);
-  const quickAddLabel = canQuickAdd ? sfText("storefront.cart.addToCart") : sfText("storefront.products.unavailable");
-  return (
-    <div className="sf-product-recommendation-tile group group/tile relative min-w-0 text-center">
-      <Link to={productUrl(product)} onClick={resetStorefrontViewportScroll} className="block min-w-0">
-        {/* The sibling site sits its photos on a #e5e5e5 plate, not white. Its
-            product shots are opaque white like ours, so the grey only ever reads
-            as the frame around the photo — and the hover zoom eating into that
-            frame is the movement the plate exists to show. */}
-        <div className="sf-product-card-media group/card-image relative aspect-square overflow-hidden bg-[#e5e5e5]">
-          <img
-            src={imageFor(image)}
-            onError={fallbackProductImage}
-            data-fallback-src={tileFallbackImages.map((url) => imageFor(url)).join("|")}
-            alt={product?.name || ""}
-            className={`sf-card-primary-image absolute inset-0 z-[1] h-full w-full transform-gpu object-contain p-2 opacity-100 ${showSecondaryImage ? "md:group-hover/card-image:opacity-0" : ""}`}
-            loading="lazy"
-            decoding="async"
-          />
-          {showSecondaryImage ? (
-            <img
-              src={imageFor(secondaryImageUrl)}
-              onError={fallbackProductImage}
-              alt=""
-              aria-hidden="true"
-              className="sf-card-secondary-image absolute inset-0 z-[2] h-full w-full transform-gpu object-contain p-2 opacity-0 md:group-hover/card-image:opacity-100"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : null}
-          {pricing.isOnSale && pricing.discountPercent ? <span className="absolute end-2 top-2 z-[3] rounded-full bg-[#d4af37] px-2 py-1 text-[9px] font-black text-black">-{pricing.discountPercent}%</span> : null}
-        </div>
-        <div className="px-1 pt-2">
-          {brand ? <div className="sf-product-recommendation-meta truncate text-[10px] font-bold text-stone-500 dark:text-white/45">{brand}</div> : null}
-          <h3 className="sf-product-recommendation-name mt-1 line-clamp-2 min-h-[2.5rem] text-xs font-black leading-5 text-stone-900 dark:text-white md:text-sm">{cleanDisplayText(product?.name || product?.title || "")}</h3>
-        </div>
-      </Link>
-      {/* Price slides up and the add-to-cart row takes its place, the same swap the
-          grid card runs. The tile is centred and narrower, so the row centres too
-          and touch keeps the price beside a round quick-add instead. */}
-      <div className="mt-1.5 flex min-h-[2.35rem] items-center justify-center gap-2 px-1">
-        <div className="sf-card-action-wrap min-w-0 overflow-clip md:h-[35px]">
-          <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/tile:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
-            <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-xs font-black md:h-[35px] md:flex-nowrap">
-              <span className="sf-product-recommendation-current-price">{money(pricing.price)}</span>
-              {pricing.comparePrice > pricing.price ? <span className="sf-product-recommendation-compare-price line-through">{money(pricing.comparePrice)}</span> : null}
-            </div>
-            <button
-              type="button"
-              onClick={openVariantSheet}
-              disabled={!canQuickAdd}
-              className="sf-card-slide-cta hidden h-[35px] w-full shrink-0 items-center justify-center gap-1.5 whitespace-nowrap bg-transparent p-0 text-[13px] font-black leading-none text-stone-900 transition-colors duration-200 hover:text-[#d4af37] disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:text-stone-400 dark:text-stone-100 dark:hover:text-[#f3d77a] dark:disabled:text-stone-500 md:inline-flex"
-              aria-label={quickAddLabel}
-              title={quickAddLabel}
-            >
-              <ShoppingCart className="h-[18px] w-[18px] shrink-0 text-[#d4af37] dark:text-[#f3d77a]" />
-              {quickAddLabel}
-            </button>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={openVariantSheet}
-          disabled={!canQuickAdd}
-          className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none md:hidden"
-          aria-label={quickAddLabel}
-          title={quickAddLabel}
-        >
-          <ShoppingCart className="h-[18px] w-[18px]" />
-        </button>
-      </div>
-      {typeof toggleWishlist === "function" ? <button type="button" onClick={() => toggleWishlist(product)} aria-label={sfText("storefront.header.wishlist")} className={`absolute start-2 top-2 grid h-7 w-7 place-items-center rounded-full border bg-white/95 shadow-sm transition ${inWishlist ? "border-rose-300 text-rose-500" : "border-stone-200 text-stone-700"}`}><Heart className={`h-3.5 w-3.5 ${inWishlist ? "fill-current" : ""}`} /></button> : null}
-      <ProductCardVariantSheet
-        open={quickAddOpen}
-        product={product}
-        colorGroups={tileColorGroups}
-        selectedColorKey={quickAddColorKey}
-        selectedVariantId={quickAddVariantId}
-        quantity={quickAddQty}
-        onColorChange={setQuickAddColorKey}
-        onVariantChange={setQuickAddVariantId}
-        onQuantityChange={setQuickAddQty}
-        onClose={closeVariantSheet}
-        onAdd={async (chosenVariant, quantity) => {
-          await Promise.resolve(onAddToCart?.(product, chosenVariant, quantity));
-          closeVariantSheet();
-        }}
-      />
-    </div>
-  );
-}
-
 // One full desktop row. Below it a rail looks broken, so it unfolds colour cards.
 const RECOMMENDATION_RAIL_MIN_ITEMS = 5;
 
-// Matched to the Swiper config the storefront's sibling site runs on its product
-// carousels: advance a single card, glide for 1500ms, rest, repeat — never swap a
-// whole page at once.
-const RAIL_GAP_PX = 10;
-const RAIL_AUTOPLAY_MS = 2500;
-const RAIL_SLIDE_MS = 1500;
-const RAIL_BREAKPOINTS = [
-  { minWidth: 1024, perView: 5 },
-  { minWidth: 768, perView: 3 },
-  { minWidth: 640, perView: 2 },
-  { minWidth: 0, perView: 1 },
-];
-
-const railPerViewForWidth = (width = 0) =>
-  (RAIL_BREAKPOINTS.find((breakpoint) => width >= breakpoint.minWidth) || RAIL_BREAKPOINTS[RAIL_BREAKPOINTS.length - 1]).perView;
-
-function useRailPerView() {
-  const [perView, setPerView] = useState(() =>
-    typeof window === "undefined" ? RAIL_BREAKPOINTS[0].perView : railPerViewForWidth(window.innerWidth)
+// The product page's rails are the homepage's filtered row, card for card: the
+// same HomeFilteredRail, the same HomeProductCard and the same view model. The
+// owner asked for the two to look alike, and a second card drawn by hand here
+// is how they drifted apart in the first place.
+//
+// `.m1h` carries the tokens those components paint with; `m1h--embedded` keeps
+// the homepage's page background and gutters out of the product page.
+function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, wishlist = [], toggleWishlist }) {
+  const { i18n } = useTranslation();
+  const isRtl = normalizeLanguage(i18n.language || "ar") === "ar";
+  const { brands } = useStorefrontBrands();
+  const knownBrandNames = useMemo(
+    () => (Array.isArray(brands) ? brands : []).map((brand) => brand?.name).filter(Boolean),
+    [brands]
   );
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const update = () => setPerView(railPerViewForWidth(window.innerWidth));
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return perView;
-}
-
-function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, ...cardProps }) {
-  const [slide, setSlide] = useState(0);
-  const [animating, setAnimating] = useState(true);
-  const perView = useRailPerView();
-  const touchStartXRef = useRef(null);
   const items = useMemo(() => {
     const cards = sortStorefrontColorCardsByModel(products).filter((product) => {
       const parentId = String(product.parent_product_id || product.id || "");
@@ -7089,118 +6914,51 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
       return true;
     }).slice(0, 15);
   }, [currentId, minItems, products]);
-  const itemsSignature = items.map((item, index) => productCardKey(item, index)).join("|");
-  const canSlide = items.length > perView;
-  // The head of the list is repeated once so the track can run past the end and
-  // be snapped back to the start while the clones are on screen — the seam is
-  // never visible, which is what makes the loop read as endless.
-  const trackItems = canSlide ? [...items, ...items.slice(0, perView)] : items;
-  // Sizing stays in CSS. Measuring the viewport in JS meant a missed measurement
-  // (a hidden tab, a resize the observer slept through, a mount before layout)
-  // rendered every card at a stale width — or at zero, which reads as an empty
-  // rail. Percentages here resolve against the shifter, which is exactly one
-  // viewport wide, so a slide step is (100% + gap) / perView.
-  const slideBasis = `calc((100% - ${(perView - 1) * RAIL_GAP_PX}px) / ${perView})`;
-  const slideOffset = `calc((100% + ${RAIL_GAP_PX}px) * ${slide} / ${perView})`;
-  // In RTL the track sits flush right, so it advances the other way.
-  const direction = typeof document !== "undefined" && document.documentElement.dir === "rtl" ? 1 : -1;
-
-  useEffect(() => {
-    setSlide(0);
-    setAnimating(true);
-  }, [currentId, itemsSignature, perView]);
-
-  useEffect(() => {
-    if (loading || !canSlide || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
-    // Swiper counts its autoplay delay from the moment a glide ENDS, so a card rests
-    // for the delay and only then moves again. Restarting the clock every
-    // RAIL_AUTOPLAY_MS instead left the row gliding 1500ms out of every 2500ms - and a
-    // gliding row shows a sliced card at each edge, so the rail read as permanently cut.
-    const moveTimer = window.setInterval(() => setSlide((current) => current + 1), RAIL_AUTOPLAY_MS + RAIL_SLIDE_MS);
-    return () => window.clearInterval(moveTimer);
-  }, [canSlide, loading, itemsSignature]);
-
-  // Repositioning by a whole lap must land before the browser paints, otherwise
-  // the jump is visible. Two frames: one to apply the untransitioned offset, one
-  // to arm the transition again.
-  const jumpLap = useCallback((nextSlide) => {
-    setAnimating(false);
-    setSlide(nextSlide);
-    if (typeof window === "undefined") return;
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setAnimating(true)));
-  }, []);
-
-  useEffect(() => {
-    if (!canSlide || slide < items.length || typeof window === "undefined") return undefined;
-    // Let the glide into the clones finish, then snap back to the real cards.
-    const snapTimer = window.setTimeout(() => jumpLap(slide - items.length), RAIL_SLIDE_MS);
-    return () => window.clearTimeout(snapTimer);
-  }, [canSlide, items.length, jumpLap, slide]);
-
-  const moveBy = (step) => {
-    if (!canSlide) return;
-    if (slide + step >= 0) {
-      setSlide(slide + step);
-      return;
-    }
-    // Only the head is cloned, so stepping back off the start means teleporting a
-    // lap forward first and gliding from there.
-    jumpLap(slide + items.length);
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => setSlide((current) => current + step)));
-  };
-  const activeDot = ((slide % items.length) + items.length) % items.length;
-  if (!loading && !items.length) return null;
-  // min-w-0: the clipped track still reports its full intrinsic width, so wherever this
-  // rail lands in a grid or flex parent it must not be allowed to stretch it.
+  const cardCtx = useMemo(
+    () => ({
+      imageFor,
+      responsiveImageProps,
+      money,
+      productUrl,
+      pricing: featuredSlideProduct,
+      knownBrands: knownBrandNames,
+      fallbackEyebrow: (product) => getProductTypeLabel(product?.product_type || product?.productType || "", isRtl ? "ar" : "en"),
+      isLastPiece: isLastPieceProduct,
+      lastPieceLabel: isRtl ? "آخر قطعة" : "Last pair",
+    }),
+    [isRtl, knownBrandNames]
+  );
+  // A card's key must be unique in the row, and colour cards of one model share
+  // the product id, so the rail's own card key wins over the view model's.
+  const cards = useMemo(
+    () => items
+      .map((product, index) => ({ ...buildHomeProductCard(product, cardCtx), key: productCardKey(product, index) }))
+      .filter((card) => card.image),
+    [cardCtx, items]
+  );
+  const isFavorite = useCallback(
+    (product) => wishlist.some((entry) => String(entry?.id) === String(product?.id)),
+    [wishlist]
+  );
+  if (!loading && !cards.length) return null;
   return (
-    <section className="sf-product-recommendation-rail min-w-0 border-t border-stone-200 py-6 dark:border-white/[0.08] md:py-8">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-xl font-black text-stone-950 dark:text-white md:text-2xl">{title}</h2>
-          {subtitle ? <p className="mt-1 truncate text-xs font-bold text-stone-500 dark:text-white/55 md:text-sm">{subtitle}</p> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <button type="button" onClick={() => moveBy(-1)} disabled={!canSlide} aria-label={sfText("storefront.common.previous")} className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronRight className="h-4 w-4" /></button>
-          <button type="button" onClick={() => moveBy(1)} disabled={!canSlide} aria-label={sfText("storefront.common.next")} className="grid h-9 w-9 place-items-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37] disabled:opacity-30 dark:border-white/10 dark:bg-white/[0.055] dark:text-white"><ChevronLeft className="h-4 w-4" /></button>
-          <Link to={href || "/products"} className="ms-1 hidden rounded-full border border-stone-200 px-3 py-2 text-xs font-black text-stone-700 transition hover:border-[#d4af37] sm:inline-flex dark:border-white/10 dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
-        </div>
-      </div>
-      <div
-        className="sf-product-recommendation-viewport overflow-hidden pb-3"
-        onTouchStart={(event) => {
-          touchStartXRef.current = event.touches?.[0]?.clientX ?? null;
-        }}
-        onTouchEnd={(event) => {
-          if (touchStartXRef.current == null) return;
-          const touchEndX = event.changedTouches?.[0]?.clientX ?? touchStartXRef.current;
-          const distance = touchEndX - touchStartXRef.current;
-          touchStartXRef.current = null;
-          if (Math.abs(distance) < 45) return;
-          moveBy(distance * direction > 0 ? 1 : -1);
-        }}
-      >
-        <div
-          className="sf-product-recommendation-shifter"
-          style={{
-            transform: `translate3d(${direction < 0 ? `-${slideOffset}` : slideOffset}, 0, 0)`,
-            transition: animating ? `transform ${RAIL_SLIDE_MS}ms ease` : "none",
-          }}
-        >
-          <div className="sf-product-recommendation-page flex touch-pan-y" style={{ gap: `${RAIL_GAP_PX}px` }}>
-            {loading
-              ? Array.from({ length: perView }).map((_, index) => (
-                  <div key={index} style={{ flex: `0 0 ${slideBasis}` }} className="aspect-[0.72] animate-pulse bg-stone-100 dark:bg-white/5" />
-                ))
-              : trackItems.map((product, index) => (
-                  <div key={`${productCardKey(product, index)}-${index}`} style={{ flex: `0 0 ${slideBasis}` }} className="min-w-0">
-                    <RecommendationProductTile product={product} {...cardProps} saleModeEnabled={cardProps?.saleModeEnabled} />
-                  </div>
-                ))}
-          </div>
-        </div>
-      </div>
-      {canSlide ? <div className="mt-3 flex flex-wrap justify-center gap-1.5">{items.map((product, index) => <button key={productCardKey(product, index)} type="button" onClick={() => moveBy(index - activeDot)} aria-label={sfText("storefront.common.slideN", undefined, { n: index + 1 })} className={`h-1.5 rounded-full transition-all ${activeDot === index ? "w-6 bg-[#d4af37]" : "w-1.5 bg-stone-300 dark:bg-white/20"}`} />)}</div> : null}
-    </section>
+    <div className="sf-related-rail m1h m1h--embedded min-w-0" dir={isRtl ? "rtl" : "ltr"}>
+      <HomeFilteredRail
+        title={title}
+        subtitle={subtitle}
+        cards={cards}
+        loading={loading}
+        viewAllHref={href || "/products"}
+        viewAllLabel={sfText("storefront.common.viewAll")}
+        isFavorite={isFavorite}
+        onToggleFavorite={typeof toggleWishlist === "function" ? toggleWishlist : undefined}
+        onImageError={fallbackProductImage}
+        favoriteLabel={sfText("storefront.header.wishlist")}
+        prevLabel={sfText("storefront.common.previous")}
+        nextLabel={sfText("storefront.common.next")}
+        isRtl={isRtl}
+      />
+    </div>
   );
 }
 
