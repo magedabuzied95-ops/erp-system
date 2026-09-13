@@ -749,7 +749,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.color", "Color")}</div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-black">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
                     <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] font-black text-white/60">
@@ -814,15 +813,12 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
 
           {!hideSizeSelector ? <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.size", "Size")}</div>
-                <h2 className="text-base font-black">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
-              </div>
+              <h2 className="text-base font-black">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
               {/* A quiet link beside the heading, where shoppers look for it, rather
                   than a pill on a row of its own under the sizes. */}
               <Link
                 to={sizeGuideHref}
-                className="sf-size-guide-link inline-flex shrink-0 items-center gap-1.5 self-end text-xs font-black text-white/70 underline decoration-white/25 underline-offset-4 transition hover:text-[#f3d77a] hover:decoration-[#f3d77a]/60"
+                className="sf-size-guide-link inline-flex shrink-0 items-center gap-1.5 text-xs font-black text-white/70 underline decoration-white/25 underline-offset-4 transition hover:text-[#f3d77a] hover:decoration-[#f3d77a]/60"
               >
                 <Ruler className="h-3.5 w-3.5" />
                 {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
