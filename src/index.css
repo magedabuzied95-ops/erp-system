@@ -6884,8 +6884,9 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
 /* ---- product page buy bar ----------------------------------------------
    Quantity stepper + outlined add to cart on one row, a filled buy it now
-   below, after the reference shop the owner pointed at. The product page is
-   a dark surface in both themes, so this is drawn for dark only.
+   below, after the reference shop the owner pointed at. Drawn in white for
+   the dark page; the light page gets the same bar in near-black at the end
+   of this block — white-on-cream made the stepper and add to cart vanish.
 
    Add to cart carries that shop's two motions: a fill that sweeps up from the
    bottom on hover, and a short shake once every 6s to draw the eye. The shake
@@ -7017,6 +7018,51 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   0%, 13.5%, 100% { transform: translate3d(0, 0, 0); }
   1.35%, 4.05%, 6.75%, 9.45%, 12.15% { transform: translate3d(-10px, 0, 0); }
   2.7%, 5.4%, 8.1%, 10.8% { transform: translate3d(10px, 0, 0); }
+}
+
+/* Light page: the reference shop's own colours — dark outline, dark fill. */
+body.storefront-shell:not(.storefront-dark) .sf-buy-qty {
+  border-color: rgba(28, 25, 23, 0.28) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-qty__step,
+body.storefront-shell:not(.storefront-dark) .sf-buy-qty__value {
+  color: #1c1917 !important;
+  -webkit-text-fill-color: #1c1917 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-atc {
+  border-color: #1c1917 !important;
+  color: #1c1917 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-atc::before {
+  background: #1c1917;
+}
+
+@media (hover: hover) {
+  body.storefront-shell:not(.storefront-dark) .sf-buy-atc:not(:disabled):hover {
+    color: #ffffff !important;
+  }
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-atc:disabled {
+  border-color: rgba(28, 25, 23, 0.2) !important;
+  color: rgba(28, 25, 23, 0.4) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-now {
+  background: #1c1917 !important;
+  color: #ffffff !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-now:not(:disabled):hover {
+  background: #3a3632 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-buy-now:disabled {
+  background: rgba(28, 25, 23, 0.1) !important;
+  color: rgba(28, 25, 23, 0.4) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

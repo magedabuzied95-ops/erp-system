@@ -34,4 +34,9 @@ test("the buy bar is quantity + outlined add to cart, then a filled buy it now",
   assert.match(stylesheetSource, /animation: sf-buy-atc-shake 6s ease-in-out 2s infinite;/);
   assert.match(stylesheetSource, /\.sf-buy-atc:hover,\s*\.storefront-shell \.sf-buy-atc:focus-visible,\s*\.storefront-shell \.sf-buy-atc:disabled \{\s*animation: none;/);
   assert.match(stylesheetSource, /@media \(prefers-reduced-motion: reduce\) \{\s*\.storefront-shell \.sf-buy-atc \{\s*animation: none;/);
+  // The light page is cream, not dark: the white bar vanished on it, so light
+  // mode draws the same bar in near-black.
+  assert.match(stylesheetSource, /body\.storefront-shell:not\(\.storefront-dark\) \.sf-buy-atc \{\s*border-color: #1c1917 !important;\s*color: #1c1917 !important;/);
+  assert.match(stylesheetSource, /body\.storefront-shell:not\(\.storefront-dark\) \.sf-buy-now \{\s*background: #1c1917 !important;\s*color: #ffffff !important;/);
+  assert.match(stylesheetSource, /body\.storefront-shell:not\(\.storefront-dark\) \.sf-buy-qty__value \{\s*color: #1c1917 !important;/);
 });
