@@ -895,7 +895,7 @@ const COPY_COLOUR_WORDS = new RegExp(COPY_COLOUR_SOURCE, "i");
  * brand reference itself uses (ASICS' impact cushioning) stays allowed for
  * that brand. */
 const COPY_CLICHES = [
-  /يجمع بين|تجمع بين|صُمم|صُممت|مصمم خصيص|استمتع|اكتشف|ارتق|الخيار الأمثل|الخيار المثالي|الاختيار المثالي|إضافة مثالية|خزانة|فائق|عالية الجودة|جودة عالية|متين|متانة|حماية|يدوم طويل|لا مثيل|فريد|فخامة/,
+  /يجمع بين|تجمع بين|صُمم|صُممت|مصمم خصيص|استمتع|اكتشف|ارتق|الخيار الأمثل|الخيار المثالي|الاختيار المثالي|إضافة مثالية|خزان|فائق|عالية الجودة|جودة عالية|متين|متانة|حماية|يدوم طويل|لا مثيل|فريد|فخامة/,
   /امتصاص (ال)?صدمات|يمتص (ال)?صدمات|بيمتص (ال)?(صدمات|خبط)/,
   /\b(durable|durability|high[- ]quality|premium materials?|unmatched|unparalleled|ultimate|revolutionary|elevate|seamless(ly)?|perfect addition|protection)\b/i,
   /\bshock[- ]absorb/i,
