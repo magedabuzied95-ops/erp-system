@@ -153,6 +153,7 @@ import {
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import { getDisplayPricing, parseSaleModeEnabled as importedParseSaleModeEnabled } from "../shared/lib/storefrontPricing";
+import { isInWishlist, toggleWishlistEntries, wishlistColourOf, wishlistIdOf, wishlistKeyOf } from "./lib/wishlistIdentity";
 import {
   isMetaPurchaseEligible,
   trackMetaAddToCart,
@@ -347,6 +348,38 @@ const normalizeWishlistProduct = (item = {}) => {
     total_stock: Number(item.total_stock ?? product.total_stock ?? stock) || stock,
     unavailable: !hasRenderableData,
   };
+};
+
+// What the wishlist keeps: the model, the colour that was hearted, and enough to
+// draw a row before the page fetches the live product. Not the whole catalogue
+// payload (4-5 KB of variants a heart, frozen at the price of that day).
+const wishlistEntryOf = (source = {}) => {
+  const id = wishlistIdOf(source);
+  if (!id) return { id: "", key: "" };
+  const product = normalizeWishlistProduct(source);
+  const compactNumber = (value) => (Number(value) > 0 ? Number(value) : 0);
+  return {
+    key: wishlistKeyOf(source),
+    id,
+    product_id: id,
+    slug: String(source.parent_slug || source.slug || "").trim() || id,
+    name: product.name || "",
+    image_url: compactImageValue(product.image_url),
+    color_key: wishlistColourOf(source),
+    color: String(source.color || source.color_name || "").trim(),
+    price: compactNumber(product.price || source.price),
+    compare_at_price: compactNumber(product.compare_at_price || source.compare_at_price),
+    added_at: source.added_at || new Date().toISOString(),
+  };
+};
+
+const normalizeWishlistCollection = (items) => {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).map(wishlistEntryOf).filter((entry) => {
+    if (!entry.key || seen.has(entry.key)) return false;
+    seen.add(entry.key);
+    return true;
+  });
 };
 
 const compactImageValue = (value = "") => {
@@ -1844,7 +1877,7 @@ const LazyStorefrontProductGallery = lazy(() => importWithChunkRetry(() => impor
 const LazyStorefrontCartPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.CartPageRoute })));
 const LazyStorefrontTrackOrderPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.TrackOrderPage })));
 const LazyStorefrontAccountPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAccountPage.jsx")).then((module) => ({ default: module.StorefrontAccountPage })));
-const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.WishlistPageRoute })));
+const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontWishlistPage")));
 const LazyStorefrontComparePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontComparePage.jsx")).then((module) => ({ default: module.StorefrontComparePage })));
 const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
 const LazyStorefrontSizeGuidePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontSizeGuidePage.jsx")).then((module) => ({ default: module.default })));
@@ -2836,7 +2869,7 @@ function HomeOfferCampaign({ isRtl, cardCtx, knownBrands, wishlist, toggleWishli
   );
   const cards = useMemo(() => offerProducts.map((product) => buildHomeProductCard(product, cardCtx)), [cardCtx, offerProducts]);
   const isFavorite = useCallback(
-    (product) => (Array.isArray(wishlist) ? wishlist : []).some((entry) => String(entry.id) === String(product?.id)),
+    (product) => isInWishlist(wishlist, product),
     [wishlist]
   );
 
@@ -3092,7 +3125,7 @@ function HomeFilterRowSection({ rowId, cardCtx, lang = "ar", wishlist = [], togg
   const { gender, setGender, cards, loading, row } = useHomeFilterRow(rowId, cardCtx);
 
   const isFavorite = useCallback(
-    (product) => wishlist.some((entry) => String(entry.id) === String(product?.id)),
+    (product) => isInWishlist(wishlist, product),
     [wishlist]
   );
   const genderLabel = useCallback(
@@ -6235,7 +6268,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     () => (selectedVariantIsAvailable ? selectedVariant : null) || activeColorVariant || firstAvailableVariant,
     [activeColorVariant, firstAvailableVariant, selectedVariant, selectedVariantIsAvailable]
   );
-  const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
+  const inWishlist = useMemo(() => isInWishlist(wishlist, product), [product, wishlist]);
   const rawSaleModeEnabled = saleModeEnabled;
   const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, false);
   const pricing = useMemo(
@@ -6638,8 +6671,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     </article>
   );
 }, (prev, next) => {
-  const wasInWishlist = prev.wishlist.some((item) => String(item.id) === String(prev.product.id));
-  const isInWishlist = next.wishlist.some((item) => String(item.id) === String(next.product.id));
+  const wasInWishlist = isInWishlist(prev.wishlist, prev.groupedProduct || prev.product);
+  const nowInWishlist = isInWishlist(next.wishlist, next.groupedProduct || next.product);
   return (
     prev.product === next.product &&
     prev.groupedProduct === next.groupedProduct &&
@@ -6647,7 +6680,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     prev.selectedColor === next.selectedColor &&
     prev.selectedVariant === next.selectedVariant &&
     prev.availableSizes === next.availableSizes &&
-    wasInWishlist === isInWishlist &&
+    wasInWishlist === nowInWishlist &&
     prev.toggleWishlist === next.toggleWishlist &&
     prev.onAddToCart === next.onAddToCart &&
     prev.railType === next.railType &&
@@ -7079,7 +7112,7 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
     [cardCtx, items]
   );
   const isFavorite = useCallback(
-    (product) => wishlist.some((entry) => String(entry?.id) === String(product?.id)),
+    (product) => isInWishlist(wishlist, product),
     [wishlist]
   );
   const genderLabel = useCallback(
@@ -10810,7 +10843,7 @@ function Storefront() {
   usePageTitle("Storefront");
   const location = useLocation();
   const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));
-  const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
+  const [wishlist, setWishlist] = useState(() => normalizeWishlistCollection(readStorefrontStorage(WISHLIST_KEY, [])));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
   const [themeMode, setThemeMode] = useState(() => {
@@ -11066,16 +11099,17 @@ function Storefront() {
   }, [profile]);
 
   const toggleWishlist = useCallback((product) => {
-    const item = normalizeStorefrontItem(product);
+    const item = wishlistEntryOf(product);
     if (!item.id) return;
     const { token } = readStorefrontCustomerAuth();
     setWishlist((prev) => {
-      const exists = prev.some((entry) => String(entry.id) === String(item.id));
-      const next = exists ? prev.filter((entry) => String(entry.id) !== String(item.id)) : [item, ...prev];
-      if (token) {
+      // The server row is the model: it goes only when no colour of the model is left.
+      const { next, serverChange } = toggleWishlistEntries(prev, product, item);
+      if (token && serverChange) {
+        const removing = serverChange === "remove";
         storefrontCustomerRequest("/storefront/wishlist", {
-          method: exists ? "DELETE" : "POST",
-          body: { product_id: item.id, remove: exists },
+          method: removing ? "DELETE" : "POST",
+          body: { product_id: item.id, remove: removing },
         }).then(() => {
           // The server follows (or unfollows) the price with the wishlist; the product page bell re-reads it.
           window.dispatchEvent(new Event("storefront-price-alerts-changed"));
@@ -11130,20 +11164,20 @@ function Storefront() {
         const backendCartData = await storefrontCustomerRequest("/storefront/customer/cart");
         if (cancelled) return;
         const backendCart = normalizeCartCollection(backendCartData?.cart || backendCartData?.items || backendCartData?.cart_items || []);
-        const backendWishlist = Array.isArray(data?.wishlist_products) ? data.wishlist_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
+        const backendWishlist = normalizeWishlistCollection(data?.wishlist_products);
         const backendRecent = Array.isArray(data?.recent_products) ? data.recent_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
         const guestCart = normalizeCartCollection(cartRef.current);
         const backendWishlistIds = new Set(backendWishlist.map((item) => String(item.id)));
         const backendRecentIds = new Set(backendRecent.map((item) => String(item.id)));
-        const guestWishlist = (Array.isArray(wishlist) ? wishlist : []).map(normalizeStorefrontItem).filter((item) => item.id);
+        const guestWishlist = normalizeWishlistCollection(wishlist);
         const guestRecent = (Array.isArray(recent) ? recent : []).map(normalizeStorefrontItem).filter((item) => item.id);
         const mergedCart = mergeCartCollections(guestCart, backendCart);
-        const mergedWishlist = [...backendWishlist, ...guestWishlist].reduce((acc, item) => {
-          const id = String(item.id || "");
-          if (!id || acc.some((entry) => String(entry.id) === id)) return acc;
-          acc.push(item);
-          return acc;
-        }, []);
+        // The server keeps the model only; the colours the shopper hearted live in this browser,
+        // so a server row stands in only for a model this browser has no colour of.
+        const mergedWishlist = normalizeWishlistCollection([
+          ...guestWishlist,
+          ...backendWishlist.filter((item) => !guestWishlist.some((entry) => entry.id === item.id)),
+        ]);
         const mergedRecent = [...backendRecent, ...guestRecent].reduce((acc, item) => {
           const id = String(item.id || "");
           if (!id || acc.some((entry) => String(entry.id) === id)) return acc;
@@ -11478,8 +11512,8 @@ function Storefront() {
           wishlist={wishlist}
           toggleWishlist={toggleWishlist}
           onAddToCart={onAddToCart}
-          helpers={helpers}
-          components={components}
+          saleModeEnabled={storefrontSalePricesEnabled}
+          recent={recent}
         />
       );
     }

@@ -39,6 +39,7 @@ import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/st
 import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TrendingDown, Truck } from "lucide-react";
 import { shouldShowRestockCta, restockVariantKey, restockSuccessCopy, RESTOCK_COPY } from "../lib/restockIntentUi";
 import { usePriceDropAlerts } from "../lib/priceDropAlerts";
+import { isInWishlist } from "../lib/wishlistIdentity";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
@@ -594,7 +595,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   // older plain description comes back as paragraphs only.
   const descriptionBlocks = useMemo(() => parseProductDescription(descriptionParagraphs.join("\n")), [descriptionParagraphs]);
   const descriptionText = descriptionParagraphs.join(" ") || sfText("storefront.products.defaultDescription");
-  const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
+  const inWishlist = Boolean(product) && isInWishlist(wishlist, product);
 
   useEffect(() => {
     if (!product) return undefined;

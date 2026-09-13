@@ -4,10 +4,8 @@ import { api } from "../../shared/api/api";
 import { sfText } from "../lib/sfText";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import { trackGa4ViewCart } from "../lib/ga4Events";
-import { droppedPriceAlerts, usePriceDropAlerts } from "../lib/priceDropAlerts";
 import FreeShippingProgress, { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import {
-  Bell,
   Check,
   Copy,
   ExternalLink,
@@ -329,82 +327,6 @@ export function TrackOrderPage({ helpers }) {
       ) : (
         <TrackingResult data={state.data} helpers={helpers} onSearchAnother={searchAnother} />
       )}
-    </section>
-  );
-}
-
-export function WishlistPageRoute({ wishlist, toggleWishlist, onAddToCart, helpers, components }) {
-  const { sfText, money, imageFor, fallbackProductImage } = helpers;
-  const { EmptyState, SmallProductGrid } = components;
-  const wishlistCount = Array.isArray(wishlist) ? wishlist.length : 0;
-  const priceDrop = usePriceDropAlerts();
-  const dropped = droppedPriceAlerts(priceDrop.alerts);
-  // Shown with the wishlist, and on its own when the wishlist is empty but a followed price dropped.
-  const priceDropCard = priceDrop.enabled && (wishlistCount || dropped.length) ? (
-    <div className="sf-wishlist-alert flex items-start gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-5 text-start shadow-[0_18px_42px_rgba(0,0,0,0.20)] ring-1 ring-white/[0.025] backdrop-blur-xl">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[#d4af37]/15 text-[#d4af37]">
-        <Bell className="h-5 w-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="font-black text-white">{sfText("storefront.priceDrop.panelTitle", "تنبيه نزول السعر")}</div>
-        <p className="mt-1 text-sm font-bold leading-6 text-white/60">{sfText("storefront.priceDrop.panelText", "بنتابع أسعار المنتجات اللي في المفضلة واللي طلبت تتنبّه لها، وأول ما سعر أي منتج ينزل هنبلغك.")}</p>
-        {dropped.length ? (
-          <ul className="mt-3 grid gap-2">
-            {dropped.map((alert) => (
-              <li key={alert.product_id}>
-                <Link to={`/product/${alert.product.slug || alert.product.id}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2">
-                  <img src={imageFor(alert.product.image_url) || fallbackProductImage} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-black text-white">{alert.product.name}</span>
-                    <span className="mt-0.5 flex flex-wrap items-baseline gap-2 text-sm font-black">
-                      <span className="text-[#f3d77a]">{money(alert.current_price)}</span>
-                      <span className="text-xs text-white/45 line-through">{sfText("storefront.priceDrop.was", "كان {{price}}", { price: money(alert.followed_price) })}</span>
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </div>
-  ) : null;
-  return (
-    <section className="sf-wishlist-page mx-auto w-full max-w-7xl px-3 py-6 sm:px-4 md:px-6 md:py-10">
-      <div className="sf-wishlist-panel rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-4 shadow-[0_28px_72px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.wishlist.subtitle", "تُحفظ اختياراتك المفضلة هنا")}</p>
-            <h1 className="mt-1 text-3xl font-black text-white md:text-5xl">{sfText("storefront.header.wishlist", "المفضلة")}</h1>
-          </div>
-          <div className="sf-wishlist-count w-fit rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-black text-white/80 shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
-            {sfText("storefront.products.productCount", "{{count}} product", { count: wishlistCount })}
-          </div>
-        </div>
-
-        {wishlistCount ? (
-          <>
-            <SmallProductGrid items={wishlist} action={toggleWishlist} onAddToCart={onAddToCart} />
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {priceDropCard}
-              <div className="sf-wishlist-alert flex items-start gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-5 text-start shadow-[0_18px_42px_rgba(0,0,0,0.20)] ring-1 ring-white/[0.025] backdrop-blur-xl">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 text-emerald-200">
-                  <PackageSearch className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <div className="font-black text-white">{sfText("storefront.wishlist.backInStockAlert", "Back in stock alert")}</div>
-                  <p className="mt-1 text-sm font-bold leading-6 text-white/60">{sfText("storefront.wishlist.backInStockSoon", "Soon we will notify you when your size returns.")}</p>
-                </div>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <EmptyState title={sfText("storefront.wishlist.emptyTitle", "المفضلة فارغة")} text={sfText("storefront.wishlist.emptyText", "احفظ المنتجات التي تعجبك هنا")} />
-            {priceDropCard ? <div className="mt-6">{priceDropCard}</div> : null}
-          </>
-        )}
-      </div>
     </section>
   );
 }
