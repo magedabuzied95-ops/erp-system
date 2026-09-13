@@ -10986,6 +10986,9 @@ function Storefront() {
         storefrontCustomerRequest("/storefront/wishlist", {
           method: exists ? "DELETE" : "POST",
           body: { product_id: item.id, remove: exists },
+        }).then(() => {
+          // The server follows (or unfollows) the price with the wishlist; the product page bell re-reads it.
+          window.dispatchEvent(new Event("storefront-price-alerts-changed"));
         }).catch((error) => {
           const status = Number(error?.status || error?.response?.status || 0);
           if (status === 401 || status === 403) {

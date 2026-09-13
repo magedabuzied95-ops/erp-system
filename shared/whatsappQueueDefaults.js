@@ -57,6 +57,7 @@ export const WHATSAPP_AUTOMATION_TYPES = Object.freeze({
   google_review_request: "engagement",
   thank_you: "engagement",
   abandoned_cart: "engagement",
+  price_drop_alert: "engagement",
 });
 
 export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
@@ -70,6 +71,7 @@ export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
   google_review_request: { en: "Google review request", ar: "طلب تقييم جوجل" },
   thank_you: { en: "Thank you", ar: "رسالة شكر" },
   abandoned_cart: { en: "Abandoned cart", ar: "السلة المتروكة" },
+  price_drop_alert: { en: "Price drop alert", ar: "تنبيه نزول السعر" },
 });
 
 /* Every placeholder the queue understands. Existing templates already use the {{token}} form. */
@@ -85,6 +87,10 @@ export const WHATSAPP_QUEUE_PLACEHOLDERS = Object.freeze([
   { token: "cod_amount", en: "Amount to collect", ar: "المبلغ المطلوب" },
   { token: "store_name", en: "Store name", ar: "اسم المتجر" },
   { token: "total", en: "Order total", ar: "إجمالي الطلب" },
+  { token: "product_name", en: "Product name", ar: "اسم المنتج" },
+  { token: "old_price", en: "Old price", ar: "السعر القديم" },
+  { token: "new_price", en: "New price", ar: "السعر الجديد" },
+  { token: "product_url", en: "Product link", ar: "رابط المنتج" },
 ]);
 
 export const WHATSAPP_QUEUE_DEFAULTS = Object.freeze({
@@ -153,6 +159,8 @@ export const WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS = Object.freeze({
   google_review_request: 120,
   thank_you: 120,
   abandoned_cart: 360,
+  // Held to 10:00 through quiet hours; past lunch the same day it is still news, the next day it is not.
+  price_drop_alert: 480,
 });
 
 /*

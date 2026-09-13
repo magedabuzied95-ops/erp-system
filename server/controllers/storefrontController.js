@@ -17,6 +17,7 @@ import {
 import { getShippingProvider, normalizeShippingProviderKey, shippingProviderCatalog, shippingProviders } from "../services/shippingProviders/index.js";
 import { ensureLoyaltySchema, getCustomerLoyaltySummary, resolveOrCreateCustomerAccount } from "../services/loyaltyService.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
+import { setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
 import { fetchProductClassificationGroupByKey, getClassificationFilterAliases } from "../services/productClassificationsService.js";
 import { generateProductOgImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, buildAbsolutePublicUrl } from "../services/productOgImageService.js";
 import { generateAiProductData } from "../services/aiProductDataService.js";
@@ -1831,6 +1832,43 @@ const loadStorefrontProductRowById = async (tenantId, productId) => {
     [tenantId, productId]
   );
   return result.rows[0] || null;
+};
+
+/*
+ * The price a shopper sees on the product page, for a batch of products, straight from the same
+ * catalog query and normalizeProduct the page itself uses. The price-drop alert compares against
+ * this and nothing else: a hand-rolled price here would be one more place the storefront and the
+ * alert could disagree about whether the price fell. A product the storefront hides is absent.
+ */
+export const loadStorefrontProductPriceSnapshots = async (tenantId, productIds = []) => {
+  const ids = [...new Set((Array.isArray(productIds) ? productIds : []).map(Number).filter((id) => Number.isFinite(id) && id > 0))];
+  if (!ids.length) return new Map();
+  const result = await db.query(
+    buildCatalogQuery({ where: "AND p.id = ANY($2::bigint[])", trailing: `GROUP BY p.id, c.name, b.name, m.name LIMIT ${ids.length}` }),
+    [tenantId ?? null, ids]
+  );
+  const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+  const products = await hydrateProductsWithImages(result.rows.map((row) => normalizeProduct(row, pricingSettings)), { compact: true });
+  // A WhatsApp card and a notification need a URL; legacy rows still carry inline data: photos.
+  const linkableImage = (product) => [
+    product.image_url,
+    ...(Array.isArray(product.gallery_images) ? product.gallery_images : []),
+    ...(Array.isArray(product.variants) ? product.variants.flatMap((variant) => [variant.primary_image_url, variant.image_url]) : []),
+  ].map((value) => toText(typeof value === "object" ? value?.url || value?.image : value)).find((value) => value && !value.startsWith("data:")) || "";
+  const snapshots = new Map();
+  for (const product of products) {
+    const price = roundMoney(product.final_price || product.price || 0);
+    snapshots.set(Number(product.id), {
+      id: Number(product.id),
+      slug: product.slug,
+      name: product.name,
+      image_url: linkableImage(product),
+      price,
+      compare_at_price: roundMoney(product.compare_at_price || 0),
+      in_stock: product.in_stock === true,
+    });
+  }
+  return snapshots;
 };
 
 const productAudienceFilterSql = (param = "$5") => `
@@ -6813,7 +6851,8 @@ export const saveWishlist = async (req, res) => {
     const productId = Number(req.body.product_id);
     if (!phone || !productId) return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
     const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
-    if (req.method === "DELETE" || req.body.remove) {
+    const removing = req.method === "DELETE" || req.body.remove;
+    if (removing) {
       await db.query(`DELETE FROM customer_wishlist WHERE tenant_id = $1 AND phone = $2 AND product_id = $3`, [tenantId, phone, productId]);
     } else {
       await db.query(
@@ -6821,6 +6860,10 @@ export const saveWishlist = async (req, res) => {
         [tenantId, customer?.id || null, phone, productId]
       );
     }
+    // A wishlisted product is a followed price. Recorded now so the price they saw is the one
+    // compared against; the price-drop tick re-syncs the wishlist anyway, so a failure here is not lost.
+    await setPriceAlertFollow({ tenantId, customerId: customer?.id || null, phone, productId, source: "wishlist", following: !removing })
+      .catch((error) => console.warn("[storefront] wishlist price follow not recorded", { product_id: productId, message: error?.message }));
     res.json({ success: true });
   } catch {
     res.status(500).json({ success: false, message: "Failed to update wishlist" });

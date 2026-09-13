@@ -1197,6 +1197,16 @@
     "notifySize": "We will let you know when size {{size}} is back",
     "notifyColor": "We will let you know when {{color}} is back"
   },
+  "priceDrop": {
+    "follow": "Tell me if the price drops",
+    "following": "We will tell you when the price drops",
+    "stop": "Cancel",
+    "loginRequired": "Sign in so we can tell you when the price drops",
+    "error": "Something went wrong. Please try again",
+    "panelTitle": "Price drop alert",
+    "panelText": "We watch the prices of your wishlist and the products you asked about, and tell you as soon as one drops.",
+    "was": "Was {{price}}"
+  },
   "offers": {
     "loading": "Loading offers",
     "loadFailedTitle": "We could not load the offers",

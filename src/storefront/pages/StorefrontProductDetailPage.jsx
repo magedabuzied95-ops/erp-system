@@ -36,8 +36,9 @@ import { parseProductDescription } from "../../shared/lib/productDescriptionForm
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
-import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, Truck } from "lucide-react";
+import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TrendingDown, Truck } from "lucide-react";
 import { shouldShowRestockCta, restockVariantKey, restockSuccessCopy, RESTOCK_COPY } from "../lib/restockIntentUi";
+import { usePriceDropAlerts } from "../lib/priceDropAlerts";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
@@ -517,6 +518,22 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     }
   };
 
+  // ---- Price Drop Alert ("نبّهني لو السعر نزل") — one follow per product, whichever size is picked ----
+  const priceDrop = usePriceDropAlerts();
+  const [priceDropStatus, setPriceDropStatus] = useState("idle"); // idle|loading|login|error
+  const followingPrice = Boolean(product?.id) && priceDrop.isFollowing(product.id);
+  useEffect(() => { setPriceDropStatus("idle"); }, [product?.id]);
+  const handlePriceDropToggle = async () => {
+    if (!product?.id || priceDropStatus === "loading") return;
+    setPriceDropStatus("loading");
+    try {
+      const outcome = await priceDrop.setFollowing(product.id, !followingPrice);
+      setPriceDropStatus(outcome === "login" ? "login" : "idle");
+    } catch {
+      setPriceDropStatus("error");
+    }
+  };
+
   const galleryEntries = useMemo(
     () => buildSelectedColorGallery({ product, colorGroup: selectedColorGroup }),
     [product, selectedColorGroup]
@@ -958,6 +975,36 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             ) : null}
             {showRestockCta && restockStatus === "error" ? (
               <div className="sfx-pdp-error col-span-full text-center">{sfText("storefront.restock.error", RESTOCK_COPY.error)}</div>
+            ) : null}
+
+            {/* Price drop: offered while the picked size can be bought — an unavailable one gets the
+                restock button above instead, and two bells side by side would read as one choice. */}
+            {priceDrop.enabled && !showRestockCta ? (
+              followingPrice ? (
+                <div className="sfx-pdp-note sfx-pdp-note--ok col-span-full">
+                  <Check className="h-4 w-4" />
+                  <span className="min-w-0 flex-1">{sfText("storefront.priceDrop.following", "هنبلغك أول ما السعر ينزل")}</span>
+                  <button type="button" onClick={handlePriceDropToggle} disabled={priceDropStatus === "loading"} className="sfx-link-btn shrink-0">
+                    {priceDropStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : sfText("storefront.priceDrop.stop", "إلغاء")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handlePriceDropToggle}
+                  disabled={priceDropStatus === "loading"}
+                  className="sfx-btn sfx-btn--outline col-span-full w-full"
+                >
+                  {priceDropStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingDown className="h-4 w-4" />}
+                  {sfText("storefront.priceDrop.follow", "نبّهني لو السعر نزل")}
+                </button>
+              )
+            ) : null}
+            {priceDrop.enabled && !showRestockCta && priceDropStatus === "login" ? (
+              <div className="sfx-muted col-span-full text-center">{sfText("storefront.priceDrop.loginRequired", "سجّل دخولك علشان نبلغك لو السعر نزل")}</div>
+            ) : null}
+            {priceDrop.enabled && !showRestockCta && priceDropStatus === "error" ? (
+              <div className="sfx-pdp-error col-span-full text-center">{sfText("storefront.priceDrop.error", "حصلت مشكلة، حاول تاني")}</div>
             ) : null}
           </div>
 

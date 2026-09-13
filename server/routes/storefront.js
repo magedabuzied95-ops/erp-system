@@ -54,6 +54,8 @@ import {
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
 import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { createIntent as createRestockIntent, listIntents as listRestockIntents, cancelIntent as cancelRestockIntent } from "../services/restockIntentService.js";
+import { listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
+import { normalizePhone } from "../utils/phoneSearch.js";
 import { sendStorefrontMetaEvent } from "../services/metaConversionsApiService.js";
 import {
   storefrontRobotsHandler,
@@ -743,6 +745,46 @@ router.delete("/restock-intents/:id", ...storefrontCustomerAuthRequired, async (
     const cancelled = await cancelRestockIntent(publicTenantId(req), Number(req.params.id), { actorPhone: req.storefrontCustomer?.phone });
     res.json({ success: Boolean(cancelled), cancelled: Boolean(cancelled) });
   } catch (e) { res.status(500).json({ success: false, message: e?.message || "Failed" }); }
+});
+// Price Drop Alert ("نبّهني لو السعر نزل"). The follow stores the price the customer saw; the
+// background tick (storefrontPriceDropAlertService) decides when it has dropped and tells them.
+router.get("/price-alerts", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const alerts = await listPriceAlertsForCustomer({ tenantId: publicTenantId(req), phone: req.storefrontCustomer?.phone });
+    res.set("Cache-Control", "private, no-store");
+    res.json({ success: true, alerts });
+  } catch (e) { res.status(e?.status || 500).json({ success: false, message: e?.message || "Failed to load price alerts" }); }
+});
+router.post("/price-alerts", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const config = await loadPriceDropConfig();
+    if (!config.enabled) return res.status(403).json({ success: false, error: "PRICE_DROP_ALERTS_DISABLED" });
+    const result = await setPriceAlertFollow({
+      tenantId: publicTenantId(req),
+      customerId: req.storefrontCustomer?.customer_id || null,
+      phone: req.storefrontCustomer?.phone,
+      productId: Number(req.body?.product_id ?? req.body?.productId),
+      source: "button",
+      following: true,
+    });
+    res.json({ success: true, ...result });
+  } catch (e) { res.status(e?.status || 500).json({ success: false, message: e?.message || "Failed to follow price" }); }
+});
+router.delete("/price-alerts/:productId", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const phone = req.storefrontCustomer?.phone;
+    const productId = Number(req.params.productId);
+    // Unfollowing from the button closes both doors: a customer who says "stop" means it, even
+    // for a product they keep in the wishlist, so the wishlist row stops asking too.
+    await setPriceAlertFollow({ tenantId, phone, productId, source: "button", following: false });
+    await setPriceAlertFollow({ tenantId, phone, productId, source: "wishlist", following: false });
+    await db.query(
+      `UPDATE customer_wishlist SET notify_price_drop = FALSE WHERE tenant_id = $1 AND phone = $2 AND product_id = $3`,
+      [tenantId, normalizePhone(toText(phone)), productId]
+    ).catch(() => {});
+    res.json({ success: true, following: false });
+  } catch (e) { res.status(e?.status || 500).json({ success: false, message: e?.message || "Failed to unfollow price" }); }
 });
 router.get("/notifications", ...storefrontCustomerAuthRequired, async (req, res, next) => listNotifications(req, res, next));
 router.get("/shipping/providers", listShippingProviders);

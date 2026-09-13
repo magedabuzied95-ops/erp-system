@@ -791,6 +791,7 @@ const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = awai
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.js");
 const { runAbandonedCartReminderTick } = await import("./services/abandonedCartReminderService.js");
+const { ensurePriceDropAlertSchema, runPriceDropAlertTick } = await import("./services/storefrontPriceDropAlertService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation, ensureSocialCommentVisibilityColumns } = await import("./services/socialCommentAutomationService.js");
@@ -2435,6 +2436,14 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, 5 * 60 * 1000);
       backgroundIntervals.add(abandonedCartInterval);
+      // Price Drop Alert: compares followed products' storefront price with the price the customer
+      // followed at. No-op while storefront.price_drop_alert.enabled is off; WhatsApp has its own switch.
+      const priceDropInterval = setInterval(() => {
+        void runPriceDropAlertTick().catch((error) => {
+          console.error("[server] price drop alert tick error", { message: error?.message || String(error) });
+        });
+      }, Math.max(60_000, Number(process.env.PRICE_DROP_ALERT_INTERVAL_MS || 15 * 60 * 1000)));
+      backgroundIntervals.add(priceDropInterval);
       /*
        * The WhatsApp outbound queue worker. It is what stands between a reconnecting session and
        * the day's backlog: it drains at the configured rate, never while the session is down, and
@@ -2595,6 +2604,10 @@ const bootstrapStartup = async () => {
     await ensureProductBundleSchema(db)
       .then(() => console.log("[server] product bundle schema ensured"))
       .catch((error) => console.error("[server] product bundle schema failed (non-fatal)", error?.message || error));
+    // Price Drop Alert follows. Same boot-time, non-fatal shape: a missing table only disables the alerts.
+    await ensurePriceDropAlertSchema(db)
+      .then(() => console.log("[server] price drop alert schema ensured"))
+      .catch((error) => console.error("[server] price drop alert schema failed (non-fatal)", error?.message || error));
     await ensureLoyaltySchema(db);
     await ensureAttendanceSchema(db);
     console.log("[server] attendance schema ensured");

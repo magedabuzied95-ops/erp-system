@@ -1397,6 +1397,14 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
+      <VisualSection icon={Package} title={t("settings.storefront.priceDropTitle", "Price drop alerts")} description={t("settings.storefront.priceDropHint", "Customers follow a product from its page or the wishlist and are told when the price drops.")}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("storefront.price_drop_alert.enabled"), true)}
+          {renderField(setting("storefront.price_drop_alert.whatsapp_enabled"), true)}
+          {renderField(setting("storefront.price_drop_alert.min_percent"), true)}
+        </div>
+      </VisualSection>
+
       <VisualSection icon={Globe2} title="SEO" description={t("settings.storefront.seoHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.seo_title"), true)}
