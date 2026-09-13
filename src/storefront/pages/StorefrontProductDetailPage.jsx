@@ -658,6 +658,50 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     }
   };
 
+  // Sticky add to cart: once the page's own buy buttons scroll up out of view, a
+  // bar pinned to the bottom of the screen carries the same action, so a shopper
+  // reading the description or the related rows never has to scroll back up.
+  // It only appears after the buttons have been passed — on a phone the gallery
+  // fills the first screen, and a bar there would cover it before it is needed.
+  const buyBlockRef = useRef(null);
+  const stickyBuyRef = useRef(null);
+  const stickyThumbRef = useRef(null);
+  const [stickyBuyVisible, setStickyBuyVisible] = useState(false);
+  useEffect(() => {
+    const block = buyBlockRef.current;
+    if (!block || typeof IntersectionObserver !== "function") return undefined;
+    // The root reaches far below the screen, so the buttons count as "in view"
+    // everywhere except above its top edge. A plain viewport root missed a fling
+    // or a jump that carried the 120px block past the screen between two frames:
+    // it went from below to above without ever reporting a change.
+    const observer = new IntersectionObserver(([entry]) => {
+      setStickyBuyVisible(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+    }, { rootMargin: "0px 0px 100000px 0px" });
+    observer.observe(block);
+    return () => {
+      observer.disconnect();
+      setStickyBuyVisible(false);
+    };
+  }, [state.loading, product?.id]);
+  // While the bar shows, its height lifts the chat launcher (--sf-ai-chat-bottom
+  // reads --product-sticky-actions-height) and pads the page end so the footer's
+  // last line is not left underneath it.
+  useEffect(() => {
+    if (!stickyBuyVisible || typeof document === "undefined") return undefined;
+    const body = document.body;
+    const bar = stickyBuyRef.current;
+    const apply = () => body.style.setProperty("--product-sticky-actions-height", `${bar?.offsetHeight || 0}px`);
+    apply();
+    body.classList.add("sfx-sticky-buy-on");
+    const observer = typeof ResizeObserver === "function" && bar ? new ResizeObserver(apply) : null;
+    observer?.observe(bar);
+    return () => {
+      observer?.disconnect();
+      body.classList.remove("sfx-sticky-buy-on");
+      body.style.removeProperty("--product-sticky-actions-height");
+    };
+  }, [stickyBuyVisible]);
+
   const retryLoad = () => {
     setState((current) => ({ ...current, loading: true }));
     setReloadToken((current) => current + 1);
@@ -853,7 +897,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               the arrangement of the reference shop the owner pointed at. These use
               their own sf-buy-* classes: the older sf-product-cta and
               sf-product-quantity-card rules repaint with !important in both themes. */}
-          <div className="sf-buy-bar sfx-pdp-buy grid gap-2">
+          <div ref={buyBlockRef} className="sf-buy-bar sfx-pdp-buy grid gap-2">
             <div className="flex items-stretch gap-2">
               <div className="sf-buy-qty flex h-14 shrink-0 items-center" role="group" aria-label={sfText("storefront.cart.quantity", "Quantity")}>
                 <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} disabled={qty <= 1} className="sf-buy-qty__step" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>−</button>
@@ -1036,23 +1080,51 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         <RelatedProducts currentProduct={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         <RecentProductsSection currentId={product.id} recent={recent} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
       </div>
-      {false && <div className="md:hidden">
-        <div className="h-28" aria-hidden="true" />
-        <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.4rem)] z-[55] px-3">
-          <div className="mx-auto max-w-xl rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(7,7,7,0.97),rgba(18,18,18,0.97))] p-3 text-white shadow-[0_20px_46px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate text-sm font-black text-white">{displayTitle}</div>
-                <div className="mt-1 text-lg font-black text-[#f3d77a]">{money(selectedSellingPrice)}</div>
-              </div>
-              <button type="button" onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })} disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35">
-                <ShoppingCart className="h-4 w-4" />
-                {sfText("storefront.cart.addToCart", "Add to cart")}
-              </button>
+      {/* Rendered all the time and slid in, so it animates and its height can be
+          measured; `inert` keeps the hidden bar out of the tab order. A size that
+          sold out sends the shopper back up to the options instead of doing nothing. */}
+      <div
+        ref={stickyBuyRef}
+        className={`sfx-sticky-buy${stickyBuyVisible ? " is-visible" : ""}`}
+        aria-hidden={!stickyBuyVisible}
+        inert={!stickyBuyVisible}
+      >
+        <div className="sfx-sticky-buy__inner">
+          {activeImage ? (
+            <img ref={stickyThumbRef} src={imageFor(activeImage)} onError={fallbackProductImage} alt="" className="sfx-sticky-buy__thumb" loading="lazy" decoding="async" />
+          ) : null}
+          <div className="sfx-sticky-buy__meta">
+            <div className="sfx-sticky-buy__title">{displayTitle}</div>
+            <div className="sfx-sticky-buy__sub">
+              {selectedSellingPrice > 0 ? (
+                <span className={`sfx-sticky-buy__price${selectedComparePrice > selectedSellingPrice ? " is-sale" : ""}`}>{money(selectedSellingPrice)}</span>
+              ) : null}
+              {selectedComparePrice > selectedSellingPrice ? <span className="sfx-sticky-buy__was">{money(selectedComparePrice)}</span> : null}
+              {!hideSizeSelector && safeActiveVariant?.size ? (
+                <span className="sfx-sticky-buy__size">{sfText("storefront.products.size", isRtl ? "المقاس" : "Size")} {safeActiveVariant.size}</span>
+              ) : null}
             </div>
           </div>
+          {variantHasStock(safeActiveVariant) ? (
+            <button
+              type="button"
+              onClick={() => onAddToCart(product, safeActiveVariant, qty, { sourceEl: stickyThumbRef.current || mainImageRef.current })}
+              className="sf-buy-now sfx-sticky-buy__cta"
+            >
+              <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+              <span>{sfText("storefront.cart.addToCart", "Add to cart")}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => buyBlockRef.current?.parentElement?.scrollIntoView({ block: "start", behavior: "smooth" })}
+              className="sf-buy-now sfx-sticky-buy__cta"
+            >
+              <span>{sfText("storefront.products.chooseSize", "Choose size")}</span>
+            </button>
+          )}
         </div>
-      </div>}
+      </div>
     </section>
   );
 }

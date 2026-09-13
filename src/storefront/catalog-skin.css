@@ -1283,3 +1283,147 @@ body.storefront-shell .sfx-pdp-checks li {
   margin-top: 6px;
   color: var(--m1h-accent);
 }
+
+/* ------------------------------------------------------- sticky add to cart */
+
+/* Pinned to the bottom of the screen once the product page's own buy buttons
+   have scrolled up out of view (StorefrontProductDetailPage). Painted from the
+   --m1h-* tokens, so it follows the shop's light and dark themes; the button is
+   the page's own `.sf-buy-now`, already themed in index.css. */
+.sfx-sticky-buy {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 60;
+  padding: 10px max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  border-top: 1px solid var(--m1h-line);
+  background: color-mix(in srgb, var(--m1h-surface) 94%, transparent);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  transform: translateY(110%);
+  visibility: hidden;
+  transition: transform 0.32s var(--m1h-ease), visibility 0s linear 0.32s;
+}
+
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .sfx-sticky-buy {
+    background: var(--m1h-surface);
+  }
+}
+
+.sfx-sticky-buy.is-visible {
+  transform: translateY(0);
+  visibility: visible;
+  transition: transform 0.32s var(--m1h-ease), visibility 0s linear 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sfx-sticky-buy,
+  .sfx-sticky-buy.is-visible {
+    transition: none;
+  }
+}
+
+.sfx-sticky-buy__inner {
+  display: flex;
+  max-width: 72rem;
+  margin-inline: auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.sfx-sticky-buy__thumb {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  padding: 3px;
+  border: 1px solid var(--m1h-plate-edge);
+  border-radius: var(--m1h-r-sm);
+  background: var(--m1h-plate);
+  object-fit: contain;
+}
+
+.sfx-sticky-buy__meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+body.storefront-shell .sfx-sticky-buy__title {
+  overflow: hidden;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sfx-sticky-buy__sub {
+  display: flex;
+  margin-top: 2px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+body.storefront-shell .sfx-sticky-buy__price {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+body.storefront-shell .sfx-sticky-buy__price.is-sale {
+  color: var(--m1h-accent) !important;
+}
+
+body.storefront-shell .sfx-sticky-buy__was {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 12px;
+  text-decoration: line-through;
+}
+
+body.storefront-shell .sfx-sticky-buy__size {
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sfx-sticky-buy__cta {
+  height: 48px;
+  flex: none;
+  gap: 8px;
+  padding-inline: 18px;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .sfx-sticky-buy__thumb {
+    width: 52px;
+    height: 52px;
+  }
+
+  body.storefront-shell .sfx-sticky-buy__title {
+    font-size: 15px;
+  }
+
+  body.storefront-shell .sfx-sticky-buy__cta {
+    min-width: 220px;
+  }
+}
+
+/* The page end moves up by the bar's height, so the footer's last line stays
+   readable above it. */
+body.storefront-shell.sfx-sticky-buy-on {
+  padding-bottom: var(--product-sticky-actions-height, 0px);
+}
+
+/* The WhatsApp button rides above the bar instead of covering its thumbnail. */
+body.storefront-shell.sfx-sticky-buy-on .sf-whatsapp-float {
+  bottom: calc(var(--product-sticky-actions-height, 0px) + 12px) !important;
+}
