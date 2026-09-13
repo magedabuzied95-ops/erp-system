@@ -3637,9 +3637,12 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
 
       {/* Payment marks sit in the copyright bar as one-ink logos, the way
           international shops show them: no tiles, no brand colours, the bar's
-          own text colour at reduced strength so they read as part of it. */}
-      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold text-white dark:text-white/55">
-        <div className="mx-auto flex max-w-[1440px] flex-col items-center gap-4 md:flex-row md:justify-between md:px-3">
+          own text colour at reduced strength so they read as part of it.
+          Phones: logos first, copyright as the last line of the page, and room
+          below it so the floating WhatsApp button (fixed, bottom-right) never
+          sits on a line. Desktop: one row, kept clear of the button on the right. */}
+      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center pb-[calc(env(safe-area-inset-bottom)+5rem)] text-xs font-semibold text-white dark:text-white/55 md:pb-5">
+        <div className="mx-auto flex max-w-[1440px] flex-col-reverse items-center gap-4 md:flex-row md:justify-between md:pl-3 md:pr-20">
           <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
           <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3" dir="ltr">
             {paymentMarks.map(({ label, mark }) => (
