@@ -857,7 +857,7 @@ body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="tex
 
 body.storefront-shell:not(.storefront-dark) .sf-product-summary-card button,
 body.storefront-shell:not(.storefront-dark) .sf-product-option-card button,
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card a,
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card a:not(.sf-size-guide-link),
 body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
   border-color: var(--sf-light-border-strong) !important;
   background-color: var(--sf-light-soft) !important;

@@ -6876,7 +6876,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card .sf-product-size-choice.is-available:not(.is-active),
-.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card a {
+.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-option-card a:not(.sf-size-guide-link) {
   border-color: rgba(255, 255, 255, 0.14) !important;
   background-color: rgba(255, 255, 255, 0.06) !important;
   color: rgba(255, 255, 255, 0.86) !important;

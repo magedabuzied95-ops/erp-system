@@ -818,6 +818,15 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.size", "Size")}</div>
                 <h2 className="text-base font-black">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
               </div>
+              {/* A quiet link beside the heading, where shoppers look for it, rather
+                  than a pill on a row of its own under the sizes. */}
+              <Link
+                to={sizeGuideHref}
+                className="sf-size-guide-link inline-flex shrink-0 items-center gap-1.5 self-end text-xs font-black text-white/70 underline decoration-white/25 underline-offset-4 transition hover:text-[#f3d77a] hover:decoration-[#f3d77a]/60"
+              >
+                <Ruler className="h-3.5 w-3.5" />
+                {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
+              </Link>
             </div>
             <div className="flex flex-wrap gap-2">
               {sizeOptions.map((option) => {
@@ -838,15 +847,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                   </button>
                 );
               })}
-            </div>
-            <div className="mt-3">
-              <Link
-                to={sizeGuideHref}
-                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 transition hover:border-[#d4af37]/35 hover:bg-white/[0.08] hover:text-[#f3d77a]"
-              >
-                <Ruler className="h-3.5 w-3.5" />
-                {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
-              </Link>
             </div>
           </div> : null}
 
