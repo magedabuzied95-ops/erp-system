@@ -45,7 +45,5 @@ src/modules/shipping/pages/ShippingCenter.jsx
 src/pages/Dashboard.jsx
 src/shared/layouts/AiMarketing.m1.css
 src/shared/notifications/NotificationBell.jsx
-src/storefront/Storefront.jsx
-src/storefront/components/StorefrontCheckoutSummary.jsx
 src/storefront/pages/StorefrontProductDetailPage.jsx
 src/theme/foundation.css

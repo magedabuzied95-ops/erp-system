@@ -1,0 +1,88 @@
+/* ============================================================================
+   M1 STORE — ONE SITE, ONE PALETTE
+   ----------------------------------------------------------------------------
+   The homepage (home/home.css) declares its `--m1h-*` vocabulary on `.m1h`
+   only, so every other page kept the older gold-on-black luxury skin. This file
+   lifts the same vocabulary to the storefront body so the checkout, listing,
+   product and account pages paint from the numbers the homepage paints from.
+
+   The values mirror home.css exactly; Site Studio re-points them at runtime
+   (shared/siteDesign.js emits the same tokens on these two selectors), so an
+   owner colour change reaches the whole site, not the homepage alone.
+
+   Deliberately unlayered, like home.css.
+   ========================================================================== */
+
+body.storefront-shell {
+  --m1h-s1: 4px;
+  --m1h-s2: 8px;
+  --m1h-s3: 12px;
+  --m1h-s4: 16px;
+  --m1h-s5: 20px;
+  --m1h-s6: 24px;
+  --m1h-s8: 32px;
+  --m1h-s10: 40px;
+  --m1h-s12: 48px;
+  --m1h-s16: 64px;
+  --m1h-r-sm: 8px;
+  --m1h-r-md: 12px;
+  --m1h-r-lg: 16px;
+  --m1h-r-xl: 20px;
+  --m1h-ease: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --m1h-bg: #f7f6f3;
+  --m1h-surface: #ffffff;
+  --m1h-plate: #ffffff;
+  --m1h-plate-edge: #eceae4;
+  --m1h-line: #e4e1d9;
+  --m1h-line-soft: #eeece6;
+  --m1h-text: #1c1917;
+  --m1h-text-2: #5d5952;
+  --m1h-text-3: #8b857b;
+  --m1h-accent: #a47a12;
+  --m1h-accent-soft: #fbf4e2;
+  --m1h-sale: #b4231b;
+  --m1h-sale-fg: #ffffff;
+  --m1h-invert-bg: #14120f;
+  --m1h-invert-text: #f8f6f1;
+  --m1h-invert-text-2: rgba(248, 246, 241, 0.66);
+  --m1h-shadow-soft: 0 1px 2px rgba(28, 25, 23, 0.05);
+  --m1h-shadow-float: 0 10px 28px rgba(28, 25, 23, 0.1);
+
+  /* Checkout-only derived tokens: a panel one step off the page, and the
+     success / danger inks the forms need. */
+  --sfx-panel: #efede8;
+  --sfx-field: #ffffff;
+  --sfx-danger: #b4231b;
+  --sfx-success: #1f7a4d;
+  --sfx-success-soft: #e8f4ed;
+  --sfx-focus: rgba(164, 122, 18, 0.22);
+}
+
+body.storefront-shell.storefront-dark {
+  --m1h-bg: #070707;
+  --m1h-surface: #0f0f0f;
+  --m1h-plate: #ffffff;
+  --m1h-plate-edge: transparent;
+  --m1h-line: rgba(255, 255, 255, 0.09);
+  --m1h-line-soft: rgba(255, 255, 255, 0.06);
+  --m1h-text: #efeee9;
+  --m1h-text-2: #b9b6ae;
+  --m1h-text-3: #8d8981;
+  --m1h-accent: #d0a632;
+  --m1h-accent-soft: rgba(208, 166, 50, 0.12);
+  --m1h-sale: #e0564c;
+  --m1h-sale-fg: #14120f;
+  --m1h-invert-bg: #f6f5f1;
+  --m1h-invert-text: #14120f;
+  --m1h-invert-text-2: rgba(20, 18, 15, 0.62);
+  --m1h-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --m1h-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  --sfx-panel: #0f0f0f;
+  --sfx-field: #121212;
+  --sfx-danger: #f0776e;
+  --sfx-success: #6fcf97;
+  --sfx-success-soft: rgba(111, 207, 151, 0.1);
+  --sfx-focus: rgba(208, 166, 50, 0.28);
+}

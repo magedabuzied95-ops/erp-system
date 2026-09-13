@@ -39,6 +39,7 @@ import { issueFirstOrderCoupons, redeemCoupon, validateCoupon } from "../service
 import { buildBundlePairEligibility, getPinnedPairProductId, loadBundleSettings, recordOrderBundleDiscounts } from "../services/productBundleService.js";
 import { computeBundleDiscount } from "../../shared/bundleDiscount.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
+import { dedupeCustomerAddresses } from "../../shared/customerAddressFingerprint.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 // ONE definition of "this product is a curated offer", shared with POS and the AI resolver.
 import { isForcedOfferSale } from "../../src/shared/lib/effectiveCustomerPrice.js";
@@ -6285,13 +6286,10 @@ export const accountByPhone = async (req, res) => {
       return { ...row, ...product, created_at: row.created_at ?? product.created_at, viewed_at: row.viewed_at ?? product.viewed_at };
     };
     const loyalty = customerId ? await getCustomerLoyaltySummary(db, customerId, tenantId) : null;
-    const addresses = [
-      ...new Set(
-        orders.rows
-          .map((order) => [order.governorate, order.city_area, order.customer_address].filter(Boolean).join(" - "))
-          .filter(Boolean)
-      ),
-    ].slice(0, 6);
+    // The same flat typed slightly differently on two orders is still one address.
+    const addresses = dedupeCustomerAddresses(orders.rows, 6)
+      .map((order) => [order.governorate, order.city_area, order.customer_address].filter(Boolean).join(" - "))
+      .filter(Boolean);
     res.json({
       success: true,
       customer: customer.rows[0] || null,
@@ -6538,16 +6536,14 @@ export const latestShippingAddress = async (req, res) => {
           OR NULLIF(TRIM(COALESCE(o.customer_address, '')), '') IS NOT NULL
         )
       ORDER BY o.created_at DESC NULLS LAST, o.id DESC
-      LIMIT 1
+      LIMIT 30
       `,
       [tenantId, customerIds, phoneVariants]
     );
     const row = orderResult.rows[0] || null;
-    if (!row) return res.json({ success: true, address: null });
+    if (!row) return res.json({ success: true, address: null, addresses: [] });
 
-    return res.json({
-      success: true,
-      address: {
+    const shapeAddress = (row) => ({
         governorate: row.governorate || "",
         province: row.governorate || "",
         governorate_id: row.governorate_id || "",
@@ -6572,7 +6568,15 @@ export const latestShippingAddress = async (req, res) => {
         shipping_zone_id: row.shipping_zone_id || "",
         shipping_district_id: row.shipping_district_id || "",
         created_at: row.created_at || null,
-      },
+    });
+
+    // `address` stays the newest order's address (the checkout restores it on
+    // its own); `addresses` is every distinct place this customer ordered to,
+    // newest first — repeated orders to the same flat collapse into one entry.
+    return res.json({
+      success: true,
+      address: shapeAddress(row),
+      addresses: dedupeCustomerAddresses(orderResult.rows, 5).map(shapeAddress),
     });
   } catch (error) {
     console.error("[storefront] latest shipping address", error);

@@ -757,16 +757,23 @@ export const siteDesignStylesheet = (input, stacks = {}) => {
 
   return [
     "/* generated from storefront.site_design — edit it in Site Studio, not here */",
-    block("body.storefront-shell", [...shell, ...hero]),
+    block("body.storefront-shell", [...shell, ...home, ...hero]),
     rtl,
+    // The homepage vocabulary is also declared on the body (src/storefront/site-skin.css)
+    // so checkout, listing and product pages paint from the same palette; re-point it
+    // there too or those pages would keep the default colours after an owner edit.
     block("body.storefront-shell:not(.storefront-dark)", [
       ...declarations(SHARED_TOKENS, light),
       ...declarations(LIGHT_TOKENS, light),
+      ...declarations(HOME_TOKENS, light),
+      `  --m1h-line-soft: ${light.border};`,
       ...band("light"),
     ]),
     block("body.storefront-shell.storefront-dark", [
       ...declarations(SHARED_TOKENS, dark),
       ...declarations(DARK_TOKENS, dark),
+      ...declarations(HOME_TOKENS, dark),
+      `  --m1h-line-soft: ${dark.border};`,
       ...band("dark"),
     ]),
     block("body.storefront-shell .m1h", [...declarations(HOME_TOKENS, light), ...homeExtras(light), ...home]),

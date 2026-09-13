@@ -22,7 +22,6 @@ import {
   bostaZonePatch,
   buildBostaPickerOptions,
   matchBostaPickerOption,
-  normalizeCheckoutPickerText,
   normalizeShippingQuote,
 } from "../shared/lib/shippingCheckout";
 import usePageTitle from "../shared/hooks/usePageTitle";
@@ -90,7 +89,6 @@ import {
 } from "../shared/lib/crocsSizes";
 import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
-import useDismissableLayer from "../shared/hooks/useDismissableLayer";
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
 import { productToSocialMeta } from "../shared/lib/socialMeta";
 import { normalizeMerchantReturnPolicy } from "../shared/lib/merchantPolicies";
@@ -98,7 +96,6 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
 import { pickAutomaticPair } from "./lib/pairPicker.js";
-import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
@@ -131,6 +128,9 @@ import {
 import { buildHomeProductCard, useHomeReveal } from "./home/homeModel";
 import "./storefront-light.css";
 import "./components/cartDrawer.css";
+import "./site-skin.css";
+import StorefrontCheckoutSummary, { CheckoutTotals } from "./components/StorefrontCheckoutSummary";
+import { CheckoutBlock, CheckoutChoice, CheckoutInput, CheckoutLocationSelect, CheckoutNativeSelect, CheckoutSubmit } from "./checkout/CheckoutParts";
 import {
   isStorefrontCheckoutPath,
   isStorefrontHomePath,
@@ -1826,7 +1826,6 @@ const LazyStorefrontProductListingPage = lazy(() =>
 const LazyStorefrontProductDetailPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontProductDetailPage.jsx")).then((module) => ({ default: module.StorefrontProductDetailPage })));
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));
-const LazyStorefrontCheckoutSummary = lazy(() => importWithChunkRetry(() => import("./components/StorefrontCheckoutSummary")));
 const LazyStorefrontProductGallery = lazy(() => importWithChunkRetry(() => import("./components/StorefrontProductGallery")));
 const LazyStorefrontCartPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.CartPageRoute })));
 const LazyStorefrontTrackOrderPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.TrackOrderPage })));
@@ -2338,6 +2337,10 @@ const CHECKOUT_ADDRESS_FIELDS = [
   "shipping_zone_id",
   "shipping_district_id",
 ];
+// The fields that describe the place. On a one-page checkout the customer types
+// their name and phone before the address restore answers, so only an edit to
+// one of THESE means "don't overwrite what I wrote".
+const CHECKOUT_PLACE_FIELDS = CHECKOUT_ADDRESS_FIELDS.filter((key) => key !== "full_name" && key !== "primary_phone");
 
 // The store's WhatsApp number lives in the public settings, not in the build.
 // VITE_WHATSAPP_PHONE was never defined for any deploy, so every WhatsApp entry
@@ -7445,18 +7448,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [shippingPaymentFile, setShippingPaymentFile] = useState(null);
   const [, setShippingPaymentPreviewUrl] = useState("");
   const [errors, setErrors] = useState({});
-  const [, setCustomerTrust] = useState({ loading: false, customer: null });
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [checkoutStep, setCheckoutStep] = useState(() => {
-    if (typeof window === "undefined") return 1;
-    try {
-      const storedStep = Number(window.sessionStorage.getItem(CHECKOUT_STEP_STORAGE_KEY));
-      return [1, 2, 3].includes(storedStep) ? storedStep : 1;
-    } catch {
-      return 1;
-    }
-  });
+  // Every distinct address this customer has ordered to (server-deduplicated),
+  // offered as "saved addresses" once the phone number identifies them.
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [selectedSavedAddress, setSelectedSavedAddress] = useState("");
   const [manualCityArea, setManualCityArea] = useState(false);
   const [shippingTransferMethod, setShippingTransferMethod] = useState("instapay");
   const [paymentMode, setPaymentMode] = useState("cod");
@@ -7476,6 +7473,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const latestAddressRestoreTokenRef = useRef(0);
   const couponValidationKeyRef = useRef("");
   const metaCheckoutSentRef = useRef(false);
+  const ga4ShippingSentRef = useRef(false);
   useEffect(() => {
     setStorefrontSalePricesEnabled(publicStoreSettings);
   }, [publicStoreSettings]);
@@ -7503,28 +7501,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const isOnlineGatewayPayment = paymentMode === "online";
   const isShippingConfirmation = paymentMode === "electronic";
   const shippingProofRequired = isShippingConfirmation;
-  const hasShippingPaymentProof = Boolean(shippingPaymentFile);
   const amountDueNow = normalizedFormPaymentMethod === "cod" ? 0 : total;
-  const isFinalCheckoutStep = checkoutStep === 3;
   const couponCode = String(form.coupon || "").trim().toUpperCase();
-  const submitDisabled = isFinalCheckoutStep && (submitting || couponLoading || shippingQuote.loading || (shippingProofRequired && !hasShippingPaymentProof));
-  const checkoutActionLabel = checkoutStep === 1
-  ? t("storefront.checkout.actions.continueToAddress")
-  : checkoutStep === 2
-    ? t("storefront.checkout.actions.continueToPayment")
-    : normalizedFormPaymentMethod === "cod"
-      ? t("storefront.checkout.actions.confirmOrder")
-      : shippingProofRequired
-        ? t("storefront.checkout.actions.uploadProofAndConfirm")
-        : t("storefront.checkout.actions.confirmOrder");
-  // Nothing is collected on delivery for a gateway order — the whole total is
-  // captured up front, so leaving the manual-transfer arithmetic in place here
-  // would print a courier-collect amount the courier must never ask for.
-  const codAmount = normalizedFormPaymentMethod === "cod"
-    ? total
-    : isOnlineGatewayPayment
-      ? 0
-      : Math.max(0, total - deliveryFee);
+  // The proof upload is validated on submit (with a message pointing at it), so it
+  // does not grey the button out: a disabled button explains nothing.
+  const submitDisabled = submitting || couponLoading || shippingQuote.loading;
+  const checkoutActionLabel = isOnlineGatewayPayment
+    ? t("storefront.checkout.onePage.payNow")
+    : t("storefront.checkout.onePage.completeOrder");
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
   // Declared after storefrontPaymentSettings on purpose — a const referenced
   // above its declaration is a render-time TDZ crash, not a lint error.
@@ -7572,18 +7556,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     imageFor,
     money,
   }), []);
-  const checkoutSummaryComponents = useMemo(() => ({
-    SummaryRow,
-    SubmitButton,
-    TrustPills,
-  }), []);
-
   useEffect(() => {
     if (pricedCart.length) trackGa4BeginCheckout(pricedCart, { value: subtotal });
   }, [pricedCart, subtotal]);
 
-  useEffect(() => {
-    if (checkoutStep !== 3 || metaCheckoutSentRef.current || !pricedCart.length) return;
+  // One page now, so there is no "reached the payment step" moment to hang Meta's
+  // InitiateCheckout on. It fires once the customer has identified themselves (a
+  // name and a valid phone), which is when the event can carry matching data;
+  // submit() sends it too if the customer got there without that happening first.
+  const initiateCheckoutReady = Boolean(form.full_name.trim()) && /^01[0125][0-9]{8}$/.test(form.primary_phone.replace(/\D/g, ""));
+  const sendMetaInitiateCheckout = () => {
+    if (metaCheckoutSentRef.current || !pricedCart.length) return;
     const payload = trackMetaInitiateCheckout({
       items: pricedCart,
       value: total,
@@ -7597,15 +7580,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       },
     });
     if (payload) metaCheckoutSentRef.current = true;
-  }, [checkoutStep, form, pricedCart, profile, total]);
-
+  };
+  const sendMetaInitiateCheckoutRef = useRef(sendMetaInitiateCheckout);
+  sendMetaInitiateCheckoutRef.current = sendMetaInitiateCheckout;
   useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    document.documentElement.style.setProperty("--checkout-sticky-actions-height", "88px");
-    return () => {
-      document.documentElement.style.setProperty("--checkout-sticky-actions-height", "0px");
-    };
-  }, []);
+    if (!initiateCheckoutReady || metaCheckoutSentRef.current) return undefined;
+    // Wait for typing to settle so the event carries the whole name, not its first letter.
+    const timer = window.setTimeout(() => sendMetaInitiateCheckoutRef.current(), 1500);
+    return () => window.clearTimeout(timer);
+  }, [initiateCheckoutReady, form.full_name, form.primary_phone]);
 
   useEffect(() => {
     let cancelled = false;
@@ -7719,18 +7702,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   }, [bostaMode, form.shipping_zone_id]);
 
   useEffect(() => {
-    let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) setSubmitting(false);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [checkoutStep]);
-
-  useEffect(() => {
-    safeSetSessionStorage(CHECKOUT_STEP_STORAGE_KEY, String(checkoutStep), { raw: true });
-  }, [checkoutStep]);
+    // The page used to be a three-step wizard that remembered its step; a stale
+    // value left in this tab's session would otherwise linger forever.
+    try { window.sessionStorage.removeItem(CHECKOUT_STEP_STORAGE_KEY); } catch { /* storage unavailable */ }
+  }, []);
 
   useEffect(() => {
     if (!form.governorate) {
@@ -7954,144 +7929,141 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setErrors((prev) => ({ ...prev, city_area: "" }));
   }, [bostaDistrictOptions]);
 
-  useEffect(() => {
-    const phone = form.primary_phone.replace(/\s/g, "");
-    if (!/^01[0125][0-9]{8}$/.test(phone)) {
-      let cancelled = false;
-      deferReactState(() => {
-        if (!cancelled) setCustomerTrust({ loading: false, customer: null });
-      });
-      return () => {
-        cancelled = true;
-      };
+  // Fill the delivery fields from one of the customer's past addresses. The Bosta
+  // governorate → zone → district ids cannot be set in one go (each list loads
+  // after the previous choice), so this seeds the form and hands the cascade to
+  // the three staged effects below. `force` is an explicit pick from the saved
+  // addresses list: it replaces whatever is typed; the automatic restore never does.
+  const restoreAddressCandidate = (address, { force = false, lookupKey = "" } = {}) => {
+    if (!address) return;
+    if (force) {
+      CHECKOUT_PLACE_FIELDS.forEach((key) => editedCheckoutFieldsRef.current.delete(key));
+    } else if (CHECKOUT_PLACE_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+      console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", lookupKey });
+      return;
     }
-    let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) setCustomerTrust((prev) => ({ ...prev, loading: true }));
-    });
-    const params = new URLSearchParams();
-    params.set("phone", phone);
-    if (String(profile.email || profile.customer_email || "").trim()) {
-      params.set("email", String(profile.email || profile.customer_email || "").trim().toLowerCase());
-    }
-    api
-      .get(`/storefront/customers/latest-shipping-address?${params.toString()}`)
-      .then((data) => {
-        if (!cancelled) {
-          const address = data.address || null;
-          setCustomerTrust({ loading: false, customer: address });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setCustomerTrust({ loading: false, customer: null });
-      });
-    return () => {
-      cancelled = true;
+
+    const token = latestAddressRestoreTokenRef.current + 1;
+    latestAddressRestoreTokenRef.current = token;
+    setLatestAddressApplied(false);
+    setLatestAddressRestore({ token, candidate: address, status: "restoring", stage: "governorate" });
+    console.info("[checkout:last-address-restore-start]", { token, lookupKey, force });
+
+    const restoredValues = {
+      governorate: String(address.governorate || address.province || "").trim(),
+      city_area: String(address.city_area || address.city || address.area || "").trim(),
+      detailed_address: String(address.detailed_address || address.address || "").trim(),
+      street_address: String(address.street_address || address.detailed_address || address.address || "").trim(),
+      building_number: String(address.building_number || "").trim(),
+      floor_number: String(address.floor_number || "").trim(),
+      apartment_number: String(address.apartment_number || "").trim(),
+      landmark: String(address.landmark || "").trim(),
+      delivery_notes: String(address.delivery_notes || "").trim(),
+      governorate_id: String(address.governorate_id || "").trim(),
+      city_id: String(address.city_id || "").trim(),
+      area_id: String(address.area_id || "").trim(),
+      zone_id: String(address.zone_id || "").trim(),
+      district_id: String(address.district_id || address.bosta_district_id || address.shipping_district_id || "").trim(),
+      shipping_city_id: String(address.shipping_city_id || "").trim(),
+      shipping_zone_id: String(address.shipping_zone_id || "").trim(),
+      shipping_district_id: String(address.shipping_district_id || address.bosta_district_id || address.district_id || "").trim(),
     };
-  }, [form.primary_phone, profile.customer_email, profile.email]);
+    const customerName = String(address.customer_name || "").trim();
+
+    setForm((prev) => {
+      const next = { ...prev };
+      Object.entries(restoredValues).forEach(([key, value]) => {
+        // A picked address replaces every place field, empty ones included, so
+        // the floor of the previous address does not survive into this one.
+        if (force || String(value || "").trim()) next[key] = value;
+      });
+      // The phone is what the customer just typed, so it is never overwritten;
+      // the name only fills an empty box.
+      if (customerName && !String(prev.full_name || "").trim()) next.full_name = customerName;
+      return next;
+    });
+    setErrors((prev) => {
+      const next = { ...prev };
+      CHECKOUT_ADDRESS_FIELDS.forEach((key) => {
+        delete next[key];
+      });
+      return next;
+    });
+
+    if (!restoredValues.shipping_city_id) {
+      setLatestAddressApplied(true);
+      setLatestAddressRestore({ token, candidate: address, status: "done", stage: "done" });
+      console.info("[checkout:last-address-restore-success]", { token, mode: "text-only" });
+    }
+  };
 
   useEffect(() => {
-    if (checkoutStep !== 2) return undefined;
     const cleanPhone = form.primary_phone.replace(/\D/g, "");
     const validPhone = /^01[0125][0-9]{8}$/.test(cleanPhone);
     const email = String(profile.email || profile.customer_email || "").trim().toLowerCase();
     if (!validPhone && !email) return undefined;
 
     const lookupKey = validPhone ? `phone:${cleanPhone}` : `email:${email}`;
-    if (latestAddressLookupsRef.current.has(lookupKey)) return undefined;
-    latestAddressLookupsRef.current.add(lookupKey);
+    const lookups = latestAddressLookupsRef.current;
+    if (lookups.has(lookupKey)) return undefined;
+    lookups.add(lookupKey);
 
     const params = new URLSearchParams();
     if (validPhone) params.set("phone", cleanPhone);
     if (email) params.set("email", email);
 
     let cancelled = false;
+    let settled = false;
     api
       .get(`/storefront/customers/latest-shipping-address?${params.toString()}`)
       .then((data) => {
+        settled = true;
         if (cancelled) return;
         const address = data.address || null;
+        const addresses = Array.isArray(data.addresses) && data.addresses.length ? data.addresses : address ? [address] : [];
+        setSavedAddresses(addresses);
+        setSelectedSavedAddress(addresses.length ? "0" : "");
         if (!address) {
           console.info("[checkout:last-address-restore-skipped]", { reason: "no_address_found", lookupKey });
           return;
         }
         console.info("[checkout:last-address-found]", {
           lookupKey,
+          saved: addresses.length,
           hasBosta: Boolean(address.shipping_city_id || address.shipping_zone_id || address.shipping_district_id),
           hasTextAddress: Boolean(address.detailed_address || address.street_address),
         });
-
-        if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
-          console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", lookupKey });
-          return;
-        }
-
-        const token = latestAddressRestoreTokenRef.current + 1;
-        latestAddressRestoreTokenRef.current = token;
-        setLatestAddressApplied(false);
-        setLatestAddressRestore({ token, candidate: address, status: "restoring", stage: "governorate" });
-        console.info("[checkout:last-address-restore-start]", { token, lookupKey });
-
-        const restoredValues = {
-          full_name: String(address.customer_name || "").trim(),
-          primary_phone: String(address.phone || "").trim(),
-          governorate: String(address.governorate || address.province || "").trim(),
-          city_area: String(address.city_area || address.city || address.area || "").trim(),
-          detailed_address: String(address.detailed_address || address.address || "").trim(),
-          street_address: String(address.street_address || address.detailed_address || address.address || "").trim(),
-          building_number: String(address.building_number || "").trim(),
-          floor_number: String(address.floor_number || "").trim(),
-          apartment_number: String(address.apartment_number || "").trim(),
-          landmark: String(address.landmark || "").trim(),
-          delivery_notes: String(address.delivery_notes || "").trim(),
-          governorate_id: String(address.governorate_id || "").trim(),
-          city_id: String(address.city_id || "").trim(),
-          area_id: String(address.area_id || "").trim(),
-          zone_id: String(address.zone_id || "").trim(),
-          district_id: String(address.district_id || address.bosta_district_id || address.shipping_district_id || "").trim(),
-          shipping_city_id: String(address.shipping_city_id || "").trim(),
-          shipping_zone_id: String(address.shipping_zone_id || "").trim(),
-          shipping_district_id: String(address.shipping_district_id || address.bosta_district_id || address.district_id || "").trim(),
-        };
-
-        setForm((prev) => {
-          const next = { ...prev };
-          Object.entries(restoredValues).forEach(([key, value]) => {
-            if (String(value || "").trim()) {
-              next[key] = value;
-            }
-          });
-          return next;
-        });
-        setErrors((prev) => {
-          const next = { ...prev };
-          CHECKOUT_ADDRESS_FIELDS.forEach((key) => {
-            delete next[key];
-          });
-          return next;
-        });
-
-        if (!restoredValues.shipping_city_id) {
-          setLatestAddressApplied(true);
-          setLatestAddressRestore({ token, candidate: address, status: "done", stage: "done" });
-          console.info("[checkout:last-address-restore-success]", { token, mode: "text-only" });
-        }
+        restoreAddressCandidate(address, { lookupKey });
       })
       .catch((error) => {
+        settled = true;
         if (cancelled) return;
+        // Let a later render retry this number instead of remembering a failure.
+        latestAddressLookupsRef.current.delete(lookupKey);
         console.error("[checkout:last-address-restore-failed]", { lookupKey, message: error?.message || error?.responseBody?.message || "Unknown error" });
       });
 
     return () => {
       cancelled = true;
+      // An answer that never arrived must not block asking again for the same number.
+      if (!settled) lookups.delete(lookupKey);
     };
-  }, [checkoutStep, form.primary_phone, profile.email, profile.customer_email]);
+  }, [form.primary_phone, profile.email, profile.customer_email]);
+
+  const chooseSavedAddress = (value) => {
+    setSelectedSavedAddress(value);
+    if (value === "new") {
+      startNewAddress();
+      return;
+    }
+    const address = savedAddresses[Number(value)];
+    if (address) restoreAddressCandidate(address, { force: true, lookupKey: "saved-address" });
+  };
 
   useEffect(() => {
     const candidate = latestAddressRestore.candidate;
     if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "governorate") return undefined;
-    if (checkoutStep !== 2) return undefined;
-    if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+    if (CHECKOUT_PLACE_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
       console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", token: latestAddressRestore.token });
       setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
       return undefined;
@@ -8112,13 +8084,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setBostaCity(cityOption.id, { markDirty: false });
     setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, stage: "zone" } : prev));
     return undefined;
-  }, [bostaCityOptions, bostaLocations.loadingCities, checkoutStep, latestAddressRestore, setBostaCity]);
+  }, [bostaCityOptions, bostaLocations.loadingCities, latestAddressRestore, setBostaCity]);
 
   useEffect(() => {
     const candidate = latestAddressRestore.candidate;
     if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "zone") return undefined;
-    if (checkoutStep !== 2) return undefined;
-    if (CHECKOUT_ADDRESS_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
+    if (CHECKOUT_PLACE_FIELDS.some((key) => editedCheckoutFieldsRef.current.has(key))) {
       console.info("[checkout:last-address-restore-skipped]", { reason: "manual_edit_detected", token: latestAddressRestore.token });
       setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "skipped", stage: "idle" } : prev));
       return undefined;
@@ -8144,12 +8115,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setBostaZone(zoneOption.id, { markDirty: false });
     setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, stage: "district" } : prev));
     return undefined;
-  }, [bostaLocations.loadingZones, bostaZoneOptions, checkoutStep, latestAddressRestore, setBostaZone]);
+  }, [bostaLocations.loadingZones, bostaZoneOptions, latestAddressRestore, setBostaZone]);
 
   useEffect(() => {
     const candidate = latestAddressRestore.candidate;
     if (!candidate || latestAddressRestore.status !== "restoring" || latestAddressRestore.stage !== "district") return undefined;
-    if (checkoutStep !== 2) return undefined;
     const districtSource = {
       shipping_district_id: candidate.shipping_district_id,
       bosta_district_id: candidate.bosta_district_id,
@@ -8212,9 +8182,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setLatestAddressRestore((prev) => (prev.token === latestAddressRestore.token ? { ...prev, status: "done", stage: "done" } : prev));
     console.info("[checkout:last-address-restore-success]", { token: latestAddressRestore.token, mode: "bosta-city-zone-district" });
     return undefined;
-  }, [bostaDistrictOptions, bostaLocations.loadingDistricts, checkoutStep, latestAddressRestore, setBostaDistrict]);
+  }, [bostaDistrictOptions, bostaLocations.loadingDistricts, latestAddressRestore, setBostaDistrict]);
 
-  const useNewAddress = useCallback(() => {
+  const startNewAddress = useCallback(() => {
     console.info("[checkout:last-address-restore-skipped]", { reason: "user_requested_new_address" });
     latestAddressRestoreTokenRef.current += 1;
     latestAddressLookupsRef.current.clear();
@@ -8332,7 +8302,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     };
   }, [shippingPaymentFile]);
 
-  const validateStep = (step = checkoutStep, options = {}) => {
+  // The free-text address line is optional on the one-page form when the courier
+  // fields are filled: the street, building, floor and apartment already are the
+  // address, so it is composed from them instead of making the customer type it twice.
+  const composeDetailedAddress = () => form.detailed_address.trim() || [
+    form.street_address.trim(),
+    form.building_number.trim() ? `${sfText("storefront.checkout.buildingNumber")} ${form.building_number.trim()}` : "",
+    form.floor_number.trim() ? `${sfText("storefront.checkout.floorNumber")} ${form.floor_number.trim()}` : "",
+    form.apartment_number.trim() ? `${sfText("storefront.checkout.apartmentNumber")} ${form.apartment_number.trim()}` : "",
+    form.landmark.trim(),
+  ].filter(Boolean).join("، ");
+
+  const validateStep = (step, options = {}) => {
     const { showToast = true } = options;
     const next = {};
     const stepKeys = step === 1
@@ -8362,8 +8343,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       if (!form.governorate) next.governorate = sfText("storefront.validation.governorateRequired");
       if (bostaMode && (!form.shipping_city_id || !form.shipping_zone_id || !form.shipping_district_id)) next.city_area = sfText("storefront.validation.cityAreaRequired");
       else if (!form.city_area.trim()) next.city_area = manualCityArea ? sfText("storefront.validation.cityAreaManualRequired") : sfText("storefront.validation.cityAreaRequired");
-      if (!form.detailed_address.trim()) next.detailed_address = sfText("storefront.validation.addressRequired");
-      else if (bostaMode && composedAddress.trim().length < 12) next.detailed_address = sfText("storefront.validation.addressRequired");
+      const addressLine = composeDetailedAddress();
+      // With the courier fields in play the street is the missing piece, and it already
+      // carries its own message; flagging the optional details line too would point at the wrong box.
+      if (!addressLine) { if (!bostaMode || form.street_address.trim()) next.detailed_address = sfText("storefront.validation.addressRequired"); }
+      else if (bostaMode && composedAddress.trim().length < 12 && addressLine.length < 12) next.detailed_address = sfText("storefront.validation.addressRequired");
       if (bostaMode && !form.street_address.trim()) next.street_address = sfText("storefront.validation.streetAddressRequired");
       if (bostaMode && !form.building_number.trim()) next.building_number = sfText("storefront.validation.buildingNumberRequired");
     }
@@ -8397,17 +8381,23 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       }
     });
     if (!valid) {
-      if (firstInvalidStep) goToCheckoutStep(firstInvalidStep);
       toast.error(sfText("storefront.toasts.completeRequiredData"));
       if (firstInvalidStep === 3 && shippingProofRequired && !shippingPaymentFile) toast.error(sfText("storefront.toasts.uploadTransferProof"));
+      scrollToFirstCheckoutError();
     }
     return valid;
   };
 
-  const goToCheckoutStep = (step) => {
-    setSubmitting(false);
-    setCheckoutStep(step);
-    setSummaryOpen(false);
+  // Everything is on one page, so a failed submit takes the customer to the first
+  // field that needs them (after React has painted the error under it).
+  const scrollToFirstCheckoutError = () => {
+    if (typeof window === "undefined") return;
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector(".sfc .sfc-field--error, .sfc .sfc-upload.has-error");
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.querySelector("input, textarea, select, button")?.focus({ preventScroll: true });
+    });
   };
 
   const handlePaymentProofChange = (file) => {
@@ -8446,25 +8436,23 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   const submit = async (event) => {
     event.preventDefault();
-    if (!isFinalCheckoutStep) {
-      if (validateStep(checkoutStep)) {
-        if (checkoutStep === 2) {
-          trackGa4ShippingInfo(pricedCart, {
-            value: total,
-            coupon: couponValidation?.valid ? couponCode : "",
-            shipping: deliveryFee,
-            shipping_tier: shippingQuote.provider || shippingQuote.provider_id || "standard",
-          });
-        }
-        goToCheckoutStep(Math.min(3, checkoutStep + 1));
-      }
-      return;
-    }
     if (submitting || !validate()) {
       setSubmitting(false);
       return;
     }
     setSubmitting(true);
+    // The wizard reported these as the customer passed each step; on one page
+    // both moments collapse into the submit, in the order GA4 and Meta expect.
+    sendMetaInitiateCheckout();
+    if (!ga4ShippingSentRef.current) {
+      ga4ShippingSentRef.current = true;
+      trackGa4ShippingInfo(pricedCart, {
+        value: total,
+        coupon: couponValidation?.valid ? couponCode : "",
+        shipping: deliveryFee,
+        shipping_tier: shippingQuote.provider || shippingQuote.provider_id || "standard",
+      });
+    }
     try {
       const activeCouponCode = String(form.coupon || "").trim().toUpperCase();
       const currentCouponKey = `${activeCouponCode}::${Math.max(0, subtotal - bundleDiscount + deliveryFee).toFixed(2)}`;
@@ -8515,6 +8503,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       };
       const checkoutPayload = {
         ...form,
+        detailed_address: composeDetailedAddress(),
         payment_method: paymentMethod,
         payment_type: paymentMethod,
         primary_phone: cleanPhone,
@@ -8672,378 +8661,511 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     }
   };
 
-  if (!cart.length) return <EmptyState title={sfText("storefront.checkout.emptyCartTitle")} text={sfText("storefront.checkout.emptyCartText")} />;
+  const onePage = (key, options) => t(`storefront.checkout.onePage.${key}`, options);
+
+  if (!cart.length) {
+    return (
+      <section className="sfc" data-theme={themeMode}>
+        <div className="sfc-empty">
+          <ShoppingBag size={36} aria-hidden="true" style={{ color: "var(--m1h-text-3)" }} />
+          <h1 className="sfc-h2">{sfText("storefront.checkout.emptyCartTitle")}</h1>
+          <p>{sfText("storefront.checkout.emptyCartText")}</p>
+          <Link to="/products" className="sfc-btn-secondary">{t("storefront.common.continueShopping")}</Link>
+        </div>
+      </section>
+    );
+  }
+
+  const removeCoupon = () => {
+    setForm((current) => ({ ...current, coupon: "" }));
+    setCouponValidation(null);
+    couponValidationKeyRef.current = "";
+  };
+  const couponBox = (
+    <>
+      <div className="sfc-coupon">
+        <CheckoutInput
+          label={onePage("discountCode")}
+          name="coupon"
+          value={form.coupon}
+          onChange={(value) => setField("coupon", value)}
+          autoComplete="off"
+          onEnter={() => applyCoupon()}
+        />
+        {couponValidation?.valid ? (
+          <button type="button" className="sfc-btn-secondary" onClick={removeCoupon}>{onePage("remove")}</button>
+        ) : (
+          <button type="button" className="sfc-btn-secondary" onClick={() => applyCoupon()} disabled={couponLoading || !couponCode}>
+            {couponLoading ? <span className="sfc-spinner" aria-hidden="true" /> : null}
+            {onePage("apply")}
+          </button>
+        )}
+      </div>
+      {couponValidation?.valid ? (
+        <p className="sfc-coupon-state sfc-coupon-state--ok">
+          {couponFreeShipping
+            ? sfText("storefront.checkout.couponFreeShippingSummary", undefined, { code: couponValidation?.coupon?.code || couponCode })
+            : sfText("storefront.checkout.couponAppliedSummary", undefined, { code: couponValidation?.coupon?.code || couponCode, discount: money(couponDiscount) })}
+        </p>
+      ) : couponCode ? (
+        <p className="sfc-coupon-state sfc-coupon-state--pending">{sfText("storefront.checkout.couponNeedsApply")}</p>
+      ) : null}
+    </>
+  );
+
+  const selectOnlinePayment = () => {
+    setPaymentMode("online");
+    setShowElectronicPaymentMethods(false);
+    // A gateway order never carries a transfer screenshot; a stale one left here
+    // would be uploaded alongside it.
+    setShippingPaymentFile(null);
+    setPaymentProofUploaded(false);
+    setForm((current) => ({ ...current, payment_method: "card" }));
+  };
+  const selectCodPayment = () => {
+    setPaymentMode("cod");
+    setShowElectronicPaymentMethods(false);
+    setShippingPaymentFile(null);
+    setPaymentProofUploaded(false);
+    setForm((current) => ({ ...current, payment_method: "cod" }));
+  };
+  const selectTransferPayment = () => {
+    setPaymentMode("electronic");
+    setShowElectronicPaymentMethods(true);
+    setForm((current) => ({ ...current, payment_method: visibleTransferMethods[0]?.id || shippingTransferMethod || "instapay" }));
+    setShippingTransferMethod((current) => (visibleTransferMethods.some((method) => method.id === current) ? current : (visibleTransferMethods[0]?.id || "instapay")));
+  };
+
+  const deliveryEstimate = shippingQuote.estimated_delivery_text || sfText("storefront.checkout.expectedDeliveryNotice");
+  const savedAddressLabel = (address = {}) => [
+    address.street_address || address.detailed_address,
+    address.building_number ? `${sfText("storefront.checkout.buildingNumber")} ${address.building_number}` : "",
+    address.city_area,
+    address.governorate,
+  ].map((part) => String(part || "").trim()).filter(Boolean).join("، ");
+  const locationSelectCopy = {
+    emptyText: sfText("storefront.common.noResults"),
+    closeLabel: sfText("storefront.common.close"),
+  };
 
   return (
-    <section className="sf-checkout-shell sf-checkout-page mx-auto max-w-7xl overflow-x-hidden px-4 pt-4 md:pt-7" data-theme={themeMode}>
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="sf-checkout-eyebrow text-sm font-black text-[#f3d77a]">{sfText("storefront.checkout.eyebrow")}</p>
-          <h1 className="sf-checkout-title text-3xl font-black text-white md:text-4xl">{sfText("storefront.checkout.title")}</h1>
-          <p className="sf-checkout-subtitle mt-2 text-sm font-bold text-white/62">{sfText("storefront.checkout.subtitle")}</p>
-        </div>
-        <TrustPills compact />
-      </div>
-      <CheckoutProgress currentStep={checkoutStep} onStepChange={goToCheckoutStep} />
-      <form id="storefront-checkout-form" noValidate onSubmit={submit} className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_390px]">
-        <div className="min-w-0 space-y-3">
-          {checkoutStep === 1 ? <CheckoutSection number="1" title={sfText("storefront.checkout.sections.customer")}>
-            <div className="grid gap-2.5 md:grid-cols-2">
-              <Field label={sfText("storefront.form.fullName")} placeholder={sfText("storefront.form.fullNamePlaceholder")} value={form.full_name} onChange={(v) => setField("full_name", v)} required error={errors.full_name} />
-              <Field label={sfText("storefront.form.primaryPhone")} placeholder="01012345678" value={form.primary_phone} onChange={(v) => setField("primary_phone", v)} required error={errors.primary_phone} inputMode="tel" />
-              <Field label={sfText("storefront.form.secondaryPhone")} placeholder={sfText("storefront.form.secondaryPhonePlaceholder")} value={form.secondary_phone} onChange={(v) => setField("secondary_phone", v)} inputMode="tel" />
-              <Field
-                label={sfText("storefront.checkout.emailLabel")}
-                placeholder="name@example.com"
-                value={form.email}
-                onChange={(value) => setField("email", value)}
-                error={errors.email}
-                inputMode="email"
-                type="email"
-                autoComplete="email"
+    <section className="sfc" data-theme={themeMode}>
+      <form id="storefront-checkout-form" noValidate onSubmit={submit} className="sfc-grid">
+        <div className="sfc-main">
+          <CheckoutBlock id="sfc-contact" title={onePage("contact")}>
+            <div className="sfc-stack">
+              <CheckoutInput
+                label={sfText("storefront.form.primaryPhone")}
+                name="primary_phone"
+                value={form.primary_phone}
+                onChange={(value) => setField("primary_phone", value)}
+                inputMode="tel"
+                type="tel"
+                autoComplete="tel"
+                maxLength={16}
+                required
+                error={errors.primary_phone}
+                hint={onePage("phoneHint")}
               />
+              <div className="sfc-row sfc-row--2">
+                <CheckoutInput
+                  label={onePage("email")}
+                  name="email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  value={form.email}
+                  onChange={(value) => setField("email", value)}
+                  error={errors.email}
+                />
+                <CheckoutInput
+                  label={onePage("secondaryPhone")}
+                  name="secondary_phone"
+                  value={form.secondary_phone}
+                  onChange={(value) => setField("secondary_phone", value)}
+                  inputMode="tel"
+                  type="tel"
+                  maxLength={16}
+                />
+              </div>
             </div>
-          </CheckoutSection> : null}
-          {checkoutStep === 2 ? <CheckoutSection number="2" title={sfText("storefront.checkout.sections.address")} note={sfText("storefront.checkout.addressNote")} className="checkout-address-section">
-            {latestAddressApplied ? (
-              <div className="sf-checkout-address-success mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black leading-5 text-emerald-100">
-                <span className="sf-checkout-address-success-text">{sfText("storefront.checkout.latestAddressApplied")}</span>
-                <button type="button" onClick={useNewAddress} className="shrink-0 rounded-full border border-emerald-200/20 bg-white/10 px-3 py-1 text-[10px] font-black text-white transition hover:bg-white/15">
-                  {sfText("storefront.checkout.useNewAddress")}
-                </button>
+          </CheckoutBlock>
+
+          <CheckoutBlock id="sfc-delivery" title={onePage("delivery")} note={onePage("deliveryNote")}>
+            {savedAddresses.length > 1 ? (
+              <div style={{ marginBottom: 12 }}>
+                <CheckoutNativeSelect
+                  label={onePage("savedAddresses")}
+                  name="saved_address"
+                  value={selectedSavedAddress}
+                  onChange={chooseSavedAddress}
+                  options={[
+                    ...savedAddresses.map((address, index) => ({ value: String(index), label: savedAddressLabel(address) })),
+                    { value: "new", label: onePage("newAddress") },
+                  ]}
+                />
+              </div>
+            ) : latestAddressApplied ? (
+              <div className="sfc-notice">
+                <span>{sfText("storefront.checkout.latestAddressApplied")}</span>
+                <button type="button" className="sfc-link" onClick={startNewAddress}>{sfText("storefront.checkout.useNewAddress")}</button>
               </div>
             ) : null}
-            <div className="grid gap-2.5 md:grid-cols-2">
+            <div className="sfc-stack">
+              <CheckoutInput
+                label={sfText("storefront.form.fullName")}
+                name="full_name"
+                autoComplete="name"
+                value={form.full_name}
+                onChange={(value) => setField("full_name", value)}
+                required
+                error={errors.full_name}
+              />
               {bostaMode ? (
-                <>
-                  <CheckoutLocationPicker
+                <div className="sfc-row sfc-row--location">
+                  <CheckoutLocationSelect
+                    {...locationSelectCopy}
                     label={sfText("storefront.checkout.governorate")}
-                    mobileTitle={sfText("storefront.checkout.governorate")}
+                    name="governorate"
                     value={form.shipping_city_id || ""}
                     onChange={setBostaCity}
                     options={bostaCityOptions}
                     loading={bostaLocations.loadingCities}
-                    required
                     error={errors.governorate}
-                    placeholder={sfText("storefront.checkout.chooseGovernorate")}
+                    placeholder={sfText("storefront.checkout.governorate")}
                     searchPlaceholder={sfText("storefront.checkout.searchGovernoratePlaceholder")}
                     loadingText={sfText("storefront.checkout.loadingGovernorates")}
-                    themeMode={themeMode}
                   />
-                  <CheckoutLocationPicker
-                    label={sfText("storefront.checkout.zone")}
-                    mobileTitle={sfText("storefront.checkout.zone")}
+                  <CheckoutLocationSelect
+                    {...locationSelectCopy}
+                    label={onePage("zone")}
+                    name="city_area"
                     value={form.shipping_zone_id || ""}
                     onChange={setBostaZone}
                     options={bostaZoneOptions}
                     loading={bostaLocations.loadingZones}
-                    required
                     disabled={!form.shipping_city_id}
                     error={!form.shipping_zone_id && errors.city_area ? errors.city_area : ""}
-                    placeholder={form.shipping_city_id ? sfText("storefront.checkout.chooseZone") : sfText("storefront.checkout.chooseGovernorateFirst")}
+                    placeholder={onePage("zone")}
                     searchPlaceholder={sfText("storefront.checkout.searchAreaPlaceholder")}
                     loadingText={sfText("storefront.checkout.loadingZones")}
-                    themeMode={themeMode}
-                    helperText={form.shipping_city_id ? sfText("storefront.checkout.zoneSearchHint") : ""}
-                    emptyText={sfText("storefront.common.noResults")}
                   />
-                  <CheckoutLocationPicker
-                    label={sfText("storefront.checkout.area")}
-                    mobileTitle={sfText("storefront.checkout.area")}
+                  <CheckoutLocationSelect
+                    {...locationSelectCopy}
+                    label={onePage("district")}
+                    name="district"
                     value={form.shipping_district_id || ""}
                     onChange={setBostaDistrict}
                     options={bostaDistrictOptions}
                     loading={bostaLocations.loadingDistricts}
-                    required
                     disabled={!form.shipping_zone_id}
-                    error={!form.shipping_district_id ? errors.city_area : ""}
-                    placeholder={form.shipping_zone_id ? sfText("storefront.checkout.chooseDistrict") : sfText("storefront.checkout.chooseZoneFirst")}
+                    error={form.shipping_zone_id && !form.shipping_district_id ? errors.city_area : ""}
+                    placeholder={onePage("district")}
                     searchPlaceholder={sfText("storefront.checkout.searchDistrictPlaceholder")}
                     loadingText={sfText("storefront.checkout.loadingDistricts")}
-                    themeMode={themeMode}
-                    helperText={form.shipping_zone_id ? sfText("storefront.checkout.districtSearchHint") : ""}
-                    emptyText={sfText("storefront.common.noResults")}
                   />
-                </>
+                </div>
+              ) : locationGovernorates.length ? (
+                <div className="sfc-row sfc-row--3">
+                  <CheckoutNativeSelect
+                    label={sfText("storefront.checkout.governorate")}
+                    name="governorate"
+                    value={form.governorate_id || ""}
+                    onChange={setGovernorate}
+                    error={errors.governorate}
+                    options={[{ value: "", label: sfText("storefront.common.choose") }, ...locationGovernorates.map((item) => ({ value: item.governorate_id, label: checkoutLocationName(item, i18n.language, "governorate") }))]}
+                  />
+                  <CheckoutNativeSelect
+                    label={sfText("storefront.checkout.city")}
+                    name="city_area"
+                    value={form.city_id || ""}
+                    onChange={setCityArea}
+                    error={!form.city_id && errors.city_area ? errors.city_area : ""}
+                    options={[{ value: "", label: sfText("storefront.common.choose") }, ...locationCities.map((item) => ({ value: item.city_id, label: checkoutLocationName(item, i18n.language, "city") }))]}
+                  />
+                  <CheckoutNativeSelect
+                    label={sfText("storefront.checkout.area")}
+                    name="area"
+                    value={form.area_id || ""}
+                    onChange={setCityArea}
+                    error={form.city_id ? errors.city_area : ""}
+                    options={[{ value: "", label: sfText("storefront.common.choose") }, ...locationAreas.map((item) => ({ value: item.area_id, label: checkoutLocationName(item, i18n.language, "area") }))]}
+                  />
+                </div>
               ) : (
-                <>
-                  <SelectField themeMode={themeMode} label={sfText("storefront.checkout.governorate")} value={form.governorate_id || form.governorate} onChange={setGovernorate} options={locationGovernorates.length ? locationGovernorates.map((item) => item.governorate_id) : governorates} labels={Object.fromEntries(locationGovernorates.map((item) => [item.governorate_id, checkoutLocationName(item, i18n.language, "governorate")]))} required error={errors.governorate} />
-                  <SelectField themeMode={themeMode} label={sfText("storefront.checkout.city")} value={form.city_id || ""} onChange={setCityArea} options={locationCities.map((item) => item.city_id)} labels={Object.fromEntries(locationCities.map((item) => [item.city_id, checkoutLocationName(item, i18n.language, "city")]))} required error={!form.city_id && errors.city_area ? errors.city_area : ""} />
-                  <SelectField themeMode={themeMode} label={sfText("storefront.checkout.area")} value={form.area_id || ""} onChange={setCityArea} options={locationAreas.map((item) => item.area_id)} labels={Object.fromEntries(locationAreas.map((item) => [item.area_id, checkoutLocationName(item, i18n.language, "area")]))} required error={errors.city_area} />
-                  {!locationGovernorates.length ? <CityAreaField themeMode={themeMode} governorate={form.governorate} options={cityAreaOptions} value={form.city_area} onChange={setCityArea} manual={manualCityArea} onManualChange={(value) => setField("city_area", value)} required error={errors.city_area} /> : null}
-                </>
+                <div className="sfc-row sfc-row--2">
+                  <CheckoutNativeSelect
+                    label={sfText("storefront.checkout.governorate")}
+                    name="governorate"
+                    value={form.governorate || ""}
+                    onChange={setGovernorate}
+                    error={errors.governorate}
+                    options={[{ value: "", label: sfText("storefront.common.choose") }, ...governorates.map((name) => ({ value: name, label: name }))]}
+                  />
+                  {manualCityArea ? (
+                    <CheckoutInput
+                      label={sfText("storefront.checkout.cityArea")}
+                      name="city_area"
+                      value={form.city_area}
+                      onChange={(value) => setField("city_area", value)}
+                      error={errors.city_area}
+                    />
+                  ) : (
+                    <CheckoutNativeSelect
+                      label={sfText("storefront.checkout.cityArea")}
+                      name="city_area"
+                      value={form.city_area || ""}
+                      onChange={setCityArea}
+                      error={errors.city_area}
+                      options={[
+                        { value: "", label: form.governorate ? sfText("storefront.common.choose") : sfText("storefront.checkout.chooseGovernorateFirst") },
+                        ...cityAreaOptions.map((name) => ({ value: name, label: name })),
+                        { value: MANUAL_CITY_AREA_LABEL, label: sfText("storefront.checkout.manualSelection") },
+                      ]}
+                    />
+                  )}
+                </div>
               )}
-              <TextField label={sfText("storefront.checkout.fullAddress")} placeholder={sfText("storefront.checkout.fullAddressPlaceholder")} value={form.detailed_address} onChange={(v) => setField("detailed_address", v)} required error={errors.detailed_address} inputClassName="text-start" />
-              <div className="sf-checkout-bosta-card md:col-span-2 rounded-[1.25rem] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-white/54">{sfText("storefront.checkout.bostaAddressDetails")}</p>
-                  {bostaMode ? <span className="rounded-full border border-cyan-300/30 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800 shadow-[0_8px_18px_rgba(15,118,110,0.08)] dark:border-cyan-300/25 dark:bg-cyan-300/15 dark:text-cyan-100">{sfText("storefront.checkout.requiredForBosta")}</span> : null}
-                </div>
-                <div className="grid gap-2.5 md:grid-cols-4">
-                  <Field label={sfText("storefront.checkout.streetAddress")} placeholder={sfText("storefront.checkout.streetAddressPlaceholder")} value={form.street_address} onChange={(v) => setField("street_address", v)} required={bostaMode} error={errors.street_address} inputClassName="text-start" />
-                  <Field label={sfText("storefront.checkout.buildingNumber")} placeholder={sfText("storefront.checkout.buildingNumberPlaceholder")} value={form.building_number} onChange={(v) => setField("building_number", v)} required={bostaMode} error={errors.building_number} inputClassName="text-start" />
-                  <Field label={sfText("storefront.checkout.floorNumber")} placeholder={sfText("storefront.checkout.floorNumberPlaceholder")} value={form.floor_number} onChange={(v) => setField("floor_number", v)} inputClassName="text-start" />
-                  <Field label={sfText("storefront.checkout.apartmentNumber")} placeholder={sfText("storefront.checkout.apartmentNumberPlaceholder")} value={form.apartment_number} onChange={(v) => setField("apartment_number", v)} inputClassName="text-start" />
-                </div>
+              <div className="sfc-row sfc-row--2">
+                <CheckoutInput
+                  label={sfText("storefront.checkout.streetAddress")}
+                  name="street_address"
+                  autoComplete="address-line1"
+                  value={form.street_address}
+                  onChange={(value) => setField("street_address", value)}
+                  required={bostaMode}
+                  error={errors.street_address}
+                />
+                <CheckoutInput
+                  label={sfText("storefront.checkout.buildingNumber")}
+                  name="building_number"
+                  value={form.building_number}
+                  onChange={(value) => setField("building_number", value)}
+                  required={bostaMode}
+                  error={errors.building_number}
+                />
               </div>
-              <Field label={sfText("storefront.checkout.landmark")} placeholder={sfText("storefront.checkout.landmarkPlaceholder")} value={form.landmark} onChange={(v) => setField("landmark", v)} inputClassName="text-start" />
-              <TextField label={sfText("storefront.checkout.deliveryNotes")} placeholder={sfText("storefront.checkout.deliveryNotesPlaceholder")} value={form.delivery_notes} onChange={(v) => setField("delivery_notes", v)} inputClassName="text-start" />
+              <div className="sfc-row sfc-row--2">
+                <CheckoutInput
+                  label={onePage("floorOptional")}
+                  name="floor_number"
+                  value={form.floor_number}
+                  onChange={(value) => setField("floor_number", value)}
+                />
+                <CheckoutInput
+                  label={onePage("apartmentOptional")}
+                  name="apartment_number"
+                  value={form.apartment_number}
+                  onChange={(value) => setField("apartment_number", value)}
+                />
+              </div>
+              <CheckoutInput
+                label={bostaMode ? onePage("addressDetails") : sfText("storefront.checkout.fullAddress")}
+                name="detailed_address"
+                autoComplete="address-line2"
+                value={form.detailed_address}
+                onChange={(value) => setField("detailed_address", value)}
+                error={errors.detailed_address}
+                hint={bostaMode ? onePage("addressDetailsHint") : ""}
+              />
+              <CheckoutInput
+                label={onePage("landmarkOptional")}
+                name="landmark"
+                value={form.landmark}
+                onChange={(value) => setField("landmark", value)}
+              />
             </div>
-          </CheckoutSection> : null}
-          {checkoutStep === 3 ? (
-            <CheckoutSection number="3" title={sfText("storefront.checkout.sections.payment")}>
-              <div className="checkout-payment-clean mx-auto w-full max-w-[680px]">
-                {/* Full width rather than a third column: at 680px three cards
-                    leave ~187px of text each, which wraps this label to five
-                    lines. A promoted row also suits the method we want chosen. */}
-                {onlinePaymentAvailable ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentMode("online");
-                      setShowElectronicPaymentMethods(false);
-                      // A gateway order never carries a transfer screenshot; a
-                      // stale one left here would be uploaded alongside it.
-                      setShippingPaymentFile(null);
-                      setPaymentProofUploaded(false);
-                      setForm((current) => ({ ...current, payment_method: "card" }));
-                    }}
-                    className={`checkout-payment-choice mb-3 flex w-full min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-start transition ${paymentMode === "online" ? "border-sky-300/35 bg-sky-400/12 shadow-[0_16px_34px_rgba(56,189,248,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
-                  >
-                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.online.title")}</span>
-                    <span className="mt-1 text-xs font-semibold leading-5 text-white/56">
-                      {applePayAvailable
-                        ? sfText("storefront.checkout.payment.online.textWithApplePay")
-                        : sfText("storefront.checkout.payment.online.text")}
+            <details className="sfc-details" open={Boolean(form.delivery_notes || form.order_notes) || undefined}>
+              <summary>{onePage("addNotes")}</summary>
+              <div className="sfc-stack">
+                <CheckoutInput multiline label={sfText("storefront.checkout.deliveryNotes")} name="delivery_notes" value={form.delivery_notes} onChange={(value) => setField("delivery_notes", value)} />
+                <CheckoutInput multiline label={sfText("storefront.checkout.orderNotes")} name="order_notes" value={form.order_notes} onChange={(value) => setField("order_notes", value)} />
+              </div>
+            </details>
+          </CheckoutBlock>
+
+          <CheckoutBlock id="sfc-shipping" title={onePage("shippingMethod")}>
+            {form.governorate ? (
+              <div className="sfc-choices">
+                <CheckoutChoice
+                  static
+                  active
+                  title={onePage("homeDelivery")}
+                  subtitle={deliveryEstimate}
+                  meta={(
+                    <span className="sfc-choice__meta">
+                      {shippingQuote.loading
+                        ? <Loader2 size={16} className="animate-spin" aria-label={t("common.loading")} />
+                        : couponFreeShipping || deliveryFee <= 0
+                          ? sfText("storefront.checkout.freeShipping")
+                          : money(deliveryFee)}
                     </span>
-                  </button>
-                ) : null}
-                <div className="grid gap-3 md:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentMode("cod");
-                      setShowElectronicPaymentMethods(false);
-                      setShippingPaymentFile(null);
-                      setPaymentProofUploaded(false);
-                      setForm((current) => ({ ...current, payment_method: "cod" }));
-                    }}
-                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-start transition ${paymentMode === "cod" ? "border-emerald-300/35 bg-emerald-400/12 shadow-[0_16px_34px_rgba(16,185,129,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
-                  >
-                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.payment.cod.title")}</span>
-                    <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.cod.text")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentMode("electronic");
-                      setShowElectronicPaymentMethods(true);
-                      setForm((current) => ({ ...current, payment_method: visibleTransferMethods[0]?.id || shippingTransferMethod || "instapay" }));
-                      setShippingTransferMethod((current) => (visibleTransferMethods.some((method) => method.id === current) ? current : (visibleTransferMethods[0]?.id || "instapay")));
-                    }}
-                    className={`checkout-payment-choice flex min-h-[4.75rem] flex-col items-start justify-center rounded-[1.35rem] border px-4 py-3 text-start transition ${paymentMode === "electronic" ? "border-[#e5c158]/35 bg-[#d4af37]/14 shadow-[0_16px_34px_rgba(212,175,55,0.12)]" : "border-white/10 bg-white/[0.045] hover:border-white/18 hover:bg-white/[0.07]"}`}
-                  >
-                    <span className="text-sm font-black text-white">{sfText("storefront.checkout.shippingConfirmationTitle")}</span>
-                    <span className="mt-1 text-xs font-semibold leading-5 text-white/56">{sfText("storefront.checkout.payment.shippingConfirmation.text")}</span>
-                  </button>
-                </div>
-                {isOnlineGatewayPayment ? (
-                  <div className="checkout-payment-amount mt-3">
-                    <div className="text-sm font-black text-white/66">{sfText("storefront.checkout.online.amountLabel")}</div>
-                    <div className="mt-2 flex items-end justify-between gap-3">
-                      <div className="text-3xl font-black tracking-tight text-white">{money(total)}</div>
-                      <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.online.redirectHelper")}</div>
-                    </div>
-                    {applePayAvailable ? (
-                      <div className="mt-3 text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.online.applePayNote")}</div>
-                    ) : null}
-                  </div>
-                ) : null}
+                  )}
+                />
+              </div>
+            ) : (
+              <div className="sfc-pane">{onePage("shippingMethodPending")}</div>
+            )}
+          </CheckoutBlock>
+
+          <CheckoutBlock id="sfc-payment" title={onePage("payment")} note={onePage("paymentNote")}>
+            <div className="sfc-choices" role="radiogroup" aria-label={onePage("payment")}>
+              {onlinePaymentAvailable ? (
+                <CheckoutChoice
+                  active={paymentMode === "online"}
+                  onSelect={selectOnlinePayment}
+                  title={sfText("storefront.checkout.payment.online.title")}
+                  meta={(
+                    <span className="sfc-choice__logos" aria-hidden="true">
+                      <SiVisa size={28} />
+                      <SiMastercard size={22} />
+                      {applePayAvailable ? <SiApplepay size={32} /> : null}
+                    </span>
+                  )}
+                >
+                  <p>{applePayAvailable ? sfText("storefront.checkout.payment.online.textWithApplePay") : sfText("storefront.checkout.payment.online.text")}</p>
+                  <p>{sfText("storefront.checkout.online.redirectHelper")}</p>
+                  {applePayAvailable ? <p>{sfText("storefront.checkout.online.applePayNote")}</p> : null}
+                </CheckoutChoice>
+              ) : null}
+              <CheckoutChoice active={paymentMode === "cod"} onSelect={selectCodPayment} title={sfText("storefront.checkout.payment.cod.title")}>
+                <p>{sfText("storefront.checkout.payment.cod.text")}</p>
+              </CheckoutChoice>
+              <CheckoutChoice
+                active={paymentMode === "electronic"}
+                onSelect={selectTransferPayment}
+                title={sfText("storefront.checkout.shippingConfirmationTitle")}
+                subtitle={paymentMode === "electronic" ? "" : sfText("storefront.checkout.payment.shippingConfirmation.text")}
+              >
+                <p>{sfText("storefront.checkout.payment.shippingConfirmation.text")}</p>
                 {showElectronicPaymentMethods && isShippingConfirmation ? (
-                  <div className="grid gap-3">
+                  <>
                     {storefrontPaymentSettings.shippingConfirmation.enabled ? (
-                      <div className="checkout-payment-amount">
-                        <div className="text-sm font-black text-white/66">{storefrontPaymentSettings.shippingConfirmation.label || sfText("storefront.checkout.transfer.amountDueNow")}</div>
-                        <div className="mt-2 flex items-end justify-between gap-3">
-                          <div className="text-3xl font-black tracking-tight text-white">{money(amountDueNow)}</div>
-                          <div className="text-xs font-semibold leading-5 text-white/54">{sfText("storefront.checkout.transfer.amountHelper")}</div>
-                        </div>
+                      <div className="sfc-amount">
+                        <span className="sfc-amount__label">{storefrontPaymentSettings.shippingConfirmation.label || sfText("storefront.checkout.transfer.amountDueNow")}</span>
+                        <span className="sfc-amount__value">{money(amountDueNow)}</span>
                       </div>
                     ) : null}
-
-                    <div className="checkout-payment-methods">
-                      {visibleTransferMethods.map((method) => {
-                        const active = shippingTransferMethod === method.id;
-                        return (
-                          <button
-                            key={method.id}
-                            type="button"
-                            onClick={() => {
-                              setShippingTransferMethod(method.id);
-                              setForm((current) => ({ ...current, payment_method: method.id }));
-                            }}
-                            className={`checkout-payment-method ${active ? "checkout-payment-method--active" : ""}`}
-                          >
-                            <span className="flex min-w-0 items-center gap-3">
+                    {visibleTransferMethods.length ? (
+                      <div className="sfc-methods" role="radiogroup">
+                        {visibleTransferMethods.map((method) => {
+                          const active = shippingTransferMethod === method.id;
+                          return (
+                            <button
+                              key={method.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              className={`sfc-method${active ? " is-active" : ""}`}
+                              onClick={() => {
+                                setShippingTransferMethod(method.id);
+                                setForm((current) => ({ ...current, payment_method: method.id }));
+                              }}
+                            >
                               <PaymentBrandLogo method={method.id} size="copy" active={active} label={method.label} logoUrl={method.logoUrl} />
-                              <span className="min-w-0">
-                                <span className="block text-sm font-black text-white">{method.label}</span>
-                                <span className={`block text-xs font-semibold ${active ? "text-white/72" : "text-white/46"}`}>
+                              <span style={{ minWidth: 0 }}>
+                                <span className="sfc-method__title">{method.label}</span>
+                                <span className="sfc-method__sub">
                                   {method.helperText || (method.id === "instapay"
                                     ? sfText("storefront.checkout.transfer.instantBankTransfer")
                                     : sfText("storefront.checkout.transfer.vodafoneWallet"))}
                                 </span>
                               </span>
-                            </span>
-                            <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border ${active ? "border-[#e5c158] bg-[#d4af37] text-white" : "border-white/18 bg-white/[0.04] text-transparent"}`}>
-                              <Check className="h-3 w-3" />
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="checkout-payment-details">
-                      <div className="text-sm font-black text-white/80">{sfText("storefront.checkout.transfer.paymentDetails")}</div>
-                      {activeTransferMethod?.id === "instapay" && activeTransferPaymentUrl ? (
-                        <div className="mt-3 grid gap-3">
-                          <div className="rounded-[1rem] border border-[#e5c158]/12 bg-white/[0.045] px-3 py-2.5 text-sm font-black text-white/80">
-                            {sfText("storefront.checkout.transfer.directPaymentAvailable")}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => window.open(activeTransferPaymentUrl, "_blank", "noopener,noreferrer")}
-                            className="sf-checkout-instapay-button inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#e5c158]/20 bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(17,24,39,0.98))] px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(212,175,55,0.24)] transition hover:-translate-y-0.5 hover:border-[#f3d77a]/36 hover:bg-[#d4af37]"
-                          >
-                            {sfText("storefront.checkout.transfer.openInstapayLink")}
-                          </button>
-                          <p className="text-xs font-semibold leading-6 text-white/56">
-                            {sfText("storefront.checkout.transfer.instantPayHelper")}
-                          </p>
-                        </div>
-                      ) : activeTransferMethod ? (
-                        <div className="checkout-payment-copy-row mt-3">
-                          <div className="min-w-0 flex-1 rounded-[1rem] border border-white/10 bg-black/14 px-3 py-2.5 font-mono text-base font-black tracking-wide text-white" dir="ltr">
-                            {activeTransferValue}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              await navigator.clipboard?.writeText(activeTransferValue);
-                              toast.success(sfText("storefront.toasts.copied"));
-                            }}
-                            className="checkout-payment-copy-button"
-                          >
-                            {sfText("storefront.checkout.transfer.copyShort")}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="mt-3 rounded-[1rem] border border-white/10 bg-white/[0.045] px-3 py-2.5 text-sm font-semibold text-white/54">
-                          {sfText("storefront.checkout.transfer.noPaymentMethod")}
-                        </div>
-                      )}
-                    </div>
-
-                    <div
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                    {activeTransferMethod?.id === "instapay" && activeTransferPaymentUrl ? (
+                      <div className="sfc-stack">
+                        <button type="button" className="sfc-btn-secondary" onClick={() => window.open(activeTransferPaymentUrl, "_blank", "noopener,noreferrer")}>
+                          {sfText("storefront.checkout.transfer.openInstapayLink")}
+                        </button>
+                        <p>{sfText("storefront.checkout.transfer.instantPayHelper")}</p>
+                      </div>
+                    ) : activeTransferMethod ? (
+                      <div className="sfc-copy">
+                        <div className="sfc-copy__value" dir="ltr">{activeTransferValue}</div>
+                        <button
+                          type="button"
+                          className="sfc-btn-secondary sfc-btn-secondary--sm"
+                          onClick={async () => {
+                            await navigator.clipboard?.writeText(activeTransferValue);
+                            toast.success(sfText("storefront.toasts.copied"));
+                          }}
+                        >
+                          {sfText("storefront.checkout.transfer.copyShort")}
+                        </button>
+                      </div>
+                    ) : (
+                      <p>{sfText("storefront.checkout.transfer.noPaymentMethod")}</p>
+                    )}
+                    <label
+                      className={`sfc-upload${shippingPaymentFile ? " has-file" : ""}${errors.shipping_payment_screenshot ? " has-error" : ""}${paymentProofDragActive ? " is-drag" : ""}`}
                       onDragOver={(event) => {
                         event.preventDefault();
                         setPaymentProofDragActive(true);
                       }}
                       onDragLeave={() => setPaymentProofDragActive(false)}
                       onDrop={handlePaymentProofDrop}
-                      className={`checkout-payment-upload ${shippingPaymentFile ? "checkout-payment-upload--has-file" : ""} ${ errors.shipping_payment_screenshot ? "checkout-payment-upload--error" : paymentProofDragActive ? "checkout-payment-upload--active" : "" }`}
                     >
-                      <label className="block cursor-pointer">
-                        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
-                        <div className="flex items-center gap-3">
-                          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${paymentProofUploaded ? "bg-emerald-400/16 text-emerald-100" : "bg-[#d4af37]/14 text-[#f3d77a]"}`}>
-                            {paymentProofUploaded ? <Check className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-sm font-black text-white">{shippingPaymentFile ? sfText("storefront.checkout.transfer.proofUploaded") : sfText("storefront.checkout.transfer.uploadPrompt")}</span>
-                            <span className="block text-xs font-semibold text-white/52">{sfText("storefront.checkout.transfer.acceptedFormats")}</span>
-                          </span>
-                        </div>
-                      </label>
-
-                      {shippingPaymentFile ? (
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <span className="inline-flex min-w-0 items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-black text-emerald-100">
-                            <Check className="h-3.5 w-3.5" />
-                            <span className="truncate">{shippingPaymentFile.name}</span>
-                          </span>
-                          <button type="button" onClick={removePaymentProof} className="text-xs font-black text-white/52 transition hover:text-white">
-                            {sfText("storefront.checkout.transfer.removeProof")}
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                    {errors.shipping_payment_screenshot ? <span className="text-xs font-bold text-rose-200">{errors.shipping_payment_screenshot}</span> : null}
-
-                    <div className="checkout-payment-notes grid gap-2 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Field label={sfText("storefront.checkout.coupon")} placeholder={sfText("storefront.checkout.couponPlaceholder")} value={form.coupon} onChange={(v) => setField("coupon", v)} />
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => applyCoupon()}
-                            disabled={couponLoading || !String(form.coupon || "").trim()}
-                            className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-[#e5c158]/25 bg-[#d4af37] px-4 text-sm font-black text-white transition hover:bg-[#d4af37] disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {couponLoading ? sfText("common.loading") : sfText("storefront.checkout.applyCoupon")}
-                          </button>
-                          {couponValidation?.valid ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setForm((current) => ({ ...current, coupon: "" }));
-                                setCouponValidation(null);
-                                couponValidationKeyRef.current = "";
-                              }}
-                              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 text-sm font-black text-white/85 transition hover:bg-white/[0.08]"
-                            >
-                              {sfText("storefront.checkout.removeCoupon")}
-                            </button>
-                          ) : null}
-                        </div>
-                        {couponValidation?.valid ? (
-                          <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100">
-                            {couponFreeShipping
-                              ? sfText("storefront.checkout.couponFreeShippingSummary", undefined, {
-                                  code: couponValidation?.coupon?.code || couponCode,
-                                })
-                              : sfText("storefront.checkout.couponAppliedSummary", undefined, {
-                                  code: couponValidation?.coupon?.code || couponCode,
-                                  discount: money(couponDiscount),
-                                })}
-                          </div>
-                        ) : couponCode ? (
-                          <div className="rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100">
-                            {sfText("storefront.checkout.couponNeedsApply")}
-                          </div>
-                        ) : null}
+                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handlePaymentProofChange(event.target.files?.[0])} className="sr-only" />
+                      <span className="sfc-upload__icon">{paymentProofUploaded ? <Check size={20} /> : <Upload size={20} />}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="sfc-upload__title">{shippingPaymentFile ? sfText("storefront.checkout.transfer.proofUploaded") : sfText("storefront.checkout.transfer.uploadPrompt")}</span>
+                        <span className="sfc-upload__sub">{sfText("storefront.checkout.transfer.acceptedFormats")}</span>
+                      </span>
+                    </label>
+                    {shippingPaymentFile ? (
+                      <div className="sfc-file">
+                        <span className="sfc-file__name">{shippingPaymentFile.name}</span>
+                        <button type="button" className="sfc-link" onClick={removePaymentProof}>{sfText("storefront.checkout.transfer.removeProof")}</button>
                       </div>
-                      <TextField label={sfText("storefront.checkout.orderNotes")} placeholder={sfText("storefront.checkout.orderNotesPlaceholder")} value={form.order_notes} onChange={(v) => setField("order_notes", v)} compact />
-                    </div>
-
-                    <SubmitButton submitting={isFinalCheckoutStep && submitting} paymentMethod={normalizedFormPaymentMethod} disabled={submitDisabled} label={checkoutActionLabel} variant="success" />
-                  </div>
+                    ) : null}
+                    {errors.shipping_payment_screenshot ? <span className="sfc-error" role="alert">{errors.shipping_payment_screenshot}</span> : null}
+                  </>
                 ) : null}
-              </div>
-            </CheckoutSection>
-          ) : null}
-          <div className="sf-checkout-mobile-actions md:hidden">
-            <SubmitButton
-              submitting={isFinalCheckoutStep && submitting}
-              compact
-              disabled={submitDisabled}
-              label={checkoutActionLabel}
-              variant="success"
+              </CheckoutChoice>
+            </div>
+          </CheckoutBlock>
+
+          <div className="sfc-mobile-totals">
+            {couponBox}
+            <CheckoutTotals
+              subtotal={subtotal}
+              discount={discount}
+              bundleDiscount={bundleDiscount}
+              freeShipping={couponFreeShipping}
+              deliveryFee={deliveryFee}
+              total={total}
+              governorate={form.governorate}
+              shippingQuote={shippingQuote}
+              money={money}
             />
           </div>
+
+          <div className="sfc-submit">
+            <CheckoutSubmit
+              submitting={submitting}
+              disabled={submitDisabled}
+              label={checkoutActionLabel}
+              busyLabel={sfText("storefront.checkout.actions.confirming")}
+            />
+            <div className="sfc-trust">
+              <span><ShieldCheck size={15} aria-hidden="true" />{sfText("storefront.checkout.trust.safeData")}</span>
+              <span><Truck size={15} aria-hidden="true" />{sfText("storefront.checkout.trust.fastShipping")}</span>
+              <span><PackageCheck size={15} aria-hidden="true" />{sfText("storefront.checkout.trust.exchange")}</span>
+            </div>
+          </div>
+
+          <nav className="sfc-legal" aria-label={onePage("policies")}>
+            <Link to="/privacy">{onePage("privacy")}</Link>
+            <Link to="/terms">{onePage("terms")}</Link>
+          </nav>
         </div>
-        <Suspense fallback={<div className="h-[22rem] rounded-[1.7rem] border border-white/10 bg-white/[0.045] shadow-[0_24px_70px_rgba(0,0,0,0.18)] lg:sticky lg:top-24" />}>
-          <LazyStorefrontCheckoutSummary
+
+        <aside className="sfc-side" aria-label={sfText("storefront.checkout.orderSummary")}>
+          <StorefrontCheckoutSummary
             cart={pricedCart}
             subtotal={subtotal}
             discount={discount}
@@ -9051,19 +9173,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             freeShipping={couponFreeShipping}
             deliveryFee={deliveryFee}
             total={total}
-            codAmount={codAmount}
             governorate={form.governorate}
-            paymentMethod={normalizedFormPaymentMethod}
             shippingQuote={shippingQuote}
             open={summaryOpen}
             setOpen={setSummaryOpen}
-            submitting={isFinalCheckoutStep && submitting}
-            submitDisabled={submitDisabled}
-            actionLabel={checkoutActionLabel}
             helpers={checkoutSummaryHelpers}
-            components={checkoutSummaryComponents}
+            couponSlot={<div className="sfc-coupon-desktop">{couponBox}</div>}
           />
-        </Suspense>
+        </aside>
       </form>
     </section>
   );
@@ -9697,37 +9814,6 @@ function TrustPills({ compact = false }) {
   );
 }
 
-function SubmitButton({ submitting, compact = false, paymentMethod = "cod", disabled = submitting, label, variant = "primary" }) {
-  const fallbackLabel = paymentMethod === "cod" ? sfText("storefront.checkout.actions.confirmOrder") : sfText("storefront.checkout.actions.uploadProofAndConfirm");
-  const isSuccess = variant === "success";
-  return (
-    <button
-      form="storefront-checkout-form"
-      type="submit"
-      disabled={disabled}
-      className={`sf-checkout-submit-button ${isSuccess ? "sf-checkout-submit-button--success checkout-payment-confirm" : ""} sf-shimmer-button inline-flex items-center justify-center gap-2 rounded-full border font-black ${isSuccess ? "text-white" : "text-stone-950"} shadow-[0_18px_42px_rgba(212,175,55,0.24)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.985] disabled:translate-y-0 disabled:text-white/55 disabled:shadow-none ${isSuccess ? "border-emerald-300/25 bg-[linear-gradient(135deg,rgba(22,163,74,0.96),rgba(5,46,22,0.98))] hover:border-emerald-200/40 hover:bg-[linear-gradient(135deg,rgba(34,197,94,0.98),rgba(4,120,87,0.98))]" : "border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] hover:border-[#e5c158]/40 hover:bg-[linear-gradient(135deg,#e5c158,#d4af37)]"} ${compact ? "sf-checkout-submit-button--compact min-h-13 min-w-36 px-5 py-3 text-sm" : "min-h-14 w-full px-5 py-4"} ${disabled ? "border-white/10 bg-[#1a1a1a]" : ""}`}
-    >
-      {submitting ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : null}
-      <span>{submitting ? sfText("storefront.checkout.actions.confirming") : label || fallbackLabel}</span>
-    </button>
-  );
-}
-
-function CheckoutSection({ number, title, note, children, className = "", dir }) {
-  return (
-    <section dir={dir} className={`sf-reveal sf-checkout-section ${className} rounded-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-4 text-white shadow-[0_22px_60px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:p-5`}>
-      <div className="mb-3 flex items-start gap-3">
-        <span className="sf-checkout-step-badge grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#e5c158]/25 bg-[#d4af37]/24 text-sm font-black text-white shadow-[0_12px_28px_rgba(212,175,55,0.20)]">{number}</span>
-        <div>
-          <h2 className="text-lg font-black text-white md:text-xl">{title}</h2>
-          {note ? <p className="sf-checkout-note mt-1 text-xs font-bold text-white/56">{note}</p> : null}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
 function SuccessTimeline({ darkMode: darkModeProp } = {}) {
   const darkMode = typeof darkModeProp === "boolean"
     ? darkModeProp
@@ -9904,232 +9990,6 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
     </label>
   );
 }
-
-function useIsMobileViewport() {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-    return window.matchMedia("(max-width: 767px)").matches;
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return undefined;
-    const media = window.matchMedia("(max-width: 767px)");
-    const update = () => setIsMobile(media.matches);
-    update();
-    if (typeof media.addEventListener === "function") {
-      media.addEventListener("change", update);
-      return () => media.removeEventListener("change", update);
-    }
-    media.addListener(update);
-    return () => media.removeListener(update);
-  }, []);
-
-  return isMobile;
-}
-
-const CheckoutLocationPicker = memo(function CheckoutLocationPicker({
-  label,
-  mobileTitle,
-  value,
-  onChange,
-  options = [],
-  loading = false,
-  required = false,
-  disabled = false,
-  error = "",
-  placeholder = "",
-  searchPlaceholder = "",
-  emptyText = sfText("storefront.common.noResults"),
-  loadingText = sfText("storefront.common.loading"),
-  helperText = "",
-  themeMode = "light",
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
-  const isMobile = useIsMobileViewport();
-  const darkMode = themeMode === "dark";
-  const selectedOption = useMemo(() => options.find((option) => String(option.id) === String(value)) || null, [options, value]);
-  const deferredQuery = useDeferredValue(query);
-  const filteredOptions = useMemo(() => {
-    const search = normalizeCheckoutPickerText(deferredQuery);
-    if (!search) return options;
-    return options.filter((option) => option.searchText.includes(search));
-  }, [deferredQuery, options]);
-
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || !isMobile || typeof document === "undefined") return undefined;
-    const { body } = document;
-    const previousPosition = body.style.position;
-    const previousOverflow = body.style.overflow;
-    const previousTop = body.style.top;
-    const previousWidth = body.style.width;
-    const scrollY = window.scrollY || window.pageYOffset || 0;
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.width = "100%";
-    body.style.overflow = "hidden";
-    return () => {
-      body.style.position = previousPosition;
-      body.style.top = previousTop;
-      body.style.width = previousWidth;
-      body.style.overflow = previousOverflow;
-      window.scrollTo(0, scrollY);
-    };
-  }, [isMobile, open]);
-
-  useEffect(() => {
-    if (!open || !inputRef.current || !isMobile) return;
-    window.requestAnimationFrame(() => {
-      inputRef.current?.focus({ preventScroll: true });
-    });
-  }, [open, isMobile]);
-
-  useDismissableLayer({
-    enabled: open && !isMobile,
-    refs: [containerRef],
-    onDismiss: () => setOpen(false),
-  });
-
-  const close = () => setOpen(false);
-  const chooseOption = (option) => {
-    if (!option || disabled) return;
-    onChange(option.id);
-    close();
-  };
-  const triggerLabel = selectedOption?.label || (loading ? loadingText : placeholder || sfText("storefront.common.choose"));
-  const isBlocked = disabled;
-  const panelTitle = mobileTitle || label;
-  const searchHint = searchPlaceholder || sfText("storefront.checkout.searchLocations");
-  const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
-
-  const panelBody = (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5">
-      {loading ? (
-        <div className={`flex min-h-24 items-center justify-center rounded-[1rem] border px-4 py-4 text-sm font-bold ${darkMode ? "border-white/10 bg-white/[0.03] text-white/62" : "border-slate-300 bg-white text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-          <Loader2 className={`mr-2 h-4 w-4 animate-spin ${darkMode ? "text-[#f3d77a]" : "text-[#d4af37]"}`} />
-          {loadingText}
-        </div>
-      ) : filteredOptions.length ? (
-        <VirtualList
-          items={filteredOptions}
-          estimateSize={56}
-          className="checkout-picker-list max-h-[260px] min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1"
-          itemKey={(option) => option.id}
-          renderItem={(option) => {
-            const selected = String(option.id) === String(value);
-            return (
-              <button
-                type="button"
-                onClick={() => chooseOption(option)}
-                className={`group mb-1.5 flex w-full items-center gap-2.5 rounded-[14px] border px-3 py-2.5 text-start transition duration-150 ${ selected ? darkMode ? "border-[#e5c158]/30 bg-[#d4af37]/10" : "border-[#f3d77a] bg-[#f5f3ff]" : darkMode ? "border-white/10 bg-white/[0.025] hover:border-[#e5c158]/22 hover:bg-white/[0.045]" : "border-slate-300 bg-white hover:border-[#e5c158]/30 hover:bg-[#faf5ff]" }`}
-              >
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${selected ? (darkMode ? "border-[#f3d77a] bg-[#d4af37]/90 text-white" : "border-[#d4af37] bg-[#d4af37] text-white") : (darkMode ? "border-white/14 bg-white/[0.03] text-transparent group-hover:border-[#e5c158]/45" : "border-slate-300 bg-white text-transparent group-hover:border-[#d4af37]/35")}`}>
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>{option.label}</span>
-                  {option.secondary ? <span className={`mt-0.5 block truncate text-[11px] font-semibold leading-4 ${darkMode ? "text-white/42" : "text-slate-500"}`}>{option.secondary}</span> : null}
-                </span>
-              </button>
-            );
-          }}
-        />
-      ) : (
-        <div className={`flex min-h-24 items-center justify-center rounded-[1rem] border px-4 py-4 text-sm font-black ${darkMode ? "border-white/10 bg-white/[0.03] text-white/62" : "border-slate-300 bg-white text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-          {emptyText}
-        </div>
-      )}
-    </div>
-  );
-
-  return (
-    <div ref={containerRef} className="relative block">
-      <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
-      <button
-        type="button"
-        onClick={() => !isBlocked && setOpen((current) => !current)}
-        disabled={isBlocked}
-        className={`flex min-h-[48px] w-full items-center gap-3 rounded-[16px] border px-3.5 text-start text-sm font-bold outline-none backdrop-blur transition duration-150 focus:border-[#d4af37] focus:shadow-[0_0_0_3px_rgba(212,175,55,0.12),0_12px_28px_rgba(212,175,55,0.10)] disabled:cursor-not-allowed disabled:opacity-65 ${darkMode ? `bg-white/[0.045] text-white shadow-[0_10px_22px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.03)] focus:bg-white/[0.065] ${error ? "border-rose-300/70 focus:border-rose-300" : "border-white/10"}` : `bg-white text-slate-900 shadow-[0_12px_28px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] focus:bg-white ${error ? "border-rose-300/80 focus:border-rose-400" : "border-slate-300"}`}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-      >
-        <span className="min-w-0 flex-1 truncate text-start">{triggerLabel}</span>
-        {loading ? <Loader2 className={`h-4 w-4 shrink-0 animate-spin ${darkMode ? "text-[#f3d77a]" : "text-[#d4af37]"}`} /> : <ChevronLeft className={`h-4 w-4 shrink-0 transition ${darkMode ? "text-white/60" : "text-slate-600"} ${open ? "rotate-[-90deg]" : ""}`} />}
-      </button>
-      {helperText ? <p className={`sf-checkout-picker-text mt-1.5 text-xs font-bold ${darkMode ? "text-white/46" : "text-slate-500"}`}>{helperText}</p> : null}
-      {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
-
-      {open ? (
-        isMobile ? (
-          mobilePortalTarget ? createPortal(
-            <div
-              className="fixed inset-0 z-[100000] bg-black/65 backdrop-blur-sm"
-              onClick={close}
-              role="presentation"
-            >
-              <section
-                role="dialog"
-                aria-modal="true"
-                aria-label={typeof panelTitle === "string" ? panelTitle : undefined}
-                onClick={(event) => event.stopPropagation()}
-                className={`fixed inset-auto bottom-0 left-0 right-0 flex max-h-[75vh] flex-col overflow-hidden rounded-t-[1.5rem] border border-white/10 px-3 pt-3 shadow-[0_-28px_80px_rgba(0,0,0,0.48)] ${ darkMode ? "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white" : "bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white" }`}
-              >
-                <div className="sticky top-0 z-20 border-b border-white/10 pb-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className={`min-w-0 truncate text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>{panelTitle}</div>
-                    <button
-                      type="button"
-                      onClick={close}
-                      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${ darkMode ? "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-950" }`}
-                      aria-label={sfText("storefront.common.close")}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="sticky top-[3.35rem] z-10 pt-3">
-                  <div className="checkout-picker-search-wrap">
-                    <label className={`checkout-picker-search flex items-center gap-2 ${darkMode ? "" : "border border-slate-300 bg-white text-slate-900 shadow-[0_10px_24px_rgba(15,23,42,0.08)]"}`}>
-                      <Search className={`h-4 w-4 shrink-0 ${darkMode ? "text-white/42" : "text-slate-600"}`} />
-                      <input
-                        ref={inputRef}
-                       
-                        lang="ar"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder={searchHint}
-                        className={"min-w-0 flex-1 bg-transparent text-start text-sm font-bold outline-none " + (darkMode ? "text-white placeholder:text-white/34" : "text-slate-900 placeholder:text-slate-500")}
-                      />
-                      {query ? (
-                        <button type="button" onClick={() => setQuery("")} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border transition ${darkMode ? "border-white/10 bg-white/[0.04] text-white/52 hover:bg-white/[0.08] hover:text-white" : "border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`} aria-label={sfText("storefront.common.clear")}>
-                          <X className="h-4 w-4" />
-                        </button>
-                      ) : null}
-                    </label>
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[calc(env(safe-area-inset-bottom)+0.9rem)] pt-2">
-                  {panelBody}
-                </div>
-              </section>
-            </div>,
-            mobilePortalTarget
-          ) : null
-        ) : (
-          <div className={`absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-[16px] border p-2.5 backdrop-blur-2xl ${darkMode ? "border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_18px_46px_rgba(0,0,0,0.28)]" : "border-slate-300 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_18px_46px_rgba(15,23,42,0.14)]"}`}>
-            {panelBody}
-          </div>
-        )
-      ) : null}
-    </div>
-  );
-});
 
 function ProductCardSkeleton() {
   return (
