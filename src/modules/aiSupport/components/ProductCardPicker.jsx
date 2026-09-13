@@ -409,6 +409,42 @@ const matchesQuery = (product = {}, query = "") => {
   return searchable.some((item) => lower(item).includes(normalized));
 };
 
+// Does a smart-filter row pass the POS filters? `skip` leaves one group out, which
+// is how each drawer group counts only what the OTHER selections allow.
+const rowMatchesPosFilters = (row, filters = {}, skip = "") => {
+  const matchesQuickFilters = matchesQuickFilterGroups(
+    {
+      audienceKeys: row.audienceKeys,
+      brandKey: row.brandKey,
+      manufacturerIds: row.manufacturerIds,
+      manufacturerNames: row.manufacturerNames,
+    },
+    {
+      genders: skip === "gender" ? [] : normalizeMultiFilterValue(filters.gender).map(normalizeAudienceValue),
+      brands: skip === "brands" ? [] : filters.brands || [],
+      manufacturers: skip === "manufacturers" ? [] : filters.manufacturers || [],
+    },
+    normalizeSmartText
+  );
+  if (!matchesQuickFilters) return false;
+  const productType = filters.productType || "all";
+  if (skip !== "productType" && productType !== "all" && row.productType !== normalizeFilterValue(productType)) return false;
+  const grade = filters.grade || "all";
+  if (skip !== "grade" && grade !== "all" && row.grade !== normalizeFilterValue(grade)) return false;
+  return true;
+};
+
+// A chip with nothing behind it is hidden — unless it is the current selection, so it can be undone.
+const keepAvailableOptions = (options, selected) => {
+  const chosen = new Set(
+    (Array.isArray(selected) ? selected : [selected])
+      .map((value) => clean(value))
+      .filter((value) => value && value !== "all")
+      .map(lower)
+  );
+  return options.filter((option) => option.count > 0 || chosen.has(lower(option.id)));
+};
+
 // orderMode: same picker, but the selection feeds the order composer cart instead
 // of being sent to the customer — only the wording changes.
 // restockMode: the pick names a variant to watch for a back-in-stock request.
@@ -680,27 +716,33 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return matchesQuery(product, search);
   }), [search, smartProductRows, stockFilter]);
 
-  const filteredProducts = useMemo(() => smartFilterSource.filter((row) => {
-    const matchesQuickFilters = matchesQuickFilterGroups(
-      {
-        audienceKeys: row.audienceKeys,
-        brandKey: row.brandKey,
-        manufacturerIds: row.manufacturerIds,
-        manufacturerNames: row.manufacturerNames,
-      },
-      {
-        genders: normalizeMultiFilterValue(gender).map(normalizeAudienceValue),
-        brands: brand,
-        manufacturers: manufacturer,
-      },
-      normalizeSmartText
-    );
-    const matchesProductType = productType === "all" || row.productType === normalizeFilterValue(productType);
-    const matchesGrade = grade === "all" || row.grade === normalizeFilterValue(grade);
-    if (filterColor !== "all" && !productColors(row.product).map(lower).includes(lower(filterColor))) return false;
-    if (filterSize !== "all" && !productSizes(row.product).map(lower).includes(lower(filterSize))) return false;
-    return matchesQuickFilters && matchesProductType && matchesGrade;
-  }).map(({ product }) => product), [brand, filterColor, filterSize, gender, grade, manufacturer, productType, smartFilterSource]);
+  const filteredProducts = useMemo(() => {
+    const applied = { gender, productType, grade, brands: brand, manufacturers: manufacturer };
+    return smartFilterSource.filter((row) => {
+      if (filterColor !== "all" && !productColors(row.product).map(lower).includes(lower(filterColor))) return false;
+      if (filterSize !== "all" && !productSizes(row.product).map(lower).includes(lower(filterSize))) return false;
+      return rowMatchesPosFilters(row, applied);
+    }).map(({ product }) => product);
+  }, [brand, filterColor, filterSize, gender, grade, manufacturer, productType, smartFilterSource]);
+
+  // Faceted filters: while the drawer is open, every group only offers what exists
+  // inside the OTHER groups' current (draft) selection — pick "رجالي" and the type,
+  // grade, brand and factory groups shrink to men's products, with live counts.
+  // A group never narrows itself, so its own options stay switchable.
+  const facetFilters = useMemo(
+    () => draftPosFilters || { gender, productType, grade, brands: brand, manufacturers: manufacturer },
+    [brand, draftPosFilters, gender, grade, manufacturer, productType]
+  );
+  const facetRows = useMemo(() => {
+    const rowsFor = (skip) => smartFilterSource.filter((row) => rowMatchesPosFilters(row, facetFilters, skip));
+    return {
+      gender: rowsFor("gender"),
+      productType: rowsFor("productType"),
+      grade: rowsFor("grade"),
+      brands: rowsFor("brands"),
+      manufacturers: rowsFor("manufacturers"),
+    };
+  }, [facetFilters, smartFilterSource]);
 
   // Catalog-based sizeMode filtering — used ONLY as the fallback when the
   // size-first endpoints are unavailable.
@@ -772,21 +814,30 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   const visibleSizeCardKeySet = useMemo(() => new Set(visibleSizeCards.map((card) => card.key)), [visibleSizeCards]);
   const selectedSizeCardKeySet = useMemo(() => new Set(selectedSizeCards.map((card) => card.key)), [selectedSizeCards]);
 
-  const posGenderOptions = useMemo(() => smartClassificationOptions.gender.map((option) => {
+  const posGenderOptions = useMemo(() => keepAvailableOptions(smartClassificationOptions.gender.map((option) => {
     const id = normalizeAudienceValue(option.value || option.id);
-    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: smartFilterSource.filter((row) => row.audienceKeys.includes(id)).length };
-  }), [smartClassificationOptions.gender, smartFilterSource]);
-  const posTypeOptions = useMemo(() => moveWinterCollectionToEnd(smartClassificationOptions.productType.map((option) => {
+    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: facetRows.gender.filter((row) => row.audienceKeys.includes(id)).length };
+  }), facetFilters.gender), [facetFilters.gender, facetRows.gender, smartClassificationOptions.gender]);
+  const posTypeOptions = useMemo(() => keepAvailableOptions(moveWinterCollectionToEnd(smartClassificationOptions.productType.map((option) => {
     const id = normalizeFilterValue(option.value || option.id);
-    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: smartFilterSource.filter((row) => row.productType === id).length };
-  })), [smartClassificationOptions.productType, smartFilterSource]);
-  const posGradeOptions = useMemo(() => smartClassificationOptions.grade.map((option) => {
+    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: facetRows.productType.filter((row) => row.productType === id).length };
+  })), facetFilters.productType), [facetFilters.productType, facetRows.productType, smartClassificationOptions.productType]);
+  const posGradeOptions = useMemo(() => keepAvailableOptions(smartClassificationOptions.grade.map((option) => {
     const id = normalizeFilterValue(option.value || option.id);
-    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: smartFilterSource.filter((row) => row.grade === id).length };
-  }), [smartClassificationOptions.grade, smartFilterSource]);
+    return { ...option, id, name: option.label_ar || option.label_en || option.label || option.value, count: facetRows.grade.filter((row) => row.grade === id).length };
+  }), facetFilters.grade), [facetFilters.grade, facetRows.grade, smartClassificationOptions.grade]);
   const posBrandOptions = useMemo(() => {
     const map = new Map();
-    smartFilterSource.forEach(({ product, brandKey }) => {
+    // A selected brand stays listed even when the other filters leave it empty, so it can be undone.
+    const selectedBrands = new Set(normalizeMultiFilterValue(facetFilters.brands).map(String));
+    if (selectedBrands.size) {
+      smartFilterSource.forEach(({ product, brandKey }) => {
+        const name = clean(product.brand_name || product.brand);
+        if (!selectedBrands.has(String(brandKey)) || !name || lower(name) === "unbranded" || map.has(brandKey)) return;
+        map.set(brandKey, { id: brandKey, name, count: 0 });
+      });
+    }
+    facetRows.brands.forEach(({ product, brandKey }) => {
       const name = clean(product.brand_name || product.brand);
       if (!name || lower(name) === "unbranded") return;
       const current = map.get(brandKey) || { id: brandKey, name, count: 0 };
@@ -794,7 +845,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       map.set(brandKey, current);
     });
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
-  }, [smartFilterSource]);
+  }, [facetFilters.brands, facetRows.brands, smartFilterSource]);
   const posManufacturerOptions = useMemo(() => {
     const map = new Map();
     // A colour's second factory reaches us as a bare id; only a row whose own
@@ -808,18 +859,24 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         if (id && name && !namesById.has(id)) namesById.set(id, name);
       });
     });
-    smartFilterSource.forEach((row) => {
+    const selectedFactories = new Set(normalizeMultiFilterValue(facetFilters.manufacturers).map(String));
+    const addRow = (row, onlySelected) => {
       row.manufacturerIds.forEach((id) => {
         const name = namesById.get(id);
+        if (onlySelected && !selectedFactories.has(String(id))) return;
         if (name && !map.has(id)) map.set(id, { id, name });
       });
       row.manufacturerNames.forEach((normalizedName) => {
         const id = `name:${normalizedName}`;
+        if (onlySelected && !selectedFactories.has(id)) return;
         if (!map.has(id)) map.set(id, { id, name: clean(row.product.manufacturer_name || row.product.manufacturer || normalizedName) });
       });
-    });
+    };
+    facetRows.manufacturers.forEach((row) => addRow(row, false));
+    // A selected factory stays listed even when the other filters leave it empty, so it can be undone.
+    if (selectedFactories.size) smartFilterSource.forEach((row) => addRow(row, true));
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ar"));
-  }, [smartFilterSource]);
+  }, [facetFilters.manufacturers, facetRows.manufacturers, smartFilterSource]);
   // Facets come from the tiny server endpoint whenever we have them. In
   // product-card mode `products` is now a single bounded page, so deriving the
   // dropdowns from it would silently shrink them to whatever happens to be on

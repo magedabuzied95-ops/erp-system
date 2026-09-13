@@ -135,7 +135,8 @@ test("pages are cached separately", () => {
 test("the picker filters the whole catalog in memory", () => {
   // The only bounded request left is the unfiltered head-start page; filters never reach it.
   assert.doesNotMatch(picker, /searchCustomerProducts\(\{[^}]*search: /);
-  assert.match(picker, /const filteredProducts = useMemo\(\(\) => smartFilterSource\.filter/);
+  assert.match(picker, /return smartFilterSource\.filter\(\(row\) => \{/);
+  assert.match(picker, /return rowMatchesPosFilters\(row, applied\);/);
 });
 
 test("changing a search or filter scrolls the list back to its first step", () => {

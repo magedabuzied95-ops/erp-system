@@ -178,7 +178,9 @@ test("a multi-select page is never served as unfiltered", () => {
 test("the picker matches the whole brand/manufacturer selection", () => {
   // Filtering now runs in memory over the full catalog, so the entire multi-selection
   // reaches the shared POS matcher rather than a server param.
-  assert.match(picker, /genders: normalizeMultiFilterValue\(gender\)\.map\(normalizeAudienceValue\),\s*\n\s*brands: brand,\s*\n\s*manufacturers: manufacturer,/);
+  assert.match(picker, /const applied = \{ gender, productType, grade, brands: brand, manufacturers: manufacturer \};/);
+  assert.match(picker, /brands: skip === "brands" \? \[\] : filters\.brands \|\| \[\],/);
+  assert.match(picker, /manufacturers: skip === "manufacturers" \? \[\] : filters\.manufacturers \|\| \[\],/);
 });
 
 test("the pricing/stock pipeline is still the shared one", () => {
