@@ -6394,10 +6394,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [product, toggleWishlist]);
   const visibleColorOptions = useMemo(() => colorGroups.slice(0, 4), [colorGroups]);
   const extraColorCount = Math.max(0, colorGroups.length - visibleColorOptions.length);
-  const detailsUrl = useMemo(
-    () => productUrl({ ...product, selected_variant_id: availableVariant?.id || product.selected_variant_id, color_key: selectedColorKey || product.color_key }),
-    [availableVariant?.id, product, selectedColorKey]
-  );
+  // A size chip the shopper tapped travels to the product page as ?size=, which
+  // counts there as a chosen size; the variant the card picked on its own does not.
+  const [sizeTapped, setSizeTapped] = useState(false);
+  const tappedSize = sizeTapped && String(availableVariant?.id) === String(selectedVariantId) ? String(availableVariant?.size || "") : "";
+  const detailsUrl = useMemo(() => {
+    const url = productUrl({ ...product, selected_variant_id: availableVariant?.id || product.selected_variant_id, color_key: selectedColorKey || product.color_key });
+    return tappedSize ? `${url}${url.includes("?") ? "&" : "?"}size=${encodeURIComponent(tappedSize)}` : url;
+  }, [availableVariant?.id, product, selectedColorKey, tappedSize]);
   const productIdentifier = useMemo(() => productRouteIdentifier(product), [product]);
   const requestDetailPrefetch = useCallback(() => {
     if (!productIdentifier) return;
@@ -6412,6 +6416,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     const next = firstDisplayVariant(group?.variants || []);
     setSelectedColorKeyState(group?.key || "");
     setSelectedVariantId(next?.id || "");
+    setSizeTapped(false);
   }, []);
   useEffect(() => {
     const node = cardRef.current;
@@ -6572,7 +6577,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               <button
                 key={`${activeColorGroup?.key || "default"}-${variant?.id || size}`}
                 type="button"
-                onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
+                onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); setSizeTapped(true); }}
                 className={`sfx-size${selected ? " is-active" : ""}`}
               >
                 {formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language)}

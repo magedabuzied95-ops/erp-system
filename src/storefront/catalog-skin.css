@@ -1427,3 +1427,35 @@ body.storefront-shell.sfx-sticky-buy-on {
 body.storefront-shell.sfx-sticky-buy-on .sf-whatsapp-float {
   bottom: calc(var(--product-sticky-actions-height, 0px) + 12px) !important;
 }
+
+/* ------------------------------------------------------ choose the size first */
+
+/* Add to cart with more than one size in stock and none tapped yet: the page
+   scrolls here, the line below the heading asks for a size, and the chips
+   outline themselves in the sale colour until one is chosen. */
+body.storefront-shell .sfx-pdp-size-prompt {
+  margin: -4px 0 10px;
+  color: var(--m1h-sale) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+  animation: sfx-size-prompt-shake 0.42s ease-in-out;
+}
+
+body.storefront-shell .sfx-pdp-option.is-prompting .sfx-pdp-size:not(:disabled) {
+  border-color: var(--m1h-sale);
+}
+
+@keyframes sfx-size-prompt-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.storefront-shell .sfx-pdp-size-prompt {
+    animation: none;
+  }
+}

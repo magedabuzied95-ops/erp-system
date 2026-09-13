@@ -330,7 +330,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
             });
             setActiveImageIndex(0);
-            setTouchedOptions({ color: false, size: false });
+            // A size named in the link (a size chip tapped on the product card) is a
+            // choice the shopper already made; a size the page picked itself is not.
+            setTouchedOptions({ color: false, size: Boolean(requestedSize && String(first?.size || "") === requestedSize) });
             const pricing = getDisplayPricing(product, saleModeEnabled, first || {});
             const contentId = metaCatalogContentId(product, first || {});
             const viewKey = `${productRouteKey}:${contentId}`;
@@ -603,6 +605,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       const sameSize = variants.find((item) => variantColorIdentity(item) === candidateColorKey && String(item.size || "") === String(selected.size) && variantHasStock(item))
         || variants.find((item) => variantColorIdentity(item) === candidateColorKey && String(item.size || "") === String(selected.size));
       if (sameSize) nextVariant = sameSize;
+      // The new colour does not come in the chosen size, so that choice is gone.
+      if (String(nextVariant.size || "") !== String(selected.size)) setTouchedOptions((prev) => ({ ...prev, size: false }));
     }
     const nextColorGroup = colorGroups.find((group) => group.key === candidateColorKey) || null;
     const nextImage = options.image || variantImage(nextVariant) || nextColorGroup?.primaryImage?.image || displayImageForProduct(product, nextVariant) || product?.image_url || "";
@@ -658,7 +662,38 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     setVariantSheetAction("");
     if (action === "buy") navigate("/checkout");
   };
+  // Choose the size first: the page preselects the first size in stock so the
+  // price and stock line have something to show, but that is not the shopper's
+  // size. With more than one size in stock, adding to the cart or buying waits
+  // for a tap on a size — a silent default was sending the wrong size out.
+  const sizeOptionRef = useRef(null);
+  const [sizePromptTick, setSizePromptTick] = useState(0);
+  const inStockSizeCount = sizeOptions.filter((option) => variantHasStock(option.variant)).length;
+  const sizeChoiceRequired = !hideSizeSelector && inStockSizeCount > 1 && !touchedOptions.size;
+  const promptForSize = () => {
+    setSizePromptTick((tick) => tick + 1);
+    const block = sizeOptionRef.current;
+    if (!block) return;
+    block.scrollIntoView({ block: "center", behavior: "smooth" });
+    block.querySelector(".sfx-pdp-size:not(:disabled)")?.focus({ preventScroll: true });
+  };
+  const chooseSizeOption = (variant) => {
+    setTouchedOptions((prev) => ({ ...prev, size: true }));
+    setSizePromptTick(0);
+    selectVariant(variant);
+  };
+  const addToCart = (sourceEl = mainImageRef.current) => {
+    if (sizeChoiceRequired) {
+      promptForSize();
+      return;
+    }
+    if (safeActiveVariant) onAddToCart(product, safeActiveVariant, qty, { sourceEl });
+  };
   const buyNow = () => {
+    if (sizeChoiceRequired) {
+      promptForSize();
+      return;
+    }
     submitVariant(safeActiveVariant, qty, "buy");
   };
   const shareProduct = async () => {
@@ -799,7 +834,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               )}
               {selectedComparePrice > selectedSellingPrice ? <span className="sfx-pdp-was">{money(selectedComparePrice)}</span> : null}
               {selectedDiscountPercent ? <span className="sfx-pdp-pill sfx-pdp-pill--sale">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
-              {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
+              {/* The preselected size's stock is not the shopper's size's stock. */}
+              {!sizeChoiceRequired && safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
                 <span className="sfx-pdp-pill">
                   {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
                 </span>
@@ -883,7 +919,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           ) : null}
 
-          {!hideSizeSelector ? <div className="sfx-pdp-option">
+          {!hideSizeSelector ? <div ref={sizeOptionRef} className={`sfx-pdp-option${sizeChoiceRequired && sizePromptTick ? " is-prompting" : ""}`}>
             <div className="sfx-pdp-option__head">
               <h2 className="sfx-pdp-option__title">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
               {/* A quiet link beside the heading, where shoppers look for it, rather
@@ -896,16 +932,25 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
               </Link>
             </div>
+            {/* Keyed on the tick so a second tap on add to cart replays the nudge.
+                The chips themselves are not remounted: that would drop the focus
+                promptForSize just moved onto the first one. */}
+            {sizeChoiceRequired && sizePromptTick ? (
+              <p key={sizePromptTick} role="alert" className="sfx-pdp-size-prompt">
+                {sfText("storefront.products.chooseSizeFirst", isRtl ? "اختار المقاس أولًا" : "Choose a size first")}
+              </p>
+            ) : null}
             <div className="sfx-pdp-sizes">
               {sizeOptions.map((option) => {
                 const { displaySize, originalSize, collision, variant: sizeVariant } = option;
                 const hasStock = variantHasStock(sizeVariant);
-                const active = String(selected.variantId) === String(sizeVariant?.id);
+                // No chip reads as chosen until the shopper chooses one.
+                const active = !sizeChoiceRequired && String(selected.variantId) === String(sizeVariant?.id);
                 return (
                   <button
                     key={sizeVariant?.id || originalSize}
                     type="button"
-                    onClick={() => selectVariant(sizeVariant)}
+                    onClick={() => chooseSizeOption(sizeVariant)}
                     disabled={!hasStock}
                     aria-pressed={active}
                     className={`sfx-pdp-size${active ? " is-active" : hasStock ? "" : " is-unavailable"}`}
@@ -932,7 +977,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               </div>
               <button
                 type="button"
-                onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })}
+                onClick={() => addToCart()}
                 disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
                 className="sf-buy-atc h-14 min-w-0 flex-1"
               >
@@ -1158,15 +1203,19 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 <span className={`sfx-sticky-buy__price${selectedComparePrice > selectedSellingPrice ? " is-sale" : ""}`}>{money(selectedSellingPrice)}</span>
               ) : null}
               {selectedComparePrice > selectedSellingPrice ? <span className="sfx-sticky-buy__was">{money(selectedComparePrice)}</span> : null}
-              {!hideSizeSelector && safeActiveVariant?.size ? (
+              {!hideSizeSelector && !sizeChoiceRequired && safeActiveVariant?.size ? (
                 <span className="sfx-sticky-buy__size">{sfText("storefront.products.size", isRtl ? "المقاس" : "Size")} {safeActiveVariant.size}</span>
               ) : null}
             </div>
           </div>
-          {variantHasStock(safeActiveVariant) ? (
+          {sizeChoiceRequired ? (
+            <button type="button" onClick={promptForSize} className="sf-buy-now sfx-sticky-buy__cta">
+              <span>{sfText("storefront.products.chooseSize", "Choose size")}</span>
+            </button>
+          ) : variantHasStock(safeActiveVariant) ? (
             <button
               type="button"
-              onClick={() => onAddToCart(product, safeActiveVariant, qty, { sourceEl: stickyThumbRef.current || mainImageRef.current })}
+              onClick={() => addToCart(stickyThumbRef.current || mainImageRef.current)}
               className="sf-buy-now sfx-sticky-buy__cta"
             >
               <ShoppingCart className="h-4 w-4" aria-hidden="true" />
