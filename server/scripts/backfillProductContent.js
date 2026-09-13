@@ -14,6 +14,15 @@
  *   node server/scripts/backfillProductContent.js --ids 774,25
  *   node server/scripts/backfillProductContent.js --restore      # put the old values back
  *
+ * Search metadata only (the descriptions stay exactly as the merchant wrote
+ * them), for products whose SEO was never generated. Products saved before the
+ * SEO workbench are NOT empty: the save path stored the product name as the
+ * search title and the description as the search description, so "stale" also
+ * means title = name, description = the product copy, or no keywords.
+ *   node server/scripts/backfillProductContent.js --seo-only --stale-seo --dry-run --limit 3
+ *   node server/scripts/backfillProductContent.js --seo-only --stale-seo
+ *   node server/scripts/backfillProductContent.js --seo-only --restore  # undo only the SEO run
+ *
  * On the VPS, detached with a log:
  *   docker exec -d erp-backend sh -c "node server/scripts/backfillProductContent.js >> /app/uploads/ai-content-backfill.log 2>&1"
  *   tail -f /opt/erp/uploads/ai-content-backfill.log
@@ -38,6 +47,8 @@ const option = (name, fallback = "") => {
 const DRY_RUN = flag("dry-run");
 const ONLY_MISSING = flag("only-missing");
 const RESTORE = flag("restore");
+const SEO_ONLY = flag("seo-only");
+const STALE_SEO = flag("stale-seo");
 const LIMIT = Number(option("limit", "0")) || 0;
 const IDS = option("ids", "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0);
 const TENANT_ID = Number(option("tenant", process.env.STOREFRONT_TENANT_ID || "1")) || 1;
@@ -48,7 +59,11 @@ const RATE_LIMIT_SLEEP_MS = 65_000;
 const STATE_FILE =
   option("state-file", "") ||
   process.env.BACKFILL_STATE_FILE ||
-  (fs.existsSync("/app/uploads") ? "/app/uploads/ai-content-backfill.json" : path.resolve(".ai-content-backfill.json"));
+  // A SEO-only run keeps its own progress: products finished by a full run
+  // must not count as done, and its backups must not restore descriptions.
+  (fs.existsSync("/app/uploads")
+    ? `/app/uploads/ai-${SEO_ONLY ? "seo" : "content"}-backfill.json`
+    : path.resolve(`.ai-${SEO_ONLY ? "seo" : "content"}-backfill.json`));
 
 const text = (value = "") => String(value ?? "").trim();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -78,6 +93,15 @@ const loadProducts = async () => {
   if (IDS.length) {
     params.push(IDS);
     where.push(`p.id = ANY($${params.length}::bigint[])`);
+  }
+  if (STALE_SEO) {
+    where.push(`(
+      COALESCE(TRIM(p.meta_title), '') = ''
+      OR LOWER(TRIM(p.meta_title)) = LOWER(TRIM(p.name))
+      OR COALESCE(TRIM(p.seo_keywords), '') = ''
+      OR COALESCE(TRIM(p.seo_description), '') = ''
+      OR TRIM(p.seo_description) IN (TRIM(COALESCE(p.description, '')), TRIM(COALESCE(p.description_ar, '')), TRIM(COALESCE(p.description_en, '')))
+    )`);
   }
   if (ONLY_MISSING) {
     where.push("(COALESCE(TRIM(p.description_ar), '') = '' OR COALESCE(TRIM(p.description_en), '') = '' OR COALESCE(TRIM(p.meta_title), '') = '' OR COALESCE(TRIM(p.seo_description), '') = '')");
@@ -158,6 +182,14 @@ const restore = async (state) => {
       log(`  would restore #${id}`);
       continue;
     }
+    if (state.mode === "seo") {
+      await db.query(
+        `UPDATE products SET meta_title = $2, seo_description = $3, seo_keywords = $4, updated_at = NOW() WHERE id = $1`,
+        [Number(id), old.meta_title, old.seo_description, old.seo_keywords]
+      );
+      log(`  restored #${id} (search metadata)`);
+      continue;
+    }
     await db.query(
       `UPDATE products SET description = $2, description_ar = $3, description_en = $4, meta_title = $5, seo_description = $6, seo_keywords = $7, updated_at = NOW() WHERE id = $1`,
       [Number(id), old.description, old.description_ar, old.description_en, old.meta_title, old.seo_description, old.seo_keywords]
@@ -194,9 +226,11 @@ const main = async () => {
     // Rotate the house tone per product so six hundred listings do not open
     // with the same sentence.
     const tone = TONES[row.id % TONES.length];
-    const description = await askModel("description", () =>
-      generateProductDescription({ target: "all", prompt_customization: tone, current: { ...context, name: context.product_name, selling_vibe: tone } })
-    );
+    const description = SEO_ONLY
+      ? { arabic_description: text(row.description_ar), english_description: text(row.description_en || row.description), source: "KEPT" }
+      : await askModel("description", () =>
+          generateProductDescription({ target: "all", prompt_customization: tone, current: { ...context, name: context.product_name, selling_vibe: tone } })
+        );
     const seo = description
       ? await askModel("seo", () => generateProductSeoMetadata({ current: { ...context, name: context.product_name, description_ar: description.arabic_description, description_en: description.english_description } }))
       : null;
@@ -216,10 +250,32 @@ const main = async () => {
       seo_keywords: (seo.keywords || []).map(text).filter(Boolean).join(", "),
     };
     next.description = next.description_en || next.description_ar;
-    log(`  AR: ${next.description_ar.slice(0, 90)}…`);
+    if (!next.meta_title) {
+      log("  seo: model returned no title, left pending");
+      state.pending[row.id] = { name: context.product_name, at: new Date().toISOString() };
+      if (!DRY_RUN) saveState(state);
+      pending += 1;
+      continue;
+    }
+    if (!SEO_ONLY) log(`  AR: ${next.description_ar.slice(0, 90)}…`);
     log(`  title: ${next.meta_title} | slug unchanged`);
+    if (SEO_ONLY) log(`  meta: ${next.seo_description.slice(0, 110)} | keywords: ${next.seo_keywords.slice(0, 80)}`);
 
-    if (!DRY_RUN) {
+    if (!DRY_RUN && SEO_ONLY) {
+      state.mode = "seo";
+      state.backups[row.id] = state.backups[row.id] || {
+        meta_title: row.meta_title,
+        seo_description: row.seo_description,
+        seo_keywords: row.seo_keywords,
+      };
+      await db.query(
+        `UPDATE products SET meta_title = $2, seo_description = $3, seo_keywords = $4, updated_at = NOW() WHERE id = $1`,
+        [row.id, next.meta_title, next.seo_description, next.seo_keywords]
+      );
+      state.done[row.id] = { at: new Date().toISOString(), source: seo.source };
+      delete state.pending[row.id];
+      saveState(state);
+    } else if (!DRY_RUN) {
       state.backups[row.id] = state.backups[row.id] || {
         description: row.description,
         description_ar: row.description_ar,
