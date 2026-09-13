@@ -24,11 +24,13 @@ test("storefront home ends with the full legacy-inspired responsive footer", asy
   assert.doesNotMatch(lowerHome, /آخر العروض|Latest offers/);
   assert.doesNotMatch(lowerHome, /sf-footer__input|sf-footer__submit/);
   assert.doesNotMatch(lowerHome, /Subscribed successfully|تم الاشتراك بنجاح/);
-  assert.match(lowerHome, /Mastercard/);
-  assert.match(lowerHome, /FaCcMastercard/);
-  assert.match(lowerHome, /FaCcVisa/);
-  assert.match(lowerHome, /FaCcPaypal/);
-  assert.match(lowerHome, /meeza-logo\.svg/);
+  // Payment marks are one-ink logos in the copyright bar, and only for methods
+  // checkout really takes — PayPal is not one of them.
+  for (const mark of ["SiVisa", "SiMastercard", "MeezaMark", "SiApplepay", "InstaPay", "SiVodafone"]) {
+    assert.match(lowerHome, new RegExp(mark));
+  }
+  assert.doesNotMatch(lowerHome, /PayPal|FaCcPaypal/);
+  assert.doesNotMatch(lowerHome, /sf-footer__mark[^"]*bg-white/);
   // The app-launch block (store badges + "coming soon" card) was removed on request.
   // The app is not published, so the footer must not advertise it again.
   assert.doesNotMatch(lowerHome, /storefront-footer-app-launch/);

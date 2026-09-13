@@ -1177,10 +1177,6 @@
   color: var(--m1h-accent);
 }
 
-.m1h[data-theme="dark"] .sf-footer .sf-footer__mark {
-  border-color: var(--m1h-line);
-}
-
 .m1h[data-theme="dark"] .sf-footer .sf-footer__bar {
   border-top: 1px solid var(--m1h-line);
   background: #070707;

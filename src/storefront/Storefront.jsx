@@ -6,15 +6,13 @@ import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } f
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import {
-  FaCcMastercard,
-  FaCcPaypal,
-  FaCcVisa,
   FaFacebookF,
   FaInstagram,
   FaTiktok,
   FaWhatsapp,
   FaYoutube,
 } from "react-icons/fa";
+import { SiApplepay, SiMastercard, SiVisa, SiVodafone } from "react-icons/si";
 import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
@@ -3504,6 +3502,18 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   );
 }
 
+// Meeza in one ink: the tile with its E knocked out, then the wordmark. Drawn
+// in currentColor so it takes the bar's text colour like the other marks —
+// /branding/meeza-logo.svg carries fixed brand colours and cannot.
+function MeezaMark({ className = "" }) {
+  return (
+    <svg viewBox="0 0 150 60" className={className} fill="currentColor" aria-hidden="true" focusable="false">
+      <path fillRule="evenodd" d="M12 4h26c6.6 0 12 5.4 12 12v28c0 6.6-5.4 12-12 12H12C5.4 56 0 50.6 0 44V16C0 9.4 5.4 4 12 4Zm0 13v26h27v-6.5H20.5v-4h15v-6h-15v-3h18V17Z" />
+      <text x="58" y="42" fontFamily="Arial, Helvetica, sans-serif" fontSize="32" fontWeight="700" letterSpacing="-1">meeza</text>
+    </svg>
+  );
+}
+
 function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const importantLinks = [
@@ -3532,10 +3542,24 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: "TikTok", href: "https://www.tiktok.com/", icon: FaTiktok },
     { label: "YouTube", href: "https://www.youtube.com/", icon: FaYoutube },
   ];
+  // Only what checkout actually takes: cards, Meeza and Apple Pay through Paymob,
+  // InstaPay and Vodafone Cash as transfers. A wallet the shop does not accept
+  // was shown here once; a mark here is a promise checkout has to keep.
   const paymentMarks = [
-    { label: "Mastercard", icon: FaCcMastercard, className: "text-[#eb001b]" },
-    { label: "Visa", icon: FaCcVisa, className: "text-[#1434cb]" },
-    { label: "PayPal", icon: FaCcPaypal, className: "text-[#0070ba]" },
+    { label: "Visa", mark: <SiVisa className="-my-2 h-10 w-10" /> },
+    { label: "Mastercard", mark: <SiMastercard className="h-5 w-7" /> },
+    { label: "Meeza", mark: <MeezaMark className="h-5 w-auto" /> },
+    { label: "Apple Pay", mark: <SiApplepay className="-my-2 h-10 w-10" /> },
+    { label: "InstaPay", mark: <span className="text-[13px] font-black tracking-tight">InstaPay</span> },
+    {
+      label: "Vodafone Cash",
+      mark: (
+        <span className="inline-flex items-center gap-1 text-[12px] font-black tracking-tight">
+          <SiVodafone className="h-4 w-4" />
+          Cash
+        </span>
+      ),
+    },
   ];
 
   return (
@@ -3611,21 +3635,18 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             published, so the footer does not advertise it. */}
       </div>
 
-      {/* Payment marks sit in the copyright bar as small card-sized badges, the
-          way international shops show them, instead of a row of large tiles of
-          their own above it. */}
+      {/* Payment marks sit in the copyright bar as one-ink logos, the way
+          international shops show them: no tiles, no brand colours, the bar's
+          own text colour at reduced strength so they read as part of it. */}
       <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold text-white dark:text-white/55">
-        <div className="mx-auto flex max-w-[1440px] flex-col items-center gap-3 md:flex-row md:justify-between md:px-3">
+        <div className="mx-auto flex max-w-[1440px] flex-col items-center gap-4 md:flex-row md:justify-between md:px-3">
           <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
-          <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex items-center gap-1.5" dir="ltr">
-            {paymentMarks.map(({ label, icon: PaymentIcon, className }) => (
-              <li key={label} title={label} className="sf-footer__mark grid h-6 w-10 place-items-center rounded-[4px] bg-white">
-                <PaymentIcon aria-label={label} className={`h-5 w-8 ${className}`} />
+          <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3" dir="ltr">
+            {paymentMarks.map(({ label, mark }) => (
+              <li key={label} title={label} aria-label={label} className="sf-footer__mark flex h-6 items-center opacity-70 transition-opacity hover:opacity-100">
+                {mark}
               </li>
             ))}
-            <li title="Meeza" className="sf-footer__mark grid h-6 w-10 place-items-center rounded-[4px] bg-white">
-              <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-4 w-8 object-contain" width="32" height="16" loading="lazy" decoding="async" />
-            </li>
           </ul>
         </div>
       </div>
