@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { MessageCircle, Minus, Plus, RefreshCcw, ShieldCheck, ShoppingBag, Tag, Trash2, Truck } from "lucide-react";
+import { Minus, PackageCheck, Plus, ShieldCheck, ShoppingBag, Tag, Trash2, Truck } from "lucide-react";
 import {
   RecentProductsSection,
   cartDrawerBundleShares,
@@ -13,26 +13,20 @@ import {
   sfText,
   usePublicBundleConfig,
 } from "../Storefront";
-import FreeShippingProgress, { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
+import { CheckoutBlock } from "../checkout/CheckoutParts";
+import { CheckoutTotals } from "../components/StorefrontCheckoutSummary";
+import { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import { trackGa4ViewCart } from "../lib/ga4Events";
 import { ROOT_PATHS } from "../lib/paths";
 import "./cart.css";
 
 /*
- * The cart page (/cart) in the homepage look. It reads the same numbers the side bag does — the
- * bundle discount comes from cartDrawerBundleShares (the function checkout charges with), the
- * free-shipping bar from the store threshold — so the page, the bag and the invoice agree.
- * Colours are `--m1h-*` tokens (site-skin.css); class names are `sfk-*`, clear of the legacy
- * `sf-cart-*` hooks that index.css and storefront-light.css still paint with !important.
+ * The cart page (/cart), laid out like the one-page checkout it leads to: the lines on the page
+ * ground, the order summary in the side panel (sfc-* from checkout/checkout.css, the same totals
+ * block checkout renders). It reads the numbers the side bag reads — the bundle discount from
+ * cartDrawerBundleShares, the function checkout charges with — so the cart, the bag and the
+ * invoice agree. The editable line is `sfk-*`, clear of the legacy `sf-cart-*` hooks.
  */
-
-// Literal keys, so the missing-key guard can see every one of them.
-const TRUST_POINTS = [
-  { key: "safe", Icon: ShieldCheck, label: () => sfText("storefront.checkout.trust.safeData", "بياناتك آمنة") },
-  { key: "shipping", Icon: Truck, label: () => sfText("storefront.checkout.trust.fastShipping", "شحن سريع") },
-  { key: "exchange", Icon: RefreshCcw, label: () => sfText("storefront.checkout.trust.exchange", "استبدال خلال 14 يومًا") },
-  { key: "whatsapp", Icon: MessageCircle, label: () => sfText("storefront.checkout.trust.whatsapp", "دعم واتساب") },
-];
 
 function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart }) {
   const price = displayCartItemPrice(item);
@@ -40,9 +34,9 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
   const hasDiscount = compare > price;
   const quantity = Math.max(1, Number(item.quantity) || 1);
   const href = item.slug || item.product_id ? productUrl({ id: item.product_id, slug: item.slug, selected_variant_id: item.variant_id }) : "";
-  const variantText = [item.color, item.display_size || item.size].filter(Boolean).join(" · ");
+  const variantText = [item.color, item.display_size || item.size].filter(Boolean).join(" / ");
   const showBrand = Boolean(item.brand) && !String(item.name || "").toLowerCase().includes(String(item.brand).toLowerCase());
-  const image = <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" loading="lazy" decoding="async" width="120" height="120" />;
+  const image = <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" loading="lazy" decoding="async" width="96" height="96" />;
 
   return (
     <li className="sfk-line">
@@ -55,8 +49,8 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
             {variantText ? <p className="sfk-line__variant">{variantText}</p> : null}
           </div>
           <p className="sfk-price">
-            {hasDiscount ? <span className="sfk-price__was">{money(compare)}</span> : null}
-            <span className={`sfk-price__now${hasDiscount ? " is-sale" : ""}`}>{money(price)}</span>
+            <span className="sfk-price__now">{money(price * quantity)}</span>
+            {hasDiscount ? <span className="sfk-price__was">{money(compare * quantity)}</span> : null}
           </p>
         </div>
 
@@ -83,16 +77,23 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
               <Plus aria-hidden="true" />
             </button>
           </div>
-          <div className="sfk-line__end">
-            {quantity > 1 ? <span className="sfk-line__total">{money(price * quantity)}</span> : null}
-            <button type="button" className="sfk-remove" onClick={() => removeFromCart(item.lineId)}>
-              <Trash2 aria-hidden="true" />
-              {sfText("storefront.cartDrawer.remove", "حذف")}
-            </button>
-          </div>
+          {quantity > 1 ? <span className="sfk-line__each">{money(price)} × {quantity}</span> : null}
+          <button type="button" className="sfk-remove" onClick={() => removeFromCart(item.lineId)}>
+            {sfText("storefront.cartDrawer.remove", "حذف")}
+          </button>
         </div>
       </div>
     </li>
+  );
+}
+
+function CartTrust() {
+  return (
+    <div className="sfc-trust">
+      <span><ShieldCheck size={15} aria-hidden="true" />{sfText("storefront.checkout.trust.safeData", "بياناتك آمنة")}</span>
+      <span><Truck size={15} aria-hidden="true" />{sfText("storefront.checkout.trust.fastShipping", "شحن سريع")}</span>
+      <span><PackageCheck size={15} aria-hidden="true" />{sfText("storefront.checkout.trust.exchange", "استبدال خلال 14 يومًا")}</span>
+    </div>
   );
 }
 
@@ -105,6 +106,7 @@ export default function StorefrontCartPage({
   toggleWishlist,
   onAddToCart,
   saleModeEnabled,
+  themeMode = "light",
 }) {
   const lines = useMemo(() => (Array.isArray(cart) ? cart : []), [cart]);
   const bundleConfig = usePublicBundleConfig();
@@ -123,10 +125,9 @@ export default function StorefrontCartPage({
     const price = displayCartItemPrice(item);
     return sum + (compare > price ? compare : price) * item.quantity;
   }, 0);
-  const saleSaving = Math.max(0, compareTotal - subtotal);
   const bundleAmount = Math.min(subtotal, bundle.amount);
   const total = Math.max(0, subtotal - bundleAmount);
-  const saved = saleSaving + bundleAmount;
+  const saved = Math.max(0, compareTotal - subtotal) + bundleAmount;
   const checkoutPath = ROOT_PATHS.checkout || "/checkout";
   const productsPath = ROOT_PATHS.products || "/products";
 
@@ -136,113 +137,98 @@ export default function StorefrontCartPage({
 
   if (!lines.length) {
     return (
-      <section className="sfk">
-        <div className="sfk-wrap">
-          <div className="sfk-empty">
+      <>
+        <section className="sfc sfk" data-theme={themeMode}>
+          <div className="sfc-empty">
             <span className="sfk-empty__icon" aria-hidden="true"><ShoppingBag /></span>
-            <h1 className="sfk-empty__title">{sfText("storefront.cart.emptyTitle", "السلة فارغة")}</h1>
-            <p className="sfk-empty__text">{sfText("storefront.cart.emptyPageText", "اختر منتجًا أولًا ثم أكمل الدفع")}</p>
-            <Link to={productsPath} className="sfk-btn sfk-btn--ink">{sfText("storefront.common.shopNow", "تسوق الآن")}</Link>
+            <h1 className="sfc-h2">{sfText("storefront.cart.emptyTitle", "السلة فارغة")}</h1>
+            <p>{sfText("storefront.cart.emptyPageText", "اختر منتجًا أولًا ثم أكمل الدفع")}</p>
+            <Link to={productsPath} className="sfc-btn-secondary">{sfText("storefront.common.shopNow", "تسوق الآن")}</Link>
           </div>
-        </div>
+        </section>
         {recentRail}
-      </section>
+      </>
     );
   }
 
+  // Checkout's totals block, fed the cart's own numbers: no governorate yet, so shipping reads
+  // "calculated after choosing the governorate" exactly as it does on the next page.
+  const totals = (
+    <CheckoutTotals
+      subtotal={subtotal}
+      discount={bundleAmount}
+      bundleDiscount={bundleAmount}
+      deliveryFee={0}
+      total={total}
+      governorate=""
+      freeShippingThreshold={freeShippingThreshold}
+      money={money}
+    />
+  );
+  const checkoutButton = (
+    <Link to={checkoutPath} className="sfc-btn-primary sfk-checkout">
+      {sfText("storefront.cart.proceedToCheckout", "إتمام الشراء")}
+    </Link>
+  );
+  const savedNote = saved > 0 ? <p className="sfk-saved">{sfText("storefront.cartDrawer.saved", "وفّرت {{amount}}", { amount: money(saved) })}</p> : null;
+
   return (
-    <section className="sfk">
-      <div className="sfk-wrap">
-        <header className="sfk-head">
-          <div className="sfk-head__title">
-            <h1 className="sfk-title">{sfText("storefront.cart.title", "السلة")}</h1>
-            <span className="sfk-count">{sfText("storefront.products.productCount", "{{count}} منتج", { count: itemCount })}</span>
-          </div>
-          <Link to={productsPath} className="sfk-btn sfk-btn--outline sfk-btn--sm">
-            {sfText("storefront.common.continueShopping", "متابعة التسوق")}
-          </Link>
-        </header>
-
-        <div className="sfk-grid">
-          <div className="sfk-main">
-            {freeShippingThreshold ? (
-              <div className="sfk-card sfk-card--tight">
-                {/* The server compares the goods subtotal before the bundle saving, so the bar does too. */}
-                <FreeShippingProgress subtotal={subtotal} threshold={freeShippingThreshold} money={money} className="sfk-fsp" />
-              </div>
-            ) : null}
-            <ul className="sfk-card sfk-lines">
-              {lines.map((item) => (
-                <CartLine
-                  key={item.lineId}
-                  item={item}
-                  bundleShare={bundle.byLine.get(item.lineId) || 0}
-                  bundlePercent={bundlePercent}
-                  updateCart={updateCart}
-                  removeFromCart={removeFromCart}
-                />
-              ))}
-            </ul>
-          </div>
-
-          <aside className="sfk-side">
-            <div className="sfk-card sfk-summary">
-              <h2 className="sfk-summary__title">{sfText("storefront.checkout.orderSummary", "ملخص الطلب")}</h2>
-              <dl className="sfk-rows">
-                <div className="sfk-row">
-                  <dt>{sfText("storefront.checkout.products", "المنتجات")}</dt>
-                  <dd>{money(saleSaving > 0 ? compareTotal : subtotal)}</dd>
-                </div>
-                {saleSaving > 0 ? (
-                  <div className="sfk-row sfk-row--saving">
-                    <dt>{sfText("storefront.cart.discount", "الخصم")}</dt>
-                    <dd dir="ltr">-{money(saleSaving)}</dd>
-                  </div>
-                ) : null}
-                {bundleAmount > 0 ? (
-                  <div className="sfk-row sfk-row--saving">
-                    <dt>{sfText("storefront.bundle.discountLabel", "خصم الباقة")}</dt>
-                    <dd dir="ltr">-{money(bundleAmount)}</dd>
-                  </div>
-                ) : null}
-                <div className="sfk-row">
-                  <dt>{sfText("storefront.checkout.shipping", "الشحن")}</dt>
-                  <dd className="sfk-row__muted">{sfText("storefront.cart.shippingAtCheckout", "بيتحسب في صفحة الدفع")}</dd>
-                </div>
-                <div className="sfk-row sfk-row--total">
-                  <dt>{sfText("storefront.checkout.total", "الإجمالي")}</dt>
-                  <dd>{money(total)}</dd>
-                </div>
-              </dl>
-              {saved > 0 ? <p className="sfk-saved">{sfText("storefront.cartDrawer.saved", "وفّرت {{amount}}", { amount: money(saved) })}</p> : null}
-              <Link to={checkoutPath} className="sfk-btn sfk-btn--ink sfk-btn--block">
-                {sfText("storefront.cart.proceedToCheckout", "إتمام الشراء")}
-              </Link>
-              <ul className="sfk-trust">
-                {TRUST_POINTS.map(({ key, Icon, label }) => (
-                  <li key={key}>
-                    <Icon aria-hidden="true" />
-                    {label()}
-                  </li>
+    <>
+      <section className="sfc sfk" data-theme={themeMode}>
+        <div className="sfc-grid">
+          <div className="sfc-main">
+            <CheckoutBlock
+              id="sfk-cart"
+              title={(
+                <>
+                  {sfText("storefront.cart.title", "السلة")}
+                  <span className="sfk-count">{sfText("storefront.products.productCount", "{{count}} منتج", { count: itemCount })}</span>
+                </>
+              )}
+              action={<Link to={productsPath} className="sfc-link">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>}
+            >
+              <ul className="sfk-lines">
+                {lines.map((item) => (
+                  <CartLine
+                    key={item.lineId}
+                    item={item}
+                    bundleShare={bundle.byLine.get(item.lineId) || 0}
+                    bundlePercent={bundlePercent}
+                    updateCart={updateCart}
+                    removeFromCart={removeFromCart}
+                  />
                 ))}
               </ul>
+            </CheckoutBlock>
+
+            {/* Phones: the side panel is not shown, so its totals and button close the page. */}
+            <div className="sfc-mobile-totals">
+              {totals}
+              {savedNote}
+              <div className="sfc-submit">
+                {checkoutButton}
+                <CartTrust />
+              </div>
+            </div>
+          </div>
+
+          <aside className="sfc-side sfk-side" aria-label={sfText("storefront.checkout.orderSummary", "ملخص الطلب")}>
+            <div className="sfc-side__inner">
+              <h2 className="sfc-summary-title sfk-summary-title">{sfText("storefront.checkout.orderSummary", "ملخص الطلب")}</h2>
+              {totals}
+              {savedNote}
+              <div className="sfc-submit">
+                {checkoutButton}
+                <CartTrust />
+              </div>
+              <div className="sfc-summary-notes">
+                <span>{sfText("storefront.cart.finalShippingAtCheckout", "يُحتسب الشحن النهائي عند الدفع")}</span>
+              </div>
             </div>
           </aside>
         </div>
-      </div>
-
-      {/* Phones: the total and the way to checkout stay in reach while the lines scroll. */}
-      <div className="sfk-bar">
-        <div className="sfk-bar__total">
-          <span className="sfk-bar__label">{sfText("storefront.checkout.total", "الإجمالي")}</span>
-          <strong>{money(total)}</strong>
-        </div>
-        <Link to={checkoutPath} className="sfk-btn sfk-btn--ink">
-          {sfText("storefront.cart.proceedToCheckout", "إتمام الشراء")}
-        </Link>
-      </div>
-
+      </section>
       {recentRail}
-    </section>
+    </>
   );
 }

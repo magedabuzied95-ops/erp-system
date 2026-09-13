@@ -11594,6 +11594,7 @@ function Storefront() {
           toggleWishlist={toggleWishlist}
           onAddToCart={onAddToCart}
           saleModeEnabled={storefrontSalePricesEnabled}
+          themeMode={themeMode}
         />
       );
     }
