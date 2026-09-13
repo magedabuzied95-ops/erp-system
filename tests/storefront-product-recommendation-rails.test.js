@@ -128,7 +128,9 @@ test("product page rails render the homepage filtered row and its cards", () => 
   assert.match(rail, /key: productCardKey\(product, index\)/);
   assert.doesNotMatch(storefrontSource, /function RecommendationProductTile/);
   // The embedded row takes the storefront theme and stays inside the column.
-  assert.match(homeStyles, /body\.storefront-dark \.m1h--embedded \{/);
+  // data-theme, not a selector of its own, so Site Studio's dark overrides reach it.
+  assert.match(rail, /data-theme=\{dark \? "dark" : "light"\}/);
+  assert.doesNotMatch(homeStyles, /storefront-dark \.m1h--embedded/);
   assert.match(homeStyles, /\.m1h--embedded \.m1h-rail \{\s*margin-inline: 0;/);
 });
 

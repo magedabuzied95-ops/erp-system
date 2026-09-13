@@ -3607,24 +3607,27 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
               address typed into it was thrown away. */}
         </div>
 
-        {/* Payment marks only: the app-launch block was removed on request — the app is
-            not published, so the footer does not advertise it. */}
-        <div className="mt-10 border-t border-stone-200 pt-7 dark:border-white/10">
-          <div className="flex flex-wrap items-center gap-3">
-            {paymentMarks.map(({ label, icon: PaymentIcon, className }) => (
-              <span key={label} title={label} aria-label={label} className="sf-footer__mark grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
-                <PaymentIcon className={`h-8 w-14 ${className}`} />
-              </span>
-            ))}
-            <span title="Meeza" aria-label="Meeza" className="sf-footer__mark grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
-              <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-8 w-14 object-contain" width="56" height="32" loading="lazy" decoding="async" />
-            </span>
-          </div>
-        </div>
+        {/* The app-launch block was removed on request — the app is not
+            published, so the footer does not advertise it. */}
       </div>
 
-      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-sm font-bold text-white dark:text-white/55">
-        {isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}
+      {/* Payment marks sit in the copyright bar as small card-sized badges, the
+          way international shops show them, instead of a row of large tiles of
+          their own above it. */}
+      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold text-white dark:text-white/55">
+        <div className="mx-auto flex max-w-[1440px] flex-col items-center gap-3 md:flex-row md:justify-between md:px-3">
+          <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
+          <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex items-center gap-1.5" dir="ltr">
+            {paymentMarks.map(({ label, icon: PaymentIcon, className }) => (
+              <li key={label} title={label} className="sf-footer__mark grid h-6 w-10 place-items-center rounded-[4px] bg-white">
+                <PaymentIcon aria-label={label} className={`h-5 w-8 ${className}`} />
+              </li>
+            ))}
+            <li title="Meeza" className="sf-footer__mark grid h-6 w-10 place-items-center rounded-[4px] bg-white">
+              <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-4 w-8 object-contain" width="32" height="16" loading="lazy" decoding="async" />
+            </li>
+          </ul>
+        </div>
       </div>
     </footer>
   );
@@ -6882,8 +6885,25 @@ const RECOMMENDATION_RAIL_MIN_ITEMS = 5;
 //
 // `.m1h` carries the tokens those components paint with; `m1h--embedded` keeps
 // the homepage's page background and gutters out of the product page.
+// The shop's theme lives on `body.storefront-dark`, which the shell toggles.
+// Watched rather than read once, so flipping the theme repaints the rails too.
+const readBodyStorefrontDark = () => typeof document !== "undefined" && document.body.classList.contains("storefront-dark");
+
+function useBodyStorefrontDark() {
+  const [dark, setDark] = useState(readBodyStorefrontDark);
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return undefined;
+    setDark(readBodyStorefrontDark());
+    const observer = new MutationObserver(() => setDark(readBodyStorefrontDark()));
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return dark;
+}
+
 function StorefrontRecommendationRail({ title, subtitle, href, products = [], currentId, loading = false, minItems = 0, wishlist = [], toggleWishlist }) {
   const { i18n } = useTranslation();
+  const dark = useBodyStorefrontDark();
   const isRtl = normalizeLanguage(i18n.language || "ar") === "ar";
   const { brands } = useStorefrontBrands();
   const knownBrandNames = useMemo(
@@ -6942,7 +6962,7 @@ function StorefrontRecommendationRail({ title, subtitle, href, products = [], cu
   );
   if (!loading && !cards.length) return null;
   return (
-    <div className="sf-related-rail m1h m1h--embedded min-w-0" dir={isRtl ? "rtl" : "ltr"}>
+    <div className="sf-related-rail m1h m1h--embedded min-w-0" data-theme={dark ? "dark" : "light"} dir={isRtl ? "rtl" : "ltr"}>
       <HomeFilteredRail
         title={title}
         subtitle={subtitle}

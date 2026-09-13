@@ -66,8 +66,7 @@
   --m1h-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-.m1h[data-theme="dark"],
-body.storefront-dark .m1h--embedded {
+.m1h[data-theme="dark"] {
   --m1h-bg: #070707;
   --m1h-surface: #0f0f0f;
   --m1h-plate: #ffffff; /* the plate stays white in dark mode too: the shoe is the subject */
@@ -1391,8 +1390,9 @@ body.storefront-dark .m1h--embedded {
 /* The product page borrows the row as it is. It sits inside that page's own
    column, so it takes neither the homepage ground nor the shell gutters, and the
    rail stops at the column edge instead of bleeding into a padding it does not
-   own. The theme follows the storefront's body class, since there is no
-   homepage root here to stamp data-theme. */
+   own. The wrapper stamps data-theme from the storefront's body class, so the
+   dark tokens — and Site Studio's overrides of them — apply exactly as on the
+   homepage. */
 .m1h--embedded {
   background: transparent;
   border-top: 1px solid var(--m1h-line);
