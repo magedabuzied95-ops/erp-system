@@ -1,25 +1,34 @@
-﻿import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
 import { sfText } from "../lib/sfText";
 import { api } from "../../shared/api/api";
-import { VirtualList } from "../../shared/components/VirtualList";
 import {
+  Check,
+  ChevronDown,
   ChevronLeft,
   Crown,
+  Eye,
+  EyeOff,
   Gem,
   Heart,
-  History,
   Loader2,
   LogOut,
   MapPin,
+  MessageCircle,
   PackageCheck,
+  PackageSearch,
+  PackageX,
   RefreshCcw,
+  Ruler,
   ShieldCheck,
   ShoppingBag,
+  Truck,
   UserRound,
 } from "lucide-react";
+import { RecentProductsSection } from "../Storefront";
+import { ROOT_PATHS, productPath } from "../lib/paths";
 import {
   clearStorefrontCustomerAuth,
   normalizeStorefrontCustomerPhone,
@@ -27,8 +36,42 @@ import {
   storeStorefrontCustomerAuth,
   storefrontCustomerRequest,
 } from "../lib/storefrontCustomerAuth";
+import "./account.css";
+
+/*
+ * The account page (/account) in the homepage look: every colour is a `--m1h-*` token
+ * (site-skin.css) and class names are `sfa-*`, clear of the legacy `sf-account-*` hooks that
+ * index.css and storefront-light.css still paint gold-on-black with !important.
+ */
 
 const STOREFRONT_PROFILE_KEY = "storefront.profile";
+const ORDERS_PREVIEW_COUNT = 5;
+const WISHLIST_PREVIEW_COUNT = 4;
+
+// Orders that left the happy path read red; a finished one reads green.
+const DERAILED_STATUSES = new Set(["cancelled", "canceled", "cancelled_by_customer", "returned", "failed_delivery", "rejected"]);
+const FINISHED_STATUSES = new Set(["delivered", "completed"]);
+
+const orderTone = (order = {}) => {
+  const values = [order.status, order.shipping_status, order.shipment_status].map((value) => String(value || "").trim().toLowerCase());
+  if (values.some((value) => DERAILED_STATUSES.has(value))) return "bad";
+  if (values.some((value) => FINISHED_STATUSES.has(value))) return "good";
+  return "";
+};
+
+// Literal keys, so the missing-key guard can see every one of them.
+const SIZE_FIELDS = [
+  { key: "men", label: () => sfText("storefront.account.sizeMen", "رجالي") },
+  { key: "women", label: () => sfText("storefront.account.sizeWomen", "حريمي") },
+  { key: "kids", label: () => sfText("storefront.account.sizeKids", "أطفال") },
+  { key: "crocs", label: () => sfText("storefront.account.sizeCrocs", "كروكس") },
+];
+
+const GUEST_PERKS = [
+  { key: "orders", Icon: Truck, label: () => sfText("storefront.account.perkOrders", "تابع طلباتك وأعد طلبها بضغطة") },
+  { key: "wishlist", Icon: Heart, label: () => sfText("storefront.account.perkWishlist", "مفضلتك محفوظة على أي جهاز") },
+  { key: "points", Icon: Gem, label: () => sfText("storefront.account.perkPoints", "اجمع نقاط مع كل طلب") },
+];
 
 const storefrontAsyncDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
@@ -83,25 +126,61 @@ const clearAccountIdentityStorage = () => {
   }
 };
 
-function OrderItemsSummaryLocal({ items = [], helpers }) {
-  const { sfText, money, imageFor, fallbackProductImage } = helpers;
-  if (!items.length) {
-    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>;
-  }
+const initialOf = (name = "") => {
+  const letter = String(name || "").trim().charAt(0);
+  return letter ? letter.toLocaleUpperCase(i18n.language || "ar") : "";
+};
+
+const scrollToSection = (id) => {
+  if (typeof document === "undefined") return;
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+function AccountField({ label, value, onChange, type = "text", inputMode, autoComplete, ltr = false, hint = "" }) {
+  const id = useId();
+  const [revealed, setRevealed] = useState(false);
+  const isPassword = type === "password";
   return (
-    <div className="sf-order-items mt-5 space-y-3">
-      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h3>
-      {items.map((item) => (
-        <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-          <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
-          <div className="min-w-0 flex-1">
-            <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
-            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "اللون")} / {item.size || sfText("storefront.products.size", "المقاس")} × {item.quantity}</div>
-          </div>
-          <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
-        </div>
-      ))}
+    <div className="sfa-field">
+      <label htmlFor={id} className="sfa-field__label">{label}</label>
+      <div className="sfa-field__control">
+        <input
+          id={id}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          type={isPassword && revealed ? "text" : type}
+          inputMode={inputMode}
+          autoComplete={autoComplete}
+          dir={ltr ? "ltr" : undefined}
+          className={`sfa-input${isPassword ? " sfa-input--with-toggle" : ""}`}
+        />
+        {isPassword ? (
+          <button
+            type="button"
+            onClick={() => setRevealed((current) => !current)}
+            className="sfa-field__toggle"
+            aria-label={revealed ? sfText("storefront.account.hidePassword", "إخفاء كلمة المرور") : sfText("storefront.account.showPassword", "إظهار كلمة المرور")}
+            aria-pressed={revealed}
+          >
+            {revealed ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+          </button>
+        ) : null}
+      </div>
+      {hint ? <p className="sfa-field__hint">{hint}</p> : null}
     </div>
+  );
+}
+
+function SubmitButton({ onClick, disabled, busy, busyLabel, children, variant = "ink" }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className={`sfa-btn sfa-btn--${variant} sfa-btn--block`}>
+      {busy ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          {busyLabel}
+        </>
+      ) : children}
+    </button>
   );
 }
 
@@ -131,18 +210,10 @@ function AnimatedPoints({ value }) {
   return Number(display || 0).toLocaleString(i18n.language || "en");
 }
 
-function LoyaltyWidget({ loyalty, loading, helpers }) {
-  const { sfText } = helpers;
+function MembershipCard({ loyalty, loading }) {
   if (loading && !loyalty) {
-    return (
-      <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.5rem] border border-stone-200/80 bg-white/96 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.07)]">
-        <div className="sf-skeleton h-4 w-24 animate-pulse rounded-full bg-stone-200/90" />
-        <div className="sf-skeleton mt-4 h-10 w-36 animate-pulse rounded-[0.95rem] bg-stone-200/90" />
-        <div className="sf-skeleton mt-4 h-2 w-full animate-pulse rounded-full bg-stone-200/90" />
-      </div>
-    );
+    return <div id="sfa-membership" className="sfa-member sfa-member--loading" aria-busy="true" />;
   }
-
   const points = Number(loyalty?.points ?? loyalty?.available_points ?? 0);
   const tier = loyalty?.tier || "Bronze";
   const nextTier = loyalty?.next_tier || "Platinum";
@@ -150,88 +221,185 @@ function LoyaltyWidget({ loyalty, loading, helpers }) {
   const progress = Math.max(0, Math.min(100, Number(loyalty?.progress || 0)));
 
   return (
-    <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.35rem] border border-[#d4af37]/20 bg-[#111111] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="sf-loyalty-icon grid h-10 w-10 place-items-center rounded-full bg-white text-[#d4af37] shadow-sm">
-            <Gem className="h-5 w-5" />
-          </span>
-          <div>
-            <div className="sf-muted-text text-xs font-black text-stone-500">{sfText("storefront.account.loyaltyBalance", "Loyalty balance")}</div>
-            <div className="sf-primary-text text-2xl font-black text-stone-950">
-              <AnimatedPoints value={points} /> {sfText("storefront.account.points", "points")}
-            </div>
-          </div>
+    <section id="sfa-membership" className="sfa-member">
+      <div className="sfa-member__top">
+        <div className="sfa-member__title">
+          <Gem className="h-4 w-4" aria-hidden="true" />
+          {sfText("storefront.account.membershipTitle", "عضوية M1")}
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-stone-950 px-3 py-1.5 text-xs font-black text-white">
-          <Crown className="h-3.5 w-3.5 text-amber-300" />
+        <span className="sfa-member__tier">
+          <Crown className="h-3.5 w-3.5" aria-hidden="true" />
           {tier}
         </span>
       </div>
-      <div className="sf-loyalty-progress mt-4 h-2 overflow-hidden rounded-full bg-white">
-        <div className="h-full rounded-full bg-[#d4af37] transition-all duration-700" style={{ width: `${progress}%` }} />
+      <div className="sfa-member__points">
+        <span className="sfa-member__value"><AnimatedPoints value={points} /></span>
+        <span className="sfa-member__unit">{sfText("storefront.account.points", "نقطة")}</span>
       </div>
-      <div className="sf-secondary-text mt-3 flex flex-wrap items-center justify-between gap-2 text-xs font-black text-stone-600">
-        <span>
-          {remaining > 0
-            ? sfText("storefront.account.pointsToNextTier", "{{count}} points to reach {{tier}}", {
-                count: remaining.toLocaleString(i18n.language || "en"),
-                tier: nextTier,
-              })
-            : sfText("storefront.account.topTierReached", "You reached the top tier")}
-        </span>
-        <span>{Math.round(progress)}%</span>
+      <div
+        className="sfa-member__bar"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress)}
+        aria-label={sfText("storefront.account.loyaltyBalance", "رصيد الولاء")}
+      >
+        <span style={{ width: `${progress}%` }} />
       </div>
+      <p className="sfa-member__note">
+        {remaining > 0
+          ? sfText("storefront.account.pointsToNextTier", "{{count}} نقطة للترقية إلى {{tier}}", {
+              count: remaining.toLocaleString(i18n.language || "en"),
+              tier: nextTier,
+            })
+          : sfText("storefront.account.topTierReached", "وصلت لأعلى مستوى")}
+      </p>
+    </section>
+  );
+}
+
+function OrderDetails({ data, helpers }) {
+  const { money, imageFor, fallbackProductImage, paymentCopy, shippingProviderCopy, statusCopy, supportHref, displayOrderNumber } = helpers;
+  if (data.loading) {
+    return (
+      <div className="sfa-order__details" aria-busy="true">
+        <div className="sfa-skeleton" style={{ height: 120 }} />
+      </div>
+    );
+  }
+  const order = data.order || {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+  const derailed = orderTone(order) === "bad";
+  const currentIndex = timeline.reduce((last, step, index) => (step.done ? index : last), 0);
+  const remaining = Number(order.remaining_amount || 0);
+
+  return (
+    <div className="sfa-order__details">
+      {derailed ? (
+        <div className="sfa-derailed">
+          <PackageX className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <p>{sfText("storefront.tracking.derailedText", "لو عندك أي استفسار كلّمنا على واتساب وهنساعدك.")}</p>
+        </div>
+      ) : timeline.length ? (
+        <ol className="sfa-steps" aria-label={sfText("storefront.orders.tracking", "تتبع الطلب")}>
+          {timeline.map((step, index) => {
+            const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "todo";
+            return (
+              <li key={step.key || step.label} className={`sfa-step sfa-step--${state}`} aria-current={state === "current" ? "step" : undefined}>
+                <span className="sfa-step__dot" aria-hidden="true">
+                  {state === "done" ? <Check className="h-3 w-3" /> : null}
+                </span>
+                <span className="sfa-step__label">{step.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+
+      <dl className="sfa-facts">
+        <div>
+          <dt>{sfText("storefront.checkout.paymentMethod", "طريقة الدفع")}</dt>
+          <dd>{paymentCopy(order.payment_method)}</dd>
+        </div>
+        <div>
+          <dt>{sfText("storefront.checkout.shipping", "الشحن")}</dt>
+          <dd>{`${shippingProviderCopy(order.shipping_provider)} - ${statusCopy(order.shipping_status)}`}</dd>
+        </div>
+        {remaining > 0 ? (
+          <div>
+            <dt>{sfText("storefront.account.remainingOnDelivery", "المطلوب عند الاستلام")}</dt>
+            <dd>{money(remaining)}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      {items.length ? (
+        <ul className="sfa-items">
+          {items.map((item) => (
+            <li key={item.id || `${item.product_id}-${item.variant_id}`} className="sfa-item">
+              <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="sfa-item__img" loading="lazy" decoding="async" width="52" height="52" />
+              <div className="min-w-0 flex-1">
+                <div className="sfa-item__name">{item.product_name || item.name}</div>
+                <div className="sfa-item__meta">
+                  {[item.color, item.size].filter(Boolean).join(" / ")} × {item.quantity}
+                </div>
+              </div>
+              <div className="sfa-item__price">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="sfa-muted">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>
+      )}
+
+      <a href={supportHref(displayOrderNumber(order))} className="sfa-link" target="_blank" rel="noreferrer">
+        <MessageCircle className="h-4 w-4" aria-hidden="true" />
+        {sfText("storefront.support.needHelpWhatsapp", "تحتاج مساعدة؟ تواصل معنا على واتساب")}
+      </a>
     </div>
   );
 }
 
-const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, onReorder, helpers, components }) {
-  const { displayOrderNumber, formatDate, statusCopy, money, sfText } = helpers;
-  const { OrderNumberBadge } = components;
-  const open = useCallback(() => onOpen(order), [onOpen, order]);
-  const reorderOrder = useCallback(() => onReorder(order), [onReorder, order]);
+function OrderRow({ order, phone, open, details, onToggle, onReorder, helpers }) {
+  const { displayOrderNumber, formatDate, statusCopy, money } = helpers;
   const publicNumber = displayOrderNumber(order);
-  return (
-    <div className="sf-account-order-row rounded-2xl bg-stone-50 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <OrderNumberBadge value={order} className="border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
-          <div className="sf-muted-text mt-1 text-xs font-bold text-stone-500">{formatDate(order.created_at)} - {statusCopy(order.status)}</div>
-        </div>
-        <div className="sf-primary-text font-black">{money(order.total_amount || order.total || order.total_price)}</div>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}</button>
-        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
-        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
-      </div>
-    </div>
-  );
-});
+  const tone = orderTone(order);
+  const [reordering, setReordering] = useState(false);
+  const reorder = async () => {
+    setReordering(true);
+    try {
+      await onReorder(open && details?.items?.length ? { ...order, items: details.items } : order);
+    } catch {
+      toast.error(sfText("storefront.toasts.reorderUnavailable", "هذه المنتجات غير متاحة حاليًا. جرّب اختيارات أخرى."));
+    } finally {
+      setReordering(false);
+    }
+  };
 
-function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
-  const { displayOrderNumber, sfText, statusCopy, paymentCopy, shippingProviderCopy, supportHref } = helpers;
-  const { Panel, InfoBox, OrderTimeline, OrderNumberBadge } = components;
-  const order = data.order || {};
-  const publicNumber = displayOrderNumber(order);
-  if (data.loading) return <div className="sf-storefront-card h-40 animate-pulse rounded-3xl bg-white" />;
   return (
-    <Panel title={sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}>
-      <OrderNumberBadge value={publicNumber} className="mb-1 border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
-      <div className="grid gap-3 md:grid-cols-3">
-        <InfoBox label={sfText("storefront.orders.orderStatus", "حالة الطلب")} value={statusCopy(order.status)} />
-        <InfoBox label={sfText("storefront.checkout.paymentMethod", "Payment")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status)}`} />
-        <InfoBox label={sfText("storefront.checkout.shipping", "Shipping")} value={`${shippingProviderCopy(order.shipping_provider)} - ${statusCopy(order.shipping_status)}`} />
+    <li className={`sfa-order${open ? " is-open" : ""}`}>
+      <div className="sfa-order__head">
+        <div className="min-w-0">
+          <div className="sfa-order__number" dir="ltr">{publicNumber}</div>
+          <div className="sfa-order__date">{formatDate(order.created_at)}</div>
+        </div>
+        <span className={`sfa-pill${tone ? ` sfa-pill--${tone}` : ""}`}>{statusCopy(order.status)}</span>
       </div>
-      <OrderTimeline timeline={data.timeline || []} />
-      <OrderItemsSummaryLocal items={data.items || []} helpers={helpers} />
-      <div className="grid gap-2 sm:grid-cols-3">
-        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
-        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
-        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "واتساب")}</a>
+      <div className="sfa-order__foot">
+        <div className="sfa-order__total">{money(order.total_amount || order.total || order.total_price)}</div>
+        <div className="sfa-order__actions">
+          <button type="button" onClick={() => onToggle(order)} className="sfa-btn sfa-btn--quiet sfa-btn--sm" aria-expanded={open}>
+            {open ? sfText("storefront.account.hideDetails", "إخفاء التفاصيل") : sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}
+            <ChevronDown className={`h-4 w-4 sfa-chevron${open ? " is-open" : ""}`} aria-hidden="true" />
+          </button>
+          <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="sfa-btn sfa-btn--outline sfa-btn--sm">
+            {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
+          </Link>
+          <button type="button" onClick={reorder} disabled={reordering} className="sfa-btn sfa-btn--ink sfa-btn--sm">
+            {reordering ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />}
+            {sfText("storefront.orders.reorder", "إعادة الطلب")}
+          </button>
+        </div>
       </div>
-    </Panel>
+      {open && details ? <OrderDetails data={details} helpers={helpers} /> : null}
+    </li>
+  );
+}
+
+function SectionHead({ Icon, title, subtitle, action = null, count = null }) {
+  return (
+    <div className="sfa-card__head">
+      <span className="sfa-card__icon" aria-hidden="true"><Icon className="h-[18px] w-[18px]" /></span>
+      <div className="min-w-0 flex-1">
+        <h2 className="sfa-card__title">
+          {title}
+          {count !== null ? <span className="sfa-card__count" dir="ltr">{count}</span> : null}
+        </h2>
+        {subtitle ? <p className="sfa-card__subtitle">{subtitle}</p> : null}
+      </div>
+      {action}
+    </div>
   );
 }
 
@@ -241,15 +409,15 @@ function StorefrontAccountPageContent({
   wishlist = [],
   recent = [],
   onAddToCart = () => {},
+  toggleWishlist,
+  saleModeEnabled,
   helpers = {},
-  components = {},
   initialAuthMode = "login",
 }) {
   const {
     sfText = (_key, fallback = "") => fallback,
     displayOrderNumber = (value) => String(value?.id || value?.order_number || ""),
   } = helpers;
-  const { Field, Panel, InfoBox, SmallProductList } = components;
   const safeProfile = profile && typeof profile === "object" ? profile : {};
   const savedIdentity = normalizeAccountIdentity(safeProfile);
   const navigate = useNavigate();
@@ -282,7 +450,6 @@ function StorefrontAccountPageContent({
   const resetTokenFromQuery = searchParams.get("token") || "";
   const isResetMode = initialAuthMode === "reset" || Boolean(resetTokenFromQuery) || authMode === "reset";
   const hasResetToken = Boolean(String(resetToken || resetTokenFromQuery || "").trim());
-  const showEmailAuth = !hasCustomerToken;
 
   useEffect(() => {
     if (initialAuthMode === "reset" || resetTokenFromQuery) {
@@ -772,281 +939,370 @@ function StorefrontAccountPageContent({
   const addresses = account?.addresses || [];
   const backendWishlist = account?.wishlist_products || [];
   const backendRecent = account?.recent_products || [];
-  const authSummary = account?.customer?.name || safeProfile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
-  const isRestoringAccount = hasCustomerToken && !account;
+  const customerName = account?.customer?.name || safeProfile.full_name || "";
   const showOtpLogin = !hasCustomerToken && !isResetMode;
   const showResetView = authMode === "reset";
   const showForgotView = authMode === "forgot";
   const activePrimaryTab = authMode === "register" ? "register" : "login";
-  const ltrInputClassName = "text-left [direction:ltr]";
   const wishlistItems = backendWishlist.length ? backendWishlist : wishlist;
   const recentItems = backendRecent.length ? backendRecent : recent;
   const customerPhone = customerAuth.phone || phone;
+  const [showAllOrders, setShowAllOrders] = useState(false);
+  const visibleOrders = showAllOrders ? orders : orders.slice(0, ORDERS_PREVIEW_COUNT);
+  const openOrderKey = selectedOrder?.order ? String(selectedOrder.order.id || displayOrderNumber(selectedOrder.order)) : "";
+  const points = Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0);
+
+  const toggleOrder = useCallback((order) => {
+    const key = String(order.id || displayOrderNumber(order));
+    if (key === openOrderKey) {
+      setSelectedOrder(null);
+      return;
+    }
+    openOrder(order);
+  }, [displayOrderNumber, openOrder, openOrderKey]);
+
+  if (!hasCustomerToken) {
+    return (
+      <section className="sfa sfa--guest">
+        <div className="sfa-guest">
+          <header className="sfa-guest__head">
+            <span className="sfa-guest__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>
+            <h1 className="sfa-title">{showResetView ? sfText("storefront.auth.recoverAccount") : sfText("storefront.auth.welcomeTitle")}</h1>
+            <p className="sfa-muted">{showResetView ? sfText("storefront.auth.resetIntro") : sfText("storefront.auth.welcomeIntro")}</p>
+          </header>
+
+          <div className="sfa-card sfa-auth">
+            {!showForgotView && !showResetView ? (
+              <div className="sfa-tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={activePrimaryTab === "login"} onClick={() => setAuthMode("login")} className={`sfa-tab${activePrimaryTab === "login" ? " is-active" : ""}`}>
+                  {sfText("storefront.auth.signIn")}
+                </button>
+                <button type="button" role="tab" aria-selected={activePrimaryTab === "register"} onClick={() => setAuthMode("register")} className={`sfa-tab${activePrimaryTab === "register" ? " is-active" : ""}`}>
+                  {sfText("storefront.auth.createAccount")}
+                </button>
+              </div>
+            ) : null}
+
+            {authMode === "login" ? (
+              <div className="sfa-form">
+                <AccountField label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} type="email" inputMode="email" autoComplete="email" ltr />
+                <div className="sfa-form__stack">
+                  <AccountField label={sfText("storefront.auth.password")} value={authPassword} onChange={setAuthPassword} type="password" autoComplete="current-password" ltr />
+                  <button type="button" onClick={() => setAuthMode("forgot")} className="sfa-text-btn sfa-text-btn--end">{sfText("storefront.auth.forgotPassword")}</button>
+                </div>
+                <SubmitButton onClick={submitEmailAuthLogin} disabled={authSubmitting} busy={authSubmitting} busyLabel={sfText("storefront.auth.signingIn")}>
+                  {sfText("storefront.auth.signIn")}
+                </SubmitButton>
+
+                {showOtpLogin ? (
+                  <>
+                    <div className="sfa-divider"><span>{sfText("storefront.auth.or")}</span></div>
+                    {!otpPanelOpen ? (
+                      <SubmitButton onClick={() => setOtpPanelOpen(true)} variant="outline">
+                        <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                        {sfText("storefront.auth.phoneLoginButton")}
+                      </SubmitButton>
+                    ) : (
+                      <div className="sfa-otp">
+                        <div className="sfa-otp__head">
+                          <div className="min-w-0">
+                            <p className="sfa-otp__title">{sfText("storefront.auth.phoneLoginTitle")}</p>
+                            <p className="sfa-muted">{sfText("storefront.auth.phoneLoginHint")}</p>
+                          </div>
+                          <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="sfa-text-btn">
+                            {sfText("storefront.common.close")}
+                          </button>
+                        </div>
+                        <AccountField label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} type="tel" inputMode="tel" autoComplete="tel" ltr />
+                        {!otpRequestedAt ? (
+                          <SubmitButton onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} busy={requestingOtp} busyLabel={sfText("storefront.auth.sendingCode")}>
+                            {sfText("storefront.auth.sendWhatsappCode")}
+                          </SubmitButton>
+                        ) : (
+                          <>
+                            <AccountField
+                              label={sfText("storefront.auth.otpCode")}
+                              value={otpCode}
+                              onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              ltr
+                              hint={sfText("storefront.auth.otpSentHint")}
+                            />
+                            <SubmitButton onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} busy={verifyingOtp} busyLabel={sfText("storefront.auth.verifying")}>
+                              {sfText("storefront.auth.confirmLogin")}
+                            </SubmitButton>
+                            <button type="button" onClick={requestOtp} disabled={requestingOtp || resendCountdown > 0} className="sfa-text-btn sfa-text-btn--center">
+                              <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                              {resendCountdown > 0 ? sfText("storefront.auth.resendIn", undefined, { seconds: resendCountdown }) : sfText("storefront.auth.resendCode")}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+
+            {authMode === "register" ? (
+              <div className="sfa-form">
+                <AccountField label={sfText("storefront.form.name")} value={authFullName} onChange={setAuthFullName} autoComplete="name" />
+                <AccountField label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} type="email" inputMode="email" autoComplete="email" ltr />
+                <AccountField label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} type="tel" inputMode="tel" autoComplete="tel" ltr />
+                <AccountField label={sfText("storefront.auth.password")} value={authPassword} onChange={setAuthPassword} type="password" autoComplete="new-password" ltr />
+                <AccountField label={sfText("storefront.auth.confirmPassword")} value={authConfirmPassword} onChange={setAuthConfirmPassword} type="password" autoComplete="new-password" ltr />
+                <SubmitButton onClick={submitEmailAuthRegister} disabled={authSubmitting} busy={authSubmitting} busyLabel={sfText("storefront.auth.creatingAccount")}>
+                  {sfText("storefront.auth.createAccount")}
+                </SubmitButton>
+              </div>
+            ) : null}
+
+            {authMode === "forgot" ? (
+              <div className="sfa-form">
+                <div>
+                  <h2 className="sfa-card__title">{sfText("storefront.auth.recoverPassword")}</h2>
+                  <p className="sfa-muted">{sfText("storefront.auth.recoverHint")}</p>
+                </div>
+                <AccountField label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} type="email" inputMode="email" autoComplete="email" ltr />
+                <SubmitButton onClick={requestPasswordReset} disabled={authSubmitting} busy={authSubmitting} busyLabel={sfText("storefront.auth.sending")}>
+                  {sfText("storefront.auth.sendRecoveryLink")}
+                </SubmitButton>
+                <button type="button" onClick={() => setAuthMode("login")} className="sfa-text-btn sfa-text-btn--center">{sfText("storefront.auth.backToSignIn")}</button>
+              </div>
+            ) : null}
+
+            {authMode === "reset" ? (
+              <div className="sfa-form">
+                {!hasResetToken ? <div className="sfa-alert">{sfText("storefront.auth.resetLinkIncomplete")}</div> : null}
+                <AccountField label={sfText("storefront.auth.newPassword")} value={resetPassword} onChange={setResetPassword} type="password" autoComplete="new-password" ltr />
+                <AccountField label={sfText("storefront.auth.confirmNewPassword")} value={resetPasswordConfirm} onChange={setResetPasswordConfirm} type="password" autoComplete="new-password" ltr />
+                <SubmitButton onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} busy={authSubmitting} busyLabel={sfText("storefront.auth.updating")}>
+                  {sfText("storefront.auth.updatePassword")}
+                </SubmitButton>
+                {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="sfa-text-btn sfa-text-btn--center">{sfText("storefront.auth.requestNewLink")}</button> : null}
+              </div>
+            ) : null}
+          </div>
+
+          {!showResetView && !showForgotView ? (
+            <ul className="sfa-perks">
+              {GUEST_PERKS.map(({ key, Icon, label }) => (
+                <li key={key} className="sfa-perk">
+                  <span className="sfa-perk__icon" aria-hidden="true"><Icon className="h-4 w-4" /></span>
+                  {label()}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <p className="sfa-secure">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            {sfText("storefront.auth.secureLogin")}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  const stats = [
+    { key: "orders", Icon: PackageCheck, value: orders.length, label: sfText("storefront.account.stats.orders"), onClick: () => scrollToSection("sfa-orders") },
+    { key: "wishlist", Icon: Heart, value: wishlistItems.length, label: sfText("storefront.header.wishlist", "المفضلة"), to: ROOT_PATHS.wishlist || "/wishlist" },
+    { key: "addresses", Icon: MapPin, value: addresses.length, label: sfText("storefront.account.stats.addresses"), onClick: () => scrollToSection("sfa-addresses") },
+    { key: "points", Icon: Gem, value: points.toLocaleString(i18n.language || "en"), label: sfText("storefront.account.stats.points"), onClick: () => scrollToSection("sfa-membership") },
+  ];
 
   return (
-    <section className="sf-account-page mx-auto max-w-[1440px] px-4 py-6 pb-28 sm:px-6 md:py-10 md:pb-14 lg:px-8">
-      <div className={`sf-account-layout ${hasCustomerToken ? "is-dashboard" : "is-auth"}`}>
-        <div className="space-y-5">
-          {hasCustomerToken ? (
-            <div className="sf-account-dashboard space-y-6">
-              <header className="sf-account-hero overflow-hidden rounded-[2rem] border p-5 sm:p-7 lg:p-9">
-                <div className="sf-account-hero-orb" aria-hidden="true" />
-                <div className="relative z-[1] flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
-                  <div className="max-w-2xl">
-                    <div className="flex items-center gap-4">
-                      <span className="sf-account-avatar grid h-16 w-16 shrink-0 place-items-center rounded-full sm:h-20 sm:w-20">
-                        <UserRound className="h-7 w-7 sm:h-9 sm:w-9" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-white/55">{sfText("storefront.account.welcomeBack", "أهلًا بعودتك")}</p>
-                        <h1 className="mt-1 truncate text-3xl font-black text-white sm:text-4xl">{authSummary}</h1>
-                        {customerPhone ? <p className="mt-2 font-bold tracking-wide text-white/55" dir="ltr">{customerPhone}</p> : null}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-3">
-                    <button type="button" onClick={() => load()} disabled={loading} className="sf-account-hero-button inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
-                      <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                      {sfText("storefront.account.refreshData")}
-                    </button>
-                    <button type="button" onClick={clearCustomerIdentity} className="sf-account-hero-button is-danger inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
-                      <LogOut className="h-4 w-4" />
-                      {sfText("storefront.account.signOut")}
-                    </button>
-                  </div>
+    <section className="sfa">
+      <div className="sfa-wrap">
+        <header className="sfa-head">
+          <div className="sfa-head__who">
+            <span className="sfa-avatar" aria-hidden="true">
+              {initialOf(customerName) || <UserRound className="h-6 w-6" />}
+            </span>
+            <div className="min-w-0">
+              <p className="sfa-muted">{sfText("storefront.account.welcomeBack", "أهلًا بيك")}</p>
+              <h1 className="sfa-title sfa-title--name">{customerName || sfText("storefront.account.title", "حسابي")}</h1>
+              {customerPhone ? <p className="sfa-head__phone" dir="ltr">{customerPhone}</p> : null}
+            </div>
+          </div>
+          <div className="sfa-head__actions">
+            <button type="button" onClick={() => load()} disabled={loading} className="sfa-btn sfa-btn--outline">
+              <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+              {sfText("storefront.account.refreshData")}
+            </button>
+            <button type="button" onClick={clearCustomerIdentity} className="sfa-btn sfa-btn--quiet sfa-btn--danger">
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              {sfText("storefront.account.signOut")}
+            </button>
+          </div>
+        </header>
+
+        <nav className="sfa-stats" aria-label={sfText("storefront.account.title", "حسابي")}>
+          {stats.map(({ key, Icon, value, label, to, onClick }) => {
+            const body = (
+              <>
+                <span className="sfa-stat__icon" aria-hidden="true"><Icon className="h-[18px] w-[18px]" /></span>
+                <span className="sfa-stat__value" dir="ltr">{value}</span>
+                <span className="sfa-stat__label">{label}</span>
+              </>
+            );
+            return to ? (
+              <Link key={key} to={to} className="sfa-stat">{body}</Link>
+            ) : (
+              <button key={key} type="button" onClick={onClick} className="sfa-stat">{body}</button>
+            );
+          })}
+        </nav>
+
+        <div className="sfa-grid">
+          <div className="sfa-main">
+            <section id="sfa-orders" className="sfa-card">
+              <SectionHead Icon={ShoppingBag} title={sfText("storefront.account.myOrders", "طلباتي")} subtitle={sfText("storefront.account.ordersHint")} count={orders.length || null} />
+              {!account && loading ? (
+                <div className="sfa-skeleton-list" aria-busy="true">
+                  {[0, 1, 2].map((index) => <div key={index} className="sfa-skeleton" />)}
                 </div>
-                <div className="relative z-[1] mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  {[
-                    [PackageCheck, orders.length, sfText("storefront.account.stats.orders")],
-                    [Heart, wishlistItems.length, sfText("storefront.header.wishlist")],
-                    [MapPin, addresses.length, sfText("storefront.account.stats.addresses")],
-                    [Gem, Number(account?.loyalty?.points ?? account?.loyalty?.available_points ?? 0).toLocaleString(i18n.language || "en"), sfText("storefront.account.stats.points")],
-                  ].map(([Icon, value, label]) => (
-                    <div key={label} className="sf-account-stat rounded-[1.25rem] border p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-2xl font-black text-white">{value}</span>
-                        <Icon className="h-5 w-5 text-[#e6c65d]" />
-                      </div>
-                      <div className="mt-1 text-xs font-black text-white/50">{label}</div>
-                    </div>
+              ) : orders.length ? (
+                <>
+                  <ul className="sfa-orders">
+                    {visibleOrders.map((order) => {
+                      const key = String(order.id || displayOrderNumber(order));
+                      const open = key === openOrderKey;
+                      return (
+                        <OrderRow
+                          key={key}
+                          order={order}
+                          phone={customerPhone}
+                          open={open}
+                          details={open ? selectedOrder : null}
+                          onToggle={toggleOrder}
+                          onReorder={reorder}
+                          helpers={helpers}
+                        />
+                      );
+                    })}
+                  </ul>
+                  {orders.length > ORDERS_PREVIEW_COUNT ? (
+                    <button type="button" onClick={() => setShowAllOrders((current) => !current)} className="sfa-btn sfa-btn--outline sfa-btn--block sfa-more">
+                      {showAllOrders
+                        ? sfText("storefront.account.showFewerOrders", "عرض أقل")
+                        : sfText("storefront.account.showAllOrders", "عرض كل الطلبات ({{count}})", { count: orders.length })}
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <div className="sfa-empty">
+                  <span className="sfa-empty__icon" aria-hidden="true"><ShoppingBag className="h-6 w-6" /></span>
+                  <h3 className="sfa-empty__title">{sfText("storefront.account.noOrders", "لا توجد طلبات بعد")}</h3>
+                  <p className="sfa-muted">{sfText("storefront.account.noOrdersText")}</p>
+                  <Link to={ROOT_PATHS.products || "/products"} className="sfa-btn sfa-btn--ink">
+                    {sfText("storefront.common.shopNow")}
+                    <ChevronLeft className="h-4 w-4 ltr:rotate-180" aria-hidden="true" />
+                  </Link>
+                </div>
+              )}
+            </section>
+
+            <section className="sfa-card">
+              <SectionHead
+                Icon={Heart}
+                title={sfText("storefront.header.wishlist", "المفضلة")}
+                subtitle={sfText("storefront.account.wishlistSubtitle", "كل اللي عجبك في مكان واحد")}
+                count={wishlistItems.length || null}
+                action={wishlistItems.length ? (
+                  <Link to={ROOT_PATHS.wishlist || "/wishlist"} className="sfa-btn sfa-btn--outline sfa-btn--sm">
+                    {sfText("storefront.common.viewAll", "عرض الكل")}
+                  </Link>
+                ) : null}
+              />
+              {wishlistItems.length ? (
+                <ul className="sfa-thumbs">
+                  {wishlistItems.slice(0, WISHLIST_PREVIEW_COUNT).map((item, index) => (
+                    <li key={item.key || `${item.id}-${index}`}>
+                      <Link to={productPath(item.slug || item.id, item.color_key ? { color: item.color_key } : "")} className="sfa-thumb">
+                        <span className="sfa-thumb__plate">
+                          <img src={helpers.imageFor(item.image_url || item.image)} onError={helpers.fallbackProductImage} alt="" loading="lazy" decoding="async" />
+                        </span>
+                        <span className="sfa-thumb__name">{item.name}</span>
+                      </Link>
+                    </li>
                   ))}
-                </div>
-              </header>
+                </ul>
+              ) : (
+                <p className="sfa-muted sfa-inline-empty">{sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")}</p>
+              )}
+            </section>
+          </div>
 
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.85fr)]">
-                <div className="space-y-6">
-                  <section className="sf-account-section rounded-[1.75rem] border p-4 sm:p-6">
-                    <div className="mb-5 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><ShoppingBag className="h-5 w-5" /></span>
-                        <div>
-                          <h2 className="text-xl font-black">{sfText("storefront.account.myOrders", "طلباتي")}</h2>
-                          <p className="mt-0.5 text-xs font-bold text-white/45">{sfText("storefront.account.ordersHint")}</p>
-                        </div>
-                      </div>
-                      <span className="sf-account-count rounded-full px-3 py-1 text-xs font-black">{orders.length}</span>
-                    </div>
-                    {orders.length ? (
-                      <VirtualList
-                        items={orders}
-                        estimateSize={152}
-                        className="max-h-[35rem] overflow-auto pr-1"
-                        itemKey={(order) => order.id || displayOrderNumber(order)}
-                        renderItem={(order) => <AccountOrderRow order={order} phone={customerPhone} onOpen={openOrder} onReorder={reorder} helpers={helpers} components={components} />}
-                      />
-                    ) : (
-                      <div className="sf-account-empty grid min-h-64 place-items-center rounded-[1.5rem] border border-dashed p-8 text-center">
-                        <div>
-                          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full"><ShoppingBag className="h-6 w-6" /></span>
-                          <h3 className="mt-4 text-lg font-black">{sfText("storefront.account.noOrders", "لا توجد طلبات حتى الآن")}</h3>
-                          <p className="mx-auto mt-2 max-w-sm text-sm font-bold leading-6">{sfText("storefront.account.noOrdersText")}</p>
-                          <Link to="/products" className="sf-account-primary-button mt-5 inline-flex min-h-11 items-center gap-2 rounded-full px-5 text-sm font-black">
-                            {sfText("storefront.common.shopNow")} <ChevronLeft className="h-4 w-4 ltr:rotate-180" />
-                          </Link>
-                        </div>
-                      </div>
-                    )}
-                  </section>
-                  {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={customerPhone} onReorder={reorder} helpers={helpers} components={components} /> : null}
-                </div>
+          <aside className="sfa-side">
+            <MembershipCard loyalty={account?.loyalty} loading={loading} />
 
-                <aside className="space-y-6">
-                  <section className="sf-account-section rounded-[1.75rem] border p-5">
-                    <div className="flex items-center gap-3">
-                      <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><Crown className="h-5 w-5" /></span>
-                      <div>
-                        <h2 className="text-lg font-black">{sfText("storefront.account.membershipTitle")}</h2>
-                        <p className="text-xs font-bold text-white/45">{sfText("storefront.account.membershipSubtitle")}</p>
-                      </div>
-                    </div>
-                    <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} />
-                  </section>
-                  <section className="sf-account-section rounded-[1.75rem] border p-5">
-                    <div className="mb-4 flex items-center gap-3">
-                      <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><MapPin className="h-5 w-5" /></span>
-                      <div>
-                        <h2 className="text-lg font-black">{sfText("storefront.account.myAddresses", "عناويني")}</h2>
-                        <p className="text-xs font-bold text-white/45">{sfText("storefront.account.savedAddressesSubtitle")}</p>
-                      </div>
-                    </div>
-                    {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl p-4 font-bold">{address}</div>) : (
-                      <div className="sf-account-empty rounded-[1.25rem] border border-dashed p-6 text-center">
-                        <MapPin className="mx-auto h-6 w-6" />
-                        <p className="mt-3 text-sm font-bold leading-6">{sfText("storefront.account.addressesEmpty", "ستظهر العناوين المستخدمة في الطلبات هنا")}</p>
-                      </div>
-                    )}
-                  </section>
-                </aside>
-              </div>
-
-              <div className="grid gap-6 xl:grid-cols-2">
-                {[
-                  [Heart, sfText("storefront.header.wishlist", "المفضلة"), "كل ما أحببته في مكان واحد", wishlistItems, sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")],
-                  [History, sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا"), "ارجع بسرعة إلى اختياراتك الأخيرة", recentItems, sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")],
-                ].map(([Icon, title, subtitle, items, empty]) => (
-                  <section key={title} className="sf-account-section rounded-[1.75rem] border p-5 sm:p-6">
-                    <div className="mb-5 flex items-center gap-3">
-                      <span className="sf-account-section-icon grid h-11 w-11 place-items-center rounded-full"><Icon className="h-5 w-5" /></span>
-                      <div>
-                        <h2 className="text-lg font-black">{title}</h2>
-                        <p className="text-xs font-bold text-white/45">{subtitle}</p>
-                      </div>
-                    </div>
-                    <SmallProductList items={items} empty={empty} />
-                  </section>
+            <section className="sfa-card">
+              <SectionHead Icon={Ruler} title={sfText("storefront.account.sizesTitle", "مقاساتي")} subtitle={sfText("storefront.account.sizesSubtitle", "بنرشّحلك المقاس المناسب أسرع")} />
+              <div className="sfa-sizes">
+                {SIZE_FIELDS.map(({ key, label }) => (
+                  <label key={key} className="sfa-size">
+                    <span className="sfa-size__label">{label()}</span>
+                    <input
+                      value={preferredSizes[key]}
+                      onChange={(event) => updatePreferredSize(key, event.target.value)}
+                      inputMode="text"
+                      maxLength={12}
+                      dir="ltr"
+                      className="sfa-input sfa-input--sm"
+                      placeholder="—"
+                    />
+                  </label>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="sf-account-guest-shell overflow-hidden rounded-[1.75rem] border">
-              <div className="sf-account-guest-hero">
-                <div className="sf-account-guest-hero-content">
-                  <div className="min-w-0 flex-1">
-                    <span className="sf-account-guest-eyebrow">M1 MEMBERS</span>
-                    <h1 className="sf-account-guest-title">
-                      {showResetView ? sfText("storefront.auth.recoverAccount") : sfText("storefront.auth.welcomeTitle")}
-                    </h1>
-                    <p className="sf-account-guest-copy">
-                      {showResetView
-                        ? sfText("storefront.auth.resetIntro")
-                        : sfText("storefront.auth.welcomeIntro")}
-                    </p>
-                  </div>
-                  <div className="sf-account-guest-security">
-                    <span className="sf-account-intro-icon grid h-12 w-12 shrink-0 place-items-center rounded-2xl">
-                      <ShieldCheck className="h-5 w-5" />
-                    </span>
-                    <span className="sf-account-security-label">{sfText("storefront.auth.secureLogin")}</span>
-                  </div>
-                </div>
+              <SubmitButton onClick={savePreferredSizes} disabled={savingPreferences} busy={savingPreferences} busyLabel={sfText("storefront.account.savingSizes", "بنحفظ...")} variant="outline">
+                {sfText("storefront.account.saveSizes", "حفظ المقاسات")}
+              </SubmitButton>
+            </section>
+
+            <section id="sfa-addresses" className="sfa-card">
+              <SectionHead Icon={MapPin} title={sfText("storefront.account.myAddresses", "عناويني")} subtitle={sfText("storefront.account.savedAddressesSubtitle")} />
+              {addresses.length ? (
+                <ul className="sfa-addresses">
+                  {addresses.map((address) => (
+                    <li key={address} className="sfa-address">
+                      <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span>{address}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="sfa-muted sfa-inline-empty">{sfText("storefront.account.addressesEmpty", "ستظهر هنا العناوين المستخدمة في الطلبات")}</p>
+              )}
+            </section>
+
+            <section className="sfa-card sfa-help">
+              <SectionHead Icon={PackageSearch} title={sfText("storefront.account.helpTitle", "محتاج مساعدة؟")} subtitle={sfText("storefront.account.helpText", "تابع أي طلب أو كلّمنا على واتساب")} />
+              <div className="sfa-help__actions">
+                <Link to={ROOT_PATHS.track || "/track"} className="sfa-btn sfa-btn--outline sfa-btn--block">
+                  <Truck className="h-4 w-4" aria-hidden="true" />
+                  {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
+                </Link>
+                <a href={helpers.supportHref ? helpers.supportHref("") : "#"} target="_blank" rel="noreferrer" className="sfa-btn sfa-btn--whatsapp sfa-btn--block">
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  {sfText("storefront.support.whatsapp", "واتساب")}
+                </a>
               </div>
-              {showEmailAuth ? (
-                  <div className="sf-account-auth-card border-t p-4 sm:p-5">
-                    {!showForgotView && !showResetView ? (
-                      <div className="sf-account-tabs grid grid-cols-2 gap-2 rounded-full border p-1">
-                        <button type="button" onClick={() => setAuthMode("login")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "is-active shadow-sm" : ""}`}>{sfText("storefront.auth.signIn")}</button>
-                        <button type="button" onClick={() => setAuthMode("register")} className={`sf-account-tab min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "is-active shadow-sm" : ""}`}>{sfText("storefront.auth.createAccount")}</button>
-                      </div>
-                    ) : null}
-                    <div className="mt-5 space-y-4">
-                      {authMode === "login" ? (
-                        <>
-                          <Field label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
-                          <div className="space-y-2">
-                            <Field label={sfText("storefront.auth.password")} value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" inputClassName={ltrInputClassName} />
-                            <div className="flex justify-end">
-                              <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">{sfText("storefront.auth.forgotPassword")}</button>
-                            </div>
-                          </div>
-                          <button onClick={submitEmailAuthLogin} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.signingIn")}</span> : sfText("storefront.auth.signIn")}
-                          </button>
-                          {showOtpLogin ? (
-                            <>
-                              <div className="flex items-center gap-3 py-1">
-                                <div className="h-px flex-1 bg-stone-200" />
-                                <span className="text-xs font-black uppercase tracking-[0.28em] text-stone-400">{sfText("storefront.auth.or")}</span>
-                                <div className="h-px flex-1 bg-stone-200" />
-                              </div>
-                              {!otpPanelOpen ? (
-                                <button type="button" onClick={() => setOtpPanelOpen(true)} className="sf-account-secondary-button min-h-12 w-full rounded-full border px-5 py-3 font-black transition">{sfText("storefront.auth.phoneLoginButton")}</button>
-                              ) : (
-                                <div className="sf-account-otp-card rounded-[1.25rem] border p-4">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <div className="text-sm font-black text-stone-950">{sfText("storefront.auth.phoneLoginTitle")}</div>
-                                      <p className="mt-1 text-xs font-bold leading-6 text-stone-500">{sfText("storefront.auth.phoneLoginHint")}</p>
-                                    </div>
-                                    <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4">{sfText("storefront.common.close")}</button>
-                                  </div>
-                                  <div className="mt-4 space-y-3">
-                                    <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
-                                    {!otpRequestedAt ? (
-                                      <button onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                                        {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.sendingCode")}</span> : sfText("storefront.auth.sendWhatsappCode")}
-                                      </button>
-                                    ) : (
-                                      <>
-                                        <Field label={sfText("storefront.auth.otpCode")} value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" inputClassName={ltrInputClassName} />
-                                        <button onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                                          {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.verifying")}</span> : sfText("storefront.auth.confirmLogin")}
-                                        </button>
-                                        <button onClick={requestOtp} disabled={requestingOtp || resendCountdown > 0} className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60">
-                                          <span className="inline-flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" />{resendCountdown > 0 ? sfText("storefront.auth.resendIn", undefined, { seconds: resendCountdown }) : sfText("storefront.auth.resendCode")}</span>
-                                        </button>
-                                        <p className="text-xs font-bold leading-6 text-stone-500">{sfText("storefront.auth.otpSentHint")}</p>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          ) : null}
-                        </>
-                      ) : null}
-                      {authMode === "register" ? (
-                        <>
-                          <Field label={sfText("storefront.form.name")} value={authFullName} onChange={setAuthFullName} autoComplete="name" />
-                          <Field label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
-                          <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
-                          <Field label={sfText("storefront.auth.password")} value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <Field label={sfText("storefront.auth.confirmPassword")} value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <button onClick={submitEmailAuthRegister} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.creatingAccount")}</span> : sfText("storefront.auth.createAccount")}
-                          </button>
-                        </>
-                      ) : null}
-                      {authMode === "forgot" ? (
-                        <>
-                          <div>
-                            <div className="text-base font-black text-stone-950">{sfText("storefront.auth.recoverPassword")}</div>
-                            <p className="mt-1 text-sm font-bold leading-6 text-stone-500">{sfText("storefront.auth.recoverHint")}</p>
-                          </div>
-                          <Field label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
-                          <button onClick={requestPasswordReset} disabled={authSubmitting} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.sending")}</span> : sfText("storefront.auth.sendRecoveryLink")}
-                          </button>
-                          <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">{sfText("storefront.auth.backToSignIn")}</button>
-                        </>
-                      ) : null}
-                      {authMode === "reset" ? (
-                        <>
-                          {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">{sfText("storefront.auth.resetLinkIncomplete")}</div> : null}
-                          <Field label={sfText("storefront.auth.newPassword")} value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <Field label={sfText("storefront.auth.confirmNewPassword")} value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                          <button onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} className="sf-account-primary-button min-h-12 w-full rounded-full px-5 py-3 font-black transition">
-                            {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />{sfText("storefront.auth.updating")}</span> : sfText("storefront.auth.updatePassword")}
-                          </button>
-                          {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16]">{sfText("storefront.auth.requestNewLink")}</button> : null}
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-              ) : null}
-            </div>
-          )}
+            </section>
+          </aside>
         </div>
       </div>
+
+      {recentItems.length ? (
+        <RecentProductsSection
+          recent={recentItems}
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onAddToCart={onAddToCart}
+          saleModeEnabled={saleModeEnabled}
+        />
+      ) : null}
     </section>
   );
 }
@@ -1068,20 +1324,16 @@ class StorefrontAccountPageBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <section className="mx-auto max-w-3xl px-4 py-8">
-          <div className="rounded-[1.5rem] border border-stone-200 bg-white p-6 text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
-            <div className="text-sm font-black text-[#d4af37]">{sfText("storefront.account.yourAccount")}</div>
-            <h1 className="mt-2 text-2xl font-black">{sfText("storefront.account.errorTitle")}</h1>
-            <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
-              {sfText("storefront.account.errorText")}
-            </p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white"
-            >
-              {sfText("storefront.common.refreshPage")}
-            </button>
+        <section className="sfa sfa--guest">
+          <div className="sfa-guest">
+            <div className="sfa-card sfa-empty">
+              <span className="sfa-empty__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>
+              <h1 className="sfa-empty__title">{sfText("storefront.account.errorTitle")}</h1>
+              <p className="sfa-muted">{sfText("storefront.account.errorText")}</p>
+              <button type="button" onClick={() => window.location.reload()} className="sfa-btn sfa-btn--ink">
+                {sfText("storefront.common.refreshPage")}
+              </button>
+            </div>
           </div>
         </section>
       );

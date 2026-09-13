@@ -11499,8 +11499,9 @@ function Storefront() {
           wishlist={wishlist}
           recent={recent}
           onAddToCart={onAddToCart}
+          toggleWishlist={toggleWishlist}
+          saleModeEnabled={storefrontSalePricesEnabled}
           helpers={helpers}
-          components={components}
           initialAuthMode={currentStorefrontPath === `${ROOT_PATHS.account}/reset-password` ? "reset" : "login"}
         />
       );
