@@ -591,9 +591,12 @@ const buildStorefrontProductsRequestUrl = (params = {}) => {
     const safeKey = String(key || "").trim();
     if (!safeKey || value === undefined || value === null || value === "" || value === false) return;
     if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (item !== undefined && item !== null && item !== "" && item !== false) query.append(safeKey, item === true ? "1" : String(item));
-      });
+      // Sorted, so the same selection is one cached request in any click order.
+      value
+        .filter((item) => item !== undefined && item !== null && item !== "" && item !== false)
+        .map((item) => (item === true ? "1" : String(item)))
+        .sort((a, b) => a.localeCompare(b, "en", { numeric: true }))
+        .forEach((item) => query.append(safeKey, item));
       return;
     }
     query.set(safeKey, value === true ? "1" : String(value));
@@ -605,21 +608,23 @@ const buildStorefrontProductsRequestUrl = (params = {}) => {
 };
 const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } = {}) => {
   const queryKey = JSON.stringify(params);
-  const offerStoryValue = String(params?.offer_story ?? params?.offerStory ?? "").trim().toLowerCase();
-  const hasOfferStoryFilter = Boolean(offerStoryValue && !["0", "false", "no", "off"].includes(offerStoryValue));
-  const effectiveTtlMs = hasOfferStoryFilter ? 0 : ttlMs;
+  // Offers used to skip the client cache entirely (no-store plus custom headers),
+  // which cost every /sale request a CORS preflight and threw its prefetched next
+  // page away - while the server caches the same answer for two minutes anyway.
+  const effectiveTtlMs = ttlMs;
   const requestUrl = useMemo(() => buildStorefrontProductsRequestUrl(JSON.parse(queryKey || "{}")), [queryKey]);
   const queryString = requestUrl.split("?")[1] || "";
   const cachedProductsData = getCachedStorefrontGetData(requestUrl, { ttlMs: effectiveTtlMs });
   const [state, setState] = useState(() => {
     const initialProducts = extractStorefrontProductsFromResponse(cachedProductsData);
-    return cachedProductsData ? { loading: false, error: "", products: initialProducts, total: Number(cachedProductsData.total ?? cachedProductsData.total_count ?? initialProducts.length), hasMore: Boolean(cachedProductsData.hasMore ?? cachedProductsData.has_more), page: Number(cachedProductsData.page || 1) } : { loading: true, error: "", products: [], total: 0, hasMore: false, page: 1 };
+    return cachedProductsData ? { loading: false, error: "", products: initialProducts, total: Number(cachedProductsData.total ?? cachedProductsData.total_count ?? initialProducts.length), hasMore: Boolean(cachedProductsData.hasMore ?? cachedProductsData.has_more), page: Number(cachedProductsData.page || 1), loadedUrl: requestUrl } : { loading: true, error: "", products: [], total: 0, hasMore: false, page: 1 };
   });
-  const hasCachedInitialDataRef = useRef(Boolean(cachedProductsData));
-
   useEffect(() => {
     let cancelled = false;
-    if (!hasCachedInitialDataRef.current) {
+    // Decided per request, not once at mount: a listing that first rendered from
+    // the cache used to show the old cards with no loading state for every later
+    // filter change.
+    if (!getCachedStorefrontGetData(requestUrl, { ttlMs: effectiveTtlMs })) {
       deferReactState(() => {
         if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
       });
@@ -654,7 +659,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
             sizes: product?.sizes,
           })));
         }
-        if (!cancelled) setState({ loading: false, error: "", products, total: Number(data?.total ?? data?.total_count ?? products.length), hasMore: Boolean(data?.hasMore ?? data?.has_more), page: Number(data?.page || 1) });
+        if (!cancelled) setState({ loading: false, error: "", products, total: Number(data?.total ?? data?.total_count ?? products.length), hasMore: Boolean(data?.hasMore ?? data?.has_more), page: Number(data?.page || 1), loadedUrl: requestUrl });
       })
       .catch((error) => {
         if (cancelled) return;
@@ -666,7 +671,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
     };
   }, [queryString, requestUrl, effectiveTtlMs]);
 
-  return state;
+  return { ...state, requestUrl };
 };
 
 // The sidebar chips used to be counted from whatever 24 cards the current page

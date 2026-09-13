@@ -13,7 +13,9 @@ test("storefront SQL orders regular products before offer-story products", () =>
 
 test("the offers-only page keeps its existing order", () => {
   assert.match(source, /WHEN \$6::boolean = TRUE THEN 0/);
-  assert.match(source, /keepOfferCardsAfterRegularCards\(sortedExpandedProducts, effectiveOfferStoryOnly \|\| sizes\.length > 0\)/);
+  // Offers stay last except on the offers page, under a size filter, or when the
+  // shopper explicitly sorted by price or discount.
+  assert.match(source, /keepOfferCardsAfterRegularCards\(sortedExpandedProducts, effectiveOfferStoryOnly \|\| sizes\.length > 0 \|\| STOREFRONT_EXPLICIT_ORDER_SORTS\.has\(sort\)\)/);
   assert.match(source, /if \(offerStoryOnly\) return rows/);
 });
 
@@ -26,8 +28,8 @@ test("backend color-card expansion cannot move offers ahead before pagination", 
   assert.match(source, /const keepOfferCardsAfterRegularCards =/);
   assert.match(source, /return \[\.\.\.regular, \.\.\.offers\]/);
   assert.match(source, /const orderedExpandedProducts = perf\.sync\("offer_ordering", \(\) => keepOfferCardsAfterRegularCards/);
-  assert.match(source, /categoryProducts\.slice\(offset, offset \+ limit\)/);
-  assert.ok(source.indexOf("keepOfferCardsAfterRegularCards(sortedExpandedProducts") < source.indexOf("categoryProducts.slice(offset, offset + limit)"));
+  assert.match(source, /cards\.slice\(offset, offset \+ limit\)/);
+  assert.ok(source.indexOf("keepOfferCardsAfterRegularCards(sortedExpandedProducts") < source.indexOf("cards.slice(offset, offset + limit)"));
 });
 
 test("normalization preserves the database offer-story flag for expanded cards", () => {

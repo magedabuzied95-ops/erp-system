@@ -37,8 +37,8 @@ test("the SQL size predicate accepts a list of sizes", () => {
 test("every card facet is applied before the page is cut, so a page is never short", () => {
   const facetsAt = source.indexOf("const facetFilteredProducts");
   const sizeGateAt = source.indexOf("const sizeAvailableProducts");
-  const sliceAt = source.indexOf("categoryProducts.slice(offset, offset + limit)");
-  const totalAt = source.indexOf("const total = categoryProducts.length");
+  const sliceAt = source.indexOf("cards.slice(offset, offset + limit)");
+  const totalAt = source.indexOf("const total = cards.length");
 
   assert.ok(sizeGateAt > 0 && facetsAt > sizeGateAt, "size gate then card facets");
   assert.ok(sliceAt > facetsAt, "facets must run before pagination");

@@ -268,6 +268,9 @@ const corsOptions = {
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: corsAllowedHeaders,
   optionsSuccessStatus: 204,
+  // Without it the browser re-asks before nearly every storefront request that
+  // carries a custom header (Chrome caps an unset max-age at 5s): ~0.36s each.
+  maxAge: 600,
 };
 const isCorsOriginError = (error) => String(error?.message || "").startsWith("CORS origin not allowed:");
 

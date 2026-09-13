@@ -23,7 +23,7 @@ import { generateAiProductData } from "../services/aiProductDataService.js";
 import { understandProductImageForSearch } from "../services/openaiSupportService.js";
 import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
-import { buildCacheKey, getOrSetCache, getOrSetCacheSWR, invalidateCachePattern } from "../services/cacheService.js";
+import { buildCacheKey, getOrSetCache, getOrSetCacheSWR, invalidateCachePattern, onCacheInvalidatePattern } from "../services/cacheService.js";
 import { createPerfTrace } from "../utils/storefrontPerf.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
@@ -144,6 +144,16 @@ const STOREFRONT_SORT_ALIASES = new Map([
   ["best-sellers", "best_sellers"],
   ["bestsellers", "best_sellers"],
   ["best", "best_sellers"],
+  // The listing page names these best_selling / most_viewed. Unknown sorts fall through to a
+  // shuffle, and a shuffle cut into pages repeated a third of the cards and never showed
+  // another third, so every name the storefront sends has to resolve to a real order.
+  ["best_selling", "best_sellers"],
+  ["best-selling", "best_sellers"],
+  ["bestselling", "best_sellers"],
+  ["top_sales", "best_sellers"],
+  ["popular", "best_sellers"],
+  ["most_viewed", "best_sellers"],
+  ["most-viewed", "best_sellers"],
   ["discount", "discount"],
   ["sale", "discount"],
 ]);
@@ -238,16 +248,6 @@ const normalizeStorefrontGroupingMode = (value = "") => {
   const mode = queryText(value).toLowerCase().replace(/-/g, "_");
   return ["", "color_cards", "colors", "default", "none"].includes(mode) ? mode || "color_cards" : "color_cards";
 };
-
-const storefrontRandomSeed = (req) =>
-  firstText(
-    queryText(req.query.random_seed),
-    queryText(req.query.randomSeed),
-    queryText(req.query.seed),
-    req.headers?.["x-storefront-random-seed"],
-    req.headers?.["x-random-seed"],
-    crypto.randomBytes(12).toString("hex")
-  );
 
 const seededRandom = (seed = "") => {
   let state = crypto.createHash("sha256").update(String(seed || "storefront")).digest().readUInt32LE(0);
@@ -643,10 +643,11 @@ const storefrontCacheWindows = () => ({
 
 const storefrontCacheKey = (tenantId, scope, query = {}) =>
   buildCacheKey("storefront", `tenant:${tenantId || "public"}`, scope, sortedQueryString(query));
-const invalidateStorefrontTenantCache = (tenantId) =>
-  invalidateCachePattern(buildCacheKey("storefront", `tenant:${tenantId || "public"}`, "*")).catch((error) => {
+const invalidateStorefrontTenantCache = (tenantId) => {
+  return invalidateCachePattern(buildCacheKey("storefront", `tenant:${tenantId || "public"}`, "*")).catch((error) => {
     console.warn("[cache] storefront invalidation skipped", error?.message || error);
   });
+};
 
 const getProductLowStockSnapshot = async (clientOrPool, { productId, tenantId }) => {
   if (!productId) return null;
@@ -3491,12 +3492,253 @@ export const storefrontQualityAliases = (quality = "") => {
   return [normalized.replace(/_/g, " "), normalized];
 };
 
+// ---------------------------------------------------------------------------
+// Listing sections
+//
+// A listing request used to be one cache entry per (filters, sort, offset,
+// limit) and each entry rebuilt the whole section - SQL over every matching
+// product, image hydration, colour expansion, sort - only to keep 24 cards.
+// Page 2, a page-size switch and the next-page prefetch therefore each paid the
+// full 2-4s again, and a first visit ran page 1 and its prefetch as two heavy
+// builds side by side.
+//
+// The ordered section (everything but the page cut) is now built once per
+// canonical filter set and kept in process memory for the fresh window; pages
+// are cut from it. Concurrent requests for the same section share one build.
+// The per-page response keeps its SWR entry, keyed on the canonical query, so a
+// warm page never touches the section at all.
+// ---------------------------------------------------------------------------
+const STOREFRONT_SECTION_CACHE_MAX_CARDS = Math.max(0, Number(process.env.STOREFRONT_SECTION_CACHE_MAX_CARDS || 6000));
+const STOREFRONT_SECTION_CACHE_TTL_MS = Math.max(5, Number(process.env.STOREFRONT_SECTION_CACHE_SECONDS || STOREFRONT_CACHE_FRESH_SECONDS)) * 1000;
+const storefrontSectionCache = new Map();
+const storefrontSectionInflight = new Map();
+let storefrontSectionGeneration = 0;
+
+export const clearStorefrontSectionCache = () => {
+  storefrontSectionGeneration += 1;
+  storefrontSectionCache.clear();
+};
+// Every path that drops the storefront entries (product saves, purge, live stock)
+// goes through invalidateCachePattern; the sections follow them.
+onCacheInvalidatePattern((pattern) => {
+  if (pattern.startsWith("storefront")) clearStorefrontSectionCache();
+});
+
+const storefrontSectionCacheCards = () => {
+  let total = 0;
+  for (const entry of storefrontSectionCache.values()) total += entry.cards.length;
+  return total;
+};
+
+const rememberStorefrontSection = (key, section) => {
+  if (!STOREFRONT_SECTION_CACHE_MAX_CARDS || section.cards.length > STOREFRONT_SECTION_CACHE_MAX_CARDS) return;
+  storefrontSectionCache.delete(key);
+  storefrontSectionCache.set(key, { ...section, at: Date.now() });
+  // Oldest first out until the whole cache fits the card budget.
+  while (storefrontSectionCacheCards() > STOREFRONT_SECTION_CACHE_MAX_CARDS && storefrontSectionCache.size > 1) {
+    storefrontSectionCache.delete(storefrontSectionCache.keys().next().value);
+  }
+};
+
+const sortedTextList = (values = []) => [...new Set((Array.isArray(values) ? values : []).map((value) => toText(value)).filter(Boolean))].sort();
+
+// Only what changes the result goes into the key. A tracking parameter, a cache
+// buster or the order sizes were clicked in used to mint a new cold build each.
+export const storefrontProductsSectionQuery = (normalized = {}) => ({
+  q: normalized.q || "",
+  audience_search: normalized.audienceSearch || "",
+  category: normalized.category || "",
+  brand: normalized.brand || "",
+  gender: normalized.gender || "",
+  product_type: normalized.productType || "",
+  grade: normalized.grade || "",
+  quality: normalized.quality || "",
+  sizes: sortedTextList(normalized.sizes),
+  size_param: normalized.size ? 1 : 0,
+  colors: sortedTextList((normalized.colors || []).map((color) => storefrontColorFilterKey(color))),
+  bag_type: sortedTextList(normalized.bagType),
+  exclude_bag_type: sortedTextList(normalized.excludeBagType),
+  min_price: normalized.minPrice || 0,
+  max_price: normalized.maxPrice || 0,
+  last_sizes: normalized.lastSizes ? 1 : 0,
+  large_sizes: normalized.largeSizes ? 1 : 0,
+  in_stock: normalized.inStock ? 1 : 0,
+  sale: normalized.saleOnly ? 1 : 0,
+  offer_story: normalized.offerStory ? 1 : 0,
+  sort: normalized.sort || "",
+  scope: normalized.scope || "",
+  grouping: normalized.groupingMode || "",
+});
+
+const storefrontClientRandomSeed = (req) =>
+  firstText(
+    queryText(req.query?.random_seed),
+    queryText(req.query?.randomSeed),
+    queryText(req.query?.seed),
+    req.headers?.["x-storefront-random-seed"],
+    req.headers?.["x-random-seed"]
+  );
+
+// An unsorted section is shuffled, and the shuffle has to be the same for page 1
+// and page 5 or the pages overlap. The seed is derived from the section itself
+// and the day, so the order is stable while a shopper pages and still rotates.
+const deriveStorefrontSectionSeed = (sectionQuery = {}) => {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(new Date());
+  return crypto.createHash("sha1").update(`${day}|${JSON.stringify(sectionQuery)}`).digest("hex").slice(0, 24);
+};
+
+// Offers normally follow the regular cards, but a shopper who asked for
+// "price, low to high" asked for exactly that order: a 350 EGP offer at #564 of
+// 599, after the 2,250 EGP pairs, read as a broken sort.
+const STOREFRONT_EXPLICIT_ORDER_SORTS = new Set(["price_asc", "price_desc", "discount"]);
+
+const buildStorefrontProductSection = async ({ req, tenantId, normalizedQuery, randomSeed, perf }) => {
+  const { q, category, brand, saleOnly, offerStory, sort, scope, groupingMode, size, sizes, colors, bagType, excludeBagType, minPrice, maxPrice, lastSizes, inStock, audienceSearch, largeSizes } = normalizedQuery;
+  const pricingSettings = await perf.step("pricing_settings", () => loadStorefrontPricingSettings(tenantId));
+  const genderAliases = await perf.step("alias_gender", () => getClassificationFilterAliases("gender", normalizedQuery.gender));
+  const productType = await perf.step("alias_product_type", () => getActiveClassificationFilterAliases("product_type", normalizedQuery.productType));
+  const grade = await perf.step("alias_grade", () => getActiveClassificationFilterAliases("grade", normalizedQuery.grade));
+  const quality = perf.sync("alias_quality", () => storefrontQualityAliases(normalizedQuery.quality));
+  const genderSource = normalizedQuery.gender || audienceSearch;
+  const gender = normalizeProductAudiences(genderAliases, genderSource);
+  const effectiveSaleOnly = saleOnly && saleModeEnabled(pricingSettings) && !pricingSettings.enable_fake_compare_price;
+  const effectiveOfferStoryOnly = Boolean(offerStory);
+  // Older deployed storefront bundles preserve offer_story + size but can
+  // omit inStock while following a shared AI Inbox link. An offer filtered
+  // by size must only include a variant that is actually available.
+  const effectiveInStockOnly = resolveEffectiveStorefrontInStock({ inStock, offerStory: effectiveOfferStoryOnly, size });
+  const sqlFilters = (offerStoryOnly) => ({ brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: offerStoryOnly });
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[storefront/products-debug]", {
+      receivedQuery: req.query || {},
+      computedSearchTerm: q,
+      computedGenderFilter: gender,
+      finalWhereFilters: { q, category, ...sqlFilters(effectiveOfferStoryOnly), saleOnly: effectiveSaleOnly },
+    });
+  }
+  // The whole section is always read: the cards are ordered after colour
+  // expansion, so there is no SQL-side page to take.
+  const candidateLimit = 5000;
+  let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, sqlFilters(effectiveOfferStoryOnly), effectiveSaleOnly, candidateLimit, 0));
+  let usedTenantFallback = false;
+  if (!result.rows.length && tenantId !== null) {
+    const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, sqlFilters(effectiveOfferStoryOnly), effectiveSaleOnly, candidateLimit, 0));
+    if (fallback.rows.length) {
+      result = fallback;
+      usedTenantFallback = true;
+    }
+  }
+  if (effectiveOfferStoryOnly && !result.rows.length) {
+    const isDbOfferStory = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
+    const isDbStorefrontVisible = (value) => value === true || value === 1 || value === undefined || value === null || String(value || "").trim() === "" || String(value || "").toLowerCase() === "true";
+    let relaxedResult = await perf.step("sql_relaxed", () => queryProducts(tenantId, q, category, sqlFilters(false), effectiveSaleOnly, candidateLimit, 0));
+    if (!relaxedResult.rows.length && tenantId !== null) {
+      relaxedResult = await perf.step("sql_relaxed_null", () => queryProducts(null, q, category, sqlFilters(false), effectiveSaleOnly, candidateLimit, 0));
+    }
+    const relaxedRows = relaxedResult.rows.filter((row) => isDbOfferStory(row.is_offer_story) && isDbStorefrontVisible(row.is_storefront_visible));
+    if (relaxedRows.length) {
+      result = { ...relaxedResult, rows: relaxedRows };
+      usedTenantFallback = true;
+      console.warn("[storefront-offer-story-fallback]", {
+        tenantId,
+        requestQuery: req.query || {},
+        relaxed_rows: relaxedResult.rows.length,
+        filtered_rows: relaxedRows.length,
+      });
+    }
+  }
+  let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
+  if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
+    const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, sqlFilters(effectiveOfferStoryOnly), effectiveSaleOnly, candidateLimit, 0));
+    const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
+    if (fallbackProducts.some((product) => product.total_stock > 0)) {
+      products = fallbackProducts;
+      usedTenantFallback = true;
+    }
+  }
+  const rawProductCount = products.length;
+  const imagedProducts = await perf.step("hydrate_images", () => hydrateProductsWithImages(products, { compact: true }));
+  const hydratedProducts = await perf.step("scrub_classifications", () => scrubInactiveClassifications(imagedProducts));
+  const expandedProducts = perf.sync("color_expansion", () => (groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts)));
+  // A colour card only earns its place when that colour itself has the size in
+  // stock - the SQL predicate above can only vouch for the product.
+  const sizeAvailableProducts = sizes.length
+    ? expandedProducts.filter((product) => storefrontCardHasAvailableSize(product, sizes))
+    : expandedProducts;
+  // Colour, price and last-piece are card-level facets: the SQL above filters
+  // products, so they can only be resolved once a product has been expanded
+  // into its colour cards - but still before the page is cut.
+  const facetFilteredProducts = perf.sync("card_facets", () => {
+    const wantedColors = colors.map((color) => storefrontColorFilterKey(color)).filter(Boolean);
+    if (!wantedColors.length && !minPrice && !maxPrice && !lastSizes) return sizeAvailableProducts;
+    return sizeAvailableProducts.filter((product) => {
+      if (wantedColors.length && !storefrontCardColorKeys(product).some((key) => wantedColors.includes(key))) return false;
+      if (minPrice || maxPrice) {
+        const price = toNumber(product.final_price ?? product.price ?? product.selling_price);
+        if (minPrice && price < minPrice) return false;
+        if (maxPrice && price > maxPrice) return false;
+      }
+      if (lastSizes) {
+        const stock = toNumber(product.total_stock ?? product.stock);
+        if (!(stock > 0 && stock <= STOREFRONT_LAST_PIECE_MAX_STOCK)) return false;
+      }
+      return true;
+    });
+  });
+  const sortedExpandedProducts = perf.sync("sort_cards", () => sortStorefrontCards(facetFilteredProducts, sort, randomSeed));
+  const orderedExpandedProducts = perf.sync("offer_ordering", () => keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || sizes.length > 0 || STOREFRONT_EXPLICIT_ORDER_SORTS.has(sort)));
+  const categoryProducts = largeSizes
+    ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
+        const variantSize = Number(variant.size ?? variant.size_value);
+        return Number.isFinite(variantSize) && variantSize >= 47 && variantSize <= 50 && Number(variant.stock ?? variant.quantity ?? 0) > 0;
+      }))
+    : orderedExpandedProducts;
+  if (ERP_PERF_DEBUG) {
+    console.log("[storefront-color-expand-count]", {
+      total_raw_products: rawProductCount,
+      total_expanded_cards: expandedProducts.length,
+      section_cards: categoryProducts.length,
+      sort: sort || "random",
+      random_seed: randomSeed || "",
+    });
+    console.log("[storefront] products section", { tenantId, usedTenantFallback, q, category, brand, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, brand, productType, grade }, total: categoryProducts.length });
+  }
+  return {
+    cards: perf.sync("slim_cards", () => categoryProducts.map(slimProductForList)),
+    sort: sort || "",
+    scope,
+    groupingMode,
+    randomSeed: randomSeed || "",
+  };
+};
+
+const loadStorefrontProductSection = async (context) => {
+  const { tenantId, sectionKey } = context;
+  const cacheKey = `${tenantId || "public"}|${sectionKey}`;
+  const cached = storefrontSectionCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < STOREFRONT_SECTION_CACHE_TTL_MS) return cached;
+  if (storefrontSectionInflight.has(cacheKey)) return storefrontSectionInflight.get(cacheKey);
+  const generation = storefrontSectionGeneration;
+  const build = buildStorefrontProductSection(context)
+    .then((section) => {
+      // A product saved while this build ran has already cleared the cache; the
+      // result it would store is from before the save.
+      if (generation === storefrontSectionGeneration) rememberStorefrontSection(cacheKey, section);
+      return section;
+    })
+    .finally(() => {
+      storefrontSectionInflight.delete(cacheKey);
+    });
+  storefrontSectionInflight.set(cacheKey, build);
+  return build;
+};
+
 export const listProducts = async (req, res) => {
   const startedAt = Date.now();
   const perf = createPerfTrace("products");
   const cacheDiag = perf.enabled ? {} : undefined;
   try {
-    console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
+    if (ERP_PERF_DEBUG) console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
     // The server-side entry is dropped the moment a product is saved, but a
     // browser or CDN copy outlives that invalidation — hiding a product or a
     // colour looked like it did nothing for up to max-age + the stale window.
@@ -3505,217 +3747,37 @@ export const listProducts = async (req, res) => {
     await perf.step("ensure_storefront_schema", () => ensureStorefrontSchema());
     await perf.step("ensure_variant_images_schema", () => ensureProductVariantImagesSchema());
     const tenantId = tenantFromRequest(req);
-    const pricingSettings = await perf.step("pricing_settings", () => loadStorefrontPricingSettings(tenantId));
-    const payload = await getOrSetCacheSWR(storefrontCacheKey(tenantId, "products", req.query || {}), storefrontCacheWindows(), async () => {
-      const normalizedQuery = perf.sync("normalize_query", () => normalizeStorefrontProductsQuery(req.query || {}));
-      const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, sizes, colors, bagType, excludeBagType, minPrice, maxPrice, lastSizes, inStock, audienceSearch, largeSizes } = normalizedQuery;
-      const genderAliases = await perf.step("alias_gender", () => getClassificationFilterAliases("gender", normalizedQuery.gender));
-      const productType = await perf.step("alias_product_type", () => getActiveClassificationFilterAliases("product_type", normalizedQuery.productType));
-      const grade = await perf.step("alias_grade", () => getActiveClassificationFilterAliases("grade", normalizedQuery.grade));
-      const quality = perf.sync("alias_quality", () => storefrontQualityAliases(normalizedQuery.quality));
-      const genderSource = normalizedQuery.gender || audienceSearch;
-      const gender = normalizeProductAudiences(genderAliases, genderSource);
-      const effectiveSaleOnly = saleOnly && saleModeEnabled(pricingSettings) && !pricingSettings.enable_fake_compare_price;
-      const effectiveOfferStoryOnly = Boolean(offerStory);
-      // Older deployed storefront bundles preserve offer_story + size but can
-      // omit inStock while following a shared AI Inbox link. An offer filtered
-      // by size must only include a variant that is actually available.
-      const effectiveInStockOnly = resolveEffectiveStorefrontInStock({ inStock, offerStory: effectiveOfferStoryOnly, size });
-      const randomSeed = sort ? "" : storefrontRandomSeed(req);
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[storefront/products-debug]", {
-          receivedQuery: req.query || {},
-          normalizedQuery: {
-            q,
-            category,
-            brand,
-            gender: normalizedQuery.gender || "",
-            audienceSearch: audienceSearch || "",
-            productType: normalizedQuery.productType || "",
-            grade: normalizedQuery.grade || "",
-            quality: normalizedQuery.quality || "",
-            size: normalizedQuery.size || "",
-          },
-          computedSearchTerm: q,
-          computedGenderFilter: gender,
-          finalWhereFilters: { q, category, brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, saleOnly: effectiveSaleOnly, offerStory: effectiveOfferStoryOnly },
-        });
+    const normalizedQuery = perf.sync("normalize_query", () => normalizeStorefrontProductsQuery(req.query || {}));
+    const { limit, offset } = normalizedQuery;
+    const sectionQuery = storefrontProductsSectionQuery(normalizedQuery);
+    const randomSeed = normalizedQuery.sort ? "" : (storefrontClientRandomSeed(req) || deriveStorefrontSectionSeed(sectionQuery));
+    const sectionKey = sortedQueryString({ ...sectionQuery, seed: randomSeed });
+    const payload = await getOrSetCacheSWR(storefrontCacheKey(tenantId, "products", { section: sectionKey, offset, limit }), storefrontCacheWindows(), async () => {
+      const section = await perf.step("section", () => loadStorefrontProductSection({ req, tenantId, normalizedQuery, randomSeed, sectionKey, perf }));
+      const cards = section.cards;
+      let pagedProducts = perf.sync("pagination", () => cards.slice(offset, offset + limit));
+      if (!pagedProducts.length && cards.length) {
+        const fallbackOffset = Math.min(offset, Math.max(0, cards.length - limit));
+        pagedProducts = cards.slice(fallbackOffset, fallbackOffset + limit);
       }
-      if (ERP_PERF_DEBUG) console.log("[storefront-random-seed]", {
-        tenantId,
-        seed: randomSeed || "",
-        sort: sort || "",
-        source: randomSeed
-          ? (req.query.random_seed || req.query.randomSeed || req.query.seed || req.headers?.["x-storefront-random-seed"] || req.headers?.["x-random-seed"] ? "client" : "backend")
-          : "disabled",
-      });
-      const page = Math.floor(offset / limit) + 1;
-      const shouldOrderAfterExpansion = Boolean(sort || randomSeed);
-      const candidateLimit = shouldOrderAfterExpansion
-        ? Math.min(Math.max(limit + offset + 500, 1000), 5000)
-        : limit;
-      const queryOffset = shouldOrderAfterExpansion ? 0 : offset;
-      if (process.env.NODE_ENV !== "production" && effectiveOfferStoryOnly) {
-        const debugLimit = Math.max(candidateLimit, 1000);
-        const [beforeOfferStory, afterOfferStoryBeforeVisibility, afterVisibility] = await Promise.all([
-          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, debugLimit, 0),
-          queryProductsWithoutVisibility(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
-          queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: true }, effectiveSaleOnly, debugLimit, 0),
-        ]);
-        const dbCheck = await db.query(
-          `
-          SELECT
-            p.id,
-            p.name,
-            p.is_offer_story,
-            p.is_storefront_visible,
-            p.is_active,
-            p.stock
-          FROM products p
-          WHERE COALESCE(p.is_offer_story, FALSE) = TRUE
-          ORDER BY p.id DESC
-          LIMIT 20
-          `
-        );
-        const visibleIds = new Set(afterVisibility.rows.map((row) => String(row.id)));
-        const excludedDueToVisibility = afterOfferStoryBeforeVisibility.rows
-          .filter((row) => !visibleIds.has(String(row.id)))
-          .map((row) => ({
-            id: row.id,
-            name: row.name,
-            is_storefront_visible: row.is_storefront_visible,
-          }));
-        console.debug("[storefront-products-debug-offer-story]", {
-          requestQuery: req.query || {},
-          total_before_offer_story_filter: beforeOfferStory.rows.length,
-          total_after_offer_story_filter: afterOfferStoryBeforeVisibility.rows.length,
-          total_after_is_storefront_visible_filter: afterVisibility.rows.length,
-          offer_story_db_check: dbCheck.rows,
-          excluded_due_to_is_storefront_visible: excludedDueToVisibility,
-        });
-      }
-      let result = await perf.step("sql_main", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
-      let usedTenantFallback = false;
-      if (!result.rows.length && tenantId !== null) {
-        const fallback = await perf.step("sql_tenant_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
-        if (fallback.rows.length) {
-          result = fallback;
-          usedTenantFallback = true;
-        }
-      }
-      if (effectiveOfferStoryOnly && !result.rows.length) {
-        const isDbOfferStory = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
-        const isDbStorefrontVisible = (value) => value === true || value === 1 || value === undefined || value === null || String(value || "").trim() === "" || String(value || "").toLowerCase() === "true";
-        let relaxedResult = await perf.step("sql_relaxed", () => queryProducts(tenantId, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
-        if (!relaxedResult.rows.length && tenantId !== null) {
-          relaxedResult = await perf.step("sql_relaxed_null", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: false }, effectiveSaleOnly, candidateLimit, queryOffset));
-        }
-        const relaxedRows = relaxedResult.rows.filter((row) => isDbOfferStory(row.is_offer_story) && isDbStorefrontVisible(row.is_storefront_visible));
-        if (relaxedRows.length) {
-          result = { ...relaxedResult, rows: relaxedRows };
-          usedTenantFallback = true;
-          console.warn("[storefront-offer-story-fallback]", {
-            tenantId,
-            requestQuery: req.query || {},
-            relaxed_rows: relaxedResult.rows.length,
-            filtered_rows: relaxedRows.length,
-          });
-        }
-      }
-      let products = perf.sync("normalize_products", () => result.rows.map((row) => normalizeProduct(row, pricingSettings)));
-      if (!products.some((product) => product.total_stock > 0) && tenantId !== null) {
-        const fallback = await perf.step("sql_order_fallback", () => queryProducts(null, q, category, { brand, gender, productType, grade, quality, sizes, bagType, excludeBagType, size, inStock: effectiveInStockOnly, offerStory: effectiveOfferStoryOnly }, effectiveSaleOnly, candidateLimit, queryOffset));
-        const fallbackProducts = fallback.rows.map((row) => normalizeProduct(row, pricingSettings));
-        if (fallbackProducts.some((product) => product.total_stock > 0)) {
-          products = fallbackProducts;
-          usedTenantFallback = true;
-        }
-      }
-      const rawProductCount = products.length;
-      const imagedProducts = await perf.step("hydrate_images", () => hydrateProductsWithImages(products, { compact: true }));
-      const hydratedProducts = await perf.step("scrub_classifications", () => scrubInactiveClassifications(imagedProducts));
-      const expandedProducts = perf.sync("color_expansion", () => (groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts)));
-      // A colour card only earns its place when that colour itself has the size in
-      // stock - the SQL predicate above can only vouch for the product.
-      const sizeAvailableProducts = sizes.length
-        ? expandedProducts.filter((product) => storefrontCardHasAvailableSize(product, sizes))
-        : expandedProducts;
-      // Colour, price and last-piece are card-level facets: the SQL above filters
-      // products, so they can only be resolved once a product has been expanded
-      // into its colour cards - but still before the page is cut.
-      const facetFilteredProducts = perf.sync("card_facets", () => {
-        const wantedColors = colors.map((color) => storefrontColorFilterKey(color)).filter(Boolean);
-        if (!wantedColors.length && !minPrice && !maxPrice && !lastSizes) return sizeAvailableProducts;
-        return sizeAvailableProducts.filter((product) => {
-          if (wantedColors.length && !storefrontCardColorKeys(product).some((key) => wantedColors.includes(key))) return false;
-          if (minPrice || maxPrice) {
-            const price = toNumber(product.final_price ?? product.price ?? product.selling_price);
-            if (minPrice && price < minPrice) return false;
-            if (maxPrice && price > maxPrice) return false;
-          }
-          if (lastSizes) {
-            const stock = toNumber(product.total_stock ?? product.stock);
-            if (!(stock > 0 && stock <= STOREFRONT_LAST_PIECE_MAX_STOCK)) return false;
-          }
-          return true;
-        });
-      });
-      if (randomSeed) {
-        console.log("[storefront-shuffle-before]", expandedProducts.map((product) => storefrontCardId(product)));
-      }
-      const sortedExpandedProducts = perf.sync("sort_cards", () => (shouldOrderAfterExpansion ? sortStorefrontCards(facetFilteredProducts, sort, randomSeed) : facetFilteredProducts));
-      const orderedExpandedProducts = perf.sync("offer_ordering", () => keepOfferCardsAfterRegularCards(sortedExpandedProducts, effectiveOfferStoryOnly || sizes.length > 0));
-      const categoryProducts = largeSizes
-        ? orderedExpandedProducts.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
-            const variantSize = Number(variant.size ?? variant.size_value);
-            return Number.isFinite(variantSize) && variantSize >= 47 && variantSize <= 50 && Number(variant.stock ?? variant.quantity ?? 0) > 0;
-          }))
-        : orderedExpandedProducts;
-      if (randomSeed) {
-        console.log("[storefront-shuffle-after]", orderedExpandedProducts.map((product) => storefrontCardId(product)));
-      }
-      let pagedProducts = perf.sync("pagination", () => categoryProducts.slice(offset, offset + limit));
-      let usedOrderingFallback = false;
-      if (!pagedProducts.length && categoryProducts.length) {
-        const fallbackOffset = Math.min(offset, Math.max(0, categoryProducts.length - limit));
-        pagedProducts = categoryProducts.slice(fallbackOffset, fallbackOffset + limit);
-        usedOrderingFallback = true;
-      }
-      const total = categoryProducts.length;
+      const total = cards.length;
       const hasMore = offset + pagedProducts.length < total;
-      if (ERP_PERF_DEBUG) console.log("[storefront-color-expand-count]", {
-        total_raw_products: rawProductCount,
-        total_expanded_cards: expandedProducts.length,
-        expansion_delta: expandedProducts.length - rawProductCount,
-        returned_cards: pagedProducts.length,
-        sort: sort || "random",
-        random_seed: randomSeed || "",
-        limit,
-        offset,
-        page,
-        has_more: hasMore,
-        used_ordering_fallback: usedOrderingFallback,
-      });
-      products = pagedProducts.map(slimProductForList);
-      if (ERP_PERF_DEBUG) {
-        console.log("[storefront] products", { tenantId, usedTenantFallback, q, category, brand, saleOnly, sort: sort || "random", scope, groupingMode, filters: { gender, brand, productType, grade }, count: products.length, total, hasMore, usedOrderingFallback });
-      }
       return {
         success: true,
-        products,
-        items: products,
+        products: pagedProducts,
+        items: pagedProducts,
         total,
         total_count: total,
-        count: products.length,
+        count: pagedProducts.length,
         hasMore,
         has_more: hasMore,
-        page,
+        page: Math.floor(offset / limit) + 1,
         limit,
         offset,
-        sort: sort || "",
-        scope,
-        grouping_mode: groupingMode,
-        random_seed: randomSeed || undefined,
+        sort: section.sort,
+        scope: section.scope,
+        grouping_mode: section.groupingMode,
+        random_seed: section.randomSeed || undefined,
       };
     }, cacheDiag);
     if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.products", { total_ms: Date.now() - startedAt, rows: payload.products?.length || 0, limit: payload.limit });
@@ -3811,7 +3873,28 @@ const storefrontCardSizeLabels = (card = {}) => {
   return [...new Set(variants.filter((variant) => toNumber(variant?.stock) > 0).map((variant) => toText(variant?.size)).filter(Boolean))];
 };
 
-export const buildStorefrontProductFacets = (cards = []) => {
+// The audiences a variant row is written for; empty means "everyone".
+const storefrontVariantAudiences = (variant = {}) =>
+  normalizeProductAudiences(variant?.audiences, String(variant?.audience || "").split(","));
+
+// Which audience switch a colour card survives, mirrored from the listing SQL and
+// queryProductsWithSql: a product whose variants name audiences matches those
+// audiences, and the listing then keeps only the variants written for the chosen
+// one (or for everyone) - so a colour sold only to women is not a men's card.
+// Counting the product-level list instead made "Men (650)" open 599 cards.
+const storefrontCardAudiences = (card = {}, productVariantAudiences) => {
+  const productAudiences = productVariantAudiences?.get(String(card.parent_product_id || card.id || ""));
+  if (productAudiences?.size) {
+    const variants = Array.isArray(card.variants) ? card.variants : [];
+    return [...productAudiences].filter((audience) => variants.some((variant) => {
+      const variantAudiences = storefrontVariantAudiences(variant);
+      return variantAudiences.length === 0 || variantAudiences.includes(audience);
+    }));
+  }
+  return normalizeProductAudiences(card.audiences, card.product_audiences, card.gender);
+};
+
+export const buildStorefrontProductFacets = (cards = [], { productVariantAudiences = null } = {}) => {
   const audiences = new Map([["men", 0], ["women", 0], ["kids", 0]]);
   const colors = createStorefrontFacetBucket();
   const sizes = createStorefrontFacetBucket();
@@ -3823,7 +3906,7 @@ export const buildStorefrontProductFacets = (cards = []) => {
   let maxPrice = null;
 
   for (const card of Array.isArray(cards) ? cards : []) {
-    for (const audience of normalizeProductAudiences(card.audiences, card.product_audiences, card.gender)) {
+    for (const audience of storefrontCardAudiences(card, productVariantAudiences)) {
       if (audiences.has(audience)) audiences.set(audience, audiences.get(audience) + 1);
     }
     // A card is one colour, so it contributes to exactly one colour bucket -
@@ -3833,6 +3916,11 @@ export const buildStorefrontProductFacets = (cards = []) => {
     for (const size of storefrontCardSizeLabels(card)) sizes.add(size, storefrontColorFilterKey(size));
     const brand = storefrontCardBrandLabel(card);
     if (brand) brands.add(brand, storefrontColorFilterKey(brand));
+    // The brand filter also matches a product whose NAME starts with a known brand
+    // (storefrontBrandMatchSql), so such a card is counted under that brand too -
+    // otherwise "Adidas (284)" opened 288 cards.
+    const nameBrand = deriveKnownBrandLabel(card.name);
+    if (nameBrand && storefrontColorFilterKey(nameBrand) !== storefrontColorFilterKey(brand)) brands.add(nameBrand, storefrontColorFilterKey(nameBrand));
     const grade = toText(card.grade);
     if (grade) grades.add(grade, storefrontColorFilterKey(grade));
     const productType = toText(card.product_type || card.productType);
@@ -3859,6 +3947,55 @@ export const buildStorefrontProductFacets = (cards = []) => {
   };
 };
 
+const buildStorefrontFacetPayload = async (tenantId, scope) => {
+  const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+  const genderAliases = await getClassificationFilterAliases("gender", scope.gender);
+  const gender = normalizeProductAudiences(genderAliases, scope.gender || scope.audienceSearch);
+  const effectiveInStock = resolveEffectiveStorefrontInStock({ inStock: scope.inStock, offerStory: scope.offerStory, size: "" });
+  const filters = {
+    brand: "",
+    gender,
+    productType: scope.productType,
+    grade: [],
+    quality: [],
+    sizes: [],
+    bagType: [],
+    size: "",
+    inStock: effectiveInStock,
+    offerStory: scope.offerStory,
+  };
+  let result = await queryProducts(tenantId, scope.q, "", filters, scope.saleOnly, STOREFRONT_FACET_CANDIDATE_LIMIT, 0);
+  if (!result.rows.length && tenantId !== null) {
+    const fallback = await queryProducts(null, scope.q, "", filters, scope.saleOnly, STOREFRONT_FACET_CANDIDATE_LIMIT, 0);
+    if (fallback.rows.length) result = fallback;
+  }
+  const products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
+  // Images are the one hydration step a facet never reads, and it is the
+  // expensive one - the chips only need colour, size, brand, grade, type
+  // and price. Classification scrubbing stays: a retired classification
+  // must not come back as a chip that matches nothing.
+  const scrubbed = await scrubInactiveClassifications(products);
+  const productVariantAudiences = new Map(scrubbed.map((product) => [
+    String(product.id || ""),
+    new Set((Array.isArray(product.variants) ? product.variants : []).flatMap(storefrontVariantAudiences)),
+  ]));
+  const expanded = expandProductsToColorCards(scrubbed);
+  const cards = scope.largeSizes
+    ? expanded.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
+        const variantSize = Number(variant.size ?? variant.size_value);
+        return Number.isFinite(variantSize) && variantSize >= 47 && variantSize <= 50 && toNumber(variant.stock ?? variant.quantity) > 0;
+      }))
+    : expanded;
+  return { success: true, facets: buildStorefrontProductFacets(cards, { productVariantAudiences }) };
+};
+
+const loadStorefrontFacetPayload = (tenantId, scope) =>
+  getOrSetCacheSWR(
+    storefrontCacheKey(tenantId, "product-facets", storefrontFacetCacheQuery(scope)),
+    storefrontCacheWindows(),
+    () => buildStorefrontFacetPayload(tenantId, scope)
+  );
+
 export const listProductFacets = async (req, res) => {
   const startedAt = Date.now();
   try {
@@ -3868,48 +4005,18 @@ export const listProductFacets = async (req, res) => {
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
-    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     const scope = storefrontFacetScopeQuery(req.query || {});
-    const payload = await getOrSetCacheSWR(
-      storefrontCacheKey(tenantId, "product-facets", storefrontFacetCacheQuery(scope)),
-      storefrontCacheWindows(),
-      async () => {
-        const genderAliases = await getClassificationFilterAliases("gender", scope.gender);
-        const gender = normalizeProductAudiences(genderAliases, scope.gender || scope.audienceSearch);
-        const effectiveInStock = resolveEffectiveStorefrontInStock({ inStock: scope.inStock, offerStory: scope.offerStory, size: "" });
-        const filters = {
-          brand: "",
-          gender,
-          productType: scope.productType,
-          grade: [],
-          quality: [],
-          sizes: [],
-          bagType: [],
-          size: "",
-          inStock: effectiveInStock,
-          offerStory: scope.offerStory,
-        };
-        let result = await queryProducts(tenantId, scope.q, "", filters, scope.saleOnly, STOREFRONT_FACET_CANDIDATE_LIMIT, 0);
-        if (!result.rows.length && tenantId !== null) {
-          const fallback = await queryProducts(null, scope.q, "", filters, scope.saleOnly, STOREFRONT_FACET_CANDIDATE_LIMIT, 0);
-          if (fallback.rows.length) result = fallback;
-        }
-        const products = result.rows.map((row) => normalizeProduct(row, pricingSettings));
-        // Images are the one hydration step a facet never reads, and it is the
-        // expensive one - the chips only need colour, size, brand, grade, type
-        // and price. Classification scrubbing stays: a retired classification
-        // must not come back as a chip that matches nothing.
-        const scrubbed = await scrubInactiveClassifications(products);
-        const expanded = expandProductsToColorCards(scrubbed);
-        const cards = scope.largeSizes
-          ? expanded.filter((product) => (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
-              const variantSize = Number(variant.size ?? variant.size_value);
-              return Number.isFinite(variantSize) && variantSize >= 47 && variantSize <= 50 && toNumber(variant.stock ?? variant.quantity) > 0;
-            }))
-          : expanded;
-        return { success: true, facets: buildStorefrontProductFacets(cards) };
+    let payload = await loadStorefrontFacetPayload(tenantId, scope);
+    // The audience switch must say what each audience would show, so it is
+    // counted without the audience already chosen: on the Men page it read
+    // "Women (171)" - the women's colours of products that also sell to men -
+    // while the Women page itself holds 684.
+    if (scope.gender && payload?.facets) {
+      const withoutAudience = await loadStorefrontFacetPayload(tenantId, { ...scope, gender: "" }).catch(() => null);
+      if (withoutAudience?.facets?.audiences) {
+        payload = { ...payload, facets: { ...payload.facets, audiences: withoutAudience.facets.audiences } };
       }
-    );
+    }
     if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.product-facets", { total_ms: Date.now() - startedAt, total: payload?.facets?.total ?? 0 });
     res.json(payload);
   } catch (error) {

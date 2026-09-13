@@ -30,7 +30,6 @@ import {
   filterOptionCount,
   normalizeAudienceValue,
   money,
-  sortStorefrontColorCardsByModel,
   useBodyScrollLock,
   useProducts,
   useStorefrontProductFacets,
@@ -50,7 +49,10 @@ import {
   localizeSeoCategory,
 } from "../../shared/lib/categorySeo.js";
 
-const FILTER_DEBOUNCE_MS = 320;
+// Short on purpose: a chip click is one URL change, and the request it causes is
+// cheap once the section is warm. The slider no longer writes the URL while it is
+// being dragged, so nothing continuous goes through this any more.
+const FILTER_DEBOUNCE_MS = 120;
 const SEO_PAGE_SIZE = 24;
 // The customer picks how many cards a page carries, and the choice rides in the
 // URL so a shared or bookmarked link reproduces the exact page it was copied from.
@@ -635,7 +637,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [backendSearchTerm, backendSizes, bagType, brand, category, color, gender, grade, inStock, lastSizes, maxPrice, minPrice, page, pageSize, productType, quality, saleView, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
-  const { products, loading, error, total: backendTotal } = useProducts(productsApiParams);
+  const { products, loading, error, total: backendTotal, requestUrl: productsRequestUrl, loadedUrl: productsLoadedUrl } = useProducts(productsApiParams);
   // Only what the route pins. Everything the shopper picks in the sidebar stays
   // out on purpose: counting a group with its own selection applied can only
   // return the value already chosen, which is what used to collapse the colour
@@ -799,10 +801,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
   );
   const pagedFilteredProducts = filteredProducts;
-  const orderedFilteredProducts = useMemo(
-    () => sortStorefrontColorCardsByModel(sortCatalogProducts(pagedFilteredProducts, debouncedFilterState.selectedSort)),
-    [debouncedFilterState.selectedSort, pagedFilteredProducts]
-  );
+  // The server already orders the whole section before cutting the page. Sorting
+  // the 24 cards again here only disagreed with it at page boundaries (and put an
+  // offer back among the regular cards under "newest").
+  const orderedFilteredProducts = pagedFilteredProducts;
   const totalProducts = Number(backendTotal || orderedFilteredProducts.length);
   const totalPages = Math.max(1, Math.ceil(totalProducts / pageSize));
   const firstResultIndex = totalProducts ? (page - 1) * pageSize + 1 : 0;
@@ -832,11 +834,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
   }, [page]);
 
+  // Next page, but only for the state that actually landed: prefetching from the
+  // live (undebounced) filters sent a page-2 build for every intermediate click,
+  // ahead of page 1 itself.
   useEffect(() => {
-    if (loading || page >= totalPages) return;
-    const nextPageParams = { ...backendFilterState, offset: page * pageSize };
-    void prefetchStorefrontProducts(nextPageParams);
-  }, [backendFilterState, loading, page, pageSize, totalPages]);
+    if (loading || !productsLoadedUrl || productsLoadedUrl !== productsRequestUrl) return;
+    if (productsApiParams.offset + productsApiParams.limit >= Number(backendTotal || 0)) return;
+    void prefetchStorefrontProducts({ ...productsApiParams, offset: productsApiParams.offset + productsApiParams.limit });
+  }, [backendTotal, loading, productsApiParams, productsLoadedUrl, productsRequestUrl]);
 
   useEffect(() => {
     if (!seoCategory || typeof document === "undefined") return undefined;
@@ -1121,7 +1126,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       const normalized = listingSizeKey(nextValue);
       if (current.has(normalized)) current.delete(normalized);
       else current.add(normalized);
-      writeMultiQueryValues(next, "size", Array.from(current));
+      // One order for one selection, whatever order it was clicked in, so the same
+      // sizes are one cache entry on the client and on the server.
+      writeMultiQueryValues(next, "size", Array.from(current).sort((a, b) => String(a).localeCompare(String(b), "en", { numeric: true })));
       next.delete("sizes");
     });
   };
@@ -1150,13 +1157,15 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       else next.set("sort", normalizedValue);
     });
   };
+  // Replaces the history entry: a price range is one decision, not a trail of
+  // every value the thumb passed on the way.
   const setPriceRange = (min, max) => {
     setSearchParam((next) => {
       if (normalizeFilterText(min)) next.set("min_price", String(min));
       else next.delete("min_price");
       if (normalizeFilterText(max)) next.set("max_price", String(max));
       else next.delete("max_price");
-    });
+    }, { replace: true });
   };
   const showEmptyResults = !loading && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
@@ -1497,23 +1506,39 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
 function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBounds = {} }) {
   const { t } = useTranslation();
   const hasValue = Boolean(normalizeFilterText(minPrice) || normalizeFilterText(maxPrice));
-  const resolvedMinBound = Number.isFinite(Number(priceBounds.min)) ? Number(priceBounds.min) : 0;
-  const resolvedMaxBound = Number.isFinite(Number(priceBounds.max)) ? Number(priceBounds.max) : resolvedMinBound;
+  const resolvedMinBound = normalizeFilterText(priceBounds.min) && Number.isFinite(Number(priceBounds.min)) ? Number(priceBounds.min) : 0;
+  const resolvedMaxBound = normalizeFilterText(priceBounds.max) && Number.isFinite(Number(priceBounds.max)) ? Math.max(Number(priceBounds.max), resolvedMinBound) : resolvedMinBound;
   const rangeSpan = Math.max(1, resolvedMaxBound - resolvedMinBound);
-  const currentMin = Number.isFinite(Number(minPrice)) ? Number(minPrice) : resolvedMinBound;
-  const currentMax = Number.isFinite(Number(maxPrice)) ? Number(maxPrice) : resolvedMaxBound;
-  const safeMin = Math.min(Math.max(currentMin, resolvedMinBound), currentMax);
+  // An unset bound is the edge of the range. Number("") is 0, which parked both
+  // thumbs on the left and printed "EGP 0 - EGP 0" before any filter was chosen.
+  const urlMin = normalizeFilterText(minPrice) && Number.isFinite(Number(minPrice)) ? Number(minPrice) : resolvedMinBound;
+  const urlMax = normalizeFilterText(maxPrice) && Number.isFinite(Number(maxPrice)) ? Number(maxPrice) : resolvedMaxBound;
+  // The thumbs move in local state and the URL (and with it a catalogue request)
+  // changes once, when the thumb is let go.
+  const [draft, setDraft] = useState(null);
+  const currentMin = draft ? draft.min : urlMin;
+  const currentMax = draft ? draft.max : urlMax;
+  const safeMin = Math.min(Math.max(currentMin, resolvedMinBound), Math.max(currentMax, resolvedMinBound));
   const safeMax = Math.max(Math.min(currentMax, resolvedMaxBound), safeMin);
   const minPercent = ((safeMin - resolvedMinBound) / rangeSpan) * 100;
   const maxPercent = ((safeMax - resolvedMinBound) / rangeSpan) * 100;
   const handleMinChange = (nextValue) => {
     const nextMin = Math.min(Math.max(Number(nextValue) || resolvedMinBound, resolvedMinBound), safeMax);
-    onChange(String(nextMin), normalizeFilterText(maxPrice) ? String(safeMax) : String(safeMax));
+    setDraft({ min: nextMin, max: safeMax });
   };
   const handleMaxChange = (nextValue) => {
     const nextMax = Math.max(Math.min(Number(nextValue) || resolvedMaxBound, resolvedMaxBound), safeMin);
-    onChange(normalizeFilterText(minPrice) ? String(safeMin) : String(safeMin), String(nextMax));
+    setDraft({ min: safeMin, max: nextMax });
   };
+  const commitDraft = () => {
+    if (!draft) return;
+    const nextMin = draft.min > resolvedMinBound ? String(draft.min) : "";
+    const nextMax = draft.max < resolvedMaxBound ? String(draft.max) : "";
+    setDraft(null);
+    if (nextMin === normalizeFilterText(minPrice) && nextMax === normalizeFilterText(maxPrice)) return;
+    onChange(nextMin, nextMax);
+  };
+  const commitProps = { onPointerUp: commitDraft, onTouchEnd: commitDraft, onKeyUp: commitDraft, onBlur: commitDraft };
   return (
     <section className="sfx-facet">
       <div className="sfx-facet__head">
@@ -1539,6 +1564,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
               step="1"
               value={safeMin}
               onChange={(event) => handleMinChange(event.target.value)}
+              {...commitProps}
               className="absolute inset-0 z-20 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#d4af37] [&::-webkit-slider-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#d4af37] [&::-moz-range-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)]"
               aria-label={t("storefront.filters.minPrice", "أقل")}
             />
@@ -1549,6 +1575,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
               step="1"
               value={safeMax}
               onChange={(event) => handleMaxChange(event.target.value)}
+              {...commitProps}
               className="absolute inset-0 z-30 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#d4af37] [&::-webkit-slider-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#d4af37] [&::-moz-range-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)]"
               aria-label={t("storefront.filters.maxPrice", "أعلى")}
             />

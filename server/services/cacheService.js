@@ -248,8 +248,24 @@ export const invalidateCache = async (key) => {
   memoryCache.delete(key);
 };
 
+// Process-local caches built on top of these entries (the storefront listing
+// sections) register here so every invalidation path clears them too, not only
+// the one that happens to know about them.
+const invalidationListeners = new Set();
+export const onCacheInvalidatePattern = (listener) => {
+  if (typeof listener === "function") invalidationListeners.add(listener);
+  return () => invalidationListeners.delete(listener);
+};
+
 export const invalidateCachePattern = async (pattern) => {
   if (!pattern) return;
+  for (const listener of invalidationListeners) {
+    try {
+      listener(String(pattern));
+    } catch (error) {
+      console.warn("[cache] invalidation listener failed", error?.message || error);
+    }
+  }
   const redis = await getRedisClient();
   if (redis) {
     const stream = redis.scanIterator({ MATCH: pattern, COUNT: 100 });
