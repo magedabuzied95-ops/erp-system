@@ -231,6 +231,10 @@ const definitions = [
   ["storefront.show_product_views", "storefront", "boolean", false, "Show product views", "إظهار مشاهدات المنتج", "Display product views publicly.", "عرض عدد المشاهدات للعملاء.", { isPublic: true }],
   ["storefront.enable_wishlist", "storefront", "boolean", true, "Enable wishlist", "تفعيل المفضلة", "Allow customers to save products.", "السماح للعملاء بحفظ المنتجات.", { isPublic: true }],
   ["storefront.enable_product_sharing", "storefront", "boolean", true, "Enable product sharing", "تفعيل مشاركة المنتج", "Show share controls on products.", "عرض أزرار مشاركة المنتجات.", { isPublic: true }],
+  // "Pairs well with" on the product page. The percentage is read by the checkout
+  // itself (shared/bundleDiscount.js), never taken from the customer's request.
+  ["storefront.bundle.enabled", "storefront", "boolean", false, "Show \"Pairs well with\"", "إظهار \"بيتلبس مع\"", "Suggest a second product under the buy buttons, with a bundle button that adds both.", "اقتراح منتج تاني تحت أزرار الشراء، مع زرار يضيف الاتنين للسلة.", { isPublic: true, usedBy: ["Storefront Product Page", "Checkout"] }],
+  ["storefront.bundle.discount_percent", "storefront", "number", 5, "Bundle discount %", "نسبة خصم الباقة %", "Discount on both products when bought together. 0 means no discount. Maximum 50.", "خصم على المنتجين لما يتشتروا مع بعض. 0 يعني من غير خصم. الحد الأقصى 50.", { isPublic: true, validation: { min: 0, max: 50 }, usedBy: ["Storefront Product Page", "Checkout"] }],
   ["storefront.enable_size_guide", "storefront", "boolean", true, "Enable size guide", "تفعيل دليل المقاسات", "Show size guide links.", "إظهار روابط دليل المقاسات.", { isPublic: true }],
   ["storefront.seo_title", "storefront", "text", "", "SEO title", "عنوان SEO", "Default SEO title for storefront.", "عنوان SEO الافتراضي للمتجر.", { isPublic: true }],
   ["storefront.seo_description", "storefront", "textarea", "", "SEO description", "وصف SEO", "Default SEO description.", "وصف SEO الافتراضي.", { isPublic: true }],

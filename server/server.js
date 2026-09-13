@@ -726,6 +726,7 @@ const { registerBackgroundJobHandlers } = await import("./services/backgroundJob
 const { startAiShoeCoverWorker, stopAiShoeCoverWorker } = await import("./services/aiShoeCoverService.js");
 const { ensureMarketingSchema } = await import("./utils/marketingSchema.js");
 const { ensureCouponsSchema } = await import("./services/couponsService.js");
+const { ensureProductBundleSchema } = await import("./services/productBundleService.js");
 const { ensureLoyaltySchema } = await import("./services/loyaltyService.js");
 const { ensureStorefrontCustomerSessionSchema } = await import("./services/storefrontCustomerSessionService.js");
 const { ensureDefaultTenantAndBackfillUsers } = await import("./utils/tenantBootstrap.js");
@@ -2585,6 +2586,12 @@ const bootstrapStartup = async () => {
     console.log("[server] marketing schema ensured");
     await ensureCouponsSchema();
     console.log("[server] coupons schema ensured");
+    // Two new small tables (CREATE TABLE IF NOT EXISTS, metadata-only), at boot
+    // because runtime schema ensures do not run in production. Never fatal: a
+    // missing table only disables pinned pairs.
+    await ensureProductBundleSchema(db)
+      .then(() => console.log("[server] product bundle schema ensured"))
+      .catch((error) => console.error("[server] product bundle schema failed (non-fatal)", error?.message || error));
     await ensureLoyaltySchema(db);
     await ensureAttendanceSchema(db);
     console.log("[server] attendance schema ensured");

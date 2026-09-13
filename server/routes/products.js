@@ -28,6 +28,7 @@ import { generateAiProductDataController } from "../controllers/aiProductDataCon
 import { suggestMirrorEditionName } from "../controllers/editionSuggestionsController.js";
 import { generateProductDescription, generateProductSeoMetadata, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
 import { getActiveBarcodePrintQueueItem } from "../services/barcodePrintQueueService.js";
+import { getPinnedPairProductId, setPinnedPairProductId } from "../services/productBundleService.js";
 import { scheduleThermalColorArtworkJobs } from "../services/thermalColorJobPlanner.js";
 import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
 import {
@@ -492,6 +493,53 @@ router.post("/", protect, permit("products", "create"), createProduct);
 router.post("/:id/variants", protect, permit("products", "edit"), createVariant);
 router.put("/variants/:id", protect, permit("products", "edit"), updateVariant);
 router.delete("/variants/:id", protect, permit("products", "delete"), deleteVariant);
+// "Pairs well with": the product pinned to this one on the storefront product
+// page. No pin = the storefront picks automatically.
+const loadPairSummary = async (productId, tenantId) => {
+  const result = await db.query(
+    `SELECT id, name, COALESCE(NULLIF(image_url, ''), NULLIF(image, ''), '') AS image_url
+       FROM products
+      WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)`,
+    [productId, tenantId ?? null]
+  );
+  return result.rows[0] || null;
+};
+router.get("/:id/pair", protect, permit("products", "view"), async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const pairId = await getPinnedPairProductId(req.params.id);
+    const pair = pairId ? await loadPairSummary(pairId, tenantId) : null;
+    res.json({ success: true, pair });
+  } catch (error) {
+    console.error("[products] load pair", error);
+    res.status(500).json({ success: false, message: "Failed to load the paired product" });
+  }
+});
+router.put("/:id/pair", protect, permit("products", "edit"), async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const productId = Number(req.params.id);
+    const requested = req.body?.pair_product_id;
+    const pairProductId = requested === null || requested === "" || requested === undefined ? null : Number(requested);
+    if (pairProductId !== null) {
+      if (!Number.isInteger(pairProductId) || pairProductId <= 0) {
+        return res.status(400).json({ success: false, message: "Choose a valid product" });
+      }
+      if (pairProductId === productId) {
+        return res.status(400).json({ success: false, message: "A product cannot be paired with itself" });
+      }
+      if (!(await loadPairSummary(pairProductId, tenantId))) {
+        return res.status(404).json({ success: false, message: "The chosen product was not found" });
+      }
+    }
+    await setPinnedPairProductId({ productId, pairProductId, tenantId, userId: req.user?.id });
+    const pair = pairProductId ? await loadPairSummary(pairProductId, tenantId) : null;
+    res.json({ success: true, pair });
+  } catch (error) {
+    console.error("[products] save pair", error);
+    res.status(500).json({ success: false, message: "Failed to save the paired product" });
+  }
+});
 router.put("/:id/prices", protect, permit("products", "edit"), updateProductPrices);
 router.patch("/:id/status", protect, permit("products", "edit"), updateProductStatus);
 router.put("/:id", protect, permit("products", "edit"), updateProduct);

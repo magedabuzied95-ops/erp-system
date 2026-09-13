@@ -219,6 +219,8 @@ server/scripts/timestamptz-fingerprint.json
 # does not exist.
 !server/services/metaCustomerProfileService.js
 !server/services/socialCommentPollMemo.js
+# "Pairs well with" bundle pairings + order bundle discounts.
+!server/services/productBundleService.js
 
 # Meta profile backfill state/lock files (server/scripts/backfillMetaCustomerProfiles.js) — local runs only
 server/data/backfill/

@@ -36,6 +36,8 @@ import { ensureWhatsappShippingSchema, sendShipmentCreated } from "../services/w
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
 import { issueFirstOrderCoupons, redeemCoupon, validateCoupon } from "../services/couponsService.js";
+import { buildBundlePairEligibility, getPinnedPairProductId, loadBundleSettings, recordOrderBundleDiscounts } from "../services/productBundleService.js";
+import { computeBundleDiscount } from "../../shared/bundleDiscount.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 // ONE definition of "this product is a curated offer", shared with POS and the AI resolver.
@@ -4927,6 +4929,32 @@ export const getProduct = async (req, res) => {
   }
 };
 
+// "Pairs well with": the product the owner pinned to this one, ready to render.
+// `product: null` means no pin (or the pinned product is hidden / gone), and the
+// storefront then picks a pair itself from the catalogue.
+export const getProductPair = async (req, res) => {
+  try {
+    const tenantId = tenantFromRequest(req);
+    const productId = Number(req.params.id);
+    res.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+    if (!Number.isInteger(productId) || productId <= 0) return res.json({ success: true, product: null });
+    const { enabled } = await loadBundleSettings();
+    if (!enabled) return res.json({ success: true, enabled: false, product: null });
+    const pairId = await getPinnedPairProductId(productId);
+    if (!pairId) return res.json({ success: true, enabled: true, product: null });
+    let row = await loadStorefrontProductRowById(tenantId, pairId);
+    if (!row && tenantId !== null) row = await loadStorefrontProductRowById(null, pairId);
+    if (!row) return res.json({ success: true, enabled: true, product: null });
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const [product] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(row, pricingSettings)]));
+    return res.json({ success: true, enabled: true, product: product || null });
+  } catch (error) {
+    console.error("[storefront] product pair", error);
+    // A suggestion that fails is simply not shown.
+    return res.json({ success: true, product: null });
+  }
+};
+
 export const getProductByToken = async (req, res) => {
   try {
     await ensureStorefrontSchema();
@@ -5379,7 +5407,7 @@ export const createWebsiteOrder = async (req, res) => {
           product_name: variant.product_name,
         });
       }
-      lockedItems.push({ variant, quantity });
+      lockedItems.push({ variant, quantity, bundleId: toText(item.bundle_id || item.bundleId || "").slice(0, 80) });
       markCheckoutStep("decrement stock:lock variant:done", { table: "product_variants", variantId, productId: variant.product_id, stockBefore: variant.stock });
     }
 
@@ -5403,7 +5431,7 @@ export const createWebsiteOrder = async (req, res) => {
       }
     }
 
-    for (const { variant, quantity } of lockedItems) {
+    for (const { variant, quantity, bundleId } of lockedItems) {
       const originalPrice = roundMoney(variant.product_regular_price);
       // The canonical normal-price ladder: manual override, then the purchase-invoice price, then the legacy
       // columns — variant before product. Reading only selling_price/price here is what produced the 400.
@@ -5447,8 +5475,22 @@ export const createWebsiteOrder = async (req, res) => {
         variant_image: variant.variant_image || "",
         price,
         quantity,
+        bundle_id: bundleId,
       });
     }
+
+    // "Pairs well with" bundles. The percentage comes from the owner's settings
+    // and the prices from the catalogue resolved above — the request only says
+    // which lines were added together. Same calculation the cart summary runs
+    // (shared/bundleDiscount.js), so a transfer's paid_amount still matches.
+    const bundleSettings = await loadBundleSettings();
+    let bundleResult = { amount: 0, bundles: [] };
+    if (bundleSettings.percent > 0 && normalizedItems.some((item) => item.bundle_id)) {
+      const bundleProductsById = new Map(shelfPricedProducts.map((product) => [String(product.id), product]));
+      const isEligiblePair = await buildBundlePairEligibility(bundleProductsById, client);
+      bundleResult = computeBundleDiscount(normalizedItems, bundleSettings.percent, isEligiblePair);
+    }
+    const bundleDiscountAmount = bundleResult.amount;
 
     const orderSettings = await getStorefrontOrderSettings();
     const shippingQuote = await resolveStorefrontShippingQuote({
@@ -5466,7 +5508,9 @@ export const createWebsiteOrder = async (req, res) => {
     const manualDiscount = Math.max(0, toNumber(req.body?.discount || checkout.discount, 0));
     const couponCode = toText(checkout.coupon_code || checkout.coupon || req.body?.coupon_code || req.body?.coupon || "").trim().toUpperCase();
     // Coupon base = goods only; shipping is folded in by validateCoupon only when the campaign opts in.
-    const couponBaseTotal = Math.max(0, subtotal - manualDiscount);
+    // A bundle discount is taken off first and counts as an applied discount, so a
+    // campaign that does not stack refuses to sit on top of it.
+    const couponBaseTotal = Math.max(0, subtotal - manualDiscount - bundleDiscountAmount);
     let couponValidation = null;
     let couponDiscountAmount = 0;
     if (couponCode) {
@@ -5476,7 +5520,7 @@ export const createWebsiteOrder = async (req, res) => {
         orderTotal: couponBaseTotal,
         shippingAmount: deliveryFee,
         items: normalizedItems,
-        appliedDiscounts: { invoice: manualDiscount },
+        appliedDiscounts: { invoice: manualDiscount + bundleDiscountAmount },
         source: "website",
         customerId: customer?.id || null,
         client,
@@ -5490,7 +5534,7 @@ export const createWebsiteOrder = async (req, res) => {
       }
       couponDiscountAmount = Math.max(0, Number(couponValidation.discount_amount || 0));
     }
-    const discount = Math.max(0, manualDiscount + couponDiscountAmount);
+    const discount = Math.max(0, manualDiscount + couponDiscountAmount + bundleDiscountAmount);
     const total = Math.max(0, subtotal - discount + deliveryFee);
     const requestedShippingPaymentMethod = toText(checkout.shipping_payment_method || req.body?.shipping_payment_method || "").toLowerCase();
     const requestedPaymentMethod = toText(checkout.payment_method || checkout.payment_type || "shipping_confirmation").toLowerCase();
@@ -5684,7 +5728,7 @@ export const createWebsiteOrder = async (req, res) => {
         orderTotal: couponBaseTotal,
         shippingAmount: deliveryFee,
         items: normalizedItems,
-        appliedDiscounts: { invoice: manualDiscount },
+        appliedDiscounts: { invoice: manualDiscount + bundleDiscountAmount },
         client,
       });
       order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id || null;
@@ -5694,6 +5738,20 @@ export const createWebsiteOrder = async (req, res) => {
       order.total_amount = total;
       order.total_price = total;
       order.total = total;
+    }
+
+    if (bundleResult.bundles.length) {
+      // The breakdown row is a record, not the money (that is in discount_amount).
+      // Behind a savepoint so a missing table cannot abort the customer's order.
+      await client.query("SAVEPOINT bundle_discount_record");
+      try {
+        await recordOrderBundleDiscounts({ orderId: order.id, tenantId, bundles: bundleResult.bundles, percent: bundleSettings.percent }, client);
+        await client.query("RELEASE SAVEPOINT bundle_discount_record");
+      } catch (error) {
+        await client.query("ROLLBACK TO SAVEPOINT bundle_discount_record");
+        console.error("[checkout] bundle discount breakdown not recorded", { orderId: order.id, message: error?.message || String(error) });
+      }
+      order.bundle_discount_amount = bundleDiscountAmount;
     }
 
     const lowStockProductIds = new Set();

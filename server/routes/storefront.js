@@ -11,6 +11,7 @@ import {
   getStorefrontPaymentStatus,
   restartStorefrontPaymentSession,
   getProduct,
+  getProductPair,
   getProductByToken,
   getShippingQuote,
   getStorefrontCustomerCart,
@@ -631,6 +632,7 @@ router.post("/products/visual-search", visualUpload, visualSearchProducts);
 router.post("/image-search", visualUpload, imageSearchProducts);
 router.get("/product/by-token/:token", getProductByToken);
 router.get("/products/resolve/:slugOrId", resolveProductLink);
+router.get("/products/:id/pair", getProductPair);
 router.get("/products/:identifier", getProduct);
 router.get("/shipping/quote", getShippingQuote);
 router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) => {

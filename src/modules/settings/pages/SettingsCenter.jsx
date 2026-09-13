@@ -209,6 +209,7 @@ const sectionMap = {
     ["Catalog", ["storefront.product_sorting_default", "storefront.show_sold_out_products"]],
     ["Search", []],
     ["Product Cards", ["storefront.show_low_stock_badge", "storefront.show_product_views", "storefront.enable_wishlist", "storefront.enable_product_sharing", "storefront.enable_size_guide"]],
+    ["Pairs well with", ["storefront.bundle.enabled", "storefront.bundle.discount_percent"]],
     ["SEO", ["storefront.seo_title", "storefront.seo_description", "storefront.open_graph_image_url"]],
     ["Notifications", []],
   ],
