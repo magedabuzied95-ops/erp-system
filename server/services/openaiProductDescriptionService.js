@@ -1255,11 +1255,21 @@ const uniqueKeywords = (values = [], limit = 10) => {
   return out;
 };
 
+// The products API fills a missing brand with "Unbranded"; that is a placeholder,
+// not a brand, and must never reach a search title or keyword.
+const PLACEHOLDER_BRAND = /^(unbranded|no[\s-]?brand|generic|none|n\/?a|-+|بدون\s*(ماركة|براند))$/i;
+const realBrand = (value = "") => {
+  const brand = cleanText(value);
+  return PLACEHOLDER_BRAND.test(brand) ? "" : brand;
+};
+
+export const localizeSeoColor = (value = "") => localizeColorName(value);
+
 const compactSeoContext = (input = {}) => {
   const current = input.current || input;
   return {
     product_name: cleanText(current.product_name || current.name || input.product_name || input.name),
-    brand: cleanText(current.brand || current.brand_name || input.brand),
+    brand: realBrand(current.brand || current.brand_name || input.brand),
     manufacturer: cleanText(current.manufacturer || input.manufacturer),
     category: cleanText(current.category || input.category),
     product_type: cleanText(current.productType || current.product_type || input.productType || input.product_type),
@@ -1390,7 +1400,8 @@ const OPPOSITE_SLUG_TOKENS = { men: ["women", "kids"], women: ["men", "kids"], k
  * weak model can only ever make the metadata better, never wrong. */
 export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => {
   const facts = localizedFacts(context);
-  const titleCandidate = clipAtWord(egyptianiseSearchWords(stripStoreSuffix(raw.meta_title || raw.title || "")), SEO_TITLE_MAX);
+  const dropPlaceholderBrand = (value = "") => cleanText(value).replace(/(\s+من)?\s*\b(unbranded|no[\s-]?brand)\b/gi, " ").replace(/\s{2,}/g, " ").trim();
+  const titleCandidate = clipAtWord(egyptianiseSearchWords(stripStoreSuffix(dropPlaceholderBrand(raw.meta_title || raw.title || ""))), SEO_TITLE_MAX);
   const titleAgrees =
     titleCandidate &&
     !contradictsFacts(titleCandidate, facts) &&
@@ -1398,12 +1409,14 @@ export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => 
     (!facts.audience_ar || titleCandidate.includes(facts.audience_ar));
   const metaTitle = titleAgrees ? titleCandidate : fallback.meta_title || titleCandidate || "";
 
-  const descriptionCandidate = clipAtWord(egyptianiseSearchWords(raw.meta_description || raw.seo_description || raw.description || ""), SEO_DESCRIPTION_MAX);
+  const descriptionCandidate = clipAtWord(egyptianiseSearchWords(dropPlaceholderBrand(raw.meta_description || raw.seo_description || raw.description || "").replace(/\s+([.،,])/g, "$1")), SEO_DESCRIPTION_MAX);
   const descriptionAgrees = descriptionCandidate.length >= 60 && !contradictsFacts(descriptionCandidate, facts, { scope: "lead" });
   const metaDescription = descriptionAgrees ? descriptionCandidate : fallback.meta_description || descriptionCandidate || "";
 
   const rawKeywords = Array.isArray(raw.keywords) ? raw.keywords : String(raw.keywords || "").split(/[,،\n]/);
-  const cleanKeywords = uniqueKeywords(rawKeywords.map(egyptianiseSearchWords)).filter(
+  const cleanKeywords = uniqueKeywords(
+    rawKeywords.filter((keyword) => !/\b(unbranded|no[\s-]?brand)\b/i.test(String(keyword || ""))).map(egyptianiseSearchWords)
+  ).filter(
     (keyword) => keyword.length >= 3 && !/^[\d\s.,/-]+$/.test(keyword) && !contradictsFacts(keyword, facts) && !TRANSLITERATED_ARABIC.test(keyword)
   );
   const keywords = uniqueKeywords([...cleanKeywords, ...(fallback.keywords || [])], 10);

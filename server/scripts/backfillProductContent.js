@@ -34,6 +34,7 @@ import db from "../database/db.js";
 import {
   generateProductDescription,
   generateProductSeoMetadata,
+  localizeSeoColor,
   resolveTextProvider,
 } from "../services/openaiProductDescriptionService.js";
 
@@ -213,6 +214,29 @@ const main = async () => {
   const todo = products.filter((row) => !state.done[row.id] || IDS.length);
   log(`provider ${provider.label} ${provider.model}; ${products.length} product(s) selected, ${todo.length} to do${DRY_RUN ? " (dry run)" : ""}; state ${STATE_FILE}`);
 
+  // Two listings called just "Adidas" must not share one search title: Google
+  // folds duplicate titles together. Titles already live on products outside
+  // this run count as taken.
+  const titleKey = (value = "") => text(value).toLowerCase().replace(/\s+/g, " ");
+  const selectedIds = products.map((row) => row.id);
+  const takenTitles = new Set(
+    (
+      await db.query(
+        `SELECT meta_title FROM products WHERE tenant_id = $1 AND COALESCE(TRIM(meta_title), '') <> '' AND NOT (id = ANY($2::bigint[]))`,
+        [TENANT_ID, selectedIds]
+      )
+    ).rows.map((row) => titleKey(row.meta_title))
+  );
+  const distinctTitle = (title, context) => {
+    if (!takenTitles.has(titleKey(title))) return title;
+    const colours = [...new Set(context.colors.map(localizeSeoColor).filter(Boolean))];
+    for (let count = 1; count <= Math.min(3, colours.length); count += 1) {
+      const candidate = `${title} ${colours.slice(0, count).join(" ")}`;
+      if (candidate.length <= 70 && !takenTitles.has(titleKey(candidate))) return candidate;
+    }
+    return title;
+  };
+
   let written = 0;
   let pending = 0;
   for (const [index, row] of todo.entries()) {
@@ -257,9 +281,13 @@ const main = async () => {
       pending += 1;
       continue;
     }
+    const uniqueTitle = distinctTitle(next.meta_title, context);
+    if (takenTitles.has(titleKey(uniqueTitle))) log(`  warning: title still shared with another product`);
+    next.meta_title = uniqueTitle;
+    takenTitles.add(titleKey(uniqueTitle));
     if (!SEO_ONLY) log(`  AR: ${next.description_ar.slice(0, 90)}…`);
     log(`  title: ${next.meta_title} | slug unchanged`);
-    if (SEO_ONLY) log(`  meta: ${next.seo_description.slice(0, 110)} | keywords: ${next.seo_keywords.slice(0, 80)}`);
+    if (SEO_ONLY) log(`  meta: ${next.seo_description}\n    keywords: ${next.seo_keywords}`);
 
     if (!DRY_RUN && SEO_ONLY) {
       state.mode = "seo";
@@ -295,7 +323,7 @@ const main = async () => {
     written += 1;
     if (PACE_MS && index < todo.length - 1) await sleep(PACE_MS);
   }
-  log(`finished: ${written} written, ${pending} pending, ${Object.keys(state.done).length} done in total`);
+  log(`finished: ${written} ${DRY_RUN ? "would be written (dry run, nothing saved)" : "written"}, ${pending} pending, ${Object.keys(state.done).length} done in total`);
 };
 
 main()

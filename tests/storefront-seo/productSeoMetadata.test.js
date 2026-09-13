@@ -405,3 +405,21 @@ test("outfit pairings and misspelt brands no longer trip the guard", async () =>
   assert.match(merged.meta_description, /البنطلون/);
   assert.equal(merged.keywords.includes("شنطة كروس"), false);
 });
+
+test("the Unbranded placeholder never reaches the search title, description or keywords", async () => {
+  const { normalizeSeoGenerated, buildSeoFallback } = await import("../../server/services/openaiProductDescriptionService.js");
+  const context = { product_name: "Advantage Black Sneakers For Men", brand: "", product_type: "sneakers", gender: "men", colors: ["Black"], sizes: ["41"] };
+  const seo = normalizeSeoGenerated(
+    {
+      meta_title: "كوتشي Unbranded Advantage Black رجالي",
+      meta_description: "كوتشي رجالي من Unbranded بتصميم عصري يناسب اللبس اليومي. متوفر بالأسود بمقاس 41. اطلبه الآن من M1 Store.",
+      keywords: ["كوتشي رجالي", "Unbranded كوتشي", "كوتشي أسود"],
+      slug: "advantage-black-sneakers-men",
+    },
+    buildSeoFallback(context),
+    context
+  );
+  assert.doesNotMatch(seo.meta_title, /unbranded/i);
+  assert.doesNotMatch(seo.meta_description, /unbranded|من بتصميم/i);
+  assert.ok(seo.keywords.every((keyword) => !/unbranded/i.test(keyword)));
+});
