@@ -24,8 +24,11 @@
  *   node server/scripts/backfillProductContent.js --seo-only --restore  # undo only the SEO run
  *
  * On the VPS, detached with a log:
- *   docker exec -d erp-backend sh -c "node server/scripts/backfillProductContent.js >> /app/uploads/ai-content-backfill.log 2>&1"
- *   tail -f /opt/erp/uploads/ai-content-backfill.log
+ *   docker exec -d erp-backend sh -c "node server/scripts/backfillProductContent.js >> /app/uploads/ai-content-v2-backfill.log 2>&1"
+ *   tail -f /opt/erp/uploads/ai-content-v2-backfill.log
+ *
+ * Descriptions are structured page copy (headline, intro, features, why, ideal
+ * for) with no colours or sizes; the v2 state file starts every product over.
  */
 import "dotenv/config";
 import fs from "node:fs";
@@ -63,8 +66,8 @@ const STATE_FILE =
   // A SEO-only run keeps its own progress: products finished by a full run
   // must not count as done, and its backups must not restore descriptions.
   (fs.existsSync("/app/uploads")
-    ? `/app/uploads/ai-${SEO_ONLY ? "seo" : "content"}-backfill.json`
-    : path.resolve(`.ai-${SEO_ONLY ? "seo" : "content"}-backfill.json`));
+    ? `/app/uploads/ai-${SEO_ONLY ? "seo" : "content-v2"}-backfill.json`
+    : path.resolve(`.ai-${SEO_ONLY ? "seo" : "content-v2"}-backfill.json`));
 
 const text = (value = "") => String(value ?? "").trim();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -150,7 +153,7 @@ const contextFor = (row) => ({
   sizes: sortSizes((row.sizes || []).map(text).filter(Boolean)),
 });
 
-const isRateLimit = (result) => /429|rate limit|rate_limit|too many|tokens per/i.test(String(result?.error || ""));
+const isRateLimit = (result) => Number(result?.error_status) === 429 || /429|rate limit|rate_limit|too many|tokens per/i.test(String(result?.error || ""));
 
 /* Ask until the model answers, waiting out per-minute windows; null when the
  * product should stay pending for a later run. */
@@ -285,7 +288,10 @@ const main = async () => {
     if (takenTitles.has(titleKey(uniqueTitle))) log(`  warning: title still shared with another product`);
     next.meta_title = uniqueTitle;
     takenTitles.add(titleKey(uniqueTitle));
-    if (!SEO_ONLY) log(`  AR: ${next.description_ar.slice(0, 90)}…`);
+    if (!SEO_ONLY) log(DRY_RUN ? `  AR:
+${next.description_ar}
+  EN:
+${next.description_en}` : `  AR: ${next.description_ar.slice(0, 90)}…`);
     log(`  title: ${next.meta_title} | slug unchanged`);
     if (SEO_ONLY) log(`  meta: ${next.seo_description}\n    keywords: ${next.seo_keywords}`);
 

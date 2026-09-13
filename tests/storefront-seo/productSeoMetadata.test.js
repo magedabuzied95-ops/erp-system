@@ -200,17 +200,23 @@ test("description fallback reads as a real listing and gets the audience right",
       },
     });
     assert.equal(result.source, "LOCAL_FALLBACK");
-    assert.match(result.arabic_description, /^كوتشي حريمي Puma Sneakers/);
+    // A structured product page: headline, intro, titled features, why, ideal for.
+    assert.match(result.arabic_description, /^كوتشي Puma Sneakers حريمي/);
+    assert.match(result.arabic_description, /\nالمميزات:\n• /);
+    assert.match(result.arabic_description, /\nليه تختاريه:\n/);
+    assert.match(result.arabic_description, /\nمناسب لـ:\n✓ /);
     assert.doesNotMatch(result.arabic_description, /رجالي|Uncategorized|بجودة عرض/);
-    assert.match(result.arabic_description, /أسود ورمادي، بني، رمادي وأبيض/);
-    assert.match(result.arabic_description, /من 37 إلى 41/);
-    assert.match(result.arabic_description, /اطلبيه الآن/);
+    // The page shows colours and sizes in its selectors; the copy never lists them.
+    assert.doesNotMatch(result.arabic_description, /أسود|بني|مقاس|37|41|اطلب/);
     assert.match(result.english_description, /women's sneakers/);
-    assert.doesNotMatch(result.english_description, /Uncategorized|storefront-ready/);
+    assert.match(result.english_description, /\nKey Features:\n• /);
+    assert.doesNotMatch(result.english_description, /Uncategorized|Black|Brown|sizes?\b|37/i);
 
     const men = await generateProductDescription({ target: "ar", current: { product_name: "Air Force 1", brand: "Nike", product_type: "shoes", gender: "men" } });
-    assert.match(men.arabic_description, /^كوتشي رجالي Nike Air Force 1/);
-    assert.match(men.arabic_description, /اطلبه الآن/);
+    assert.match(men.arabic_description, /^كوتشي Nike Air Force 1 رجالي/);
+    // The brand reference supplies the model's known features.
+    assert.match(men.arabic_description, /• وش جلد كلاسيك: /);
+    assert.equal(men.english_description, "");
   } finally {
     if (previous !== undefined) process.env.OPENAI_API_KEY = previous;
   }
@@ -422,4 +428,53 @@ test("the Unbranded placeholder never reaches the search title, description or k
   assert.doesNotMatch(seo.meta_title, /unbranded/i);
   assert.doesNotMatch(seo.meta_description, /unbranded|من بتصميم/i);
   assert.ok(seo.keywords.every((keyword) => !/unbranded/i.test(keyword)));
+});
+
+test("model copy loses sentences about colours, sizes and authenticity, and is rejected when thin", async () => {
+  const { normalizeStructuredSections } = await import("../../server/services/openaiProductDescriptionService.js");
+  const context = { product_name: "Samba", brand: "Adidas", product_type: "sneakers", gender: "women" };
+  const sections = normalizeStructuredSections(
+    {
+      headline: "كوتشي Adidas Samba حريمي • تصميم تيراس • راحة يومية",
+      intro: "كوتشي بشكل ريترو رجع بقوة وبيتنسق مع الجينز والفساتين بسهولة. متوفر بألوان أبيض وأسود. كوتشي أصلي 100%. خفيف ومريح طول اليوم.",
+      features: [
+        { title: "تصميم تيراس", detail: "شكل ريترو كلاسيك بوش شامواه ونعل كاوتش." },
+        { title: "المقاسات", detail: "من 37 إلى 41." },
+        { title: "خفيف", detail: "وزن خفيف مريح في المشي." },
+        { title: "سهل التنسيق", detail: "بيمشي مع اللبس الكاجوال." },
+      ],
+      why: "هتحبيه لأنه شيك ومريح. اطلبيه الآن.",
+      ideal_for: ["اللبس اليومي", "كل المقاسات"],
+    },
+    context,
+    "ar"
+  );
+  assert.ok(sections);
+  assert.doesNotMatch(JSON.stringify(sections), /ألوان|أصلي|مقاس|اطلبيه/);
+  assert.equal(sections.features.length, 3);
+  assert.deepEqual(sections.ideal_for, ["اللبس اليومي"]);
+
+  assert.equal(normalizeStructuredSections({ headline: "كوتشي", intro: "مريح.", features: [], why: "", ideal_for: [] }, context, "ar"), null);
+  // A men's word in a women's listing is a contradiction, not copy.
+  assert.equal(
+    normalizeStructuredSections({ ...sections, headline: "كوتشي Adidas Samba رجالي • تيراس", intro: sections.intro + " " + sections.intro }, context, "ar"),
+    null
+  );
+});
+
+test("the description format round-trips into page sections and flattens for meta tags", async () => {
+  const { composeProductDescription, parseProductDescription, flattenProductDescription } = await import("../../src/shared/lib/productDescriptionFormat.js");
+  const text = composeProductDescription(
+    { headline: "Skechers Slip-ins • Hands-free • Memory Foam", intro: "Step in and go.", features: [{ title: "Slip-ins Design", detail: "No hands needed." }], why: "Comfort all day.", ideal_for: ["Walking", "Travel"] },
+    "en"
+  );
+  assert.deepEqual(
+    parseProductDescription(text).map((block) => block.type),
+    ["headline", "paragraph", "heading", "features", "heading", "paragraph", "heading", "checks"]
+  );
+  assert.deepEqual(parseProductDescription(text)[3].items[0], { title: "Slip-ins Design", detail: "No hands needed." });
+  // An old one-paragraph description stays plain paragraphs.
+  assert.deepEqual(parseProductDescription("كوتشي مريح.\nمتوفر الآن.").map((block) => block.type), ["paragraph", "paragraph"]);
+  // Bullet and check markers go; the headline's own separators stay.
+  assert.doesNotMatch(flattenProductDescription(text), /\n|✓|(^|[.:] )• /);
 });

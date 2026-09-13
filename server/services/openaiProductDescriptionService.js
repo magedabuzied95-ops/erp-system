@@ -1,4 +1,6 @@
 ﻿import OpenAI from "openai";
+import { composeProductDescription } from "../../src/shared/lib/productDescriptionFormat.js";
+import { brandKnowledgeFeatures, brandKnowledgeFor, brandKnowledgeReference } from "../../src/shared/lib/productBrandKnowledge.js";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -244,16 +246,6 @@ export const requestStructuredJson = async ({
   throw lastError;
 };
 
-const productDescriptionSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["arabic_description", "english_description"],
-  properties: {
-    arabic_description: { type: "string" },
-    english_description: { type: "string" },
-  },
-};
-
 const socialCaptionSchema = {
   type: "object",
   additionalProperties: false,
@@ -341,7 +333,7 @@ const compactContext = (input = {}) => {
   return {
     product_name: cleanText(current.product_name || current.name || input.product_name || input.name),
     category: cleanText(current.category || input.category),
-    brand: cleanText(current.brand || input.brand),
+    brand: realBrand(current.brand || input.brand),
     manufacturer: cleanText(current.manufacturer || input.manufacturer),
     colors: normalizeList(current.colors || current.color_name || input.colors || input.color_name),
     sizes: normalizeList(current.sizes || input.sizes),
@@ -463,8 +455,6 @@ const localizeCompoundColor = (value = "") => {
   return Array.from(new Set(parts)).join(" و");
 };
 
-const CATALOGUE_NOISE = /^(uncategori[sz]ed|item|product|general|none|other|misc|n\/a)$/i;
-
 const sortSizesForCopy = (sizes = []) => {
   const numeric = sizes.every((size) => /^\d+(\.\d+)?$/.test(size));
   return numeric ? [...sizes].sort((a, b) => Number(a) - Number(b)) : sizes;
@@ -534,74 +524,6 @@ const contradictsFacts = (text = "", facts = {}, { scope = "strict" } = {}) => {
   return false;
 };
 
-const guardGeneratedDescriptions = (generated = {}, fallback = {}, context = {}) => {
-  const facts = localizedFacts(context);
-  const arabic = cleanText(generated.arabic_description);
-  return {
-    ...generated,
-    arabic_description: arabic && contradictsFacts(arabic, facts, { scope: "lead" }) ? fallback.arabic_description : egyptianiseSearchWords(generated.arabic_description),
-  };
-};
-
-const fallbackDescription = (context = {}) => {
-  const name = cleanText(context.product_name) || "Product";
-  const brand = cleanText(context.brand);
-  const rawCategory = cleanText(context.category || context.product_type);
-  const category = CATALOGUE_NOISE.test(rawCategory) ? "" : rawCategory;
-  const colors = normalizeList(context.colors).slice(0, 5);
-  const sizes = sortSizesForCopy(normalizeList(context.sizes).slice(0, 12));
-  const tone = cleanText(context.selling_vibe || context.tone).toLowerCase();
-  const gender = cleanText(context.gender);
-  const material = cleanText(context.material);
-  const brandPrefix = brand && !brandInName(brand, name) ? brand : "";
-  const displayName = [brandPrefix, name].filter(Boolean).join(" ");
-  const typeAr = seoTypeAr({ product_type: context.product_type, category, product_name: name });
-  const typeEn = seoTypeEn({ product_type: context.product_type, category, product_name: name });
-  const genderAr = seoGenderAr(gender);
-  const genderEn = seoGenderEn(gender);
-  const colorsAr = colors.map(localizeCompoundColor).filter(Boolean);
-  const sizeRangeAr = sizes.length > 2 ? `من ${sizes[0]} إلى ${sizes[sizes.length - 1]}` : sizes.join("، ");
-  const sizeRangeEn = sizes.length > 2 ? `${sizes[0]} to ${sizes[sizes.length - 1]}` : sizes.join(", ");
-
-  const toneLeads = {
-    premium: { ar: "بشكل مرتب ولمسة هادئة تناسب أكتر من ستايل.", en: "Clean lines and a calm, polished look that works with more than one style." },
-    luxury: { ar: "بلمسة أنيقة وهادية وشكل بريميوم.", en: "A refined, quiet premium feel." },
-    friendly: { ar: "اختيار سهل ومريح للبس اليومي.", en: "An easy, comfortable everyday pick." },
-    sales: { ar: "شكل عملي ومتوفر الآن للطلب مباشرة.", en: "A practical pick, available to order right now." },
-    sport: { ar: "ستايل عملي وخفيف لليوم كله.", en: "A light, practical style for the whole day." },
-  };
-  const toneLead = toneLeads[tone] || toneLeads.premium;
-  const ctaAr = genderEn === "women" ? "اطلبيه الآن قبل نفاد المقاسات." : "اطلبه الآن قبل نفاد المقاسات.";
-
-  const arabicDescription = [
-    `${[typeAr, genderAr, displayName].filter(Boolean).join(" ")} ${toneLead.ar}`,
-    material ? `بخامة ${material}.` : "",
-    colorsAr.length ? `متوفر بألوان ${colorsAr.join("، ")}${sizes.length ? ` ومقاسات ${sizeRangeAr}` : ""}.` : sizes.length ? `متوفر بمقاسات ${sizeRangeAr}.` : "",
-    ctaAr,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const subject = [genderEn ? `${genderEn}'s` : "", typeEn || category.toLowerCase() || "pick"].filter(Boolean).join(" ");
-  const englishDescription = [
-    `${displayName}: ${subject} with ${toneLead.en.charAt(0).toLowerCase()}${toneLead.en.slice(1)}`,
-    material ? `Made with ${material}.` : "",
-    colors.length ? `Available in ${colors.join(", ")}${sizes.length ? ` with sizes ${sizeRangeEn}` : ""}.` : sizes.length ? `Available in sizes ${sizeRangeEn}.` : "",
-    "Order now from M1 Store before your size runs out.",
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return {
-    arabic_description: arabicDescription,
-    english_description: englishDescription,
-  };
-};
-
 
 const requestedTargets = (target = "all") => {
   const normalized = cleanText(target).toLowerCase();
@@ -609,88 +531,6 @@ const requestedTargets = (target = "all") => {
     arabic: normalized === "all" || normalized === "ar" || normalized === "arabic",
     english: normalized === "all" || normalized === "en" || normalized === "english",
   };
-};
-
-const COMPACT_VOICE_RULES = [
-  "اكتب بعامية مصرية بسيطة زي مدير سوشيال ميديا حقيقي: جمل قصيرة، طبيعية، بدون مبالغة وبدون كلام إعلاني رسمي.",
-  "ممنوع: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين، الرياضة، الأداء العالي.",
-  "استخدم الحقائق المذكورة فقط. لا تخترع خامة أو تقنية أو استخدامات. لا تكرر اسم المنتج أو الماركة أكثر من مرة.",
-  "لا تخترع كلمات. لو مش متأكد من كلمة عربية استخدم كلمة أبسط.",
-  "كل جملة لازم يكون معناها واضح ومكتمل. لا تكتب جمل غامضة أو ناقصة، ولا تشرح مواقف افتراضية للعميل.",
-].join("\n");
-
-const buildCompactPrompt = (context = {}, target = "all") => {
-  const targets = requestedTargets(target);
-  const facts = localizedFacts(context);
-  const subject = [facts.type_ar, facts.audience_ar, cleanText(context.brand)].filter(Boolean).join(" ");
-  const factLines = [
-    facts.type_ar ? `النوع: ${facts.type_ar}` : "",
-    facts.audience_ar ? `الفئة: ${facts.audience_ar} (استخدم هذه الكلمة بالضبط ولا تغيّرها)` : "",
-    cleanText(context.brand) ? `الماركة: ${cleanText(context.brand)}` : "",
-    `الاسم: ${cleanText(context.product_name)}`,
-    facts.colors_ar.length ? `الألوان: ${facts.colors_ar.join("، ")}` : "",
-    facts.sizes_ar ? `المقاسات: ${facts.sizes_ar}` : "",
-    cleanText(context.material) ? `الخامة: ${cleanText(context.material)}` : "",
-    context.tone ? `النبرة المطلوبة: ${context.tone}` : "",
-  ].filter(Boolean);
-  const ctaAr = facts.audience_en === "women" ? "اطلبيه الآن قبل نفاد المقاسات." : "اطلبه الآن قبل نفاد المقاسات.";
-  const addressRule =
-    facts.audience_en === "women"
-      ? "المنتج حريمي: خاطب العميلة بصيغة المؤنث في كل الأفعال (اختاري، اطلبيه، هتحبيه) ولا تستخدم صيغة المذكر أبدًا."
-      : facts.audience_en === "kids"
-        ? "المنتج أطفال: خاطب ولي الأمر (اطلبه لطفلك)."
-        : "";
-  return [
-    "أنت كاتب محتوى لمتجر M1 Store (أحذية وشنط في مصر).",
-    addressRule,
-    COMPACT_VOICE_RULES,
-    "الحقائق:",
-    ...factLines,
-    "أرجع JSON فقط بالمفتاحين arabic_description و english_description.",
-    targets.arabic
-      ? `arabic_description: 6 إلى 7 جمل قصيرة بالعربي (60 إلى 80 كلمة، لا أقل من 55). ابدأ بـ "${subject}" ثم الشكل، ومع إيه بيتلبس، والراحة في اللبس اليومي، والألوان، والمقاسات، واختم بجملة واحدة: "${ctaAr}"`
-      : "arabic_description: نص فارغ.",
-    targets.english
-      ? "english_description: 6 to 7 short natural English sentences (60 to 80 words, never fewer than 55) with the same facts, ending with one order line."
-      : "english_description: empty string.",
-  ]
-    .filter(Boolean)
-    .join("\n");
-};
-
-export const buildPrompt = (context = {}, target = "all", { compact = false } = {}) => {
-  if (compact) return buildCompactPrompt(context, target);
-  const targets = requestedTargets(target);
-  const selectedTone = cleanText(context.tone).toLowerCase();
-  const toneProfile = selectedTone && M1_PERSONALITY.profiles[selectedTone] ? M1_PERSONALITY.profiles[selectedTone] : M1_PERSONALITY.profiles.premium;
-  const facts = localizedFacts(context);
-  return [
-    BRAND_VOICE_SYSTEM_PROMPT,
-    "Generate ecommerce product descriptions for an ERP product editor.",
-    `Selected Personality Mode: ${toneProfile.label}.`,
-    `Selected Tone Guide: hook should feel ${toneProfile.hook}; body should feel ${toneProfile.body}.`,
-    "Return strict JSON only with keys arabic_description and english_description.",
-    targets.arabic
-      ? "For arabic_description: write natural Arabic for Egyptian ecommerce customers, not a robotic translation. Use common search wording customers actually use."
-      : "For arabic_description: return an empty string.",
-    targets.english
-      ? "For english_description: write clean storefront-ready English copy with a premium ecommerce tone."
-      : "For english_description: return an empty string.",
-    facts.type_ar || facts.audience_ar
-      ? `Arabic words to use verbatim: ${[facts.type_ar, facts.audience_ar].filter(Boolean).join("، ")}. Never swap the audience word.`
-      : "",
-    "Use only supplied product facts: product name, category, brand, colors, sizes, gender, material, and selling vibe.",
-    "Mention available colors and sizes naturally, without listing every color repeatedly.",
-    "Do not claim material, authenticity, technology, comfort features, or performance benefits unless supplied.",
-    "Never describe material, weight, durability, quality or brand reputation unless the material field is supplied; a description that only mentions look, fit, colours and sizes is correct.",
-    "Avoid keyword stuffing and avoid repeating color names excessively.",
-    "Do not use fake urgency, fake discounts, fake shipping claims, or unverifiable claims.",
-    "Keep each description around 70-110 words.",
-    context.tone ? `Optional tone customization: ${context.tone}.` : "",
-    `Product context:\n${JSON.stringify({ ...context, ...facts }, null, 2)}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
 };
 
 const buildSocialCaptionPrompt = (context = {}) => [
@@ -715,14 +555,6 @@ const buildSocialCaptionPrompt = (context = {}) => [
 ]
   .filter(Boolean)
   .join("\n");
-
-const normalizeGenerated = (raw = {}, fallback = {}, target = "all") => {
-  const targets = requestedTargets(target);
-  return {
-    arabic_description: targets.arabic ? cleanText(raw.arabic_description || raw.description_ar) || fallback.arabic_description : "",
-    english_description: targets.english ? cleanText(raw.english_description || raw.description_en) || fallback.english_description : "",
-  };
-};
 
 const normalizeSocialCaptionArray = (value = []) => {
   const items = Array.isArray(value) ? value : String(value || "").split(/[\n,|]+/);
@@ -1003,65 +835,270 @@ const normalizeSocialCaptionGenerated = (raw = {}, fallback = {}) => {
   };
 };
 
+/* ------------------------------------------------------------------------- *
+ * Structured product page copy
+ *
+ * The page shows colours and sizes in its own selectors, so the copy never
+ * lists them. It reads like a brand listing instead: a headline, an intro,
+ * 4-5 titled features, why the shopper will like it, and what it suits. One
+ * request per language keeps each answer under the free tier's per-minute
+ * output budget and lets one language fail without the other.
+ * ------------------------------------------------------------------------- */
+
+const structuredDescriptionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["headline", "intro", "features", "why", "ideal_for"],
+  properties: {
+    headline: { type: "string" },
+    intro: { type: "string" },
+    features: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["title", "detail"],
+        properties: { title: { type: "string" }, detail: { type: "string" } },
+      },
+    },
+    why: { type: "string" },
+    ideal_for: { type: "array", items: { type: "string" } },
+  },
+};
+
+// Things the page already shows, or claims the shop cannot stand behind.
+const OFF_LIMITS_COPY =
+  /مقاس|المقاسات|\bsizes?\b|\bsized\b|متوفر\s*(ب|في)?\s*(ألوان|الوان|لون|اللون)|بألوان|باللون|\bavailable in\b|\bcolou?rs?\b|\bcolou?rways?\b|سعر|\bprice\b|خصم|\bdiscount|شحن|\bshipping\b|مخزون|\bstock\b|أصلي|اصلي|\boriginal\b|\bauthentic|ضمان|\bwarranty\b|اطلبه|اطلبيه|\border now\b|M1 Store/i;
+
+const splitSentences = (value = "") =>
+  cleanText(value)
+    .split(/(?<=[.!؟?])\s+/)
+    .map(cleanText)
+    .filter(Boolean);
+
+const keepAllowedSentences = (value = "") => splitSentences(value).filter((sentence) => !OFF_LIMITS_COPY.test(sentence)).join(" ");
+
+const wordCount = (value = "") => cleanText(value).split(/\s+/).filter(Boolean).length;
+
+const structuredSubject = (context = {}, language = "ar") => {
+  const facts = localizedFacts(context);
+  const name = cleanText(context.product_name);
+  const brand = cleanText(context.brand);
+  const displayName = [brandInName(brand, name) ? "" : brand, name].filter(Boolean).join(" ");
+  if (language === "en") return displayName;
+  return [facts.type_ar, displayName, facts.audience_ar].filter(Boolean).join(" ");
+};
+
+export const buildStructuredDescriptionPrompt = (context = {}, language = "ar") => {
+  const facts = localizedFacts(context);
+  const subject = structuredSubject(context, language);
+  const material = cleanText(context.material);
+  const reference = brandKnowledgeReference(brandKnowledgeFor({ brand: context.brand, name: context.product_name }), language);
+  if (language === "en") {
+    return [
+      "Write a professional product page description for M1 Store, an Egyptian footwear and bags shop, in the style of a global brand listing.",
+      "Facts:",
+      facts.type_en ? `Type: ${facts.type_en}` : "",
+      facts.audience_en ? `Audience: ${facts.audience_en} (never write another audience)` : "",
+      cleanText(context.brand) ? `Brand: ${cleanText(context.brand)}` : "",
+      `Name: ${cleanText(context.product_name)}`,
+      material ? `Material: ${material}` : "",
+      reference ? `Brand reference (draw on the parts that fit this model; do not copy it word for word):\n${reference}` : "",
+      "Return JSON only with keys headline, intro, features, why, ideal_for.",
+      `headline: one line of 6 to 14 words naming "${subject}" and its two strongest points, separated by " • ".`,
+      "intro: one paragraph, 2 to 3 sentences (35 to 55 words): how it feels and what it is made for.",
+      "features: 4 or 5 items, each {title: 2 to 4 words, detail: one sentence of 8 to 16 words}.",
+      "why: one paragraph, 2 to 3 sentences (30 to 45 words).",
+      "ideal_for: 3 or 4 short phrases (2 to 5 words each).",
+      "Rules:",
+      "- Never mention colours, sizes, price, discounts, shipping, stock or ordering: the page shows those itself.",
+      "- Never claim the product is original, authentic or under warranty.",
+      "- If you know this exact model well (for example Nike Air Force 1 or Skechers Slip-ins), describe its well-known design features. If you are not sure, write only about design, comfort in wear and how easy it is to style. Never invent technology or material names.",
+      "- Confident, clean retail English. Complete sentences, no emojis, no exclamation marks, no hype words like revolutionary or ultimate.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+  const women = facts.audience_en === "women";
+  return [
+    "أنت كاتب محتوى محترف لمتجر M1 Store (أحذية وشنط في مصر). اكتب وصف صفحة منتج احترافي ومنظم بأسلوب المتاجر العالمية.",
+    women ? "المنتج حريمي: خاطبي العميلة بصيغة المؤنث لو خاطبتها." : "",
+    "الحقائق:",
+    facts.type_ar ? `النوع: ${facts.type_ar}` : "",
+    facts.audience_ar ? `الفئة: ${facts.audience_ar} (استخدمها بالضبط ولا تكتب فئة أخرى)` : "",
+    cleanText(context.brand) ? `الماركة: ${cleanText(context.brand)}` : "",
+    `الاسم: ${cleanText(context.product_name)}`,
+    material ? `الخامة: ${material}` : "",
+    reference ? `مرجع عن الماركة (استعين باللي يناسب الموديل ده بس، ومتنقلوش حرفيًا):\n${reference}` : "",
+    "أرجع JSON فقط بالمفاتيح headline, intro, features, why, ideal_for.",
+    `headline: سطر واحد من 6 إلى 14 كلمة يبدأ بـ "${subject}" ثم أهم ميزتين مفصولين بـ " • ".`,
+    "intro: فقرة واحدة من 2 إلى 3 جمل (35 إلى 55 كلمة): الإحساس في اللبس ولإيه معمول.",
+    "features: 4 أو 5 عناصر، كل عنصر {title: من 2 إلى 4 كلمات، detail: جملة واحدة من 8 إلى 16 كلمة}.",
+    "why: فقرة من 2 إلى 3 جمل (30 إلى 45 كلمة).",
+    "ideal_for: 3 أو 4 عبارات قصيرة (من 2 إلى 5 كلمات).",
+    "القواعد:",
+    "- ممنوع تذكر الألوان أو المقاسات أو السعر أو الخصومات أو الشحن أو المخزون أو الطلب: الصفحة بتعرضهم لوحدها.",
+    "- ممنوع تقول إن المنتج أصلي أو original أو عليه ضمان.",
+    "- لو عارف الموديل ده بالظبط (زي Nike Air Force 1 أو Skechers Slip-ins) اذكر مميزات تصميمه المعروفة. لو مش متأكد، اتكلم عن التصميم والراحة في اللبس وسهولة التنسيق بس، ولا تخترع أسماء تقنيات أو خامات.",
+    "- عربي واضح واحترافي، جمل كاملة، بدون إيموجي وبدون علامات تعجب. اسم الماركة والموديل بالإنجليزي زي ما هو.",
+    "- استخدم كلمات المصريين: كوتشي، شنطة، سليبر، كروكس، بوت. لا تكتب حذاء رياضي.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+/* Model sections survive only when they are complete and agree with the facts;
+ * sentences about colours, sizes, price or authenticity are dropped. */
+export const normalizeStructuredSections = (raw = {}, context = {}, language = "ar") => {
+  const facts = localizedFacts(context);
+  const polish = (value = "") => {
+    const textValue = dropPlaceholderBrand(value);
+    return language === "ar" ? egyptianiseSearchWords(textValue) : textValue;
+  };
+  const headline = polish(raw.headline);
+  const intro = polish(keepAllowedSentences(raw.intro));
+  const why = polish(keepAllowedSentences(raw.why));
+  const features = (Array.isArray(raw.features) ? raw.features : [])
+    .map((item) => ({ title: polish(item?.title).replace(/[:：.]+$/, ""), detail: polish(item?.detail) }))
+    .filter((item) => item.title && item.detail && wordCount(item.title) <= 6 && !OFF_LIMITS_COPY.test(`${item.title} ${item.detail}`))
+    .slice(0, 5);
+  const idealFor = (Array.isArray(raw.ideal_for) ? raw.ideal_for : [])
+    .map((item) => polish(item).replace(/[.،,]+$/, ""))
+    .filter((item) => item && wordCount(item) <= 8 && !OFF_LIMITS_COPY.test(item))
+    .slice(0, 4);
+  if (!headline || OFF_LIMITS_COPY.test(headline) || wordCount(intro) < 12 || features.length < 3) return null;
+  if (language === "ar" && contradictsFacts(`${headline} ${intro} ${why}`, facts, { scope: "lead" })) return null;
+  return { headline, intro, features, why, ideal_for: idealFor };
+};
+
+/* Honest generic sections for when no model answers: design, wear, styling. */
+export const fallbackStructuredSections = (context = {}, language = "ar") => {
+  const generic = genericStructuredSections(context, language);
+  const known = brandKnowledgeFeatures(brandKnowledgeFor({ brand: context.brand, name: context.product_name }), language).slice(0, 3);
+  if (!known.length) return generic;
+  const knownTitles = new Set(known.map((item) => item.title));
+  // Brand features lead; the generic styling line always closes the list.
+  const styling = generic.features[generic.features.length - 1];
+  const filler = generic.features.slice(0, -1).filter((item) => !knownTitles.has(item.title));
+  const features = [...known, ...filler].slice(0, 4);
+  return { ...generic, features: [...features, styling] };
+};
+
+const genericStructuredSections = (context = {}, language = "ar") => {
+  const facts = localizedFacts(context);
+  const subject = structuredSubject(context, language);
+  const material = cleanText(context.material);
+  const isBag = /bag|backpack/.test(facts.type_en);
+  const women = facts.audience_en === "women";
+  if (language === "en") {
+    const what = [facts.audience_en ? `${facts.audience_en}'s` : "", facts.type_en || "style"].filter(Boolean).join(" ");
+    return {
+      headline: `${subject} • Clean Modern Design • Everyday Comfort`,
+      intro: `The ${subject} brings a clean, modern shape to ${what} made for daily wear. It keeps your look neat and pairs easily with casual and smart-casual outfits.`,
+      features: [
+        { title: "Modern Design", detail: "Clean lines and a balanced shape that look sharp from every angle." },
+        isBag
+          ? { title: "Practical Everyday Use", detail: "Easy to carry and ready for the essentials you take out every day." }
+          : { title: "Everyday Comfort", detail: "Comfortable to wear through long days in and out of the house." },
+        material ? { title: "Material", detail: `Made with ${material} for a finished, reliable feel.` } : { title: "Neat Finish", detail: "Tidy details that keep the piece looking polished with regular wear." },
+        { title: "Easy to Style", detail: "Works with jeans, chinos and casual looks without extra effort." },
+      ],
+      why: `It gives you a polished look without giving up comfort. A simple, versatile pick that fits into your daily routine and works with more than one style.`,
+      ideal_for: ["Everyday wear", "Casual outings", "Work and university", "Weekend looks"],
+    };
+  }
+  return {
+    headline: `${subject} • تصميم عصري • راحة في اللبس اليومي`,
+    intro: `${subject} بتصميم عصري وخطوط نظيفة معمول للاستخدام اليومي. شكله مرتب وبيتنسق بسهولة مع اللبس الكاجوال والسمارت كاجوال.`,
+    features: [
+      { title: "تصميم عصري", detail: "خطوط نظيفة وشكل متوازن بيبان شيك من كل الزوايا." },
+      isBag
+        ? { title: "عملية في الاستخدام", detail: "سهلة في الحمل ومناسبة لحاجاتك الأساسية كل يوم." }
+        : { title: "راحة في اللبس", detail: "مريح في الاستخدام اليومي حتى مع الأيام الطويلة برا البيت." },
+      material ? { title: "الخامة", detail: `مصنوع من ${material} بإحساس متقن في الإيد واللبس.` } : { title: "تشطيب مرتب", detail: "تفاصيل مظبوطة بتحافظ على شكله الشيك مع الاستخدام." },
+      { title: "سهل التنسيق", detail: women ? "بيمشي مع الجينز والفساتين واللبس الكاجوال من غير مجهود." : "بيمشي مع الجينز والبنطلونات القماش واللبس الكاجوال من غير مجهود." },
+    ],
+    why: women
+      ? "هيديكي شكل شيك من غير ما تتنازلي عن الراحة. اختيار بسيط ومتعدد الاستخدامات بيناسب يومك وأكتر من ستايل."
+      : "بيديك شكل شيك من غير ما تتنازل عن الراحة. اختيار بسيط ومتعدد الاستخدامات بيناسب يومك وأكتر من ستايل.",
+    ideal_for: ["اللبس اليومي", "الخروجات الكاجوال", "الشغل والجامعة", "إطلالات الويك إند"],
+  };
+};
+
+const descriptionFailure = (error) => ({
+  status: Number(error?.status || error?.response?.status || 0) || undefined,
+  message: error?.message || "text provider request failed",
+});
+
 export const generateProductDescription = async (input = {}) => {
   const context = compactContext(input);
   const target = cleanText(input.target || input.language || "all").toLowerCase() || "all";
-  const fallback = fallbackDescription(context);
+  const targets = requestedTargets(target);
   const requestId = cleanText(input.request_id) || `product-description-${Date.now()}`;
+  const facts = localizedFacts(context);
+  const languages = [targets.arabic ? "ar" : "", targets.english ? "en" : ""].filter(Boolean);
+  const compose = (sections, language) => composeProductDescription(sections, language, { audience: facts.audience_en });
+  const keyFor = (language) => (language === "ar" ? "arabic_description" : "english_description");
+  const result = { arabic_description: "", english_description: "" };
 
   const provider = resolveTextProvider();
   if (provider.kind === "none") {
     console.warn("[product-description] no text provider configured; using fallback", { requestId });
-    return {
-      ...normalizeGenerated({}, fallback, target),
-      source: "LOCAL_FALLBACK",
-    };
+    languages.forEach((language) => {
+      result[keyFor(language)] = compose(fallbackStructuredSections(context, language), language);
+    });
+    return { ...result, source: "LOCAL_FALLBACK" };
   }
 
-  const startedAt = Date.now();
-  try {
-    console.log("[product-description] text provider request start", {
-      requestId,
-      target,
-      model: provider.model,
-    });
-
-    const parsed = await requestStructuredJson({
-      provider,
-      requestId,
-      label: "product-description",
-      instructions: "You are an expert ecommerce copywriter for fashion, footwear, and retail catalog pages.",
-      prompt: buildPrompt(context, target, { compact: usesCompactPrompt(provider) }),
-      schemaName: "product_descriptions",
-      schema: productDescriptionSchema,
-      verbosity: "medium",
-      maxTokens: 560,
-    });
-    console.log("[product-description] text provider request end", {
-      requestId,
-      durationMs: Date.now() - startedAt,
-    });
-
-    return {
-      ...guardGeneratedDescriptions(normalizeGenerated(parsed, fallback, target), fallback, context),
-      source: provider.label,
-    };
-  } catch (error) {
-    console.error("[product-description] text provider request failed", {
-      requestId,
-      durationMs: Date.now() - startedAt,
-      name: error?.name,
-      status: error?.status,
-      code: error?.code,
-      type: error?.type,
-      message: error?.message,
-    });
-    return {
-      ...normalizeGenerated({}, fallback, target),
-      source: "LOCAL_FALLBACK",
-      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "text provider request failed",
-    };
+  let failure = null;
+  for (const language of languages) {
+    const startedAt = Date.now();
+    try {
+      console.log("[product-description] text provider request start", { requestId, language, model: provider.model });
+      const parsed = await requestStructuredJson({
+        provider,
+        requestId,
+        label: "product-description",
+        instructions:
+          language === "ar"
+            ? "You are a senior ecommerce copywriter writing professional Arabic product pages for an Egyptian footwear and bags store."
+            : "You are a senior ecommerce copywriter writing professional English product pages for a footwear and bags store.",
+        prompt: buildStructuredDescriptionPrompt(context, language),
+        schemaName: "product_page_description",
+        schema: structuredDescriptionSchema,
+        verbosity: "medium",
+        maxTokens: language === "ar" ? 720 : 560,
+      });
+      console.log("[product-description] text provider request end", { requestId, language, durationMs: Date.now() - startedAt });
+      const sections = normalizeStructuredSections(parsed, context, language);
+      if (!sections) {
+        failure = failure || { message: `model copy for ${language} was incomplete or contradicted the product facts` };
+        result[keyFor(language)] = compose(fallbackStructuredSections(context, language), language);
+        continue;
+      }
+      result[keyFor(language)] = compose(sections, language);
+    } catch (error) {
+      console.error("[product-description] text provider request failed", {
+        requestId,
+        language,
+        durationMs: Date.now() - startedAt,
+        status: error?.status,
+        code: error?.code,
+        message: error?.message,
+      });
+      failure = failure || descriptionFailure(error);
+      result[keyFor(language)] = compose(fallbackStructuredSections(context, language), language);
+    }
   }
+
+  if (!failure) return { ...result, source: provider.label };
+  return {
+    ...result,
+    source: "LOCAL_FALLBACK",
+    // The status is not a secret: a batch job needs it to wait out a 429.
+    error_status: failure.status,
+    error: process.env.NODE_ENV === "production" ? undefined : failure.message,
+  };
 };
 
 export const generateSocialPublisherCaption = async (input = {}) => {
@@ -1263,7 +1300,10 @@ const realBrand = (value = "") => {
   return PLACEHOLDER_BRAND.test(brand) ? "" : brand;
 };
 
-export const localizeSeoColor = (value = "") => localizeColorName(value);
+const dropPlaceholderBrand = (value = "") =>
+  cleanText(value).replace(/(\s+من)?\s*\b(unbranded|no[\s-]?brand)\b/gi, " ").replace(/\s{2,}/g, " ").trim();
+
+export const localizeSeoColor =(value = "") => localizeColorName(value);
 
 const compactSeoContext = (input = {}) => {
   const current = input.current || input;
@@ -1400,7 +1440,6 @@ const OPPOSITE_SLUG_TOKENS = { men: ["women", "kids"], women: ["men", "kids"], k
  * weak model can only ever make the metadata better, never wrong. */
 export const normalizeSeoGenerated = (raw = {}, fallback = {}, context = {}) => {
   const facts = localizedFacts(context);
-  const dropPlaceholderBrand = (value = "") => cleanText(value).replace(/(\s+من)?\s*\b(unbranded|no[\s-]?brand)\b/gi, " ").replace(/\s{2,}/g, " ").trim();
   const titleCandidate = clipAtWord(egyptianiseSearchWords(stripStoreSuffix(dropPlaceholderBrand(raw.meta_title || raw.title || ""))), SEO_TITLE_MAX);
   const titleAgrees =
     titleCandidate &&
@@ -1480,6 +1519,7 @@ export const generateProductSeoMetadata = async (input = {}) => {
     return {
       ...fallback,
       source: "LOCAL_FALLBACK",
+      error_status: Number(error?.status || 0) || undefined,
       error: process.env.NODE_ENV === "production" ? undefined : error?.message || "text provider request failed",
     };
   }

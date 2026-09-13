@@ -1,3 +1,6 @@
+import { brandKnowledgeFeatures, brandKnowledgeFor } from "./productBrandKnowledge.js";
+import { composeProductDescription } from "./productDescriptionFormat.js";
+
 const AR = {
   men: "\u0631\u062c\u0627\u0644\u064a",
   women: "\u0646\u0633\u0627\u0626\u064a",
@@ -90,15 +93,6 @@ const normalizeGradeEn = (value = "") => {
   return cleanText(value);
 };
 
-const normalizeGradeAr = (value = "") => {
-  const text = cleanText(value).toLowerCase();
-  if (!text) return "";
-  if (text.includes("mirror")) return AR.mirror;
-  if (text.includes("original")) return AR.original;
-  if (text.includes("premium")) return AR.premium;
-  return cleanText(value);
-};
-
 const styleWordsEn = (context = {}) => {
   const values = uniqueTextValues([context.style, ...(Array.isArray(context.styleKeywords) ? context.styleKeywords : [])]);
   return values.length ? values : ["modern casual"];
@@ -140,27 +134,69 @@ export const generateProductDescriptions = (rawContext = {}) => {
   }
 
   const gradeEn = normalizeGradeEn(context.grade);
-  const gradeAr = normalizeGradeAr(context.grade);
   const genderEn = normalizeGender(context.gender, "en");
   const genderAr = normalizeGender(context.gender, "ar");
   const typeEn = inferTypeEn(context);
   const typeAr = inferTypeAr(context);
   const stylesEn = styleWordsEn(context);
   const stylesAr = styleWordsAr(context);
-  const colorsEn = context.colors.length ? ` Available in ${formatList(context.colors, "en")}.` : "";
-  const colorsAr = context.colors.length ? ` ${AR.availableColors} ${formatList(context.colors, "ar")}.` : "";
-  const sizesEn = context.sizes.length ? ` Sizes include ${formatList(context.sizes.slice(0, 8), "en")}.` : "";
-  const sizesAr = context.sizes.length ? ` ${AR.availableSizes} ${formatList(context.sizes.slice(0, 8), "ar")}.` : "";
   const materialEn = context.material ? `crafted with ${context.material}` : "built for a comfortable everyday feel";
   const materialAr = context.material ? `\u0628\u062e\u0627\u0645\u0629 ${context.material}` : AR.comfortableMaterial;
-  const sellingEn = context.sellingPoints.length ? ` Key details: ${formatList(context.sellingPoints, "en")}.` : "";
-  const sellingAr = context.sellingPoints.length ? ` \u0645\u0632\u0627\u064a\u0627\u0647: ${formatList(context.sellingPoints, "ar")}.` : "";
 
-  const enParts = uniqueTextValues(["Premium", genderEn, gradeEn, context.brand, typeEn]);
-  const descriptionEn = `${enParts.join(" ")} with a ${formatList(stylesEn, "en")} design, ${materialEn}, and a polished look for daily outfits and casual wear.${colorsEn}${sizesEn}${sellingEn}`.replace(/\s+/g, " ").trim();
+  // The product page shows colours and sizes itself, so the copy is a
+  // structured listing (headline, intro, features, why, ideal for) built from
+  // what the brand and model are known for.
+  const knowledge = brandKnowledgeFor({ brand: context.brand, name: context.name });
+  const audience = /women|female|نسائي|حريمي/i.test(context.gender) ? "women" : "";
+  const displayName = context.brand && !context.name.toLowerCase().includes(context.brand.toLowerCase()) ? `${context.brand} ${context.name}` : context.name;
+  const withKnown = (language, generic) => {
+    const known = brandKnowledgeFeatures(knowledge, language).slice(0, 3);
+    const knownTitles = new Set(known.map((item) => item.title));
+    const styling = generic[generic.length - 1];
+    return [...known, ...generic.slice(0, -1).filter((item) => !knownTitles.has(item.title))].slice(0, 4).concat(styling);
+  };
+  const shoeAr = typeAr === AR.shoe ? "كوتشي" : typeAr;
+  const genderWordAr = audience === "women" ? "حريمي" : genderAr;
+  const subjectAr = uniqueTextValues([shoeAr, displayName, genderWordAr]).join(" ");
+  const sellingFeaturesEn = context.sellingPoints.slice(0, 2).map((point) => ({ title: point, detail: `${point} for a better everyday experience.` }));
+  const sellingFeaturesAr = context.sellingPoints.slice(0, 2).map((point) => ({ title: point, detail: `${point} لتجربة أحسن في الاستخدام اليومي.` }));
 
-  const arParts = uniqueTextValues([typeAr, genderAr, gradeAr, context.brand]);
-  const descriptionAr = `${arParts.join(" ")} \u0628\u062a\u0635\u0645\u064a\u0645 ${formatList(stylesAr, "ar")} \u0648${materialAr}، ${AR.everyday}. ${AR.designedFor}.${colorsAr}${sizesAr}${sellingAr}`.replace(/\s+/g, " ").trim();
+  const descriptionEn = composeProductDescription(
+    {
+      headline: `${displayName} • Clean Modern Design • Everyday Comfort`,
+      intro: `The ${displayName} brings a ${formatList(stylesEn, "en")} shape to ${uniqueTextValues([genderEn, typeEn]).join(" ")} made for daily wear, ${materialEn}. It keeps your look neat and pairs easily with casual and smart-casual outfits.`,
+      features: withKnown("en", [
+        { title: "Modern Design", detail: "Clean lines and a balanced shape that look sharp from every angle." },
+        ...sellingFeaturesEn,
+        { title: "Everyday Comfort", detail: "Comfortable to wear through long days in and out of the house." },
+        { title: "Easy to Style", detail: "Works with jeans, chinos and casual looks without extra effort." },
+      ]),
+      why: "It gives you a polished look without giving up comfort. A simple, versatile pick that fits into your daily routine and works with more than one style.",
+      ideal_for: ["Everyday wear", "Casual outings", "Work and university", "Weekend looks"],
+    },
+    "en",
+    { audience }
+  );
+
+  const descriptionAr = composeProductDescription(
+    {
+      headline: `${subjectAr} • تصميم عصري • راحة في اللبس اليومي`,
+      intro: `${subjectAr} بتصميم ${formatList(stylesAr, "ar")} و${materialAr}، معمول للاستخدام اليومي. شكله مرتب وبيتنسق بسهولة مع اللبس الكاجوال والسمارت كاجوال.`,
+      features: withKnown("ar", [
+        { title: "تصميم عصري", detail: "خطوط نظيفة وشكل متوازن بيبان شيك من كل الزوايا." },
+        ...sellingFeaturesAr,
+        { title: "راحة في اللبس", detail: "مريح في الاستخدام اليومي حتى مع الأيام الطويلة برا البيت." },
+        { title: "سهل التنسيق", detail: audience === "women" ? "بيمشي مع الجينز والفساتين واللبس الكاجوال من غير مجهود." : "بيمشي مع الجينز والبنطلونات القماش واللبس الكاجوال من غير مجهود." },
+      ]),
+      why:
+        audience === "women"
+          ? "هيديكي شكل شيك من غير ما تتنازلي عن الراحة. اختيار بسيط ومتعدد الاستخدامات بيناسب يومك وأكتر من ستايل."
+          : "بيديك شكل شيك من غير ما تتنازل عن الراحة. اختيار بسيط ومتعدد الاستخدامات بيناسب يومك وأكتر من ستايل.",
+      ideal_for: ["اللبس اليومي", "الخروجات الكاجوال", "الشغل والجامعة", "إطلالات الويك إند"],
+    },
+    "ar",
+    { audience }
+  );
 
   const titleParts = uniqueTextValues([context.brand, context.name, genderEn, gradeEn, typeEn]);
   const metaTitle = titleParts.join(" ").slice(0, 68);

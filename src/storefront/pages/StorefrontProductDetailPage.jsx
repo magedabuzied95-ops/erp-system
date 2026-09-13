@@ -31,6 +31,7 @@ import {
 } from "../Storefront";
 import { api } from "../../shared/api/api";
 import { applyProductSeo, clearProductSeo } from "../../shared/lib/socialMeta";
+import { parseProductDescription } from "../../shared/lib/productDescriptionFormat";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
@@ -562,6 +563,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     () => rawDescription.split(/\r?\n+/).map((line) => cleanDisplayText(line)).filter(Boolean),
     [rawDescription]
   );
+  // Headline, intro, "المميزات:" with • bullets, "مناسب لـ:" with ✓ items; an
+  // older plain description comes back as paragraphs only.
+  const descriptionBlocks = useMemo(() => parseProductDescription(descriptionParagraphs.join("\n")), [descriptionParagraphs]);
   const descriptionText = descriptionParagraphs.join(" ") || sfText("storefront.products.defaultDescription");
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));
 
@@ -976,12 +980,53 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           >
             <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
             <h2 id="sf-product-description-title" className="mt-2 text-xl font-black md:text-2xl">{sfText("storefront.products.productDetails", "Product details")}</h2>
-            <div className="mt-3 space-y-3">
-              {descriptionParagraphs.map((paragraph, index) => (
-                <p key={`${index}-${paragraph.slice(0, 24)}`} className="text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
-                  {paragraph}
-                </p>
-              ))}
+            <div className="sf-product-description-body mt-3 space-y-3">
+              {descriptionBlocks.map((block, index) => {
+                const key = `${index}-${block.type}`;
+                if (block.type === "headline") {
+                  return (
+                    <p key={key} className="text-[15px] font-black leading-7 text-white md:text-base">
+                      {block.text}
+                    </p>
+                  );
+                }
+                if (block.type === "heading") {
+                  return (
+                    <h3 key={key} className="pt-2 text-lg font-black leading-7 text-white md:text-xl">
+                      {block.text}
+                    </h3>
+                  );
+                }
+                if (block.type === "features") {
+                  return (
+                    <ul key={key} className="list-disc space-y-3 ps-5 marker:text-white/60">
+                      {block.items.map((item, itemIndex) => (
+                        <li key={`${key}-${itemIndex}`} className="text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+                          {item.title ? <strong className="block font-black text-white">{item.title}</strong> : null}
+                          {item.detail}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                }
+                if (block.type === "checks") {
+                  return (
+                    <ul key={key} className="space-y-1.5">
+                      {block.items.map((item, itemIndex) => (
+                        <li key={`${key}-${itemIndex}`} className="flex items-start gap-2 text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+                          <Check className="mt-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                }
+                return (
+                  <p key={key} className="text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+                    {block.text}
+                  </p>
+                );
+              })}
             </div>
           </section>
         ) : null}
