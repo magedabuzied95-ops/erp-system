@@ -676,6 +676,7 @@ function App() {
           <Route path="/checkout" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/track" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/wishlist" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/compare" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/recently-viewed" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/sale" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/contact" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />

@@ -44,6 +44,7 @@ import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/li
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
 import { trackGa4ViewItem } from "../lib/ga4Events";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
+import { CompareToggleButton } from "../components/StorefrontCompare";
 
 const variantColorIdentity = (variant = {}) => {
   const safeVariant = variant && typeof variant === "object" ? variant : {};
@@ -757,6 +758,13 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 <button type="button" onClick={() => toggleWishlist(product)} className={`sfx-pdp-icon${inWishlist ? " is-on" : ""}`} aria-pressed={inWishlist} aria-label={sfText("storefront.wishlist.toggleWishlist", "Toggle wishlist")}>
                   <Heart className="h-4 w-4" />
                 </button>
+                <CompareToggleButton
+                  product={product}
+                  colorKey={selectedColorKey}
+                  colorName={selectedColorGroup?.colorName || ""}
+                  image={activeImage ? imageFor(activeImage) : ""}
+                  variant="pdp"
+                />
                 <button type="button" onClick={shareProduct} className="sfx-pdp-icon" aria-label={sfText("storefront.share.shareProduct", "Share product")}>
                   <Share2 className="h-4 w-4" />
                 </button>

@@ -130,6 +130,8 @@ import "./storefront-light.css";
 import "./components/cartDrawer.css";
 import "./site-skin.css";
 import "./catalog-skin.css";
+import "./components/compare-controls.css";
+import { CompareToggleButton, CompareTray } from "./components/StorefrontCompare";
 import StorefrontCheckoutSummary, { CheckoutTotals } from "./components/StorefrontCheckoutSummary";
 import FreeShippingProgress, { usePublicFreeShippingThreshold } from "./components/FreeShippingProgress";
 import { CheckoutBlock, CheckoutChoice, CheckoutInput, CheckoutLocationSelect, CheckoutNativeSelect, CheckoutSubmit } from "./checkout/CheckoutParts";
@@ -1838,6 +1840,7 @@ const LazyStorefrontCartPage = lazy(() => importWithChunkRetry(() => import("./p
 const LazyStorefrontTrackOrderPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.TrackOrderPage })));
 const LazyStorefrontAccountPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAccountPage.jsx")).then((module) => ({ default: module.StorefrontAccountPage })));
 const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.WishlistPageRoute })));
+const LazyStorefrontComparePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontComparePage.jsx")).then((module) => ({ default: module.StorefrontComparePage })));
 const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
 const LazyStorefrontSizeGuidePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontSizeGuidePage.jsx")).then((module) => ({ default: module.default })));
 const LazyOrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
@@ -6493,6 +6496,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         >
           <Heart size={15} strokeWidth={2} />
         </button>
+        <CompareToggleButton
+          product={product}
+          colorKey={selectedColorKey}
+          colorName={activeColorGroup?.color || ""}
+          image={displayImage ? imageFor(displayImage) : ""}
+        />
       </div>
       <div className="m1h-card__body">
         {brandLabel ? (
@@ -11371,6 +11380,10 @@ function Storefront() {
       );
     }
 
+    if (currentStorefrontPath === ROOT_PATHS.compare) {
+      return <LazyStorefrontComparePage onAddToCart={onAddToCart} saleModeEnabled={storefrontSalePricesEnabled} />;
+    }
+
     if (currentStorefrontPath === ROOT_PATHS.recentlyViewed) {
       return <LazyStorefrontRecentPage recent={recent} helpers={helpers} components={components} />;
     }
@@ -11447,6 +11460,7 @@ function Storefront() {
         />
       ) : null}
       {!hideFloatingWhatsApp ? <StorefrontWhatsAppFloat /> : null}
+      <CompareTray hidden={isCheckoutPage || isOfferStoryPage || cartDrawerOpen || mobileMenuOpen || currentStorefrontPath === ROOT_PATHS.compare} />
       {/* The bottom nav is gone: every destination it carried is now in the
           header — menu, search, wishlist and bag — so it was a second navigation
           competing with the first, and it covered a row of the page on every

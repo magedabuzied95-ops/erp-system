@@ -1,0 +1,299 @@
+/* ============================================================================
+   Compare controls: the card toggle, the product-page pill and the floating tray.
+   Loaded with the storefront shell (cards everywhere use the toggle); the page
+   itself lives in pages/compare.css and loads with its own chunk.
+   Everything paints from the --m1h-* tokens, so Site Studio and dark mode apply.
+   ========================================================================== */
+
+.sfx-cmp-toggle {
+  position: absolute;
+  inset-inline-end: var(--m1h-s2, 8px);
+  top: calc(var(--m1h-s2, 8px) + 36px);
+  z-index: 3;
+  display: grid;
+  height: 30px;
+  width: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #57534e;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 160ms var(--m1h-ease), color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease);
+}
+
+.sfx-cmp-toggle:hover {
+  background: #fff;
+  color: var(--m1h-text, #1c1917);
+}
+
+.sfx-cmp-toggle:active {
+  transform: scale(0.9);
+}
+
+.sfx-cmp-toggle.is-on {
+  background: var(--m1h-invert-bg, #14120f);
+  color: var(--m1h-invert-text, #f8f6f1);
+}
+
+.sfx-cmp-toggle:focus-visible,
+.sfx-cmp-pill:focus-visible,
+.sfx-cmp-tray button:focus-visible,
+.sfx-cmp-tray a:focus-visible {
+  outline: 2px solid var(--m1h-accent, #a47a12);
+  outline-offset: 2px;
+}
+
+.sfx-cmp-pill {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--m1h-line, #e4e1d9);
+  border-radius: 999px;
+  background: var(--m1h-surface, #fff);
+  color: var(--m1h-text, #1c1917);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 14px;
+  transition: background-color 160ms var(--m1h-ease), border-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+.sfx-cmp-pill:hover {
+  border-color: var(--m1h-text-3, #8b857b);
+}
+
+.sfx-cmp-pill.is-on {
+  border-color: var(--m1h-invert-bg, #14120f);
+  background: var(--m1h-invert-bg, #14120f);
+  color: var(--m1h-invert-text, #f8f6f1);
+}
+
+/* ---------------------------------------------------------------- tray ---- */
+
+.sfx-cmp-tray {
+  position: fixed;
+  inset-inline: 0;
+  bottom: calc(var(--product-sticky-actions-height, 0px) + env(safe-area-inset-bottom, 0px) + 12px);
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px;
+  pointer-events: none;
+  animation: sfxCmpTrayIn 320ms var(--m1h-ease, ease) both;
+}
+
+@keyframes sfxCmpTrayIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sfx-cmp-tray {
+    animation: none;
+  }
+}
+
+.sfx-cmp-tray__inner {
+  display: flex;
+  width: min(100%, 640px);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--m1h-line, #e4e1d9);
+  border-radius: 18px;
+  background: var(--m1h-surface, #fff);
+  box-shadow: 0 18px 48px rgba(28, 25, 23, 0.18);
+  color: var(--m1h-text, #1c1917);
+  padding: 10px;
+  pointer-events: auto;
+}
+
+.sfx-cmp-tray__slots {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sfx-cmp-tray__slot {
+  position: relative;
+  display: grid;
+  height: 48px;
+  width: 48px;
+  place-items: center;
+  border: 1px solid var(--m1h-line-soft, #eeece6);
+  border-radius: 12px;
+  background: var(--m1h-plate, #fff);
+}
+
+.sfx-cmp-tray__slot img {
+  height: 100%;
+  width: 100%;
+  border-radius: 11px;
+  object-fit: contain;
+}
+
+.sfx-cmp-tray__slot.is-empty {
+  border-style: dashed;
+  border-color: var(--m1h-line, #e4e1d9);
+  background: transparent;
+}
+
+.sfx-cmp-tray__slot.is-empty a {
+  display: grid;
+  height: 100%;
+  width: 100%;
+  place-items: center;
+  color: var(--m1h-text-3, #8b857b);
+}
+
+.sfx-cmp-tray__initial {
+  font-weight: 800;
+  color: var(--m1h-text-2, #5d5952);
+}
+
+.sfx-cmp-tray__remove {
+  position: absolute;
+  top: -6px;
+  inset-inline-end: -6px;
+  display: grid;
+  height: 20px;
+  width: 20px;
+  place-items: center;
+  border: 2px solid var(--m1h-surface, #fff);
+  border-radius: 999px;
+  background: var(--m1h-invert-bg, #14120f);
+  color: var(--m1h-invert-text, #f8f6f1);
+  cursor: pointer;
+  padding: 0;
+}
+
+.sfx-cmp-tray__copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.sfx-cmp-tray__copy strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.sfx-cmp-tray__copy span {
+  overflow: hidden;
+  color: var(--m1h-text-3, #8b857b);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sfx-cmp-tray__actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.sfx-cmp-tray__clear {
+  border: 0;
+  background: transparent;
+  color: var(--m1h-text-2, #5d5952);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px;
+}
+
+.sfx-cmp-tray__go {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--m1h-invert-bg, #14120f);
+  color: var(--m1h-invert-text, #f8f6f1);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 0 16px;
+  transition: opacity 160ms var(--m1h-ease), transform 160ms var(--m1h-ease);
+}
+
+.sfx-cmp-tray__go:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.sfx-cmp-tray__go:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+@media (max-width: 520px) {
+  .sfx-cmp-tray {
+    padding: 0 8px;
+  }
+
+  .sfx-cmp-tray__inner {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .sfx-cmp-tray__slot {
+    height: 42px;
+    width: 42px;
+  }
+
+  .sfx-cmp-tray__copy {
+    display: none;
+  }
+
+  .sfx-cmp-tray__actions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  .sfx-cmp-tray__go {
+    padding: 0 12px;
+  }
+}
+
+/* The tray takes the bottom of the screen: the page keeps room under its last
+   row, and the corner buttons step up above it instead of hiding under it. */
+body.sfx-has-compare-tray {
+  --sfx-cmp-tray-room: 84px;
+}
+
+body.sfx-has-compare-tray .storefront-shell,
+body.sfx-has-compare-tray.storefront-shell {
+  padding-bottom: var(--sfx-cmp-tray-room);
+}
+
+@media (max-width: 900px) {
+  body.sfx-has-compare-tray.storefront-shell .sf-whatsapp-float,
+  body.sfx-has-compare-tray .storefront-shell .sf-whatsapp-float {
+    bottom: calc(var(--product-sticky-actions-height, 0px) + env(safe-area-inset-bottom, 0px) + var(--sfx-cmp-tray-room) + 8px) !important;
+  }
+
+  body.sfx-has-compare-tray .sf-scroll-top-btn {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--sfx-cmp-tray-room) + 8px) !important;
+  }
+}
+
+/* A photo that fails to load must not spill its alt text out of a 48px slot. */
+.sfx-cmp-tray__slot img {
+  overflow: hidden;
+  color: transparent;
+  font-size: 0;
+}
