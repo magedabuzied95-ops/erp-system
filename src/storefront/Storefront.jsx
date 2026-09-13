@@ -10211,10 +10211,41 @@ const CART_DRAWER_EXIT_MS = 280;
 const CART_SUGGESTION_LIMIT = 8;
 const CART_SUGGESTION_AUTOPLAY_MS = 5000;
 
+// The bundle discount the bag shows is the one checkout charges: the total comes
+// straight from computeBundleDiscount. Each line then gets its own part of it,
+// cheapest units first inside every bundle, exactly the units that function
+// discounted, so the lines add up to the total within rounding.
+const cartDrawerBundleShares = (cart = [], percent = 0) => {
+  const lines = cart.map((item) => ({ ...item, price: displayCartItemPrice(item) }));
+  const { amount, bundles } = computeBundleDiscount(lines, percent);
+  const byLine = new Map();
+  if (!amount) return { amount: 0, byLine };
+  const rate = normalizeBundleDiscountPercent(percent) / 100;
+  for (const bundle of bundles) {
+    for (const productId of bundle.product_ids) {
+      let remaining = bundle.sets;
+      const own = lines
+        .filter((line) => String(line.bundle_id || "") === bundle.bundle_id && String(line.product_id ?? "") === productId && line.price > 0)
+        .sort((a, b) => a.price - b.price);
+      for (const line of own) {
+        if (remaining <= 0) break;
+        const units = Math.min(remaining, Math.max(0, Math.floor(Number(line.quantity) || 0)));
+        remaining -= units;
+        const share = Math.round(line.price * units * rate * 100) / 100;
+        if (share > 0) byLine.set(line.lineId, (byLine.get(line.lineId) || 0) + share);
+      }
+    }
+  }
+  return { amount, byLine };
+};
+
 function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   const { i18n } = useTranslation();
   const isRtl = normalizeLanguage(i18n.language || "ar") === "ar";
   const dark = useBodyStorefrontDark();
+  const bundleConfig = usePublicBundleConfig();
+  const bundlePercent = bundleConfig.enabled ? bundleConfig.percent : 0;
+  const bundle = useMemo(() => cartDrawerBundleShares(cart, bundlePercent), [bundlePercent, cart]);
   // Kept mounted for the slide-out, then dropped so a closed bag costs nothing.
   const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
@@ -10249,7 +10280,9 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
     const price = displayCartItemPrice(item);
     return sum + (compare > price ? compare : price) * item.quantity;
   }, 0);
-  const saved = Math.max(0, compareTotal - subtotal);
+  const bundleAmount = Math.min(subtotal, bundle.amount);
+  const total = Math.max(0, subtotal - bundleAmount);
+  const saved = Math.max(0, compareTotal - subtotal) + bundleAmount;
 
   return createPortal(
     <div
@@ -10281,7 +10314,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
             <>
               <ul className="sf-bag__lines">
                 {cart.map((item) => (
-                  <CartDrawerLine key={item.lineId} item={item} updateCart={updateCart} removeFromCart={removeFromCart} onNavigate={onClose} />
+                  <CartDrawerLine key={item.lineId} item={item} bundleShare={bundle.byLine.get(item.lineId) || 0} bundlePercent={bundlePercent} updateCart={updateCart} removeFromCart={removeFromCart} onNavigate={onClose} />
                 ))}
               </ul>
               <CartDrawerSuggestions cart={cart} isRtl={isRtl} onNavigate={onClose} />
@@ -10294,8 +10327,13 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
             <div className="sf-bag__subtotal">
               <span className="sf-bag__subtotal-label">{sfText("storefront.cartDrawer.subtotal")}</span>
               <span className="sf-bag__subtotal-values">
-                {saved > 0 ? <span className="sf-bag__subtotal-was">{money(compareTotal)}</span> : null}
-                <strong className="sf-bag__subtotal-now">{money(subtotal)}</strong>
+                {bundleAmount > 0 ? (
+                  // The reference shop writes it as the sum it is: "4,800 - 240".
+                  <span className="sf-bag__subtotal-calc">{money(subtotal)} - {money(bundleAmount)}</span>
+                ) : saved > 0 ? (
+                  <span className="sf-bag__subtotal-was">{money(compareTotal)}</span>
+                ) : null}
+                <strong className="sf-bag__subtotal-now">{money(total)}</strong>
               </span>
             </div>
             {saved > 0 ? <p className="sf-bag__saved">{sfText("storefront.cartDrawer.saved", undefined, { amount: money(saved) })}</p> : null}
@@ -10312,7 +10350,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   );
 }
 
-function CartDrawerLine({ item, updateCart, removeFromCart, onNavigate }) {
+function CartDrawerLine({ item, bundleShare = 0, bundlePercent = 0, updateCart, removeFromCart, onNavigate }) {
   const price = displayCartItemPrice(item);
   const compare = displayCartItemComparePrice(item);
   const hasDiscount = compare > price;
@@ -10337,6 +10375,14 @@ function CartDrawerLine({ item, updateCart, removeFromCart, onNavigate }) {
           {hasDiscount ? <span className="sf-bag__price-was">{money(compare)}</span> : null}
           <span className={`sf-bag__price-now${hasDiscount ? " is-sale" : ""}`}>{money(price)}</span>
         </p>
+        {bundleShare > 0 ? (
+          <p className="sf-bag__bundle">
+            <Tag strokeWidth={1.8} aria-hidden="true" />
+            <span>
+              {sfText("storefront.bundle.discountLabel", "Bundle discount")}: {bundlePercent}% <span className="sf-bag__bundle-amount">(-{money(bundleShare)})</span>
+            </span>
+          </p>
+        ) : null}
         <div className="sf-bag__line-controls">
           <div className="sf-bag__stepper">
             <button

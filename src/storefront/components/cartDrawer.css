@@ -654,3 +654,34 @@
 .sf-bag__btn--ghost:hover {
   background: var(--bag-line) !important;
 }
+
+/* ---- bundle discount ("Pairs well with") ---- */
+.sf-bag__bundle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--bag-muted);
+}
+
+.sf-bag__bundle svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.1rem;
+  color: var(--bag-ink);
+}
+
+.sf-bag__bundle-amount {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-bag__subtotal-calc {
+  font-size: 0.9rem;
+  color: var(--bag-muted);
+  white-space: nowrap;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
