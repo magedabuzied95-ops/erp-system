@@ -745,8 +745,22 @@
     "notFoundTitle": "We could not find the order",
     "notFoundText": "Check the order number and mobile number, or contact us on WhatsApp.",
     "validation": {
-      "orderNumberRequired": "Enter the order number first"
-    }
+      "orderNumberRequired": "Enter the order number first",
+      "phoneRequired": "Enter the mobile number you ordered with"
+    },
+    "orderNumberHint": "It is in your order confirmation message",
+    "phoneHint": "The same number you used at checkout",
+    "loadFailed": "Something went wrong while looking up the order. Try again shortly.",
+    "now": "Now",
+    "cancelledTitle": "This order was cancelled",
+    "returnedTitle": "The parcel was returned",
+    "failedTitle": "Delivery did not go through",
+    "derailedText": "If you have any question, message us on WhatsApp and we will help.",
+    "shipment": "Shipment",
+    "trackOnBosta": "Follow the parcel on Bosta",
+    "copyTracking": "Copy tracking number",
+    "noTrackingYet": "The tracking number appears once the parcel is handed to the courier.",
+    "searchAnother": "Track another order"
   },
   "orders": {
     "orderNumber": "Order number",

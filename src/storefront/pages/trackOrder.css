@@ -1,0 +1,464 @@
+/* Order tracking page (/track) in the homepage look: --m1h-* tokens, white
+   cards on the page ground, hairline borders. Colour rules carry the
+   body.storefront-shell prefix and !important where the legacy storefront
+   sheets repaint text and buttons per theme. */
+
+.sft {
+  display: grid;
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  gap: 16px;
+  padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .sft {
+    padding-top: 48px;
+  }
+}
+
+.sft-header {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+body.storefront-shell .sft-header__icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m1h-accent-soft);
+  color: var(--m1h-accent) !important;
+}
+
+body.storefront-shell .sft-title {
+  margin: 4px 0 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sft-title {
+    font-size: 32px;
+  }
+}
+
+body.storefront-shell .sft-muted {
+  margin: 0;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+body.storefront-shell .sft-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sft-card {
+    padding: 24px;
+  }
+}
+
+/* ------------------------------------------------------------------ form */
+
+.sft-field {
+  display: grid;
+  gap: 6px;
+}
+
+body.storefront-shell .sft-field__label {
+  color: var(--m1h-text) !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sft-field__hint {
+  color: var(--m1h-text-3) !important;
+  font-size: 12px;
+}
+
+body.storefront-shell .sft-input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-bg) !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: 16px;
+  text-align: start;
+}
+
+body.storefront-shell .sft-input::placeholder {
+  color: var(--m1h-text-3);
+  -webkit-text-fill-color: var(--m1h-text-3);
+  opacity: 0.7;
+}
+
+body.storefront-shell .sft-input:focus {
+  border-color: var(--m1h-text) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--m1h-accent-soft);
+}
+
+body.storefront-shell .sft-error {
+  margin: 0;
+  color: var(--m1h-sale) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+body.storefront-shell .sft-btn {
+  display: inline-flex;
+  width: 100%;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--m1h-r-md);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+body.storefront-shell .sft-btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+body.storefront-shell .sft-btn--primary {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sft-btn--outline {
+  border-color: var(--m1h-line) !important;
+  background: transparent !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sft-btn--outline:hover {
+  border-color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sft-btn--whatsapp {
+  background: #25d366 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sft-btn--ghost {
+  background: transparent !important;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+body.storefront-shell .sft-icon-btn {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: 999px;
+  background: transparent !important;
+  color: var(--m1h-text-2) !important;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------- result */
+
+.sft-result {
+  display: grid;
+  gap: 16px;
+}
+
+.sft-head__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.storefront-shell .sft-label {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sft-value {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: end;
+}
+
+body.storefront-shell .sft-order-number {
+  margin: 2px 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: start;
+  unicode-bidi: plaintext;
+}
+
+body.storefront-shell .sft-pill {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--m1h-accent-soft);
+  color: var(--m1h-accent) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+body.storefront-shell .sft-pill--good {
+  background: var(--sfx-success-soft, rgba(22, 163, 74, 0.12));
+  color: var(--sfx-success, #15803d) !important;
+}
+
+body.storefront-shell .sft-pill--bad {
+  background: color-mix(in srgb, var(--m1h-sale) 12%, transparent);
+  color: var(--m1h-sale) !important;
+}
+
+/* The steps run down the card: six labels do not fit across a phone. */
+.sft-steps {
+  display: grid;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sft-step {
+  position: relative;
+  display: flex;
+  min-height: 44px;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 14px;
+}
+
+.sft-step:last-child {
+  min-height: 0;
+  padding-bottom: 0;
+}
+
+/* The line joining a dot to the next one, filled in once that stage is reached. */
+.sft-step:not(:last-child)::after {
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  inset-inline-start: 11px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--m1h-line);
+  content: "";
+}
+
+.sft-step--done:not(:last-child)::after {
+  background: var(--m1h-text);
+}
+
+body.storefront-shell .sft-step__dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border: 2px solid var(--m1h-line);
+  border-radius: 999px;
+  background: var(--m1h-surface);
+  color: var(--m1h-invert-text) !important;
+}
+
+body.storefront-shell .sft-step--done .sft-step__dot {
+  border-color: var(--m1h-text);
+  background: var(--m1h-text);
+}
+
+body.storefront-shell .sft-step--current .sft-step__dot {
+  border-color: var(--m1h-accent);
+  box-shadow: 0 0 0 4px var(--m1h-accent-soft);
+}
+
+body.storefront-shell .sft-step--current .sft-step__dot::after {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--m1h-accent);
+  content: "";
+}
+
+body.storefront-shell .sft-step__label {
+  padding-top: 2px;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sft-step--done .sft-step__label {
+  color: var(--m1h-text-2) !important;
+}
+
+body.storefront-shell .sft-step--current .sft-step__label {
+  color: var(--m1h-text) !important;
+  font-weight: 700;
+}
+
+body.storefront-shell .sft-step__now {
+  margin-top: 3px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--m1h-accent-soft);
+  color: var(--m1h-accent) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sft-derailed {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--m1h-r-md);
+  background: color-mix(in srgb, var(--m1h-sale) 8%, transparent);
+  color: var(--m1h-sale) !important;
+}
+
+body.storefront-shell .sft-h2 {
+  display: flex;
+  margin: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sft-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.sft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.storefront-shell .sft-row--total {
+  padding-top: 10px;
+  border-top: 1px solid var(--m1h-line);
+  color: var(--m1h-text) !important;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sft-tracking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.storefront-shell .sft-note {
+  font-size: 12.5px;
+}
+
+.sft-items {
+  display: grid;
+  margin: 0;
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.sft-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+body.storefront-shell .sft-item__img {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  padding: 3px;
+  border: 1px solid var(--m1h-plate-edge);
+  border-radius: var(--m1h-r-sm);
+  background: var(--m1h-plate);
+  object-fit: contain;
+}
+
+body.storefront-shell .sft-item__name {
+  overflow: hidden;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.storefront-shell .sft-address {
+  display: grid;
+  margin: 0;
+  gap: 2px;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+body.storefront-shell .sft-address strong {
+  color: var(--m1h-text) !important;
+  font-weight: 600;
+}
+
+.sft-actions {
+  display: grid;
+  gap: 8px;
+}

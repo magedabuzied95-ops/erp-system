@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/api";
 import { sfText } from "../lib/sfText";
@@ -8,149 +8,262 @@ import { droppedPriceAlerts, usePriceDropAlerts } from "../lib/priceDropAlerts";
 import FreeShippingProgress, { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import {
   Bell,
+  Check,
+  Copy,
+  ExternalLink,
+  Loader2,
   MessageCircle,
   Minus,
   PackageSearch,
+  PackageX,
   Trash2,
+  Truck,
 } from "lucide-react";
+import "./trackOrder.css";
 
 const storefrontAsyncDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
   console.log(label, payload);
 };
 
-const getBrandInitials = (value = "") => {
-  const text = String(value || "").trim();
-  if (!text) return "MONE";
-  const parts = text.split(/\s+/).filter(Boolean);
-  const initials = parts.length > 1 ? `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}` : text.slice(0, 2);
-  return String(initials || "MONE").toUpperCase();
+// Orders that left the happy path. The timeline stops lighting stages for them
+// (buildOrderTimeline on the server), so the page says what happened instead.
+const TRACKING_DERAILED = {
+  cancelled: "cancelledTitle",
+  canceled: "cancelledTitle",
+  cancelled_by_customer: "cancelledTitle",
+  returned: "returnedTitle",
+  failed_delivery: "failedTitle",
 };
 
-function OrderItemsSummaryLocal({ items = [], helpers }) {
-  const { sfText, money, imageFor, fallbackProductImage } = helpers;
-  if (!items.length) {
-    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>;
+const trackingDerailedKey = (order = {}) => {
+  const values = [order.status, order.shipment_status, order.shipping_status].map((value) => String(value || "").trim().toLowerCase());
+  for (const value of values) {
+    if (TRACKING_DERAILED[value]) return TRACKING_DERAILED[value];
   }
-  return (
-    <div className="sf-order-items mt-5 space-y-3">
-      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h3>
-      {items.map((item) => {
-        const selectedVariantImage = item.variant_image
-          || item.variant_image_url
-          || item.color_image
-          || item.color_image_url
-          || item.image_url
-          || item.product_image
-          || item.product_image_url;
-        return (
-        <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-          <img src={imageFor(selectedVariantImage)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
-          <div className="min-w-0 flex-1">
-            <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
-            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "اللون")} / {item.size || sfText("storefront.products.size", "المقاس")} أ— {item.quantity}</div>
-          </div>
-          <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
-        </div>
-        );
-      })}
-    </div>
-  );
-}
+  return "";
+};
 
-function TrackingResult({ data, helpers, components }) {
-  const { sfText, displayOrderNumber, statusCopy, formatDate, money, paymentCopy, shippingProviderCopy, supportHref, getStatusLabels } = helpers;
-  const { InfoBox, OrderTimeline, OrderNumberBadge } = components;
-  const brandName = String(helpers.brandName || "MONE").trim() || "MONE";
-  const brandLogoUrl = String(helpers.brandLogoUrl || "").trim();
-  const brandInitials = String(helpers.brandInitials || getBrandInitials(brandName)).trim() || getBrandInitials(brandName);
+const trackingNumberOf = (order = {}) => String(order.shipping_tracking_number || order.tracking_number || "").trim();
+
+const isBostaOrder = (order = {}) => [order.shipping_provider, order.shipping_provider_id, order.shipping_method]
+  .some((value) => String(value || "").toLowerCase().includes("bosta"));
+
+function TrackingResult({ data, helpers, onSearchAnother }) {
+  const { sfText, displayOrderNumber, statusCopy, formatDate, money, paymentCopy, shippingProviderCopy, supportHref, imageFor, fallbackProductImage, getStatusLabels } = helpers;
+  const [copied, setCopied] = useState(false);
   const order = data.order || {};
-  const items = data.items || [];
-  const timeline = data.timeline || getStatusLabels().map((label, index) => ({ label, done: index === 0 }));
-  const total = order.total_amount || order.total || order.total_price || 0;
-  const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
+  const items = Array.isArray(data.items) ? data.items : [];
+  const timeline = Array.isArray(data.timeline) && data.timeline.length
+    ? data.timeline
+    : getStatusLabels().map((label, index) => ({ key: String(index), label, done: index === 0 }));
+  const derailedKey = trackingDerailedKey(order);
+  // The stage the parcel is at: the last one lit. Everything before it is done.
+  const currentIndex = timeline.reduce((last, step, index) => (step.done ? index : last), 0);
   const publicNumber = displayOrderNumber(order);
+  const trackingNumber = trackingNumberOf(order);
+  const bosta = isBostaOrder(order);
+  const total = Number(order.total_amount || order.total || order.total_price || 0);
+  const shippingFee = Number(order.shipping_fee || order.delivery_fee || 0);
+  const remaining = Number(order.remaining_amount || 0);
+  const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
+
+  const copyTracking = async () => {
+    try {
+      await navigator.clipboard?.writeText(trackingNumber);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard access can be refused; the number stays visible to copy by hand.
+    }
+  };
+
   return (
-    <div className="sf-storefront-card sf-tracking-result mt-5 overflow-hidden rounded-[2rem] border border-stone-200 bg-white shadow-[0_18px_50px_rgba(39,20,75,0.07)]">
-      <div className="sf-card-section border-b border-stone-100 p-5 md:p-6">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-stone-200 bg-white">
-            {brandLogoUrl ? (
-              <img src={brandLogoUrl} alt={brandName} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" />
+    <div className="sft-result">
+      <div className="sft-card sft-head">
+        <div className="sft-head__row">
+          <div className="min-w-0">
+            <div className="sft-label">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</div>
+            <div className="sft-order-number" dir="ltr">{publicNumber}</div>
+            <div className="sft-muted">{formatDate(order.created_at)}</div>
+          </div>
+          <span className={`sft-pill${derailedKey ? " sft-pill--bad" : currentIndex === timeline.length - 1 ? " sft-pill--good" : ""}`}>
+            {derailedKey ? sfText(`storefront.tracking.${derailedKey}`) : timeline[currentIndex]?.label || statusCopy(order.status || "pending")}
+          </span>
+        </div>
+
+        {derailedKey ? (
+          <div className="sft-derailed">
+            <PackageX className="h-5 w-5 shrink-0" aria-hidden="true" />
+            {/* The pill above already names what happened; this only says what to do. */}
+            <p className="sft-muted">{sfText("storefront.tracking.derailedText", "لو عندك أي استفسار كلّمنا على واتساب وهنساعدك.")}</p>
+          </div>
+        ) : (
+          <ol className="sft-steps" aria-label={sfText("storefront.orders.tracking", "تتبع الطلب")}>
+            {timeline.map((step, index) => {
+              const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "todo";
+              return (
+                <li key={step.key || step.label} className={`sft-step sft-step--${state}`} aria-current={state === "current" ? "step" : undefined}>
+                  <span className="sft-step__dot" aria-hidden="true">
+                    {state === "done" ? <Check className="h-3.5 w-3.5" /> : null}
+                  </span>
+                  <span className="sft-step__label">{step.label}</span>
+                  {state === "current" ? <span className="sft-step__now">{sfText("storefront.tracking.now", "دلوقتي")}</span> : null}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </div>
+
+      <div className="sft-card">
+        <h2 className="sft-h2"><Truck className="h-4 w-4" aria-hidden="true" />{sfText("storefront.tracking.shipment", "الشحنة")}</h2>
+        <div className="sft-rows">
+          <div className="sft-row">
+            <span className="sft-label">{sfText("storefront.shipping.provider", "شركة الشحن")}</span>
+            <span className="sft-value">{shippingProviderCopy(order.shipping_provider || order.shipping_provider_id)}</span>
+          </div>
+          <div className="sft-row">
+            <span className="sft-label">{sfText("storefront.shipping.trackingNumber", "رقم التتبع")}</span>
+            {trackingNumber ? (
+              <span className="sft-value sft-tracking">
+                <span dir="ltr">{trackingNumber}</span>
+                <button type="button" onClick={copyTracking} className="sft-icon-btn" aria-label={sfText("storefront.tracking.copyTracking", "انسخ رقم التتبع")}>
+                  {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+                </button>
+              </span>
             ) : (
-              <span className="text-xs font-black tracking-[0.18em] text-stone-700">{brandInitials}</span>
+              <span className="sft-value sft-muted">{sfText("storefront.common.soon", "قريبًا")}</span>
             )}
           </div>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-black text-stone-950">{brandName}</div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-500">{sfText("storefront.tracking.brandLabel", "Order tracking")}</div>
-          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="sf-muted-text text-sm font-bold text-stone-500">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</div>
-            <OrderNumberBadge value={publicNumber} className="mt-2 border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
-          </div>
-          <span className="rounded-full bg-stone-950 px-4 py-2 text-sm font-black text-white">{statusCopy(order.status || order.shipping_status || "pending")}</span>
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <InfoBox label={sfText("storefront.customer.customer", "العميل")} value={order.customer_name || sfText("storefront.customer.dearCustomer", "عميلنا الكريم")} />
-          <InfoBox label={sfText("storefront.orders.orderDate", "تاريخ الطلب")} value={formatDate(order.created_at)} />
-          <InfoBox label={sfText("storefront.checkout.total", "الإجمالي")} value={money(total)} />
-          <InfoBox label={sfText("storefront.checkout.paymentMethod", "طريقة الدفع")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status || "pending")}`} />
-          <InfoBox label={sfText("storefront.shipping.trackingNumber", "رقم التتبع")} value={order.tracking_number || sfText("storefront.common.soon", "قريبًا")} />
-          <InfoBox label={sfText("storefront.shipping.status", "حالة الشحن")} value={statusCopy(order.shipping_status || "pending")} />
-          <InfoBox label={sfText("storefront.checkout.deliveryAddress", "العنوان")} value={address || sfText("storefront.orders.addressSaved", "تم حفظ العنوان مع الطلب")} />
-        </div>
+        {trackingNumber && bosta ? (
+          <a href={`https://bosta.co/tracking/${encodeURIComponent(trackingNumber)}`} target="_blank" rel="noopener noreferrer" className="sft-btn sft-btn--outline">
+            {sfText("storefront.tracking.trackOnBosta", "تابع الشحنة على موقع بوسطة")}
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+        ) : null}
+        {!trackingNumber && !derailedKey ? <p className="sft-muted sft-note">{sfText("storefront.tracking.noTrackingYet", "رقم التتبع هيظهر أول ما الشحنة تتسلّم لشركة الشحن.")}</p> : null}
       </div>
-      <div className="p-5 md:p-6">
-        <h2 className="sf-section-heading text-xl font-black">{sfText("storefront.orders.tracking", "Order tracking")}</h2>
-        <OrderTimeline timeline={timeline} />
-        <OrderItemsSummaryLocal items={items} helpers={helpers} />
-        <a href={supportHref(publicNumber)} className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-emerald-600 px-5 py-3 font-black text-white">
-          <MessageCircle className="h-5 w-5" />
+
+      {items.length ? (
+        <div className="sft-card">
+          <h2 className="sft-h2">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h2>
+          <ul className="sft-items">
+            {items.map((item) => {
+              const image = item.variant_image || item.variant_image_url || item.color_image || item.color_image_url || item.image_url || item.product_image || item.product_image_url;
+              const quantity = Number(item.quantity || 1);
+              const lineTotal = Number(item.total_amount || 0) || Number(item.price || item.sale_price || 0) * quantity;
+              const options = [item.color, item.size].filter(Boolean).join(" / ");
+              return (
+                <li key={item.id || `${item.product_id}-${item.variant_id}`} className="sft-item">
+                  <img src={imageFor(image)} onError={fallbackProductImage} alt="" className="sft-item__img" loading="lazy" decoding="async" width="56" height="56" />
+                  <div className="min-w-0 flex-1">
+                    <div className="sft-item__name">{item.product_name || item.name}</div>
+                    <div className="sft-muted">{options ? `${options} · ` : ""}× {quantity}</div>
+                  </div>
+                  <div className="sft-value">{money(lineTotal)}</div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="sft-rows sft-totals">
+            {shippingFee > 0 ? (
+              <div className="sft-row">
+                <span className="sft-label">{sfText("storefront.checkout.shipping", "الشحن")}</span>
+                <span className="sft-value">{money(shippingFee)}</span>
+              </div>
+            ) : null}
+            <div className="sft-row sft-row--total">
+              <span>{sfText("storefront.checkout.total", "الإجمالي")}</span>
+              <span>{money(total)}</span>
+            </div>
+            <div className="sft-row">
+              <span className="sft-label">{sfText("storefront.checkout.paymentMethod", "طريقة الدفع")}</span>
+              <span className="sft-value">{paymentCopy(order.payment_method)}</span>
+            </div>
+            {remaining > 0 && !derailedKey ? (
+              <div className="sft-row">
+                <span className="sft-label">{sfText("storefront.checkout.remainingOnDelivery", "المتبقي عند الاستلام")}</span>
+                <span className="sft-value">{money(remaining)}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {address ? (
+        <div className="sft-card">
+          <h2 className="sft-h2">{sfText("storefront.checkout.deliveryAddress", "عنوان التوصيل")}</h2>
+          <p className="sft-address">{order.customer_name ? <strong>{order.customer_name}</strong> : null}{address}</p>
+        </div>
+      ) : null}
+
+      <div className="sft-actions">
+        <a href={supportHref(publicNumber)} target="_blank" rel="noopener noreferrer" className="sft-btn sft-btn--whatsapp">
+          <MessageCircle className="h-5 w-5" aria-hidden="true" />
           {sfText("storefront.support.needHelpWhatsapp", "تحتاج مساعدة؟ تواصل معنا على واتساب")}
         </a>
+        <button type="button" onClick={onSearchAnother} className="sft-btn sft-btn--ghost">
+          {sfText("storefront.tracking.searchAnother", "تتبع طلب تاني")}
+        </button>
       </div>
     </div>
   );
 }
 
-export function TrackOrderPage({ helpers, components }) {
-  const { sfText, displayOrderNumber, supportHref, deferReactState } = helpers;
-  const { Field, EmptyState } = components;
-  const brandName = String(helpers.brandName || "MONE").trim() || "MONE";
-  const brandLogoUrl = String(helpers.brandLogoUrl || "").trim();
-  const brandInitials = String(helpers.brandInitials || getBrandInitials(brandName)).trim() || getBrandInitials(brandName);
+export function TrackOrderPage({ helpers }) {
+  const { sfText, displayOrderNumber, deferReactState } = helpers;
   const [params] = useSearchParams();
-  const [form, setForm] = useState({ order_number: displayOrderNumber(params.get("order_number") || params.get("order") || ""), phone: params.get("phone") || "" });
+  const auth = readStorefrontCustomerAuth();
+  const signedIn = Boolean(auth.token && auth.phone);
+  const [form, setForm] = useState({
+    order_number: displayOrderNumber(params.get("order_number") || params.get("order") || ""),
+    phone: params.get("phone") || (signedIn ? auth.phone : ""),
+  });
   const [state, setState] = useState({ loading: false, data: null, error: "" });
-  const hasOrderFromQuery = Boolean(params.get("order") || params.get("order_number"));
+  const orderInputRef = useRef(null);
 
   const submit = useCallback(async (event) => {
     event?.preventDefault();
-    if (!form.order_number.trim()) {
-      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "أدخل رقم الطلب أولًا") });
+    const orderNumber = String(form.order_number || "").trim();
+    const phone = String(form.phone || "").trim();
+    if (!orderNumber) {
+      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "اكتب رقم الطلب أولًا") });
+      return;
+    }
+    // The server will not open an order on its number alone; a signed-in
+    // shopper's phone travels in their token instead.
+    if (!phone && !signedIn) {
+      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.phoneRequired", "اكتب رقم الموبايل اللي طلبت بيه") });
       return;
     }
     setState({ loading: true, data: null, error: "" });
     try {
-      const { token, phone: storedPhone } = readStorefrontCustomerAuth();
-      const params = {
-        order_number: form.order_number,
-        ...(token && storedPhone ? { phone: storedPhone } : form.phone ? { phone: form.phone } : {}),
-      };
-      const data = token
-        ? await storefrontCustomerRequest("/storefront/track", { params })
-        : await api.get(`/storefront/track?order_number=${encodeURIComponent(form.order_number)}&phone=${encodeURIComponent(form.phone)}`);
+      const query = { order_number: orderNumber, phone };
+      const data = signedIn
+        ? await storefrontCustomerRequest("/storefront/track", { params: query })
+        : await api.get(`/storefront/track?order_number=${encodeURIComponent(orderNumber)}&phone=${encodeURIComponent(phone)}`);
       setState({ loading: false, data, error: "" });
     } catch (error) {
-      setState({ loading: false, data: null, error: error.message });
+      const status = Number(error?.status || error?.response?.status || 0);
+      setState({
+        loading: false,
+        data: null,
+        error: status === 404
+          ? sfText("storefront.tracking.notFoundText", "راجع رقم الطلب ورقم الموبايل، أو تواصل معنا على واتساب.")
+          : sfText("storefront.tracking.loadFailed", "حصلت مشكلة وإحنا بندوّر على الطلب، جرّب تاني بعد شوية."),
+      });
     }
-  }, [form.order_number, form.phone, sfText]);
+  }, [form.order_number, form.phone, sfText, signedIn]);
 
+  // A link from the confirmation message or the account page carries both
+  // values, so the order opens without the shopper typing anything.
+  const autoOpenedRef = useRef(false);
   useEffect(() => {
-    if (!form.order_number || (!form.phone && !hasOrderFromQuery)) return undefined;
+    if (autoOpenedRef.current) return undefined;
+    if (!form.order_number || (!form.phone && !signedIn)) return undefined;
+    autoOpenedRef.current = true;
     let cancelled = false;
     deferReactState(() => {
       if (!cancelled) submit();
@@ -158,45 +271,64 @@ export function TrackOrderPage({ helpers, components }) {
     return () => {
       cancelled = true;
     };
-  }, [deferReactState, form.order_number, form.phone, hasOrderFromQuery, submit]);
+  }, [deferReactState, form.order_number, form.phone, signedIn, submit]);
+
+  const searchAnother = () => {
+    setState({ loading: false, data: null, error: "" });
+    setForm((prev) => ({ ...prev, order_number: "" }));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.setTimeout(() => orderInputRef.current?.focus({ preventScroll: true }), 300);
+  };
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-5 md:py-8">
-      <div className="sf-track-hero rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_24px_64px_rgba(0,0,0,0.32)] md:p-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="mb-3 flex items-center gap-3">
-              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/10">
-                {brandLogoUrl ? (
-                  <img src={brandLogoUrl} alt={brandName} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" />
-                ) : (
-                  <span className="text-xs font-black tracking-[0.18em] text-white">{brandInitials}</span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <div className="truncate text-sm font-black text-white">{brandName}</div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-stone-400">{sfText("storefront.tracking.brandLabel", "Order tracking")}</div>
-              </div>
-            </div>
-            <p className="text-sm font-black text-emerald-200">{sfText("storefront.tracking.eyebrow", "Your order is on the way")}</p>
-            <h1 className="mt-2 text-3xl font-black md:text-5xl">{sfText("storefront.tracking.title", "تتبع الطلب")}</h1>
-            <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-300">{sfText("storefront.tracking.subtitle", "Enter your order number and mobile number, or open the direct tracking link from your confirmation message.")}</p>
-          </div>
-          <a href={supportHref(form.order_number)} className="sf-track-hero-support inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-5 py-3 text-sm font-black text-white">
-            <MessageCircle className="h-5 w-5" />
-            {sfText("storefront.support.needHelpWhatsapp", "تحتاج مساعدة؟ تواصل معنا على واتساب")}
-          </a>
-        </div>
-      </div>
-      <form onSubmit={submit} className="sf-storefront-card sf-track-search-form mt-5 grid gap-3 rounded-[1.7rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-4 shadow-[0_20px_54px_rgba(0,0,0,0.28)] md:grid-cols-[1fr_1fr_auto] md:p-5">
-        <Field label={sfText("storefront.orders.orderNumber", "رقم الطلب")} value={form.order_number} onChange={(value) => setForm((prev) => ({ ...prev, order_number: value }))} required />
-        <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={form.phone} onChange={(value) => setForm((prev) => ({ ...prev, phone: value }))} inputMode="tel" />
-        <button disabled={state.loading} className="min-h-13 self-end rounded-full border border-white/10 bg-[linear-gradient(135deg,var(--sf-purple),var(--sf-purple-2))] px-7 py-4 font-black text-stone-950 shadow-[0_16px_36px_rgba(212,175,55,0.20)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(212,175,55,0.28)] disabled:border-white/10 disabled:bg-stone-300 disabled:text-stone-500 disabled:shadow-none">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</button>
-      </form>
-      {state.loading ? <div className="sf-storefront-card mt-5 h-32 animate-pulse rounded-3xl bg-white" /> : null}
-      {!state.loading && !state.data && !state.error ? <EmptyState title={sfText("storefront.tracking.readyTitle", "جاهز للبحث")} text={sfText("storefront.tracking.readyText", "سيظهر رقم الطلب وحالة الشحن هنا بعد البحث.")} /> : null}
-      {state.error ? <EmptyState title={sfText("storefront.tracking.notFoundTitle", "لم نعثر على الطلب")} text={state.error || sfText("storefront.tracking.notFoundText", "تحقق من رقم الطلب ورقم الهاتف، أو تواصل معنا على واتساب.")} /> : null}
-      {state.data ? <TrackingResult data={state.data} helpers={helpers} components={components} /> : null}
+    <section className="sft">
+      <header className="sft-header">
+        <span className="sft-header__icon" aria-hidden="true"><PackageSearch className="h-6 w-6" /></span>
+        <h1 className="sft-title">{sfText("storefront.tracking.title", "تتبع الطلب")}</h1>
+        <p className="sft-muted">{sfText("storefront.tracking.subtitle", "اكتب رقم الطلب ورقم الموبايل، أو افتح رابط التتبع المباشر من رسالة التأكيد.")}</p>
+      </header>
+
+      {!state.data ? (
+        <form onSubmit={submit} className="sft-card sft-form" noValidate>
+          <label className="sft-field">
+            <span className="sft-field__label">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</span>
+            <input
+              ref={orderInputRef}
+              value={form.order_number}
+              onChange={(event) => setForm((prev) => ({ ...prev, order_number: event.target.value }))}
+              className="sft-input"
+              dir="ltr"
+              autoComplete="off"
+              autoCapitalize="characters"
+              enterKeyHint="next"
+              placeholder="WEB-1234"
+            />
+            <span className="sft-field__hint">{sfText("storefront.tracking.orderNumberHint", "موجود في رسالة تأكيد الطلب")}</span>
+          </label>
+          <label className="sft-field">
+            <span className="sft-field__label">{sfText("storefront.form.mobileNumber", "رقم الموبايل")}</span>
+            <input
+              value={form.phone}
+              onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+              className="sft-input"
+              dir="ltr"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              enterKeyHint="search"
+              placeholder="01xxxxxxxxx"
+            />
+            <span className="sft-field__hint">{sfText("storefront.tracking.phoneHint", "نفس الرقم اللي كتبته وانت بتطلب")}</span>
+          </label>
+          {state.error ? <p role="alert" className="sft-error">{state.error}</p> : null}
+          <button type="submit" disabled={state.loading} className="sft-btn sft-btn--primary">
+            {state.loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+            {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
+          </button>
+        </form>
+      ) : (
+        <TrackingResult data={state.data} helpers={helpers} onSearchAnother={searchAnother} />
+      )}
     </section>
   );
 }

@@ -6195,8 +6195,15 @@ export const createPosOnlineOrder = async (req, res) => {
   return createWebsiteOrder(req, res);
 };
 
+// An order number alone opens nothing: numbers are sequential (`id::text`, `WEB-<id>`), so without
+// a second factor anyone could walk every order and read the customer's name, phone and address.
+// The phone on the order is that factor, compared as digits so `+20 10…`, `010…` and `10…` all
+// match what checkout stored. The one exception is the order's public_token — long, random, and
+// only ever handed to the customer in their own confirmation link.
 const loadPublicOrder = async ({ tenantId, orderNumber: number, phone }) => {
   const lookupNumber = toText(number);
+  if (!lookupNumber) return null;
+  const phoneVariants = getPhoneSearchVariants(phone);
   const shortWebsiteMatch = lookupNumber.match(/^WEB-(\d{2,})$/i);
   const legacyWebsiteSuffix = shortWebsiteMatch ? shortWebsiteMatch[1] : "";
   const result = await db.query(
@@ -6213,10 +6220,10 @@ const loadPublicOrder = async ({ tenantId, orderNumber: number, phone }) => {
         OR public_token = $2
         OR ($4 <> '' AND invoice_number LIKE ('WEB-%-' || $4))
       )
-      AND ($3 = '' OR customer_phone = $3)
+      AND (public_token = $2 OR ${phoneSqlDigits("customer_phone")} = ANY($3::text[]))
     LIMIT 1
     `,
-    [tenantId, lookupNumber, toText(phone), legacyWebsiteSuffix]
+    [tenantId, lookupNumber, phoneVariants, legacyWebsiteSuffix]
   );
   const order = result.rows[0];
   if (!order) return null;
