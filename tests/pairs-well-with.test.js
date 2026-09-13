@@ -44,6 +44,15 @@ test("the product page renders the section, off by default in settings", () => {
   assert.match(registry, /\["storefront\.bundle\.discount_percent", "storefront", "number", 5,[\s\S]{0,400}validation: \{ min: 0, max: 50 \}/);
 });
 
+test("the owner can reach both settings on the storefront settings page", () => {
+  // /settings/storefront renders StorefrontSettings, not the generic section list,
+  // so the keys must be rendered inside that component or they are unreachable.
+  const settingsCenter = read("../src/modules/settings/pages/SettingsCenter.jsx");
+  const storefrontSettings = settingsCenter.slice(settingsCenter.indexOf("function StorefrontSettings("));
+  assert.match(storefrontSettings, /renderField\(setting\("storefront\.bundle\.enabled"\), true\)/);
+  assert.match(storefrontSettings, /renderField\(setting\("storefront\.bundle\.discount_percent"\), true\)/);
+});
+
 test("the tables are created at boot, non-fatally, and the service ships", () => {
   assert.match(server, /await ensureProductBundleSchema\(db\)\s*\.then\(/);
   assert.match(gitignore, /!server\/services\/productBundleService\.js/);

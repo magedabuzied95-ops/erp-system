@@ -159,7 +159,9 @@
       "catalogHint": "Control how customers browse and interact with products.",
       "featuredCollections": "Featured collections",
       "seoHint": "Improve how your store appears in search and link previews.",
-      "ogImageUpload": "Open Graph Image Upload"
+      "ogImageUpload": "Open Graph Image Upload",
+      "bundleTitle": "Pairs well with",
+      "bundleHint": "Suggest a second product under the buy buttons, with a discount when both are bought together. Pin a specific pair from the product edit page."
     },
     "payments": {
       "title": "Payment and transfer settings",

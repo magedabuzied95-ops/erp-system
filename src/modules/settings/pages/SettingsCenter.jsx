@@ -1368,6 +1368,15 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
+      {/* The storefront category renders this component, not the generic section
+          list in SETTINGS_SECTIONS — a key listed only there never appears here. */}
+      <VisualSection icon={Package} title={t("settings.storefront.bundleTitle", "Pairs well with")} description={t("settings.storefront.bundleHint", "Suggest a second product under the buy buttons, with a discount when both are bought together.")}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("storefront.bundle.enabled"), true)}
+          {renderField(setting("storefront.bundle.discount_percent"), true)}
+        </div>
+      </VisualSection>
+
       <VisualSection icon={Globe2} title="SEO" description={t("settings.storefront.seoHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.seo_title"), true)}
