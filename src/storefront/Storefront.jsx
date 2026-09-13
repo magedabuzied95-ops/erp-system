@@ -99,6 +99,7 @@ import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage
 import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
+import { releaseBootLoader } from "./lib/bootLoader";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import { attachSiteDesign, detachSiteDesign, refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
@@ -3142,6 +3143,10 @@ function PremiumHomePage(props) {
   const storefrontHome = useStorefrontHome();
   const { brands, loading: brandsLoading } = useStorefrontBrands();
   const loading = storefrontHome.loading;
+
+  useEffect(() => {
+    if (!loading) releaseBootLoader();
+  }, [loading]);
 
   useEffect(() => {
     if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
@@ -10764,6 +10769,11 @@ function Storefront() {
 
   useEffect(() => {
     setRouteReady(true);
+    // The homepage and the product page release the boot loader themselves once
+    // their data lands; every other storefront route has its first screen now.
+    const path = String(location.pathname || "/");
+    if (!isStorefrontHomePath(path) && !/^\/(?:shop\/)?product\//i.test(path)) releaseBootLoader();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

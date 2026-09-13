@@ -47,6 +47,7 @@ import { trackGa4ViewItem } from "../lib/ga4Events";
 import DeliveryEstimate from "../components/DeliveryEstimate";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 import { CompareToggleButton } from "../components/StorefrontCompare";
+import { releaseBootLoader } from "../lib/bootLoader";
 
 const variantColorIdentity = (variant = {}) => {
   const safeVariant = variant && typeof variant === "object" ? variant : {};
@@ -210,6 +211,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const navigate = useNavigate();
   const productRouteKey = `${location.pathname}:${identifier || ""}`;
   const [state, setState] = useState({ loading: true, product: null, error: "" });
+
+  useEffect(() => {
+    if (!state.loading) releaseBootLoader();
+  }, [state.loading]);
   const [reloadToken, setReloadToken] = useState(0);
   const [selected, setSelected] = useState({ variantId: "", size: "", colorKey: "", colorName: "", image: "" });
   const [activeImageIndex, setActiveImageIndex] = useState(0);
