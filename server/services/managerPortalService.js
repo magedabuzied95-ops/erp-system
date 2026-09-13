@@ -2978,8 +2978,32 @@ const loadScopedEmployee = async ({ manager = {}, employeeId }) => {
 
 const ORDERS_EMPLOYEE_EXPR = "COALESCE(o.sales_employee_id, o.cashier_id, o.created_by)";
 
+// The payroll's daily rate: base salary ÷ working_days_per_month (26 when unset), the same
+// divisor calculateAttendancePayrollDeductions prices an absence with.
+const loadEmployeeDayRate = async ({ tenantId, employee }) => {
+  const rows = await safeQuery(
+    `SELECT COALESCE(NULLIF(working_days_per_month, 0), 26)::int AS working_days_per_month
+     FROM employees WHERE id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
+    [employee.id, tenantId],
+    []
+  );
+  const workingDays = Math.max(1, Math.round(Number(rows[0]?.working_days_per_month || 26)));
+  return { workingDays, dayRate: Number(employee.salary || 0) / workingDays };
+};
+
+const describeDays = (days) => {
+  if (days === 0.5) return "نص يوم";
+  if (days === 1) return "يوم";
+  if (days === 2) return "يومين";
+  const whole = Math.floor(days);
+  const half = days - whole === 0.5;
+  const base = whole === 1 ? "يوم" : whole === 2 ? "يومين" : whole <= 10 ? `${whole} أيام` : `${whole} يوم`;
+  return half ? `${base} ونص` : base;
+};
+
 export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId, month = "" } = {}) => {
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const dayRatePromise = loadEmployeeDayRate({ tenantId, employee });
   const range = monthRange(month);
   const salesCommission = await import("./salesCommissionService.js");
   // A month still in progress must not count its remaining days as absence:
@@ -3102,6 +3126,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     }
     : (payrollPreview?.payroll || payrollPreview?.snapshot || payrollPreview || {});
   const approvalBlockers = payrollRun ? [] : (Array.isArray(payrollPreview?.approval_blockers) ? payrollPreview.approval_blockers : []);
+  const { dayRate, workingDays } = await dayRatePromise;
   return {
     month: range.month,
     period: { start: range.start, end: range.end },
@@ -3115,6 +3140,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
       hire_date: employee.hire_date,
       status: employee.status,
       base_salary: Number(employee.salary || 0),
+      working_days_per_month: workingDays,
+      day_rate: Number(dayRate.toFixed(2)),
     },
     sales: {
       total: Number(salesRows[0]?.sales_total || 0),
@@ -3234,11 +3261,47 @@ export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const type = String(payload.type || "").trim().toLowerCase();
   const salesCommission = await import("./salesCommissionService.js");
+  const todayIso = cairoToday();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(payload.date || "")) ? String(payload.date) : todayIso;
+  if (date > todayIso) {
+    const error = new Error("لا يمكن تسجيل إضافة أو خصم بتاريخ لم يأتِ بعد");
+    error.status = 400;
+    throw error;
+  }
+  // An approved month is frozen — a row dated inside it would be stored but never paid.
+  if (await loadEmployeePayrollRun({ tenantId, employeeId: employee.id, month: date.slice(0, 7) })) {
+    const error = new Error("مرتب هذا الشهر معتمد بالفعل، لا يمكن إضافة أو خصم عليه");
+    error.status = 409;
+    throw error;
+  }
+
+  // يوم / نص يوم: priced with the payroll's own daily rate (salary ÷ working days per month),
+  // so a day deducted here is exactly a day's pay on the month's salary.
+  let amount = payload.amount;
+  let reason = String(payload.reason || "").trim();
+  const days = Number(payload.days);
+  if (payload.days !== undefined && payload.days !== null && payload.days !== "") {
+    if (!Number.isFinite(days) || days <= 0 || Math.round(days * 2) !== days * 2 || days > 31) {
+      const error = new Error("عدد الأيام لازم يكون نص يوم أو مضاعفاته");
+      error.status = 400;
+      throw error;
+    }
+    const { dayRate } = await loadEmployeeDayRate({ tenantId, employee });
+    if (!(dayRate > 0)) {
+      const error = new Error("لا يوجد مرتب أساسي للموظف لحساب قيمة اليوم");
+      error.status = 400;
+      throw error;
+    }
+    amount = Number((dayRate * days).toFixed(2));
+    const label = describeDays(days);
+    const verb = type === "bonus" ? "إضافة" : "خصم";
+    reason = reason ? `${verb} ${label} — ${reason}` : `${verb} ${label}`;
+  }
   const data = {
-    amount: payload.amount,
-    reason: payload.reason,
-    notes: payload.notes || `manager-portal:${manager.id || ""}`,
-    date: payload.date,
+    amount,
+    reason,
+    notes: payload.notes || `manager-portal:${manager.id || ""}${Number.isFinite(days) && days > 0 ? `;days:${days}` : ""}`,
+    date,
   };
   const userId = manager.user_id || null;
   if (type === "bonus") {

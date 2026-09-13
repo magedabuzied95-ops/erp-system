@@ -96,7 +96,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   const [tab, setTab] = useState(TABS.includes(initialTab) ? initialTab : "overview");
   const [month, setMonth] = useState(currentMonth());
   const [state, setState] = useState({ loading: true, error: "", details: null });
-  const [form, setForm] = useState({ type: "bonus", amount: "", reason: "" });
+  const [form, setForm] = useState({ type: "bonus", unit: "amount", days: "1", amount: "", reason: "" });
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [deletingKey, setDeletingKey] = useState("");
@@ -163,16 +163,31 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
     }
   };
 
+  const dayRate = Number(d?.employee?.day_rate || 0);
+  const formDays = Number(form.days);
+  const daysValid = Number.isFinite(formDays) && formDays > 0 && formDays <= 31 && Math.round(formDays * 2) === formDays * 2;
   const submitAdjustment = async (event) => {
     event.preventDefault();
+    const byDays = form.unit === "days";
     const amount = Number(form.amount);
-    if (!Number.isFinite(amount) || amount <= 0) { setNotice(tt("managerPortal.employeeDetails.amountRequired")); return; }
-    if (!String(form.reason || "").trim()) { setNotice(tt("managerPortal.employeeDetails.reasonRequired")); return; }
+    if (byDays) {
+      if (!(dayRate > 0)) { setNotice(tt("managerPortal.employeeDetails.noDayRate")); return; }
+      if (!daysValid) { setNotice(tt("managerPortal.employeeDetails.daysRequired")); return; }
+    } else {
+      if (!Number.isFinite(amount) || amount <= 0) { setNotice(tt("managerPortal.employeeDetails.amountRequired")); return; }
+      if (!String(form.reason || "").trim()) { setNotice(tt("managerPortal.employeeDetails.reasonRequired")); return; }
+    }
     try {
       setSaving(true);
       setNotice("");
-      await managerPortalApi.createEmployeeAdjustment(token, employeeId, { type: form.type, amount, reason: form.reason.trim() });
-      setForm({ type: form.type, amount: "", reason: "" });
+      await managerPortalApi.createEmployeeAdjustment(token, employeeId, {
+        type: form.type,
+        ...(byDays ? { days: formDays } : { amount }),
+        reason: form.reason.trim(),
+        // A past month's row is dated inside that month so its own payroll picks it up.
+        ...(isCurrentMonth ? {} : { date: `${month}-01` }),
+      });
+      setForm((f) => ({ ...f, amount: "", reason: "" }));
       setNotice(tt("managerPortal.employeeDetails.saved"));
       await load();
       onChanged?.();
@@ -287,7 +302,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black transition ${tab === key ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-600"}`}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-black transition ${tab === key ? "bg-slate-950 text-slate-50" : "bg-slate-100 text-slate-600"}`}
             >
               {tabLabels[key]}
             </button>
@@ -349,7 +364,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                           type="button"
                           disabled={approving || hardBlockers.length > 0 || d.salary.net_pay === null}
                           onClick={approvePayroll}
-                          className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-sm font-black text-white disabled:opacity-50"
+                          className="mt-2 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-950 px-3 text-sm font-black text-slate-50 disabled:opacity-50"
                         >
                           {approving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                           {approving ? tt("managerPortal.employeeDetails.payrollApproving") : tt("managerPortal.employeeDetails.payrollApprove", { month: monthLabel(month) })}
@@ -468,7 +483,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                       {attNotice ? <div className="mt-2 text-xs font-bold text-rose-700">{attNotice}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <button type="button" onClick={() => setAttForm(null)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-700">{tt("managerPortal.employeeDetails.cancel")}</button>
-                        <button type="submit" disabled={attSaving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-black text-white disabled:opacity-60">
+                        <button type="submit" disabled={attSaving} className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-black text-slate-50 disabled:opacity-60">
                           {attSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                           {tt("managerPortal.employeeDetails.save")}
                         </button>
@@ -539,32 +554,89 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                 <div className="space-y-4">
                   <form onSubmit={submitAdjustment} className="rounded-[var(--radius-card)] border border-slate-200 bg-slate-50 p-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, type: "bonus" }))} className={`inline-flex items-center justify-center gap-1 rounded-xl border px-3 py-2 text-sm font-black ${form.type === "bonus" ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-200 bg-white text-slate-700"}`}>
+                      <button type="button" onClick={() => setForm((f) => ({ ...f, type: "bonus" }))} className={`inline-flex items-center justify-center gap-1 rounded-xl border px-3 py-2 text-sm font-black ${form.type === "bonus" ? "border-emerald-600 bg-emerald-600 text-slate-50" : "border-slate-200 bg-white text-slate-700"}`}>
                         <Plus className="h-4 w-4" /> {tt("managerPortal.employeeDetails.addBonus")}
                       </button>
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, type: "deduction" }))} className={`inline-flex items-center justify-center gap-1 rounded-xl border px-3 py-2 text-sm font-black ${form.type === "deduction" ? "border-rose-600 bg-rose-600 text-white" : "border-slate-200 bg-white text-slate-700"}`}>
+                      <button type="button" onClick={() => setForm((f) => ({ ...f, type: "deduction" }))} className={`inline-flex items-center justify-center gap-1 rounded-xl border px-3 py-2 text-sm font-black ${form.type === "deduction" ? "border-rose-600 bg-rose-600 text-slate-50" : "border-slate-200 bg-white text-slate-700"}`}>
                         <Minus className="h-4 w-4" /> {tt("managerPortal.employeeDetails.addDeduction")}
                       </button>
                     </div>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      value={form.amount}
-                      onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                      placeholder={tt("managerPortal.employeeDetails.amount")}
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950"
-                    />
+                    <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-white p-1">
+                      {["amount", "days"].map((unit) => (
+                        <button
+                          key={unit}
+                          type="button"
+                          onClick={() => setForm((f) => ({ ...f, unit }))}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-black ${form.unit === unit ? "bg-slate-950 text-slate-50" : "text-slate-600"}`}
+                        >
+                          {tt(unit === "days" ? "managerPortal.employeeDetails.byDays" : "managerPortal.employeeDetails.byAmount")}
+                        </button>
+                      ))}
+                    </div>
+                    {form.unit === "days" ? (
+                      <div className="mt-2 space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          {[["0.5", "halfDay"], ["1", "oneDay"], ["2", "twoDays"]].map(([value, key]) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setForm((f) => ({ ...f, days: value }))}
+                              className={`rounded-xl border px-2 py-2 text-sm font-black ${Number(form.days) === Number(value) ? "border-slate-950 bg-slate-950 text-slate-50" : "border-slate-200 bg-white text-slate-700"}`}
+                            >
+                              {tt(`managerPortal.employeeDetails.${key}`)}
+                            </button>
+                          ))}
+                        </div>
+                        <label className="flex items-center gap-2">
+                          <span className="shrink-0 text-xs font-black text-slate-500">{tt("managerPortal.employeeDetails.daysCount")}</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0.5"
+                            max="31"
+                            step="0.5"
+                            value={form.days}
+                            onChange={(e) => setForm((f) => ({ ...f, days: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black tabular-nums text-slate-950"
+                          />
+                        </label>
+                        {dayRate > 0 ? (
+                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">
+                            <div>{tt("managerPortal.employeeDetails.dayRateHint", { rate: formatCurrency(dayRate), days: formatNumber(d?.employee?.working_days_per_month || 26) })}</div>
+                            {daysValid ? (
+                              <div className={`mt-1 text-sm font-black ${form.type === "bonus" ? "text-emerald-700" : "text-rose-700"}`}>
+                                {tt("managerPortal.employeeDetails.daysTotal", {
+                                  verb: tt(form.type === "bonus" ? "managerPortal.employeeDetails.addBonus" : "managerPortal.employeeDetails.addDeduction"),
+                                  amount: formatCurrency(Number((dayRate * formDays).toFixed(2))),
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">{tt("managerPortal.employeeDetails.noDayRate")}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={form.amount}
+                        onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+                        placeholder={tt("managerPortal.employeeDetails.amount")}
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950"
+                      />
+                    )}
                     <input
                       type="text"
                       value={form.reason}
                       onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-                      placeholder={tt("managerPortal.employeeDetails.reason")}
+                      placeholder={tt(form.unit === "days" ? "managerPortal.employeeDetails.reasonOptional" : "managerPortal.employeeDetails.reason")}
                       className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-950"
                     />
                     {notice ? <div className="mt-2 text-xs font-bold text-slate-600">{notice}</div> : null}
-                    <button type="submit" disabled={saving} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2.5 text-sm font-black text-white disabled:opacity-60">
+                    <button type="submit" disabled={saving || Boolean(payrollRun)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-950 px-3 py-2.5 text-sm font-black text-slate-50 disabled:opacity-60">
                       {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                       {tt("managerPortal.employeeDetails.save")}
                     </button>
