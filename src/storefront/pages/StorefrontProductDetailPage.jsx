@@ -699,9 +699,13 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         </div>
         <div className="sf-product-info-sticky min-w-0 lg:sticky lg:self-start">
           <div className="sf-product-summary-card overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.16),transparent_35%),linear-gradient(180deg,#080808_0%,#111111_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:p-6">
-            <div className="mb-2 flex items-start justify-between gap-3 md:mb-4">
-              <div className="min-w-0">
-                <div className="mt-1.5 hidden text-[11px] font-black text-[#f3d77a] md:mt-3 md:block md:text-xs">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
+            {/* The badge shares the row with the wishlist and share buttons. It used
+                to sit on a line of its own under a caption that phones hide, which
+                left the whole top row empty except for two buttons. */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="inline-flex min-w-0 items-center gap-2 rounded-full border border-[#d4af37]/18 bg-[#d4af37]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">
+                <Check className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{sfText("storefront.products.selectedProduct", "Selected product")}</span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <button type="button" onClick={() => toggleWishlist(product)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white" aria-label={sfText("storefront.wishlist.toggleWishlist", "Toggle wishlist")}>
@@ -711,10 +715,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                   <Share2 className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/18 bg-[#d4af37]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">
-              <Check className="h-3.5 w-3.5" />
-              {sfText("storefront.products.selectedProduct", "Selected product")}
             </div>
             <h1 className="mt-3 line-clamp-2 text-[1.85rem] font-black leading-[1.08] md:text-4xl">{displayTitle}</h1>
             <div className="mt-5 flex flex-wrap items-end gap-x-3 gap-y-2">
