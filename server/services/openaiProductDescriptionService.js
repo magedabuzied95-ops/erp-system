@@ -930,7 +930,10 @@ const wordCount = (value = "") => cleanText(value).split(/\s+/).filter(Boolean).
 const structuredSubject = (context = {}, language = "ar") => {
   const facts = localizedFacts(context);
   const name = cleanModelName(context.product_name);
-  const brand = cleanText(context.brand);
+  const brandField = cleanText(context.brand);
+  // A name that already carries a known brand keeps it alone ("Nike Adidas Running").
+  const nameBrand = brandKnowledgeFor({ name });
+  const brand = nameBrand && !nameBrand.brand.toLowerCase().includes(brandField.toLowerCase().split(/\s+/)[0] || " ") ? "" : brandField;
   const displayName = [brandInName(brand, name) ? "" : brand, name].filter(Boolean).join(" ");
   if (language === "en") return displayName;
   return [facts.type_ar, displayName, facts.audience_ar].filter(Boolean).join(" ");

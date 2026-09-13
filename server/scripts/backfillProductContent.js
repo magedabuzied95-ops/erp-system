@@ -29,17 +29,29 @@
  *
  * Descriptions are structured page copy (headline, intro, features, why, ideal
  * for) with no colours or sizes; the v2 state file starts every product over.
+ *
+ * Whole catalogue in minutes, no model: --template writes the same structure
+ * from the brand reference (and template search metadata where the old one is
+ * stale) to every product the model run has not finished yet. The model run
+ * then upgrades them one by one. To undo everything run --restore, then
+ * --template --restore (that one holds the values from before both runs).
+ *   node server/scripts/backfillProductContent.js --template --dry-run --limit 3
+ *   node server/scripts/backfillProductContent.js --template
  */
 import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 import db from "../database/db.js";
 import {
+  buildSeoFallback,
+  cleanModelName,
+  fallbackStructuredSections,
   generateProductDescription,
   generateProductSeoMetadata,
   localizeSeoColor,
   resolveTextProvider,
 } from "../services/openaiProductDescriptionService.js";
+import { composeProductDescription } from "../../src/shared/lib/productDescriptionFormat.js";
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -53,21 +65,46 @@ const ONLY_MISSING = flag("only-missing");
 const RESTORE = flag("restore");
 const SEO_ONLY = flag("seo-only");
 const STALE_SEO = flag("stale-seo");
+const TEMPLATE = flag("template");
 const LIMIT = Number(option("limit", "0")) || 0;
 const IDS = option("ids", "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0);
 const TENANT_ID = Number(option("tenant", process.env.STOREFRONT_TENANT_ID || "1")) || 1;
-const PACE_MS = Number(option("pace-ms", "2000")) || 0;
+const PACE_MS = Number(option("pace-ms", TEMPLATE ? "0" : "2000")) || 0;
 const MAX_ATTEMPTS = 6;
 const TONES = ["premium", "friendly", "sales", "luxury", "sport"];
 const RATE_LIMIT_SLEEP_MS = 65_000;
+const stateFileFor = (name) => (fs.existsSync("/app/uploads") ? `/app/uploads/ai-${name}-backfill.json` : path.resolve(`.ai-${name}-backfill.json`));
+// The template run and the model run keep separate progress: a product the
+// template wrote is still to do for the model.
+const MODEL_STATE_FILE = stateFileFor("content-v2");
+const TEMPLATE_STATE_FILE = stateFileFor("content-template");
 const STATE_FILE =
   option("state-file", "") ||
   process.env.BACKFILL_STATE_FILE ||
   // A SEO-only run keeps its own progress: products finished by a full run
   // must not count as done, and its backups must not restore descriptions.
-  (fs.existsSync("/app/uploads")
-    ? `/app/uploads/ai-${SEO_ONLY ? "seo" : "content-v2"}-backfill.json`
-    : path.resolve(`.ai-${SEO_ONLY ? "seo" : "content-v2"}-backfill.json`));
+  (SEO_ONLY ? stateFileFor("seo") : TEMPLATE ? TEMPLATE_STATE_FILE : MODEL_STATE_FILE);
+
+const readJson = (file) => {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+};
+
+const PLACEHOLDER_BRAND = /^(unbranded|no[\s-]?brand|generic|none|n\/?a|-+)$/i;
+const isStaleSeo = (row) => {
+  const title = String(row.meta_title ?? "").trim();
+  const meta = String(row.seo_description ?? "").trim();
+  return (
+    !title ||
+    title.toLowerCase() === String(row.name ?? "").trim().toLowerCase() ||
+    !String(row.seo_keywords ?? "").trim() ||
+    !meta ||
+    [row.description, row.description_ar, row.description_en].map((value) => String(value ?? "").trim()).includes(meta)
+  );
+};
 
 const text = (value = "") => String(value ?? "").trim();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -144,7 +181,7 @@ const sortSizes = (sizes = []) => {
 
 const contextFor = (row) => ({
   product_name: text(row.name),
-  brand: text(row.brand_name || row.brand),
+  brand: PLACEHOLDER_BRAND.test(text(row.brand_name || row.brand)) ? "" : text(row.brand_name || row.brand),
   category: text(row.category_name || row.category),
   product_type: text(row.product_type),
   gender: text(row.gender || row.variant_audience),
@@ -239,13 +276,18 @@ const main = async () => {
     await restore(state);
     return;
   }
-  if (provider.kind === "none") {
+  if (provider.kind === "none" && !TEMPLATE) {
     console.error("No text provider configured (AI_TEXT_PROVIDER). Refusing to overwrite products with templates.");
     process.exit(1);
   }
   const products = await loadProducts();
-  const todo = products.filter((row) => !state.done[row.id] || IDS.length);
-  log(`provider ${provider.label} ${provider.model}; ${products.length} product(s) selected, ${todo.length} to do${DRY_RUN ? " (dry run)" : ""}; state ${STATE_FILE}`);
+  const modelDone = () => (TEMPLATE ? readJson(MODEL_STATE_FILE).done || {} : {});
+  const alreadyModelWritten = modelDone();
+  const todo = products.filter((row) => (!state.done[row.id] || IDS.length) && !alreadyModelWritten[row.id]);
+  // The model run's backup of a product the template already rewrote must be
+  // the value from before the template, or --restore would bring back the template.
+  const templateBackups = TEMPLATE ? {} : readJson(TEMPLATE_STATE_FILE).backups || {};
+  log(`${TEMPLATE ? "template (no model)" : `provider ${provider.label} ${provider.model}`}; ${products.length} product(s) selected, ${todo.length} to do${DRY_RUN ? " (dry run)" : ""}; state ${STATE_FILE}`);
 
   // Two listings called just "Adidas" must not share one search title: Google
   // folds duplicate titles together. Titles already live on products outside
@@ -283,6 +325,49 @@ const main = async () => {
     // Rotate the house tone per product so six hundred listings do not open
     // with the same sentence.
     const tone = TONES[row.id % TONES.length];
+    if (TEMPLATE) {
+      // The model run may have finished this product since the list was read.
+      if (modelDone()[row.id]) {
+        log("  skipped: already written by the model run");
+        continue;
+      }
+      const audience = /women|female|woman|حريم|نسائ|ستات/i.test(context.gender) ? "women" : "";
+      const next = {
+        description_ar: composeProductDescription(fallbackStructuredSections(context, "ar"), "ar", { audience }),
+        description_en: composeProductDescription(fallbackStructuredSections(context, "en"), "en", { audience }),
+      };
+      next.description = next.description_en || next.description_ar;
+      if (isStaleSeo(row)) {
+        const seo = buildSeoFallback({ ...context, product_name: cleanModelName(context.product_name) });
+        next.meta_title = distinctTitle(text(seo.meta_title), context);
+        next.seo_description = text(seo.meta_description);
+        next.seo_keywords = (seo.keywords || []).map(text).filter(Boolean).join(", ");
+      } else {
+        next.meta_title = text(row.meta_title);
+        next.seo_description = text(row.seo_description);
+        next.seo_keywords = text(row.seo_keywords);
+      }
+      takenTitles.add(titleKey(next.meta_title));
+      if (DRY_RUN) log(`  AR:\n${next.description_ar}\n  title: ${next.meta_title}`);
+      else {
+        state.backups[row.id] = state.backups[row.id] || {
+          description: row.description,
+          description_ar: row.description_ar,
+          description_en: row.description_en,
+          meta_title: row.meta_title,
+          seo_description: row.seo_description,
+          seo_keywords: row.seo_keywords,
+        };
+        await db.query(
+          `UPDATE products SET description = $2, description_ar = $3, description_en = $4, meta_title = $5, seo_description = $6, seo_keywords = $7, updated_at = NOW() WHERE id = $1`,
+          [row.id, next.description, next.description_ar, next.description_en, next.meta_title, next.seo_description, next.seo_keywords]
+        );
+        state.done[row.id] = { at: new Date().toISOString(), source: "TEMPLATE" };
+        if (index % 25 === 0 || index === todo.length - 1) saveState(state);
+      }
+      written += 1;
+      continue;
+    }
     const description = SEO_ONLY
       ? { arabic_description: text(row.description_ar), english_description: text(row.description_en || row.description), source: "KEPT" }
       : await askModel("description", () =>
@@ -340,7 +425,7 @@ ${next.description_en}` : `  AR: ${next.description_ar.slice(0, 90)}…`);
       delete state.pending[row.id];
       saveState(state);
     } else if (!DRY_RUN) {
-      state.backups[row.id] = state.backups[row.id] || {
+      state.backups[row.id] = state.backups[row.id] || templateBackups[row.id] || {
         description: row.description,
         description_ar: row.description_ar,
         description_en: row.description_en,

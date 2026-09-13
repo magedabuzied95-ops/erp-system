@@ -179,8 +179,9 @@ const text = (value = "") => String(value ?? "").trim();
 /* The brand entry for a product and the lines its name mentions; null when the
  * brand is not in the list. */
 export const brandKnowledgeFor = ({ brand = "", name = "" } = {}) => {
-  const haystack = `${text(brand)} ${text(name)}`;
-  const entry = BRAND_KNOWLEDGE.find((item) => item.match.test(text(brand))) || BRAND_KNOWLEDGE.find((item) => item.match.test(haystack));
+  // The name wins over the brand field: catalogue rows exist with brand "Nike"
+  // on an "Adidas ..." product, and the shopper reads the name.
+  const entry = BRAND_KNOWLEDGE.find((item) => item.match.test(text(name))) || BRAND_KNOWLEDGE.find((item) => item.match.test(text(brand)));
   if (!entry) return null;
   const lines = (entry.lines || []).filter((line) => line.match.test(text(name)));
   return { brand: entry.brand, summary: entry.summary, features: entry.features, lines };
