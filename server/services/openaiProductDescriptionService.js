@@ -876,13 +876,57 @@ const splitSentences = (value = "") =>
     .map(cleanText)
     .filter(Boolean);
 
-const keepAllowedSentences = (value = "") => splitSentences(value).filter((sentence) => !OFF_LIMITS_COPY.test(sentence)).join(" ");
+/* Colour names: the listing covers every colourway, so "black upper" or
+ * "orange accents" is wrong on most of them. Arabic has no \b, so the words
+ * are fenced by non-letters and may carry و / ال / بال / ب. */
+const ARABIC_COLOUR_WORDS = ["أسود", "سوداء", "أبيض", "بيضاء", "أحمر", "حمراء", "أزرق", "زرقاء", "أخضر", "خضراء", "أصفر", "صفراء", "رمادي", "بيج", "كحلي", "برتقالي", "بنفسجي", "وردي", "بمبي", "ذهبي", "فضي", "زيتي", "نبيتي", "عنابي", "موف", "هافان", "بني", "أوف وايت"];
+const escapeRegExp = (value = "") => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ENGLISH_COLOUR_WORDS = [...Object.keys(COLOR_NAME_MAP), "black", "white", "orange", "red", "blue", "green", "pink", "grey", "gray", "beige", "navy", "brown", "purple", "yellow"];
+const COPY_COLOUR_SOURCE = [
+  `\\b(?:${ENGLISH_COLOUR_WORDS.map(escapeRegExp).join("|")})\\b`,
+  `(?<![\\u0600-\\u06ff])و?(?:بال|ال|ب)?(?:${ARABIC_COLOUR_WORDS.join("|")})(?![\\u0600-\\u06ff])`,
+].join("|");
+const COPY_COLOUR_WORDS = new RegExp(COPY_COLOUR_SOURCE, "i");
+
+/* Stock phrases and quality claims the shop cannot stand behind. A term the
+ * brand reference itself uses (ASICS' impact cushioning) stays allowed for
+ * that brand. */
+const COPY_CLICHES = [
+  /يجمع بين|تجمع بين|صُمم|صُممت|مصمم خصيص|استمتع|اكتشف|ارتق|الخيار الأمثل|الخيار المثالي|الاختيار المثالي|إضافة مثالية|خزانة|فائق|عالية الجودة|جودة عالية|متين|متانة|حماية|يدوم طويل|لا مثيل|فريد|فخامة/,
+  /امتصاص (ال)?صدمات|يمتص (ال)?صدمات|بيمتص (ال)?(صدمات|خبط)/,
+  /\b(durable|durability|high[- ]quality|premium materials?|unmatched|unparalleled|ultimate|revolutionary|elevate|seamless(ly)?|perfect addition|protection)\b/i,
+  /\bshock[- ]absorb/i,
+];
+
+const copyRejects = (reference = "") => {
+  const cliches = COPY_CLICHES.filter((pattern) => !pattern.test(reference));
+  return (value = "") => OFF_LIMITS_COPY.test(value) || COPY_COLOUR_WORDS.test(value) || cliches.some((pattern) => pattern.test(value));
+};
+
+const keepAllowedSentences = (value = "", rejects = copyRejects()) =>
+  splitSentences(value)
+    .filter((sentence) => !rejects(sentence))
+    .join(" ");
+
+/* "Adidas Advantage Black Orange Sneakers For Men" -> "Adidas Advantage": the
+ * type and audience are written in Arabic next to it, and the colours belong
+ * to one colourway only. A name that would empty out stays as it is. */
+export const cleanModelName = (name = "") => {
+  const original = cleanText(name);
+  const cleaned = original
+    .replace(new RegExp(COPY_COLOUR_SOURCE, "gi"), " ")
+    .replace(/\b(sneakers?|shoes?|trainers?|for\s+(men|women|kids|boys|girls)|men'?s|women'?s|kids'?|unisex)\b/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[\s\-–—/&,]+|[\s\-–—/&,]+$/g, "")
+    .trim();
+  return cleaned || original;
+};
 
 const wordCount = (value = "") => cleanText(value).split(/\s+/).filter(Boolean).length;
 
 const structuredSubject = (context = {}, language = "ar") => {
   const facts = localizedFacts(context);
-  const name = cleanText(context.product_name);
+  const name = cleanModelName(context.product_name);
   const brand = cleanText(context.brand);
   const displayName = [brandInName(brand, name) ? "" : brand, name].filter(Boolean).join(" ");
   if (language === "en") return displayName;
@@ -901,7 +945,7 @@ export const buildStructuredDescriptionPrompt = (context = {}, language = "ar") 
       facts.type_en ? `Type: ${facts.type_en}` : "",
       facts.audience_en ? `Audience: ${facts.audience_en} (never write another audience)` : "",
       cleanText(context.brand) ? `Brand: ${cleanText(context.brand)}` : "",
-      `Name: ${cleanText(context.product_name)}`,
+      `Model: ${cleanModelName(context.product_name)}`,
       material ? `Material: ${material}` : "",
       reference ? `Brand reference (draw on the parts that fit this model; do not copy it word for word):\n${reference}` : "",
       "Return JSON only with keys headline, intro, features, why, ideal_for.",
@@ -914,7 +958,8 @@ export const buildStructuredDescriptionPrompt = (context = {}, language = "ar") 
       "- Never mention colours, sizes, price, discounts, shipping, stock or ordering: the page shows those itself.",
       "- Never claim the product is original, authentic or under warranty.",
       "- If you know this exact model well (for example Nike Air Force 1 or Skechers Slip-ins), describe its well-known design features. If you are not sure, write only about design, comfort in wear and how easy it is to style. Never invent technology or material names.",
-      "- Confident, clean retail English. Complete sentences, no emojis, no exclamation marks, no hype words like revolutionary or ultimate.",
+      "- Never mention durability, material quality, protection or shock absorption unless the brand reference or the material says so.",
+      "- Confident, clean retail English. Complete sentences, no emojis, no exclamation marks, no filler such as elevate, seamless, ultimate, unparalleled or perfect addition to your wardrobe.",
     ]
       .filter(Boolean)
       .join("\n");
@@ -927,7 +972,7 @@ export const buildStructuredDescriptionPrompt = (context = {}, language = "ar") 
     facts.type_ar ? `النوع: ${facts.type_ar}` : "",
     facts.audience_ar ? `الفئة: ${facts.audience_ar} (استخدمها بالضبط ولا تكتب فئة أخرى)` : "",
     cleanText(context.brand) ? `الماركة: ${cleanText(context.brand)}` : "",
-    `الاسم: ${cleanText(context.product_name)}`,
+    `الموديل: ${cleanModelName(context.product_name)}`,
     material ? `الخامة: ${material}` : "",
     reference ? `مرجع عن الماركة (استعين باللي يناسب الموديل ده بس، ومتنقلوش حرفيًا):\n${reference}` : "",
     "أرجع JSON فقط بالمفاتيح headline, intro, features, why, ideal_for.",
@@ -940,7 +985,9 @@ export const buildStructuredDescriptionPrompt = (context = {}, language = "ar") 
     "- ممنوع تذكر الألوان أو المقاسات أو السعر أو الخصومات أو الشحن أو المخزون أو الطلب: الصفحة بتعرضهم لوحدها.",
     "- ممنوع تقول إن المنتج أصلي أو original أو عليه ضمان.",
     "- لو عارف الموديل ده بالظبط (زي Nike Air Force 1 أو Skechers Slip-ins) اذكر مميزات تصميمه المعروفة. لو مش متأكد، اتكلم عن التصميم والراحة في اللبس وسهولة التنسيق بس، ولا تخترع أسماء تقنيات أو خامات.",
-    "- عربي واضح واحترافي، جمل كاملة، بدون إيموجي وبدون علامات تعجب. اسم الماركة والموديل بالإنجليزي زي ما هو.",
+    "- ممنوع تتكلم عن المتانة أو جودة الخامات أو الحماية أو امتصاص الصدمات إلا لو مذكورة في المرجع أو الخامة.",
+    "- اكتب بعربي بسيط وواضح قريب من كلام المصريين المحترم، مش فصحى تقيلة ولا عامية سوقية. جمل كاملة، بدون إيموجي وبدون علامات تعجب. اسم الماركة والموديل بالإنجليزي زي ما هو.",
+    "- ممنوع العبارات المستهلكة: يجمع بين، صُمم، استمتع، اكتشف، الخيار الأمثل، إضافة مثالية لخزانتك، فائقة، عالية الجودة، فريد.",
     "- استخدم كلمات المصريين: كوتشي، شنطة، سليبر، كروكس، بوت. لا تكتب حذاء رياضي.",
   ]
     .filter(Boolean)
@@ -951,22 +998,29 @@ export const buildStructuredDescriptionPrompt = (context = {}, language = "ar") 
  * sentences about colours, sizes, price or authenticity are dropped. */
 export const normalizeStructuredSections = (raw = {}, context = {}, language = "ar") => {
   const facts = localizedFacts(context);
+  const rejects = copyRejects(brandKnowledgeReference(brandKnowledgeFor({ brand: context.brand, name: context.product_name }), language));
   const polish = (value = "") => {
     const textValue = dropPlaceholderBrand(value);
     return language === "ar" ? egyptianiseSearchWords(textValue) : textValue;
   };
-  const headline = polish(raw.headline);
-  const intro = polish(keepAllowedSentences(raw.intro));
-  const why = polish(keepAllowedSentences(raw.why));
+  const intro = polish(keepAllowedSentences(raw.intro, rejects));
+  const why = polish(keepAllowedSentences(raw.why, rejects));
   const features = (Array.isArray(raw.features) ? raw.features : [])
     .map((item) => ({ title: polish(item?.title).replace(/[:：.]+$/, ""), detail: polish(item?.detail) }))
-    .filter((item) => item.title && item.detail && wordCount(item.title) <= 6 && !OFF_LIMITS_COPY.test(`${item.title} ${item.detail}`))
+    .filter((item) => item.title && item.detail && wordCount(item.title) <= 6 && !rejects(`${item.title} ${item.detail}`))
     .slice(0, 5);
   const idealFor = (Array.isArray(raw.ideal_for) ? raw.ideal_for : [])
     .map((item) => polish(item).replace(/[.،,]+$/, ""))
-    .filter((item) => item && wordCount(item) <= 8 && !OFF_LIMITS_COPY.test(item))
+    .filter((item) => item && wordCount(item) <= 8 && !rejects(item))
     .slice(0, 4);
-  if (!headline || OFF_LIMITS_COPY.test(headline) || wordCount(intro) < 12 || features.length < 3) return null;
+  if (wordCount(intro) < 8 || features.length < 3) return null;
+  // A headline that repeats the raw catalogue name, names a colour or leans on
+  // a stock phrase is rebuilt from the subject and the first two features.
+  const rawHeadline = polish(raw.headline);
+  const catalogueName = cleanText(context.product_name).toLowerCase();
+  const nameWasCleaned = catalogueName !== cleanModelName(context.product_name).toLowerCase();
+  const headlineUsable = rawHeadline && !rejects(rawHeadline) && !(nameWasCleaned && rawHeadline.toLowerCase().includes(catalogueName));
+  const headline = headlineUsable ? rawHeadline : [structuredSubject(context, language), features[0].title, features[1].title].join(" • ");
   if (language === "ar" && contradictsFacts(`${headline} ${intro} ${why}`, facts, { scope: "lead" })) return null;
   return { headline, intro, features, why, ideal_for: idealFor };
 };

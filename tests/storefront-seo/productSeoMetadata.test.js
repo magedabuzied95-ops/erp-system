@@ -201,7 +201,7 @@ test("description fallback reads as a real listing and gets the audience right",
     });
     assert.equal(result.source, "LOCAL_FALLBACK");
     // A structured product page: headline, intro, titled features, why, ideal for.
-    assert.match(result.arabic_description, /^كوتشي Puma Sneakers حريمي/);
+    assert.match(result.arabic_description, /^كوتشي Puma حريمي • /);
     assert.match(result.arabic_description, /\nالمميزات:\n• /);
     assert.match(result.arabic_description, /\nليه تختاريه:\n/);
     assert.match(result.arabic_description, /\nمناسب لـ:\n✓ /);
@@ -477,4 +477,53 @@ test("the description format round-trips into page sections and flattens for met
   assert.deepEqual(parseProductDescription("كوتشي مريح.\nمتوفر الآن.").map((block) => block.type), ["paragraph", "paragraph"]);
   // Bullet and check markers go; the headline's own separators stay.
   assert.doesNotMatch(flattenProductDescription(text), /\n|✓|(^|[.:] )• /);
+});
+
+test("model copy drops colour names, stock phrases and quality claims, and the catalogue name is cleaned", async () => {
+  const { normalizeStructuredSections, cleanModelName } = await import("../../server/services/openaiProductDescriptionService.js");
+  assert.equal(cleanModelName("Adidas Advantage Black Orange Sneakers For Men"), "Adidas Advantage");
+  assert.equal(cleanModelName("Nike Air Force 1 White"), "Nike Air Force 1");
+
+  const men = { product_name: "Adidas Advantage Black Orange Sneakers For Men", brand: "", product_type: "sneakers", gender: "men" };
+  const en = normalizeStructuredSections(
+    {
+      headline: "Adidas Advantage Black Orange Sneakers For Men • Bold Style • All-Day Comfort",
+      intro: "These sneakers blend a classic black silhouette with striking orange accents. Designed with a cushioned insole, they offer reliable support for long days on your feet.",
+      features: [
+        { title: "Classic Black Upper", detail: "A sleek black upper provides a versatile base for daily wear." },
+        { title: "Cushioned Insole", detail: "Cushioned insole supports your feet throughout the day." },
+        { title: "Grippy Outsole", detail: "Durable outsole grips various surfaces for steady footing." },
+        { title: "Lightweight Build", detail: "Lightweight construction keeps every step easy." },
+        { title: "Easy to Style", detail: "Pairs with jeans and chinos without extra effort." },
+      ],
+      why: "It pairs easily with jeans or chinos.",
+      ideal_for: ["Daily casual wear"],
+    },
+    men,
+    "en"
+  );
+  assert.equal(en.headline, "Adidas Advantage • Cushioned Insole • Lightweight Build");
+  assert.doesNotMatch(JSON.stringify(en), /black|orange|durable/i);
+
+  const women = { product_name: "Adidas", brand: "Adidas", product_type: "sneakers", gender: "women" };
+  const ar = normalizeStructuredSections(
+    {
+      headline: "كوتشي Adidas حريمي • راحة فائقة في المشي",
+      intro: "استمتعي بإحساس فريد من الراحة مع الكوتشي ده. شكله مرتب وبيتنسق مع لبسك اليومي بسهولة ومريح في المشي الطويل. متوفر بالأسود والأبيض.",
+      features: [
+        { title: "تصميم كلاسيكي", detail: "شكل كلاسيكي بسيط بيبان شيك مع أي لبس." },
+        { title: "خامات متينة", detail: "خامات عالية الجودة بتعيش معاك." },
+        { title: "راحة في المشي", detail: "نعل مريح طول اليوم في المشاوير." },
+        { title: "التلات خطوط", detail: "علامة Adidas المعروفة على الجنب." },
+      ],
+      why: "هتحبيه لأنه شيك ومريح.",
+      ideal_for: ["اللبس اليومي"],
+    },
+    women,
+    "ar"
+  );
+  assert.ok(ar);
+  assert.doesNotMatch(JSON.stringify(ar), /فائق|فريد|استمتع|متين|عالية الجودة|الأسود|الأبيض/);
+  assert.equal(ar.features.length, 3);
+  assert.match(ar.headline, /^كوتشي Adidas حريمي • /);
 });
