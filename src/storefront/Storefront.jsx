@@ -131,6 +131,7 @@ import "./components/cartDrawer.css";
 import "./site-skin.css";
 import "./catalog-skin.css";
 import StorefrontCheckoutSummary, { CheckoutTotals } from "./components/StorefrontCheckoutSummary";
+import FreeShippingProgress, { usePublicFreeShippingThreshold } from "./components/FreeShippingProgress";
 import { CheckoutBlock, CheckoutChoice, CheckoutInput, CheckoutLocationSelect, CheckoutNativeSelect, CheckoutSubmit } from "./checkout/CheckoutParts";
 import {
   isStorefrontCheckoutPath,
@@ -7434,6 +7435,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const discount = couponDiscount + bundleDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
+  // Until a governorate is quoted only the store-wide threshold is known; after it, the
+  // quote carries the zone's effective one (0 = that zone never ships free). A
+  // free-shipping coupon already waived the fee, so there is nothing to count towards.
+  const storeFreeShippingThreshold = usePublicFreeShippingThreshold();
+  const freeShippingThreshold = couponFreeShipping
+    ? 0
+    : form.governorate && shippingQuote.match_level
+      ? shippingQuote.free_shipping_threshold
+      : storeFreeShippingThreshold;
   const codAvailable = shippingQuote.cod_allowed !== false;
   const normalizedFormPaymentMethod = paymentMode === "cod"
     ? "cod"
@@ -9082,6 +9092,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               total={total}
               governorate={form.governorate}
               shippingQuote={shippingQuote}
+              freeShippingThreshold={freeShippingThreshold}
               money={money}
             />
           </div>
@@ -9117,6 +9128,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             total={total}
             governorate={form.governorate}
             shippingQuote={shippingQuote}
+            freeShippingThreshold={freeShippingThreshold}
             open={summaryOpen}
             setOpen={setSummaryOpen}
             helpers={checkoutSummaryHelpers}
@@ -10036,6 +10048,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   const bundleConfig = usePublicBundleConfig();
   const bundlePercent = bundleConfig.enabled ? bundleConfig.percent : 0;
   const bundle = useMemo(() => cartDrawerBundleShares(cart, bundlePercent), [bundlePercent, cart]);
+  const freeShippingThreshold = usePublicFreeShippingThreshold();
   // Kept mounted for the slide-out, then dropped so a closed bag costs nothing.
   const [mounted, setMounted] = useState(open);
   const [shown, setShown] = useState(false);
@@ -10114,6 +10127,8 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
 
         {cart.length ? (
           <footer className="sf-bag__foot">
+            {/* The server compares the goods subtotal before the bundle saving, so the bar does too. */}
+            <FreeShippingProgress subtotal={subtotal} threshold={freeShippingThreshold} money={money} />
             <div className="sf-bag__subtotal">
               <span className="sf-bag__subtotal-label">{sfText("storefront.cartDrawer.subtotal")}</span>
               <span className="sf-bag__subtotal-values">

@@ -218,7 +218,7 @@ const sectionMap = {
     ["Shipping Locations", ["storefront.shipping_locations"]],
     ["Shipping Zones", ["storefront.shipping_zones"]],
     ["Governorates & Cities", ["storefront.shipping_zones"]],
-    ["Free Shipping Rules", ["storefront.shipping_zones"]],
+    ["Free Shipping Rules", ["storefront.free_shipping_threshold", "storefront.shipping_zones"]],
     ["Shipping Proof Rules", ["storefront.shipping_zones"]],
     ["Shipping Providers", ["orders.shipping_provider", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package"]],
   ],
@@ -1512,6 +1512,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const zones = useMemo(() => (Array.isArray(value("storefront.shipping_zones")) ? value("storefront.shipping_zones") : []).map(normalizeShippingZoneRow), [value]);
   const locations = useMemo(() => normalizeShippingLocations(value("storefront.shipping_locations")), [value]);
   const defaultPrice = Number(value("storefront.default_shipping_price") || 0);
+  const storeFreeShippingThreshold = Math.max(0, Number(value("storefront.free_shipping_threshold") || 0));
   const defaultProvider = normalizeProviderKey(value("orders.shipping_provider"));
   const [activeTab, setActiveTab] = useState("overview");
   const activeZones = zones.filter((zone) => zone.active).length;
@@ -1623,7 +1624,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           </VisualSection>
           <ShippingQuickSetup zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
           <ShippingTemplates zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
-          <ShippingRuleTester zones={zones} defaultPrice={defaultPrice} defaultProvider={defaultProvider} copy={copy} />
+          <ShippingRuleTester zones={zones} defaultPrice={defaultPrice} defaultProvider={defaultProvider} storeFreeShippingThreshold={storeFreeShippingThreshold} copy={copy} />
         </div>
       ) : null}
 
@@ -1641,6 +1642,9 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
 
       {activeTab === "free" ? (
         <VisualSection icon={Package} title={copy.freeTitle} description={copy.freeDescription}>
+          <div className="mb-5 grid gap-4 xl:grid-cols-2">
+            {renderField(setting("storefront.free_shipping_threshold"), true)}
+          </div>
           <ZonePolicyList zones={zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0)} empty={copy.emptyFree} onChange={(next) => updateValue("storefront.shipping_zones", next)} allZones={zones} />
         </VisualSection>
       ) : null}
@@ -2079,13 +2083,13 @@ function ShippingTemplates({ zones, defaultPrice, copy, onChange }) {
   );
 }
 
-function ShippingRuleTester({ zones, defaultPrice, defaultProvider, copy }) {
+function ShippingRuleTester({ zones, defaultPrice, defaultProvider, storeFreeShippingThreshold = 0, copy }) {
   const governorateOptions = useMemo(() => Array.from(new Set(zones.map((zone) => zone.governorate).filter(Boolean))).sort(), [zones]);
   const [tester, setTester] = useState({ governorate: governorateOptions[0] || "Damietta", city: "", area: "", subtotal: 0 });
   useEffect(() => {
     if (!tester.governorate && governorateOptions[0]) setTester((current) => ({ ...current, governorate: governorateOptions[0] }));
   }, [governorateOptions, tester.governorate]);
-  const result = useMemo(() => resolveShippingPreview(zones, { ...tester, defaultPrice, defaultProvider }), [zones, tester, defaultPrice, defaultProvider]);
+  const result = useMemo(() => resolveShippingPreview(zones, { ...tester, defaultPrice, defaultProvider, storeFreeShippingThreshold }), [zones, tester, defaultPrice, defaultProvider, storeFreeShippingThreshold]);
   const cityOptions = useMemo(() => Array.from(new Set(zones.filter((zone) => normalizeZoneKey(zone.governorate) === normalizeZoneKey(tester.governorate)).map((zone) => zone.city).filter(Boolean))).sort(), [zones, tester.governorate]);
   const areaOptions = useMemo(() => Array.from(new Set(zones.filter((zone) => normalizeZoneKey(zone.governorate) === normalizeZoneKey(tester.governorate) && (!tester.city || normalizeZoneKey(zone.city) === normalizeZoneKey(tester.city))).map((zone) => zone.area).filter(Boolean))).sort(), [zones, tester.governorate, tester.city]);
   const setField = (key, next) => setTester((current) => ({ ...current, [key]: next }));
@@ -2531,7 +2535,7 @@ const applyNamedShippingTemplate = (name, zones, defaultPrice) => {
   return rows;
 };
 
-const resolveShippingPreview = (zones, { governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", subtotal = 0, defaultPrice = 0, defaultProvider = "in_store_delivery" } = {}) => {
+const resolveShippingPreview = (zones, { governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", subtotal = 0, defaultPrice = 0, defaultProvider = "in_store_delivery", storeFreeShippingThreshold = 0 } = {}) => {
   const activeZones = (Array.isArray(zones) ? zones : []).map(normalizeShippingZoneRow).filter((zone) => zone.governorate && zone.active);
   const target = { governorate: normalizeZoneKey(governorate), city: normalizeZoneKey(city), area: normalizeZoneKey(area) };
   const zoneCity = (zone) => normalizeZoneKey(zone.city);
@@ -2556,7 +2560,8 @@ const resolveShippingPreview = (zones, { governorate = "", city = "", area = "",
     activeZones.find(matchesArea) ||
     activeZones.find((zone) => matchesCity(zone) && !zoneArea(zone)) ||
     activeZones.find((zone) => matchesGovernorate(zone) && !zoneCity(zone) && !zoneArea(zone));
-  const threshold = match ? Number(match.free_shipping_threshold || 0) : 0;
+  // Same rule as storefrontShippingService: a zone's own threshold, else the store-wide one.
+  const threshold = Number(match?.free_shipping_threshold || 0) || Math.max(0, Number(storeFreeShippingThreshold || 0));
   const matchedPrice = match ? Number(match.price || defaultPrice || 0) : Number(defaultPrice || 0);
   const orderSubtotal = Number(subtotal || 0);
   return {

@@ -4,6 +4,7 @@ import { api } from "../../shared/api/api";
 import { sfText } from "../lib/sfText";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import { trackGa4ViewCart } from "../lib/ga4Events";
+import FreeShippingProgress, { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import {
   Bell,
   MessageCircle,
@@ -267,6 +268,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
   const { sfText, money, displayCartItemPrice, displayCartItemComparePrice, imageFor, fallbackProductImage } = helpers;
   const { EmptyState, SummaryRow } = components;
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
+  const freeShippingThreshold = usePublicFreeShippingThreshold();
   if (!cart.length) return <EmptyState title={sfText("storefront.cart.emptyTitle")} text={sfText("storefront.cart.emptyPageText")} actionLabel={sfText("storefront.common.shopNow")} />;
   return (
     <div className="sf-cart-page mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -293,6 +295,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
       </div>
       <aside className="sf-storefront-card sf-cart-summary-card sf-checkout-summary h-max rounded-3xl border border-white/8 p-5 text-start text-white shadow-[0_18px_52px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)]">
         <h2 className="text-xl font-black text-white">{sfText("storefront.checkout.orderSummary")}</h2>
+        <FreeShippingProgress subtotal={subtotal} threshold={freeShippingThreshold} money={money} className="mt-4" />
         <SummaryRow dark label={sfText("storefront.checkout.products")} value={money(subtotal)} />
         <SummaryRow dark label={sfText("storefront.cart.estimatedShipping")} value={money(0)} />
         <SummaryRow dark label={sfText("storefront.checkout.total")} value={money(subtotal)} strong />

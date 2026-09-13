@@ -594,6 +594,11 @@
   "lastPiece": {
     "title": "Last piece"
   },
+  "freeShippingBar": {
+    "remaining": "Add {{amount}} more for free shipping",
+    "reached": "Your order ships free",
+    "label": "Progress towards free shipping"
+  },
   "cartDrawer": {
     "title": "Shopping cart",
     "subtotal": "Subtotal",

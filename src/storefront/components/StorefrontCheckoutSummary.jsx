@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, ShoppingBag } from "lucide-react";
 import { sfText } from "../lib/sfText";
+import FreeShippingProgress from "./FreeShippingProgress";
 
 const normalizeSummaryText = (value = "") => String(value ?? "").trim();
 const firstSummaryValue = (...values) => {
@@ -39,7 +40,7 @@ const cartItemUnitPrice = (item = {}) => firstSummaryNumber(item.price, item.uni
  * above the "complete order" button so the customer sees what they are paying
  * without reopening the summary bar.
  */
-export function CheckoutTotals({ subtotal, discount, bundleDiscount = 0, freeShipping = false, deliveryFee, total, governorate, shippingQuote = {}, money }) {
+export function CheckoutTotals({ subtotal, discount, bundleDiscount = 0, freeShipping = false, deliveryFee, total, governorate, shippingQuote = {}, freeShippingThreshold = 0, money }) {
   const { t } = useTranslation();
   const shippingWaived = Boolean(freeShipping) && Number(deliveryFee || 0) > 0;
   // Split the waiver out of the discount line so the two lines never read as a double discount.
@@ -53,6 +54,7 @@ export function CheckoutTotals({ subtotal, discount, bundleDiscount = 0, freeShi
     : t("storefront.checkout.onePage.shippingPending", "يُحسب بعد اختيار المحافظة");
   return (
     <div className="sfc-totals">
+      <FreeShippingProgress subtotal={subtotal} threshold={freeShippingThreshold} money={money} />
       <div className="sfc-total-row">
         <span>{t("storefront.checkout.onePage.subtotal", "المجموع الفرعي")}</span>
         <span>{money(subtotal)}</span>
@@ -98,6 +100,7 @@ export default function StorefrontCheckoutSummary({
   total,
   governorate,
   shippingQuote = {},
+  freeShippingThreshold = 0,
   open,
   setOpen,
   helpers,
@@ -162,6 +165,7 @@ export default function StorefrontCheckoutSummary({
           total={total}
           governorate={governorate}
           shippingQuote={shippingQuote}
+          freeShippingThreshold={freeShippingThreshold}
           money={money}
         />
         <div className="sfc-summary-notes">

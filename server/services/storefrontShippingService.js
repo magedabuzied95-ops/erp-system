@@ -129,13 +129,17 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
 });
 
 export const loadShippingZones = async () => {
-  const [defaultPrice, zones, defaultProvider, locations, codAllowed] = await Promise.all([
+  const [defaultPrice, zones, defaultProvider, locations, codAllowed, storeFreeShippingThreshold] = await Promise.all([
     getSetting("storefront.default_shipping_price", 60),
     getSetting("storefront.shipping_zones", []),
     getSetting("orders.shipping_provider", "in_store_delivery"),
     getSetting("storefront.shipping_locations", []),
     getSetting("orders.allow_cod", true),
+    getSetting("storefront.free_shipping_threshold", 0),
   ]);
+  // The store-wide threshold fills every zone that has none of its own, so the quote,
+  // the order, the merchant feed and the AI all see one effective number per zone.
+  const freeShippingThreshold = Math.max(0, number(storeFreeShippingThreshold, 0));
   const locationList = Array.isArray(locations) ? locations : [];
   const locationByNames = new Map(locationList.map((location) => [
     [
@@ -164,10 +168,12 @@ export const loadShippingZones = async () => {
       provider_city_id: normalized.provider_city_id || matchedLocation?.provider_city_id,
       provider_district_id: normalized.provider_district_id || matchedLocation?.provider_district_id,
       provider_zone_id: normalized.provider_zone_id || matchedLocation?.provider_zone_id,
+      free_shipping_threshold: normalized.free_shipping_threshold > 0 ? normalized.free_shipping_threshold : freeShippingThreshold,
     }, index);
   };
   return {
     defaultPrice: number(defaultPrice, 0),
+    freeShippingThreshold,
     defaultProvider: normalizeShippingProviderKey(defaultProvider),
     codAllowed: bool(codAllowed, true),
     zones: (Array.isArray(zones) ? zones : []).map(enrichZone).filter((zone) => zone.governorate && zone.active),
@@ -175,7 +181,7 @@ export const loadShippingZones = async () => {
 };
 
 export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0 } = {}) => {
-  const { defaultPrice, defaultProvider, zones, codAllowed } = await loadShippingZones();
+  const { defaultPrice, defaultProvider, zones, codAllowed, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
   const ids = {
     governorate_id: text(governorate_id),
     city_id: text(city_id),
@@ -216,7 +222,7 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     zones.find(matchesArea) ||
     zones.find((zone) => matchesCity(zone) && !zoneArea(zone)) ||
     zones.find((zone) => matchesGovernorate(zone) && !zoneCity(zone) && !zoneArea(zone));
-  const freeShippingThreshold = match ? number(match.free_shipping_threshold, 0) : 0;
+  const freeShippingThreshold = match ? number(match.free_shipping_threshold, 0) : storeFreeShippingThreshold;
   const matchedPrice = match ? number(match.price, defaultPrice) : defaultPrice;
   const price = freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold ? 0 : matchedPrice;
 

@@ -355,6 +355,11 @@
   "lastPiece": {
     "title": "آخر قطعة"
   },
+  "freeShippingBar": {
+    "remaining": "باقي {{amount}} وتحصل على شحن مجاني",
+    "reached": "مبروك! طلبك شحنه مجاني",
+    "label": "التقدم نحو الشحن المجاني"
+  },
   "cartDrawer": {
     "title": "سلة التسوق",
     "subtotal": "الإجمالي",
