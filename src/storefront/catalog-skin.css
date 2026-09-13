@@ -237,6 +237,17 @@ body.storefront-shell .sfx-card__name:hover {
   }
 }
 
+/* -------------------------------------------------------- offer story viewer */
+
+/* The offers story is a black full-screen viewer in both themes, but
+   `html[data-theme] .text-white { color: var(--text) !important }` (index.css)
+   repaints its white ink with the light theme's near-black: "اختر مقاسك" and
+   every size bubble were black on black whenever the shop was in light mode. */
+html[data-theme] .sf-offer-story-viewer.text-white,
+html[data-theme] .sf-offer-story-viewer .text-white {
+  color: #ffffff !important;
+}
+
 /* ------------------------------------------------------------- empty state */
 
 .sfx-empty {
