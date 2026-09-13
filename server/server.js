@@ -671,6 +671,7 @@ const { getPublicAvailableOgDebugSvg, getPublicAvailableOgImage, getPublicAvaila
 const { default: storefrontRoutes } = await import("./routes/storefront.js");
 const { default: googleMerchantFeedRoutes } = await import("./routes/googleMerchantFeed.js");
 const { default: shippingRoutes } = await import("./modules/shipping/shipping.routes.js");
+const { default: walletTransfersRoutes } = await import("./modules/walletTransfers/walletTransfers.routes.js");
 const { default: liveActivityRoutes } = await import("./routes/liveActivity.js");
 const { default: productClassificationsRoutes } = await import("./routes/productClassifications.js");
 const { default: variantsInventoryRoutes } = await import("./routes/variantsInventory.js");
@@ -717,6 +718,7 @@ const { ensureProductClassificationSchema } = await import("./services/productCl
 const { ensureProductVariantImagesSchema } = await import("./services/productVariantImagesService.js");
 const { ensureStorefrontSchema } = await import("./controllers/storefrontController.js");
 const { ensureShippingSchema } = await import("./modules/shipping/shipping.service.js");
+const { ensureWalletTransfersSchema } = await import("./modules/walletTransfers/walletTransfers.service.js");
 const { ensureVariantsInventorySchema } = await import("./routes/variantsInventory.js");
 const { warmDashboardMetadataCache } = await import("./services/dashboardAnalyticsService.js");
 const { ensureAttendanceSchema } = await import("./utils/attendanceSchema.js");
@@ -1909,6 +1911,7 @@ app.use("/feeds", googleMerchantFeedRoutes);
 app.use("/feeds", metaCatalogFeedRoutes);
 app.use("/api/storefront", storefrontRoutes);
 app.use("/api/shipping", shippingRoutes);
+app.use("/api/wallet-transfers", walletTransfersRoutes);
 app.get("/shop/product/:identifier", getPublicProductSharePage);
 app.get("/share/product/:identifier", getPublicProductSharePage);
 app.get("/share/available", getPublicAvailableSharePage);
@@ -2592,6 +2595,9 @@ const bootstrapStartup = async () => {
     console.log("[server] brands schema ensured");
     await ensureShippingSchema(db);
     console.log("[server] shipping schema ensured");
+    // A new table and its indexes only — nothing touches orders.
+    await ensureWalletTransfersSchema(db);
+    console.log("[server] wallet transfers schema ensured");
     await ensureStorefrontCustomerSessionSchema(db);
     console.log("[server] storefront customer session schema ensured");
     await ensureMarketingSchema();

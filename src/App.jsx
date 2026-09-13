@@ -155,6 +155,7 @@ const POS = lazy(() => import("./modules/pos/pages/POSPro"));
 
 const OrderDetails = lazy(() => import("./modules/orders/pages/OrderDetails"));
 const OrderReturns = lazy(() => import("./modules/orders/pages/Returns"));
+const WalletTransfers = lazy(() => import("./modules/orders/pages/WalletTransfers"));
 
 /* ======================================================
    REPORTS
@@ -1592,6 +1593,15 @@ function App() {
         <Route
           path="orders/returns"
           element={<OrderReturns />}
+        />
+
+        <Route
+          path="orders/wallet-transfers"
+          element={
+            <ProtectedRoute requiredPermissions={["orders.view"]}>
+              <WalletTransfers />
+            </ProtectedRoute>
+          }
         />
 
         <Route

@@ -17,7 +17,10 @@ test("POS invoice edit rewrites the remaining balance alongside the paid amount"
 });
 
 test("shipping payment confirmation rewrites the remaining balance", () => {
-  assert.match(ordersController, /paid_amount = \$5,\s*\n\s*remaining_amount = GREATEST\(/);
+  // The order page and the Vodafone Cash SMS matcher share one confirmation core.
+  const transferConfirmation = read("../server/modules/walletTransfers/transferPaymentConfirmation.js");
+  assert.match(transferConfirmation, /paid_amount = \$5,\s*\n\s*remaining_amount = GREATEST\(/);
+  assert.match(ordersController, /applyTransferPaymentConfirmation\(client,/);
 });
 
 test("terminal payment confirmation rewrites the remaining balance", () => {

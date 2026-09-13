@@ -9,6 +9,7 @@ import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
+import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
@@ -6169,81 +6170,20 @@ export const confirmShippingPayment = async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(400).json({ success: false, message: "صورة إثبات التحويل غير صالحة" });
     }
-    const paymentMethod = String(currentOrder.payment_method || "").trim().toLowerCase();
     let effectiveTenantId = currentOrder.tenant_id ?? tenantId ?? req.tenantId ?? req.tenant_id ?? req.user?.tenant_id ?? null;
     if (effectiveTenantId === undefined || effectiveTenantId === null || String(effectiveTenantId).trim() === "") {
       const tenantFallback = await client.query(`SELECT tenant_id FROM orders WHERE id = $1 LIMIT 1`, [req.params.id]);
       effectiveTenantId = tenantFallback.rows[0]?.tenant_id ?? null;
     }
-    const totalAmount = Number(currentOrder.total_amount ?? currentOrder.total ?? currentOrder.total_price ?? 0);
-    const shippingAmount = Number(currentOrder.shipping_fee ?? currentOrder.delivery_fee ?? currentOrder.service_fee ?? 0);
-    const existingPaidAmount = Number(currentOrder.paid_amount || 0);
-    const isCodShippingOnlyTransfer = ["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethod) && shippingAmount > 0 && totalAmount > shippingAmount;
-    const nextPaidAmount = isCodShippingOnlyTransfer
-      ? Math.min(totalAmount, Math.max(existingPaidAmount, shippingAmount))
-      : Math.max(totalAmount, existingPaidAmount);
-    const nextPaymentStatus = isCodShippingOnlyTransfer && nextPaidAmount < totalAmount ? "partially_paid" : "paid";
-
-    const result = await client.query(
-      `
-      UPDATE orders
-      SET payment_status = $4,
-          transfer_proof_status = 'approved',
-          status = 'confirmed',
-          paid_amount = $5,
-          remaining_amount = GREATEST(COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - $5::numeric, 0),
-          shipping_payment_verified_at = NOW(),
-          shipping_payment_verified_by = $2,
-          updated_at = NOW()
-      WHERE id = $1
-        AND ($3::bigint IS NULL OR tenant_id = $3::bigint OR tenant_id IS NULL)
-      RETURNING *
-      `,
-      [req.params.id, req.user?.id || null, tenantId, nextPaymentStatus, nextPaidAmount]
-    );
-    console.log("[orders.confirm-payment] loyalty tenant context", {
-      order_id: result.rows[0].id,
-      order_tenant_id: result.rows[0].tenant_id ?? currentOrder.tenant_id ?? null,
-      req_tenantId: req.tenantId ?? req.tenant_id ?? null,
-      user_tenant_id: req.user?.tenant_id ?? null,
-      final_tenant_id: effectiveTenantId ?? null,
+    // The Vodafone Cash SMS matcher approves transfers through the same function.
+    const confirmation = await applyTransferPaymentConfirmation(client, {
+      order: currentOrder,
+      tenantId,
+      loyaltyTenantId: effectiveTenantId,
+      userId: req.user?.id || null,
     });
-    let loyaltyResult = { earned: false, reason: "skipped" };
-    let loyaltyWarning = null;
-    if (effectiveTenantId === undefined || effectiveTenantId === null || String(effectiveTenantId).trim() === "") {
-      loyaltyWarning = "Loyalty skipped: missing tenant_id";
-      console.warn("[orders.confirm-payment] loyalty skipped missing tenant", { order_id: result.rows[0].id });
-    } else {
-      await client.query("SAVEPOINT confirm_payment_loyalty");
-      try {
-        loyaltyResult = await processOrderLoyalty(client, {
-          tenantId: effectiveTenantId,
-          orderId: result.rows[0].id,
-          customerId: result.rows[0].customer_id,
-          orderTotal: result.rows[0].total_amount || result.rows[0].total || result.rows[0].total_price || 0,
-          paidAmount: result.rows[0].paid_amount || result.rows[0].total_amount || result.rows[0].total || 0,
-          status: result.rows[0].status,
-          paymentStatus: result.rows[0].payment_status,
-          userId: req.user?.id || null,
-        });
-        if (loyaltyResult?.reason === "missing_tenant") {
-          loyaltyWarning = "Loyalty skipped: missing tenant_id";
-        }
-        await client.query("RELEASE SAVEPOINT confirm_payment_loyalty");
-      } catch (loyaltyError) {
-        await client.query("ROLLBACK TO SAVEPOINT confirm_payment_loyalty");
-        await client.query("RELEASE SAVEPOINT confirm_payment_loyalty");
-        loyaltyWarning = loyaltyError?.message || "Loyalty failed";
-        loyaltyResult = { earned: false, reason: "loyalty_failed", error: loyaltyWarning };
-        console.error("[orders.confirm-payment] loyalty failed; payment confirmation will still commit", {
-          order_id: result.rows[0].id,
-          final_tenant_id: effectiveTenantId,
-          message: loyaltyWarning,
-        });
-      }
-    }
     await client.query("COMMIT");
-    return res.json({ success: true, order: result.rows[0], loyalty: loyaltyResult, warning: loyaltyWarning });
+    return res.json({ success: true, order: confirmation.order, loyalty: confirmation.loyalty, warning: confirmation.warning });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     return res.status(500).json({ success: false, message: "Failed to confirm payment", error: error.message });

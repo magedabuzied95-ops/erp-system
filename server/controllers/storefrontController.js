@@ -7,6 +7,7 @@ import { adjustVariantStock } from "../services/inventoryService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushService.js";
 import { syncDeliveryOrderFavorite } from "../services/deliveryOrderFavoriteService.js";
+import { rematchWalletTransfersForOrder } from "../modules/walletTransfers/walletTransfers.service.js";
 import {
   attachGroupedColorImages,
   attachVariantImages,
@@ -5999,6 +6000,8 @@ export const createWebsiteOrder = async (req, res) => {
     }
     await client.query("COMMIT");
     invalidateStorefrontTenantCache(tenantId);
+    // The customer may have sent the money before checking out: its SMS is already waiting.
+    if (paymentMethod === "vodafone_cash") void rematchWalletTransfersForOrder({ tenantId, orderId: order?.id });
     sendManagerInvoiceCreatedPush({
       order: {
         ...order,

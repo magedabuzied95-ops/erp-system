@@ -1370,6 +1370,13 @@ function OrdersDashboard() {
           <HeaderButton onClick={() => { void loadOrders(); }} disabled={loading || loadingMore} icon={<RefreshCw className={`h-4 w-4 ${loading || loadingMore ? "animate-spin" : ""}`} />} label={t("orders.header.refresh")} />
           <HeaderButton onClick={exportSelected} disabled={!filteredOrders.length} icon={<Download className="h-4 w-4" />} label={t("orders.header.export")} title={t("orders.header.exportHint")} />
           <Link
+            to="/orders/wallet-transfers"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-bold text-text transition hover:border-border-strong hover:bg-surface-hover"
+          >
+            <Wallet className="h-4 w-4" />
+            {t("orders.walletTransfers.title")}
+          </Link>
+          <Link
             to="/create-order"
             className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-transparent bg-primary px-3 text-sm font-bold text-primary-foreground transition hover:bg-primary-hover"
           >

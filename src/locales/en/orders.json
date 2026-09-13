@@ -1084,5 +1084,64 @@
       "deleteConfirm": "Delete order",
       "deleted": "Order {{number}} deleted and its products returned to stock"
     }
+  },
+  "walletTransfers": {
+    "title": "Vodafone Cash transfers",
+    "subtitle": "Every Vodafone Cash SMS the phone receives is recorded here. A transfer whose amount and number match an order confirms it automatically; the rest wait for your review.",
+    "tabs": {
+      "review": "Needs review",
+      "matched": "Confirmed",
+      "ignored": "Ignored",
+      "all": "All"
+    },
+    "status": {
+      "matched": "Confirmed on order",
+      "needs_review": "Needs review",
+      "unmatched": "No matching order",
+      "unparsed": "Message not understood",
+      "ignored": "Ignored",
+      "outgoing": "Outgoing transfer"
+    },
+    "reason": {
+      "amount_only": "Amount matches, phone differs",
+      "several_orders": "More than one matching order",
+      "untrusted_sender": "Message not from Vodafone",
+      "unknown_wallet": "Sent to a wallet not in settings"
+    },
+    "method": {
+      "auto_phone": "automatic by customer phone",
+      "auto_reference": "automatic by transaction number",
+      "manual": "manual"
+    },
+    "order": "Order",
+    "candidates": "Orders it may belong to",
+    "confirmOnOrder": "Confirm payment on this order",
+    "invoicePlaceholder": "Invoice number",
+    "linkByInvoice": "Link by invoice number",
+    "ignore": "Ignore",
+    "ignored": "Transfer ignored",
+    "linked": "Payment confirmed on the order",
+    "showSms": "Show message text",
+    "hideSms": "Hide message text",
+    "sender": "Sender",
+    "unknownAmount": "Unknown amount",
+    "empty": {
+      "review": "No transfers need review.",
+      "matched": "No confirmed transfers yet.",
+      "ignored": "No ignored transfers.",
+      "all": "No messages have arrived from the phone yet."
+    },
+    "setup": {
+      "title": "Phone link (iPhone Shortcuts)",
+      "hint": "Put this URL and key into the Get Contents of URL action of the automation.",
+      "header": "Header name",
+      "key": "Key",
+      "create": "Create key",
+      "rotate": "New key",
+      "rotateConfirm": "The old key will stop working and the phone needs the new one. Continue?",
+      "rotated": "Key created",
+      "copy": "Copy",
+      "copied": "Copied"
+    }
   }
 }
