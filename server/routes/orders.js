@@ -60,10 +60,14 @@ router.get(
   getOrdersCount
 );
 
+// Legacy report keyed on attendance_log_id, which POS checkout no longer
+// stores; it reads any shift's money by id, so it is a manager/accounting
+// view, not something every orders:view cashier may call.
 router.get(
   "/shift-report/:attendanceLogId",
   protect,
   permit("orders", "view"),
+  permit("accounting", "view"),
   getShiftReport
 );
 

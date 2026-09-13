@@ -136,6 +136,11 @@ const ensureCorePermissions = async () => {
         CORE_PERMISSIONS.flat()
       );
 
+      // Cashiers get orders:edit / orders:delete by default so the POS can
+      // correct its own invoices. The grant runs ONCE: the sentinel stops it
+      // from re-adding the permission on every boot, so an owner who revokes
+      // it from the Permissions screen keeps it revoked across restarts and
+      // deploys.
       await db.query(
         `
         INSERT INTO role_permissions (role_id, permission_id)
@@ -154,6 +159,19 @@ const ensureCorePermissions = async () => {
             WHERE rp.role_id = r.id
               AND rp.permission_id = p.id
           )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM system_settings s
+            WHERE s.key = 'permissions.cashier_orders_edit_delete_granted'
+          )
+        `
+      );
+
+      await db.query(
+        `
+        INSERT INTO system_settings (key, value, category)
+        VALUES ('permissions.cashier_orders_edit_delete_granted', 'true'::jsonb, 'permissions')
+        ON CONFLICT (key) DO NOTHING
         `
       );
 

@@ -107,6 +107,9 @@ const money = (value) => Number(Number(value || 0).toFixed(2));
 const clean = (value = "") => String(value || "").trim();
 const quickExpenseTypes = new Set(["shipping", "maintenance", "groceries_supplies", "marketing", "electricity", "water", "rent", "other", "employee_advance"]);
 const quickExpensePayments = new Set(["cash", "card", "wallet"]);
+// A drawer withdrawal (expense or employee advance) above this is a typo, not a
+// real till movement; it would wreck the shift's expected cash.
+const POS_QUICK_EXPENSE_MAX_AMOUNT = 1000000;
 const formatShiftMoney = (value) => {
   const amount = Number(value || 0);
   const safeAmount = Number.isFinite(amount) ? amount : 0;
@@ -482,6 +485,27 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
     };
   }
 
+  // The same Paymob event (reference + status) was already recorded, so this is
+  // a retried delivery. findPaymobTransaction can match a DIFFERENT row for the
+  // same order (a retry transaction still pending), and applying the amount
+  // there would add the payment to the order a second time.
+  if (event.replay) {
+    console.log("[paymob-pos-confirm]", {
+      transaction_id: transaction.id,
+      order_id: transaction.order_id,
+      status: transaction.status,
+      event_id: event.eventId,
+      duplicate_event: true,
+    });
+    return {
+      replay: true,
+      transaction,
+      order: transaction.order_id ? (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id])).rows[0] || null : null,
+      status: transaction.status,
+      message: "Paymob event was already processed",
+    };
+  }
+
   await client.query(
     `
     UPDATE payment_transactions
@@ -509,85 +533,13 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
     ]
   );
 
-  // A storefront order uses the website fulfilment vocabulary, not the POS one.
-  // The generic branch below writes status = 'Paid'/'Partial', which is correct
-  // for a POS sale but would put a website order outside ORDER_LIFECYCLE_STATUSES.
-  const orderChannel = transaction.order_id
-    ? String(
-        (await client.query("SELECT COALESCE(channel, source, '') AS channel FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]))
-          .rows[0]?.channel || ""
-      ).toLowerCase()
-    : "";
-  const isStorefrontOrder = ["storefront", "website"].includes(orderChannel);
-
   let order = null;
-  if (nextStatus === "success" && transaction.order_id && isStorefrontOrder) {
-    const confirmedAmount = money(confirmedCents / 100);
-    // Paymob reports Apple Pay as a card transaction with a wallet marker, so
-    // without this the sale would be recorded as a plain card payment.
-    const instrument = detectPaymobInstrument(normalized.payload || {});
-    const orderResult = await client.query(
-      `
-      UPDATE orders
-      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
-          card_amount = COALESCE(card_amount, 0) + $2::numeric,
-          remaining_amount = GREATEST(
-            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
-            0
-          ),
-          payment_status = CASE
-            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
-            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
-            ELSE COALESCE(payment_status, 'unpaid')
-          END,
-          payment_method = $3::text,
-          payment_type = $3::text,
-          status = CASE
-            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'confirmed'
-            ELSE status
-          END,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-      `,
-      [transaction.order_id, confirmedAmount, instrument]
-    );
-    order = orderResult.rows[0] || null;
-    console.log("[paymob-online-confirm]", {
-      order_id: transaction.order_id,
-      instrument,
-      amount: confirmedAmount,
-      payment_status: order?.payment_status || "",
-      status: order?.status || "",
+  if (nextStatus === "success" && transaction.order_id) {
+    order = await applyConfirmedPaymentToOrder(client, {
+      orderId: transaction.order_id,
+      confirmedCents,
+      payload: normalized.payload || {},
     });
-  } else if (nextStatus === "success" && transaction.order_id) {
-    const confirmedAmount = money(confirmedCents / 100);
-    const orderResult = await client.query(
-      `
-      UPDATE orders
-      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
-          card_amount = COALESCE(card_amount, 0) + $2::numeric,
-          remaining_amount = GREATEST(
-            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
-            0
-          ),
-          payment_status = CASE
-            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
-            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
-            ELSE COALESCE(payment_status, 'unpaid')
-          END,
-          status = CASE
-            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'Paid'
-            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'Partial'
-            ELSE status
-          END,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-      `,
-      [transaction.order_id, confirmedAmount]
-    );
-    order = orderResult.rows[0] || null;
   } else if (transaction.order_id) {
     const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
     order = orderResult.rows[0] || null;
@@ -619,7 +571,120 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
   return result;
 };
 
-const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId, userId, note = "" } = {}) => {
+// Adds a confirmed Paymob amount to its order. Shared by the webhook/status
+// confirmation and the manual terminal approval so both write the same shape.
+const applyConfirmedPaymentToOrder = async (client, { orderId, confirmedCents, payload = {} } = {}) => {
+  // A storefront order uses the website fulfilment vocabulary, not the POS one.
+  // The generic branch below writes status = 'Paid'/'Partial', which is correct
+  // for a POS sale but would put a website order outside ORDER_LIFECYCLE_STATUSES.
+  const orderChannel = String(
+    (await client.query("SELECT COALESCE(channel, source, '') AS channel FROM orders WHERE id = $1 LIMIT 1", [orderId]))
+      .rows[0]?.channel || ""
+  ).toLowerCase();
+  const isStorefrontOrder = ["storefront", "website"].includes(orderChannel);
+  const confirmedAmount = money(confirmedCents / 100);
+
+  let order = null;
+  if (isStorefrontOrder) {
+    // Paymob reports Apple Pay as a card transaction with a wallet marker, so
+    // without this the sale would be recorded as a plain card payment.
+    const instrument = detectPaymobInstrument(payload || {});
+    const orderResult = await client.query(
+      `
+      UPDATE orders
+      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
+          card_amount = COALESCE(card_amount, 0) + $2::numeric,
+          remaining_amount = GREATEST(
+            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
+            0
+          ),
+          payment_status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
+            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
+            ELSE COALESCE(payment_status, 'unpaid')
+          END,
+          payment_method = $3::text,
+          payment_type = $3::text,
+          status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'confirmed'
+            ELSE status
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+      `,
+      [orderId, confirmedAmount, instrument]
+    );
+    order = orderResult.rows[0] || null;
+    console.log("[paymob-online-confirm]", {
+      order_id: orderId,
+      instrument,
+      amount: confirmedAmount,
+      payment_status: order?.payment_status || "",
+      status: order?.status || "",
+    });
+  } else {
+    const orderResult = await client.query(
+      `
+      UPDATE orders
+      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
+          card_amount = COALESCE(card_amount, 0) + $2::numeric,
+          remaining_amount = GREATEST(
+            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
+            0
+          ),
+          payment_status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
+            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
+            ELSE COALESCE(payment_status, 'unpaid')
+          END,
+          status = CASE
+            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'Paid'
+            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'Partial'
+            ELSE status
+          END,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+      `,
+      [orderId, confirmedAmount]
+    );
+    order = orderResult.rows[0] || null;
+  }
+  return order;
+};
+
+const manualConfirmBlockedStatuses = new Set(["failed", "cancelled"]);
+
+// Asks Paymob what it knows about the transaction before a person overrides it.
+// Returns the provider status ("success" | "pending" | "failed" | "cancelled"),
+// or null when the lookup is unavailable or the transaction has no provider ids.
+const lookupPaymobProviderStatus = async (transaction = {}) => {
+  const merchantOrderId = transaction.request_payload?.merchant_order_id || transaction.response_payload?.merchant_order_id || "";
+  if (!transaction.provider_order_id && !transaction.transaction_reference && !merchantOrderId) return null;
+  try {
+    const statusResult = await getOrderStatus({
+      providerOrderId: transaction.provider_order_id,
+      merchantOrderId,
+      transactionReference: transaction.transaction_reference,
+    });
+    return statusResult?.normalized?.status || null;
+  } catch (lookupError) {
+    const normalizedError = normalizePaymobError(lookupError);
+    console.warn("[paymob-pos-confirm]", {
+      stage: "manual_provider_lookup_unavailable",
+      transaction_id: transaction.id,
+      status: normalizedError.status,
+      message: normalizedError.message,
+    });
+    return null;
+  }
+};
+
+const manualConfirmPaymobTransaction = async (
+  client,
+  { transactionId, tenantId, userId, note = "", canOverride = false, providerStatus = null } = {}
+) => {
   await ensurePaymentTransactionsSchema(client);
   const transactionResult = await client.query(
     `
@@ -656,8 +721,32 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
     };
   }
 
+  // Paymob itself says the card was declined or the payment voided: nobody can
+  // book that money as received.
+  if (manualConfirmBlockedStatuses.has(String(providerStatus || "").toLowerCase())) {
+    const error = new Error("Paymob reports this payment as failed or cancelled; it cannot be confirmed manually");
+    error.status = 409;
+    throw error;
+  }
+
+  // A transaction Paymob already reported failed/cancelled needs a manager, and
+  // a cashier may only approve a payment they sent to the terminal themselves.
+  if (!canOverride) {
+    if (manualConfirmBlockedStatuses.has(String(transaction.status || "").toLowerCase())) {
+      const error = new Error("Only a manager can confirm a terminal payment that Paymob reported as failed or cancelled");
+      error.status = 403;
+      throw error;
+    }
+    // No created_by means the row did not come from a POS terminal send (the
+    // website checkout writes none), so only a manager can approve it.
+    if (!transaction.created_by || !userId || Number(transaction.created_by) !== Number(userId)) {
+      const error = new Error("Only the cashier who sent this terminal payment, or a manager, can confirm it");
+      error.status = 403;
+      throw error;
+    }
+  }
+
   const confirmedCents = Math.max(0, Number(transaction.amount_cents || 0));
-  const confirmedAmount = money(confirmedCents / 100);
   const updatedTransaction = await client.query(
     `
     UPDATE payment_transactions
@@ -679,6 +768,9 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
       JSON.stringify({
         manual_terminal_approval: true,
         confirmed_by: userId || null,
+        previous_status: transaction.status || null,
+        provider_status: providerStatus || null,
+        manager_override: Boolean(canOverride),
         note,
         confirmed_at: new Date().toISOString(),
       }),
@@ -687,32 +779,11 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
 
   let order = null;
   if (transaction.order_id) {
-    const orderResult = await client.query(
-      `
-      UPDATE orders
-      SET paid_amount = COALESCE(paid_amount, 0) + $2::numeric,
-          card_amount = COALESCE(card_amount, 0) + $2::numeric,
-          remaining_amount = GREATEST(
-            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - (COALESCE(paid_amount, 0) + $2::numeric),
-            0
-          ),
-          payment_status = CASE
-            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'paid'
-            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'partially_paid'
-            ELSE COALESCE(payment_status, 'unpaid')
-          END,
-          status = CASE
-            WHEN COALESCE(paid_amount, 0) + $2::numeric >= COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) THEN 'Paid'
-            WHEN COALESCE(paid_amount, 0) + $2::numeric > 0 THEN 'Partial'
-            ELSE status
-          END,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-      `,
-      [transaction.order_id, confirmedAmount]
-    );
-    order = orderResult.rows[0] || null;
+    order = await applyConfirmedPaymentToOrder(client, {
+      orderId: transaction.order_id,
+      confirmedCents,
+      payload: transaction.response_payload || {},
+    });
   }
 
   await recordPaymobEvent(client, transaction.id, {
@@ -723,6 +794,9 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
     manual_terminal_approval: true,
     note,
     user_id: userId || null,
+    previous_status: transaction.status || null,
+    provider_status: providerStatus || null,
+    manager_override: Boolean(canOverride),
   });
 
   const result = {
@@ -739,6 +813,9 @@ const manualConfirmPaymobTransaction = async (client, { transactionId, tenantId,
     amount_cents: confirmedCents,
     source: "manual_terminal_approval",
     user_id: userId || null,
+    previous_status: transaction.status || null,
+    provider_status: providerStatus || null,
+    manager_override: Boolean(canOverride),
   });
   emitPaymobPaymentRealtime(result);
   return result;
@@ -1475,10 +1552,12 @@ export const getPosShiftReport = async (req, res) => {
 
 export const openPosShift = async (req, res) => {
   const client = await db.connect();
+  let tenantId = null;
+  let branch = null;
   try {
     await ensurePosUserShiftSchema(client);
-    const tenantId = resolveTenantId(req);
-    const branch = await resolvePosBranch(client, req);
+    tenantId = resolveTenantId(req);
+    branch = await resolvePosBranch(client, req);
     await client.query("BEGIN");
     const shift = await openCashDrawerShift(client, {
       tenantId,
@@ -1492,6 +1571,21 @@ export const openPosShift = async (req, res) => {
     return res.status(201).json({ success: true, shift, events, branch });
   } catch (error) {
     await client.query("ROLLBACK");
+    // A double-click races two opens past the "already open" check; the second
+    // hits the one-open-shift unique index. That is the same answer as the
+    // check itself: 409 with the shift that is already open.
+    if (error?.code === "23505" || error?.status === 409) {
+      const existingShift = branch?.id
+        ? await getCurrentCashDrawerShift(db, { tenantId, userId: req.user?.id || null, branchId: branch.id }).catch(() => null)
+        : null;
+      return res.status(409).json({
+        success: false,
+        code: "POS_SHIFT_ALREADY_OPEN",
+        message: "توجد وردية مفتوحة بالفعل لهذا الكاشير في هذا الفرع",
+        shift: existingShift,
+        branch,
+      });
+    }
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to open POS shift" });
   } finally {
     client.release();
@@ -1519,6 +1613,20 @@ export const closePosShift = async (req, res) => {
     if (!shiftRow) return res.status(404).json({ success: false, message: "Open POS shift not found" });
     const ownsShift = String(shiftRow.opened_by) === String(req.user?.id);
     if (!ownsShift) return res.status(403).json({ success: false, message: "You cannot close another user's POS shift" });
+
+    // The counted cash must be sent explicitly. Defaulting a missing value to 0
+    // books the whole expected cash as a shortage; a real empty drawer is 0.
+    const rawClosingCash = req.body?.closing_cash ?? req.body?.closingCash ?? req.body?.actual_cash ?? req.body?.actualCash;
+    const closingCash = rawClosingCash === undefined || rawClosingCash === null || String(rawClosingCash).trim() === ""
+      ? NaN
+      : Number(rawClosingCash);
+    if (!Number.isFinite(closingCash) || closingCash < 0) {
+      return res.status(400).json({
+        success: false,
+        code: "CLOSING_CASH_REQUIRED",
+        message: "اكتب النقدية الفعلية في الدرج قبل قفل الوردية (اكتب 0 لو الدرج فاضي)",
+      });
+    }
 
     const nextOpeningEmployeeId = numberOrNull(req.body?.next_opening_employee_id || req.body?.nextOpeningEmployeeId);
     const nextOpeningWorkDate = req.body?.next_opening_work_date || req.body?.nextOpeningWorkDate || getDefaultOpeningWorkDate();
@@ -1554,7 +1662,7 @@ export const closePosShift = async (req, res) => {
     const shift = await closeCashDrawerShift(client, {
       tenantId,
       shiftId,
-      actualCash: req.body?.closing_cash ?? req.body?.closingCash ?? req.body?.actual_cash ?? req.body?.actualCash ?? 0,
+      actualCash: closingCash,
       notes: closingNotes,
       closedBy: req.user?.id || null,
     });
@@ -1639,7 +1747,10 @@ export const createQuickPosExpense = async (req, res) => {
     await ensurePosExpenseSchema(client);
     const tenantId = resolveTenantId(req);
     const shiftId = numberOrNull(req.body?.shift_id || req.body?.shiftId);
-    const amount = money(req.body?.amount);
+    // money("abc") is NaN and `NaN <= 0` is false, so the raw number is checked
+    // for finiteness before anything else reads it.
+    const rawAmount = Number(req.body?.amount);
+    const amount = Number.isFinite(rawAmount) ? money(rawAmount) : NaN;
     const paymentMethod = clean(req.body?.payment_method || req.body?.paymentMethod || "cash").toLowerCase();
     const expenseType = normalizeQuickExpenseType(req.body?.expense_type || req.body?.expenseType || req.body?.category);
     const isEmployeeAdvance = expenseType === "employee_advance";
@@ -1659,7 +1770,10 @@ export const createQuickPosExpense = async (req, res) => {
     ).slice(0, 120);
 
     if (!shiftId && !offlineOrigin) return res.status(400).json({ success: false, message: "Open POS shift is required" });
-    if (amount <= 0) return res.status(400).json({ success: false, message: "Expense amount must be greater than zero" });
+    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ success: false, message: "Expense amount must be greater than zero" });
+    if (amount > POS_QUICK_EXPENSE_MAX_AMOUNT) {
+      return res.status(400).json({ success: false, message: `Expense amount cannot exceed ${POS_QUICK_EXPENSE_MAX_AMOUNT}` });
+    }
     if (!quickExpensePayments.has(paymentMethod)) return res.status(400).json({ success: false, message: "Payment method must be cash, card, or wallet" });
     if (isEmployeeAdvance && !employeeId) return res.status(400).json({ success: false, message: "Employee is required for employee advance" });
     const rawExpenseType = isEmployeeAdvance ? "" : clean(req.body?.expense_type || req.body?.expenseType || req.body?.category).toLowerCase();
@@ -2430,12 +2544,35 @@ export const manuallyConfirmPaymobTerminalPayment = async (req, res) => {
       return res.status(403).json({ success: false, message: "You do not have permission to confirm terminal payments" });
     }
 
+    const canOverride = isAdminLike(req.user || {}) ||
+      isSuperAdminUser(req.user || {}) ||
+      await userHasPermission(client, req.user?.id, ["pos:manage_shifts", "pos.manage_shifts", "accounting:view", "accounting.view"]);
+
     console.log("[paymob-pos-confirm]", {
       stage: "manual_requested",
       transaction_id: transactionId,
       tenant_id: tenantId,
       user_id: req.user?.id || null,
+      manager_override: canOverride,
     });
+
+    await ensurePaymentTransactionsSchema(client);
+    const pendingTransaction = (await client.query(
+      `
+      SELECT *
+      FROM payment_transactions
+      WHERE id = $1
+        AND provider = 'paymob'
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      LIMIT 1
+      `,
+      [transactionId, tenantId]
+    )).rows[0];
+    // Ask Paymob first (outside the row lock, it is a network call). A payment
+    // it reports declined or voided is refused below whoever asks.
+    const providerStatus = pendingTransaction && !terminalFinalStatuses.has(String(pendingTransaction.status || "").toLowerCase())
+      ? await lookupPaymobProviderStatus(pendingTransaction)
+      : null;
 
     await client.query("BEGIN");
     const result = await manualConfirmPaymobTransaction(client, {
@@ -2443,6 +2580,8 @@ export const manuallyConfirmPaymobTerminalPayment = async (req, res) => {
       tenantId,
       userId: req.user?.id || null,
       note: req.body?.note || "",
+      canOverride,
+      providerStatus,
     });
     await client.query("COMMIT");
 
