@@ -37,7 +37,7 @@ import {
   useCompareItems,
 } from "../lib/compareStore";
 import { ROOT_PATHS, productPath } from "../lib/paths";
-import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
+import { openSizeGuide } from "../lib/sizeGuideStore";
 import "./compare.css";
 
 const LOW_STOCK_THRESHOLD = 3;
@@ -541,10 +541,10 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
                   {data.inStockSizes.length ? t("storefront.compare.sizesCount", { count: data.inStockSizes.length }) : t("storefront.compare.noSizes")}
                 </span>
                 {sizesDiffer && data.inStockSizes.length === mostSizes && mostSizes > 0 ? <span className="sfx-cmp-flag">{t("storefront.compare.mostSizes")}</span> : null}
-                <Link to={buildSizeGuidePath(resolveSizeGuideTypeForProduct(data.product))} className="sfx-cmp-link">
+                <button type="button" onClick={() => openSizeGuide({ product: data.product })} className="sfx-cmp-link">
                   <Ruler size={13} aria-hidden="true" />
                   {t("storefront.products.sizeGuide")}
-                </Link>
+                </button>
               </div>
             )))}
             {addSlot("sizes-slot")}

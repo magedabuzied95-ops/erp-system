@@ -98,7 +98,7 @@ const SKIPPED = {
   "src/modules/accounting/lib/financialReportExport.js": "export template — generates HTML for download, not interactive UI",
   "src/modules/analytics/lib/analyticsExport.js": "export template — generates HTML for download, not interactive UI",
   "src/modules/employees/lib/employeeAnalyticsExport.js": "export template — generates HTML for download, not interactive UI",
-  "src/storefront/pages/StorefrontSizeGuidePage.jsx": "storefront owns its own theme; not ERP application UI",
+  "src/storefront/components/SizeGuideSheet.jsx": "storefront owns its own theme; not ERP application UI",
 };
 
 // A migrated page may still legitimately build print/export markup in a template

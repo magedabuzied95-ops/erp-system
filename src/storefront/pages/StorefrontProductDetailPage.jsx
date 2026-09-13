@@ -40,7 +40,7 @@ import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Shar
 import { shouldShowRestockCta, restockVariantKey, restockSuccessCopy, RESTOCK_COPY } from "../lib/restockIntentUi";
 import { usePriceDropAlerts } from "../lib/priceDropAlerts";
 import { isInWishlist } from "../lib/wishlistIdentity";
-import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
+import { openSizeGuide } from "../lib/sizeGuideStore";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
@@ -480,10 +480,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     strip.scrollBy({ left: step * direction * (rtl ? -1 : 1), behavior: "smooth" });
   };
   const hideSizeSelector = isBagProduct(product);
-  const sizeGuideHref = useMemo(
-    () => buildSizeGuidePath(product ? resolveSizeGuideTypeForProduct(product) : "men"),
-    [product]
-  );
   const activeVariant = variants.find((item) => String(item.id) === String(selected.variantId))
     || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorIdentity(item) === selectedColorKey) && variantHasStock(item))
     || firstDisplayVariant(variants);
@@ -930,13 +926,14 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               <h2 className="sfx-pdp-option__title">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
               {/* A quiet link beside the heading, where shoppers look for it, rather
                   than a pill on a row of its own under the sizes. */}
-              <Link
-                to={sizeGuideHref}
+              <button
+                type="button"
+                onClick={() => openSizeGuide({ product, variants: variantGroup, selectedSize: touchedOptions.size ? selectedVariant?.size || selected.size || "" : "" })}
                 className="sfx-link-btn"
               >
                 <Ruler className="h-3.5 w-3.5" />
                 {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
-              </Link>
+              </button>
             </div>
             {/* Keyed on the tick so a second tap on add to cart replays the nudge.
                 The chips themselves are not remounted: that would drop the focus

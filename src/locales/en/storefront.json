@@ -1033,8 +1033,20 @@
     "columns": {
       "eu": "EU",
       "footLengthCm": "Foot length (cm)",
-      "factorySize": "Factory size"
-    }
+      "factorySize": "Factory size",
+      "status": "Status"
+    },
+    "recommended": "Suggested",
+    "yourSize": "Selected",
+    "inStock": "In stock",
+    "soldOut": "Sold out",
+    "crocsHint": "Crocs are marked with the factory size; this is the EU size each one in this model matches.",
+    "productSizesHint": "These are the only sizes this model comes in.",
+    "finderLabel": "Your foot length in cm",
+    "finderHint": "Enter your foot length and we'll tell you which size to take.",
+    "finderResult": "Your suggested size is {{size}}",
+    "finderTooBig": "Your foot is longer than the largest size in this model ({{size}}). Message us and we'll help.",
+    "fullChartHint": "This model has no sizes on file, so here is the full chart."
   },
   "wishlist": {
     "subtitle": "Your favorite picks are saved here",

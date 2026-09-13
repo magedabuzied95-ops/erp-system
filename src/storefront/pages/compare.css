@@ -498,6 +498,11 @@
 }
 
 .sfx-cmp-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
   display: inline-flex;
   width: fit-content;
   align-items: center;

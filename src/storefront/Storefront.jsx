@@ -98,7 +98,8 @@ import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } 
 import { pickAutomaticPair } from "./lib/pairPicker.js";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
-import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
+import { openSizeGuide } from "./lib/sizeGuideStore";
+import { SizeGuideHost } from "./components/SizeGuideSheet";
 import { animateFlyToCart } from "./lib/flyToCart";
 import { releaseBootLoader } from "./lib/bootLoader";
 import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
@@ -1880,7 +1881,6 @@ const LazyStorefrontAccountPage = lazy(() => importWithChunkRetry(() => import("
 const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontWishlistPage")));
 const LazyStorefrontComparePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontComparePage.jsx")).then((module) => ({ default: module.StorefrontComparePage })));
 const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
-const LazyStorefrontSizeGuidePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontSizeGuidePage.jsx")).then((module) => ({ default: module.default })));
 const LazyOrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
 
 const CART_KEY = "storefront.cart";
@@ -6228,7 +6228,6 @@ function SearchResultRow({ product, active, onPickProduct }) {
 
 const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, priorityImage = false, imagePreset = "grid" }) {
   const { t, i18n } = useTranslation();
-  const navigate = useNavigate();
   const product = useMemo(() => groupedProduct || rawProduct || {}, [groupedProduct, rawProduct]);
   const cardLook = resolveCardLook(useSiteDesign());
   const cardRef = useRef(null);
@@ -6643,7 +6642,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              navigate(buildSizeGuidePath(resolveSizeGuideTypeForProduct(product)));
+              openSizeGuide({ product });
             }}
             className="sfx-card__guide"
           >
@@ -6914,9 +6913,9 @@ function ProductCardVariantSheet({
           <div ref={sizesRef} className={`sfq__option${nudge.target === "size" && !selectedVariant ? " is-prompting" : ""}`}>
             <div className="sfq__option-head">
               <span className="sfq__option-title">{t("storefront.products.size", "المقاس")}</span>
-              <Link to={buildSizeGuidePath(resolveSizeGuideTypeForProduct(product))} onClick={handleCloseRequest} className="sfq__guide">
+              <button type="button" onClick={() => openSizeGuide({ product, variants: activeGroup?.variants || null, selectedSize: selectedVariant?.size || "" })} className="sfq__guide">
                 {t("storefront.products.sizeGuide", "دليل المقاسات")}
-              </Link>
+              </button>
             </div>
             {nudge.target === "size" && !selectedVariant ? (
               <p key={nudge.tick} role="alert" className="sfq__nudge">{sfText("storefront.products.chooseSizeFirst", "اختار المقاس أولًا")}</p>
@@ -10179,6 +10178,19 @@ const cartDrawerBundleShares = (cart = [], percent = 0) => {
   return { amount, byLine };
 };
 
+// The guide is a sheet over a page now, never a page of its own: an old /size-guide link (or the
+// menu entry) opens the full charts over the home page.
+function SizeGuideRoute() {
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const type = params.get("type") || "";
+  useEffect(() => {
+    navigate("/", { replace: true });
+    openSizeGuide({ type });
+  }, [navigate, type]);
+  return null;
+}
+
 function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   const { i18n } = useTranslation();
   const isRtl = normalizeLanguage(i18n.language || "ar") === "ar";
@@ -11673,7 +11685,7 @@ function Storefront() {
       return <PremiumContactPage publicStoreSettings={publicStoreSettings} quickActionLinks={quickActionLinks} />;
     }
 
-    if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <LazyStorefrontSizeGuidePage />;
+    if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <SizeGuideRoute />;
     if (currentStorefrontPath === ROOT_PATHS.returns) return <ReturnsPolicy publicStoreSettings={publicStoreSettings} />;
 
     return (
@@ -11739,6 +11751,7 @@ function Storefront() {
         />
       ) : null}
       {!hideFloatingWhatsApp ? <StorefrontWhatsAppFloat /> : null}
+      <SizeGuideHost whatsappHref={quickActionLinks.whatsappHref} lockScroll={lockBodyScroll} />
       <CompareTray hidden={isCheckoutPage || currentStorefrontPath === ROOT_PATHS.cart ||isOfferStoryPage || cartDrawerOpen || mobileMenuOpen || currentStorefrontPath === ROOT_PATHS.compare} />
       {/* The bottom nav is gone: every destination it carried is now in the
           header — menu, search, wishlist and bag — so it was a second navigation
