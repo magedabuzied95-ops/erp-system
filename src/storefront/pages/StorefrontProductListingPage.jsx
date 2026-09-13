@@ -37,6 +37,7 @@ import {
   normalizeFilterKey,
 } from "../Storefront";
 import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
+import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
 import { Baby, Briefcase, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
@@ -554,8 +555,12 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const backendSearchTerm = searchGender ? "" : q;
   const size = params.get("size") || "";
   const requestedSizes = useMemo(() => readMultiSizeQueryValues(params), [params]);
-  const color = params.get("color") || "";
-  const inStock = params.get("inStock") || "";
+  // A shared link may still carry an old spelling (color=gray); it selects the same
+  // merged chip the facets now offer (grey).
+  const color = storefrontColorKey(params.get("color") || "");
+  // The in-stock switch is gone: every listed card is already in stock, so it
+  // changed nothing. Only an SEO section that pins it still sends it.
+  const inStock = seoCategory?.apiFilters?.inStock ? "1" : "";
   const quality = params.get("quality") || "";
   const productType = seoCategory?.apiFilters?.product_type || normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
   const isCrocsListing = normalizeStorefrontProductTypeValue(productType) === "crocs";

@@ -40,6 +40,7 @@ import { buildBundlePairEligibility, getPinnedPairProductId, loadBundleSettings,
 import { computeBundleDiscount } from "../../shared/bundleDiscount.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
 import { dedupeCustomerAddresses } from "../../shared/customerAddressFingerprint.js";
+import { storefrontColorKey, storefrontColorLabel } from "../../shared/storefrontColorKey.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 // ONE definition of "this product is a curated offer", shared with POS and the AI resolver.
 import { isForcedOfferSale } from "../../src/shared/lib/effectiveCustomerPrice.js";
@@ -3393,7 +3394,8 @@ const storefrontCardColorKeys = (product = {}) => {
   for (const variant of Array.isArray(product.variants) ? product.variants : []) {
     values.push(variant?.color, variant?.color_name);
   }
-  return [...new Set(values.map(storefrontColorFilterKey).filter(Boolean))];
+  // Spellings of one colour share a key (grey/gray, beige/bige, "white & black"/"black&white").
+  return [...new Set(values.map(storefrontColorKey).filter(Boolean))];
 };
 
 export const storefrontCardHasAvailableSize = (product = {}, size = "") => {
@@ -3555,7 +3557,7 @@ export const storefrontProductsSectionQuery = (normalized = {}) => ({
   quality: normalized.quality || "",
   sizes: sortedTextList(normalized.sizes),
   size_param: normalized.size ? 1 : 0,
-  colors: sortedTextList((normalized.colors || []).map((color) => storefrontColorFilterKey(color))),
+  colors: sortedTextList((normalized.colors || []).map((color) => storefrontColorKey(color))),
   bag_type: sortedTextList(normalized.bagType),
   exclude_bag_type: sortedTextList(normalized.excludeBagType),
   min_price: normalized.minPrice || 0,
@@ -3669,7 +3671,7 @@ const buildStorefrontProductSection = async ({ req, tenantId, normalizedQuery, r
   // products, so they can only be resolved once a product has been expanded
   // into its colour cards - but still before the page is cut.
   const facetFilteredProducts = perf.sync("card_facets", () => {
-    const wantedColors = colors.map((color) => storefrontColorFilterKey(color)).filter(Boolean);
+    const wantedColors = colors.map((color) => storefrontColorKey(color)).filter(Boolean);
     if (!wantedColors.length && !minPrice && !maxPrice && !lastSizes) return sizeAvailableProducts;
     return sizeAvailableProducts.filter((product) => {
       if (wantedColors.length && !storefrontCardColorKeys(product).some((key) => wantedColors.includes(key))) return false;
@@ -3912,7 +3914,7 @@ export const buildStorefrontProductFacets = (cards = [], { productVariantAudienc
     // A card is one colour, so it contributes to exactly one colour bucket -
     // counting every key a card carries would double-count multi-name colours.
     const [colorKey] = storefrontCardColorKeys(card);
-    if (colorKey) colors.add(toText(card.display_color) || toText(card.color) || colorKey, colorKey);
+    if (colorKey) colors.add(storefrontColorLabel(colorKey), colorKey);
     for (const size of storefrontCardSizeLabels(card)) sizes.add(size, storefrontColorFilterKey(size));
     const brand = storefrontCardBrandLabel(card);
     if (brand) brands.add(brand, storefrontColorFilterKey(brand));
