@@ -6583,8 +6583,8 @@ export const getStorefrontCustomerCart = async (req, res) => {
     if (!phone) {
       return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
     }
-    const cart = await loadStorefrontCustomerCart(tenantId, phone);
-    return res.json({ success: true, cart });
+    const { cart, version } = await loadStorefrontCustomerCartState(tenantId, phone);
+    return res.json({ success: true, cart, version });
   } catch (error) {
     console.error("[storefront-cart] load failed", {
       message: error?.message || String(error),
@@ -6607,13 +6607,24 @@ export const updateStorefrontCustomerCart = async (req, res) => {
     }
     const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
     const cart = normalizeStorefrontCartItems(req.body?.cart || req.body?.items || req.body?.cart_items || req.body || []);
+    // base_version is the cart version the device last saw. A device that has been
+    // asleep in a pocket must not overwrite what the shopper did on another one since:
+    // the write only lands when nothing newer is saved, otherwise the device gets the
+    // newer cart back (409) and merges. Older clients send no base and write as before.
+    const rawBase = req.body?.base_version;
+    const baseVersion = rawBase === null || rawBase === undefined || rawBase === "" || !Number.isFinite(Number(rawBase)) ? null : Math.trunc(Number(rawBase));
     const saved = await saveStorefrontCustomerCart({
       tenantId,
       phone,
       customerId: customer?.id || null,
       cart,
+      baseVersion,
     });
-    return res.json({ success: true, cart: normalizeStorefrontCartItems(saved?.cart || cart) });
+    if (!saved) {
+      const current = await loadStorefrontCustomerCartState(tenantId, phone);
+      return res.status(409).json({ success: false, error: "CART_CHANGED", cart: current.cart, version: current.version });
+    }
+    return res.json({ success: true, cart: normalizeStorefrontCartItems(saved.cart || cart), version: Number(saved.version || 0) });
   } catch (error) {
     console.error("[storefront-cart] save failed", {
       message: error?.message || String(error),
@@ -6786,12 +6797,16 @@ const normalizeStorefrontCartItems = (value = []) => {
 
 const getStorefrontCartPhone = (req = {}) => normalizePhone(toText(req.storefrontCustomer?.phone || ""));
 
-const loadStorefrontCustomerCart = async (tenantId, phone) => {
+// The version is updated_at in epoch milliseconds — the same number for TIMESTAMP and
+// TIMESTAMPTZ columns (the migration and the runtime ensure disagree on the type).
+const STOREFRONT_CART_VERSION_SQL = "floor(extract(epoch from storefront_customer_carts.updated_at) * 1000)::bigint";
+
+const loadStorefrontCustomerCartState = async (tenantId, phone) => {
   const normalizedPhone = normalizePhone(toText(phone));
-  if (!normalizedPhone) return [];
+  if (!normalizedPhone) return { cart: [], version: 0 };
   const result = await db.query(
     `
-    SELECT cart
+    SELECT cart, ${STOREFRONT_CART_VERSION_SQL} AS version
     FROM storefront_customer_carts
     WHERE tenant_id = $1
       AND customer_phone = $2
@@ -6800,10 +6815,10 @@ const loadStorefrontCustomerCart = async (tenantId, phone) => {
     `,
     [tenantId, normalizedPhone]
   );
-  return normalizeStorefrontCartItems(result.rows[0]?.cart || []);
+  return { cart: normalizeStorefrontCartItems(result.rows[0]?.cart || []), version: Number(result.rows[0]?.version || 0) };
 };
 
-const saveStorefrontCustomerCart = async ({ tenantId, phone, customerId = null, cart = [] }) => {
+const saveStorefrontCustomerCart = async ({ tenantId, phone, customerId = null, cart = [], baseVersion = null }) => {
   const normalizedPhone = normalizePhone(toText(phone));
   const normalizedCart = normalizeStorefrontCartItems(cart);
   if (!normalizedPhone) return null;
@@ -6823,10 +6838,12 @@ const saveStorefrontCustomerCart = async ({ tenantId, phone, customerId = null, 
     DO UPDATE SET
       customer_id = COALESCE(EXCLUDED.customer_id, storefront_customer_carts.customer_id),
       cart = EXCLUDED.cart,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING id, tenant_id, customer_phone, customer_id, cart, updated_at
+      -- Strictly increasing, so two saves inside one millisecond still read as two versions.
+      updated_at = GREATEST(CURRENT_TIMESTAMP, storefront_customer_carts.updated_at + INTERVAL '1 millisecond')
+    WHERE $5::bigint IS NULL OR ${STOREFRONT_CART_VERSION_SQL} <= $5::bigint
+    RETURNING id, tenant_id, customer_phone, customer_id, cart, updated_at, ${STOREFRONT_CART_VERSION_SQL} AS version
     `,
-    [tenantId, customerId || null, normalizedPhone, payload]
+    [tenantId, customerId || null, normalizedPhone, payload, baseVersion]
   );
   return result.rows[0] || null;
 };

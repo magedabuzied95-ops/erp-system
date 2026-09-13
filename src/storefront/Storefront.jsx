@@ -10819,19 +10819,65 @@ const normalizeCartCollection = (items = []) => {
     .filter((item) => item.lineId);
 };
 
-const mergeCartCollections = (localItems = [], remoteItems = []) => {
-  const local = normalizeCartCollection(localItems);
-  const remote = normalizeCartCollection(remoteItems);
-  if (!local.length) return remote;
-  if (!remote.length) return local;
-  const seen = new Set(local.map((item) => item.lineId));
-  const merged = [...local];
-  remote.forEach((item) => {
-    if (seen.has(item.lineId)) return;
-    merged.push(item);
-    seen.add(item.lineId);
+/*
+ * One cart across a signed-in shopper's devices.
+ *
+ * The server row is the shared cart; each browser remembers the version it last
+ * saw and that cart's lines (its "base"). Whatever changed since then is merged
+ * three ways by line — base, this browser, the server — so an item removed on the
+ * phone stays removed on the laptop, an item added on either survives, and a
+ * quantity changed here beats the server's. The old merge was a union with this
+ * browser first: removed and already-ordered items came back from every stale
+ * device, and the abandoned-cart WhatsApp then offered them again.
+ */
+const CART_SYNC_KEY = "storefront.cart.sync";
+
+const readCartSyncMarker = (phone = "") => {
+  const marker = readStorefrontStorage(CART_SYNC_KEY, null);
+  if (!marker || !phone || String(marker.phone || "") !== String(phone)) return { version: null, base: [] };
+  return { version: Number.isFinite(Number(marker.version)) ? Number(marker.version) : null, base: Array.isArray(marker.base) ? marker.base : [] };
+};
+
+const writeCartSyncMarker = (phone = "", version = null, cart = []) => {
+  if (!phone) return;
+  writeStorefrontStorage(CART_SYNC_KEY, {
+    phone: String(phone),
+    version,
+    base: normalizeCartCollection(cart).map((item) => ({ lineId: item.lineId, quantity: Number(item.quantity || 1) })),
   });
-  return merged;
+};
+
+const cartLinesEqual = (left = [], right = []) => {
+  const a = normalizeCartCollection(left);
+  const b = normalizeCartCollection(right);
+  if (a.length !== b.length) return false;
+  const quantities = new Map(b.map((item) => [item.lineId, Number(item.quantity || 1)]));
+  return a.every((item) => quantities.get(item.lineId) === Number(item.quantity || 1));
+};
+
+const mergeCartThreeWay = (baseItems = [], localItems = [], remoteItems = []) => {
+  const base = new Map((Array.isArray(baseItems) ? baseItems : []).map((item) => [String(item.lineId), Number(item.quantity || 1)]));
+  const local = normalizeCartCollection(localItems);
+  const localById = new Map(local.map((item) => [item.lineId, item]));
+  const merged = new Map(normalizeCartCollection(remoteItems).map((item) => [item.lineId, item]));
+  // Removed here since the last sync: gone, even if the server still has it.
+  base.forEach((_quantity, lineId) => {
+    if (!localById.has(lineId)) merged.delete(lineId);
+  });
+  // Added here, or its quantity changed here: this browser's line wins.
+  local.forEach((item) => {
+    const baseQuantity = base.get(item.lineId);
+    const changedHere = baseQuantity === undefined || baseQuantity !== Number(item.quantity || 1);
+    if (changedHere) {
+      merged.set(item.lineId, item);
+    } else if (merged.has(item.lineId)) {
+      // Untouched here: keep the server's quantity, but this browser's copy of the
+      // line (it may carry fresher display fields). Untouched here and gone from the
+      // server means removed on another device, so it is not put back.
+      merged.set(item.lineId, { ...item, quantity: merged.get(item.lineId).quantity, total_amount: merged.get(item.lineId).total_amount });
+    }
+  });
+  return normalizeCartCollection([...merged.values()]);
 };
 
 const OrderNumberBadge = ({ value, className = "" }) => {
@@ -10861,6 +10907,7 @@ function Storefront() {
   const wishlistCount = wishlist.length;
   const customerAuthTokenRef = useRef("");
   const cartSyncSaveTimerRef = useRef(null);
+  const cartSyncConflictsRef = useRef(0);
   const cartRef = useRef(cart);
   const previousDocumentThemeRef = useRef(null);
   const [cartSyncReady, setCartSyncReady] = useState(false);
@@ -11049,7 +11096,22 @@ function Storefront() {
     };
   }, [location.pathname]);
 
-  const clearCart = useCallback(() => setCart([]), []);
+  // Called once an order is placed. The empty cart is saved right away with
+  // keepalive, not through the 750ms debounce: checkout goes straight on to the
+  // payment page, and a cancelled timer left the ordered items in the saved cart —
+  // for other devices to bring back and the abandoned-cart WhatsApp to offer again.
+  const clearCart = useCallback(() => {
+    setCart([]);
+    const { token, phone } = readStorefrontCustomerAuth();
+    if (!token || !phone) return;
+    storefrontCustomerRequest("/storefront/customer/cart", {
+      method: "PUT",
+      body: { cart: [], base_version: null },
+      keepalive: true,
+    }).then((data) => {
+      writeCartSyncMarker(phone, Number.isFinite(Number(data?.version)) ? Number(data.version) : null, []);
+    }).catch(() => undefined);
+  }, []);
 
   const updateCart = useCallback((lineId, quantity) => {
     setCart((prev) => {
@@ -11166,12 +11228,18 @@ function Storefront() {
         const backendCart = normalizeCartCollection(backendCartData?.cart || backendCartData?.items || backendCartData?.cart_items || []);
         const backendWishlist = normalizeWishlistCollection(data?.wishlist_products);
         const backendRecent = Array.isArray(data?.recent_products) ? data.recent_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
-        const guestCart = normalizeCartCollection(cartRef.current);
+        const cartPhone = readStorefrontCustomerAuth().phone;
+        const backendCartVersion = Number.isFinite(Number(backendCartData?.version)) ? Number(backendCartData.version) : null;
+        const cartMarker = readCartSyncMarker(cartPhone);
         const backendWishlistIds = new Set(backendWishlist.map((item) => String(item.id)));
         const backendRecentIds = new Set(backendRecent.map((item) => String(item.id)));
         const guestWishlist = normalizeWishlistCollection(wishlist);
         const guestRecent = (Array.isArray(recent) ? recent : []).map(normalizeStorefrontItem).filter((item) => item.id);
-        const mergedCart = mergeCartCollections(guestCart, backendCart);
+        // A browser joining the account for the first time has no base, so its guest
+        // cart is added to the saved one; a browser that synced before merges only
+        // what changed on either side since.
+        const mergedCart = mergeCartThreeWay(cartMarker.base, cartRef.current, backendCart);
+        writeCartSyncMarker(cartPhone, backendCartVersion, backendCart);
         // The server keeps the model only; the colours the shopper hearted live in this browser,
         // so a server row stands in only for a model this browser has no colour of.
         const mergedWishlist = normalizeWishlistCollection([
@@ -11253,17 +11321,42 @@ function Storefront() {
       window.clearTimeout(cartSyncSaveTimerRef.current);
       cartSyncSaveTimerRef.current = null;
     }
+    const phone = String(customerAuth.phone || readStorefrontCustomerAuth().phone || "");
     const snapshot = normalizeCartCollection(cart);
+    const marker = readCartSyncMarker(phone);
+    // Nothing this browser changed since the server's version it holds — including a
+    // cart that was just taken from the server — so there is nothing to save.
+    if (marker.version !== null && cartLinesEqual(snapshot, marker.base)) {
+      cartSyncConflictsRef.current = 0;
+      return undefined;
+    }
     cartSyncSaveTimerRef.current = window.setTimeout(() => {
+      cartSyncSaveTimerRef.current = null;
       storefrontCustomerRequest("/storefront/customer/cart", {
         method: "PUT",
-        body: { cart: snapshot },
+        body: { cart: snapshot, base_version: marker.version },
+      }).then((data) => {
+        cartSyncConflictsRef.current = 0;
+        writeCartSyncMarker(phone, Number.isFinite(Number(data?.version)) ? Number(data.version) : null, snapshot);
       }).catch((error) => {
         const status = Number(error?.status || error?.response?.status || 0);
         if (status === 401 || status === 403) {
           clearStorefrontCustomerAuth();
           setCustomerAuth(readStorefrontCustomerAuth());
           setCartSyncReady(false);
+          return;
+        }
+        // Another device saved first. Take its cart as the new base, lay this
+        // browser's own changes over it, and let this effect save the result. The
+        // counter stops a server that keeps refusing from looping forever.
+        if (status === 409 && cartSyncConflictsRef.current < 3) {
+          cartSyncConflictsRef.current += 1;
+          const body = error?.responseBody || {};
+          const remote = normalizeCartCollection(body.cart || []);
+          const latest = readCartSyncMarker(phone);
+          const merged = mergeCartThreeWay(latest.base, cartRef.current, remote);
+          writeCartSyncMarker(phone, Number.isFinite(Number(body.version)) ? Number(body.version) : null, remote);
+          setCart(merged);
         }
       });
     }, 750);
@@ -11272,7 +11365,50 @@ function Storefront() {
       window.clearTimeout(cartSyncSaveTimerRef.current);
       cartSyncSaveTimerRef.current = null;
     };
-  }, [cart, cartSyncReady, customerAuth.token]);
+  }, [cart, cartSyncReady, customerAuth.phone, customerAuth.token]);
+
+  // A tab left open on the laptop picks up what the shopper did on the phone the
+  // moment it is looked at again, instead of only at the next sign-in.
+  useEffect(() => {
+    const token = String(customerAuth.token || "").trim();
+    if (!token || !cartSyncReady || typeof document === "undefined") return undefined;
+    let inflight = false;
+    let lastRun = 0;
+    const refresh = async () => {
+      if (document.visibilityState !== "visible" || inflight || Date.now() - lastRun < 3000) return;
+      // A save is about to go out; its version check covers anything newer.
+      if (cartSyncSaveTimerRef.current) return;
+      inflight = true;
+      lastRun = Date.now();
+      try {
+        const phone = String(readStorefrontCustomerAuth().phone || "");
+        const data = await storefrontCustomerRequest("/storefront/customer/cart");
+        const version = Number.isFinite(Number(data?.version)) ? Number(data.version) : null;
+        const marker = readCartSyncMarker(phone);
+        if (version !== null && marker.version === version) return;
+        const remote = normalizeCartCollection(data?.cart || []);
+        const merged = mergeCartThreeWay(marker.base, cartRef.current, remote);
+        writeCartSyncMarker(phone, version, remote);
+        setCart(merged);
+      } catch (error) {
+        const status = Number(error?.status || error?.response?.status || 0);
+        if (status === 401 || status === 403) {
+          clearStorefrontCustomerAuth();
+          setCustomerAuth(readStorefrontCustomerAuth());
+        }
+      } finally {
+        inflight = false;
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [cartSyncReady, customerAuth.token]);
 
   const brandName = resolveStorefrontBrandName(publicStoreSettings);
   const brandLogoUrl = resolveStorefrontBrandLogoUrl(publicStoreSettings);
