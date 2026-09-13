@@ -57,7 +57,7 @@
     "codOnDelivery": "Cash on delivery",
     "deliveryAddress": "Delivery address",
     "discount": "Discount",
-    "expectedDeliveryNotice": "Expected delivery within 2-5 business days.",
+    "expectedDeliveryNotice": "Expected delivery within 4-5 business days.",
     "orderSummary": "Order summary",
     "paymentMethod": "Payment method",
     "products": "Products",
@@ -748,7 +748,7 @@
     "orderNumber": "Order number",
     "orderStatus": "Order status",
     "expectedDelivery": "Expected delivery",
-    "expectedDeliveryWindow": "2 to 5 business days",
+    "expectedDeliveryWindow": "4 to 5 business days",
     "addressSaved": "Address saved with order",
     "tracking": "Order tracking",
     "trackOrder": "Track order",
@@ -834,7 +834,7 @@
     "title": "FAQ",
     "deliveryTime": {
       "question": "Delivery time?",
-      "answer": "Usually 2 to 5 business days depending on governorate and shipping provider."
+      "answer": "Usually 4 to 5 business days."
     },
     "paymentMethods": {
       "question": "Payment methods?",

@@ -111,7 +111,7 @@ export default function StorefrontCheckoutSummary({
   const { displayCartItemComparePrice, fallbackProductImage, imageFor, money } = helpers;
   const deliveryText = deliveryEstimateText(t, shippingQuote.delivery_estimate, i18n.language)
     || shippingQuote.estimated_delivery_text
-    || t("storefront.checkout.expectedDeliveryNotice", "٢–٥ أيام عمل");
+    || t("storefront.checkout.expectedDeliveryNotice", "4-5 أيام عمل");
 
   return (
     <div className="sfc-side__inner">

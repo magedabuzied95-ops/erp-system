@@ -441,7 +441,7 @@
     "codOnDelivery": "الباقي عند الاستلام",
     "deliveryAddress": "عنوان التوصيل",
     "discount": "الخصم",
-    "expectedDeliveryNotice": "التوصيل المتوقع خلال 2-5 أيام عمل.",
+    "expectedDeliveryNotice": "التوصيل المتوقع خلال 4-5 أيام عمل.",
     "orderSummary": "ملخص الطلب",
     "paymentMethod": "طريقة الدفع",
     "products": "المنتجات",
@@ -658,7 +658,7 @@
     "orderNumber": "رقم الطلب",
     "orderStatus": "حالة الطلب",
     "expectedDelivery": "التوصيل المتوقع",
-    "expectedDeliveryWindow": "من 2 إلى 5 أيام عمل",
+    "expectedDeliveryWindow": "من 4 إلى 5 أيام عمل",
     "addressSaved": "تم حفظ العنوان مع الطلب",
     "tracking": "تتبع الطلب",
     "trackOrder": "تتبع الطلب",
@@ -834,7 +834,7 @@
     "title": "الأسئلة الشائعة",
     "deliveryTime": {
       "question": "مدة التوصيل؟",
-      "answer": "غالبا من 2 إلى 5 أيام عمل حسب المحافظة وشركة الشحن."
+      "answer": "غالبا من 4 إلى 5 أيام عمل."
     },
     "paymentMethods": {
       "question": "طرق الدفع؟",
