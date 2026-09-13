@@ -96,6 +96,7 @@ import { productToSocialMeta } from "../shared/lib/socialMeta";
 import { normalizeMerchantReturnPolicy } from "../shared/lib/merchantPolicies";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
+import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
 import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
@@ -2240,6 +2241,17 @@ const paymentBrandLogos = {
   instapay: { webp: instaPayLogoWebp, png: instaPayLogo },
   vodafone_cash: { webp: vodafoneCashLogoWebp, png: vodafoneCashLogo },
 };
+// "Pairs well with". Both keys are absent on a backend that predates the feature,
+// which reads as off: no section, and no discount the server would not charge.
+const storefrontBundleConfig = (settings = {}) => {
+  const rawEnabled = settings?.["storefront.bundle.enabled"] ?? settings?.storefront?.["bundle.enabled"];
+  const enabled = rawEnabled === true || rawEnabled === "true" || rawEnabled === 1 || rawEnabled === "1";
+  const percent = enabled
+    ? normalizeBundleDiscountPercent(settings?.["storefront.bundle.discount_percent"] ?? settings?.storefront?.["bundle.discount_percent"])
+    : 0;
+  return { enabled, percent };
+};
+
 const normalizeStorefrontPaymentSettings = (settings = {}) => {
   const text = (value, fallback = "") => String(value ?? fallback ?? "").trim();
   const number = (value, fallback = 0) => {
@@ -7113,6 +7125,250 @@ function RelatedProductsContent({ currentProduct, ...props }) {
   );
 }
 
+/* ==========================================================================
+   "Pairs well with" — two products, one bundle button
+   ==========================================================================
+   The pair is the product the owner pinned in the ERP, or — with no pin — the
+   first in-stock product for the same audience, preferring a different product
+   type (a sneaker suggests a bag or slippers before another sneaker). Both
+   cards start ticked; the button adds the ticked ones, and when both are ticked
+   they go in as one bundle and earn the configured discount at checkout. The
+   saving shown is computed by shared/bundleDiscount.js, the function checkout
+   charges with, so the number on the button is the number on the invoice. */
+
+const usePublicBundleConfig = () => {
+  const [config, setConfig] = useState({ enabled: false, percent: 0, ready: false });
+  useEffect(() => {
+    let cancelled = false;
+    getPublicSettingsResponse()
+      .then((data) => {
+        if (cancelled) return;
+        const { settings } = extractPublicStorefrontSettings(data);
+        setConfig({ ...storefrontBundleConfig(settings), ready: true });
+      })
+      .catch(() => {
+        if (!cancelled) setConfig({ enabled: false, percent: 0, ready: true });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return config;
+};
+
+const bundleSellableVariants = (product = {}) =>
+  (Array.isArray(product?.variants) ? product.variants : []).filter((variant) => variant?.id && variantHasStock(variant));
+
+const bundleVariantLabel = (product, variant, multiColor) => {
+  const size = isCrocsProduct(product) ? resolveCrocsEuSize(String(variant?.size || "")) : String(variant?.size || "");
+  const color = variantColorName(variant) || variant?.color || "";
+  return [multiColor ? color : "", size || (multiColor ? "" : color)].filter(Boolean).join(" · ") || sfText("storefront.products.oneSize", "One size");
+};
+
+const pickAutomaticPair = (products = [], current = {}) => {
+  const currentId = String(current?.id || "");
+  const currentType = String(current?.product_type || current?.productType || "").trim().toLowerCase();
+  const currentBrand = String(current?.brand?.name || current?.brand_name || current?.brand || "").trim().toLowerCase();
+  const candidates = products.filter((product) => {
+    const parentId = String(product?.parent_product_id || product?.id || "");
+    return parentId && parentId !== currentId && bundleSellableVariants(product).length > 0;
+  });
+  const typeOf = (product) => String(product?.product_type || product?.productType || "").trim().toLowerCase();
+  const brandOf = (product) => String(product?.brand?.name || product?.brand_name || product?.brand || "").trim().toLowerCase();
+  return (
+    candidates.find((product) => currentType && typeOf(product) && typeOf(product) !== currentType) ||
+    candidates.find((product) => brandOf(product) && brandOf(product) !== currentBrand) ||
+    candidates[0] ||
+    null
+  );
+};
+
+function PairsWellWithCard({ product, variantId, onVariantChange, checked, onCheckedChange, saleModeEnabled, isCurrent }) {
+  const variants = useMemo(() => bundleSellableVariants(product), [product]);
+  const multiColor = new Set(variants.map((variant) => variantColorKey(variant))).size > 1;
+  const selectedVariant = variants.find((variant) => String(variant.id) === String(variantId)) || null;
+  const pricing = getDisplayPricing(product, parseSaleModeEnabled(saleModeEnabled, false), selectedVariant || firstDisplayVariant(variants) || {});
+  const image = productCardPrimaryImageFor(product, selectedVariant || firstDisplayVariant(variants));
+  const name = cleanDisplayText(mirrorProductTitle(product, selectedVariant) || product?.name || "");
+  const selectId = `sf-pair-size-${product?.id}`;
+  const body = (
+    <>
+      <div className="sf-pair__plate">
+        <img src={imageFor(image)} onError={fallbackProductImage} alt={name} loading="lazy" decoding="async" />
+      </div>
+      <p className="sf-pair__name">{name}</p>
+    </>
+  );
+  return (
+    <div className={`sf-pair__card${checked ? " is-checked" : ""}`}>
+      {isCurrent ? <div className="sf-pair__link">{body}</div> : <Link to={productUrl(product)} className="sf-pair__link">{body}</Link>}
+      <label htmlFor={selectId} className="sr-only">{sfText("storefront.bundle.chooseSize", "Size")}</label>
+      <select id={selectId} className="sf-pair__select" value={variantId || ""} onChange={(event) => onVariantChange(event.target.value)}>
+        <option value="" disabled>{sfText("storefront.bundle.chooseSize", "Size")}</option>
+        {variants.map((variant) => (
+          <option key={variant.id} value={variant.id}>{bundleVariantLabel(product, variant, multiColor)}</option>
+        ))}
+      </select>
+      <div className="sf-pair__price">
+        {pricing.comparePrice > pricing.price ? <s>{money(pricing.comparePrice)}</s> : null}
+        <span>{money(pricing.price)}</span>
+      </div>
+      <label className="sf-pair__check">
+        <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} />
+        <span>{sfText("storefront.bundle.addThis", "Add this")}</span>
+      </label>
+    </div>
+  );
+}
+
+function PairsWellWith({ product, currentVariant, onAddToCart, saleModeEnabled }) {
+  const config = usePublicBundleConfig();
+  const [pair, setPair] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [currentVariantId, setCurrentVariantId] = useState("");
+  const [pairVariantId, setPairVariantId] = useState("");
+  const [checked, setChecked] = useState({ current: true, pair: true });
+  const productId = product?.id;
+  // The pick depends on the product, not on each re-render handing a new object.
+  const productRef = useRef(product);
+  productRef.current = product;
+  const audience = normalizeAudienceValue(productAudienceValues(product)[0] || product?.gender || "");
+
+  // The page's own size choice seeds the current card and follows it when the
+  // shopper changes it above. Keyed on the id, not the object: the page builds a
+  // new variant object on every render, and depending on that reset a size the
+  // shopper had just picked in this card back to the page's.
+  const currentVariantKey = currentVariant?.id && variantHasStock(currentVariant) ? String(currentVariant.id) : "";
+  useEffect(() => {
+    if (currentVariantKey) setCurrentVariantId(currentVariantKey);
+  }, [currentVariantKey]);
+
+  useEffect(() => {
+    if (!config.ready || !config.enabled || !productId) return undefined;
+    let cancelled = false;
+    setStatus("loading");
+    setPair(null);
+    setPairVariantId("");
+    setChecked({ current: true, pair: true });
+    (async () => {
+      let chosen = null;
+      try {
+        const pinned = await cachedStorefrontGet(`/storefront/products/${encodeURIComponent(productId)}/pair`, { ttlMs: 60_000 });
+        const pinnedProduct = pinned?.product || pinned?.data?.product || null;
+        if (pinnedProduct && bundleSellableVariants(pinnedProduct).length) chosen = pinnedProduct;
+      } catch {
+        // No pin endpoint or no pin: fall through to the automatic pick.
+      }
+      if (!chosen) {
+        try {
+          const response = await cachedStorefrontGet(
+            buildStorefrontProductsRequestUrl({ ...(audience ? { gender: audience } : {}), in_stock: 1, grouping: "product", limit: 24 }),
+            { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS }
+          );
+          chosen = pickAutomaticPair(extractStorefrontProductsFromResponse(response), productRef.current);
+        } catch {
+          chosen = null;
+        }
+      }
+      if (cancelled) return;
+      setPair(chosen);
+      const variants = bundleSellableVariants(chosen || {});
+      // One size, nothing to choose. Otherwise the shopper picks — a guessed size is a return.
+      if (variants.length === 1) setPairVariantId(String(variants[0].id));
+      setStatus(chosen ? "ready" : "empty");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [audience, config.enabled, config.ready, productId]);
+
+  if (!config.enabled || status !== "ready" || !pair || !bundleSellableVariants(product).length) return null;
+
+  const saleMode = parseSaleModeEnabled(saleModeEnabled, false);
+  const currentVariants = bundleSellableVariants(product);
+  const pairVariants = bundleSellableVariants(pair);
+  const chosenCurrent = currentVariants.find((variant) => String(variant.id) === String(currentVariantId)) || null;
+  const chosenPair = pairVariants.find((variant) => String(variant.id) === String(pairVariantId)) || null;
+  const priceOf = (item, variant) => getDisplayPricing(item, saleMode, variant || firstDisplayVariant(bundleSellableVariants(item)) || {}).price;
+  const bothChecked = checked.current && checked.pair;
+  const bundleId = buildBundleId(product.id, pair.id);
+  const preview = computeBundleDiscount(
+    [
+      { bundle_id: bundleId, product_id: product.id, price: priceOf(product, chosenCurrent), quantity: 1 },
+      { bundle_id: bundleId, product_id: pair.id, price: priceOf(pair, chosenPair), quantity: 1 },
+    ],
+    bothChecked ? config.percent : 0
+  );
+  const selectedTotal = (checked.current ? priceOf(product, chosenCurrent) : 0) + (checked.pair ? priceOf(pair, chosenPair) : 0);
+  const nothingChecked = !checked.current && !checked.pair;
+
+  const addBundle = () => {
+    const picks = [
+      checked.current ? { item: product, variant: chosenCurrent } : null,
+      checked.pair ? { item: pair, variant: chosenPair } : null,
+    ].filter(Boolean);
+    if (!picks.length) return;
+    if (picks.some((pick) => !pick.variant)) {
+      toast.error(sfText("storefront.bundle.chooseSizes", "Choose a size for each product"));
+      return;
+    }
+    picks.forEach((pick, index) => {
+      onAddToCart?.(pick.item, pick.variant, 1, {
+        bundleId: bothChecked ? bundleId : "",
+        openDrawer: index === picks.length - 1,
+      });
+    });
+    if (bothChecked) toast.success(sfText("storefront.bundle.added", "Bundle added to your bag"));
+  };
+
+  return (
+    <section className="sf-pair" aria-labelledby="sf-pair-title">
+      <h2 id="sf-pair-title" className="sf-pair__title">{sfText("storefront.bundle.title", "Pairs well with")}</h2>
+      <p className="sf-pair__subtitle">
+        {config.percent > 0
+          ? sfText("storefront.bundle.subtitle", "Buy them together and save {{percent}}%", { percent: config.percent })
+          : sfText("storefront.bundle.subtitleNoDiscount", "Complete the look")}
+      </p>
+      <div className="sf-pair__grid">
+        <PairsWellWithCard
+          product={product}
+          isCurrent
+          variantId={currentVariantId}
+          onVariantChange={setCurrentVariantId}
+          checked={checked.current}
+          onCheckedChange={(value) => setChecked((prev) => ({ ...prev, current: value }))}
+          saleModeEnabled={saleModeEnabled}
+        />
+        <span className="sf-pair__plus" aria-hidden="true">+</span>
+        <PairsWellWithCard
+          product={pair}
+          variantId={pairVariantId}
+          onVariantChange={setPairVariantId}
+          checked={checked.pair}
+          onCheckedChange={(value) => setChecked((prev) => ({ ...prev, pair: value }))}
+          saleModeEnabled={saleModeEnabled}
+        />
+      </div>
+      <div className="sf-pair__footer">
+        {config.percent > 0 && !bothChecked ? (
+          <p className="sf-pair__hint">{sfText("storefront.bundle.selectBoth", "Select both products to get {{percent}}% off", { percent: config.percent })}</p>
+        ) : null}
+        {!nothingChecked ? (
+          <p className="sf-pair__total">
+            {preview.amount > 0 ? <s>{money(selectedTotal)}</s> : null}
+            <span>{money(selectedTotal - preview.amount)}</span>
+          </p>
+        ) : null}
+        <button type="button" className="sf-pair__cta" onClick={addBundle} disabled={nothingChecked}>
+          {preview.amount > 0
+            ? sfText("storefront.bundle.getBundleSave", "Get the bundle · save {{amount}}", { amount: money(preview.amount) })
+            : sfText("storefront.bundle.getBundle", "Get the bundle")}
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function RelatedProducts({ currentProduct, ...props }) {
   const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
@@ -7235,7 +7491,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   // A free-shipping coupon's discount IS the shipping fee. The totals are already right; this flag
   // exists so the summary can say "شحن مجاني" instead of showing a fee and an equal discount beside it.
   const couponFreeShipping = Boolean(couponValidation?.valid && couponValidation?.free_shipping);
-  const discount = couponDiscount;
+  // "Pairs well with" — the same calculation the server charges. An older backend
+  // publishes no bundle settings, so this stays 0 until the server can honour it.
+  const bundleDiscount = useMemo(
+    () => computeBundleDiscount(pricedCart, storefrontBundleConfig(publicStoreSettings).percent).amount,
+    [pricedCart, publicStoreSettings]
+  );
+  const discount = couponDiscount + bundleDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
   const codAvailable = shippingQuote.cod_allowed !== false;
@@ -7531,12 +7793,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     if (!couponValidation) return;
-    const validationKey = `${couponCode}::${Math.max(0, subtotal + deliveryFee).toFixed(2)}`;
+    const validationKey = `${couponCode}::${Math.max(0, subtotal - bundleDiscount + deliveryFee).toFixed(2)}`;
     if (couponValidationKeyRef.current !== validationKey) {
       setCouponValidation(null);
       couponValidationKeyRef.current = "";
     }
-  }, [couponValidation, couponCode, subtotal, deliveryFee]);
+  }, [couponValidation, couponCode, subtotal, bundleDiscount, deliveryFee]);
 
   const applyCoupon = async ({ silent = false } = {}) => {
     const trimmedCode = String(form.coupon || "").trim().toUpperCase();
@@ -7550,8 +7812,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const response = await api.post("/coupons/validate", {
         code: trimmedCode,
         // Goods only — the server folds shipping in only for campaigns with applies_to_shipping.
-        orderTotal: Math.max(0, subtotal),
+        // The bundle discount comes off first, exactly as checkout applies it.
+        orderTotal: Math.max(0, subtotal - bundleDiscount),
         shippingAmount: Math.max(0, deliveryFee),
+        appliedDiscounts: { invoice: bundleDiscount },
         items: pricedCart.map((item) => ({ product_id: item.product_id, variant_id: item.variant_id, price: item.price, quantity: item.quantity })),
         source: "website",
         customerId: profile?.customer_id || profile?.id || null,
@@ -7562,7 +7826,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         return null;
       }
       setCouponValidation(response);
-      couponValidationKeyRef.current = `${trimmedCode}::${Math.max(0, subtotal + deliveryFee).toFixed(2)}`;
+      couponValidationKeyRef.current = `${trimmedCode}::${Math.max(0, subtotal - bundleDiscount + deliveryFee).toFixed(2)}`;
       if (!silent) toast.success(sfText("storefront.checkout.couponApplied"));
       return response;
     } catch (error) {
@@ -8209,7 +8473,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setSubmitting(true);
     try {
       const activeCouponCode = String(form.coupon || "").trim().toUpperCase();
-      const currentCouponKey = `${activeCouponCode}::${Math.max(0, subtotal + deliveryFee).toFixed(2)}`;
+      const currentCouponKey = `${activeCouponCode}::${Math.max(0, subtotal - bundleDiscount + deliveryFee).toFixed(2)}`;
       let activeCouponValidation = couponValidation;
       if (activeCouponCode && couponValidationKeyRef.current !== currentCouponKey) {
         activeCouponValidation = await applyCoupon();
@@ -8789,6 +9053,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             cart={pricedCart}
             subtotal={subtotal}
             discount={discount}
+            bundleDiscount={bundleDiscount}
             freeShipping={couponFreeShipping}
             deliveryFee={deliveryFee}
             total={total}
@@ -10500,17 +10765,22 @@ const normalizeStorefrontItem = (item = {}) => ({
   id: item.id || item.product_id || item.variant_id || item.slug || "",
 });
 
-const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
+const normalizeCartLine = (product = {}, variant = {}, quantity = 1, bundleId = "") => {
   const image = variantImage(variant) || displayImageForProduct(product, variant) || product.image_url || product.product_image_url || "";
   const price = displaySellingPrice(product, variant);
   const compareAtPrice = displayComparePrice(product, variant);
   const originalSize = String(variant.size || "").trim();
   const displaySize = isCrocsProduct(product) ? resolveCrocsEuSize(originalSize) : originalSize;
+  const safeBundleId = String(bundleId || "").trim();
   return {
+    // A bundle line is its own line: merging it into a plain line of the same
+    // size would either lose the bundle or hand the discount to units bought alone.
     lineId: [
       product.id || product.slug || product.name || "product",
       variant.id || variant.sku || variant.size || variant.color || "variant",
+      ...(safeBundleId ? [safeBundleId] : []),
     ].join(":"),
+    ...(safeBundleId ? { bundle_id: safeBundleId } : {}),
     product_id: product.id || "",
     variant_id: variant.id || "",
     // Keep the exact catalog identifier with the order/cart line for Meta matching.
@@ -10809,9 +11079,16 @@ function Storefront() {
         // Keep cart updates working even if the animation path fails.
       }
     }
-    const nextLine = normalizeCartLine(product, variant, quantity);
+    const bundleId = options && typeof options === "object" ? String(options.bundleId || "") : "";
+    const nextLine = normalizeCartLine(product, variant, quantity, bundleId);
+    // The bundle drawer opens once, from the bundle button, not once per product.
+    const openDrawer = !(options && typeof options === "object" && options.openDrawer === false);
     setCart((prev) => {
-      const existingIndex = prev.findIndex((item) => String(item.product_id) === String(nextLine.product_id) && String(item.variant_id) === String(nextLine.variant_id));
+      const existingIndex = prev.findIndex((item) =>
+        String(item.product_id) === String(nextLine.product_id) &&
+        String(item.variant_id) === String(nextLine.variant_id) &&
+        String(item.bundle_id || "") === String(nextLine.bundle_id || "")
+      );
       if (existingIndex >= 0) {
         return prev.map((item, index) => {
           if (index !== existingIndex) return item;
@@ -10823,7 +11100,7 @@ function Storefront() {
     });
     trackMetaAddToCart({ product, variant, line: nextLine, quantity, customer: profile });
     trackGa4AddToCart({ product, variant, line: nextLine, quantity });
-    setCartDrawerOpen(true);
+    if (openDrawer) setCartDrawerOpen(true);
     return "added";
   }, [profile]);
 
@@ -11347,6 +11624,7 @@ export {
   ProductCard,
   ProductGalleryFallback,
   ProductGrid,
+  PairsWellWith,
   ProductSkeleton,
   RecentProductsSection,
   RelatedProducts,

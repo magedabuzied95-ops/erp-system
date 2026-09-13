@@ -383,6 +383,18 @@ export const getProductColorUsage = async (productId, { color = "", variantIds =
   return response?.usage || null;
 };
 
+/** "Pairs well with": the product pinned to this one, or null for the automatic pick. */
+export const getProductPair = async (productId) => {
+  const response = await api.get(`/products/${encodeURIComponent(productId)}/pair`);
+  return response?.pair || response?.data?.pair || null;
+};
+
+/** Pin a pair, or pass null to go back to the automatic pick. */
+export const setProductPair = async (productId, pairProductId) => {
+  const response = await api.put(`/products/${encodeURIComponent(productId)}/pair`, { pair_product_id: pairProductId ?? null });
+  return response?.pair || response?.data?.pair || null;
+};
+
 export const getProductByQrToken = async (token) => {
   return unwrapItem(await api.get(`/products/qr/${encodeURIComponent(token)}`), "product");
 };

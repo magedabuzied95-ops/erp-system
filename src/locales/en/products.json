@@ -833,6 +833,17 @@
       "language": "Page language",
       "structuredData": "Structured data",
       "structuredDataHelp": "Product and BreadcrumbList are built automatically from price, stock, and colours after saving."
+    },
+    "pair": {
+      "title": "Pairs well with",
+      "hint": "The product suggested under the buy buttons on the storefront. Leave it empty and the store picks one for the same audience. Saved immediately.",
+      "loading": "Loading…",
+      "automatic": "Automatic — same audience, in stock",
+      "clear": "Use automatic",
+      "search": "Search a product by name or code",
+      "saved": "Pair saved",
+      "cleared": "Back to the automatic pick",
+      "saveFailed": "Could not save the pair"
     }
   },
   "classifications": {

@@ -152,7 +152,8 @@ test("product page rails carry the homepage audience switch and move on their ow
     storefrontSource.indexOf("function StorefrontRecommendationRail"),
     storefrontSource.indexOf("function RelatedProductsContent")
   );
-  assert.match(rail, /\n        autoplay\n/);
+  // \r? — a Windows checkout turns these files into CRLF.
+  assert.match(rail, /\r?\n        autoplay\r?\n/);
 });
 
 test("customer recent products include brand and crossed-price fields", () => {

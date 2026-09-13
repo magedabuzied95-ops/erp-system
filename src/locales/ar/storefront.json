@@ -1167,5 +1167,21 @@
     "resetFilters": "إعادة التصفية",
     "modelOne": "موديل",
     "modelMany": "موديلات"
+  },
+  "bundle": {
+    "title": "بيتلبس معاه",
+    "subtitle": "اشتريهم مع بعض ووفّر {{percent}}%",
+    "subtitleNoDiscount": "كمّل اللوك",
+    "addThis": "أضف ده",
+    "thisItem": "المنتج ده",
+    "chooseSize": "المقاس",
+    "getBundle": "خُد الباقة",
+    "getBundleSave": "خُد الباقة · وفّر {{amount}}",
+    "selectBoth": "اختار المنتجين عشان تاخد خصم {{percent}}%",
+    "added": "الباقة اتضافت للسلة",
+    "chooseSizes": "اختار مقاس لكل منتج",
+    "unavailable": "مش متاح دلوقتي",
+    "discountLabel": "خصم الباقة",
+    "inBundle": "باقة"
   }
 }

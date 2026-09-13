@@ -8,6 +8,7 @@ import {
   LazyStorefrontProductGallery,
   ProductSkeleton,
   ProductGalleryFallback,
+  PairsWellWith,
   RecentProductsSection,
   RelatedProducts,
   cleanDisplayText,
@@ -906,6 +907,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               <div className="col-span-full text-center text-[12px] font-bold text-rose-300">{sfText("storefront.restock.error", RESTOCK_COPY.error)}</div>
             ) : null}
           </div>
+
+          <PairsWellWith key={product.id} product={product} currentVariant={safeActiveVariant} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         </div>
       </div>
       <Suspense fallback={<div className="h-40 animate-pulse rounded-[1.5rem] bg-white/50" />}>

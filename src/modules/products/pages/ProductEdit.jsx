@@ -30,6 +30,7 @@ import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import ManufacturerSelect from "../components/ManufacturerSelect";
 import ProductSeoWorkbench from "../components/ProductSeoWorkbench";
+import ProductPairPicker from "../components/ProductPairPicker";
 import CrocsSizeSelector from "../components/CrocsSizeSelector";
 import {
   buildSmartSkuPrefix,
@@ -3984,6 +3985,7 @@ function ProductEdit() {
               onPurchasePiecesPerSizeChange={(value) => updateProductField("purchase_pieces_per_size", value)}
               onPurchaseCartonColorsChange={(value) => updateProductField("purchase_carton_colors", value)}
             />
+            {productId ? <ProductPairPicker productId={productId} t={t} /> : null}
           </section>
           <section className={`m1-product-section ${SECTION_CARD_CLASSES} p-6`}>
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start">

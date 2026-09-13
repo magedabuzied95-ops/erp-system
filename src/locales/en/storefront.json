@@ -1167,5 +1167,21 @@
     "resetFilters": "Reset filters",
     "modelOne": "model",
     "modelMany": "models"
+  },
+  "bundle": {
+    "title": "Pairs well with",
+    "subtitle": "Buy them together and save {{percent}}%",
+    "subtitleNoDiscount": "Complete the look",
+    "addThis": "Add this",
+    "thisItem": "This item",
+    "chooseSize": "Size",
+    "getBundle": "Get the bundle",
+    "getBundleSave": "Get the bundle · save {{amount}}",
+    "selectBoth": "Select both products to get {{percent}}% off",
+    "added": "Bundle added to your bag",
+    "chooseSizes": "Choose a size for each product",
+    "unavailable": "Not available right now",
+    "discountLabel": "Bundle discount",
+    "inBundle": "Bundle"
   }
 }
