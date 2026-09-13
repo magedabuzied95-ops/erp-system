@@ -3514,6 +3514,44 @@ function MeezaMark({ className = "" }) {
   );
 }
 
+// The floating WhatsApp button sits over the last lines of every page. Near the
+// bottom it turns see-through so the footer reads through it, and comes back
+// in full on hover or keyboard focus (index.css), rather than the footer
+// padding itself out to make room.
+const WHATSAPP_FLOAT_FADE_DISTANCE_PX = 120;
+
+function StorefrontWhatsAppFloat() {
+  const [atBottom, setAtBottom] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    // Three reads and a boolean: cheap enough to run on every scroll event, and
+    // React skips the render when the answer has not changed.
+    const measure = () => {
+      const root = document.documentElement;
+      setAtBottom(window.innerHeight + window.scrollY >= root.scrollHeight - WHATSAPP_FLOAT_FADE_DISTANCE_PX);
+    };
+    measure();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+  return (
+    <a
+      href="https://wa.me/201000659301"
+      target="_blank"
+      rel="noreferrer"
+      aria-label="WhatsApp"
+      data-at-bottom={atBottom ? "true" : "false"}
+      className="sf-whatsapp-float fixed z-[70] grid place-items-center rounded-full transition duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/45"
+    >
+      <FaWhatsapp aria-hidden="true" />
+    </a>
+  );
+}
+
 function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const importantLinks = [
@@ -3638,11 +3676,11 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
       {/* Payment marks sit in the copyright bar as one-ink logos, the way
           international shops show them: no tiles, no brand colours, the bar's
           own text colour at reduced strength so they read as part of it.
-          Phones: logos first, copyright as the last line of the page, and room
-          below it so the floating WhatsApp button (fixed, bottom-right) never
-          sits on a line. Desktop: one row, kept clear of the button on the right. */}
-      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center pb-[calc(env(safe-area-inset-bottom)+5rem)] text-xs font-semibold text-white dark:text-white/55 md:pb-5">
-        <div className="mx-auto flex max-w-[1440px] flex-col-reverse items-center gap-4 md:flex-row md:justify-between md:pl-3 md:pr-20">
+          Phones: logos first, copyright as the last line of the page. Desktop:
+          one row. The floating WhatsApp button fades while the page bottom is
+          in view (StorefrontWhatsAppFloat) instead of the bar reserving room. */}
+      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold text-white dark:text-white/55">
+        <div className="mx-auto flex max-w-[1440px] flex-col-reverse items-center gap-4 md:flex-row md:justify-between md:px-3">
           <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
           <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3" dir="ltr">
             {paymentMarks.map(({ label, mark }) => (
@@ -11012,17 +11050,7 @@ function Storefront() {
           removeFromCart={removeFromCart}
         />
       ) : null}
-      {!hideFloatingWhatsApp ? (
-        <a
-          href="https://wa.me/201000659301"
-          target="_blank"
-          rel="noreferrer"
-          aria-label="WhatsApp"
-          className="sf-whatsapp-float fixed z-[70] grid place-items-center rounded-full transition duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/45"
-        >
-          <FaWhatsapp aria-hidden="true" />
-        </a>
-      ) : null}
+      {!hideFloatingWhatsApp ? <StorefrontWhatsAppFloat /> : null}
       {/* The bottom nav is gone: every destination it carried is now in the
           header — menu, search, wishlist and bag — so it was a second navigation
           competing with the first, and it covered a row of the page on every

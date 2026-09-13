@@ -6661,6 +6661,16 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22) !important;
 }
 
+/* At the page bottom the button would sit on the footer's last line, so it
+   turns see-through there and returns in full when reached for. */
+.storefront-shell .sf-whatsapp-float {
+  transition-property: transform, opacity, background-color;
+}
+
+.storefront-shell .sf-whatsapp-float[data-at-bottom="true"]:not(:hover):not(:focus-visible):not(:active) {
+  opacity: 0.4;
+}
+
 .storefront-shell .sf-whatsapp-float:hover {
   background: #20bd5a !important;
 }
