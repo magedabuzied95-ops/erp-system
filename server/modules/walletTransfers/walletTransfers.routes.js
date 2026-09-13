@@ -5,7 +5,7 @@ import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import {
   getWalletSmsSecret,
   ignoreWalletTransfer,
-  ingestVodafoneCashSms,
+  ingestTransferSms,
   listWalletTransfers,
   matchWalletTransferManually,
   rotateWalletSmsSecret,
@@ -26,7 +26,7 @@ const fail = (res, error, fallback) => {
   return res.status(status).json({ success: false, message: status >= 500 ? fallback : error.message });
 };
 
-// The owner's iPhone Shortcut posts every Vodafone Cash SMS here: { text, sender }.
+// The owner's iPhone Shortcuts post every Vodafone Cash / bank SMS here: { text, sender }.
 // No session, so the shared secret is the whole gate. A message the server keeps but
 // cannot use still answers 200 — the Shortcut has nothing useful to do with an error.
 router.post("/sms", async (req, res) => {
@@ -36,7 +36,7 @@ router.post("/sms", async (req, res) => {
   if (!auth.ok) return res.status(401).json({ success: false, message: "Invalid wallet SMS secret" });
   try {
     const tenantHeader = Number(req.get("x-tenant-id"));
-    const result = await ingestVodafoneCashSms({
+    const result = await ingestTransferSms({
       tenantId: Number.isFinite(tenantHeader) && tenantHeader > 0 ? tenantHeader : DEFAULT_TENANT_ID,
       rawText: body.text ?? body.message ?? body.body ?? (typeof req.body === "string" ? req.body : ""),
       sender: body.sender ?? body.from ?? "",

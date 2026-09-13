@@ -121,6 +121,7 @@ function TransferCard({ transfer, onChanged }) {
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
+          <span className="text-xs font-black text-[var(--text-tertiary)]">{t(`orders.walletTransfers.provider.${transfer.provider}`, transfer.provider)}</span>
           <span className={`rounded-full border px-2 py-0.5 text-xs font-black ${STATUS_TONE[transfer.status] || "border-[var(--border)] text-[var(--muted)]"}`}>
             {t(`orders.walletTransfers.status.${transfer.status}`, transfer.status)}
           </span>

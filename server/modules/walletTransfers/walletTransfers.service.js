@@ -5,19 +5,22 @@ import { getSetting, setSetting } from "../../services/settingsService.js";
 import { canonicalPhoneKey } from "../../utils/phoneSearch.js";
 import { applyTransferPaymentConfirmation } from "./transferPaymentConfirmation.js";
 import { decideTransferMatch } from "./transferMatchDecision.js";
-import { isTrustedVodafoneSender, parseVodafoneCashSms } from "./vodafoneCashSms.js";
+import { isTrustedTransferSender, parseTransferSms } from "./transferSms.js";
 
-// Every Vodafone Cash SMS the owner's phone forwards becomes one row here, whatever it
-// says. An incoming transfer is matched to a website order waiting on its transfer proof:
+// Every money SMS the owner's phone forwards (Vodafone Cash, CIB, United Bank) becomes one
+// row here, whatever it says. An incoming transfer is matched to a website order waiting on its transfer proof:
 // the order is approved on its own only when exactly one waiting order has that amount AND
-// was placed by the phone that sent the money (or quotes the transaction number). Anything
+// was placed by the phone or the name that sent the money (or quotes the transaction number). Anything
 // less certain waits in the review list with the orders it could belong to.
 
 export const WALLET_SMS_SECRET_KEY = "payments.wallet_sms_webhook_secret";
-const PROVIDER = "vodafone_cash";
 // A customer usually transfers first and checks out after, but both orders happen.
 const MATCH_WINDOW_BEFORE = "3 days";
 const MATCH_WINDOW_AFTER = "2 days";
+// Customers pick "InstaPay" and pay the wallet, or the other way round; the SMS says where
+// the money landed, not which button they pressed, so both kinds of order are candidates.
+const TRANSFER_PAYMENT_METHODS = ["vodafone_cash", "instapay"];
+export const PROVIDER_LABELS = { vodafone_cash: "فودافون كاش", cib: "إنستاباي CIB", united_bank: "المصرف المتحد" };
 const PLACEHOLDER_WALLETS = new Set(["", "1000000000"]);
 
 const text = (value = "") => String(value ?? "").trim();
@@ -103,7 +106,7 @@ const findCandidateOrders = async (client, transfer) => {
            COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) AS order_total, created_at
     FROM orders
     WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
-      AND LOWER(COALESCE(payment_method, '')) = 'vodafone_cash'
+      AND LOWER(COALESCE(payment_method, '')) = ANY($4::text[])
       AND transfer_proof_status = 'pending'
       AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'payment_rejected', 'returned')
       AND created_at >= $2::timestamptz - INTERVAL '${MATCH_WINDOW_BEFORE}'
@@ -113,7 +116,7 @@ const findCandidateOrders = async (client, transfer) => {
     ORDER BY created_at DESC
     LIMIT 20
     `,
-    [transfer.tenant_id ?? null, transfer.occurred_at || transfer.created_at || new Date(), transfer.amount]
+    [transfer.tenant_id ?? null, transfer.occurred_at || transfer.created_at || new Date(), transfer.amount, TRANSFER_PAYMENT_METHODS]
   );
   return result.rows;
 };
@@ -150,12 +153,13 @@ const confirmOrderForTransfer = async (client, { transfer, orderId, matchMethod,
 // Runs inside the caller's transaction with the transfer row already locked.
 const matchTransferRow = async (client, transfer) => {
   const candidates = await findCandidateOrders(client, transfer);
-  const wallets = await knownWalletKeys();
+  // Only the wallet has a number to check against settings; a bank SMS names a masked account.
+  const wallets = transfer.provider === "vodafone_cash" ? await knownWalletKeys() : new Set();
   const walletKnown = !wallets.size || wallets.has(canonicalPhoneKey(transfer.wallet_number));
   const decision = decideTransferMatch({
     transfer,
     candidates,
-    trustedSender: isTrustedVodafoneSender(transfer.sms_sender),
+    trustedSender: isTrustedTransferSender(transfer.provider, transfer.sms_sender),
     walletKnown,
   });
   if (decision.action === "confirm") {
@@ -172,21 +176,25 @@ const matchTransferRow = async (client, transfer) => {
 
 const notifyOutcome = (result) => {
   const transfer = result?.transfer;
-  if (!transfer || !["matched", "needs_review", "unmatched"].includes(result.outcome)) return;
+  // Money with no order at all is not news: the bank already texted the owner, and a business
+  // account takes plenty of deposits that were never website orders. The page still lists it.
+  if (!transfer || !["matched", "needs_review"].includes(result.outcome)) return;
   const amount = `${Number(transfer.amount || 0).toLocaleString("en-US")} ج.م`;
   const who = transfer.counterparty_name || transfer.counterparty_phone || "";
+  const source = PROVIDER_LABELS[transfer.provider] || "تحويل";
+  const from = who ? ` من ${who}` : "";
   const notification = result.outcome === "matched"
     ? {
         priority: "medium",
-        title: "تم تأكيد تحويل فودافون كاش تلقائياً",
-        message: `${amount} من ${who} — طلب ${result.order?.invoice_number || `#${transfer.order_id}`}`,
+        title: `تم تأكيد تحويل ${source} تلقائياً`,
+        message: `${amount}${from} — طلب ${result.order?.invoice_number || `#${transfer.order_id}`}`,
         action_url: `/orders/${transfer.order_id}`,
         action_label: "فتح الطلب",
       }
     : {
         priority: "high",
-        title: result.outcome === "needs_review" ? "تحويل فودافون كاش محتاج مراجعة" : "تحويل فودافون كاش من غير طلب",
-        message: `${amount} من ${who}`,
+        title: `تحويل ${source} محتاج مراجعة`,
+        message: `${amount}${from}`,
         action_url: "/orders/wallet-transfers",
         action_label: "مراجعة التحويلات",
       };
@@ -204,11 +212,11 @@ const notifyOutcome = (result) => {
 
 /* ------------------------------------------------------------------ ingest */
 
-export const ingestVodafoneCashSms = async ({ tenantId = null, rawText = "", sender = "" } = {}) => {
+export const ingestTransferSms = async ({ tenantId = null, rawText = "", sender = "" } = {}) => {
   await ensureWalletTransfersSchema();
   const raw = text(rawText).slice(0, 4000);
   if (!raw) return { outcome: "empty" };
-  const parsed = parseVodafoneCashSms(raw);
+  const parsed = parseTransferSms(raw);
   const direction = parsed.kind === "incoming" ? "incoming" : parsed.kind === "outgoing" ? "outgoing" : "unknown";
   const status = !parsed.complete ? "unparsed" : direction === "incoming" ? "unmatched" : "outgoing";
 
@@ -227,7 +235,7 @@ export const ingestVodafoneCashSms = async ({ tenantId = null, rawText = "", sen
       RETURNING *
       `,
       [
-        tenantId, PROVIDER, direction, status, parsed.amount, parsed.fee, parsed.counterpartyPhone || null,
+        tenantId, parsed.provider, direction, status, parsed.amount, parsed.fee, parsed.counterpartyPhone || null,
         parsed.counterpartyName || null, parsed.walletNumber || null, parsed.balanceAfter,
         parsed.reference || null, parsed.occurredLocal || null, text(sender).slice(0, 200) || null, raw,
       ]

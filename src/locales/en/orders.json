@@ -1086,8 +1086,8 @@
     }
   },
   "walletTransfers": {
-    "title": "Vodafone Cash transfers",
-    "subtitle": "Every Vodafone Cash SMS the phone receives is recorded here. A transfer whose amount and number match an order confirms it automatically; the rest wait for your review.",
+    "title": "Vodafone Cash & InstaPay transfers",
+    "subtitle": "Every transfer SMS the phone receives (Vodafone Cash, CIB, United Bank) is recorded here. A transfer whose amount and phone or name match an order confirms it automatically; the rest wait for your review.",
     "tabs": {
       "review": "Needs review",
       "matched": "Confirmed",
@@ -1111,7 +1111,8 @@
     "method": {
       "auto_phone": "automatic by customer phone",
       "auto_reference": "automatic by transaction number",
-      "manual": "manual"
+      "manual": "manual",
+      "auto_name": "automatic by sender name"
     },
     "order": "Order",
     "candidates": "Orders it may belong to",
@@ -1133,7 +1134,7 @@
     },
     "setup": {
       "title": "Phone link (iPhone Shortcuts)",
-      "hint": "Put this URL and key into the Get Contents of URL action of the automation.",
+      "hint": "Put this URL and key into the Get Contents of URL action of every automation (Vodafone Cash and the banks).",
       "header": "Header name",
       "key": "Key",
       "create": "Create key",
@@ -1142,6 +1143,12 @@
       "rotated": "Key created",
       "copy": "Copy",
       "copied": "Copied"
+    },
+    "provider": {
+      "vodafone_cash": "Vodafone Cash",
+      "cib": "InstaPay CIB",
+      "united_bank": "United Bank",
+      "unknown": "Unknown"
     }
   }
 }

@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { isTrustedVodafoneSender, parseVodafoneCashSms } from "../server/modules/walletTransfers/vodafoneCashSms.js";
-import { decideTransferMatch } from "../server/modules/walletTransfers/transferMatchDecision.js";
+import { decideTransferMatch, namesMatch } from "../server/modules/walletTransfers/transferMatchDecision.js";
+import { isTrustedTransferSender, parseTransferSms } from "../server/modules/walletTransfers/transferSms.js";
 
 // The owner's iPhone forwards each Vodafone Cash SMS; the server reads it and approves the
 // website order it proves. Message shapes are the real ones, with made-up people.
@@ -94,6 +95,57 @@ test("an untrusted sender, a foreign wallet or two matching orders all go to rev
   assert.equal(decideTransferMatch({ transfer, candidates, trustedSender: true, walletKnown: false }).reviewReason, "unknown_wallet");
   assert.equal(decideTransferMatch({ transfer, candidates: [order(7, "01011112222"), order(8, "01011112222")], trustedSender: true }).reviewReason, "several_orders");
   assert.equal(decideTransferMatch({ transfer, candidates: [], trustedSender: true }).action, "unmatched");
+});
+
+const UNITED = "عملية ايداع مبلغ 1150.00 EGP حساب رقم 001 يوم   2026-09-13 15:14:53 الرصيد  45000.87 دائن للاستعلام 19200";
+const CIB = "يرجى العلم انه تم تنفيذ تحويل لحظي بمبلغ 2700.00 جم إلى حسابك المنتهي بـ ********1234 من احمدسمير علىحسن برقم مرجعي E46bbe82 بتاريخ 11-09-2026 21:59 للمزيد، برجاء الاتصال بـ 19666";
+
+test("a United Bank deposit parses, with a reference built from time, amount and balance", () => {
+  const parsed = parseTransferSms(UNITED);
+  assert.equal(parsed.provider, "united_bank");
+  assert.equal(parsed.kind, "incoming");
+  assert.equal(parsed.amount, 1150);
+  assert.equal(parsed.balanceAfter, 45000.87);
+  assert.equal(parsed.occurredLocal, "2026-09-13 15:14:53");
+  assert.equal(parsed.reference, "20260913151453-1150-45000.87");
+  assert.equal(parsed.counterpartyName, "");
+});
+
+test("a CIB instant transfer parses amount, sender name, reference and a DD-MM-YYYY date", () => {
+  const parsed = parseTransferSms(CIB);
+  assert.equal(parsed.provider, "cib");
+  assert.equal(parsed.amount, 2700);
+  assert.equal(parsed.counterpartyName, "احمدسمير علىحسن");
+  assert.equal(parsed.walletNumber, "1234");
+  assert.equal(parsed.reference, "e46bbe82");
+  assert.equal(parsed.occurredLocal, "2026-09-11 21:59:00");
+});
+
+test("the dispatcher still reads Vodafone Cash, and each source trusts only its own sender", () => {
+  assert.equal(parseTransferSms(INCOMING).provider, "vodafone_cash");
+  assert.equal(parseTransferSms("كود التحقق 1234").provider, "unknown");
+  assert.equal(isTrustedTransferSender("cib", "CIB"), true);
+  assert.equal(isTrustedTransferSender("united_bank", "United Bank"), true);
+  assert.equal(isTrustedTransferSender("cib", "VF-Cash"), false);
+  assert.equal(isTrustedTransferSender("vodafone_cash", "United Bank"), false);
+});
+
+test("a bank's space-less name matches the name typed at checkout, but a bare first name does not", () => {
+  assert.equal(namesMatch("أحمد سمير علي حسن", "احمدسمير علىحسن"), true);
+  assert.equal(namesMatch("احمد سمير", "احمدسمير علىحسن"), true);
+  assert.equal(namesMatch("احمد", "احمدسمير علىحسن"), false);
+  assert.equal(namesMatch("Sara Test", "احمدسمير علىحسن"), false);
+  const cibTransfer = { counterparty_name: "احمدسمير علىحسن", reference: "e46bbe82", amount: 2700 };
+  const decision = decideTransferMatch({ transfer: cibTransfer, candidates: [order(11, "01099990000", { customer_name: "أحمد سمير علي حسن" }), order(12, "01088880000", { customer_name: "Other" })], trustedSender: true });
+  assert.equal(decision.action, "confirm");
+  assert.equal(decision.order.id, 11);
+  assert.equal(decision.matchMethod, "auto_name");
+  assert.equal(decideTransferMatch({ transfer: { ...cibTransfer }, candidates: [order(13, "010", { shipping_payment_reference: "E46BBE82" })], trustedSender: true }).matchMethod, "auto_reference");
+});
+
+test("a United Bank deposit has nothing to prove who sent it, so it only ever goes to review", () => {
+  const deposit = { reference: "20260913151453-1150-45000.87", amount: 1150 };
+  assert.equal(decideTransferMatch({ transfer: deposit, candidates: [order(14, "01011112222")], trustedSender: true }).reviewReason, "amount_only");
 });
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
