@@ -275,9 +275,11 @@ body.sfx-has-compare-tray {
   --sfx-cmp-tray-room: 84px;
 }
 
+/* Same specificity as the product page's sticky-buy padding and later in the
+   cascade, so it carries that bar's height too instead of replacing it. */
 body.sfx-has-compare-tray .storefront-shell,
 body.sfx-has-compare-tray.storefront-shell {
-  padding-bottom: var(--sfx-cmp-tray-room);
+  padding-bottom: calc(var(--product-sticky-actions-height, 0px) + var(--sfx-cmp-tray-room));
 }
 
 @media (max-width: 900px) {
