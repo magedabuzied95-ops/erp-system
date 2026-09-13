@@ -50,6 +50,7 @@ import {
   MessageCircle,
   Mic,
   Minus,
+  Plus,
   Languages,
   Moon,
   MapPin,
@@ -127,6 +128,7 @@ import {
 } from "./home/HomeSections.jsx";
 import { buildHomeProductCard, useHomeReveal } from "./home/homeModel";
 import "./storefront-light.css";
+import "./components/cartDrawer.css";
 import {
   isStorefrontCheckoutPath,
   isStorefrontHomePath,
@@ -9937,95 +9939,337 @@ function EmptyState({ title, text, actionTo = "/products", actionLabel }) {
   );
 }
 
+// The bag opens beside the page instead of replacing it: the header's bag icon
+// and every add-to-cart slide this panel in from the side the icon sits on, so
+// the shopper keeps their place. /cart still exists for the full review.
+const CART_DRAWER_EXIT_MS = 280;
+const CART_SUGGESTION_LIMIT = 8;
+const CART_SUGGESTION_AUTOPLAY_MS = 5000;
+
 function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
-  useBodyScrollLock(open);
+  const { i18n } = useTranslation();
+  const isRtl = normalizeLanguage(i18n.language || "ar") === "ar";
+  const dark = useBodyStorefrontDark();
+  // Kept mounted for the slide-out, then dropped so a closed bag costs nothing.
+  const [mounted, setMounted] = useState(open);
+  const [shown, setShown] = useState(false);
+  useBodyScrollLock(mounted);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      const frame = window.requestAnimationFrame(() => window.requestAnimationFrame(() => setShown(true)));
+      return () => window.cancelAnimationFrame(frame);
+    }
+    setShown(false);
+    const timer = window.setTimeout(() => setMounted(false), CART_DRAWER_EXIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [open]);
   useEffect(() => {
     if (open && cart.length) trackGa4ViewCart(cart);
   }, [cart, open]);
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, open]);
+  if (!mounted) return null;
+
+  const itemCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const subtotal = cart.reduce((sum, item) => sum + displayCartItemPrice(item) * item.quantity, 0);
-  const total = subtotal;
-  return (
-    <div className="fixed inset-0 z-50">
-      <button className="absolute inset-0 bg-black/55 backdrop-blur-[3px]" onClick={onClose} aria-label={sfText("storefront.common.close")} />
-      <aside className="sf-cart-drawer absolute inset-x-0 bottom-0 flex max-h-[94dvh] min-h-[72dvh] w-full min-w-0 flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl md:inset-y-0 md:end-0 md:start-auto md:max-h-none md:min-h-0 md:w-[28rem] md:rounded-s-[2rem] md:rounded-tr-none">
-        <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-white/[0.035] px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-5">
-          <div className="min-w-0">
-            <p className="text-xs font-black text-[#f3d77a]">{cart.length ? sfText("storefront.products.productCount", undefined, { count: cart.length }) : sfText("storefront.cart.emptyTitle")}</p>
-            <h2 className="mt-1 truncate text-2xl font-black text-white">Cart</h2>
-          </div>
-          <button onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/74 shadow-[0_12px_28px_rgba(0,0,0,0.24)] transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.common.close")}><X className="h-5 w-5" /></button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 sm:px-5">
+  const compareTotal = cart.reduce((sum, item) => {
+    const compare = displayCartItemComparePrice(item);
+    const price = displayCartItemPrice(item);
+    return sum + (compare > price ? compare : price) * item.quantity;
+  }, 0);
+  const saved = Math.max(0, compareTotal - subtotal);
+
+  return createPortal(
+    <div
+      className={`sf-bag${shown ? " is-open" : ""}`}
+      data-theme={dark ? "dark" : "light"}
+      dir={isRtl ? "rtl" : "ltr"}
+    >
+      <button type="button" className="sf-bag__scrim" onClick={onClose} aria-label={sfText("storefront.common.close")} tabIndex={-1} />
+      <aside className="sf-bag__panel" role="dialog" aria-modal="true" aria-labelledby="sf-bag-title">
+        <header className="sf-bag__head">
+          <h2 id="sf-bag-title" className="sf-bag__title">
+            {sfText("storefront.cartDrawer.title")}
+            {itemCount ? <span className="sf-bag__count">{itemCount}</span> : null}
+          </h2>
+          <button type="button" className="sf-bag__close" onClick={onClose} aria-label={sfText("storefront.common.close")}>
+            <X strokeWidth={1.6} />
+          </button>
+        </header>
+
+        <div className="sf-bag__body">
           {!cart.length ? (
-            <EmptyState title={sfText("storefront.cart.emptyTitle")} text={sfText("storefront.cart.emptyText")} actionLabel={sfText("storefront.common.shopNow")} />
-          ) : (
-            <div className="grid gap-3 pb-2">
-              {cart.map((item) => (
-                <MobileCartRow key={item.lineId} item={item} updateCart={updateCart} removeFromCart={removeFromCart} />
-              ))}
+            <div className="sf-bag__empty">
+              <span className="sf-bag__empty-icon"><ShoppingBag strokeWidth={1.4} /></span>
+              <p className="sf-bag__empty-title">{sfText("storefront.cart.emptyTitle")}</p>
+              <p className="sf-bag__empty-text">{sfText("storefront.cart.emptyText")}</p>
+              <Link to="/products" onClick={onClose} className="sf-bag__btn sf-bag__btn--primary">{sfText("storefront.common.shopNow")}</Link>
             </div>
+          ) : (
+            <>
+              <ul className="sf-bag__lines">
+                {cart.map((item) => (
+                  <CartDrawerLine key={item.lineId} item={item} updateCart={updateCart} removeFromCart={removeFromCart} onNavigate={onClose} />
+                ))}
+              </ul>
+              <CartDrawerSuggestions cart={cart} isRtl={isRtl} onNavigate={onClose} />
+            </>
           )}
         </div>
+
         {cart.length ? (
-          <div className="sf-cart-drawer-footer shrink-0 border-t border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 pb-[calc(1.35rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl sm:px-5">
-            <div className="mb-3 flex items-end justify-between gap-3 text-start">
-              <div className="sf-cart-drawer-total">
-                <p className="text-xs font-black text-white/54">{sfText("storefront.checkout.total")}</p>
-                <p className="mt-1 text-2xl font-black leading-none text-white">{money(total)}</p>
-              </div>
-              <p className="max-w-32 text-start text-[11px] font-bold leading-5 text-white/46">{sfText("storefront.checkout.finalShippingAtCheckout")}</p>
+          <footer className="sf-bag__foot">
+            <div className="sf-bag__subtotal">
+              <span className="sf-bag__subtotal-label">{sfText("storefront.cartDrawer.subtotal")}</span>
+              <span className="sf-bag__subtotal-values">
+                {saved > 0 ? <span className="sf-bag__subtotal-was">{money(compareTotal)}</span> : null}
+                <strong className="sf-bag__subtotal-now">{money(subtotal)}</strong>
+              </span>
             </div>
-            <Link to="/checkout" onClick={onClose} className="sf-cart-drawer-checkout-button sf-shimmer-button block min-h-14 rounded-full border border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center text-base font-black text-stone-950 shadow-[0_18px_42px_rgba(212,175,55,0.26)] transition hover:-translate-y-0.5 hover:border-[#e5c158]/40 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.98]">
-              {sfText("storefront.checkout.actions.completePurchase")}
-            </Link>
-          </div>
+            {saved > 0 ? <p className="sf-bag__saved">{sfText("storefront.cartDrawer.saved", undefined, { amount: money(saved) })}</p> : null}
+            <p className="sf-bag__note">{sfText("storefront.checkout.finalShippingAtCheckout")}</p>
+            <div className="sf-bag__actions">
+              <Link to="/cart" onClick={onClose} className="sf-bag__btn sf-bag__btn--ghost">{sfText("storefront.cartDrawer.viewCart")}</Link>
+              <Link to="/checkout" onClick={onClose} className="sf-bag__btn sf-bag__btn--primary">{sfText("storefront.cartDrawer.checkout")}</Link>
+            </div>
+          </footer>
         ) : null}
       </aside>
-    </div>
+    </div>,
+    document.body
   );
 }
 
-function MobileCartRow({ item, updateCart, removeFromCart }) {
+function CartDrawerLine({ item, updateCart, removeFromCart, onNavigate }) {
+  const price = displayCartItemPrice(item);
+  const compare = displayCartItemComparePrice(item);
+  const hasDiscount = compare > price;
+  const href = item.slug || item.product_id ? productUrl({ id: item.product_id, slug: item.slug, selected_variant_id: item.variant_id }) : "";
+  const variantText = [item.color, item.display_size || item.size].filter(Boolean).join(" · ");
+  const showBrand = Boolean(item.brand) && !String(item.name || "").toLowerCase().includes(String(item.brand).toLowerCase());
+  const image = (
+    <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" loading="lazy" decoding="async" width="96" height="96" />
+  );
   return (
-    <article className="sf-cart-row w-full min-w-0 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#101010_0%,#151515_100%)] p-3 text-start text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-xl">
-      <div className="flex min-w-0 items-start gap-3">
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-white/[0.065] ring-1 ring-white/10">
-          <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" width="80" height="80" />
-        </div>
-        <div className="min-w-0 flex-1 self-stretch">
-          <h3 className="line-clamp-2 break-words text-sm font-black leading-5 text-white">{item.name}</h3>
-          <p className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-white/[0.055] px-2 py-1 text-xs font-bold text-white/58">{item.color || sfText("storefront.products.color")} / {item.display_size || item.size || sfText("storefront.products.size")}</p>
-          <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-black text-white">
-            {displayCartItemComparePrice(item) ? <span className="text-xs text-white/38 line-through">{money(displayCartItemComparePrice(item))}</span> : null}
-            <span>{money(displayCartItemPrice(item))}</span>
-          </p>
+    <li className="sf-bag__line">
+      {href ? <Link to={href} onClick={onNavigate} className="sf-bag__line-media">{image}</Link> : <span className="sf-bag__line-media">{image}</span>}
+      <div className="sf-bag__line-info">
+        {showBrand ? <p className="sf-bag__line-brand">{item.brand}</p> : null}
+        {href ? (
+          <Link to={href} onClick={onNavigate} className="sf-bag__line-name">{item.name}</Link>
+        ) : (
+          <p className="sf-bag__line-name">{item.name}</p>
+        )}
+        {variantText ? <p className="sf-bag__line-variant">{variantText}</p> : null}
+        <p className="sf-bag__price">
+          {hasDiscount ? <span className="sf-bag__price-was">{money(compare)}</span> : null}
+          <span className={`sf-bag__price-now${hasDiscount ? " is-sale" : ""}`}>{money(price)}</span>
+        </p>
+        <div className="sf-bag__line-controls">
+          <div className="sf-bag__stepper">
+            <button
+              type="button"
+              onClick={() => (item.quantity > 1 ? updateCart(item.lineId, item.quantity - 1) : removeFromCart(item.lineId))}
+              aria-label={item.quantity > 1 ? sfText("storefront.cart.decreaseQuantity") : sfText("storefront.cart.removeItem")}
+            >
+              {item.quantity > 1 ? <Minus strokeWidth={1.8} /> : <Trash2 strokeWidth={1.6} />}
+            </button>
+            <span className="sf-bag__qty" aria-live="polite">{item.quantity}</span>
+            <button type="button" onClick={() => updateCart(item.lineId, item.quantity + 1)} aria-label={sfText("storefront.cart.increaseQuantity")}>
+              <Plus strokeWidth={1.8} />
+            </button>
+          </div>
+          <button type="button" className="sf-bag__remove" onClick={() => removeFromCart(item.lineId)}>
+            {sfText("storefront.cartDrawer.remove")}
+          </button>
         </div>
       </div>
-      <div className="mt-3 flex min-w-0 items-center justify-between gap-3">
-        <QuantityStepper quantity={item.quantity} onMinus={() => updateCart(item.lineId, item.quantity - 1)} onPlus={() => updateCart(item.lineId, item.quantity + 1)} />
-        <button onClick={() => removeFromCart(item.lineId)} className="sf-cart-remove-button grid h-11 w-11 shrink-0 place-items-center rounded-full border border-rose-300/20 bg-rose-500/10 text-rose-200 shadow-[0_10px_24px_rgba(244,63,94,0.10)] transition hover:bg-rose-500/16 hover:text-rose-100 active:scale-95" aria-label={sfText("storefront.cart.removeItem")}>
-          <Trash2 className="h-5 w-5" />
-        </button>
-      </div>
-    </article>
+    </li>
   );
 }
 
-function QuantityStepper({ quantity, onMinus, onPlus }) {
+// "You may also like": the same family as the newest line in the bag, in stock,
+// never something already in it. An unknown family falls back to the newest
+// in-stock models so the block is never a lone empty frame.
+function CartDrawerSuggestions({ cart, isRtl, onNavigate }) {
+  const seed = cart[cart.length - 1] || {};
+  const family = recommendationText(seed.category);
+  const baseQuery = { limit: 16, in_stock: 1, grouping: "product" };
+  const targeted = useProducts(family ? { ...baseQuery, product_type: family } : baseQuery);
+  const general = useProducts(baseQuery);
+  const { brands } = useStorefrontBrands();
+  const knownBrandNames = useMemo(
+    () => (Array.isArray(brands) ? brands : []).map((brand) => brand?.name).filter(Boolean),
+    [brands]
+  );
+  const inCart = useMemo(() => new Set(cart.map((item) => String(item.product_id || ""))), [cart]);
+  const cards = useMemo(() => {
+    const ctx = {
+      imageFor,
+      responsiveImageProps,
+      money,
+      productUrl,
+      pricing: featuredSlideProduct,
+      knownBrands: knownBrandNames,
+      fallbackEyebrow: (product) => getProductTypeLabel(product?.product_type || product?.productType || "", isRtl ? "ar" : "en"),
+    };
+    const pick = (products = []) => {
+      const seen = new Set();
+      return products.filter((product) => {
+        const parentId = String(product.parent_product_id || product.id || "");
+        if (!parentId || inCart.has(parentId) || seen.has(parentId)) return false;
+        seen.add(parentId);
+        return true;
+      }).map((product) => {
+        const card = buildHomeProductCard(product, ctx);
+        // A catalogue title is often just the colour ("Black"), which says
+        // nothing in a one-card slot, so the slide names the whole product and
+        // drops the brand label when the name already carries it.
+        const name = cleanDisplayText(product.name || product.title || "") || card.title;
+        const showEyebrow = Boolean(card.eyebrow) && !name.toLowerCase().includes(String(card.eyebrow).toLowerCase());
+        return { ...card, name, showEyebrow };
+      }).filter((card) => card.image && card.priceText);
+    };
+    const own = pick(targeted.products);
+    const list = own.length >= 3 ? own : pick([...(targeted.products || []), ...(general.products || [])]);
+    return list.slice(0, CART_SUGGESTION_LIMIT);
+  }, [general.products, inCart, isRtl, knownBrandNames, targeted.products]);
+
+  const swipeRef = useRef(null);
+  const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const loading = targeted.loading && general.loading;
+
+  const goTo = useCallback((index) => {
+    if (!cards.length) return;
+    setActive((index + cards.length) % cards.length);
+  }, [cards.length]);
+
+  // A list that shrinks (a suggestion just went into the bag) must not leave
+  // the slider parked past its last slide.
+  useEffect(() => {
+    if (active >= cards.length && cards.length) setActive(0);
+  }, [active, cards.length]);
+
+  // Swipe reads the finger, not the scroll position: the row is moved with a
+  // transform, so a drag that is mostly vertical still scrolls the bag.
+  const onTouchStart = (event) => {
+    const touch = event.touches[0];
+    swipeRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    setPaused(true);
+  };
+  const onTouchEnd = (event) => {
+    const start = swipeRef.current;
+    const touch = event.changedTouches[0];
+    swipeRef.current = null;
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 36 || Math.abs(dx) < Math.abs(dy)) return;
+    const forward = isRtl ? dx > 0 : dx < 0;
+    goTo(active + (forward ? 1 : -1));
+  };
+
+  useEffect(() => {
+    if (paused || cards.length < 2) return undefined;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return undefined;
+    const timer = window.setInterval(() => goTo(active + 1), CART_SUGGESTION_AUTOPLAY_MS);
+    return () => window.clearInterval(timer);
+  }, [active, cards.length, goTo, paused]);
+
+  if (!loading && !cards.length) return null;
+  const PrevIcon = isRtl ? ChevronRight : ChevronLeft;
+  const NextIcon = isRtl ? ChevronLeft : ChevronRight;
+
   return (
-    <div className="sf-quantity-stepper sf-cart-quantity-stepper inline-flex h-11 shrink-0 items-center gap-1 rounded-full border border-white/10 bg-black/20 p-1 shadow-inner shadow-black/30">
-      <button onClick={onMinus} className="sf-cart-quantity-button grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.065] text-white/78 shadow-sm transition hover:bg-white/[0.10] hover:text-white active:scale-95" aria-label={sfText("storefront.cart.decreaseQuantity")}>
-        <Minus className="h-4 w-4" />
-      </button>
-      <span className="min-w-9 px-1 text-center text-sm font-black tabular-nums text-white">{quantity}</span>
-      <button onClick={onPlus} className="sf-cart-quantity-button grid h-9 w-9 place-items-center rounded-full border border-[#e5c158]/30 bg-[#d4af37]/24 text-white shadow-[0_10px_22px_rgba(212,175,55,0.16)] transition hover:bg-[#d4af37]/34 active:scale-95" aria-label={sfText("storefront.cart.increaseQuantity")}>
-        +
-      </button>
-    </div>
+    <section
+      className="sf-bag__recs"
+      aria-roledescription="carousel"
+      aria-label={sfText("storefront.cartDrawer.youMayAlsoLike")}
+      onPointerEnter={() => setPaused(true)}
+      onPointerLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+    >
+      <div className="sf-bag__recs-head">
+        <h3>{sfText("storefront.cartDrawer.youMayAlsoLike")}</h3>
+      </div>
+      {loading && !cards.length ? (
+        <div className="sf-bag__rec sf-bag__rec--skeleton" aria-hidden="true">
+          <span className="sf-bag__rec-media sf-skeleton-shimmer" />
+          <span className="sf-bag__rec-info">
+            <span className="sf-bag__skel sf-skeleton-shimmer" />
+            <span className="sf-bag__skel sf-bag__skel--short sf-skeleton-shimmer" />
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="sf-bag__recs-track" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            <div className="sf-bag__recs-row" style={{ transform: `translateX(${(isRtl ? 1 : -1) * active * 100}%)` }}>
+            {cards.map((card, index) => (
+              <Link
+                key={`${card.key}-${index}`}
+                to={card.href}
+                onClick={onNavigate}
+                className="sf-bag__rec"
+                aria-roledescription="slide"
+                aria-label={`${index + 1} / ${cards.length}`}
+                aria-hidden={index === active ? undefined : "true"}
+                tabIndex={index === active ? undefined : -1}
+              >
+                <span className="sf-bag__rec-media">
+                  <img src={card.image} {...card.imageProps} alt={card.alt} loading="lazy" decoding="async" onError={fallbackProductImage} />
+                  {card.discount ? <span className="sf-bag__rec-badge">-{card.discount}%</span> : null}
+                </span>
+                <span className="sf-bag__rec-info">
+                  {card.showEyebrow ? <span className="sf-bag__rec-brand">{card.eyebrow}</span> : null}
+                  <span className="sf-bag__rec-name">{card.name}</span>
+                  <span className="sf-bag__price">
+                    {card.compareText ? <span className="sf-bag__price-was">{card.compareText}</span> : null}
+                    <span className={`sf-bag__price-now${card.compareText ? " is-sale" : ""}`}>{card.priceText}</span>
+                  </span>
+                  <span className="sf-bag__rec-cta">
+                    {sfText("storefront.cartDrawer.chooseSize")}
+                    <NextIcon strokeWidth={1.8} />
+                  </span>
+                </span>
+              </Link>
+            ))}
+            </div>
+          </div>
+          {cards.length > 1 ? (
+            <div className="sf-bag__recs-nav">
+              <button type="button" onClick={() => goTo(active - 1)} aria-label={sfText("storefront.common.previous")}>
+                <PrevIcon strokeWidth={1.6} />
+              </button>
+              <div className="sf-bag__dots">
+                {cards.map((card, index) => (
+                  <button
+                    key={`dot-${card.key}-${index}`}
+                    type="button"
+                    className={index === active ? "is-active" : ""}
+                    onClick={() => goTo(index)}
+                    aria-label={`${index + 1}`}
+                    aria-current={index === active ? "true" : undefined}
+                  />
+                ))}
+              </div>
+              <button type="button" onClick={() => goTo(active + 1)} aria-label={sfText("storefront.common.next")}>
+                <NextIcon strokeWidth={1.6} />
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+    </section>
   );
 }
-
 
 function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
   if (dark) {
@@ -10339,7 +10583,6 @@ const OrderNumberBadge = ({ value, className = "" }) => {
 function Storefront() {
   usePageTitle("Storefront");
   const location = useLocation();
-  const navigate = useNavigate();
   const [cart, setCart] = useState(() => readStorefrontStorage(CART_KEY, []));
   const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
@@ -11052,7 +11295,7 @@ function Storefront() {
           cartCount={cartCount}
           wishlistCount={wishlistCount}
           customerAuth={customerAuth}
-          onCart={() => navigate("/cart")}
+          onCart={() => setCartDrawerOpen(true)}
           effectiveTheme={themeMode}
           onThemeToggle={() => setThemeMode((current) => current === "dark" ? "light" : "dark")}
           brandName={storefrontBrandSettings.brandName}

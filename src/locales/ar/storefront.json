@@ -355,6 +355,16 @@
   "lastPiece": {
     "title": "آخر قطعة"
   },
+  "cartDrawer": {
+    "title": "سلة التسوق",
+    "subtotal": "الإجمالي",
+    "saved": "وفّرت {{amount}}",
+    "viewCart": "عرض السلة",
+    "checkout": "إتمام الشراء",
+    "remove": "حذف",
+    "youMayAlsoLike": "ممكن يعجبك كمان",
+    "chooseSize": "اختار المقاس"
+  },
   "cart": {
     "title": "السلة",
     "addToCart": "إضافة للسلة",

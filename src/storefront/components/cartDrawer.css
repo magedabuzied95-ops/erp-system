@@ -1,0 +1,656 @@
+/*
+ * The side bag (CartDrawer in Storefront.jsx). Plain classes on purpose: the
+ * old `.sf-cart-drawer` / `.sf-cart-row` names carry dozens of light/dark
+ * overrides in index.css, and Tailwind colour utilities are remapped globally,
+ * so this panel paints only from its own tokens.
+ */
+.sf-bag {
+  --bag-bg: #ffffff;
+  --bag-ink: #111111;
+  --bag-muted: #6f6f6f;
+  --bag-line: #ececec;
+  --bag-surface: #f6f6f6;
+  --bag-tile: #f3f3f1;
+  --bag-sale: #d92d20;
+  --bag-accent-bg: #111111;
+  --bag-accent-ink: #ffffff;
+  --bag-scrim: rgba(17, 17, 17, 0.5);
+  --bag-shadow: 0 0 60px rgba(0, 0, 0, 0.18);
+  --bag-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  color: var(--bag-ink);
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sf-bag[data-theme="dark"] {
+  --bag-bg: #111112;
+  --bag-ink: #f4f4f4;
+  --bag-muted: #9c9c9c;
+  --bag-line: #252527;
+  --bag-surface: #1a1a1c;
+  --bag-tile: #f3f3f1;
+  --bag-sale: #ff6f61;
+  --bag-accent-bg: #f4f4f4;
+  --bag-accent-ink: #111111;
+  --bag-scrim: rgba(0, 0, 0, 0.62);
+  --bag-shadow: 0 0 60px rgba(0, 0, 0, 0.55);
+}
+
+.sf-bag *,
+.sf-bag *::before,
+.sf-bag *::after {
+  box-sizing: border-box;
+}
+
+.sf-bag button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.sf-bag a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sf-bag svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: none;
+}
+
+/* ---- shell ---- */
+.sf-bag__scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: var(--bag-scrim) !important;
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+
+.sf-bag__panel {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(27rem, 86vw);
+  height: 100%;
+  background: var(--bag-bg);
+  color: var(--bag-ink);
+  box-shadow: var(--bag-shadow);
+  transform: translateX(100%);
+  transition: transform 280ms var(--bag-ease);
+  will-change: transform;
+}
+
+.sf-bag[dir="rtl"] .sf-bag__panel {
+  transform: translateX(-100%);
+}
+
+.sf-bag.is-open .sf-bag__scrim {
+  opacity: 1;
+}
+
+.sf-bag.is-open .sf-bag__panel {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-bag__scrim,
+  .sf-bag__panel {
+    transition-duration: 1ms;
+  }
+}
+
+.sf-bag__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: calc(1.1rem + env(safe-area-inset-top)) 1.25rem 1.1rem;
+  border-bottom: 1px solid var(--bag-line);
+}
+
+.sf-bag__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bag-ink);
+}
+
+.sf-bag__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: var(--bag-accent-bg);
+  color: var(--bag-accent-ink);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-bag__close {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-inline-end: -0.5rem;
+  border-radius: 999px;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.sf-bag__close svg {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+
+.sf-bag__close:hover {
+  background: var(--bag-surface);
+}
+
+.sf-bag__close:active {
+  transform: scale(0.94);
+}
+
+.sf-bag__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 1.25rem 1.25rem;
+}
+
+/* ---- empty ---- */
+.sf-bag__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 4rem 0.5rem 2rem;
+  text-align: center;
+}
+
+.sf-bag__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 4.25rem;
+  height: 4.25rem;
+  margin-bottom: 0.5rem;
+  border-radius: 999px;
+  background: var(--bag-surface);
+}
+
+.sf-bag__empty-icon svg {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+.sf-bag__empty-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.sf-bag__empty-text {
+  margin: 0 0 1rem;
+  font-size: 0.88rem;
+  color: var(--bag-muted);
+}
+
+.sf-bag__empty .sf-bag__btn {
+  min-width: 12rem;
+}
+
+/* ---- lines ---- */
+.sf-bag__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sf-bag__line {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--bag-line);
+}
+
+.sf-bag__line-media {
+  display: block;
+  align-self: start;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 0.6rem;
+  background: var(--bag-tile);
+}
+
+.sf-bag__line-media img,
+.sf-bag__rec-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  mix-blend-mode: multiply;
+}
+
+.sf-bag__line-info {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sf-bag__line-brand,
+.sf-bag__rec-brand {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bag-muted);
+}
+
+.sf-bag__line-name {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--bag-ink);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sf-bag__line-variant {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--bag-muted);
+}
+
+.sf-bag__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+  margin: 0.2rem 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-bag__price-was {
+  font-size: 0.8rem;
+  color: var(--bag-muted);
+  text-decoration: line-through;
+}
+
+.sf-bag__price-now {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--bag-ink);
+}
+
+.sf-bag__price-now.is-sale {
+  color: var(--bag-sale);
+}
+
+.sf-bag__line-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+}
+
+.sf-bag__stepper {
+  display: inline-flex;
+  align-items: center;
+  height: 2.5rem;
+  border: 1px solid var(--bag-ink);
+  border-radius: 0.55rem;
+}
+
+.sf-bag__stepper button {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 100%;
+  border-radius: 0.5rem;
+  transition: background-color 160ms ease;
+}
+
+.sf-bag__stepper button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sf-bag__stepper button:hover {
+  background: var(--bag-surface);
+}
+
+.sf-bag__qty {
+  min-width: 1.75rem;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-bag__remove {
+  font-size: 0.8rem;
+  color: var(--bag-muted) !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 160ms ease;
+}
+
+.sf-bag__remove:hover {
+  color: var(--bag-sale) !important;
+}
+
+/* ---- you may also like ---- */
+.sf-bag__recs {
+  margin-top: 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--bag-line);
+  border-radius: 0.85rem;
+  background: var(--bag-bg);
+}
+
+.sf-bag__recs-head {
+  padding: 0.85rem 1rem;
+  background: var(--bag-surface);
+  border-bottom: 1px solid var(--bag-line);
+  text-align: center;
+}
+
+.sf-bag__recs-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--bag-ink);
+}
+
+.sf-bag__recs-track {
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.sf-bag__recs-row {
+  display: flex;
+  transition: transform 520ms var(--bag-ease);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-bag__recs-row {
+    transition-duration: 1ms;
+  }
+}
+
+.sf-bag__rec {
+  display: grid;
+  flex: 0 0 100%;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.sf-bag__rec-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 0.6rem;
+  background: var(--bag-tile);
+}
+
+.sf-bag__rec-media img {
+  transition: transform 500ms var(--bag-ease);
+}
+
+.sf-bag__rec:hover .sf-bag__rec-media img {
+  transform: scale(1.05);
+}
+
+.sf-bag__rec-badge {
+  position: absolute;
+  inset-block-start: 0.35rem;
+  inset-inline-start: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bag-sale);
+  color: #ffffff;
+  font-size: 0.66rem;
+  font-weight: 600;
+  direction: ltr;
+}
+
+.sf-bag__rec-info {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sf-bag__rec-name {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sf-bag__rec-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--bag-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sf-bag__rec-cta svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  transition: transform 200ms var(--bag-ease);
+}
+
+.sf-bag__rec:hover .sf-bag__rec-cta svg {
+  transform: translateX(3px);
+}
+
+.sf-bag[dir="rtl"] .sf-bag__rec:hover .sf-bag__rec-cta svg {
+  transform: translateX(-3px);
+}
+
+.sf-bag__recs-nav {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 3.25rem;
+  border-top: 1px solid var(--bag-line);
+}
+
+.sf-bag__recs-nav > button {
+  display: grid;
+  place-items: center;
+  height: 2.9rem;
+  transition: background-color 160ms ease;
+}
+
+.sf-bag__recs-nav > button:first-child {
+  border-inline-end: 1px solid var(--bag-line) !important;
+}
+
+.sf-bag__recs-nav > button:last-child {
+  border-inline-start: 1px solid var(--bag-line) !important;
+}
+
+.sf-bag__recs-nav > button:hover {
+  background: var(--bag-surface);
+}
+
+.sf-bag__dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sf-bag__dots button {
+  width: 0.55rem;
+  height: 0.55rem;
+  flex: none;
+  border: 1px solid var(--bag-muted) !important;
+  border-radius: 999px;
+  transition: width 240ms var(--bag-ease), background-color 240ms ease, border-color 240ms ease;
+}
+
+.sf-bag__dots button.is-active {
+  width: 1.3rem;
+  border-color: var(--bag-ink) !important;
+  background: var(--bag-ink);
+}
+
+.sf-bag__rec--skeleton .sf-bag__rec-media {
+  background: var(--bag-surface);
+}
+
+.sf-bag__skel {
+  display: block;
+  height: 0.8rem;
+  width: 85%;
+  border-radius: 999px;
+  background: var(--bag-surface);
+}
+
+.sf-bag__skel--short {
+  width: 45%;
+  margin-top: 0.4rem;
+}
+
+/* ---- footer ---- */
+.sf-bag__foot {
+  flex: none;
+  padding: 1.1rem 1.25rem calc(1.1rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--bag-line);
+  background: var(--bag-bg);
+  box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.05);
+}
+
+.sf-bag__subtotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sf-bag__subtotal-label {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sf-bag__subtotal-values {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-bag__subtotal-was {
+  font-size: 0.82rem;
+  color: var(--bag-muted);
+  text-decoration: line-through;
+}
+
+.sf-bag__subtotal-now {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.sf-bag__saved {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--bag-sale);
+}
+
+.sf-bag__note {
+  margin: 0.25rem 0 0;
+  font-size: 0.76rem;
+  color: var(--bag-muted);
+}
+
+.sf-bag__actions {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.95rem;
+}
+
+.sf-bag__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.1rem;
+  padding: 0 1.25rem;
+  border-radius: 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  transition: background-color 180ms ease, color 180ms ease, transform 160ms ease, opacity 180ms ease;
+}
+
+.sf-bag[dir="rtl"] .sf-bag__btn {
+  letter-spacing: 0;
+  font-size: 0.95rem;
+}
+
+.sf-bag__btn:active {
+  transform: scale(0.985);
+}
+
+.sf-bag__btn--primary {
+  background: var(--bag-accent-bg) !important;
+  color: var(--bag-accent-ink) !important;
+}
+
+.sf-bag__btn--primary:hover {
+  opacity: 0.88;
+}
+
+.sf-bag__btn--ghost {
+  background: var(--bag-surface) !important;
+  color: var(--bag-ink) !important;
+}
+
+.sf-bag__btn--ghost:hover {
+  background: var(--bag-line) !important;
+}
