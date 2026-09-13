@@ -150,11 +150,16 @@ const flattenAudienceInput = (value) => {
   if (typeof value === "string") {
     const text = value.trim();
     if (!text) return [];
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return flattenAudienceInput(parsed);
-    } catch {
-      // Plain comma-separated strings are accepted below.
+    // Only a JSON array can change the result, and it must start with "[". Trying
+    // JSON.parse on every plain "men"/"women" threw an exception per variant — on the
+    // full catalog (~9k variants) that alone was a third of the request's CPU time.
+    if (text.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) return flattenAudienceInput(parsed);
+      } catch {
+        // Plain comma-separated strings are accepted below.
+      }
     }
     return text.split(/[,\n|]+/);
   }
@@ -4324,11 +4329,16 @@ const POS_VARIANT_KEEP_FIELDS = new Set([
   "brand_id", "brand", "brand_name", "category_id", "category", "category_name",
   "is_pos_favorite", "isPosFavorite", "is_offer_story", "is_offer", "show_in_offers", "promotion_enabled",
 ]);
-const pickKeptFields = (obj, keep) => {
+// Walk the (short) allowlist instead of every key of the (wide) row: a variant row
+// carries ~110 keys and keeps ~70, a product ~150, and this runs ~9k times per catalog.
+const POS_PRODUCT_KEEP_LIST = [...POS_PRODUCT_KEEP_FIELDS];
+const POS_VARIANT_KEEP_LIST = [...POS_VARIANT_KEEP_FIELDS];
+const hasOwn = Object.prototype.hasOwnProperty;
+const pickKeptFields = (obj, keepList) => {
   if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
   const out = {};
-  for (const key of Object.keys(obj)) {
-    if (keep.has(key)) out[key] = obj[key];
+  for (const key of keepList) {
+    if (hasOwn.call(obj, key)) out[key] = obj[key];
   }
   return out;
 };
@@ -4336,9 +4346,9 @@ export const projectPosCatalogProducts = (products, posFlag) => {
   const pos = ["1", "true", "yes", "on"].includes(String(posFlag || "").toLowerCase());
   if (!pos || !Array.isArray(products)) return products;
   return products.map((product) => {
-    const projected = pickKeptFields(product, POS_PRODUCT_KEEP_FIELDS);
+    const projected = pickKeptFields(product, POS_PRODUCT_KEEP_LIST);
     if (Array.isArray(product.variants)) {
-      projected.variants = product.variants.map((variant) => pickKeptFields(variant, POS_VARIANT_KEEP_FIELDS));
+      projected.variants = product.variants.map((variant) => pickKeptFields(variant, POS_VARIANT_KEEP_LIST));
     }
     return projected;
   });

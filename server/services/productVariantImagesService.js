@@ -606,15 +606,12 @@ export const attachVariantImages = (variants = [], imageBundle = null) => {
     }));
   }
 
-  return rows.map((variant) => {
-    const variantKey = String(variant.id ?? variant.variant_id ?? "");
-    const groupKey = toText(variant.color_group_key || variant.colorGroupKey).toLowerCase();
-    const colorKey = toText(variant.color || variant.color_name).toLowerCase();
-    const colorImages = groupKey
-      ? imageBundle.byGroup?.get(groupKey) || []
-      : colorKey ? imageBundle.byColor.get(colorKey) || [] : [];
-    const variantImages = variantKey ? imageBundle.byVariant.get(variantKey) || [] : [];
-    const allImages = dedupeImages([...variantImages, ...colorImages])
+  // Every size of one colour resolves the SAME colour images, so the dedupe + sort
+  // ran once per size for an identical input. Cache the resolved list per colour
+  // for variants with no images of their own; each variant still gets its own array.
+  const resolvedByColour = new Map();
+  const resolveImages = (variantImages, colorImages) =>
+    dedupeImages([...variantImages, ...colorImages])
       .reduce((acc, item) => {
         const key = `${item.product_id}:${toText(item.color_group_key).toLowerCase()}:${toText(item.color_name).toLowerCase()}:${toText(item.image_url).toLowerCase()}`;
         if (!acc.some((existing) => `${existing.product_id}:${toText(existing.color_group_key).toLowerCase()}:${toText(existing.color_name).toLowerCase()}:${toText(existing.image_url).toLowerCase()}` === key)) {
@@ -623,6 +620,23 @@ export const attachVariantImages = (variants = [], imageBundle = null) => {
         return acc;
       }, [])
       .sort((a, b) => (b.is_primary === true) - (a.is_primary === true) || Number(a.sort_order || 0) - Number(b.sort_order || 0) || Number(a.id || 0) - Number(b.id || 0));
+
+  return rows.map((variant) => {
+    const variantKey = String(variant.id ?? variant.variant_id ?? "");
+    const groupKey = toText(variant.color_group_key || variant.colorGroupKey).toLowerCase();
+    const colorKey = toText(variant.color || variant.color_name).toLowerCase();
+    const colorImages = groupKey
+      ? imageBundle.byGroup?.get(groupKey) || []
+      : colorKey ? imageBundle.byColor.get(colorKey) || [] : [];
+    const variantImages = variantKey ? imageBundle.byVariant.get(variantKey) || [] : [];
+    let allImages;
+    if (variantImages.length) {
+      allImages = resolveImages(variantImages, colorImages);
+    } else {
+      const colourCacheKey = groupKey ? `group:${groupKey}` : `color:${colorKey}`;
+      if (!resolvedByColour.has(colourCacheKey)) resolvedByColour.set(colourCacheKey, resolveImages([], colorImages));
+      allImages = resolvedByColour.get(colourCacheKey).slice();
+    }
     const primary = allImages.find((item) => item.is_primary) || allImages[0] || null;
     const stableColorGroupKey = groupKey || toText(primary?.color_group_key || primary?.colorGroupKey || "");
     return {
