@@ -313,6 +313,36 @@ body.storefront-shell .sfa-guest__icon {
   color: var(--m1h-accent) !important;
 }
 
+.sfa-brand {
+  position: relative;
+  display: block;
+  width: 96px;
+  height: 100px;
+  margin-block-end: 4px;
+}
+
+@media (min-width: 768px) {
+  .sfa-brand {
+    width: 112px;
+    height: 116px;
+  }
+}
+
+.sfa-brand__layer,
+.sfa-brand__img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The artwork is ink on transparent; the dark theme turns it to paper. */
+body.storefront-shell.storefront-dark .sfa-brand--mone .sfa-brand__layer {
+  filter: invert(1);
+}
+
 body.storefront-shell .sfa-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

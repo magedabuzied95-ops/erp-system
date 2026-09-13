@@ -171,6 +171,29 @@ function AccountField({ label, value, onChange, type = "text", inputMode, autoCo
   );
 }
 
+// The header's logo, drawn in ink for the light page: the M1 mark keeps its turning M,
+// another brand shows its own logo, and a store without one keeps the person icon.
+function BrandMark({ brandName = "", brandLogoUrl = "", imageFor = (value) => value }) {
+  const [failed, setFailed] = useState(false);
+  const isMOne = /(?:^|\s)m\s*(?:1|one)(?:\s|$)/i.test(String(brandName || "").trim()) || /\/branding\/m-one-/.test(String(brandLogoUrl || ""));
+  if (isMOne) {
+    return (
+      <span className="sfa-brand sfa-brand--mone">
+        <img src="/branding/m-one-logo-dark-fixed.png?v=20260716" alt={brandName || "M1 Store"} className="sfa-brand__layer" decoding="async" width="120" height="125" />
+        <img src="/branding/m-one-logo-dark-m.png?v=20260716" alt="" aria-hidden="true" className="sfa-brand__layer sf-header-logo-moving-m" decoding="async" width="120" height="125" />
+      </span>
+    );
+  }
+  if (brandLogoUrl && !failed) {
+    return (
+      <span className="sfa-brand">
+        <img src={imageFor(brandLogoUrl)} alt={brandName} className="sfa-brand__img" decoding="async" onError={() => setFailed(true)} />
+      </span>
+    );
+  }
+  return <span className="sfa-guest__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>;
+}
+
 function SubmitButton({ onClick, disabled, busy, busyLabel, children, variant = "ink" }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} className={`sfa-btn sfa-btn--${variant} sfa-btn--block`}>
@@ -966,7 +989,7 @@ function StorefrontAccountPageContent({
       <section className="sfa sfa--guest">
         <div className="sfa-guest">
           <header className="sfa-guest__head">
-            <span className="sfa-guest__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>
+            <BrandMark brandName={helpers.brandName} brandLogoUrl={helpers.brandLogoUrl} imageFor={helpers.imageFor} />
             <h1 className="sfa-title">{showResetView ? sfText("storefront.auth.recoverAccount") : sfText("storefront.auth.welcomeTitle")}</h1>
             <p className="sfa-muted">{showResetView ? sfText("storefront.auth.resetIntro") : sfText("storefront.auth.welcomeIntro")}</p>
           </header>
