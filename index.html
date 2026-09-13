@@ -613,74 +613,54 @@
       })();
     </script>
     <style>
+      /* Always light, whatever the storefront or the phone's theme: a white
+         canvas with the blue line cart, shown alone — no wordmark. */
       #m1-boot-loader{display:none}
       html[data-m1-boot-loader] #m1-boot-loader{
-        position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;
-        align-items:center;justify-content:center;gap:26px;background:#070707;color:#d0a632;
-        opacity:0;animation:m1bl-in .32s ease-out .12s forwards;
-        transition:opacity .42s cubic-bezier(.4,0,.2,1),visibility 0s linear .42s
+        position:fixed;inset:0;z-index:2147483000;display:flex;
+        align-items:center;justify-content:center;background:#ffffff;color:#336a86;color-scheme:only light;
+        transition:opacity .4s ease,visibility 0s linear .4s
       }
-      #m1-boot-loader::before{
-        content:"";position:absolute;inset:0;pointer-events:none;
-        background:radial-gradient(38rem 26rem at 50% 44%,rgba(208,166,50,.10),transparent 70%)
-      }
-      #m1-boot-loader.is-leaving{opacity:0!important;visibility:hidden;animation:none}
-      #m1-boot-loader.is-leaving .m1bl-stage{transform:scale(.94) translateY(-6px)}
-      .m1bl-stage{position:relative;transition:transform .42s cubic-bezier(.4,0,.2,1)}
-      .m1bl-cart{display:block;width:112px;height:112px;overflow:visible;animation:m1bl-roll 2.4s cubic-bezier(.65,0,.35,1) infinite}
-      .m1bl-track{stroke:rgba(255,255,255,.08)}
-      .m1bl-body{stroke-dasharray:338 338;stroke-dashoffset:338;animation:m1bl-body 2.4s cubic-bezier(.65,0,.35,1) infinite}
-      .m1bl-wheel{stroke-dasharray:81.7 81.7;stroke-dashoffset:81.7;animation:m1bl-wheel 2.4s cubic-bezier(.65,0,.35,1) infinite}
-      .m1bl-box{fill:#d0a632;opacity:0;transform-box:fill-box;transform-origin:center;animation:m1bl-box 2.4s cubic-bezier(.34,1.3,.64,1) infinite}
-      .m1bl-box--2{animation-delay:.12s;fill:#f3e2ad}
-      .m1bl-shadow{position:absolute;left:50%;bottom:-14px;width:84px;height:10px;margin-left:-42px;border-radius:50%;
-        background:radial-gradient(closest-side,rgba(208,166,50,.28),transparent);animation:m1bl-shadow 2.4s cubic-bezier(.65,0,.35,1) infinite}
-      .m1bl-word{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;
-        font:700 13px/1 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.42em;padding-left:.42em;color:#f3f1ec}
-      .m1bl-word b{color:#d0a632;font-weight:800}
-      .m1bl-bar{position:relative;width:132px;height:2px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,.08)}
-      .m1bl-bar::after{content:"";position:absolute;inset:0;width:40%;border-radius:inherit;
-        background:linear-gradient(90deg,transparent,#d0a632,transparent);animation:m1bl-bar 1.2s ease-in-out infinite}
+      #m1-boot-loader.is-leaving{opacity:0;visibility:hidden}
+      .m1bl-cart{display:block;width:128px;height:128px}
+      .m1bl-track{stroke:hsla(0,10%,10%,.1)}
+      .m1bl-lines,.m1bl-top,.m1bl-wheel1,.m1bl-wheel2,.m1bl-wheel-stroke{animation:m1bl-lines 2s ease-in-out infinite}
+      .m1bl-top{animation-name:m1bl-top}
+      .m1bl-wheel1{animation-name:m1bl-wheel1;transform:rotate(-.25turn);transform-origin:43px 111px}
+      .m1bl-wheel2{animation-name:m1bl-wheel2;transform:rotate(.25turn);transform-origin:102px 111px}
+      .m1bl-wheel-stroke{animation-name:m1bl-wheel-stroke}
       .m1bl-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-      @keyframes m1bl-in{to{opacity:1}}
-      @keyframes m1bl-body{0%{stroke-dashoffset:338}42%,62%{stroke-dashoffset:0}100%{stroke-dashoffset:-338}}
-      @keyframes m1bl-wheel{0%,18%{stroke-dashoffset:81.7}50%,66%{stroke-dashoffset:0}100%{stroke-dashoffset:-81.7}}
-      @keyframes m1bl-box{0%,36%{opacity:0;transform:translateY(-34px) rotate(-18deg)}50%{opacity:1;transform:translateY(0) rotate(0)}
-        56%{transform:translateY(-3px)}62%{opacity:1;transform:translateY(0)}82%,100%{opacity:0;transform:translateY(0)}}
-      @keyframes m1bl-roll{0%,70%{transform:translateX(0)}86%{transform:translateX(7px)}100%{transform:translateX(0)}}
-      @keyframes m1bl-shadow{0%,70%,100%{transform:scaleX(1);opacity:1}86%{transform:scaleX(.86);opacity:.7}}
-      @keyframes m1bl-bar{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}
+      @keyframes m1bl-lines{0%,100%{opacity:0}8%,92%{opacity:1}}
+      @keyframes m1bl-top{0%{stroke-dashoffset:-338}50%{stroke-dashoffset:0}100%{stroke-dashoffset:338}}
+      @keyframes m1bl-wheel1{0%{transform:rotate(-.25turn)}100%{transform:rotate(2.75turn)}}
+      @keyframes m1bl-wheel2{0%{transform:rotate(.25turn)}100%{transform:rotate(3.25turn)}}
+      @keyframes m1bl-wheel-stroke{0%,100%{stroke-dashoffset:81.68}50%{stroke-dashoffset:40.84}}
       @media (prefers-reduced-motion: reduce){
-        .m1bl-cart,.m1bl-shadow,.m1bl-box,.m1bl-bar::after{animation:none}
-        .m1bl-body,.m1bl-wheel{animation:none;stroke-dashoffset:0}
-        .m1bl-stage{animation:m1bl-pulse 1.6s ease-in-out infinite}
-        @keyframes m1bl-pulse{50%{opacity:.55}}
+        .m1bl-lines,.m1bl-top,.m1bl-wheel1,.m1bl-wheel2,.m1bl-wheel-stroke{animation-duration:6s}
       }
     </style>
     <title>M1 Store</title>
   </head>
   <body>
     <div id="m1-boot-loader" role="status" aria-live="polite">
-      <div class="m1bl-stage">
-        <svg class="m1bl-cart" viewBox="0 0 128 128" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
-          <g fill="none" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-            <g class="m1bl-track">
-              <polyline points="4,4 21,4 26,22 124,22 112,64 35,64 39,80 106,80" />
-              <circle cx="43" cy="111" r="13" />
-              <circle cx="102" cy="111" r="13" />
+      <svg class="m1bl-cart" viewBox="0 0 128 128" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+        <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="8">
+          <g class="m1bl-track">
+            <polyline points="4,4 21,4 26,22 124,22 112,64 35,64 39,80 106,80" />
+            <circle cx="43" cy="111" r="13" />
+            <circle cx="102" cy="111" r="13" />
+          </g>
+          <g class="m1bl-lines" stroke="currentColor">
+            <polyline class="m1bl-top" points="4,4 21,4 26,22 124,22 112,64 35,64 39,80 106,80" stroke-dasharray="338 338" stroke-dashoffset="-338" />
+            <g class="m1bl-wheel1">
+              <circle class="m1bl-wheel-stroke" cx="43" cy="111" r="13" stroke-dasharray="81.68 81.68" stroke-dashoffset="81.68" />
             </g>
-            <g stroke="currentColor">
-              <polyline class="m1bl-body" points="4,4 21,4 26,22 124,22 112,64 35,64 39,80 106,80" />
-              <circle class="m1bl-wheel" cx="43" cy="111" r="13" transform="rotate(-90 43 111)" />
-              <circle class="m1bl-wheel" cx="102" cy="111" r="13" transform="rotate(90 102 111)" />
+            <g class="m1bl-wheel2">
+              <circle class="m1bl-wheel-stroke" cx="102" cy="111" r="13" stroke-dasharray="81.68 81.68" stroke-dashoffset="81.68" />
             </g>
           </g>
-          <rect class="m1bl-box" x="50" y="34" width="22" height="22" rx="5" />
-          <rect class="m1bl-box m1bl-box--2" x="77" y="40" width="16" height="16" rx="4" />
-        </svg>
-        <span class="m1bl-shadow" aria-hidden="true"></span>
-      </div>
-      <div class="m1bl-word" aria-hidden="true"><span><b>M1</b> STORE</span><span class="m1bl-bar"></span></div>
+        </g>
+      </svg>
       <span class="m1bl-sr">جاري التحميل…</span>
     </div>
     <script>
