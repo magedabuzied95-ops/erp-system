@@ -1138,12 +1138,15 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
         items: selectedItems,
       });
       toast.success(mode === "exchange" ? "تم إنشاء استبدال" : "تم إنشاء مرتجع");
+      // The server prorates the invoice discount out of the refund, and checkout
+      // only accepts exchange credit up to that figure, not the gross total here.
+      const serverRefund = Number(response?.refund_amount);
       onCreated?.({
         mode,
         order: response.order,
         returnRecord: response.return,
         wallet: response.wallet,
-        returnTotal,
+        returnTotal: Number.isFinite(serverRefund) ? serverRefund : returnTotal,
         exchangeDifference,
       });
     } catch (err) {

@@ -11,6 +11,7 @@ import { adjustVariantStock, recordInventoryMovement } from "../services/invento
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
+import { getActiveLoyaltyRule } from "../utils/loyalty.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
 import { detectMarketingAttribution, logAttributionEvent } from "../services/marketingAttributionService.js";
 import { issueFirstOrderCoupons, redeemCoupon, releaseCouponForOrder, releaseCouponIfFullyReturned, resolveReceiptCoupon, syncRedemptionForOrder, validateCoupon } from "../services/couponsService.js";
@@ -3322,7 +3323,12 @@ export const createOrder = async (req, res) => {
       return res.status(stockValidationError.status).json(stockValidationError.body);
     }
 
-    const computedSubtotal = Number.isFinite(Number(subtotal)) ? Number(subtotal) : totalPrice;
+    // The subtotal is the sum of the lines the order will actually store. A body
+    // `subtotal` used to replace it, so a 1000 line could be billed as 1.
+    const computedSubtotal = normalizeInvoiceMoney(totalPrice);
+    if (Number.isFinite(Number(subtotal)) && subtotal !== null && subtotal !== "" && Math.abs(Number(subtotal) - computedSubtotal) > 0.01) {
+      console.warn("[orders:subtotal-mismatch]", { tenant_id: tenantId, sent_subtotal: Number(subtotal), line_subtotal: computedSubtotal });
+    }
     const normalizedInvoiceDiscountType = String(invoice_discount_type || "").trim().toLowerCase() === "percentage" ? "percentage" : "fixed";
     const invoiceDiscountValue = Math.max(0, Number(invoice_discount_value || 0) || 0);
     const requestedInvoiceDiscountAmount = Math.max(0, Number(invoice_discount_amount || 0) || 0);
@@ -3345,10 +3351,30 @@ export const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invoice discount cannot exceed subtotal" });
     }
     const requestedDiscountAmount = Math.max(0, Number(discount_amount || 0) || 0);
-    const itemDiscountAmount = requestedDiscountAmount >= normalizedInvoiceDiscountAmount
+    const requestedItemDiscountAmount = requestedDiscountAmount >= normalizedInvoiceDiscountAmount
       ? Math.max(0, requestedDiscountAmount - normalizedInvoiceDiscountAmount)
       : requestedDiscountAmount;
-    const nonCouponDiscount = itemDiscountAmount + normalizedInvoiceDiscountAmount + Number(loyalty_discount_amount || 0);
+    // Item discounts can only be what the lines themselves carry, each no more
+    // than its own price x quantity.
+    const lineDiscountTotal = normalizeInvoiceMoney(items.reduce((sum, item) => {
+      const lineGross = Math.max(0, Number(item.price || 0) * Number(item.quantity || 0));
+      const lineDiscount = Math.max(0, Number(item.discount_amount || 0) || 0);
+      return sum + Math.min(lineDiscount, lineGross);
+    }, 0));
+    const itemDiscountAmount = Math.min(requestedItemDiscountAmount, lineDiscountTotal);
+    // Loyalty money is points x the active rule's redeem value, never more.
+    const requestedLoyaltyPoints = Math.max(0, Math.floor(Number(loyalty_points_redeemed || 0) || 0));
+    const requestedLoyaltyDiscount = Math.max(0, Number(loyalty_discount_amount || 0) || 0);
+    let verifiedLoyaltyDiscount = 0;
+    if (requestedLoyaltyDiscount > 0 && requestedLoyaltyPoints > 0) {
+      const loyaltyRule = await getActiveLoyaltyRule(client, tenantId);
+      const redeemValue = Math.max(0, Number(loyaltyRule?.redeem_value || 0) || 0);
+      verifiedLoyaltyDiscount = normalizeInvoiceMoney(Math.min(requestedLoyaltyDiscount, requestedLoyaltyPoints * redeemValue));
+    }
+    if (requestedLoyaltyDiscount - verifiedLoyaltyDiscount > 0.009) {
+      console.warn("[orders:loyalty-discount-capped]", { tenant_id: tenantId, sent: requestedLoyaltyDiscount, points: requestedLoyaltyPoints, allowed: verifiedLoyaltyDiscount });
+    }
+    const nonCouponDiscount = itemDiscountAmount + normalizedInvoiceDiscountAmount + verifiedLoyaltyDiscount;
     const totalTax = normalizedTaxAmount;
     const totalServiceFee = Number(service_fee || 0);
     // Coupon base = goods after non-coupon discounts; service fee joins only if the campaign applies_to_shipping.
@@ -3362,7 +3388,7 @@ export const createOrder = async (req, res) => {
         orderTotal: couponBaseTotal,
         shippingAmount: totalServiceFee,
         items,
-        appliedDiscounts: { loyalty: Number(loyalty_discount_amount || 0), invoice: normalizedInvoiceDiscountAmount },
+        appliedDiscounts: { loyalty: verifiedLoyaltyDiscount, invoice: normalizedInvoiceDiscountAmount },
         source: channel === "website" ? "website" : "pos",
         customerId: resolvedCustomerId,
         client,
@@ -3378,9 +3404,12 @@ export const createOrder = async (req, res) => {
         });
       }
     }
-    const couponDiscountAmount = safeCouponCode
-      ? Number(couponValidation?.discount_amount || 0)
-      : Math.max(0, Number(coupon_discount_amount || 0));
+    // A coupon discount exists only through a validated code; no client sends one
+    // without it, and the bare amount used to be applied unchecked.
+    const couponDiscountAmount = safeCouponCode ? Number(couponValidation?.discount_amount || 0) : 0;
+    if (!safeCouponCode && Number(coupon_discount_amount || 0) > 0) {
+      console.warn("[orders:coupon-discount-without-code-ignored]", { tenant_id: tenantId, sent: Number(coupon_discount_amount) });
+    }
     const totalDiscount = nonCouponDiscount + couponDiscountAmount;
     const computedTotal = Math.max(0, computedSubtotal - totalDiscount + totalServiceFee);
     console.log("[orders:discount-received]", {
@@ -3394,7 +3423,7 @@ export const createOrder = async (req, res) => {
       computed_invoice_discount_value: invoiceDiscountValue,
       computed_invoice_discount_amount: normalizedInvoiceDiscountAmount,
       computed_coupon_discount_amount: couponDiscountAmount,
-      computed_loyalty_discount_amount: Number(loyalty_discount_amount || 0),
+      computed_loyalty_discount_amount: verifiedLoyaltyDiscount,
       computed_service_fee: totalServiceFee,
       computed_final_total: computedTotal,
       expected_invoice_only_total: Math.max(0, computedSubtotal - normalizedInvoiceDiscountAmount + totalServiceFee),
@@ -3402,13 +3431,34 @@ export const createOrder = async (req, res) => {
       received_paid_amount: paid_amount,
     });
     const exchangeMode = exchange_mode === true || String(exchange_mode || "").toLowerCase() === "true";
-    const exchangeCreditAmount = Math.max(0, Number(exchange_credit_amount || 0) || 0);
+    const exchangeCreditAmount = exchangeMode ? normalizeInvoiceMoney(Math.max(0, Number(exchange_credit_amount || 0) || 0)) : 0;
+    if (exchangeCreditAmount > 0) {
+      // Exchange credit is money the shop already owes from a return on the
+      // original invoice. It used to be taken from the body, so any figure
+      // became free goods plus wallet credit.
+      const available = await resolveAvailableExchangeCredit(client, { tenantId, originalOrderId: original_order_id });
+      if (exchangeCreditAmount - available > EXCHANGE_CREDIT_TOLERANCE) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(400).json({
+          success: false,
+          code: "EXCHANGE_CREDIT_NOT_AVAILABLE",
+          message: available > 0
+            ? `رصيد الاستبدال المتاح من الفاتورة الأصلية ${available.toFixed(2)} فقط`
+            : "لا يوجد مرتجع استبدال على الفاتورة الأصلية. اعمل المرتجع من العمليات الأخيرة أولاً",
+          exchange: { requested_credit: exchangeCreditAmount, available_credit: available, original_order_id: original_order_id || null },
+        });
+      }
+    }
     const exchangeAppliedCredit = Math.min(exchangeCreditAmount, computedTotal);
     const amountDueNow = exchangeMode
-      ? Math.max(0, Number.isFinite(Number(amount_due_now)) ? Number(amount_due_now) : computedTotal - exchangeAppliedCredit)
+      ? normalizeInvoiceMoney(Math.max(0, computedTotal - exchangeAppliedCredit))
       : computedTotal;
+    if (exchangeMode && Number.isFinite(Number(amount_due_now)) && amount_due_now !== null && amount_due_now !== "" && Math.abs(Number(amount_due_now) - amountDueNow) > 0.01) {
+      console.warn("[orders:exchange-amount-due-mismatch]", { tenant_id: tenantId, sent: Number(amount_due_now), computed: amountDueNow });
+    }
     const exchangeDifferenceAmount = exchangeMode
-      ? Number(Number(exchange_difference || computedTotal - exchangeCreditAmount).toFixed(2))
+      ? normalizeInvoiceMoney(computedTotal - exchangeCreditAmount)
       : 0;
     const receivedAmount = isCreditSaleTransaction
       ? Math.max(0, Number(paid_amount || 0) || 0)
@@ -3978,7 +4028,7 @@ export const createOrder = async (req, res) => {
           orderTotal: couponBaseTotal,
         shippingAmount: totalServiceFee,
         items,
-        appliedDiscounts: { loyalty: Number(loyalty_discount_amount || 0), invoice: normalizedInvoiceDiscountAmount },
+        appliedDiscounts: { loyalty: verifiedLoyaltyDiscount, invoice: normalizedInvoiceDiscountAmount },
           client,
         });
         order.coupon_id = couponRedemption?.coupon?.id || order.coupon_id;
@@ -5438,6 +5488,66 @@ const resolveRefundProrationFactor = async (client, order = {}) => {
   return Math.min(1, Math.max(0, factor));
 };
 
+/**
+ * The most a return of `quantity` units of a sold line can give back before the
+ * order-level discount share is removed: the line's own net price. A client's
+ * `refund_amount` above that is cut to it, so a request cannot refund more than
+ * the goods were sold for. A missing or non-numeric request means the full share.
+ */
+export const capLineRefundGross = (orderItem = {}, quantity = 0, requestedGross = undefined) => {
+  const soldQuantity = Math.max(1, Number(orderItem?.quantity || 0) || 1);
+  const lineTotal = Math.max(0, Number(orderItem?.total_amount ?? orderItem?.line_total ?? 0) || 0);
+  const maxGross = (lineTotal / soldQuantity) * Math.max(0, Number(quantity) || 0);
+  const requested = Number(requestedGross);
+  if (requestedGross === undefined || requestedGross === null || requestedGross === "" || !Number.isFinite(requested)) {
+    return maxGross;
+  }
+  return Math.min(Math.max(0, requested), maxGross);
+};
+
+// The POS used to send the gross return total as the credit, a few piastres
+// above the server's prorated refund on a discounted invoice.
+const EXCHANGE_CREDIT_TOLERANCE = 0.05;
+
+/**
+ * What is left to spend from exchange-mode returns on `originalOrderId`: their
+ * refunds minus the credit live exchange sales have already used. The original
+ * order row is locked so two tills cannot spend the same credit at once.
+ */
+const resolveAvailableExchangeCredit = async (client, { tenantId = null, originalOrderId = null } = {}) => {
+  const orderId = Number.parseInt(originalOrderId, 10);
+  if (!orderId) return 0;
+  const original = await client.query(
+    `SELECT id FROM orders WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint) FOR UPDATE`,
+    [orderId, tenantId]
+  );
+  if (!original.rows[0]) return 0;
+  const result = await client.query(
+    `
+    SELECT
+      COALESCE((
+        SELECT SUM(COALESCE(r.refund_amount, 0))
+        FROM returns r
+        WHERE r.order_id = $1
+          AND LOWER(COALESCE(r.metadata->>'mode', '')) = 'exchange'
+          AND LOWER(COALESCE(r.status, 'completed')) NOT IN ('cancelled', 'rejected')
+      ), 0)::numeric AS credited,
+      COALESCE((
+        SELECT SUM(COALESCE(o.exchange_credit_amount, 0))
+        FROM orders o
+        WHERE o.original_order_id = $1
+          AND o.exchange_mode = TRUE
+          AND o.deleted_at IS NULL
+          AND LOWER(COALESCE(o.status, '')) <> 'cancelled'
+      ), 0)::numeric AS used
+    `,
+    [orderId]
+  );
+  const credited = Number(result.rows[0]?.credited || 0);
+  const used = Number(result.rows[0]?.used || 0);
+  return normalizeInvoiceMoney(Math.max(0, credited - used));
+};
+
 const normalizeOperationItem = (item = {}) => {
   const quantity = Math.max(0, Number(item.quantity || 0));
   const price = resolveInputUnitPrice(item);
@@ -6481,6 +6591,17 @@ export const editOrder = async (req, res) => {
       return res.status(200).json({ success: true, message: "Order updated", order: orderResult.rows[0], items: updated?.items || [] });
     }
 
+    // Rewriting the lines deletes order_items, which cascades to return_items:
+    // the return history vanished and the same units could be refunded again.
+    if (loaded.items.some((item) => Number(item.returned_quantity || 0) > 0)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        code: "ORDER_HAS_RETURNS",
+        message: "لا يمكن تعديل أصناف فاتورة عليها مرتجع. استخدم الاستبدال أو المرتجع بدلاً من التعديل",
+      });
+    }
+
     const oldItems = loaded.items.map(normalizeOperationItem);
     const newItems = (Array.isArray(req.body.items) ? req.body.items : []).map(normalizeOperationItem).filter((item) => item.quantity > 0);
     if (!newItems.length) {
@@ -6534,7 +6655,14 @@ export const editOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invoice discount cannot exceed subtotal" });
     }
     const invoiceDiscountAmount = Math.min(subtotalValue, requestedInvoiceDiscountAmount > 0 ? requestedInvoiceDiscountAmount : computedInvoiceDiscountAmount);
-    const discountValue = Number(req.body.discount_amount ?? newItems.reduce((sum, item) => sum + Number(item.discount_amount || 0), 0));
+    // Item + invoice discount, but never more than the lines carry plus the
+    // capped invoice discount: an uncapped figure could exceed the subtotal.
+    const editLineDiscountTotal = newItems.reduce((sum, item) => {
+      const lineGross = Math.max(0, Number(item.price || 0) * Number(item.quantity || 0));
+      return sum + Math.min(Math.max(0, Number(item.discount_amount || 0) || 0), lineGross);
+    }, 0);
+    const requestedEditDiscount = Math.max(0, Number(req.body.discount_amount ?? editLineDiscountTotal) || 0);
+    const discountValue = normalizeInvoiceMoney(Math.min(requestedEditDiscount, editLineDiscountTotal + invoiceDiscountAmount));
     const serviceValue = Number(req.body.service_fee ?? loaded.order.service_fee ?? 0);
     const taxValue = Number(req.body.tax_amount ?? 0);
 
@@ -6587,15 +6715,15 @@ export const editOrder = async (req, res) => {
       && totalValue + 0.009 >= editRealCollectedAmount;
 
     const loadedOriginalPaidAmount = resolveCollectedOrderAmount(loaded.order);
+    // What was collected comes from the locked order row. The body's figure used
+    // to win, so an inflated one paid out a refund and a small one wiped a debt.
     const requestedOriginalPaidAmount = Number(req.body.original_paid_amount);
+    if (Number.isFinite(requestedOriginalPaidAmount) && requestedOriginalPaidAmount > 0 && Math.abs(requestedOriginalPaidAmount - loadedOriginalPaidAmount) > 0.01) {
+      console.warn("[orders:edit-original-paid-mismatch]", { order_id: loaded.order.id, sent: requestedOriginalPaidAmount, stored: loadedOriginalPaidAmount });
+    }
     const originalPaidAmount = isEmployeeAdvanceSettledOrder
       ? totalValue
-      : Math.max(
-          0,
-          Number.isFinite(requestedOriginalPaidAmount) && requestedOriginalPaidAmount > 0
-            ? requestedOriginalPaidAmount
-            : loadedOriginalPaidAmount
-        );
+      : Math.max(0, loadedOriginalPaidAmount);
     const expectedAmountDueNow = Math.max(0, totalValue - originalPaidAmount);
     const expectedRefundOrCreditDue = Math.max(0, originalPaidAmount - totalValue);
     const requestedAmountDueNow = Number(req.body.amount_due_now);
@@ -7887,9 +8015,9 @@ export const returnOrder = async (req, res) => {
         throw error;
       }
 
-      const unitRefund = Number(original.total_amount || 0) / Math.max(1, soldQuantity || 1);
-      // The client sends the gross line price, so prorate here rather than trusting it.
-      const grossRefund = Number(requested.refund_amount ?? unitRefund * quantity);
+      // The client sends the gross line price; it is capped at what the line sold
+      // for, then the order-level discount share is removed.
+      const grossRefund = capLineRefundGross(original, quantity, requested.refund_amount);
       const refund = Number((grossRefund * refundProrationFactor).toFixed(2));
       validatedItems.push({ original, quantity, refund });
     }
@@ -8137,7 +8265,7 @@ export const returnOrder = async (req, res) => {
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:before", returnId: returnRow.id });
       await postReturnEntry(client, {
         tenantId,
-        amount: refundTotal || Number(req.body.refund_amount || 0),
+        amount: refundTotal,
         direction: "out",
         refundMethod,
         cogsAmount: returnCogsTotal,
@@ -8164,7 +8292,7 @@ export const returnOrder = async (req, res) => {
         eventType: "refund_cash",
         sourceType: "return",
         sourceId: returnRow.id,
-        amount: refundTotal || Number(req.body.refund_amount || 0),
+        amount: refundTotal,
       });
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:after", returnId: returnRow.id, shiftId: refundShiftId });
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "financial_account_activity:before", returnId: returnRow.id });
@@ -8177,7 +8305,7 @@ export const returnOrder = async (req, res) => {
         direction: -1,
         sourceType: "return",
         sourceId: returnRow.id,
-        amount: refundTotal || Number(req.body.refund_amount || 0),
+        amount: refundTotal,
         notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
         createdBy: req.user?.id || null,
       });
@@ -8201,7 +8329,7 @@ export const returnOrder = async (req, res) => {
         direction: -1,
         sourceType: "return",
         sourceId: returnRow.id,
-        amount: refundTotal || Number(req.body.refund_amount || 0),
+        amount: refundTotal,
         notes: `${reason}${mode === "exchange" ? ` / original invoice ${loaded.order.invoice_number || loaded.order.id}` : ""}`,
         createdBy: req.user?.id || null,
       });
@@ -8438,14 +8566,16 @@ export const createReturn = async (req, res) => {
       });
     }
 
-    const itemRefundTotal = items.reduce((sum, item) => {
-      const amount = Number(item?.refund_amount ?? item?.refundAmount ?? 0);
-      return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
-    }, 0);
-    const requestedRefundAmount = Number(refundAmount);
-    const effectiveRefundAmount = Number.isFinite(requestedRefundAmount) && requestedRefundAmount > 0
-      ? requestedRefundAmount
-      : itemRefundTotal;
+    if (!items.some((item) => Number(item?.quantity || 0) > 0)) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "اختر كمية مرتجعة صالحة",
+      });
+    }
+    // Every money movement below uses the server's per-line total, never the
+    // body's `refundAmount`: a request with no goods used to pay that out as-is.
+    let effectiveRefundAmount = 0;
 
     await ensureReturnFlowAccountingReady({ routeName, orderId, tenantId: requestTenantId });
     logReturnFlowStep(routeName, { orderId, tenantId: requestTenantId, step: "orders_schema:before" });
@@ -8472,6 +8602,14 @@ export const createReturn = async (req, res) => {
       });
     }
     const orderRow = orderResult.rows[0];
+    if (orderRow.deleted_at || normalizeOrderStatus(orderRow.status) === "cancelled") {
+      // A cancelled or deleted invoice already put its stock and money back.
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        success: false,
+        message: "لا يمكن إنشاء مرتجع لفاتورة ملغاة أو محذوفة",
+      });
+    }
     const tenantId = assertReturnTenantId(resolveReturnTenantId(req, orderRow), orderId);
     const disposition = resolveReturnDisposition({
       value: req.body.disposition || req.body.returnDisposition,
@@ -8592,8 +8730,6 @@ export const createReturn = async (req, res) => {
     for (const item of items) {
       const orderItemId = item.order_item_id || item.orderItemId || item.id;
       const quantity = Number(item.quantity || 0);
-      // The client sends the gross line price; the order-level discount share is removed here.
-      const refund = Number((Number(item.refund_amount || item.refundAmount || 0) * refundProrationFactor).toFixed(2));
 
       if (!orderItemId || quantity <= 0) {
         continue;
@@ -8623,6 +8759,11 @@ export const createReturn = async (req, res) => {
         throw error;
       }
       const variantId = originalItem.variant_id || null;
+      // The client sends the gross line price (OrderReturnsPage even sends it
+      // before the line discount): capped at what the line sold for, then the
+      // order-level discount share is removed.
+      const requestedGross = item.refund_amount ?? item.refundAmount;
+      const refund = Number((capLineRefundGross(originalItem, quantity, requestedGross) * refundProrationFactor).toFixed(2));
       proratedRefundTotal += refund;
       returnedLineSummary.push({
         name: originalItem.product_name || "منتج",
@@ -8690,6 +8831,10 @@ export const createReturn = async (req, res) => {
       itemsCount: items.length,
     });
 
+    effectiveRefundAmount = Number(proratedRefundTotal.toFixed(2));
+    await client.query(`UPDATE returns SET refund_amount = $1 WHERE id = $2`, [effectiveRefundAmount, returnRow.id]);
+    returnRow = { ...returnRow, refund_amount: effectiveRefundAmount };
+
     // Points follow the goods back: the customer keeps only what they still own.
     const outstandingItems = await client.query(
       `
@@ -8706,7 +8851,7 @@ export const createReturn = async (req, res) => {
       orderId,
       returnId: returnRow.id,
       customerId: orderRow?.customer_id || null,
-      refundAmount: proratedRefundTotal || effectiveRefundAmount,
+      refundAmount: effectiveRefundAmount,
       orderTotal: Number(orderRow?.total_amount ?? orderRow?.total ?? 0),
       fullyReturned,
       userId: req.user?.id || null,
@@ -8835,9 +8980,10 @@ export const createReturn = async (req, res) => {
       message: error?.message || String(error),
     });
     console.log("Create Return Error:", error);
-    return res.status(500).json({
+    const clientError = Number(error?.status) >= 400 && Number(error?.status) < 500;
+    return res.status(clientError ? Number(error.status) : 500).json({
       success: false,
-      message: "Failed to save return",
+      message: clientError ? error.message : "Failed to save return",
     });
   } finally {
     client.release();

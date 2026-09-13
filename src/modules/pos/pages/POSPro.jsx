@@ -5691,7 +5691,9 @@ function POSPro() {
       active: true,
       originalOrderId: order?.id || order?.order_id || null,
       invoiceNumber: order?.invoice_number || order?.public_order_number || String(order?.id || ""),
-      creditAmount: Number(returnTotal || order?.total_amount || order?.total || 0),
+      // The refund the server recorded for the exchange return; checkout rejects
+      // any credit above it, so the invoice total is never a fallback.
+      creditAmount: Math.max(0, Number(returnTotal) || 0),
     });
     setInvoiceDiscountType(defaultState.invoiceDiscountType);
     setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
