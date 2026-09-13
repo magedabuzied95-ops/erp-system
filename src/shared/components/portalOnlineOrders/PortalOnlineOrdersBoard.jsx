@@ -335,7 +335,7 @@ function ItemLine({ item, ui }) {
     <div className="flex items-center gap-3 rounded-[var(--radius-control)] bg-surface-soft p-2">
       <ProductThumb src={item.image_url} size="h-20 w-20" />
       <div className="min-w-0 flex-1">
-        <div className="line-clamp-2 text-sm font-black leading-5 text-text" dir="auto">{item.product_name}</div>
+        <div className="line-clamp-2 text-start text-sm font-black leading-5 text-text"><bdi>{item.product_name}</bdi></div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {item.size ? <Pill className="bg-surface text-text">{ui.tb("detail.size")}: <span dir="ltr">{item.size}</span></Pill> : null}
           {item.color ? <Pill className="bg-surface text-text"><span dir="auto">{item.color}</span></Pill> : null}
@@ -673,7 +673,7 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
                 <div key={item.id} className="flex items-start gap-3 rounded-[var(--radius-control)] bg-surface-soft p-2">
                   <ProductThumb src={item.image_url} size="h-20 w-20" onOpen={setImagePreview} />
                   <div className="min-w-0 flex-1">
-                    <div className="line-clamp-2 text-sm font-black leading-5 text-text" dir="auto">{item.product_name}</div>
+                    <div className="line-clamp-2 text-start text-sm font-black leading-5 text-text"><bdi>{item.product_name}</bdi></div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {item.color ? <Pill className="bg-surface text-text">{ui.tb("detail.color")}: <span dir="auto">{item.color}</span></Pill> : null}
                       {item.size ? <Pill className="bg-surface text-text">{ui.tb("detail.size")}: <span dir="ltr">{item.size}</span></Pill> : null}
