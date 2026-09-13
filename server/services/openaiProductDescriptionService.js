@@ -918,7 +918,7 @@ export const cleanModelName = (name = "") => {
   const original = cleanText(name);
   const cleaned = original
     .replace(new RegExp(COPY_COLOUR_SOURCE, "gi"), " ")
-    .replace(/\b(sneakers?|shoes?|trainers?|for\s+(men|women|kids|boys|girls)|men'?s|women'?s|kids'?|unisex)\b/gi, " ")
+    .replace(/\b(sn?e[ae]?c?kers?|shoes?|trainers?|bags?|boots?|slippers?|for\s+(men|women|kids|boys|girls)|men'?s|women'?s|kids'?|men|women|kids|unisex)\b/gi, " ")
     .replace(/\s{2,}/g, " ")
     .replace(/^[\s\-–—/&,]+|[\s\-–—/&,]+$/g, "")
     .trim();
@@ -933,7 +933,8 @@ const structuredSubject = (context = {}, language = "ar") => {
   const brandField = cleanText(context.brand);
   // A name that already carries a known brand keeps it alone ("Nike Adidas Running").
   const nameBrand = brandKnowledgeFor({ name });
-  const brand = nameBrand && !nameBrand.brand.toLowerCase().includes(brandField.toLowerCase().split(/\s+/)[0] || " ") ? "" : brandField;
+  const brandFieldWord = brandField.toLowerCase().split(/\s+/)[0];
+  const brand = nameBrand && !(brandFieldWord && nameBrand.brand.toLowerCase().includes(brandFieldWord)) ? "" : brandField;
   const displayName = [brandInName(brand, name) ? "" : brand, name].filter(Boolean).join(" ");
   if (language === "en") return displayName;
   return [facts.type_ar, displayName, facts.audience_ar].filter(Boolean).join(" ");
@@ -1053,7 +1054,7 @@ const genericStructuredSections = (context = {}, language = "ar") => {
   if (language === "en") {
     const what = [facts.audience_en ? `${facts.audience_en}'s` : "", facts.type_en || "style"].filter(Boolean).join(" ");
     return {
-      headline: `${subject} • Clean Modern Design • Everyday Comfort`,
+      headline: `${subject} • Clean Modern Design • ${isBag ? "Everyday Practicality" : "Everyday Comfort"}`,
       intro: `The ${subject} brings a clean, modern shape to ${what} made for daily wear. It keeps your look neat and pairs easily with casual and smart-casual outfits.`,
       features: [
         { title: "Modern Design", detail: "Clean lines and a balanced shape that look sharp from every angle." },
@@ -1063,8 +1064,27 @@ const genericStructuredSections = (context = {}, language = "ar") => {
         material ? { title: "Material", detail: `Made with ${material} for a finished, reliable feel.` } : { title: "Neat Finish", detail: "Tidy details that keep the piece looking polished with regular wear." },
         { title: "Easy to Style", detail: "Works with jeans, chinos and casual looks without extra effort." },
       ],
-      why: `It gives you a polished look without giving up comfort. A simple, versatile pick that fits into your daily routine and works with more than one style.`,
+      why: isBag
+        ? "It gives you a polished look that stays practical. A simple, versatile pick that fits into your daily routine and works with more than one style."
+        : "It gives you a polished look without giving up comfort. A simple, versatile pick that fits into your daily routine and works with more than one style.",
       ideal_for: ["Everyday wear", "Casual outings", "Work and university", "Weekend looks"],
+    };
+  }
+  // شنطة is feminine: its template speaks of a bag, not of wearing a shoe.
+  if (isBag) {
+    return {
+      headline: `${subject} • تصميم عصري • عملية للاستخدام اليومي`,
+      intro: `${subject} بتصميم عصري وخطوط نظيفة معمولة للاستخدام اليومي. شكلها مرتب وبتتنسق بسهولة مع اللبس الكاجوال والسمارت كاجوال.`,
+      features: [
+        { title: "تصميم عصري", detail: "خطوط نظيفة وشكل متوازن بيبان شيك من كل الزوايا." },
+        { title: "عملية في الاستخدام", detail: "سهلة في الحمل ومناسبة لحاجاتك الأساسية كل يوم." },
+        material ? { title: "الخامة", detail: `مصنوعة من ${material} بإحساس متقن في الإيد.` } : { title: "تشطيب مرتب", detail: "تفاصيل مظبوطة بتحافظ على شكلها الشيك مع الاستخدام." },
+        { title: "سهلة التنسيق", detail: women ? "بتمشي مع الجينز والفساتين واللبس الكاجوال من غير مجهود." : "بتمشي مع اللبس الكاجوال والسمارت كاجوال من غير مجهود." },
+      ],
+      why: women
+        ? "هتديكي شكل شيك وعملي في نفس الوقت. اختيار بسيط ومتعدد الاستخدامات بيناسب يومك وأكتر من ستايل."
+        : "هتديك شكل شيك وعملي في نفس الوقت. اختيار بسيط ومتعدد الاستخدامات بيناسب يومك وأكتر من ستايل.",
+      ideal_for: ["الاستخدام اليومي", "الخروجات الكاجوال", "الشغل والجامعة", "السفر والمشاوير"],
     };
   }
   return {
@@ -1072,9 +1092,7 @@ const genericStructuredSections = (context = {}, language = "ar") => {
     intro: `${subject} بتصميم عصري وخطوط نظيفة معمول للاستخدام اليومي. شكله مرتب وبيتنسق بسهولة مع اللبس الكاجوال والسمارت كاجوال.`,
     features: [
       { title: "تصميم عصري", detail: "خطوط نظيفة وشكل متوازن بيبان شيك من كل الزوايا." },
-      isBag
-        ? { title: "عملية في الاستخدام", detail: "سهلة في الحمل ومناسبة لحاجاتك الأساسية كل يوم." }
-        : { title: "راحة في اللبس", detail: "مريح في الاستخدام اليومي حتى مع الأيام الطويلة برا البيت." },
+      { title: "راحة في اللبس", detail: "مريح في الاستخدام اليومي حتى مع الأيام الطويلة برا البيت." },
       material ? { title: "الخامة", detail: `مصنوع من ${material} بإحساس متقن في الإيد واللبس.` } : { title: "تشطيب مرتب", detail: "تفاصيل مظبوطة بتحافظ على شكله الشيك مع الاستخدام." },
       { title: "سهل التنسيق", detail: women ? "بيمشي مع الجينز والفساتين واللبس الكاجوال من غير مجهود." : "بيمشي مع الجينز والبنطلونات القماش واللبس الكاجوال من غير مجهود." },
     ],

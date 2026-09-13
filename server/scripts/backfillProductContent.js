@@ -68,6 +68,9 @@ const STALE_SEO = flag("stale-seo");
 const TEMPLATE = flag("template");
 // For a scheduler: exit silently when another run is going or nothing is left.
 const IF_UNFINISHED = flag("if-unfinished");
+// Rewrite products this state file already finished; the backups stay the
+// values from before the first run.
+const REDO = flag("redo");
 const LIMIT = Number(option("limit", "0")) || 0;
 const IDS = option("ids", "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0);
 const TENANT_ID = Number(option("tenant", process.env.STOREFRONT_TENANT_ID || "1")) || 1;
@@ -96,11 +99,15 @@ const readJson = (file) => {
 };
 
 const PLACEHOLDER_BRAND = /^(unbranded|no[\s-]?brand|generic|none|n\/?a|-+)$/i;
+// The old add-product template glued brand + name + grade + type into the
+// title ("SKECHERS Skechers Slip ins imported_from_vietnam sneakers").
+const JUNK_TITLE = /_|unbranded|\blocal\b/i;
 const isStaleSeo = (row) => {
   const title = String(row.meta_title ?? "").trim();
   const meta = String(row.seo_description ?? "").trim();
   return (
     !title ||
+    JUNK_TITLE.test(title) ||
     title.toLowerCase() === String(row.name ?? "").trim().toLowerCase() ||
     !String(row.seo_keywords ?? "").trim() ||
     !meta ||
@@ -141,6 +148,7 @@ const loadProducts = async () => {
     where.push(`(
       COALESCE(TRIM(p.meta_title), '') = ''
       OR LOWER(TRIM(p.meta_title)) = LOWER(TRIM(p.name))
+      OR p.meta_title ~* '(_|unbranded|\mlocal\M)'
       OR COALESCE(TRIM(p.seo_keywords), '') = ''
       OR COALESCE(TRIM(p.seo_description), '') = ''
       OR TRIM(p.seo_description) IN (TRIM(COALESCE(p.description, '')), TRIM(COALESCE(p.description_ar, '')), TRIM(COALESCE(p.description_en, '')))
@@ -295,7 +303,7 @@ const main = async () => {
   const products = await loadProducts();
   const modelDone = () => (TEMPLATE ? readJson(MODEL_STATE_FILE).done || {} : {});
   const alreadyModelWritten = modelDone();
-  const todo = products.filter((row) => (!state.done[row.id] || IDS.length) && !alreadyModelWritten[row.id]);
+  const todo = products.filter((row) => (!state.done[row.id] || IDS.length || REDO) && !alreadyModelWritten[row.id]);
   // The model run's backup of a product the template already rewrote must be
   // the value from before the template, or --restore would bring back the template.
   const templateBackups = TEMPLATE ? {} : readJson(TEMPLATE_STATE_FILE).backups || {};
