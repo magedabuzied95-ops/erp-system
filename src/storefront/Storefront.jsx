@@ -97,6 +97,7 @@ import { normalizeMerchantReturnPolicy } from "../shared/lib/merchantPolicies";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
+import { pickAutomaticPair } from "./lib/pairPicker.js";
 import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
@@ -7165,23 +7166,13 @@ const bundleVariantLabel = (product, variant, multiColor) => {
   return [multiColor ? color : "", size || (multiColor ? "" : color)].filter(Boolean).join(" · ") || sfText("storefront.products.oneSize", "One size");
 };
 
-const pickAutomaticPair = (products = [], current = {}) => {
-  const currentId = String(current?.id || "");
-  const currentType = String(current?.product_type || current?.productType || "").trim().toLowerCase();
-  const currentBrand = String(current?.brand?.name || current?.brand_name || current?.brand || "").trim().toLowerCase();
-  const candidates = products.filter((product) => {
-    const parentId = String(product?.parent_product_id || product?.id || "");
-    return parentId && parentId !== currentId && bundleSellableVariants(product).length > 0;
-  });
-  const typeOf = (product) => String(product?.product_type || product?.productType || "").trim().toLowerCase();
-  const brandOf = (product) => String(product?.brand?.name || product?.brand_name || product?.brand || "").trim().toLowerCase();
-  return (
-    candidates.find((product) => currentType && typeOf(product) && typeOf(product) !== currentType) ||
-    candidates.find((product) => brandOf(product) && brandOf(product) !== currentBrand) ||
-    candidates[0] ||
-    null
-  );
-};
+// The catalogue readings the scored pick needs (./lib/pairPicker.js holds the rules).
+const pairPickerContext = (saleModeEnabled) => ({
+  audiencesOf: (item) => productAudienceValues(item || {}),
+  priceOf: (item) => getDisplayPricing(item, parseSaleModeEnabled(saleModeEnabled, false), firstDisplayVariant(bundleSellableVariants(item)) || {}).price,
+  isSellable: (item) => bundleSellableVariants(item).length > 0,
+  typeOf: (item) => resolveProductTypeKey(item?.product_type || item?.productType || ""),
+});
 
 function PairsWellWithCard({ product, variantId, onVariantChange, checked, onCheckedChange, saleModeEnabled, isCurrent }) {
   const variants = useMemo(() => bundleSellableVariants(product), [product]);
@@ -7232,6 +7223,8 @@ function PairsWellWith({ product, currentVariant, onAddToCart, saleModeEnabled }
   // The pick depends on the product, not on each re-render handing a new object.
   const productRef = useRef(product);
   productRef.current = product;
+  const saleModeRef = useRef(saleModeEnabled);
+  saleModeRef.current = saleModeEnabled;
   const audience = normalizeAudienceValue(productAudienceValues(product)[0] || product?.gender || "");
 
   // The page's own size choice seeds the current card and follows it when the
@@ -7262,10 +7255,11 @@ function PairsWellWith({ product, currentVariant, onAddToCart, saleModeEnabled }
       if (!chosen) {
         try {
           const response = await cachedStorefrontGet(
-            buildStorefrontProductsRequestUrl({ ...(audience ? { gender: audience } : {}), in_stock: 1, grouping: "product", limit: 24 }),
+            // A wider pool than one page: the scoring needs complements to choose from.
+            buildStorefrontProductsRequestUrl({ ...(audience ? { gender: audience } : {}), in_stock: 1, grouping: "product", limit: 60 }),
             { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS }
           );
-          chosen = pickAutomaticPair(extractStorefrontProductsFromResponse(response), productRef.current);
+          chosen = pickAutomaticPair(extractStorefrontProductsFromResponse(response), productRef.current, pairPickerContext(saleModeRef.current));
         } catch {
           chosen = null;
         }
