@@ -202,10 +202,38 @@ const restore = async (state) => {
   }
 };
 
+/* Two writing runs on one state file double the token spend, fight over the
+ * per-minute window and overwrite each other's progress. The second one exits. */
+const LOCK_FILE = `${STATE_FILE}.lock`;
+const acquireLock = () => {
+  try {
+    const pid = Number(fs.readFileSync(LOCK_FILE, "utf8"));
+    if (pid && pid !== process.pid) {
+      process.kill(pid, 0);
+      console.error(`Another backfill (pid ${pid}) is already using ${STATE_FILE}. Stop it first or wait for it to finish.`);
+      process.exit(1);
+    }
+  } catch (error) {
+    if (error?.code === "EPERM") process.exit(1);
+    // no lock file, or its process is gone
+  }
+  fs.writeFileSync(LOCK_FILE, String(process.pid));
+  const release = () => {
+    try {
+      if (Number(fs.readFileSync(LOCK_FILE, "utf8")) === process.pid) fs.unlinkSync(LOCK_FILE);
+    } catch {
+      // already gone
+    }
+  };
+  process.on("exit", release);
+  ["SIGINT", "SIGTERM"].forEach((signal) => process.on(signal, () => process.exit(130)));
+};
+
 const main = async () => {
   // Wait out per-minute windows inside each request instead of failing the product.
   process.env.AI_TEXT_RATE_LIMIT_WAITS = process.env.AI_TEXT_RATE_LIMIT_WAITS || "6";
   const provider = resolveTextProvider();
+  if (!DRY_RUN) acquireLock();
   const state = loadState();
   if (RESTORE) {
     await restore(state);
