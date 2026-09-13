@@ -3310,8 +3310,7 @@
   .storefront-shell:not(.storefront-dark) .sf-quantity-stepper,
   .storefront-shell:not(.storefront-dark) .sf-product-summary-card,
   .storefront-shell:not(.storefront-dark) .sf-product-option-card,
-  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card,
-  .storefront-shell:not(.storefront-dark) .sf-product-cta {
+  .storefront-shell:not(.storefront-dark) .sf-product-quantity-card {
     border-color: var(--sf-light-border) !important;
     background: var(--sf-light-surface) !important;
     color: var(--sf-light-text) !important;
@@ -3327,20 +3326,6 @@
     background:
       radial-gradient(circle at 18% 0%, rgba(184, 135, 8, 0.055), transparent 32%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.97)) !important;
-  }
-
-  .storefront-shell:not(.storefront-dark) .sf-product-cta {
-    background: linear-gradient(135deg, #c99a19, #e5c158) !important;
-    color: #211b0c !important;
-    -webkit-text-fill-color: #211b0c !important;
-    border-color: rgba(184, 135, 8, 0.34) !important;
-    box-shadow: 0 14px 32px rgba(180, 138, 28, 0.24) !important;
-  }
-
-  .storefront-shell:not(.storefront-dark) .sf-product-cta:disabled {
-    background: rgba(226, 232, 240, 0.95) !important;
-    color: rgba(71, 85, 105, 0.82) !important;
-    box-shadow: none !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-product-summary-card .text-white,
@@ -6897,11 +6882,151 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   -webkit-text-fill-color: rgba(255, 255, 255, 0.3) !important;
 }
 
-.storefront-shell .sf-product-details-page[data-surface-theme="dark"] .sf-product-cta {
-  border-color: transparent !important;
+/* ---- product page buy bar ----------------------------------------------
+   Quantity stepper + outlined add to cart on one row, a filled buy it now
+   below, after the reference shop the owner pointed at. The product page is
+   a dark surface in both themes, so this is drawn for dark only.
+
+   Add to cart carries that shop's two motions: a fill that sweeps up from the
+   bottom on hover, and a short shake once every 6s to draw the eye. The shake
+   is one 6s cycle with the movement packed into its first ~13%, so it needs
+   no script; it stops on hover and focus, on a disabled button, and under
+   reduced motion. !important because the storefront's legacy button and
+   text-colour remaps are !important too. */
+.storefront-shell .sf-buy-qty {
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 12px;
+  background: transparent !important;
+}
+
+.storefront-shell .sf-buy-qty__step {
+  display: grid;
+  width: 2.75rem;
+  height: 100%;
+  place-items: center;
+  border: 0 !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.storefront-shell .sf-buy-qty__step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.storefront-shell .sf-buy-qty__value {
+  min-width: 1.75rem;
+  text-align: center;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.storefront-shell .sf-buy-atc,
+.storefront-shell .sf-buy-now {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.storefront-shell .sf-buy-atc {
+  border: 2px solid #ffffff !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: currentColor !important;
+  transition: color 0.3s ease-in-out;
+  animation: sf-buy-atc-shake 6s ease-in-out 2s infinite;
+}
+
+.storefront-shell .sf-buy-atc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #ffffff;
+  transform: scaleY(0);
+  transform-origin: 50% 100%;
+  transition: transform 0.5s ease-out;
+}
+
+@media (hover: hover) {
+  .storefront-shell .sf-buy-atc:not(:disabled):hover {
+    color: #0b0b0b !important;
+  }
+
+  .storefront-shell .sf-buy-atc:not(:disabled):hover::before {
+    transform: scaleY(1);
+  }
+}
+
+.storefront-shell .sf-buy-atc:focus-visible {
+  outline: 2px solid #f3d77a;
+  outline-offset: 3px;
+}
+
+.storefront-shell .sf-buy-atc:hover,
+.storefront-shell .sf-buy-atc:focus-visible,
+.storefront-shell .sf-buy-atc:disabled {
+  animation: none;
+}
+
+.storefront-shell .sf-buy-atc:disabled {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+  cursor: not-allowed;
+}
+
+.storefront-shell .sf-buy-now {
+  border: 0 !important;
   background: #ffffff !important;
-  color: #0f172a !important;
-  -webkit-text-fill-color: #0f172a !important;
+  color: #0b0b0b !important;
+  -webkit-text-fill-color: currentColor !important;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+.storefront-shell .sf-buy-now:not(:disabled):hover {
+  background: #e7e5e0 !important;
+}
+
+.storefront-shell .sf-buy-now:not(:disabled):active {
+  transform: scale(0.99);
+}
+
+.storefront-shell .sf-buy-now:disabled {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+  cursor: not-allowed;
+}
+
+@keyframes sf-buy-atc-shake {
+  0%, 13.5%, 100% { transform: translate3d(0, 0, 0); }
+  1.35%, 4.05%, 6.75%, 9.45%, 12.15% { transform: translate3d(-10px, 0, 0); }
+  2.7%, 5.4%, 8.1%, 10.8% { transform: translate3d(10px, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storefront-shell .sf-buy-atc {
+    animation: none;
+  }
+
+  .storefront-shell .sf-buy-atc::before {
+    transition: none;
+  }
 }
 
 .sf-mobile-bottom-nav__surface {

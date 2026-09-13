@@ -850,25 +850,37 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           </div> : null}
 
-          <div className="sf-product-quantity-card mt-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.16)]">
-            <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>-</button>
-            <div className="text-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{sfText("storefront.cart.quantity", "Quantity")}</div>
-              <div className="mt-1 text-xl font-black text-white">{qty}</div>
+          {/* Quantity and add to cart share one row, buy it now fills the row below —
+              the arrangement of the reference shop the owner pointed at. These use
+              their own sf-buy-* classes: the older sf-product-cta and
+              sf-product-quantity-card rules repaint with !important in both themes. */}
+          <div className="sf-buy-bar mt-4 grid gap-2">
+            <div className="flex items-stretch gap-2">
+              <div className="sf-buy-qty flex h-14 shrink-0 items-center" role="group" aria-label={sfText("storefront.cart.quantity", "Quantity")}>
+                <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} disabled={qty <= 1} className="sf-buy-qty__step" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>−</button>
+                <span className="sf-buy-qty__value" aria-live="polite">{qty}</span>
+                <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} disabled={qty >= Number(safeActiveVariant?.stock || 1)} className="sf-buy-qty__step" aria-label={sfText("storefront.cart.increaseQuantity", "Increase quantity")}>+</button>
+              </div>
+              <button
+                type="button"
+                onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })}
+                disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
+                className="sf-buy-atc h-14 min-w-0 flex-1"
+              >
+                <span className="sf-buy-atc__label">{sfText("storefront.cart.addToCart", "Add to cart")}</span>
+              </button>
             </div>
-            <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white" aria-label={sfText("storefront.cart.increaseQuantity", "Increase quantity")}>+</button>
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })}
+              onClick={buyNow}
               disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
-              className="sf-product-cta col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+              className="sf-buy-now h-14 w-full"
             >
-              <ShoppingCart className="h-4 w-4" />
-              {sfText("storefront.cart.addToCart", "Add to cart")}
+              {sfText("storefront.cart.buyNow", isRtl ? "اشتري الآن" : "Buy it now")}
             </button>
+          </div>
+
+          <div className="mt-2 grid gap-2 empty:hidden sm:grid-cols-2">
 
             {showRestockCta ? (
               restockStatus === "done" ? (
@@ -893,16 +905,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             {showRestockCta && restockStatus === "error" ? (
               <div className="col-span-full text-center text-[12px] font-bold text-rose-300">{sfText("storefront.restock.error", RESTOCK_COPY.error)}</div>
             ) : null}
-
-            {false && <button
-              type="button"
-              onClick={buyNow}
-              disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-sm font-black text-[#151515] shadow-[0_14px_34px_rgba(212,175,55,0.24)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-white/35"
-            >
-              <Sparkles className="h-4 w-4" />
-              {sfText("storefront.cart.buyNow")}
-            </button>}
           </div>
         </div>
       </div>

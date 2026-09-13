@@ -896,22 +896,6 @@ body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
   color: #72520a !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-cta {
-  border-color: transparent !important;
-  background: linear-gradient(135deg, #d4af37, #e5c158) !important;
-  color: #211b0c !important;
-  -webkit-text-fill-color: #211b0c !important;
-  box-shadow: 0 14px 32px rgba(180, 138, 28, 0.22) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-cta:disabled {
-  border: 1px solid #dedbd3 !important;
-  background: #ebe9e4 !important;
-  color: #77736c !important;
-  -webkit-text-fill-color: #77736c !important;
-  box-shadow: none !important;
-}
-
 /* Mobile search and image-search panel */
 body.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel,
 .storefront-shell:not(.storefront-dark) .sf-mobile-search-panel {
