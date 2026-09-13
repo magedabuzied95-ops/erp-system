@@ -66,6 +66,8 @@ const RESTORE = flag("restore");
 const SEO_ONLY = flag("seo-only");
 const STALE_SEO = flag("stale-seo");
 const TEMPLATE = flag("template");
+// For a scheduler: exit silently when another run is going or nothing is left.
+const IF_UNFINISHED = flag("if-unfinished");
 const LIMIT = Number(option("limit", "0")) || 0;
 const IDS = option("ids", "").split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0);
 const TENANT_ID = Number(option("tenant", process.env.STOREFRONT_TENANT_ID || "1")) || 1;
@@ -245,8 +247,18 @@ const LOCK_FILE = `${STATE_FILE}.lock`;
 const acquireLock = () => {
   try {
     const pid = Number(fs.readFileSync(LOCK_FILE, "utf8"));
-    if (pid && pid !== process.pid) {
+    // The lock sits on the uploads volume and outlives a container restart,
+    // where pids start over: only a live process that IS a backfill counts.
+    const isBackfill = (() => {
+      try {
+        return fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").includes("backfillProductContent");
+      } catch {
+        return !fs.existsSync("/proc");
+      }
+    })();
+    if (pid && pid !== process.pid && isBackfill) {
       process.kill(pid, 0);
+      if (IF_UNFINISHED) process.exit(0);
       console.error(`Another backfill (pid ${pid}) is already using ${STATE_FILE}. Stop it first or wait for it to finish.`);
       process.exit(1);
     }
@@ -287,6 +299,7 @@ const main = async () => {
   // The model run's backup of a product the template already rewrote must be
   // the value from before the template, or --restore would bring back the template.
   const templateBackups = TEMPLATE ? {} : readJson(TEMPLATE_STATE_FILE).backups || {};
+  if (IF_UNFINISHED && !todo.length) return;
   log(`${TEMPLATE ? "template (no model)" : `provider ${provider.label} ${provider.model}`}; ${products.length} product(s) selected, ${todo.length} to do${DRY_RUN ? " (dry run)" : ""}; state ${STATE_FILE}`);
 
   // Two listings called just "Adidas" must not share one search title: Google
