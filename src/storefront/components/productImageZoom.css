@@ -1,0 +1,233 @@
+/* Full-screen product photo viewer (ProductImageZoom.jsx).
+
+   White in both shop themes, like the photo plate on the page: the product photos
+   are shot on white, and on black each one read as a white box. Colours are
+   spelled out with the body.storefront-shell prefix because the shop remaps
+   Tailwind's white/black utilities per theme, which would repaint a surface
+   that must not change. */
+
+body.storefront-shell .sfz {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #14120f !important;
+  animation: sfz-in 180ms ease-out;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@keyframes sfz-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sfz__bar {
+  display: flex;
+  min-height: 56px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(8px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+}
+
+body.storefront-shell .sfz__count {
+  color: rgba(20, 18, 15, 0.62) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+body.storefront-shell .sfz__icon,
+body.storefront-shell .sfz__nav {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(20, 18, 15, 0.12) !important;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92) !important;
+  color: #14120f !important;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+body.storefront-shell .sfz__icon:hover,
+body.storefront-shell .sfz__nav:hover {
+  background: #f1efea !important;
+}
+
+body.storefront-shell .sfz__icon:focus-visible,
+body.storefront-shell .sfz__nav:focus-visible,
+body.storefront-shell .sfz__thumb:focus-visible {
+  outline: 2px solid #a47a12;
+  outline-offset: 2px;
+}
+
+.sfz__stage {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  touch-action: none;
+  cursor: zoom-in;
+}
+
+.sfz__stage.is-zoomed {
+  cursor: grab;
+}
+
+.sfz__stage.is-zoomed:active {
+  cursor: grabbing;
+}
+
+.sfz__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform-origin: center;
+  will-change: transform;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+body.storefront-shell .sfz__hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(20, 18, 15, 0.78);
+  color: #f8f6f1 !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  animation: sfz-hint 3.2s ease forwards;
+}
+
+@keyframes sfz-hint {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+body.storefront-shell .sfz__nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+}
+
+.sfz__nav--prev {
+  inset-inline-start: max(12px, env(safe-area-inset-left));
+}
+
+.sfz__nav--next {
+  inset-inline-end: max(12px, env(safe-area-inset-right));
+}
+
+/* On a phone the swipe moves between photos; the arrows would only sit on it. */
+@media (hover: none) and (pointer: coarse) {
+  body.storefront-shell .sfz__nav {
+    display: none;
+  }
+}
+
+.sfz__thumbs {
+  display: flex;
+  flex: none;
+  justify-content: safe center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px max(12px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  scrollbar-width: none;
+}
+
+.sfz__thumbs::-webkit-scrollbar {
+  display: none;
+}
+
+body.storefront-shell .sfz__thumb {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  overflow: hidden;
+  padding: 3px;
+  border: 1px solid rgba(20, 18, 15, 0.12) !important;
+  border-radius: 10px;
+  background: #ffffff !important;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 160ms ease, border-color 160ms ease;
+}
+
+body.storefront-shell .sfz__thumb.is-active {
+  border-color: #14120f !important;
+  opacity: 1;
+}
+
+.sfz__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.storefront-shell .sfz,
+  body.storefront-shell .sfz__hint {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------- on the product page */
+
+/* Hovering the photo with a mouse magnifies the spot under the cursor; the
+   origin is set from the pointer in StorefrontProductGallery. */
+.sf-product-gallery-frame.sfz-hover-zoom {
+  cursor: zoom-in;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sf-product-gallery-frame.sfz-hover-zoom:hover .sf-product-main-image {
+    transform: scale(2);
+  }
+}
+
+.sf-product-gallery-frame.sfz-hover-zoom .sf-product-main-image {
+  transition: transform 160ms ease-out;
+}
+
+body.storefront-shell .sfz-open {
+  position: absolute;
+  z-index: 20;
+  inset-block-end: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line, rgba(0, 0, 0, 0.1)) !important;
+  border-radius: 999px;
+  background: var(--m1h-surface, #ffffff) !important;
+  color: var(--m1h-text, #1c1917) !important;
+  box-shadow: var(--m1h-shadow-soft, none);
+  cursor: pointer;
+}
+
+/* The pinch hint is for fingers; a mouse gets the zoom-in cursor instead. */
+@media (hover: hover) and (pointer: fine) {
+  body.storefront-shell .sfz__hint {
+    display: none;
+  }
+}
