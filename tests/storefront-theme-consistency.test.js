@@ -78,20 +78,24 @@ test("storefront palette overrides the shared app palette in both modes", () => 
   assert.match(styles, /body\.storefront-shell:not\(\.storefront-dark\)[\s\S]*?background:\s*#f3f3f1\s*!important/);
 });
 
-test("catalog heading and result count keep readable light-mode contrast", () => {
+test("catalog heading and result count read from the homepage palette in both themes", () => {
+  const catalogSkin = fs.readFileSync("src/storefront/catalog-skin.css", "utf8");
   assert.match(listingSource, /sf-catalog-title[^"]*text-stone-950/);
-  assert.match(listingSource, /sf-catalog-eyebrow[^"]*text-stone-600/);
-  assert.match(listingSource, /sf-catalog-count[^"]*text-stone-700/);
-  assert.match(lightStyles, /\.sf-product-listing-page \.sf-catalog-title[\s\S]*?color:\s*var\(--sf-light-text\)\s*!important/);
-  assert.match(lightStyles, /\.sf-catalog-count[\s\S]*?color:\s*var\(--sf-light-text-secondary\)\s*!important/);
+  assert.match(listingSource, /className="sf-catalog-eyebrow sfx-eyebrow"/);
+  assert.match(listingSource, /className="sf-catalog-count sfx-muted"/);
+  assert.ok(/\.sfx-listing \.sfx-page-title \{[^}]*color: var\(--m1h-text\) !important/.test(catalogSkin));
+  assert.ok(/\.sfx-muted \{[^}]*color: var\(--m1h-text-2\) !important/.test(catalogSkin));
 });
 
-test("product card stays compact with enlarged imagery and the gold storefront accent", () => {
-  assert.match(storefrontSource, /standard:\s*\{[\s\S]*?image:\s*"aspect-\[0\.92\/1\] p-0"/);
-  assert.match(storefrontSource, /compact:\s*\{[\s\S]*?image:\s*"aspect-\[0\.96\/1\] p-0"/);
-  assert.match(storefrontSource, /sf-card-primary-image[^`]*scale-\[1\.08\]/);
-  assert.match(storefrontSource, /sf-product-card-price[^`]*text-\[#d4af37\]/);
-  assert.match(styles, /\.storefront-shell \.sf-storefront-gold-badge,\s*\n\.storefront-shell \.sf-quick-add-button,\s*\n\.storefront-shell \.sf-wishlist-add-button/);
+test("the listing card is the homepage card: same plate, badge, heart and Site Studio template", () => {
+  const cardStart = storefrontSource.indexOf("const ProductCard = memo(function ProductCard(");
+  const card = storefrontSource.slice(cardStart, storefrontSource.indexOf("}, (prev, next) => {", cardStart));
+  assert.ok(card.includes("const cardLook = resolveCardLook(useSiteDesign());"));
+  assert.ok(card.includes('"sfx-product-card m1h-card group/product"'));
+  assert.match(card, /<div className="m1h-card__plate">/);
+  assert.match(card, /className="m1h-badge m1h-badge--sale"/);
+  assert.match(card, /m1h-fav/);
+  assert.doesNotMatch(card, /#d4af37|linear-gradient/, "the card takes its colours from the tokens, not literals");
   assert.doesNotMatch(storefrontSource, /#d90429|#c1121f|#ef233c|#ff334d|#ff6574/);
 });
 

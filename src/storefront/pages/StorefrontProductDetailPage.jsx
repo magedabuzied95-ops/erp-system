@@ -683,10 +683,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }
 
   return (
-    <section dir={isRtl ? "rtl" : "ltr"} data-surface-theme="dark" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-4 pt-2 md:px-4 md:pb-8 md:pt-5">
+    <section dir={isRtl ? "rtl" : "ltr"} className="sf-product-details-page sfx-pdp mx-auto max-w-7xl px-4 pb-4 pt-3 md:px-8 md:pb-8 md:pt-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
-      <div className="grid gap-4 md:gap-6 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
-        <div className="sf-product-gallery-shell overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
+      <div className="grid gap-6 md:gap-10 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
+        <div className="sfx-pdp-gallery">
         <Suspense fallback={<ProductGalleryFallback />}>
           <LazyStorefrontProductGallery
             mainImage={activeImage}
@@ -703,37 +703,34 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         </Suspense>
         </div>
         <div className="sf-product-info-sticky min-w-0 lg:sticky lg:self-start">
-          <div className="sf-product-summary-card overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.16),transparent_35%),linear-gradient(180deg,#080808_0%,#111111_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:p-6">
+          <div className="sfx-pdp-summary">
             {/* The badge shares the row with the wishlist and share buttons. It used
                 to sit on a line of its own under a caption that phones hide, which
                 left the whole top row empty except for two buttons. */}
             <div className="flex items-center justify-between gap-3">
-              <div className="inline-flex min-w-0 items-center gap-2 rounded-full border border-[#d4af37]/18 bg-[#d4af37]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">
-                <Check className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">{sfText("storefront.products.selectedProduct", "Selected product")}</span>
-              </div>
+              <span aria-hidden="true" />
               <div className="flex shrink-0 items-center gap-2">
-                <button type="button" onClick={() => toggleWishlist(product)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white" aria-label={sfText("storefront.wishlist.toggleWishlist", "Toggle wishlist")}>
-                  <Heart className={`h-4 w-4 ${inWishlist ? "fill-current text-rose-400" : ""}`} />
+                <button type="button" onClick={() => toggleWishlist(product)} className={`sfx-pdp-icon${inWishlist ? " is-on" : ""}`} aria-pressed={inWishlist} aria-label={sfText("storefront.wishlist.toggleWishlist", "Toggle wishlist")}>
+                  <Heart className="h-4 w-4" />
                 </button>
-                <button type="button" onClick={shareProduct} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/75 transition hover:border-white/20 hover:bg-white/[0.1] hover:text-white" aria-label={sfText("storefront.share.shareProduct", "Share product")}>
+                <button type="button" onClick={shareProduct} className="sfx-pdp-icon" aria-label={sfText("storefront.share.shareProduct", "Share product")}>
                   <Share2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <h1 className="mt-3 line-clamp-2 text-[1.85rem] font-black leading-[1.08] md:text-4xl">{displayTitle}</h1>
-            <div className="mt-5 flex flex-wrap items-end gap-x-3 gap-y-2">
+            <h1 className="sfx-pdp-title">{displayTitle}</h1>
+            <div className="sfx-pdp-pricing">
               {/* A size with no price of its own used to render its strikethrough as the price, then
                   "0" once that fallback went. It says so instead. */}
               {selectedSellingPrice > 0 ? (
-                <div className="text-3xl font-black text-white md:text-[2.65rem]">{money(selectedSellingPrice)}</div>
+                <div className={`sfx-pdp-price${selectedComparePrice > selectedSellingPrice ? " is-sale" : ""}`}>{money(selectedSellingPrice)}</div>
               ) : (
-                <div className="text-xl font-black text-white/70 md:text-2xl">{sfText("storefront.products.priceUnavailable", "Price unavailable")}</div>
+                <div className="sfx-pdp-price sfx-pdp-price--muted">{sfText("storefront.products.priceUnavailable", "Price unavailable")}</div>
               )}
-              {selectedComparePrice > selectedSellingPrice ? <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm font-black text-white/60 line-through">{money(selectedComparePrice)}</span> : null}
-              {selectedDiscountPercent ? <span className="rounded-full bg-emerald-400/15 px-3 py-1.5 text-sm font-black text-emerald-200">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
+              {selectedComparePrice > selectedSellingPrice ? <span className="sfx-pdp-was">{money(selectedComparePrice)}</span> : null}
+              {selectedDiscountPercent ? <span className="sfx-pdp-pill sfx-pdp-pill--sale">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
               {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
-                <span className="rounded-full bg-amber-400/15 px-3 py-1.5 text-sm font-black text-amber-100">
+                <span className="sfx-pdp-pill">
                   {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
                 </span>
               ) : null}
@@ -751,20 +748,20 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           </div>
 
           {colors.length > 1 ? (
-            <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
-              <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="sfx-pdp-option">
+              <div className="sfx-pdp-option__head">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-black">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
-                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] font-black text-white/60">
+                    <h2 className="sfx-pdp-option__title">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
+                    <span className="sfx-pdp-option__meta">
                       {sfText("storefront.products.colorCount", "{{total}} colors", { total: colors.length })}
                     </span>
                   </div>
                 </div>
-                {selected.colorName ? <span className="text-xs font-black text-white/55">{selected.colorName}</span> : null}
+                {selected.colorName ? <span className="sfx-pdp-option__value">{selected.colorName}</span> : null}
               </div>
               <div className="relative">
-                <div ref={colorStripRef} className="sf-scroll flex gap-2 overflow-x-auto pb-1">
+                <div ref={colorStripRef} className="sf-scroll sfx-pdp-colors">
                 {colors.map((group) => {
                   const active = String(group.key) === String(selectedColorKey);
                   const hasStock = group.variants.some((item) => variantHasStock(item));
@@ -777,17 +774,17 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                       disabled={!hasStock}
                       aria-label={`${sfText("storefront.products.chooseColor", "Choose color")}: ${group.colorName || group.key}`}
                       aria-pressed={active}
-                      className={`sf-product-option-choice sf-product-color-choice grid h-16 w-16 shrink-0 overflow-hidden rounded-2xl border-2 bg-black/40 p-0.5 transition md:h-[4.5rem] md:w-[4.5rem] ${active ? "is-active border-[#d4af37] shadow-[0_0_0_2px_rgba(212,175,55,0.28),0_12px_28px_rgba(212,175,55,0.24)]" : hasStock ? "is-available border-white/15 hover:border-[#d4af37]/55" : "is-unavailable border-white/[0.07] opacity-35"} disabled:cursor-not-allowed disabled:opacity-55`}
+                      className={`sfx-pdp-color${active ? " is-active" : hasStock ? "" : " is-unavailable"}`}
                     >
-                      <img src={imageFor(swatchImage)} alt="" className="h-full w-full rounded-[0.7rem] object-cover" loading="lazy" />
+                      <img src={imageFor(swatchImage)} alt="" loading="lazy" />
                     </button>
                   );
                 })}
                 </div>
                 {colorScroll.overflowing ? (
                   <>
-                    <span aria-hidden="true" className={`pointer-events-none absolute inset-y-0 start-0 w-10 bg-gradient-to-r from-[#0b0b0b] rtl:bg-gradient-to-l to-transparent transition-opacity ${colorScroll.atStart ? "opacity-0" : "opacity-100"}`} />
-                    <span aria-hidden="true" className={`pointer-events-none absolute inset-y-0 end-0 w-10 bg-gradient-to-l from-[#0b0b0b] rtl:bg-gradient-to-r to-transparent transition-opacity ${colorScroll.atEnd ? "opacity-0" : "opacity-100"}`} />
+                    <span aria-hidden="true" className={`sfx-pdp-fade sfx-pdp-fade--start ${colorScroll.atStart ? "opacity-0" : "opacity-100"}`} />
+                    <span aria-hidden="true" className={`sfx-pdp-fade sfx-pdp-fade--end ${colorScroll.atEnd ? "opacity-0" : "opacity-100"}`} />
                     {/* Rendered conditionally rather than faded out: the dark product-card
                         override forces `opacity: 1 !important` on anything carrying text-white. */}
                     {!colorScroll.atStart ? (
@@ -795,7 +792,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                         type="button"
                         onClick={() => scrollColors(-1)}
                         aria-label={sfText("storefront.products.previousColors", "Previous colors")}
-                        className="absolute start-1 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur transition hover:border-[#d4af37]/55 sm:flex"
+                        className="sfx-pdp-strip-nav sfx-pdp-strip-nav--start"
                       >
                         <ChevronLeft className="h-4 w-4 rtl:rotate-180" />
                       </button>
@@ -805,7 +802,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                         type="button"
                         onClick={() => scrollColors(1)}
                         aria-label={sfText("storefront.products.moreColors", "More colors")}
-                        className="absolute end-1 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white backdrop-blur transition hover:border-[#d4af37]/55 sm:flex"
+                        className="sfx-pdp-strip-nav sfx-pdp-strip-nav--end"
                       >
                         <ChevronRight className="h-4 w-4 rtl:rotate-180" />
                       </button>
@@ -816,20 +813,20 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           ) : null}
 
-          {!hideSizeSelector ? <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <h2 className="text-base font-black">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
+          {!hideSizeSelector ? <div className="sfx-pdp-option">
+            <div className="sfx-pdp-option__head">
+              <h2 className="sfx-pdp-option__title">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
               {/* A quiet link beside the heading, where shoppers look for it, rather
                   than a pill on a row of its own under the sizes. */}
               <Link
                 to={sizeGuideHref}
-                className="sf-size-guide-link inline-flex shrink-0 items-center gap-1.5 text-xs font-black text-white/70 underline decoration-white/25 underline-offset-4 transition hover:text-[#f3d77a] hover:decoration-[#f3d77a]/60"
+                className="sfx-link-btn"
               >
                 <Ruler className="h-3.5 w-3.5" />
                 {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
               </Link>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="sfx-pdp-sizes">
               {sizeOptions.map((option) => {
                 const { displaySize, originalSize, collision, variant: sizeVariant } = option;
                 const hasStock = variantHasStock(sizeVariant);
@@ -840,11 +837,12 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                     type="button"
                     onClick={() => selectVariant(sizeVariant)}
                     disabled={!hasStock}
-                    className={`sf-product-option-choice sf-product-size-choice relative min-w-[3.25rem] overflow-hidden rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "is-active border-white bg-white text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.14)]" : hasStock ? "is-available border-white/10 bg-white/[0.05] text-white/78 hover:border-white/20 hover:bg-white/[0.08] hover:text-white" : "is-unavailable cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
+                    aria-pressed={active}
+                    className={`sfx-pdp-size${active ? " is-active" : hasStock ? "" : " is-unavailable"}`}
                   >
-                    {!hasStock ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
-                    <span className="relative z-10 block">{displaySize || sfText("storefront.products.oneSize", "One size")}</span>
-                    {collision && originalSize !== displaySize ? <span className="relative z-10 mt-0.5 block text-[9px] font-bold opacity-60">{originalSize}</span> : null}
+                    {!hasStock ? <span className="sfx-pdp-size__slash" aria-hidden="true" /> : null}
+                    <span className="sfx-pdp-size__label">{displaySize || sfText("storefront.products.oneSize", "One size")}</span>
+                    {collision && originalSize !== displaySize ? <span className="sfx-pdp-size__alt">{originalSize}</span> : null}
                   </button>
                 );
               })}
@@ -855,7 +853,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               the arrangement of the reference shop the owner pointed at. These use
               their own sf-buy-* classes: the older sf-product-cta and
               sf-product-quantity-card rules repaint with !important in both themes. */}
-          <div className="sf-buy-bar mt-4 grid gap-2">
+          <div className="sf-buy-bar sfx-pdp-buy grid gap-2">
             <div className="flex items-stretch gap-2">
               <div className="sf-buy-qty flex h-14 shrink-0 items-center" role="group" aria-label={sfText("storefront.cart.quantity", "Quantity")}>
                 <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} disabled={qty <= 1} className="sf-buy-qty__step" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>−</button>
@@ -885,15 +883,15 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
 
             {showRestockCta ? (
               restockStatus === "done" ? (
-                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/30 bg-emerald-400/10 text-sm font-black text-emerald-100"><Check className="h-4 w-4" />{sfText(...restockSuccessCopy(safeActiveVariant))}</div>
+                <div className="sfx-pdp-note sfx-pdp-note--ok col-span-full"><Check className="h-4 w-4" />{sfText(...restockSuccessCopy(safeActiveVariant))}</div>
               ) : restockStatus === "available" ? (
-                <div className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/[0.08] text-sm font-black text-white"><Sparkles className="h-4 w-4" />{sfText("storefront.restock.availableNow", RESTOCK_COPY.availableNow)}</div>
+                <div className="sfx-pdp-note col-span-full"><Sparkles className="h-4 w-4" />{sfText("storefront.restock.availableNow", RESTOCK_COPY.availableNow)}</div>
               ) : (
                 <button
                   type="button"
                   onClick={handleRestockNotify}
                   disabled={restockStatus === "loading"}
-                  className="col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#d4af37]/10 text-sm font-black text-[#e5c158] transition hover:-translate-y-0.5 hover:bg-[#d4af37]/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="sfx-btn sfx-btn--outline col-span-full w-full"
                 >
                   {restockStatus === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
                   {sfText("storefront.restock.cta", RESTOCK_COPY.cta)}
@@ -901,10 +899,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               )
             ) : null}
             {showRestockCta && restockStatus === "login" ? (
-              <div className="col-span-full text-center text-[12px] font-bold text-white/70">{sfText("storefront.restock.loginRequired", RESTOCK_COPY.loginRequired)}</div>
+              <div className="sfx-muted col-span-full text-center">{sfText("storefront.restock.loginRequired", RESTOCK_COPY.loginRequired)}</div>
             ) : null}
             {showRestockCta && restockStatus === "error" ? (
-              <div className="col-span-full text-center text-[12px] font-bold text-rose-300">{sfText("storefront.restock.error", RESTOCK_COPY.error)}</div>
+              <div className="sfx-pdp-error col-span-full text-center">{sfText("storefront.restock.error", RESTOCK_COPY.error)}</div>
             ) : null}
           </div>
 
@@ -981,33 +979,32 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         {descriptionParagraphs.length ? (
           <section
             aria-labelledby="sf-product-description-title"
-            className="sf-product-description sf-product-option-card rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)] md:p-6"
+            className="sfx-pdp-description"
           >
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
-            <h2 id="sf-product-description-title" className="mt-2 text-xl font-black md:text-2xl">{sfText("storefront.products.productDetails", "Product details")}</h2>
-            <div className="sf-product-description-body mt-3 space-y-3">
+            <h2 id="sf-product-description-title" className="sfx-pdp-h2">{sfText("storefront.products.productDetails", "Product details")}</h2>
+            <div className="sfx-pdp-description__body">
               {descriptionBlocks.map((block, index) => {
                 const key = `${index}-${block.type}`;
                 if (block.type === "headline") {
                   return (
-                    <p key={key} className="text-[15px] font-black leading-7 text-white md:text-base">
+                    <p key={key} className="sfx-pdp-lead">
                       {block.text}
                     </p>
                   );
                 }
                 if (block.type === "heading") {
                   return (
-                    <h3 key={key} className="pt-2 text-lg font-black leading-7 text-white md:text-xl">
+                    <h3 key={key} className="sfx-pdp-h3">
                       {block.text}
                     </h3>
                   );
                 }
                 if (block.type === "features") {
                   return (
-                    <ul key={key} className="list-disc space-y-3 ps-5 marker:text-white/60">
+                    <ul key={key} className="sfx-pdp-list">
                       {block.items.map((item, itemIndex) => (
-                        <li key={`${key}-${itemIndex}`} className="text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
-                          {item.title ? <strong className="block font-black text-white">{item.title}</strong> : null}
+                        <li key={`${key}-${itemIndex}`}>
+                          {item.title ? <strong>{item.title}</strong> : null}
                           {item.detail}
                         </li>
                       ))}
@@ -1016,10 +1013,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 }
                 if (block.type === "checks") {
                   return (
-                    <ul key={key} className="space-y-1.5">
+                    <ul key={key} className="sfx-pdp-checks">
                       {block.items.map((item, itemIndex) => (
-                        <li key={`${key}-${itemIndex}`} className="flex items-start gap-2 text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
-                          <Check className="mt-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <li key={`${key}-${itemIndex}`}>
+                          <Check className="sfx-pdp-checks__icon" aria-hidden="true" />
                           <span>{item}</span>
                         </li>
                       ))}
@@ -1027,7 +1024,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                   );
                 }
                 return (
-                  <p key={key} className="text-sm font-semibold leading-7 text-white/82 md:text-[15px]">
+                  <p key={key} className="sfx-pdp-text">
                     {block.text}
                   </p>
                 );

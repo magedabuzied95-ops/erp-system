@@ -61,16 +61,15 @@ const PAGE_SIZE_OPTIONS = [12, 24, 36, 48];
 function PaginationArrow({ to, rel, label, lang, direction }) {
   const pointsBack = direction === "prev";
   const Icon = lang === "en" ? (pointsBack ? ChevronLeft : ChevronRight) : (pointsBack ? ChevronRight : ChevronLeft);
-  const shared = "grid h-11 w-11 place-items-center rounded-full border text-sm font-black";
   if (!to) {
     return (
-      <span aria-hidden="true" className={`${shared} cursor-default border-stone-200 bg-stone-100 text-stone-300 dark:border-white/5 dark:bg-white/[0.02] dark:text-white/20`}>
+      <span aria-hidden="true" className="sfx-page sfx-page--arrow is-disabled">
         <Icon className="h-5 w-5" />
       </span>
     );
   }
   return (
-    <Link rel={rel} to={to} aria-label={label} className={`${shared} border-[#d4af37]/50 bg-[#d4af37]/10 text-[#8a6a00] transition hover:bg-[#d4af37]/20 dark:text-[#f4d675]`}>
+    <Link rel={rel} to={to} aria-label={label} className="sfx-page sfx-page--arrow">
       <Icon className="h-5 w-5" />
     </Link>
   );
@@ -1193,11 +1192,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   }, [catalogProducts.length, gender, category, brand, productType, grade, color, size, selectedSizes, inStock, saleView, lastSizes, q, hasActiveCatalogFilters, orderedFilteredProducts, offerStoryQuery]);
 
   return (
-    <section className="sf-product-listing-page mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-2.5 md:px-4 md:py-5">
+    <section className="sf-product-listing-page sfx-listing mx-auto max-w-7xl px-4 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-4 md:px-8 md:py-8">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="sf-catalog-eyebrow text-xs font-bold text-stone-600 dark:text-stone-400 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
-          <h1 className="sf-catalog-title mt-1 text-[1.7rem] font-black leading-[1.08] text-stone-950 dark:text-white md:text-3xl">
+          <p className="sf-catalog-eyebrow sfx-eyebrow">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
+          <h1 className="sf-catalog-title sfx-page-title text-stone-950">
             {seoCategory ? seoCategory.h1 : q
               ? t("storefront.search.resultsFor", "نتائج البحث عن \"{{query}}\"", { query: q })
               : selectedBrandOption
@@ -1210,10 +1209,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                       ? classificationLabel(selectedGenderOption, lang)
                     : category || (lastSizes ? t("storefront.home.lastSizes", "آخر المقاسات") : saleView ? t("storefront.nav.sale", "العروض") : t("storefront.products.allProducts", "كل المنتجات"))}
           </h1>
-          {seoCategory ? <p className="sf-catalog-intro mt-2 max-w-3xl text-sm font-bold leading-6 text-stone-600 dark:text-stone-300">{seoCategory.intro}</p> : null}
+          {seoCategory ? <p className="sf-catalog-intro sfx-page-intro">{seoCategory.intro}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">
+          <div className="sf-catalog-count sfx-muted">
             {totalProducts
               ? t("storefront.products.showingRange", "عرض {{from}}-{{to}} من {{count}} نتيجة", { from: firstResultIndex, to: lastResultIndex, count: totalProducts })
               : t("storefront.products.productCount", "{{count}} منتج", { count: totalProducts })}
@@ -1221,11 +1220,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
           <button
             type="button"
             onClick={() => setFiltersOpen(true)}
-            className="inline-flex min-h-12 min-w-[9.5rem] flex-1 items-center justify-center gap-2.5 rounded-full border border-[#c59b22] bg-[linear-gradient(135deg,#e5c158,#d4af37)] px-5 py-3 text-sm font-black text-[#211b0c] shadow-[0_10px_26px_rgba(180,138,28,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(180,138,28,0.3)] active:scale-[0.98] dark:border-[#d4af37]/45 dark:bg-[linear-gradient(135deg,#d4af37,#a47a12)] dark:text-[#151515] sm:flex-none lg:hidden"
+            className="sfx-btn sfx-btn--ink sfx-filters-trigger lg:hidden"
           >
-            <SlidersHorizontal className="h-5 w-5" />
+            <SlidersHorizontal className="h-4 w-4" />
             {t("storefront.filters.filters", "الفلاتر")}
-            {activeFilterCount ? <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#211b0c] px-1.5 text-[11px] text-white shadow-sm">{activeFilterCount}</span> : null}
+            {activeFilterCount ? <span className="sfx-btn__count">{activeFilterCount}</span> : null}
           </button>
         </div>
       </div>
@@ -1288,7 +1287,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       }}
       />
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(280px,320px)_minmax(0,1fr)] lg:items-start">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(240px,280px)_minmax(0,1fr)] lg:items-start lg:gap-10">
         <aside className="hidden lg:block">
           <div className="sticky top-[7.5rem]">
             <CatalogFiltersPanel
@@ -1366,8 +1365,8 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                       const previousPageNumber = visiblePaginationPages[index - 1];
                       return (
                         <span key={pageNumber} className="contents">
-                          {previousPageNumber && pageNumber - previousPageNumber > 1 ? <span className="grid h-11 min-w-6 place-items-center text-stone-500">…</span> : null}
-                          <Link to={pageUrl(pageNumber)} aria-current={pageNumber === page ? "page" : undefined} className={`grid h-11 min-w-11 place-items-center rounded-full border px-3 text-sm font-black ${pageNumber === page ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}>{pageNumber}</Link>
+                          {previousPageNumber && pageNumber - previousPageNumber > 1 ? <span className="sfx-page__gap">…</span> : null}
+                          <Link to={pageUrl(pageNumber)} aria-current={pageNumber === page ? "page" : undefined} className="sfx-page">{pageNumber}</Link>
                         </span>
                       );
                     })}
@@ -1376,14 +1375,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 ) : null}
                 {totalProducts > PAGE_SIZE_OPTIONS[0] ? (
                   <div className="flex items-center gap-2">
-                    <span className="sf-catalog-pagesize-label text-xs font-bold text-stone-600 dark:text-stone-400">{t("storefront.products.perPage", "عدد المنتجات في الصفحة")}</span>
+                    <span className="sf-catalog-pagesize-label sfx-muted">{t("storefront.products.perPage", "عدد المنتجات في الصفحة")}</span>
                     <div className="flex items-center gap-1.5">
                       {PAGE_SIZE_OPTIONS.map((size) => (
                         <Link
                           key={size}
                           to={pageSizeUrl(size)}
                           aria-current={size === pageSize ? "true" : undefined}
-                          className={`grid h-9 min-w-10 place-items-center rounded-full border px-2 text-xs font-black ${size === pageSize ? "border-[#d4af37] bg-[#d4af37] text-black" : "border-stone-200 bg-white text-stone-700 dark:border-white/10 dark:bg-white/5 dark:text-white"}`}
+                          className="sfx-page sfx-page--sm"
                         >
                           {size}
                         </Link>
@@ -1396,7 +1395,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 <nav aria-label={lang === "en" ? "Related sections" : "أقسام مرتبطة"} className="mt-7 flex flex-wrap justify-center gap-2">
                   {seoCategory.related.map((path) => {
                     const related = localizeSeoCategory(seoCategoryByPath(path), lang);
-                    return related ? <Link key={path} to={path} className="sf-catalog-seo-chip rounded-full border border-[#d4af37]/35 px-4 py-2 text-sm font-black text-stone-700 dark:text-stone-200">{related.h1}</Link> : null;
+                    return related ? <Link key={path} to={path} className="sf-catalog-seo-chip sfx-chip">{related.h1}</Link> : null;
                   })}
                 </nav>
               ) : null}
@@ -1459,19 +1458,16 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
   const { t } = useTranslation();
   const selectedSet = new Set((Array.isArray(selectedSizes) ? selectedSizes : []).map(normalizeFilterKey).filter(Boolean));
   return (
-    <section className="rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0d0d0d] md:p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#d4af37] dark:text-[#f3d77a]">{t("storefront.filters.sizeFilter", "فلتر المقاسات")}</p>
-          <h3 className="mt-0.5 text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.availableSize", "المقاسات المتاحة")}</h3>
-        </div>
+    <section className="sfx-facet">
+      <div className="sfx-facet__head">
+        <h3 className="sfx-facet__title">{t("storefront.filters.availableSize", "المقاسات المتاحة")}</h3>
         {selectedSet.size ? (
-          <button type="button" onClick={onClear} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+          <button type="button" onClick={onClear} className="sfx-link-btn">
             {t("storefront.filters.showAllSizes", "عرض كل المقاسات")}
           </button>
         ) : null}
       </div>
-      <div className="sf-scroll flex flex-wrap gap-2">
+      <div className="sfx-chips">
         {sizes.map((item) => {
           const key = normalizeFilterKey(item.size);
           const active = selectedSet.has(key);
@@ -1480,15 +1476,16 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
               key={item.size}
               type="button"
               onClick={() => onToggle(item.size)}
-              className={`inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full border px-3.5 py-2 text-sm font-black transition md:min-h-11 md:px-4 ${active ? "border-[#d4af37] bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
+              aria-pressed={active}
+              className={`sfx-chip${active ? " is-active" : ""}`}
             >
               {item.size}
-              {Number(item.productCount || 0) ? <span className={active ? "text-white/72" : "text-stone-400 dark:text-stone-500"}>({item.productCount})</span> : null}
+              {Number(item.productCount || 0) ? <span className="sfx-chip__count">{item.productCount}</span> : null}
             </button>
           );
         })}
         {!sizes.length ? (
-          <span className="rounded-full border border-dashed border-stone-200 px-3 py-2 text-xs font-bold text-stone-400 dark:border-white/10 dark:text-stone-500">
+          <span className="sfx-muted">
             {t("storefront.filters.sizesAppearAfterType", "ستظهر المقاسات بعد اختيار نوع المنتج")}
           </span>
         ) : null}
@@ -1518,23 +1515,21 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
     onChange(normalizeFilterText(minPrice) ? String(safeMin) : String(safeMin), String(nextMax));
   };
   return (
-    <section className="rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0d0d0d] md:p-4">
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.filters.filterByPrice", "فلترة بالسعر")}</h3>
-        </div>
+    <section className="sfx-facet">
+      <div className="sfx-facet__head">
+        <h3 className="sfx-facet__title">{t("storefront.filters.filterByPrice", "فلترة بالسعر")}</h3>
         {hasValue ? (
-          <button type="button" onClick={() => onChange("", "")} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+          <button type="button" onClick={() => onChange("", "")} className="sfx-link-btn">
             {t("common.reset", "مسح")}
           </button>
         ) : null}
       </div>
       <div className="space-y-3">
-        <div className="rounded-[1.15rem] border border-stone-200 bg-stone-50 px-3 py-4 dark:border-white/10 dark:bg-white/5">
-          <div className="relative mx-1 h-10" dir="ltr">
-            <div className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-stone-200 dark:bg-white/10" />
+        <div className="sfx-range-wrap">
+          <div className="sfx-range" dir="ltr">
+            <div className="sfx-range__track" />
             <div
-              className="absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-[#d4af37] to-[#a855f7]"
+              className="sfx-range__fill"
               style={{ left: `${minPercent}%`, right: `${100 - maxPercent}%` }}
             />
             <input
@@ -1559,7 +1554,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-start text-[11px] font-black text-stone-600 dark:text-stone-300">
+        <div className="sfx-range__values">
           <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
             <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.minPrice", "أقل سعر")}</span>
             <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)}</span>
@@ -1569,7 +1564,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
             <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)}</span>
           </div>
         </div>
-        <p className="text-[11px] font-bold text-stone-500 dark:text-stone-400">
+        <p className="sfx-muted sfx-muted--sm">
           {priceBounds.min !== "" && priceBounds.max !== "" ? `${money(priceBounds.min)} - ${money(priceBounds.max)}` : t("storefront.filters.priceHint", "استخدم نطاق السعر لتضييق النتائج")}
         </p>
       </div>
@@ -1579,16 +1574,12 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
 
 function CatalogSectionShell({ eyebrow, title, icon: Icon = SlidersHorizontal, action = null, children, className = "" }) {
   return (
-    <section className={`rounded-[1.35rem] border border-stone-200 bg-white p-3 shadow-[0_12px_32px_rgba(39,20,75,0.06)] dark:border-white/10 dark:bg-[#0d0d0d] md:p-4 ${className}`}>
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-2xl border border-stone-200 bg-stone-50 text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-[#f3d77a]">
-            <Icon className="h-4 w-4" />
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-sm font-black text-stone-950 dark:text-white">{title}</h3>
-          </div>
-        </div>
+    <section className={`sfx-facet ${className}`}>
+      <div className="sfx-facet__head">
+        <h3 className="sfx-facet__title">
+          <Icon className="sfx-facet__icon" aria-hidden="true" />
+          {title}
+        </h3>
         {action}
       </div>
       {children}
@@ -1599,12 +1590,12 @@ function CatalogSectionShell({ eyebrow, title, icon: Icon = SlidersHorizontal, a
 function CatalogSortControl({ value = "newest", options = [], onChange, compact = false }) {
   const { t } = useTranslation();
   return (
-    <label className={`inline-flex min-h-10 items-center gap-2 rounded-full border border-stone-200 bg-white px-3.5 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200 ${compact ? "w-full justify-between" : ""}`}>
-      <SlidersHorizontal className="h-4 w-4 shrink-0" />
+    <label className={`sfx-select${compact ? " sfx-select--block" : ""}`}>
       <select
         value={normalizeCatalogSortValue(value)}
         onChange={(event) => onChange?.(event.target.value)}
-        className="min-w-0 flex-1 bg-transparent text-start text-xs font-black outline-none md:text-sm"
+        className="sfx-select__control"
+        aria-label={t("storefront.filters.sort", "ترتيب")}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1612,13 +1603,14 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
           </option>
         ))}
       </select>
+      <ChevronDown className="sfx-select__icon" aria-hidden="true" />
     </label>
   );
 }
 
 function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
   return (
-    <div className="sf-scroll mt-3 hidden min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1.5 rtl:justify-start md:mt-4 md:flex">
+    <div className="sf-scroll sfx-chiprow hidden md:flex">
       {items.map((item) => {
         const activeValue = item.field === "gender" ? normalizeStorefrontAudienceValue(params.get("gender")) : normalizeStorefrontProductTypeValue(params.get("type") || params.get("product_type"));
         const isActive =
@@ -1632,9 +1624,9 @@ function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
             key={item.key}
             to={buildUrl(item.field === "gender" ? "gender" : "type", item.value)}
             aria-current={isActive ? "page" : undefined}
-            className={`inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${isActive ? "border border-[#d4af37]/55 bg-[#d4af37]/12 text-[#d4af37] shadow-[0_10px_28px_rgba(212,175,55,0.12)]" : "border border-stone-200 bg-white text-stone-700 hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"}`}
+            className={`sfx-chip${isActive ? " is-active" : ""}`}
           >
-            <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
+            <Icon className="sfx-chip__icon" aria-hidden="true" />
             <span className="truncate">{label}</span>
           </Link>
         );
@@ -1678,13 +1670,13 @@ function CatalogAppliedFilterChips({
   if (normalizeCatalogSortValue(selectedSort) !== "newest") chips.push({ key: "sort", label: sortLabelForValue(selectedSort, t), field: "sort" });
   if (!chips.length) return null;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2">
+    <div className="sfx-applied">
       {chips.map((chip) => (
         <button
           key={chip.key}
           type="button"
           onClick={() => onRemove?.(chip.field, chip.value || chip.label)}
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#d4af37]/18 bg-[#d4af37]/8 px-3 py-1.5 text-[12px] font-black text-[#4c1d95] transition hover:border-[#d4af37]/35 hover:bg-[#d4af37]/12 dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+          className="sfx-chip sfx-chip--applied"
         >
           <span className="truncate">{chip.label}</span>
           <X className="h-3.5 w-3.5" />
@@ -1694,7 +1686,7 @@ function CatalogAppliedFilterChips({
         <button
           type="button"
           onClick={onClearAll}
-          className="inline-flex min-h-9 items-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[12px] font-black text-stone-700 transition hover:-translate-y-0.5 hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200"
+          className="sfx-link-btn"
         >
           {t("storefront.filters.clearAll", "مسح الكل")}
         </button>
@@ -1743,16 +1735,17 @@ function CatalogSingleSelectFilter({
       title={title}
       icon={Icon}
       action={hasValue ? (
-        <button type="button" onClick={onClear} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-[11px] font-black text-stone-600 transition hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <button type="button" onClick={onClear} className="sfx-link-btn">
           {t("common.reset", "مسح")}
         </button>
       ) : null}
     >
-      <div className="sf-catalog-filter-options flex flex-wrap gap-2">
+      <div className="sf-catalog-filter-options sfx-chips">
         <button
           type="button"
           onClick={() => onChange("")}
-          className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${ !hasValue ? "border-[#d4af37] bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200" }`}
+          aria-pressed={!hasValue}
+          className={`sfx-chip${!hasValue ? " is-active" : ""}`}
         >
           {emptyLabel || t("common.all", "الكل")}
         </button>
@@ -1765,10 +1758,11 @@ function CatalogSingleSelectFilter({
               key={option.id || option.value}
               type="button"
               onClick={() => onChange(optionValue)}
-              className={`inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-[12px] font-black transition ${ active ? "border-[#d4af37]/70 bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "border-stone-200 bg-stone-50 text-stone-700 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200" }`}
+              aria-pressed={active}
+              className={`sfx-chip${active ? " is-active" : ""}`}
             >
               <span className="truncate">{classificationLabel(option, lang)}</span>
-              {count !== null ? <span className={active ? "text-white/70" : "text-stone-400 dark:text-stone-500"}>({count})</span> : null}
+              {count !== null ? <span className="sfx-chip__count">{count}</span> : null}
             </button>
           );
         })}
@@ -1777,11 +1771,11 @@ function CatalogSingleSelectFilter({
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className="sf-catalog-filter-expand mt-2.5 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[11px] font-black text-stone-600 transition hover:border-[#d4af37]/45 hover:text-[#a47a12] dark:border-white/10 dark:bg-white/5 dark:text-stone-300"
+          className="sf-catalog-filter-expand sfx-link-btn sfx-facet__more"
           aria-expanded={expanded}
         >
           <span>{expanded ? t("storefront.filters.showLess", "عرض أقل") : t("storefront.filters.showMore", "عرض المزيد")}</span>
-          {!expanded && hiddenCount ? <span className="text-stone-400 dark:text-stone-500">({hiddenCount})</span> : null}
+          {!expanded && hiddenCount ? <span className="sfx-chip__count">{hiddenCount}</span> : null}
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
         </button>
       ) : null}
@@ -1829,7 +1823,7 @@ function CatalogFiltersPanel({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="grid gap-3">
+    <div className="sfx-facets">
       <CatalogSectionShell eyebrow={t("storefront.filters.sort", "ترتيب")} title={t("storefront.filters.sort", "ترتيب")} icon={SlidersHorizontal}>
         <CatalogSortControl value={selectedSort} options={sortOptions} onChange={onSortChange} compact />
       </CatalogSectionShell>
@@ -1844,7 +1838,7 @@ function CatalogFiltersPanel({
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "اللون")} title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} initialVisibleCount={14} />
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.brand", "البرند")} title={t("storefront.filters.brand", "البرند")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
       {onClearAll ? (
-        <button type="button" onClick={onClearAll} className="rounded-[1.25rem] border border-stone-200 bg-white px-4 py-3 text-sm font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <button type="button" onClick={onClearAll} className="sfx-btn sfx-btn--outline sfx-facets__clear">
           {t("storefront.filters.clearAll", "مسح الكل")}
         </button>
       ) : null}
@@ -1899,22 +1893,19 @@ function CatalogFiltersDrawer({
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className="sf-catalog-filter-drawer fixed inset-0 z-[170] lg:hidden" dir={String(lang || "").toLowerCase().startsWith("ar") ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "إغلاق")} />
-      <div className="sf-catalog-filter-sheet absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,#0d0d0d_0%,#050814_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
-        <div className="sf-catalog-filter-handle mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-white/20" />
-        <div className="sf-catalog-filter-header flex items-center justify-between gap-3 border-b border-white/10 px-3.5 py-3">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">{t("storefront.filters.premiumFilters", "الفلاتر")}</p>
-            <div className="mt-0.5 flex items-center gap-2">
-              <h2 className="text-base font-black">{title}</h2>
-              {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#d4af37] px-1.5 text-[10px] font-black text-white">{activeFilterCount}</span> : null}
-            </div>
+      <button type="button" className="sfx-sheet__backdrop" onClick={onClose} aria-label={t("common.close", "إغلاق")} />
+      <div className="sfx-sheet">
+        <div className="sfx-sheet__handle" />
+        <div className="sfx-sheet__head">
+          <div className="sfx-sheet__title">
+            <h2>{title}</h2>
+            {activeFilterCount ? <span className="sfx-btn__count">{activeFilterCount}</span> : null}
           </div>
-          <button type="button" onClick={onClose} className="sf-catalog-filter-close grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close", "إغلاق")}>
+          <button type="button" onClick={onClose} className="sfx-icon-btn" aria-label={t("common.close", "إغلاق")}>
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="sf-catalog-filter-content sf-scroll max-h-[calc(92dvh-138px)] space-y-3 overflow-y-auto px-3 py-3 pb-28">
+        <div className="sf-scroll sfx-sheet__body">
           <CatalogFiltersPanel
             lang={lang}
             title={title}
@@ -1953,8 +1944,8 @@ function CatalogFiltersDrawer({
             onToggleFlag={onToggleFlag}
           />
         </div>
-        <div className="sf-catalog-filter-footer absolute inset-x-0 bottom-0 flex gap-2 border-t border-white/10 bg-[#050814]/92 px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.7rem)] backdrop-blur-xl">
-          <button type="button" onClick={onClose} className="sf-catalog-filter-apply flex-1 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#151515] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.32)] active:scale-[0.98]">
+        <div className="sfx-sheet__foot">
+          <button type="button" onClick={onClose} className="sfx-btn sfx-btn--ink sfx-btn--grow">
             {t("storefront.filters.applyFilters", "تطبيق")}
           </button>
           <button
@@ -1963,7 +1954,7 @@ function CatalogFiltersDrawer({
               onClearAll?.();
               onClose?.();
             }}
-            className="sf-catalog-filter-reset rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-black text-white/80 active:scale-[0.98]"
+            className="sfx-btn sfx-btn--outline"
           >
             {t("storefront.filters.reset", "مسح")}
           </button>

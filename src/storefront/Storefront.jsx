@@ -64,7 +64,6 @@ import {
   ShoppingCart,
   SlidersHorizontal,
   Sparkles,
-  Star,
   Sun,
   ShieldCheck,
   Tag,
@@ -113,6 +112,7 @@ import {
   resolveHomeSections,
   resolveSectionTitle,
   resolveStripItems,
+  resolveCardLook,
 } from "../../shared/siteDesign.js";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../theme/documentColorScheme";
 import { splitProductDisplayName } from "./lib/productDisplayName";
@@ -129,6 +129,7 @@ import { buildHomeProductCard, useHomeReveal } from "./home/homeModel";
 import "./storefront-light.css";
 import "./components/cartDrawer.css";
 import "./site-skin.css";
+import "./catalog-skin.css";
 import StorefrontCheckoutSummary, { CheckoutTotals } from "./components/StorefrontCheckoutSummary";
 import { CheckoutBlock, CheckoutChoice, CheckoutInput, CheckoutLocationSelect, CheckoutNativeSelect, CheckoutSubmit } from "./checkout/CheckoutParts";
 import {
@@ -4306,7 +4307,7 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
+      <div className="sfx-product-grid grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
         {visibleProducts.map((product, index) => renderProduct(product, index, productCardKey(product, index)))}
       </div>
       {isAppending ? <div className="mt-3"><ProductSkeleton count={appendBatchSize} /></div> : null}
@@ -6178,6 +6179,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const product = useMemo(() => groupedProduct || rawProduct || {}, [groupedProduct, rawProduct]);
+  const cardLook = resolveCardLook(useSiteDesign());
   const cardRef = useRef(null);
   const primaryImageRef = useRef(null);
   const variants = useMemo(() => {
@@ -6414,55 +6416,26 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     observer.observe(node);
     return () => observer.disconnect();
   }, [productIdentifier, requestDetailPrefetch]);
-  const cardDensityClasses = {
-    hero: {
-      image: "aspect-[0.9/1] p-0",
-      body: "px-[12px] pb-[10px] pt-[5px]",
-      title: "min-h-10 text-[13px] leading-[1.22rem]",
-      price: "text-[20px]",
-      sizes: "gap-1.5",
-      chip: "h-6 px-2 text-[8.5px]",
-      color: "h-6 w-6",
-      swatch: "h-3.5 w-3.5",
-    },
-    standard: {
-      image: "aspect-[0.92/1] p-0",
-      body: "px-[11px] pb-[10px] pt-[5px] md:px-[12px]",
-      title: "min-h-10 text-[13px] leading-[1.2rem]",
-      price: "text-[20px]",
-      sizes: "gap-1.5",
-      chip: "h-6 px-2 text-[8.5px]",
-      color: "h-[22px] w-[22px]",
-      swatch: "h-3.5 w-3.5",
-    },
-    compact: {
-      image: "aspect-[0.96/1] p-0",
-      body: "px-[11px] pb-[9px] pt-[5px] md:px-[12px]",
-      title: "min-h-9 text-[13px] leading-[1.18rem]",
-      price: "text-[20px]",
-      sizes: "gap-1.25",
-      chip: "h-6 px-2 text-[8.5px]",
-      color: "h-6 w-6",
-      swatch: "h-3.5 w-3.5",
-    },
-  };
-  const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
   const brandLabel = productCardBrandLabel(product);
   const brandFilterUrl = useMemo(() => productCardBrandFilterUrl(product), [product]);
-  const cardBadge = useMemo(() => {
-    if (parsedSaleModeEnabled && discountPercent) {
-      return { key: "sale", label: "Sale" };
-    }
-    return null;
-  }, [discountPercent, parsedSaleModeEnabled]);
+  // The homepage card, extended: same plate, badge, heart, brand/name/price type
+  // and the same Site Studio template modifier, plus the listing's own tools
+  // (quick add, colour swatches, sizes) underneath. One card look on every page.
+  const cardClassName = [
+    "sfx-product-card m1h-card group/product",
+    cardLook.className,
+    cardLook.showBrand ? "" : "m1h-card--no-brand",
+    cardLook.showBadge ? "" : "m1h-card--no-badge",
+    featured ? "sfx-product-card--featured" : "",
+    density === "compact" ? "sfx-product-card--compact" : "",
+  ].filter(Boolean).join(" ");
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 340px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d4af37]/30 hover:shadow-[0_18px_42px_rgba(15,23,42,0.12)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/22 dark:hover:shadow-[0_20px_34px_rgba(0,0,0,0.26)] ${featured ? "md:shadow-[0_16px_38px_rgba(212,175,55,0.08)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-8 top-6 h-16 rounded-full bg-[rgba(212,175,55,0)] transition duration-200 group-hover/product:bg-[rgba(212,175,55,0.075)]" />
-      <div className={`relative overflow-hidden rounded-[1.05rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.2rem] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
-        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 340px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={cardClassName}>
+      <div className="m1h-card__plate">
+        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="sfx-card__media-link" aria-label={product.name}>
           {displayImage ? (
-            <div className="sf-product-card-media group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]">
+            <div className="sfx-card-media group/card-image">
               <img
                 ref={primaryImageRef}
                 src={imageFor(displayImage)}
@@ -6470,7 +6443,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 alt={product.name}
                 onError={fallbackProductImage}
                 data-fallback-src={cardFallbackImages.map((url) => imageFor(url)).join("|")}
-                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.19] md:group-active/product:scale-[1.19] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
+                className={`sf-card-primary-image sfx-card__img opacity-100 ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
                 fetchPriority={priorityImage ? "high" : undefined}
@@ -6485,7 +6458,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   alt={product.name}
                   aria-hidden="true"
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.13] md:group-hover/card-image:opacity-100 md:group-active/product:opacity-95"
+                  className="sf-card-secondary-image sfx-card__img sfx-card__img--secondary opacity-0 md:group-hover/card-image:opacity-100"
                   style={{ backfaceVisibility: "hidden" }}
                   loading="lazy"
                   decoding="async"
@@ -6495,81 +6468,50 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               ) : null}
             </div>
           ) : (
-            <div className="grid h-full w-full place-items-center rounded-[1rem] bg-white/70 text-center text-xs font-black text-stone-400 dark:bg-white/5 dark:text-stone-500 md:rounded-[1.15rem]">
-              <Sparkles className="h-6 w-6 opacity-50" />
-            </div>
+            <span className="sfx-card__placeholder">
+              <Sparkles size={22} aria-hidden="true" />
+            </span>
           )}
         </Link>
-        <div className="absolute right-3 top-[29px] z-20 flex flex-col items-end gap-2.5 md:right-3.5 md:top-[31px]">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="sf-storefront-gold-badge inline-flex min-h-6 items-center gap-1 rounded-full border border-[#f3d77a]/24 bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-stone-950 shadow-[0_10px_22px_rgba(212,175,55,0.24)] backdrop-blur md:min-h-7 md:px-3 md:text-[9px]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
-          {discountPercent ? <span className="sf-storefront-gold-badge inline-flex min-h-7 items-center rounded-full border border-[#f3d77a]/26 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(212,175,55,0.16)] backdrop-blur md:min-h-8 md:px-3 md:text-[9px] dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
-        </div>
-          <button
-            onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
-          className="absolute left-3 top-[28px] z-20 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white text-stone-700 shadow-[0_12px_24px_rgba(15,23,42,0.16)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.04] hover:border-white hover:bg-white active:translate-y-[1px] active:scale-[0.96] touch-manipulation md:h-11 md:w-11 dark:border-white/12 dark:bg-[#0d0d0d] dark:text-stone-100 dark:shadow-[0_10px_22px_rgba(0,0,0,0.2)] dark:hover:bg-[#151515]"
-          aria-label={t("storefront.header.wishlist")}
-        >
-          <Heart className={`h-4.5 w-4.5 transition duration-200 md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-stone-600 dark:text-stone-200"}`} />
-        </button>
-        {cardBadge ? (
-          <div className="absolute bottom-3 right-3 z-20 flex max-w-[78%] flex-col items-end gap-1.5 md:bottom-3.5 md:right-3.5 md:gap-1.5">
-            <span
-              className={`inline-flex min-h-8 items-center gap-1 rounded-full px-3.5 py-0.5 text-[10px] font-black leading-none tracking-[0.02em] shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md ${cardBadge.key === "sale" ? "sf-storefront-gold-badge border border-[#f3d77a]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-white dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)]" : cardBadge.key === "bestseller" ? "sf-storefront-gold-badge border border-[#f3d77a]/30 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-white dark:border-[#f3d77a]/20 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)]" : "border border-emerald-300/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.98),rgba(34,197,94,0.98))] text-white dark:border-emerald-300/20 dark:bg-[linear-gradient(135deg,rgba(21,128,61,0.98),rgba(22,163,74,0.98))]"}`}
-            >
-              {cardBadge.key === "bestseller" ? <Star className="h-3 w-3 fill-current" /> : null}
-              {cardBadge.label}
-            </span>
-          </div>
+        {discountPercent ? (
+          <span className="m1h-badge m1h-badge--sale">-{discountPercent}%</span>
+        ) : rank && railType === "bestseller" && rank <= 3 ? (
+          <span className="m1h-badge m1h-badge--last">TOP {rank}</span>
         ) : null}
+        <button
+          type="button"
+          onClick={(event) => { event.preventDefault(); event.stopPropagation(); handleWishlist(); }}
+          className={`m1h-fav${inWishlist ? " is-on" : ""}`}
+          aria-label={t("storefront.header.wishlist")}
+          aria-pressed={inWishlist}
+        >
+          <Heart size={15} strokeWidth={2} />
+        </button>
       </div>
-      <div className={`flex flex-col md:p-3 md:pt-2 ${densityClasses.body}`}>
+      <div className="m1h-card__body">
         {brandLabel ? (
           <Link
             to={brandFilterUrl || "/products"}
             onClick={(event) => event.stopPropagation()}
             aria-label={`${normalizeLanguage(i18n.language) === "ar" ? "عرض منتجات" : "Shop"} ${brandLabel}`}
-            dir="ltr"
-            className="sf-product-card-brand line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#d4af37] hover:underline focus-visible:text-[#d4af37] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#f3d77a] md:min-h-[1.05rem]"
+            className="sf-product-card-brand m1h-card__brand sfx-card__brand"
           >
             {brandLabel}
           </Link>
-        ) : null}
+        ) : (
+          <p className="m1h-card__brand" aria-hidden="true" />
+        )}
         <Link
           to={detailsUrl}
           onClick={resetStorefrontViewportScroll}
-          dir="ltr"
-          className={`sf-product-card-name mt-0 flex min-h-[2.4rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.55rem] md:text-[13px] md:leading-5 dark:text-stone-100 dark:hover:text-[#f3d77a] ${densityClasses.title}`}
+          className={`sf-product-card-name m1h-card__name sfx-card__name`}
         >
           {product.name}
         </Link>
-        {/* Desktop hover swap: the price row slides up out of a fixed 35px window and
-            the add-to-cart row takes its place. Touch has no hover, so it keeps the
-            price permanently visible next to the round quick-add button. */}
-        <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
-          {/* clip, not hidden: an overflow-hidden window is programmatically
-              scrollable, so tabbing to the clipped CTA scrolled it 35px out of
-              place for good instead of letting the slide reveal it. */}
-          <div className="sf-card-action-wrap min-w-0 flex-1 overflow-clip md:h-[35px]">
-            <div className="sf-card-action-track flex flex-col transition-transform duration-500 ease-out md:group-hover/product:-translate-y-[35px] md:focus-within:-translate-y-[35px]">
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 md:h-[35px] md:flex-nowrap md:items-center">
-                <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
-                {comparePrice ? <span className="sf-product-card-compare-price text-[10px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
-              </div>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openVariantSheet();
-                }}
-                disabled={!canQuickAdd}
-                className="sf-card-slide-cta hidden h-[35px] w-full shrink-0 items-center gap-1.5 whitespace-nowrap bg-transparent p-0 text-[13px] font-black leading-none text-stone-900 transition-colors duration-200 hover:text-[#d4af37] disabled:cursor-not-allowed disabled:text-stone-400 disabled:hover:text-stone-400 dark:text-stone-100 dark:hover:text-[#f3d77a] dark:disabled:text-stone-500 md:inline-flex"
-                aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
-                title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
-              >
-                <ShoppingCart className="h-[18px] w-[18px] shrink-0 text-[#d4af37] dark:text-[#f3d77a]" />
-                {canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
-              </button>
-            </div>
+        <div className="sfx-card__buy">
+          <div className="m1h-card__price sfx-card__price">
+            <span className={`m1h-card__price-now${comparePrice ? " m1h-card__price-now--sale" : ""}`}>{money(sellingPrice)}</span>
+            {comparePrice ? <span className="m1h-card__price-was">{money(comparePrice)}</span> : null}
           </div>
           <button
             type="button"
@@ -6578,15 +6520,15 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               openVariantSheet();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none md:hidden"
+            className="sfx-card__add"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
             title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
-            <ShoppingCart className="h-[18px] w-[18px]" />
+            <ShoppingCart size={16} aria-hidden="true" />
           </button>
         </div>
         {colorGroups.length > 1 ? (
-          <div className="mt-1.5 flex min-h-7 items-center gap-1 overflow-hidden md:mt-1.5 md:min-h-7 md:gap-1.25">
+          <div className="sfx-card__swatches">
             {visibleColorOptions.map((group) => {
               const active = String(group.key) === String(selectedColorKey);
               return (
@@ -6596,16 +6538,32 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   onClick={(event) => chooseColor(event, group)}
                   title={group.colorName || group.color}
                   aria-label={group.colorName || group.color}
-                className={`grid shrink-0 place-items-center rounded-full border transition duration-200 active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] shadow-[0_0_0_2px_rgba(212,175,55,0.12)] dark:border-[#e5c158] dark:bg-[rgba(212,175,55,0.12)]" : "border-stone-200 bg-white/70 hover:border-[#d4af37]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
+                  aria-pressed={active}
+                  className={`sfx-swatch${active ? " is-active" : ""}`}
                 >
-                  <span className={`rounded-full border border-black/10 shadow-inner md:h-4 md:w-4 ${densityClasses.swatch}`} style={swatchColorStyle(group.colorName || group.color)} />
+                  <span style={swatchColorStyle(group.colorName || group.color)} />
                 </button>
               );
             })}
-            {extraColorCount ? <span dir="ltr" className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-500 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-400">+{extraColorCount}</span> : null}
+            {extraColorCount ? <span dir="ltr" className="sfx-card__more">+{extraColorCount}</span> : null}
           </div>
         ) : null}
-        <div className={`mt-[4px] flex h-8 min-w-0 items-center gap-1.5 overflow-hidden pb-0.5 whitespace-nowrap md:h-8 md:gap-2 ${densityClasses.sizes}`}>
+        <div className="sfx-card__sizes">
+          {visibleSizes.map(({ size, variant }) => {
+            const selected = String(availableVariant?.id) === String(variant?.id);
+            return (
+              <button
+                key={`${activeColorGroup?.key || "default"}-${variant?.id || size}`}
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
+                className={`sfx-size${selected ? " is-active" : ""}`}
+              >
+                {formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language)}
+              </button>
+            );
+          })}
+          {extraSizeCount ? <span dir="ltr" className="sfx-card__more">+{extraSizeCount}</span> : null}
+          {!visibleSizes.length ? <span className="sfx-card__more">{t("storefront.products.oneSize")}</span> : null}
           <button
             type="button"
             onClick={(event) => {
@@ -6613,31 +6571,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               event.stopPropagation();
               navigate(buildSizeGuidePath(resolveSizeGuideTypeForProduct(product)));
             }}
-            className="sf-size-guide-chip inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 shadow-sm transition duration-200 hover:border-[#b68a2c]/40 hover:text-[#7b5318] active:translate-y-[1px] active:scale-[0.98] md:px-3 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200 dark:hover:border-[#d8b75f]/45 dark:hover:text-[#d8b75f]"
+            className="sfx-card__guide"
           >
-            {t("storefront.products.sizeGuide", "\u062f\u0644\u064a\u0644 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a")}
+            {t("storefront.products.sizeGuide", "دليل المقاسات")}
           </button>
-          <div className="sf-scroll flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap md:gap-1.5">
-            {visibleSizes.map(({ size, variant }) => {
-              const selected = String(availableVariant?.id) === String(variant?.id);
-              return (
-                <button
-                  key={`${activeColorGroup?.key || "default"}-${variant?.id || size}`}
-                  type="button"
-                  onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                  className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
-                >
-                  {formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language)}
-                </button>
-              );
-            })}
-            {extraSizeCount ? (
-              <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
-            ) : null}
-            {!visibleSizes.length ? (
-              <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize")}</span>
-            ) : null}
-          </div>
         </div>
       </div>
       {quickAddOpen ? (
@@ -9993,24 +9930,18 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
 
 function ProductCardSkeleton() {
   return (
-    <article className="overflow-hidden rounded-[1.2rem] border border-white/70 bg-white shadow-[0_10px_26px_rgba(39,20,75,0.07)] ring-1 ring-stone-200/55 dark:border-white/[0.08] dark:bg-[linear-gradient(145deg,rgba(5,5,5,0.98),rgba(17,17,17,0.95)_52%,rgba(21,21,21,0.98))] dark:ring-white/[0.05]">
-      <div className="relative aspect-[0.96/1] p-1.5">
-        <div className="sf-skeleton-shimmer h-full rounded-[1rem] bg-stone-200/80 dark:bg-white/[0.04]" />
+    <div className="m1h-card" aria-hidden="true">
+      <div className="sfx-skel" style={{ aspectRatio: "1 / 1" }} />
+      <div className="m1h-card__body">
+        <div className="sfx-skel" style={{ height: 10, width: "40%", borderRadius: 999 }} />
+        <div className="sfx-skel" style={{ height: 13, width: "84%", marginTop: 8, borderRadius: 999 }} />
+        <div className="sfx-skel" style={{ height: 15, width: "46%", marginTop: 10, borderRadius: 999 }} />
       </div>
-      <div className="space-y-2 p-2.5 pt-2">
-        <div className="sf-skeleton-shimmer h-5 w-[88%] rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
-        <div className="sf-skeleton-shimmer h-4 w-2/3 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
-        <div className="flex gap-1.5 overflow-hidden">
-          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
-          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
-          <div className="sf-skeleton-shimmer h-6 w-10 rounded-full bg-stone-200/80 dark:bg-white/[0.04]" />
-        </div>
-      </div>
-    </article>
+    </div>
   );
 }
 
-function ProductSkeleton({ count, className = "grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5" }) {
+function ProductSkeleton({ count, className = "sfx-product-grid grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4" }) {
   return (
     <div className={className}>
       {Array.from({ length: count }).map((_, index) => (
@@ -10045,13 +9976,13 @@ function ProductGalleryFallback() {
 
 function EmptyState({ title, text, actionTo = "/products", actionLabel }) {
   return (
-    <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-6 text-center text-stone-50 shadow-[0_22px_56px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[var(--sf-purple)]/25 bg-[rgba(212,175,55,0.12)] text-[var(--sf-purple)] shadow-[0_14px_34px_rgba(212,175,55,0.14)]">
+    <div className="sfx-empty mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl md:mb-6">
+      <span className="sfx-empty__icon">
         <PackageSearch className="h-7 w-7" />
-      </div>
-      <h2 className="mt-4 text-2xl font-black text-stone-50">{title}</h2>
-      <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-white/60">{text}</p>
-      <Link to={actionTo} className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(135deg,var(--sf-purple),var(--sf-purple-2))] px-5 py-3 text-sm font-black text-stone-950 shadow-[0_16px_36px_rgba(212,175,55,0.20)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(212,175,55,0.28)] active:scale-[0.98]">
+      </span>
+      <h2 className="sfx-empty__title">{title}</h2>
+      <p className="sfx-empty__text">{text}</p>
+      <Link to={actionTo} className="sfx-btn sfx-btn--ink">
         {actionLabel || sfText("storefront.common.shopNow")}
       </Link>
     </div>

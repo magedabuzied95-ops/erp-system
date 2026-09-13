@@ -1,0 +1,1274 @@
+/* ============================================================================
+   M1 STORE — CATALOGUE IN THE HOMEPAGE LOOK
+   ----------------------------------------------------------------------------
+   The product card is the homepage card (home.css `.m1h-card`) plus the
+   listing's own tools; the listing's heading, chips, facets, pagination and
+   filter sheet are drawn from the same `--m1h-*` tokens (site-skin.css).
+
+   Selectors that must beat the legacy `storefront-light.css` / index.css rules
+   (several carry `!important`) are prefixed `body.storefront-shell`; this file
+   is imported after both, so an equal-specificity tie also lands here.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- the card */
+
+.sfx-product-grid {
+  column-gap: 12px;
+  row-gap: 28px;
+}
+
+@media (min-width: 768px) {
+  .sfx-product-grid {
+    column-gap: 20px;
+    row-gap: 36px;
+  }
+}
+
+.sfx-product-card {
+  height: 100%;
+  container-type: inline-size;
+}
+
+/* A narrow tile (two-up on a phone) has no room for the size-guide link beside
+   the size chips; the product page carries it. */
+@container (max-width: 210px) {
+  .sfx-card__guide {
+    display: none;
+  }
+}
+
+.sfx-card__media-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+}
+
+.sfx-card-media {
+  position: absolute;
+  inset: 0;
+}
+
+.sfx-card__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 8%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  transition: opacity 600ms var(--m1h-ease), transform 260ms var(--m1h-ease);
+}
+
+.sfx-card__img--secondary {
+  z-index: 1;
+}
+
+@media (hover: hover) {
+  .sfx-product-card:hover .sfx-card__img {
+    transform: scale(1.04);
+  }
+}
+
+.sfx-card__placeholder {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #b8b2a7;
+}
+
+.sfx-product-card .m1h-badge,
+.sfx-product-card .m1h-fav {
+  z-index: 3;
+}
+
+body.storefront-shell .sfx-card__brand,
+body.storefront-shell .sfx-card__name {
+  text-decoration: none;
+  transition: color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-card__brand {
+  display: block;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sfx-card__name {
+  display: -webkit-box;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sfx-card__brand:hover,
+body.storefront-shell .sfx-card__name:hover {
+  color: var(--m1h-accent) !important;
+}
+
+.sfx-card__buy {
+  display: flex;
+  margin-top: var(--m1h-s2);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sfx-card__price {
+  min-width: 0;
+  margin-top: 0;
+}
+
+.sfx-card__add {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line);
+  border-radius: 999px;
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+  cursor: pointer;
+  transition: background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease), border-color 160ms var(--m1h-ease);
+}
+
+.sfx-card__add:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
+}
+
+.sfx-card__add:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.sfx-card__swatches,
+.sfx-card__sizes {
+  display: flex;
+  min-height: 24px;
+  margin-top: 8px;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sfx-swatch {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sfx-swatch > span {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+}
+
+.sfx-swatch.is-active {
+  border-color: var(--m1h-text);
+  box-shadow: 0 0 0 1px var(--m1h-text);
+}
+
+.sfx-size {
+  height: 24px;
+  min-width: 30px;
+  flex: none;
+  padding: 0 8px;
+  border: 1px solid var(--m1h-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m1h-text-2);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.sfx-size.is-active {
+  border-color: var(--m1h-text);
+  color: var(--m1h-text);
+}
+
+.sfx-card__more {
+  flex: none;
+  color: var(--m1h-text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sfx-card__guide {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--m1h-text-3);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.sfx-skel {
+  border-radius: var(--m1h-r-md);
+  background: linear-gradient(90deg, var(--m1h-line-soft) 25%, var(--m1h-line) 50%, var(--m1h-line-soft) 75%);
+  background-size: 200% 100%;
+  animation: sfx-shimmer 1.4s linear infinite;
+}
+
+@keyframes sfx-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ------------------------------------------------------------- empty state */
+
+.sfx-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 36px 20px;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-xl);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+  text-align: center;
+}
+
+.sfx-empty__icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--m1h-accent-soft);
+  color: var(--m1h-accent);
+}
+
+body.storefront-shell .sfx-empty__title {
+  margin: 6px 0 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+body.storefront-shell .sfx-empty__text {
+  max-width: 28rem;
+  margin: 0 0 8px;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ----------------------------------------------------------------- listing */
+
+body.storefront-shell .sfx-listing {
+  color: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-listing .sfx-eyebrow {
+  margin: 0;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sfx-listing .sfx-page-title {
+  margin: 4px 0 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfx-listing .sfx-page-title {
+    font-size: 32px;
+  }
+}
+
+body.storefront-shell .sfx-listing .sfx-page-intro {
+  max-width: 48rem;
+  margin: 8px 0 0;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+body.storefront-shell .sfx-muted {
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sfx-muted--sm {
+  color: var(--m1h-text-3) !important;
+  font-size: 12px;
+}
+
+body.storefront-shell .sfx-btn {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  box-shadow: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 160ms var(--m1h-ease), border-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-btn--ink {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sfx-btn--ink:hover {
+  opacity: 0.9;
+}
+
+body.storefront-shell .sfx-btn--outline {
+  border-color: var(--m1h-line) !important;
+  background: transparent !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sfx-btn--outline:hover {
+  border-color: var(--m1h-text) !important;
+}
+
+.sfx-btn--grow {
+  flex: 1;
+}
+
+.sfx-btn__count {
+  display: grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--m1h-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sfx-filters-trigger {
+  flex: 1;
+}
+
+@media (min-width: 640px) {
+  .sfx-filters-trigger {
+    flex: none;
+  }
+}
+
+/* `.sfx-btn` sets display at a higher specificity than Tailwind's `lg:hidden`,
+   so the desktop sidebar's twin button has to be hidden here. */
+@media (min-width: 1024px) {
+  body.storefront-shell .sfx-filters-trigger {
+    display: none;
+  }
+}
+
+.sfx-chiprow {
+  min-width: 0;
+  margin-top: 20px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.sfx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.storefront-shell .sfx-chip {
+  display: inline-flex;
+  min-height: 36px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: 999px;
+  background: var(--m1h-surface) !important;
+  box-shadow: none !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-chip:hover {
+  border-color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sfx-chip.is-active {
+  border-color: var(--m1h-invert-bg) !important;
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+}
+
+.sfx-chip__icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+body.storefront-shell .sfx-chip__count {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sfx-chip.is-active .sfx-chip__count {
+  color: var(--m1h-invert-text-2) !important;
+}
+
+body.storefront-shell .sfx-chip--applied {
+  min-height: 32px;
+  padding: 0 10px 0 12px;
+  border-color: transparent !important;
+  background: var(--m1h-accent-soft) !important;
+}
+
+.sfx-applied {
+  display: flex;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+body.storefront-shell .sfx-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+body.storefront-shell .sfx-link-btn:hover {
+  color: var(--m1h-accent) !important;
+}
+
+.sfx-facets {
+  display: grid;
+}
+
+body.storefront-shell .sfx-facet {
+  padding: 18px 0;
+  border: 0 !important;
+  border-bottom: 1px solid var(--m1h-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.sfx-facets > .sfx-facet:first-child {
+  padding-top: 0;
+}
+
+.sfx-facet__head {
+  display: flex;
+  margin-bottom: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.storefront-shell .sfx-facet__title {
+  display: inline-flex;
+  margin: 0;
+  align-items: center;
+  gap: 8px;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sfx-facet__icon {
+  width: 15px;
+  height: 15px;
+  color: var(--m1h-text-3);
+}
+
+.sfx-facet__more {
+  margin-top: 12px;
+}
+
+.sfx-facets__clear {
+  margin-top: 18px;
+}
+
+body.storefront-shell .sfx-select {
+  position: relative;
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+}
+
+.sfx-select--block {
+  width: 100%;
+}
+
+body.storefront-shell .sfx-select__control {
+  width: 100%;
+  min-height: 40px;
+  padding-block: 0;
+  padding-inline: 12px 36px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+body.storefront-shell .sfx-select__control option {
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+}
+
+.sfx-select__icon {
+  position: absolute;
+  inset-inline-end: 12px;
+  width: 16px;
+  height: 16px;
+  color: var(--m1h-text-3);
+  pointer-events: none;
+}
+
+.sfx-range-wrap {
+  padding: 4px 6px 0;
+}
+
+.sfx-range {
+  position: relative;
+  height: 36px;
+}
+
+.sfx-range__track,
+.sfx-range__fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.sfx-range__track {
+  inset-inline: 0;
+  background: var(--m1h-line);
+}
+
+.sfx-range__fill {
+  background: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-range input[type="range"]::-webkit-slider-thumb {
+  border: 2px solid var(--m1h-surface);
+  background: var(--m1h-text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+body.storefront-shell .sfx-range input[type="range"]::-moz-range-thumb {
+  border: 2px solid var(--m1h-surface);
+  background: var(--m1h-text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.sfx-range__values {
+  display: grid;
+  margin: 12px 0 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  text-align: start;
+}
+
+body.storefront-shell .sfx-range__values > div {
+  padding: 8px 10px;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface) !important;
+}
+
+body.storefront-shell .sfx-range__values > div > span:first-child {
+  display: block;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+body.storefront-shell .sfx-range__values > div > span:last-child {
+  display: block;
+  margin-top: 2px;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfx-page {
+  display: grid;
+  min-width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--m1h-line);
+  border-radius: 999px;
+  background: var(--m1h-surface);
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell a.sfx-page:hover {
+  border-color: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-page[aria-current] {
+  border-color: var(--m1h-invert-bg);
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text) !important;
+}
+
+.sfx-page--arrow {
+  padding: 0;
+}
+
+body.storefront-shell .sfx-page.is-disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+body.storefront-shell .sfx-page--sm {
+  min-width: 36px;
+  height: 34px;
+  font-size: 13px;
+}
+
+.sfx-page__gap {
+  display: grid;
+  min-width: 20px;
+  height: 40px;
+  place-items: center;
+  color: var(--m1h-text-3);
+}
+
+/* ------------------------------------------------------- filter sheet (phones) */
+
+.sfx-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+body.storefront-shell .sfx-sheet {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  max-height: 92dvh;
+  flex-direction: column;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 18px 18px 0 0;
+  background: var(--m1h-bg) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.3) !important;
+}
+
+body.storefront-shell .sfx-sheet__handle {
+  width: 40px;
+  height: 5px;
+  flex: none;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: var(--m1h-line) !important;
+}
+
+body.storefront-shell .sfx-sheet__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px 12px;
+  border-bottom: 1px solid var(--m1h-line) !important;
+  background: transparent !important;
+}
+
+.sfx-sheet__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.storefront-shell .sfx-sheet__title h2 {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+body.storefront-shell .sfx-sheet__body {
+  min-height: 0;
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: transparent !important;
+}
+
+body.storefront-shell .sfx-sheet__foot {
+  position: static;
+  display: flex;
+  flex: none;
+  gap: 8px;
+  padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid var(--m1h-line) !important;
+  background: var(--m1h-bg) !important;
+}
+
+body.storefront-shell .sfx-icon-btn {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: 999px;
+  background: transparent !important;
+  color: var(--m1h-text-2) !important;
+  cursor: pointer;
+}
+
+/* ============================================================================
+   PRODUCT PAGE — flat like the homepage: a white plate for the photograph,
+   type and hairlines for everything else. The buy bar keeps its own
+   sf-buy-* rules (index.css), which already follow the same ink/outline pair.
+   ========================================================================== */
+
+body.storefront-shell .sfx-pdp {
+  color: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-pdp .sf-product-gallery-frame {
+  border: 0 !important;
+  border-radius: var(--m1h-r-lg) !important;
+  background: var(--m1h-plate) !important;
+  box-shadow: inset 0 0 0 1px var(--m1h-plate-edge) !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-gallery-frame > .absolute {
+  display: none;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-plate) !important;
+  box-shadow: none !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumbnails button:not(.sf-product-thumb) {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: none !important;
+}
+
+.sfx-pdp-summary > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.storefront-shell .sfx-pdp-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--m1h-text-2);
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-pdp-icon:hover {
+  border-color: var(--m1h-text);
+  color: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-pdp-icon.is-on {
+  color: var(--m1h-sale);
+}
+
+body.storefront-shell .sfx-pdp-icon.is-on svg {
+  fill: currentColor;
+}
+
+body.storefront-shell .sfx-pdp-title {
+  display: -webkit-box;
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfx-pdp-title {
+    font-size: 32px;
+  }
+}
+
+.sfx-pdp-pricing {
+  display: flex;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+body.storefront-shell .sfx-pdp-price {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+body.storefront-shell .sfx-pdp-price.is-sale {
+  color: var(--m1h-accent) !important;
+}
+
+body.storefront-shell .sfx-pdp-price--muted {
+  color: var(--m1h-text-3) !important;
+  font-size: 18px;
+}
+
+body.storefront-shell .sfx-pdp-was {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: line-through;
+}
+
+body.storefront-shell .sfx-pdp-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--m1h-accent-soft);
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfx-pdp-pill--sale {
+  background: var(--m1h-sale);
+  color: var(--m1h-sale-fg) !important;
+}
+
+body.storefront-shell .sfx-pdp-option {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--m1h-line);
+  color: var(--m1h-text);
+}
+
+.sfx-pdp-option__head {
+  display: flex;
+  margin-bottom: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.storefront-shell .sfx-pdp-option__title {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfx-pdp-option__meta,
+body.storefront-shell .sfx-pdp-option__value {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sfx-pdp-colors {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+}
+
+body.storefront-shell .sfx-pdp-color {
+  display: block;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate);
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease), box-shadow 160ms var(--m1h-ease);
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfx-pdp-color {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+body.storefront-shell .sfx-pdp-color img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+body.storefront-shell .sfx-pdp-color:hover {
+  border-color: var(--m1h-text-3);
+}
+
+body.storefront-shell .sfx-pdp-color.is-active {
+  border-color: var(--m1h-text);
+  box-shadow: 0 0 0 1px var(--m1h-text);
+}
+
+body.storefront-shell .sfx-pdp-color.is-unavailable {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.sfx-pdp-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  pointer-events: none;
+  transition: opacity 160ms var(--m1h-ease);
+}
+
+.sfx-pdp-fade--start {
+  inset-inline-start: 0;
+  background: linear-gradient(to right, var(--m1h-bg), transparent);
+}
+
+.sfx-pdp-fade--end {
+  inset-inline-end: 0;
+  background: linear-gradient(to left, var(--m1h-bg), transparent);
+}
+
+[dir="rtl"] .sfx-pdp-fade--start {
+  background: linear-gradient(to left, var(--m1h-bg), transparent);
+}
+
+[dir="rtl"] .sfx-pdp-fade--end {
+  background: linear-gradient(to right, var(--m1h-bg), transparent);
+}
+
+.sfx-pdp-strip-nav {
+  position: absolute;
+  top: 50%;
+  display: none;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 1px solid var(--m1h-line);
+  border-radius: 999px;
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+  box-shadow: var(--m1h-shadow-soft);
+  cursor: pointer;
+}
+
+@media (min-width: 640px) {
+  .sfx-pdp-strip-nav {
+    display: grid;
+  }
+}
+
+.sfx-pdp-strip-nav--start {
+  inset-inline-start: 4px;
+}
+
+.sfx-pdp-strip-nav--end {
+  inset-inline-end: 4px;
+}
+
+.sfx-pdp-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.storefront-shell .sfx-pdp-size {
+  position: relative;
+  min-width: 52px;
+  min-height: 44px;
+  overflow: hidden;
+  padding: 6px 12px;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-pdp-size:hover:not(:disabled) {
+  border-color: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-pdp-size.is-active {
+  border-color: var(--m1h-invert-bg);
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
+}
+
+body.storefront-shell .sfx-pdp-size.is-unavailable {
+  cursor: not-allowed;
+  color: var(--m1h-text-3);
+  opacity: 0.6;
+}
+
+.sfx-pdp-size__slash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120%;
+  height: 1px;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  background: var(--m1h-text-3);
+  pointer-events: none;
+}
+
+.sfx-pdp-size__label {
+  position: relative;
+  display: block;
+}
+
+.sfx-pdp-size__alt {
+  position: relative;
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.65;
+}
+
+.sfx-pdp-buy {
+  margin-top: 22px;
+}
+
+body.storefront-shell .sfx-pdp-note {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface);
+  color: var(--m1h-text) !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfx-pdp-note--ok {
+  border-color: transparent;
+  background: var(--sfx-success-soft);
+  color: var(--sfx-success) !important;
+}
+
+body.storefront-shell .sfx-pdp-error {
+  color: var(--sfx-danger) !important;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfx-pdp-description {
+  padding: 24px 0 0;
+  border-top: 1px solid var(--m1h-line);
+  color: var(--m1h-text);
+}
+
+body.storefront-shell .sfx-pdp-h2 {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfx-pdp-h2 {
+    font-size: 28px;
+  }
+}
+
+.sfx-pdp-description__body {
+  display: grid;
+  max-width: 48rem;
+  margin-top: 14px;
+  gap: 12px;
+}
+
+body.storefront-shell .sfx-pdp-lead {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.75;
+}
+
+body.storefront-shell .sfx-pdp-h3 {
+  margin: 8px 0 0;
+  color: var(--m1h-text) !important;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfx-pdp-text,
+body.storefront-shell .sfx-pdp-list li,
+body.storefront-shell .sfx-pdp-checks li {
+  margin: 0;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.8;
+}
+
+.sfx-pdp-list {
+  display: grid;
+  margin: 0;
+  gap: 10px;
+  padding-inline-start: 20px;
+  list-style: disc;
+}
+
+body.storefront-shell .sfx-pdp-list strong {
+  display: block;
+  color: var(--m1h-text) !important;
+  font-weight: 600;
+}
+
+.sfx-pdp-checks {
+  display: grid;
+  margin: 0;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+body.storefront-shell .sfx-pdp-checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sfx-pdp-checks__icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  margin-top: 6px;
+  color: var(--m1h-accent);
+}

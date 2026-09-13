@@ -11,7 +11,7 @@ test("bag product details temporarily hide the size selector card", () => {
   assert.match(source, /const isBagProduct =/);
   assert.match(source, /product && typeof product === "object" \? product : \{\}/);
   assert.match(source, /const hideSizeSelector = isBagProduct\(product\)/);
-  assert.match(source, /\{!hideSizeSelector \? <div className="sf-product-option-card/);
+  assert.match(source, /\{!hideSizeSelector \? <div className="sfx-pdp-option/);
   for (const productType of ["bag", "bags", "handbag", "handbags", "شنط", "شنطة", "حقائب", "حقيبة"]) {
     assert.match(source, new RegExp(`"${productType}"`));
   }
