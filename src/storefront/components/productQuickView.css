@@ -1,0 +1,490 @@
+/* Quick view (ProductCardVariantSheet in Storefront.jsx), in the homepage look.
+
+   A bottom sheet on a phone — photo on top, choices under it, the whole panel
+   scrolls — and a two-column dialog from 768px. Colours come from the --m1h-*
+   tokens with the body.storefront-shell prefix, because the legacy storefront
+   sheets repaint text, borders and buttons per theme with !important. */
+
+body.storefront-shell .sfq {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+body.storefront-shell .sfq__backdrop {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0 !important;
+  background: rgba(12, 10, 8, 0.55) !important;
+  animation: sfq-fade 180ms ease-out;
+  cursor: default;
+}
+
+body.storefront-shell .sfq__panel {
+  position: relative;
+  display: flex;
+  width: 100%;
+  max-height: 92dvh;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 20px 20px 0 0;
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.18);
+  animation: sfq-rise 260ms var(--m1h-ease, ease-out);
+}
+
+@keyframes sfq-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sfq-rise {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.sfq__grab {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 3;
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(20, 18, 15, 0.18);
+  transform: translateX(-50%);
+}
+
+body.storefront-shell .sfq__close {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  z-index: 3;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: 999px;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: var(--m1h-shadow-soft);
+  cursor: pointer;
+}
+
+/* The photo plate stays white in both themes, like the card and the product page. */
+body.storefront-shell .sfq__media {
+  position: relative;
+  display: grid;
+  height: min(40dvh, 22rem);
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  background: var(--m1h-plate);
+  touch-action: pan-y;
+}
+
+.sfq__img {
+  width: 100%;
+  height: 100%;
+  padding: 7%;
+  object-fit: contain;
+  animation: sfq-fade 200ms ease-out;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+body.storefront-shell .sfq__badge {
+  position: absolute;
+  top: 14px;
+  inset-inline-start: 14px;
+}
+
+.sfq__dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  display: flex;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+
+body.storefront-shell .sfq__dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 999px;
+  background: rgba(20, 18, 15, 0.2) !important;
+  cursor: pointer;
+  transition: width 160ms ease, background-color 160ms ease;
+}
+
+body.storefront-shell .sfq__dot.is-active {
+  width: 20px;
+  background: #14120f !important;
+}
+
+.sfq__body {
+  display: grid;
+  gap: 14px;
+  padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+}
+
+body.storefront-shell .sfq__brand {
+  margin: 0;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+body.storefront-shell .sfq__name {
+  margin: -8px 0 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.sfq__price {
+  display: flex;
+  margin-top: -6px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+body.storefront-shell .sfq__price-now {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+body.storefront-shell .sfq__price-now.is-sale {
+  color: var(--m1h-accent) !important;
+}
+
+body.storefront-shell .sfq__price-was {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  text-decoration: line-through;
+}
+
+body.storefront-shell .sfq__option {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--m1h-line);
+}
+
+.sfq__option-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.storefront-shell .sfq__option-title {
+  color: var(--m1h-text) !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+body.storefront-shell .sfq__option-value,
+body.storefront-shell .sfq__muted {
+  margin: 0;
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sfq__guide {
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+body.storefront-shell .sfq__nudge {
+  margin: -4px 0 0;
+  color: var(--m1h-sale) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 13px;
+  font-weight: 600;
+  animation: sfx-size-prompt-shake 0.42s ease-in-out;
+}
+
+.sfq__colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.storefront-shell .sfq-color {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  overflow: hidden;
+  padding: 3px;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate) !important;
+  cursor: pointer;
+}
+
+body.storefront-shell .sfq-color.is-active {
+  border-color: var(--m1h-text) !important;
+  box-shadow: inset 0 0 0 1px var(--m1h-text);
+}
+
+.sfq-color img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sfq-color__chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.sfq__sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.storefront-shell .sfq-size {
+  position: relative;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+body.storefront-shell .sfq-size:hover:not(:disabled) {
+  border-color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sfq-size.is-active {
+  border-color: var(--m1h-invert-bg) !important;
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+}
+
+body.storefront-shell .sfq-size.is-unavailable {
+  color: var(--m1h-text-3) !important;
+  text-decoration: line-through;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+body.storefront-shell .sfq__option.is-prompting .sfq-size:not(:disabled):not(.is-active) {
+  border-color: var(--m1h-sale) !important;
+}
+
+.sfq-size__alt {
+  display: block;
+  font-size: 9px;
+  opacity: 0.65;
+}
+
+.sfq__buy {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+body.storefront-shell .sfq-qty {
+  display: flex;
+  height: 50px;
+  flex: none;
+  align-items: center;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sfq-qty button {
+  display: grid;
+  width: 40px;
+  height: 100%;
+  place-items: center;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--m1h-text) !important;
+  cursor: pointer;
+}
+
+body.storefront-shell .sfq-qty button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+body.storefront-shell .sfq-qty span {
+  min-width: 28px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+body.storefront-shell .sfq__add {
+  display: inline-flex;
+  min-width: 0;
+  height: 50px;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0 !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+body.storefront-shell .sfq__add:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+body.storefront-shell .sfq__details {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+body.storefront-shell .sfq__details:hover {
+  color: var(--m1h-text) !important;
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfq {
+    align-items: center;
+    padding: 24px;
+  }
+
+  body.storefront-shell .sfq__panel {
+    display: grid;
+    width: min(56rem, 100%);
+    max-height: min(90dvh, 44rem);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    overflow: hidden;
+    border-radius: var(--m1h-r-xl);
+    animation-name: sfq-pop;
+  }
+
+  .sfq__grab {
+    display: none;
+  }
+
+  body.storefront-shell .sfq__media {
+    height: 100%;
+    min-height: 26rem;
+  }
+
+  .sfq__body {
+    overflow-y: auto;
+    align-content: start;
+    padding: 28px 28px 24px;
+  }
+
+  body.storefront-shell .sfq__name {
+    padding-inline-end: 40px;
+    font-size: 22px;
+  }
+}
+
+@keyframes sfq-pop {
+  from { transform: scale(0.97); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.storefront-shell .sfq__panel,
+  body.storefront-shell .sfq__backdrop,
+  .sfq__img,
+  body.storefront-shell .sfq__nudge {
+    animation: none;
+  }
+}
+
+/* ------------------------------------------------ the card's hover button */
+
+body.storefront-shell .sfx-card__quick {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body.storefront-shell .sfx-card__quick {
+    position: absolute;
+    inset-inline: 10px;
+    bottom: 10px;
+    z-index: 3;
+    display: inline-flex;
+    height: 38px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 12px;
+    border: 0 !important;
+    border-radius: var(--m1h-r-md);
+    background: rgba(255, 255, 255, 0.94) !important;
+    color: #14120f !important;
+    -webkit-text-fill-color: currentColor;
+    box-shadow: 0 6px 18px rgba(20, 18, 15, 0.14);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(8px);
+    cursor: pointer;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  body.storefront-shell .m1h-card__plate:hover .sfx-card__quick,
+  body.storefront-shell .sfx-card__quick:focus-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

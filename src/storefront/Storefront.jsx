@@ -40,6 +40,7 @@ import {
   Globe,
   Crown,
   Clock3,
+  Eye,
   Footprints,
   Gem,
   Heart,
@@ -131,6 +132,7 @@ import "./storefront-light.css";
 import "./components/cartDrawer.css";
 import "./site-skin.css";
 import "./catalog-skin.css";
+import "./components/productQuickView.css";
 import "./components/compare-controls.css";
 import { CompareToggleButton, CompareTray } from "./components/StorefrontCompare";
 import StorefrontCheckoutSummary, { CheckoutTotals } from "./components/StorefrontCheckoutSummary";
@@ -6514,6 +6516,18 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           colorName={activeColorGroup?.color || ""}
           image={displayImage ? imageFor(displayImage) : ""}
         />
+        {/* With a mouse, a quick view slides up over the photo on hover; on a phone
+            the cart button below opens the same sheet. */}
+        {canQuickAdd ? (
+          <button
+            type="button"
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); openVariantSheet(); }}
+            className="sfx-card__quick"
+          >
+            <Eye size={15} aria-hidden="true" />
+            {t("storefront.products.quickView", "نظرة سريعة")}
+          </button>
+        ) : null}
       </div>
       <div className="m1h-card__body">
         {brandLabel ? (
@@ -6647,6 +6661,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   );
 });
 
+// Quick view: the product card's cart button (and, with a mouse, the "Quick view"
+// button on the photo) opens this instead of the product page. A large photo of
+// the chosen colour, the price, colours, sizes, quantity and add to cart — and a
+// link through to the full page for anything more. Painted from the --m1h-*
+// tokens in components/productQuickView.css; on a phone it is a bottom sheet.
 function ProductCardVariantSheet({
   open = false,
   product,
@@ -6662,6 +6681,13 @@ function ProductCardVariantSheet({
 }) {
   const { t } = useTranslation();
   useBodyScrollLock(open);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [nudge, setNudge] = useState({ tick: 0, target: "" });
+  const [adding, setAdding] = useState(false);
+  const sizesRef = useRef(null);
+  const closeRef = useRef(null);
+  const swipeRef = useRef(null);
+  const titleId = `sfq-title-${product?.id || "product"}`;
   const activeGroup = useMemo(
     () => colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),
     [colorGroups, selectedColorKey]
@@ -6678,21 +6704,40 @@ function ProductCardVariantSheet({
     () => sizeOptions.find((item) => String(item.variant?.id) === String(selectedVariantId))?.variant || null,
     [selectedVariantId, sizeOptions]
   );
-  const priceVariant = selectedVariant || availableSizeOptions[0]?.variant || firstDisplayVariant(activeGroup?.variants || []) || null;
+  // Before a colour is chosen the photo and price follow the colour the card showed.
+  const previewGroup = activeGroup || colorGroups[0] || null;
+  const priceVariant = selectedVariant || availableSizeOptions[0]?.variant || firstDisplayVariant(previewGroup?.variants || []) || null;
   const sellingPrice = displaySellingPrice(product, priceVariant);
   const comparePrice = displayComparePrice(product, priceVariant);
-  const previewImage = productCardPrimaryImageFor(product, priceVariant, activeGroup);
+  const discountPercent = comparePrice > sellingPrice && sellingPrice > 0 ? Math.round((1 - sellingPrice / comparePrice) * 100) : 0;
+  const images = useMemo(() => {
+    const primary = productCardPrimaryImageFor(product, priceVariant, previewGroup);
+    const secondary = productCardSecondaryImageFor(product, priceVariant, previewGroup, primary);
+    return [...new Set([primary, secondary].map((image) => resolveCardImageUrl(image)).filter(Boolean))];
+  }, [previewGroup, priceVariant, product]);
+  const safeImageIndex = Math.min(imageIndex, Math.max(0, images.length - 1));
   const maxQty = Math.max(1, Number(selectedVariant?.stock || 1));
   const safeQty = Math.min(Math.max(1, Number(quantity || 1)), maxQty);
-  const submitLabel = !activeGroup ? sfText("storefront.products.chooseColorFirst") : selectedVariant ? t("storefront.cart.addToCart") : sfText("storefront.products.chooseSizeFirst");
+  const brand = String(productCardBrandLabel(product) || "").trim();
+  const detailsHref = useMemo(() => {
+    const url = productUrl({
+      ...product,
+      selected_variant_id: (selectedVariant || priceVariant)?.id || product?.selected_variant_id,
+      color_key: previewGroup?.key || product?.color_key,
+    });
+    // A size chosen here counts as chosen on the product page too.
+    return selectedVariant?.size ? `${url}${url.includes("?") ? "&" : "?"}size=${encodeURIComponent(selectedVariant.size)}` : url;
+  }, [previewGroup?.key, priceVariant, product, selectedVariant]);
+
   const handleCloseRequest = useCallback((event) => {
-    if (event) {
-      event.stopPropagation();
-    }
-    if (typeof onClose === "function") {
-      onClose();
-    }
+    event?.stopPropagation?.();
+    if (typeof onClose === "function") onClose();
   }, [onClose]);
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [previewGroup?.key]);
+
   useEffect(() => {
     const selectable = availableSizeOptions.filter((item) => variantHasStock(item.variant));
     if (selectable.length !== 1) return;
@@ -6702,91 +6747,150 @@ function ProductCardVariantSheet({
     }
   }, [availableSizeOptions, onVariantChange, selectedVariantId]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const previousFocus = document.activeElement;
+    closeRef.current?.focus({ preventScroll: true });
+    const onKey = (event) => {
+      if (event.key === "Escape") handleCloseRequest();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      previousFocus?.focus?.({ preventScroll: true });
+    };
+  }, [handleCloseRequest, open]);
+
+  const submit = async () => {
+    if (!activeGroup) {
+      setNudge((prev) => ({ tick: prev.tick + 1, target: "color" }));
+      return;
+    }
+    if (!selectedVariant || !variantHasStock(selectedVariant)) {
+      setNudge((prev) => ({ tick: prev.tick + 1, target: "size" }));
+      sizesRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+      sizesRef.current?.querySelector(".sfq-size:not(:disabled)")?.focus({ preventScroll: true });
+      return;
+    }
+    if (!onAdd || adding) return;
+    setAdding(true);
+    try {
+      await Promise.resolve(onAdd(selectedVariant, safeQty));
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const onMediaPointerDown = (event) => {
+    swipeRef.current = { x: event.clientX, y: event.clientY };
+  };
+  const onMediaPointerUp = (event) => {
+    const start = swipeRef.current;
+    swipeRef.current = null;
+    if (!start || images.length < 2) return;
+    const dx = event.clientX - start.x;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(event.clientY - start.y)) return;
+    const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+    const step = (dx < 0) !== rtl ? 1 : -1;
+    setImageIndex((safeImageIndex + step + images.length) % images.length);
+  };
+
   if (!open) return null;
 
   return createPortal(
-    <div className="sf-product-variant-sheet fixed inset-0 z-[120] flex items-end justify-center pointer-events-auto md:items-center" role="dialog" aria-modal="true">
-      <button
-        type="button"
-        className="absolute inset-0 z-0 bg-stone-950/72 backdrop-blur-sm transition-opacity"
-        onClick={handleCloseRequest}
-        aria-label={t("common.close")}
-      />
-      <section
-        className="sf-product-variant-sheet-panel relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden border border-white/10 bg-[linear-gradient(180deg,#0a0a0a_0%,#111111_45%,#151515_100%)] text-white shadow-[0_-24px_70px_rgba(0,0,0,0.42)] md:mx-4 md:w-[min(44rem,calc(100vw-2rem))] md:max-h-[90dvh] md:rounded-[2rem] rounded-t-[1.55rem]"
-        onClick={(event) => event.stopPropagation()}
-        onPointerUp={(event) => event.stopPropagation()}
-      >
-        <div className="mx-auto mt-3 h-1.5 w-12 rounded-full bg-white/20 md:hidden" />
-        <div className="flex items-start justify-between gap-3 border-b border-white/8 px-4 py-4 md:px-5">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.04]">
-              <img
-                src={imageFor(previewImage)}
-                onError={fallbackProductImage}
-                alt={product?.name || ""}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-                width="64"
-                height="64"
-              />
+    <div className="sfq" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <button type="button" className="sfq__backdrop" onClick={handleCloseRequest} aria-label={t("common.close")} tabIndex={-1} />
+      <section className="sfq__panel" onClick={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}>
+        <span className="sfq__grab" aria-hidden="true" />
+        <button ref={closeRef} type="button" onClick={handleCloseRequest} className="sfq__close" aria-label={t("common.close")}>
+          <X className="h-5 w-5" aria-hidden="true" />
+        </button>
+
+        <div className="sfq__media" onPointerDown={onMediaPointerDown} onPointerUp={onMediaPointerUp} onPointerCancel={() => { swipeRef.current = null; }}>
+          {images.length ? (
+            <img
+              key={images[safeImageIndex]}
+              src={imageFor(images[safeImageIndex])}
+              onError={fallbackProductImage}
+              alt={product?.name || ""}
+              className="sfq__img"
+              decoding="async"
+              draggable={false}
+            />
+          ) : null}
+          {discountPercent ? <span className="m1h-badge m1h-badge--sale sfq__badge">-{discountPercent}%</span> : null}
+          {images.length > 1 ? (
+            <div className="sfq__dots">
+              {images.map((image, index) => (
+                <button
+                  key={image}
+                  type="button"
+                  onClick={() => setImageIndex(index)}
+                  className={`sfq__dot${index === safeImageIndex ? " is-active" : ""}`}
+                  aria-label={sfText("storefront.products.imageCount", "{{current}} of {{total}}", { current: index + 1, total: images.length })}
+                  aria-current={index === safeImageIndex}
+                />
+              ))}
             </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[#f3d77a]">{t("storefront.products.chooseColor", "اختار اللون والمقاس")}</p>
-              <h3 className="mt-1 line-clamp-2 text-[1rem] font-black leading-6 md:text-[1.05rem]">{product?.name}</h3>
-              <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <span className="text-[1.05rem] font-black leading-none text-[#f3d77a]">{money(sellingPrice)}</span>
-                {comparePrice ? <span className="text-[11px] font-bold leading-none text-white/40 line-through">{money(comparePrice)}</span> : null}
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            onPointerUp={handleCloseRequest}
-            onClick={handleCloseRequest}
-            className="relative z-20 grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition hover:border-white/20 hover:bg-white/10"
-            title={t("common.close")}
-            aria-label={t("common.close")}
-          >
-            <X className="h-4.5 w-4.5" />
-          </button>
+          ) : null}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 md:px-5">
-          <div className="rounded-[1.25rem] border border-[#d4af37]/18 bg-[linear-gradient(145deg,rgba(212,175,55,0.10),rgba(255,255,255,0.03))] px-3 py-2 text-[12px] font-bold leading-5 text-white/80">
-            {sfText("storefront.products.onlySelectedAdded")}
+        <div className="sfq__body">
+          {brand ? <p className="sfq__brand">{brand}</p> : null}
+          <h2 id={titleId} className="sfq__name">{product?.name}</h2>
+          <div className="sfq__price">
+            <span className={`sfq__price-now${comparePrice > sellingPrice ? " is-sale" : ""}`}>{money(sellingPrice)}</span>
+            {comparePrice > sellingPrice ? <span className="sfq__price-was">{money(comparePrice)}</span> : null}
           </div>
 
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("storefront.products.color", "اللون")}</div>
+          {colorGroups.length > 1 ? (
+            <div className="sfq__option">
+              <div className="sfq__option-head">
+                <span className="sfq__option-title">{t("storefront.products.color", "اللون")}</span>
+                {activeGroup ? <span className="sfq__option-value">{activeGroup.colorName || activeGroup.color}</span> : null}
+              </div>
+              {nudge.target === "color" && !activeGroup ? (
+                <p key={nudge.tick} role="alert" className="sfq__nudge">{sfText("storefront.products.chooseColorFirst", "اختار اللون أولًا")}</p>
+              ) : null}
+              <div className="sfq__colors">
+                {colorGroups.map((group) => {
+                  const active = String(group.key) === String(activeGroup?.key);
+                  const swatch = resolveCardImageUrl(group.image_url || group.primaryImage);
+                  return (
+                    <button
+                      key={group.key}
+                      type="button"
+                      onClick={() => onColorChange(group.key)}
+                      className={`sfq-color${active ? " is-active" : ""}`}
+                      aria-pressed={active}
+                      aria-label={group.colorName || group.color}
+                      title={group.colorName || group.color}
+                    >
+                      {swatch ? (
+                        <img src={imageFor(swatch)} onError={fallbackProductImage} alt="" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="sfq-color__chip" style={swatchColorStyle(group.colorName || group.color)} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {colorGroups.map((group) => {
-                const active = String(group.key) === String(activeGroup?.key);
-                return (
-                  <button
-                    key={group.key}
-                    type="button"
-                    onClick={() => onColorChange(group.key)}
-                    className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-3 py-2 text-xs font-black transition ${active ? "border-[#f3d77a]/70 bg-[rgba(212,175,55,0.16)] text-white shadow-[0_12px_28px_rgba(212,175,55,0.22)]" : "border-white/10 bg-white/[0.055] text-white/75 hover:border-[#d4af37]/35 hover:bg-white/[0.075]"}`}
-                  >
-                    <span className="h-3.5 w-3.5 rounded-full border border-white/10" style={swatchColorStyle(group.colorName || group.color)} />
-                    <span className="whitespace-nowrap">{group.colorName || group.color}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          ) : null}
 
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("storefront.products.size", "المقاس")}</div>
+          <div ref={sizesRef} className={`sfq__option${nudge.target === "size" && !selectedVariant ? " is-prompting" : ""}`}>
+            <div className="sfq__option-head">
+              <span className="sfq__option-title">{t("storefront.products.size", "المقاس")}</span>
+              <Link to={buildSizeGuidePath(resolveSizeGuideTypeForProduct(product))} onClick={handleCloseRequest} className="sfq__guide">
+                {t("storefront.products.sizeGuide", "دليل المقاسات")}
+              </Link>
             </div>
+            {nudge.target === "size" && !selectedVariant ? (
+              <p key={nudge.tick} role="alert" className="sfq__nudge">{sfText("storefront.products.chooseSizeFirst", "اختار المقاس أولًا")}</p>
+            ) : null}
             {activeGroup ? (
-              <>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              sizeOptions.length ? (
+                <div className="sfq__sizes">
                   {sizeOptions.map(({ size, originalSize, collision, variant, hasStock }) => {
                     const active = String(variant?.id) === String(selectedVariant?.id);
                     return (
@@ -6798,72 +6902,43 @@ function ProductCardVariantSheet({
                           onVariantChange(variant.id);
                         }}
                         disabled={!hasStock}
-                        className={`min-h-11 rounded-2xl border px-1 text-sm font-black transition ${active ? "border-[#f3d77a]/70 bg-[#d4af37] text-white shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : hasStock ? "border-white/10 bg-white/[0.055] text-white/80 hover:border-[#d4af37]/35 hover:bg-white/[0.08]" : "cursor-not-allowed border-white/[0.08] bg-white/[0.03] text-white/25 line-through opacity-60"}`}
+                        aria-pressed={active}
+                        className={`sfq-size${active ? " is-active" : hasStock ? "" : " is-unavailable"}`}
                       >
-                        <span className="block">{size || t("storefront.products.oneSize", "مقاس واحد")}</span>
-                        {collision && originalSize !== size ? <span className="mt-0.5 block text-[9px] font-bold opacity-65">{originalSize}</span> : null}
+                        <span>{size || t("storefront.products.oneSize", "مقاس واحد")}</span>
+                        {collision && originalSize !== size ? <span className="sfq-size__alt">{originalSize}</span> : null}
                       </button>
                     );
                   })}
                 </div>
-                {!sizeOptions.length ? (
-                  <div className="rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-3 text-center text-xs font-bold text-white/50">
-                    {t("storefront.products.unavailable", "غير متاح")}
-                  </div>
-                ) : null}
-              </>
+              ) : (
+                <p className="sfq__muted">{t("storefront.products.unavailable", "غير متاح")}</p>
+              )
             ) : (
-              <div className="rounded-[1.1rem] border border-white/10 bg-white/[0.04] p-3 text-center text-xs font-bold text-white/50">
-                {sfText("storefront.products.chooseColorFirst")}
-              </div>
+              <p className="sfq__muted">{sfText("storefront.products.chooseColorFirst", "اختار اللون أولًا")}</p>
             )}
           </div>
 
-          <div className="mt-4">
-            <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/45">{t("storefront.cart.quantity", "الكمية")}</div>
-            <div className="flex items-center justify-between gap-3 rounded-[1.2rem] border border-white/10 bg-white/[0.045] p-2">
-              <button
-                type="button"
-                onClick={() => onQuantityChange(Math.max(1, safeQty - 1))}
-                disabled={!selectedVariant}
-                className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.06] text-lg font-black transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="-"
-              >
-                -
+          <div className="sfq__buy">
+            <div className="sfq-qty" role="group" aria-label={t("storefront.cart.quantity", "الكمية")}>
+              <button type="button" onClick={() => onQuantityChange(Math.max(1, safeQty - 1))} disabled={!selectedVariant || safeQty <= 1} aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>
+                <Minus className="h-4 w-4" aria-hidden="true" />
               </button>
-              <div className="min-w-16 text-center">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{t("storefront.cart.quantity", "الكمية")}</div>
-                <div className="text-lg font-black">{safeQty}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onQuantityChange(Math.min(maxQty, safeQty + 1))}
-                disabled={!selectedVariant || safeQty >= maxQty}
-                className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.06] text-lg font-black transition hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label="+"
-              >
-                +
+              <span aria-live="polite">{safeQty}</span>
+              <button type="button" onClick={() => onQuantityChange(Math.min(maxQty, safeQty + 1))} disabled={!selectedVariant || safeQty >= maxQty} aria-label={sfText("storefront.cart.increaseQuantity", "Increase quantity")}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-            {selectedVariant ? (
-              <div className="mt-2 text-[11px] font-bold text-white/45">
-                {sfText("storefront.products.availableForSize")} {maxQty}
-              </div>
-            ) : null}
+            <button type="button" onClick={submit} disabled={adding} className="sfq__add">
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShoppingCart className="h-4 w-4" aria-hidden="true" />}
+              {t("storefront.cart.addToCart")}
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={async () => {
-              if (!selectedVariant || !variantHasStock(selectedVariant) || !onAdd) return;
-              await Promise.resolve(onAdd(selectedVariant, safeQty));
-            }}
-            disabled={!selectedVariant || !variantHasStock(selectedVariant)}
-            className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[1.15rem] border border-[#d4af37]/25 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(212,175,55,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(212,175,55,0.34)] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.08] disabled:text-white/45 disabled:shadow-none disabled:hover:translate-y-0"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            {submitLabel}
-          </button>
+          <Link to={detailsHref} onClick={handleCloseRequest} className="sfq__details">
+            {sfText("storefront.products.viewFullDetails", "شوف كل تفاصيل المنتج")}
+            <ChevronLeft className="h-4 w-4 ltr:rotate-180" aria-hidden="true" />
+          </Link>
         </div>
       </section>
     </div>,

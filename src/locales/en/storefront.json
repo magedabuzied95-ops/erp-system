@@ -547,6 +547,8 @@
     "nextImage": "Next image",
     "zoomImage": "Zoom image",
     "imageViewer": "Product photos",
+    "quickView": "Quick view",
+    "viewFullDetails": "See full product details",
     "imageCount": "{{current}} of {{total}}",
     "zoomHint": "Pinch or double-tap to zoom",
     "onlySelectedAdded": "Only the selected colour and size will be added to the cart.",

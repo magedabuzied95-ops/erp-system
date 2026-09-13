@@ -308,6 +308,8 @@
     "nextImage": "الصورة التالية",
     "zoomImage": "كبّر الصورة",
     "imageViewer": "صور المنتج",
+    "quickView": "نظرة سريعة",
+    "viewFullDetails": "شوف كل تفاصيل المنتج",
     "imageCount": "{{current}} من {{total}}",
     "zoomHint": "قرّب بصباعين أو دوس مرتين للتكبير",
     "onlySelectedAdded": "سيتم إضافة اللون والمقاس المختارين فقط إلى السلة.",
