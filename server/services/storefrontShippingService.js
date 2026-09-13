@@ -1,5 +1,6 @@
 import { getSetting } from "./settingsService.js";
 import { normalizeShippingProviderKey } from "./shippingProviders/index.js";
+import { resolveQuoteDeliveryEstimate } from "./storefrontDeliveryEstimateService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -118,6 +119,7 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
   estimated_delivery_text: text(zone.estimated_delivery_text || zone.estimatedDeliveryText || zone.eta),
   delivery_min_days: optionalNumber(zone.delivery_min_days ?? zone.deliveryMinDays),
   delivery_max_days: optionalNumber(zone.delivery_max_days ?? zone.deliveryMaxDays),
+  handling_time_override_enabled: zone.handling_time_override_enabled === true || zone.handlingTimeOverrideEnabled === true,
   handling_min_days: optionalNumber(zone.handling_min_days ?? zone.handlingMinDays),
   handling_max_days: optionalNumber(zone.handling_max_days ?? zone.handlingMaxDays),
   transit_min_days: optionalNumber(zone.transit_min_days ?? zone.transitMinDays),
@@ -180,7 +182,7 @@ export const loadShippingZones = async () => {
   };
 };
 
-export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0 } = {}) => {
+export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0, now = new Date() } = {}) => {
   const { defaultPrice, defaultProvider, zones, codAllowed, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
   const ids = {
     governorate_id: text(governorate_id),
@@ -225,6 +227,7 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
   const freeShippingThreshold = match ? number(match.free_shipping_threshold, 0) : storeFreeShippingThreshold;
   const matchedPrice = match ? number(match.price, defaultPrice) : defaultPrice;
   const price = freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold ? 0 : matchedPrice;
+  const deliveryEstimate = await resolveQuoteDeliveryEstimate({ zone: match || null, zones, now });
 
   return {
     price,
@@ -235,6 +238,7 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     cod_allowed: codAllowed,
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
+    delivery_estimate: deliveryEstimate,
     provider: match?.provider || defaultProvider,
     provider_id: match?.provider_id || match?.provider || defaultProvider,
     governorate_id: match?.governorate_id || "",

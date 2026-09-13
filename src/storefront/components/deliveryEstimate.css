@@ -1,0 +1,122 @@
+/*
+ * Delivery date estimate. Painted from the homepage tokens (--m1h-*) that the
+ * whole shop carries on body, with fallbacks so it still reads on a surface that
+ * has none. Plain classes: Tailwind colour utilities are remapped globally.
+ */
+.sf-eta {
+  --eta-accent: #1f8a4c;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--m1h-line, rgba(128, 128, 128, 0.25));
+  border-radius: var(--m1h-r-md, 12px);
+  background: var(--m1h-surface, transparent);
+  color: var(--m1h-text, currentColor);
+  transition: opacity 160ms ease;
+}
+
+.sf-eta.is-loading {
+  opacity: 0.6;
+}
+
+.sf-eta__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--eta-accent) 12%, transparent);
+  color: var(--eta-accent);
+}
+
+.sf-eta__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.sf-eta__body {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.sf-eta__headline {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.sf-eta__date {
+  font-weight: 800;
+}
+
+.sf-eta__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0;
+  color: var(--m1h-text-2, currentColor);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-eta__timer {
+  color: var(--eta-accent);
+  font-weight: 800;
+}
+
+.sf-eta__dot {
+  opacity: 0.5;
+}
+
+.sf-eta__place {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The native select sits invisibly over the label: the phone's own picker, the
+   keyboard and screen readers all work, and nothing extra is shipped. */
+.sf-eta__picker {
+  position: relative;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.sf-eta__picker-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--m1h-text, currentColor);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sf-eta__picker-label svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sf-eta__picker select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px; /* no iOS zoom on focus */
+}
+
+.sf-eta__picker:focus-within .sf-eta__picker-label {
+  outline: 2px solid var(--eta-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

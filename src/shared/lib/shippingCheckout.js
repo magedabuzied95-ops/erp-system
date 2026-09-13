@@ -69,6 +69,7 @@ export const normalizeShippingQuote = (quote = {}) => ({
   cod_allowed: quote.cod_allowed !== false,
   requires_shipping_proof: quote.requires_shipping_proof !== false,
   estimated_delivery_text: String(quote.estimated_delivery_text || ""),
+  delivery_estimate: quote.delivery_estimate && typeof quote.delivery_estimate === "object" ? quote.delivery_estimate : null,
   match_level: String(quote.match_level || ""),
   provider: String(quote.provider || "manual"),
   provider_id: String(quote.provider_id || quote.provider || "in_store_delivery"),

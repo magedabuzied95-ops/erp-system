@@ -3,6 +3,7 @@ import { getSetting } from "./settingsService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { loadShippingZones, resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
+import { deliveryEstimateSentence } from "../../src/shared/lib/deliveryEstimate.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -222,6 +223,8 @@ export const getShippingFacts = async ({ tenantId, governorate = "", city = "", 
     estimated_delivery: quote ? {
       price: number(quote.price, 0),
       estimated_delivery_text: text(quote.estimated_delivery_text || ""),
+      // The same day the storefront promises, already worded: "متوقع وصول طلبك الثلاثاء 15 سبتمبر".
+      estimated_delivery_date: deliveryEstimateSentence(quote.delivery_estimate, "ar"),
       provider: text(quote.provider || quote.provider_id || ""),
       match_level: text(quote.match_level || ""),
       free_shipping_applied: Boolean(quote.free_shipping_applied),

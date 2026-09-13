@@ -146,6 +146,13 @@ router.put("/:category", protect, permit("settings", "edit"), async (req, res) =
       if (handlingMax < handlingMin) {
         return res.status(400).json({ success: false, message: "الحد الأقصى لمدة التجهيز لا يمكن أن يقل عن الحد الأدنى." });
       }
+      if (incoming["storefront.order_cutoff_time"] !== undefined && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(incoming["storefront.order_cutoff_time"]).trim())) {
+        return res.status(400).json({ success: false, message: "آخر موعد للطلب لازم يكون وقت بصيغة HH:MM." });
+      }
+      const daysOff = incoming["storefront.shipping_days_off"];
+      if (daysOff !== undefined && (!Array.isArray(daysOff) || daysOff.length >= 7 || daysOff.some((day) => !Number.isInteger(Number(day)) || Number(day) < 0 || Number(day) > 6))) {
+        return res.status(400).json({ success: false, message: "أيام الإجازة لازم تسيب يوم عمل واحد على الأقل في الأسبوع." });
+      }
     }
 
     for (const [key, value] of entries) {

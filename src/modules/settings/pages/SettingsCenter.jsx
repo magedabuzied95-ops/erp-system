@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Bot,
   Building2,
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronRight,
@@ -60,8 +61,27 @@ import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import {
   SHIPPING_HANDLING_MAX_KEY,
   SHIPPING_HANDLING_MIN_KEY,
+  resolveZoneHandlingTime,
   validateGlobalHandlingTime,
 } from "../../../shared/lib/shippingHandlingSettings.js";
+import {
+  DEFAULT_ORDER_CUTOFF_TIME,
+  DEFAULT_SHIPPING_DAYS_OFF,
+  DELIVERY_ESTIMATE_ENABLED_KEY,
+  ORDER_CUTOFF_TIME_KEY,
+  SHIPPING_DAYS_OFF_KEY,
+  SHIPPING_HOLIDAYS_KEY,
+  computeDeliveryEstimate,
+  deliveryEstimateSentence,
+  formatCutoffCountdown,
+  formatEstimateDay,
+  isDateKey,
+  normalizeCutoffTime,
+  normalizeDaysOff,
+  normalizeHolidays,
+  resolveZoneTransitDays,
+} from "../../../shared/lib/deliveryEstimate.js";
+import { zonedParts } from "../../../shared/lib/appTimezone.js";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory, settingsByKey } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
 import {
@@ -1617,6 +1637,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
               </p>
             )}
           </section>
+          <DeliveryEstimateSettings value={value} updateValue={updateValue} language={language} zones={zones} />
           <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
             <div className="grid gap-4 xl:grid-cols-2">
               {renderField(setting("storefront.default_shipping_price"), true)}
@@ -1674,6 +1695,177 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
         </VisualSection>
       ) : null}
     </div>
+  );
+}
+
+const WEEKDAY_LABELS = {
+  ar: ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"],
+  en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+};
+
+const settingArray = (raw, fallback) => {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      /* fall through */
+    }
+  }
+  return fallback;
+};
+
+// "متوقع وصول طلبك الثلاثاء 15 سبتمبر" on the storefront. The preview runs the
+// exact calculation the server runs (src/shared/lib/deliveryEstimate.js) on the
+// unsaved values, so the owner sees the promise before saving it.
+function DeliveryEstimateSettings({ value, updateValue, language, zones }) {
+  const ar = language === "ar";
+  const enabled = !["false", "0", "off"].includes(String(value(DELIVERY_ESTIMATE_ENABLED_KEY, true)).toLowerCase());
+  const cutoffTime = String(value(ORDER_CUTOFF_TIME_KEY, DEFAULT_ORDER_CUTOFF_TIME) || DEFAULT_ORDER_CUTOFF_TIME);
+  const daysOff = normalizeDaysOff(settingArray(value(SHIPPING_DAYS_OFF_KEY, DEFAULT_SHIPPING_DAYS_OFF), DEFAULT_SHIPPING_DAYS_OFF));
+  const holidays = normalizeHolidays(settingArray(value(SHIPPING_HOLIDAYS_KEY, []), []));
+  const [newHoliday, setNewHoliday] = useState("");
+  const activeZones = useMemo(() => zones.filter((zone) => zone.active && zone.governorate), [zones]);
+  const [previewZoneId, setPreviewZoneId] = useState("");
+  const previewZone = activeZones.find((zone) => zone.id === previewZoneId) || activeZones[0] || null;
+  const [clock, setClock] = useState(() => zonedParts(new Date()));
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(zonedParts(new Date())), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const preview = useMemo(() => {
+    if (!previewZone || !clock) return null;
+    return computeDeliveryEstimate({
+      now: clock,
+      handling: resolveZoneHandlingTime(previewZone, value(SHIPPING_HANDLING_MIN_KEY), value(SHIPPING_HANDLING_MAX_KEY)),
+      transit: resolveZoneTransitDays(previewZone),
+      settings: { enabled: true, cutoffTime, daysOff, holidays },
+    });
+  }, [clock, cutoffTime, daysOff, holidays, previewZone, value]);
+  const zonesWithoutTransit = activeZones.filter((zone) => !resolveZoneTransitDays(zone)).length;
+
+  const toggleDay = (day) => {
+    const next = daysOff.includes(day) ? daysOff.filter((item) => item !== day) : [...daysOff, day];
+    if (next.length >= 7) {
+      toast.error(ar ? "لازم يفضل يوم عمل واحد على الأقل." : "Keep at least one working day.");
+      return;
+    }
+    updateValue(SHIPPING_DAYS_OFF_KEY, next.sort());
+  };
+  const addHoliday = () => {
+    if (!isDateKey(newHoliday)) return;
+    updateValue(SHIPPING_HOLIDAYS_KEY, normalizeHolidays([...holidays, newHoliday]));
+    setNewHoliday("");
+  };
+  const today = clock ? `${clock.year}-${String(clock.month).padStart(2, "0")}-${String(clock.day).padStart(2, "0")}` : "";
+
+  return (
+    <section data-testid="delivery-estimate-settings" className={`rounded-[1.75rem] p-5 sm:p-6 ${shellCard}`}>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/15 text-emerald-700 dark:text-emerald-300">
+            <CalendarDays className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 className={`m1-section-title ${headingText}`}>{ar ? "تاريخ الوصول المتوقع للعميل" : "Estimated delivery date"}</h2>
+            <p className={`mt-1 text-sm font-bold leading-6 ${bodyText}`}>
+              {ar
+                ? "يظهر للعميل في صفحة المنتج والدفع: \"متوقع وصول طلبك الثلاثاء 15 سبتمبر\". محسوب من مدة التجهيز + مدة النقل لكل منطقة، مع آخر موعد للطلب وأيام الإجازة."
+                : "Shown on the product page and at checkout: \"Arrives Tuesday 15 September\". Handling time + each zone's transit days, with the cut-off and days off."}
+            </p>
+          </div>
+        </div>
+        <TogglePill label={ar ? "مفعّل" : "Enabled"} checked={enabled} onChange={(checked) => updateValue(DELIVERY_ESTIMATE_ENABLED_KEY, checked)} />
+      </div>
+
+      <div className={`mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] ${enabled ? "" : "opacity-60"}`}>
+        <label className={`grid content-start gap-2 rounded-2xl p-4 ${fieldSurface}`}>
+          <span className={`text-sm font-black ${headingText}`}>{ar ? "آخر موعد للطلب في نفس اليوم" : "Same-day cut-off"}</span>
+          <input
+            data-testid="order-cutoff-time"
+            type="time"
+            value={normalizeCutoffTime(cutoffTime).text}
+            onChange={(event) => updateValue(ORDER_CUTOFF_TIME_KEY, event.target.value || DEFAULT_ORDER_CUTOFF_TIME)}
+            className={`${inputClass} h-[var(--control-height-lg)] rounded-[var(--radius-control)] text-center text-base font-black`}
+          />
+          <span className={`text-xs font-bold leading-5 ${bodyText}`}>
+            {ar ? "الطلب بعد الساعة دي يبدأ تجهيزه من يوم العمل اللي بعده. العميل بيشوف عدّاد \"اطلب خلال ...\"." : "Later orders start on the next working day. Shoppers see an \"Order within …\" countdown."}
+          </span>
+        </label>
+
+        <div className={`grid content-start gap-3 rounded-2xl p-4 ${fieldSurface}`}>
+          <span className={`text-sm font-black ${headingText}`}>{ar ? "أيام مفيهاش تجهيز ولا توصيل" : "No handling or delivery on"}</span>
+          <div className="flex flex-wrap gap-2" role="group">
+            {WEEKDAY_LABELS[ar ? "ar" : "en"].map((label, day) => {
+              const off = daysOff.includes(day);
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  aria-pressed={off}
+                  onClick={() => toggleDay(day)}
+                  className={`h-10 rounded-full border px-4 text-sm font-black transition ${off ? "border-rose-400 bg-rose-50 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200" : "border-border bg-surface text-text"}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <span className={`text-sm font-black ${headingText}`}>{ar ? "إجازات رسمية (أعياد)" : "Holidays"}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={newHoliday}
+              min={today}
+              onChange={(event) => setNewHoliday(event.target.value)}
+              className={`${inputClass} h-10 w-auto rounded-[var(--radius-control)] py-0`}
+            />
+            <button type="button" onClick={addHoliday} disabled={!isDateKey(newHoliday)} className="h-10 rounded-full bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-40">
+              {ar ? "إضافة" : "Add"}
+            </button>
+          </div>
+          {holidays.length ? (
+            <div className="flex flex-wrap gap-2">
+              {holidays.map((day) => (
+                <span key={day} className={`inline-flex h-9 items-center gap-2 rounded-full border border-border px-3 text-xs font-black ${day < today ? "opacity-50" : ""}`}>
+                  {formatEstimateDay(day, language)}
+                  <button type="button" onClick={() => updateValue(SHIPPING_HOLIDAYS_KEY, holidays.filter((item) => item !== day))} aria-label={ar ? "حذف" : "Remove"} className="text-text-muted hover:text-rose-600">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-emerald-300/50 bg-emerald-50/60 p-4 dark:border-emerald-300/20 dark:bg-emerald-400/10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className={`text-sm font-black ${headingText}`}>{ar ? "معاينة: لو عميل طلب دلوقتي إلى" : "Preview: an order placed now to"}</span>
+          {activeZones.length ? (
+            <select value={previewZone?.id || ""} onChange={(event) => setPreviewZoneId(event.target.value)} className={`${inputClass} h-10 w-auto rounded-[var(--radius-control)] py-0`}>
+              {activeZones.map((zone) => (
+                <option key={zone.id} value={zone.id}>{[zone.governorate, zone.city, zone.area].filter(Boolean).join(" / ")}</option>
+              ))}
+            </select>
+          ) : null}
+        </div>
+        <p data-testid="delivery-estimate-preview" className="mt-2 text-base font-black text-emerald-800 dark:text-emerald-200">
+          {preview
+            ? `${deliveryEstimateSentence(preview, language)}${preview.orderedToday ? (ar ? ` — لو طلب خلال ${formatCutoffCountdown(preview.cutoffMinutesLeft, language)}` : ` — if ordered within ${formatCutoffCountdown(preview.cutoffMinutesLeft, language)}`) : ""}`
+            : ar ? "المنطقة دي مفيهاش مدة نقل، فهيظهر للعميل النص المكتوب للمنطقة بدل التاريخ." : "This zone has no transit days, so shoppers see its written wording instead of a date."}
+        </p>
+        {zonesWithoutTransit ? (
+          <p className="mt-2 text-xs font-bold text-amber-700 dark:text-amber-300">
+            {ar
+              ? `${zonesWithoutTransit} منطقة من غير مدة نقل — حدد "أقل/أقصى مدة نقل" من تبويب مناطق الشحن عشان يظهر لها تاريخ.`
+              : `${zonesWithoutTransit} zone(s) have no transit days — set them in Shipping zones to show a date there.`}
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 

@@ -355,6 +355,17 @@
   "lastPiece": {
     "title": "آخر قطعة"
   },
+  "deliveryEstimate": {
+    "day": "متوقع وصول طلبك {{day}}",
+    "dayTomorrow": "متوقع وصول طلبك بكرة، {{day}}",
+    "dayToday": "متوقع وصول طلبك النهارده، {{day}}",
+    "range": "متوقع وصول طلبك بين {{from}} و{{to}}",
+    "orderWithin": "اطلب خلال {{time}}",
+    "deliverTo": "التوصيل إلى",
+    "byGovernorate": "التاريخ حسب محافظتك",
+    "chooseGovernorate": "اختار المحافظة",
+    "governorateLabel": "محافظة التوصيل"
+  },
   "freeShippingBar": {
     "remaining": "باقي {{amount}} وتحصل على شحن مجاني",
     "reached": "مبروك! طلبك شحنه مجاني",

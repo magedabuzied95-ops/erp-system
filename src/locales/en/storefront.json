@@ -594,6 +594,17 @@
   "lastPiece": {
     "title": "Last piece"
   },
+  "deliveryEstimate": {
+    "day": "Arrives {{day}}",
+    "dayTomorrow": "Arrives tomorrow, {{day}}",
+    "dayToday": "Arrives today, {{day}}",
+    "range": "Arrives between {{from}} and {{to}}",
+    "orderWithin": "Order within {{time}}",
+    "deliverTo": "Delivering to",
+    "byGovernorate": "Date depends on your governorate",
+    "chooseGovernorate": "Choose governorate",
+    "governorateLabel": "Delivery governorate"
+  },
   "freeShippingBar": {
     "remaining": "Add {{amount}} more for free shipping",
     "reached": "Your order ships free",

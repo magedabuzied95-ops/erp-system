@@ -134,6 +134,7 @@ import "./components/compare-controls.css";
 import { CompareToggleButton, CompareTray } from "./components/StorefrontCompare";
 import StorefrontCheckoutSummary, { CheckoutTotals } from "./components/StorefrontCheckoutSummary";
 import FreeShippingProgress, { usePublicFreeShippingThreshold } from "./components/FreeShippingProgress";
+import { deliveryEstimateDays, deliveryEstimateText, rememberGovernorate } from "./components/DeliveryEstimate";
 import { CheckoutBlock, CheckoutChoice, CheckoutInput, CheckoutLocationSelect, CheckoutNativeSelect, CheckoutSubmit } from "./checkout/CheckoutParts";
 import {
   isStorefrontCheckoutPath,
@@ -263,6 +264,7 @@ const compactStorefrontReceipt = (payload = {}, meta = {}) => ({
   customer: payload.customer || {},
   checkout: payload.checkout || {},
   customer_reviews: payload.customer_reviews || null,
+  delivery_estimate: payload.delivery_estimate || null,
   ...meta,
 });
 
@@ -7701,7 +7703,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
             free_shipping_applied: quote.free_shipping_applied,
           });
         }
-        if (!cancelled) setShippingQuote(quote);
+        if (!cancelled) {
+          setShippingQuote(quote);
+          // The product page promises the same day for the same governorate next time.
+          if (quote.match_level) rememberGovernorate({ id: form.governorate_id || quote.governorate_id, name: form.governorate });
+        }
       })
       .catch(() => {
         if (!cancelled) setShippingQuote((prev) => ({ ...prev, loading: false }));
@@ -8536,6 +8542,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         },
         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
         customer_reviews: data.customer_reviews || null,
+        delivery_estimate: shippingQuote.delivery_estimate || null,
       };
       trackMetaPurchase({
         order: data.order,
@@ -8697,7 +8704,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     setShippingTransferMethod((current) => (visibleTransferMethods.some((method) => method.id === current) ? current : (visibleTransferMethods[0]?.id || "instapay")));
   };
 
-  const deliveryEstimate = shippingQuote.estimated_delivery_text || sfText("storefront.checkout.expectedDeliveryNotice");
+  // A real day ("متوقع وصول طلبك الثلاثاء 15 سبتمبر") once the quote carries one;
+  // the zone's own wording, then the generic notice, when it does not.
+  const deliveryEstimate = deliveryEstimateText(t, shippingQuote.delivery_estimate, i18n.language)
+    || shippingQuote.estimated_delivery_text
+    || sfText("storefront.checkout.expectedDeliveryNotice");
   const savedAddressLabel = (address = {}) => [
     address.street_address || address.detailed_address,
     address.building_number ? `${sfText("storefront.checkout.buildingNumber")} ${address.building_number}` : "",
@@ -9266,7 +9277,7 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "", whatsapp
               <InfoBox label={t("storefront.checkout.total")} value={total ? money(total) : t("storefront.success.orderRecorded")} />
               <InfoBox label={t("storefront.checkout.paymentMethod")} value={paymentLabel} />
               <InfoBox label={t("storefront.orders.orderStatus")} value={successStatus} />
-              <InfoBox label={t("storefront.orders.expectedDelivery")} value={t("storefront.orders.expectedDeliveryWindow")} />
+              <InfoBox label={t("storefront.orders.expectedDelivery")} value={deliveryEstimateDays(loaded?.delivery_estimate, i18n.language) || t("storefront.orders.expectedDeliveryWindow")} />
             </div>
             <div className="sf-info-box mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4 text-start text-white">
               <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress")}</div>

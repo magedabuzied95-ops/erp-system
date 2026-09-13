@@ -43,6 +43,7 @@ import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
 import { trackGa4ViewItem } from "../lib/ga4Events";
+import DeliveryEstimate from "../components/DeliveryEstimate";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 import { CompareToggleButton } from "../components/StorefrontCompare";
 
@@ -930,6 +931,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               {sfText("storefront.cart.buyNow", isRtl ? "اشتري الآن" : "Buy it now")}
             </button>
           </div>
+
+          <DeliveryEstimate inStock={variantHasStock(safeActiveVariant)} />
 
           <div className="mt-2 grid gap-2 empty:hidden sm:grid-cols-2">
 

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, ShoppingBag } from "lucide-react";
 import { sfText } from "../lib/sfText";
 import FreeShippingProgress from "./FreeShippingProgress";
+import { deliveryEstimateText } from "./DeliveryEstimate";
 
 const normalizeSummaryText = (value = "") => String(value ?? "").trim();
 const firstSummaryValue = (...values) => {
@@ -106,9 +107,11 @@ export default function StorefrontCheckoutSummary({
   helpers,
   couponSlot = null,
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { displayCartItemComparePrice, fallbackProductImage, imageFor, money } = helpers;
-  const deliveryText = shippingQuote.estimated_delivery_text || t("storefront.checkout.expectedDeliveryNotice", "٢–٥ أيام عمل");
+  const deliveryText = deliveryEstimateText(t, shippingQuote.delivery_estimate, i18n.language)
+    || shippingQuote.estimated_delivery_text
+    || t("storefront.checkout.expectedDeliveryNotice", "٢–٥ أيام عمل");
 
   return (
     <div className="sfc-side__inner">
