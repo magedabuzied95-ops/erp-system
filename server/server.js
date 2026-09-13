@@ -25,7 +25,7 @@ import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
 import { loadManagerPortalByToken } from "./services/managerPortalService.js";
 import { getEvolutionInstanceEventsDebug, syncEvolutionWebhookOnStartup } from "./services/evolutionWebhookSyncService.js";
-import { protect } from "./middleware/authMiddleware.js";
+import { isStaffSessionToken, protect } from "./middleware/authMiddleware.js";
 import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
@@ -415,6 +415,9 @@ io.on("connection", async (socket) => {
     }
 
     const decoded = jwt.verify(String(token), process.env.JWT_SECRET || "SECRET_KEY");
+    // A storefront shopper's token is signed with the same secret; it must not
+    // join the tenant, branch and notifications rooms.
+    if (!isStaffSessionToken(decoded)) throw new Error("not a staff session token");
     const userResult = await db.query(
       `
       SELECT
@@ -436,7 +439,8 @@ io.on("connection", async (socket) => {
       `,
       [decoded?.id || decoded?.user_id, decoded?.role || decoded?.role_name || ""]
     );
-    const user = userResult.rows[0] || decoded;
+    if (!userResult.rows[0]) throw new Error("socket account no longer exists");
+    const user = userResult.rows[0];
     const userId = user?.id || decoded?.id || decoded?.user_id;
     const role = normalizeSocketRoomKey(user?.role_name || user?.role || decoded?.role || decoded?.role_name || "");
     const employeeRole = normalizeSocketRoomKey(user?.employee_role || "");

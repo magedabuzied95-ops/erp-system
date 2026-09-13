@@ -175,8 +175,10 @@ const buildPaymobStatusRequest = ({ config, token, providerOrderId, merchantOrde
 export const verifyPaymobHmac = ({ body = {}, query = {} } = {}) => {
   const config = paymobConfig();
   const received = String(firstValue(query.hmac, body.hmac, body.obj?.hmac) || "").trim();
-  if (!received) return { checked: false, valid: true, reason: "missing_hmac" };
-  if (!config.hmacSecret) return { checked: false, valid: true, reason: "missing_secret" };
+  // The webhook is public: an unsigned body, or no secret to check it with, is
+  // never trusted. It used to pass as valid and could mark any order as paid.
+  if (!received) return { checked: true, valid: false, reason: "missing_hmac" };
+  if (!config.hmacSecret) return { checked: true, valid: false, reason: "missing_secret" };
 
   const obj = body.obj && typeof body.obj === "object" ? body.obj : body;
   const message = PAYMOB_HMAC_FIELDS.map((field) => valueAtPath(obj, field)).join("");

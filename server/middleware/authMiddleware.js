@@ -15,6 +15,19 @@ const ensureTenantBootstrapOnce = async () => {
   return tenantBootstrapPromise;
 };
 
+/**
+ * Only the staff login (authController) mints a token with a user id and no
+ * `type`/`scope` claim; every other token signed with JWT_SECRET is not a session.
+ */
+export const isStaffSessionToken = (decoded) =>
+  Boolean(decoded) &&
+  typeof decoded === "object" &&
+  !decoded.type &&
+  !decoded.scope &&
+  decoded.id !== undefined &&
+  decoded.id !== null &&
+  String(decoded.id).trim() !== "";
+
 export const protect = async (
   req,
   res,
@@ -42,6 +55,13 @@ export const protect = async (
           process.env.JWT_SECRET || "SECRET_KEY"
         );
 
+      // The storefront OTP/email login and the manager profit-lock sign with the
+      // same JWT_SECRET. Without this gate a shopper's token passed `protect`
+      // and read staff routes such as /api/pos/recent-orders.
+      if (!isStaffSessionToken(decoded)) {
+        return res.status(401).json({ message: "Not authorized, not a staff session" });
+      }
+
       try {
         await ensureTenantBootstrapOnce();
         const userResult = await db.query(
@@ -58,8 +78,11 @@ export const protect = async (
         );
 
         const databaseUser = userResult.rows[0];
-        if (!databaseUser && isMetaReviewerRole(decoded?.role)) {
-          return res.status(401).json({ message: "Review account is no longer available" });
+        if (!databaseUser) {
+          // A deleted account's token used to keep working on its signed claims.
+          return res.status(401).json({
+            message: isMetaReviewerRole(decoded?.role) ? "Review account is no longer available" : "Account no longer exists",
+          });
         }
         if (databaseUser?.is_active === false) {
           return res.status(403).json({ message: "Account disabled" });

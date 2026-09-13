@@ -427,6 +427,7 @@ const findPaymobTransaction = async (client, normalized, explicitTransactionId =
       updated_at DESC,
       id DESC
     LIMIT 1
+    FOR UPDATE
     `,
     params
   );
@@ -444,9 +445,25 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
 
   const event = await recordPaymobEvent(client, transaction.id, normalized, normalized.payload);
   const nextStatus = normalized.status === "success" ? "success" : normalized.status === "cancelled" ? "cancelled" : normalized.status === "failed" ? "failed" : "sent";
-  const confirmedCents = nextStatus === "success"
-    ? Math.max(0, Number(normalized.amountCents || transaction.amount_cents || 0))
-    : 0;
+  // The amount we asked Paymob to charge is the only amount a success can
+  // confirm; a payload that reports a different one is refused, not applied.
+  const expectedCents = Math.max(0, Number(transaction.amount_cents || 0));
+  const reportedCents = Number(normalized.amountCents || 0);
+  // normalizePaymobPaymentPayload falls back to a bare `amount`, which some
+  // Paymob responses give in pounds, so a pounds figure that matches is fine.
+  const reportedMatches = reportedCents === expectedCents || Math.round(reportedCents * 100) === expectedCents;
+  if (nextStatus === "success" && expectedCents > 0 && reportedCents > 0 && !reportedMatches) {
+    console.warn("[paymob-pos-confirm]", {
+      transaction_id: transaction.id,
+      expected_cents: expectedCents,
+      reported_cents: reportedCents,
+      rejected: "amount_mismatch",
+    });
+    const error = new Error("Paymob confirmation amount does not match the payment transaction");
+    error.status = 409;
+    throw error;
+  }
+  const confirmedCents = nextStatus === "success" ? expectedCents || Math.max(0, reportedCents) : 0;
 
   if (terminalFinalStatuses.has(String(transaction.status || "").toLowerCase())) {
     console.log("[paymob-pos-confirm]", {
@@ -2212,7 +2229,7 @@ export const receivePaymobWebhook = async (req, res) => {
       has_hmac: Boolean(req.query?.hmac || req.body?.hmac || req.body?.obj?.hmac),
     });
     const signature = verifyPaymobHmac({ body: req.body || {}, query: req.query || {} });
-    if (signature.checked && !signature.valid) {
+    if (!signature.valid) {
       console.warn("[paymob-pos-webhook]", { received: true, signature: signature.reason, rejected: true });
       return res.status(401).json({ success: false, message: "Invalid Paymob webhook signature" });
     }
