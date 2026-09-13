@@ -3543,7 +3543,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
       <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr]">
           <div>
-            <div className="relative h-24 w-24 md:h-28 md:w-28" aria-label="M1 Store">
+            <div className="relative h-16 w-16 md:h-20 md:w-20" aria-label="M1 Store">
               {/* Which artwork shows is decided by `.storefront-dark` in
                   index.css, not by the `dark:` variant — the shop runs with
                   Tailwind's `dark` class off in both themes, so `dark:hidden`
