@@ -560,6 +560,11 @@ const resolveScopedItems = async ({ client, scope, items }) => {
  * excludeOrderId  = re-validating a coupon ALREADY redeemed on that order (an edit). Its own
  *                   redemption is discounted from the usage count, the per-customer limit and the
  *                   budget, so re-checking an edited order does not reject the coupon it already has.
+ * currentOrderId  = the order the coupon is being redeemed ON, already inserted in the same
+ *                   transaction. It is left out of the "first order only" look-up only, because the
+ *                   order being paid for is not a previous order. Unlike excludeOrderId it does NOT
+ *                   relax the usage count, per-customer limit or budget, so a second redeem on the
+ *                   same order is still refused.
  */
 export const validateCoupon = async ({
   tenantId = null,
@@ -571,10 +576,12 @@ export const validateCoupon = async ({
   source = "website",
   customerId = null,
   excludeOrderId = null,
+  currentOrderId = null,
   client = db,
   lock = false,
 } = {}) => {
   const safeExcludeOrderId = Number.parseInt(excludeOrderId, 10) || null;
+  const safeCurrentOrderId = Number.parseInt(currentOrderId, 10) || null;
   await ensureCouponsSchema(client);
   const safeCode = String(code || "").trim().toUpperCase();
   const safeSource = normalizeSource(source);
@@ -687,12 +694,14 @@ export const validateCoupon = async ({
     }
   }
   if (campaign.first_order_only && customerId) {
+    // Checkout and the till insert the order before redeeming, so without the current order id
+    // this look-up finds the very order being placed and refuses every first-order coupon.
     const prior = await client.query(
       `SELECT 1 FROM orders
        WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')
          AND ($2::bigint IS NULL OR id IS DISTINCT FROM $2::bigint)
        LIMIT 1`,
-      [customerId, safeExcludeOrderId]
+      [customerId, safeExcludeOrderId || safeCurrentOrderId]
     );
     if (prior.rowCount) return { ...invalid("Coupon is for first orders only"), coupon, campaign };
   }
@@ -765,7 +774,7 @@ export const redeemCoupon = async ({ tenantId = null, code, orderId = null, cust
   const client = existingClient || await db.connect();
   try {
     if (ownClient) await client.query("BEGIN");
-    const validation = await validateCoupon({ tenantId, code, orderTotal, shippingAmount, items, appliedDiscounts, source, customerId, client, lock: true });
+    const validation = await validateCoupon({ tenantId, code, orderTotal, shippingAmount, items, appliedDiscounts, source, customerId, currentOrderId: orderId, client, lock: true });
     if (!validation.valid) {
       const error = new Error(validation.reason || "Coupon is invalid");
       error.status = 400;
