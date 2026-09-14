@@ -430,6 +430,7 @@ function OrderDetails() {
     shipping_label_url: "",
     shipping_address_line: "",
     customer_phone: "",
+    customer_secondary_phone: "",
     governorate: "",
     city_area: "",
     landmark: "",
@@ -482,6 +483,7 @@ function OrderDetails() {
         shipping_label_url: merged.shipping_label_url || "",
         shipping_address_line: merged.shipping_address_line || merged.customer_address || "",
         customer_phone: merged.customer_phone || merged.phone || "",
+        customer_secondary_phone: merged.customer_secondary_phone || "",
         governorate: merged.governorate || "",
         city_area: merged.city_area || "",
         landmark: merged.landmark || "",
@@ -682,6 +684,7 @@ function OrderDetails() {
         source: shippingSetupOpen && orderExperience.isPos ? "manual_shipping" : order.source,
         channel: shippingSetupOpen && orderExperience.isPos ? "manual_shipping" : order.channel,
         customer_phone: shipping.customer_phone,
+        customer_secondary_phone: shipping.customer_secondary_phone,
         customer_address: shipping.street_address || shipping.shipping_address_line,
         governorate: shipping.governorate,
         city_area: shipping.city_area,
@@ -1050,6 +1053,11 @@ function OrderDetails() {
                   <span dir="ltr" className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-zinc-200">
                     {customerPhone || t("orders.fallback.noPhoneRecorded")}
                   </span>
+                  {order.customer_secondary_phone ? (
+                    <span dir="ltr" title={tt("orders.shipping.customerSecondaryPhone")} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-zinc-400">
+                      {order.customer_secondary_phone}
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleCopyPhone}
@@ -1564,6 +1572,9 @@ function OrderDetails() {
                     </div>
                     <FieldLabel label={tt("orders.shipping.customerPhone")}>
                       <input value={shipping.customer_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+                    </FieldLabel>
+                    <FieldLabel label={tt("orders.shipping.customerSecondaryPhone")}>
+                      <input value={shipping.customer_secondary_phone} onChange={(e) => setShipping((prev) => ({ ...prev, customer_secondary_phone: e.target.value }))} placeholder="01xxxxxxxxx" dir="ltr" inputMode="tel" className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
                     </FieldLabel>
                     {isBostaShippingProvider(shipping.provider) ? (
                       <>

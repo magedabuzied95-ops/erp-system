@@ -248,6 +248,9 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   const buildingNumber = text(order.building_number);
   const floor = text(order.floor_number);
   const apartment = text(order.apartment_number);
+  const phone = text(order.customer_phone || order.phone || order.primary_phone);
+  // The courier's fallback when the first number does not answer. Never the same number twice.
+  const secondPhone = text(order.customer_secondary_phone || order.secondary_phone);
   return {
     type: 10,
     cod: Math.max(0, Number(codAmount || 0)),
@@ -267,7 +270,8 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
     receiver: {
       firstName,
       lastName,
-      phone: text(order.customer_phone || order.phone || order.primary_phone),
+      phone,
+      ...(secondPhone && secondPhone.replace(/\D/g, "") !== phone.replace(/\D/g, "") ? { secondPhone } : {}),
     },
     dropOffAddress: {
       cityCode,

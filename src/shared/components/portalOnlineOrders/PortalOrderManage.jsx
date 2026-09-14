@@ -113,6 +113,7 @@ function Input({ label, value, onChange, type = "text", dir = "auto", multiline 
 const formFromOrder = (order = {}) => ({
   customer_name: text(order.customer?.name),
   customer_phone: text(order.customer?.phone),
+  customer_secondary_phone: text(order.customer?.secondary_phone),
   governorate: text(order.address?.raw_governorate || order.address?.governorate),
   city_area: text(order.address?.raw_city_area || order.address?.city),
   shipping_city_id: text(order.address?.shipping_city_id),
@@ -215,6 +216,7 @@ export function OrderEditSheet({ order, ui, onClose, onSave, errorText }) {
           <Input label={ui.tb("detail.name")} value={form.customer_name} onChange={set("customer_name")} required />
           <Input label={ui.tb("detail.phone")} value={form.customer_phone} onChange={set("customer_phone")} type="tel" dir="ltr" required />
         </div>
+        <Input label={ui.tb("detail.secondaryPhone")} value={form.customer_secondary_phone} onChange={set("customer_secondary_phone")} type="tel" dir="ltr" />
         <div className="space-y-2">
           <div>
             <span className="text-[11px] font-black text-text-muted">{ui.tb("detail.governorate")}</span>

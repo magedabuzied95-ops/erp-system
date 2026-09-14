@@ -726,6 +726,7 @@
     "fields": {
       "fullName": "Full name",
       "phone": "Mobile number",
+      "secondaryPhone": "Second phone (optional)",
       "email": "Email",
       "city": "City",
       "cityPlaceholder": "Select a city",
@@ -753,6 +754,7 @@
       "nameRequired": "Customer name is required",
       "phoneRequired": "Mobile number is required",
       "phoneInvalid": "Enter a valid Egyptian mobile number",
+      "secondaryPhoneInvalid": "The second phone must be a valid Egyptian mobile number or empty",
       "cityRequired": "Select a city",
       "zoneRequired": "Select a zone",
       "districtRequired": "Select a district",

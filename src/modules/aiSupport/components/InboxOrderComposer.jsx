@@ -96,6 +96,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const [shippingCityId, setShippingCityId] = useState("");
   const [shippingZoneId, setShippingZoneId] = useState("");
   const [shippingDistrictId, setShippingDistrictId] = useState("");
+  const [customerSecondaryPhone, setCustomerSecondaryPhone] = useState("");
   const [streetAddress, setStreetAddress] = useState("");
   const [buildingNumber, setBuildingNumber] = useState("");
   const [floorNumber, setFloorNumber] = useState("");
@@ -125,6 +126,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     setDiscountValue(0);
     setCustomerName(firstUsefulCustomerName(conversation?.customer_name, profile.name, profile.display_name));
     setCustomerPhone(clean(profile.phone || conversation?.customer_phone || conversation?.channel_metadata?.resolved_phone || ""));
+    setCustomerSecondaryPhone("");
     setShippingProvider(clean(profile.shipping_provider || profile.shipping_provider_id || conversation?.shipping_provider || "bosta").toLowerCase());
     setShippingCityId(clean(profile.shipping_city_id || conversation?.shipping_city_id || ""));
     setShippingZoneId(clean(profile.shipping_zone_id || conversation?.shipping_zone_id || ""));
@@ -371,7 +373,9 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const shippingComplete = shippingProvider === "bosta"
     ? Boolean(shippingCityId && shippingZoneId && shippingDistrictId && streetAddress && buildingNumber)
     : Boolean(governorate && cityArea && streetAddress);
-  const canSubmit = Boolean(lines.length && customerName && customerPhone && shippingProvider && shippingComplete) && !busy;
+  const secondaryPhoneDigits = clean(customerSecondaryPhone).replace(/\D/g, "");
+  const secondaryPhoneInvalid = Boolean(secondaryPhoneDigits) && !/^01[0125][0-9]{8}$/.test(secondaryPhoneDigits);
+  const canSubmit = Boolean(lines.length && customerName && customerPhone && shippingProvider && shippingComplete) && !secondaryPhoneInvalid && !busy;
   const submitPayload = (confirm) => ({
     confirm,
     payment_method: paymentMethod,
@@ -390,6 +394,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     })),
     customer_name: customerName,
     customer_phone: customerPhone,
+    customer_secondary_phone: secondaryPhoneDigits,
     customer_address: streetAddress,
     // The saved address's own names stand in when the loaded list has no row for its id.
     governorate: shippingProvider === "bosta" ? shippingLocationLabel(selectedCity) || governorate : governorate,
@@ -425,6 +430,10 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
             <div className="grid gap-3 sm:grid-cols-2">
               <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t("aiSupport.inbox.order.customerName")} className="ai-order__field h-11 px-3" />
               <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t("aiSupport.inbox.order.phone")} inputMode="tel" className="ai-order__field h-11 px-3" />
+              <div className="sm:col-span-2">
+                <input value={customerSecondaryPhone} onChange={(e) => setCustomerSecondaryPhone(e.target.value)} placeholder={t("aiSupport.inbox.order.secondaryPhone")} inputMode="tel" dir="ltr" aria-invalid={secondaryPhoneInvalid || undefined} className="ai-order__field h-11 w-full px-3" />
+                {secondaryPhoneInvalid ? <p className="mt-1 text-xs font-bold text-danger" role="alert">{t("aiSupport.inbox.order.secondaryPhoneInvalid")}</p> : null}
+              </div>
             </div>
           </div>
 

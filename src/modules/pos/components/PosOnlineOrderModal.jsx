@@ -20,6 +20,7 @@ const EGYPT_MOBILE = /^01[0125][0-9]{8}$/;
 const EMPTY_FORM = {
   full_name: "",
   primary_phone: "",
+  secondary_phone: "",
   email: "",
   governorate: "",
   governorate_id: "",
@@ -276,6 +277,8 @@ export default function PosOnlineOrderModal({
     // The WhatsApp confirmation is the whole point of this mode, and it can only reach an
     // Egyptian mobile — so a number that cannot receive it is refused here, not silently sent.
     else if (!EGYPT_MOBILE.test(phone)) next.primary_phone = posLabel("errors.phoneInvalid", "رقم موبايل مصري غير صحيح");
+    const secondPhone = form.secondary_phone.replace(/\s/g, "");
+    if (secondPhone && !EGYPT_MOBILE.test(secondPhone)) next.secondary_phone = posLabel("errors.secondaryPhoneInvalid", "الموبايل التاني لازم يكون رقم مصري صحيح أو فاضي");
     if (bostaMode) {
       if (!form.shipping_city_id) next.shipping_city_id = posLabel("errors.cityRequired", "اختر المدينة");
       if (!form.shipping_zone_id) next.shipping_zone_id = posLabel("errors.zoneRequired", "اختر المنطقة");
@@ -329,6 +332,7 @@ export default function PosOnlineOrderModal({
       const checkout = {
         ...form,
         primary_phone: phone,
+        secondary_phone: form.secondary_phone.replace(/\s/g, ""),
         // Phase 1 is cash on delivery only. It is also what opens the WhatsApp confirmation
         // gate on the server, so changing it here silently turns the message off.
         payment_method: "cod",
@@ -461,9 +465,10 @@ export default function PosOnlineOrderModal({
 
               <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3">
                 <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[var(--muted)]">{posLabel("sections.customer", "بيانات العميل")}</div>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={posLabel("fields.fullName", "الاسم بالكامل")} required value={form.full_name} onChange={(value) => setField("full_name", value)} error={errors.full_name} />
                   <Field label={posLabel("fields.phone", "رقم الموبايل")} required dir="ltr" value={form.primary_phone} onChange={(value) => setField("primary_phone", value)} error={errors.primary_phone} placeholder="01xxxxxxxxx" />
+                  <Field label={posLabel("fields.secondaryPhone", "موبايل تاني (اختياري)")} dir="ltr" value={form.secondary_phone} onChange={(value) => setField("secondary_phone", value)} error={errors.secondary_phone} placeholder="01xxxxxxxxx" />
                   <Field label={posLabel("fields.email", "البريد الإلكتروني")} type="email" dir="ltr" value={form.email} onChange={(value) => setField("email", value)} error={errors.email} />
                 </div>
               </section>

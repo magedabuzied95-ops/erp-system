@@ -637,6 +637,11 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
               <div className="min-w-0">
                 <div className="truncate text-base font-black text-text" dir="auto">{order.customer?.name || ui.tb("card.noName")}</div>
                 <div className="mt-0.5 text-sm font-bold text-text-muted" dir="ltr">{order.customer?.phone || ui.tb("card.noPhone")}</div>
+                {order.customer?.secondary_phone ? (
+                  <a href={`tel:${order.customer.secondary_phone}`} className="mt-0.5 block text-xs font-bold text-text-muted" dir="ltr" title={ui.tb("detail.secondaryPhone")}>
+                    {order.customer.secondary_phone}
+                  </a>
+                ) : null}
                 {order.customer?.email ? <div className="mt-0.5 text-xs font-bold text-text-muted" dir="ltr">{order.customer.email}</div> : null}
               </div>
               <div className="flex flex-wrap items-center gap-1.5">

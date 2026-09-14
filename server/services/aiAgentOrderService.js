@@ -11,6 +11,7 @@ import {
   generateProductAliases,
 } from "./productAliasEngine.js";
 import { assignSequentialInvoiceNumber, buildTemporaryInvoiceNumber } from "../utils/invoiceNumber.js";
+import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
@@ -931,6 +932,7 @@ export const createAiOrderDraft = async (payload = {}) => {
         customer_id: safeCustomerId,
         customer_name: text(payload.customer_name || payload.name),
         customer_phone: phone,
+        customer_secondary_phone: parseOrderSecondaryPhone(payload.customer_secondary_phone, phone).value || null,
         channel,
         source,
         status: "ai_draft",
@@ -1478,6 +1480,7 @@ export const createAiOrderDraftLines = async (payload = {}) => {
         customer_id: customerId,
         customer_name: customerName,
         customer_phone: phone,
+        customer_secondary_phone: parseOrderSecondaryPhone(payload.customer_secondary_phone, phone).value || null,
         channel,
         source,
         status: "ai_draft",

@@ -7524,6 +7524,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [shippingPaymentFile, setShippingPaymentFile] = useState(null);
   const [, setShippingPaymentPreviewUrl] = useState("");
   const [errors, setErrors] = useState({});
+  // Whether the phone the confirmation goes to has WhatsApp: exists is true/false once the
+  // server answered, null while unknown (a down gateway never blocks the order).
+  const [whatsappCheck, setWhatsappCheck] = useState({ phone: "", exists: null, checking: false });
+  const whatsappAnswersRef = useRef(new Map());
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Every distinct address this customer has ordered to (server-deduplicated),
@@ -7838,6 +7842,36 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       cancelled = true;
     };
   }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal]);
+
+  useEffect(() => {
+    const phone = form.primary_phone.replace(/\D/g, "");
+    if (!/^01[0125][0-9]{8}$/.test(phone)) {
+      setWhatsappCheck({ phone: "", exists: null, checking: false });
+      return undefined;
+    }
+    if (whatsappAnswersRef.current.has(phone)) {
+      setWhatsappCheck({ phone, exists: whatsappAnswersRef.current.get(phone), checking: false });
+      return undefined;
+    }
+    setWhatsappCheck({ phone, exists: null, checking: true });
+    const controller = new AbortController();
+    // Waits for the customer to stop typing, so a pasted or corrected number is asked about once.
+    const timer = window.setTimeout(() => {
+      api.get(`/storefront/checkout/whatsapp-check?phone=${encodeURIComponent(phone)}`, { signal: controller.signal })
+        .then((data) => {
+          const exists = data?.exists === true ? true : data?.exists === false ? false : null;
+          if (exists !== null) whatsappAnswersRef.current.set(phone, exists);
+          setWhatsappCheck({ phone, exists, checking: false });
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setWhatsappCheck({ phone, exists: null, checking: false });
+        });
+    }, 450);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form.primary_phone]);
 
   const setField = (key, value, options = {}) => {
     if (options.markDirty !== false) editedCheckoutFieldsRef.current.add(key);
@@ -8406,7 +8440,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const { showToast = true } = options;
     const next = {};
     const stepKeys = step === 1
-      ? ["full_name", "primary_phone", "email"]
+      ? ["full_name", "primary_phone", "secondary_phone", "email"]
       : step === 2
         ? ["governorate", "city_area", "detailed_address", "street_address", "building_number"]
         : ["payment_method", "shipping_payment_screenshot"];
@@ -8423,6 +8457,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       if (!form.full_name.trim()) next.full_name = sfText("storefront.validation.fullNameRequired");
       if (!phone) next.primary_phone = sfText("storefront.validation.phoneRequired");
       else if (!/^01[0125][0-9]{8}$/.test(phone)) next.primary_phone = sfText("storefront.validation.invalidEgyptPhone");
+      else if (whatsappCheck.exists === false && whatsappCheck.phone === phone) next.primary_phone = sfText("storefront.validation.notOnWhatsapp");
+      const secondPhone = String(form.secondary_phone || "").replace(/\s/g, "");
+      if (secondPhone && !/^01[0125][0-9]{8}$/.test(secondPhone)) next.secondary_phone = sfText("storefront.validation.invalidSecondaryPhone");
       if (form.email.trim() && !isValidSurveyEmail(form.email)) {
         next.email = sfText("storefront.validation.invalidEmailOptional");
       }
@@ -8745,6 +8782,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       const backendMessage = error?.responseBody?.message || error?.message;
       const couponReason = error?.responseBody?.details?.coupon?.reason || error?.responseBody?.coupon?.reason || backendMessage;
       const field = String(error?.responseBody?.field || "").toLowerCase();
+      const reason = String(error?.responseBody?.details?.reason || "");
+      if (reason === "not_on_whatsapp" || reason === "invalid_secondary_phone") {
+        // The submit's own check disagreed with (or ran before) the live field check: say it on
+        // the field and take the customer there, in their language.
+        const message = sfText(reason === "not_on_whatsapp" ? "storefront.validation.notOnWhatsapp" : "storefront.validation.invalidSecondaryPhone");
+        if (reason === "not_on_whatsapp") {
+          const phone = form.primary_phone.replace(/\D/g, "");
+          whatsappAnswersRef.current.set(phone, false);
+          setWhatsappCheck({ phone, exists: false, checking: false });
+        }
+        setErrors((prev) => ({ ...prev, [reason === "not_on_whatsapp" ? "primary_phone" : "secondary_phone"]: message }));
+        toast.error(message);
+        scrollToFirstCheckoutError();
+        return;
+      }
       toast.error(field === "coupon_code" ? couponErrorText(couponReason) : (backendMessage || sfText("storefront.toasts.checkoutFailed")));
     } finally {
       setSubmitting(false);
@@ -8858,8 +8910,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                 autoComplete="tel"
                 maxLength={16}
                 required
-                error={errors.primary_phone}
-                hint={onePage("phoneHint")}
+                error={errors.primary_phone || (whatsappCheck.exists === false && whatsappCheck.phone === form.primary_phone.replace(/\D/g, "") ? sfText("storefront.validation.notOnWhatsapp") : "")}
+                hint={whatsappCheck.checking
+                  ? onePage("phoneCheckingWhatsapp")
+                  : whatsappCheck.exists === true ? `✓ ${onePage("phoneOnWhatsapp")}` : onePage("phoneHint")}
               />
               <div className="sfc-row sfc-row--2">
                 <CheckoutInput
@@ -8879,7 +8933,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
                   onChange={(value) => setField("secondary_phone", value)}
                   inputMode="tel"
                   type="tel"
+                  autoComplete="off"
                   maxLength={16}
+                  error={errors.secondary_phone}
+                  hint={onePage("secondaryPhoneHint")}
                 />
               </div>
             </div>

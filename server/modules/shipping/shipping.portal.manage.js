@@ -21,6 +21,7 @@ const text = (value = "") => String(value ?? "").trim();
 export const PORTAL_EDITABLE_FIELDS = [
   "customer_name",
   "customer_phone",
+  "customer_secondary_phone",
   "customer_address",
   "governorate",
   "city_area",

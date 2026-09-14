@@ -240,6 +240,7 @@ const shapeOrder = (order = {}, items = []) => {
     customer: {
       name: text(order.customer_name),
       phone: text(order.customer_phone || order.customer_record_phone),
+      secondary_phone: text(order.customer_secondary_phone),
       email: text(order.customer_email),
     },
     address: {

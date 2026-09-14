@@ -7,6 +7,7 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { recordEmployeeAnalytics } from "../utils/employeeAnalytics.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
+import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
@@ -6690,6 +6691,12 @@ export const editOrder = async (req, res) => {
           ? normalizeOpenPackageChoice(req.body.allow_open_package)
           : (loaded.order.allow_open_package ?? null),
       };
+      const hasSecondaryPhone = Object.prototype.hasOwnProperty.call(req.body, "customer_secondary_phone");
+      const secondaryPhone = hasSecondaryPhone ? parseOrderSecondaryPhone(req.body.customer_secondary_phone, safePatch.customer_phone) : null;
+      if (secondaryPhone?.error) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ success: false, code: "SECONDARY_PHONE_INVALID", field: "customer_secondary_phone", message: "رقم الموبايل التاني لازم يكون رقم مصري صحيح أو فاضي" });
+      }
       const orderResult = await client.query(
         `
         UPDATE orders
@@ -6771,6 +6778,15 @@ export const editOrder = async (req, res) => {
           tenantId,
         ]
       );
+      // Its own statement so the long SET above never names a column an older database lacks
+      // unless this edit actually carries the second phone (the column is added at boot).
+      if (secondaryPhone && orderResult.rows[0]) {
+        const secondaryResult = await client.query(
+          `UPDATE orders SET customer_secondary_phone = $1 WHERE id = $2 RETURNING customer_secondary_phone`,
+          [secondaryPhone.value || null, loaded.order.id]
+        );
+        orderResult.rows[0].customer_secondary_phone = secondaryResult.rows[0]?.customer_secondary_phone ?? null;
+      }
       await client.query(
         `
         INSERT INTO order_edit_audits (tenant_id, order_id, old_items, new_items, old_total, new_total, user_id, reason)

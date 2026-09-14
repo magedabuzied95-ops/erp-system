@@ -801,6 +801,7 @@ const { ensurePriceDropAlertSchema, runPriceDropAlertTick } = await import("./se
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation, ensureSocialCommentVisibilityColumns } = await import("./services/socialCommentAutomationService.js");
+const { ensureOrderSecondaryPhoneColumn } = await import("./utils/orderSecondaryPhone.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { refreshOpenAiCredentialOverrides } = await import("./services/openaiCredentials.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
@@ -2709,6 +2710,10 @@ const bootstrapStartup = async () => {
     // not exist there.
     await ensureSocialCommentVisibilityColumns(db);
     console.log("[server] social comment visibility columns ensured");
+    // orders.customer_secondary_phone, the optional second number Bosta calls. Boot-only, like the
+    // visibility columns above, because the orders runtime ensures are off in production.
+    await ensureOrderSecondaryPhoneColumn(db);
+    console.log("[server] order secondary phone column ensured");
     await repairCorruptedArabicText(db);
     await warmDashboardMetadataCache();
     console.log("[server] dashboard metadata cache warmed");

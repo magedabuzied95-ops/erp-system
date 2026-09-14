@@ -729,6 +729,7 @@
     "fields": {
       "fullName": "الاسم بالكامل",
       "phone": "رقم الموبايل",
+      "secondaryPhone": "موبايل تاني (اختياري)",
       "email": "البريد الإلكتروني",
       "city": "المدينة",
       "cityPlaceholder": "اختر المدينة",
@@ -756,6 +757,7 @@
       "nameRequired": "اسم العميل مطلوب",
       "phoneRequired": "رقم الموبايل مطلوب",
       "phoneInvalid": "رقم موبايل مصري غير صحيح",
+      "secondaryPhoneInvalid": "الموبايل التاني لازم يكون رقم مصري صحيح أو فاضي",
       "cityRequired": "اختر المدينة",
       "zoneRequired": "اختر المنطقة",
       "districtRequired": "اختر الحي",

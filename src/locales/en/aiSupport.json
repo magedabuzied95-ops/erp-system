@@ -740,6 +740,8 @@
       "customerData": "Customer details",
       "customerName": "Customer name *",
       "phone": "Phone number *",
+      "secondaryPhone": "Second phone (optional)",
+      "secondaryPhoneInvalid": "The second phone must be a valid Egyptian mobile number or empty",
       "shippingSection": "Courier and delivery details",
       "shippingNote": "Choose the courier. With Bosta we use the approved city, zone and district lists so the shipment is accepted.",
       "addressLinkHint": "Or let the customer type their own address",

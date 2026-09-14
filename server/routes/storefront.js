@@ -6,6 +6,7 @@ import permit from "../middleware/permissionMiddleware.js";
 import { ensureBrandsTable } from "../controllers/brandsController.js";
 import {
   accountByPhone,
+  checkCheckoutWhatsappNumber,
   createShipment,
   createWebsiteOrder,
   getStorefrontPaymentStatus,
@@ -666,6 +667,7 @@ router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) =
     return res.status(202).json({ success: true, capi_sent: false, reason: "delivery_unavailable" });
   }
 });
+router.get("/checkout/whatsapp-check", checkCheckoutWhatsappNumber);
 router.post("/checkout", checkoutUpload, createWebsiteOrder);
 // Both are addressed by the order's unguessable public token. The confirmation
 // page polls the first after Paymob redirects back, and calls the second when

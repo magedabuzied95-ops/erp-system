@@ -18,6 +18,7 @@ import {
 import { getShippingProvider, normalizeShippingProviderKey, shippingProviderCatalog, shippingProviders } from "../services/shippingProviders/index.js";
 import { ensureLoyaltySchema, getCustomerLoyaltySummary, resolveOrCreateCustomerAccount } from "../services/loyaltyService.js";
 import { getPhoneSearchVariants, normalizePhone, phoneSqlDigits } from "../utils/phoneSearch.js";
+import { parseOrderSecondaryPhone, toLocalEgyptMobile } from "../utils/orderSecondaryPhone.js";
 import { setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
 import { fetchProductClassificationGroupByKey, getClassificationFilterAliases } from "../services/productClassificationsService.js";
 import { generateProductOgImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, buildAbsolutePublicUrl } from "../services/productOgImageService.js";
@@ -5363,6 +5364,62 @@ export const restartStorefrontPaymentSession = async (req, res) => {
   }
 };
 
+/* Does the checkout phone have WhatsApp?
+
+   true / false when Evolution answered, null when it could not be asked (gateway down, not
+   configured, timed out). Only false ever stops a shopper — the order confirmation is a WhatsApp
+   message, and a number without WhatsApp means the customer never hears from us. Answers are cached
+   for a day inside the capabilities service, so the submit re-check after the live field check is free.
+   STOREFRONT_CHECKOUT_WHATSAPP_CHECK=false turns the whole thing off. */
+const checkStorefrontPhoneOnWhatsapp = async (phone = "") => {
+  if (String(process.env.STOREFRONT_CHECKOUT_WHATSAPP_CHECK || "").trim().toLowerCase() === "false") {
+    return { exists: null, reason: "disabled" };
+  }
+  const local = toLocalEgyptMobile(phone);
+  if (!/^01[0125][0-9]{8}$/.test(local)) return { exists: null, reason: "invalid_phone" };
+  try {
+    const { whatsappNumberIsReachable } = await import("../services/whatsappCapabilitiesService.js");
+    const result = await whatsappNumberIsReachable({ phone: local });
+    if (!result.known) return { exists: null, reason: result.reason || "unknown" };
+    return { exists: result.reachable === true, reason: result.reason };
+  } catch (error) {
+    console.warn("[storefront-checkout] whatsapp check skipped", { message: error?.message || String(error) });
+    return { exists: null, reason: "check_failed" };
+  }
+};
+
+// A public door into our own WhatsApp number: without a ceiling it is a free "who has WhatsApp"
+// lookup for anyone, and a burst of lookups is exactly what gets a WhatsApp number restricted.
+const WHATSAPP_CHECK_WINDOW_MS = 10 * 60 * 1000;
+const WHATSAPP_CHECK_MAX_PER_WINDOW = 15;
+const whatsappCheckHits = new Map();
+const allowWhatsappCheck = (key = "") => {
+  const now = Date.now();
+  if (whatsappCheckHits.size > 5000) {
+    for (const [hitKey, hit] of whatsappCheckHits) if (now - hit.start > WHATSAPP_CHECK_WINDOW_MS) whatsappCheckHits.delete(hitKey);
+  }
+  const hit = whatsappCheckHits.get(key);
+  if (!hit || now - hit.start > WHATSAPP_CHECK_WINDOW_MS) {
+    whatsappCheckHits.set(key, { start: now, count: 1 });
+    return true;
+  }
+  hit.count += 1;
+  return hit.count <= WHATSAPP_CHECK_MAX_PER_WINDOW;
+};
+
+export const checkCheckoutWhatsappNumber = async (req, res) => {
+  const local = toLocalEgyptMobile(req.query?.phone || "");
+  if (!/^01[0125][0-9]{8}$/.test(local)) {
+    return res.status(400).json({ success: false, exists: null, reason: "invalid_phone" });
+  }
+  const ipKey = String(req.headers?.["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || req.socket?.remoteAddress || "unknown";
+  // Over the ceiling the answer is "unknown", never an error: the shopper just checks out as before
+  // and the submit still runs its own check.
+  if (!allowWhatsappCheck(ipKey)) return res.json({ success: true, exists: null, reason: "rate_limited" });
+  const result = await checkStorefrontPhoneOnWhatsapp(local);
+  return res.json({ success: true, exists: result.exists, reason: result.reason });
+};
+
 export const createWebsiteOrder = async (req, res) => {
   const client = await db.connect();
   let checkoutStep = "start";
@@ -5469,6 +5526,19 @@ export const createWebsiteOrder = async (req, res) => {
     }
     if (checkout.email && !isValidCustomerReviewEmail(checkout.email)) {
       return checkoutValidationResponse(400, "Enter a valid email address or leave it empty", "email", { reason: "invalid_email" });
+    }
+    const secondaryPhone = parseOrderSecondaryPhone(checkoutRaw.secondary_phone ?? checkoutRaw.customer_secondary_phone, checkout.primary_phone);
+    if (secondaryPhone.error) {
+      return checkoutValidationResponse(400, "Enter a valid Egyptian mobile number for the second phone or leave it empty", "secondary_phone", { reason: secondaryPhone.error });
+    }
+    // The order confirmation goes out on WhatsApp, so a shopper must give a number that has it.
+    // The POS online-order mode is exempt: a cashier cannot ask a caller for another phone mid-call.
+    // Only a definite "not on WhatsApp" stops the order — an unreachable gateway never does.
+    if (!posOnlineOrder) {
+      const whatsapp = await checkStorefrontPhoneOnWhatsapp(checkout.primary_phone);
+      if (whatsapp.exists === false) {
+        return checkoutValidationResponse(422, "This number is not on WhatsApp. Enter a number that has WhatsApp so the order confirmation reaches you.", "primary_phone", { reason: "not_on_whatsapp" });
+      }
     }
 
     await client.query("BEGIN");
@@ -5807,6 +5877,7 @@ export const createWebsiteOrder = async (req, res) => {
       customer_id: customer?.id || null,
       customer_name: checkout.full_name,
       customer_phone: customer?.phone || normalizePhone(checkout.primary_phone),
+      customer_secondary_phone: secondaryPhone.value || null,
       customer_email: checkout.email || customer?.email || "",
       channel: "storefront",
       source: "website",
