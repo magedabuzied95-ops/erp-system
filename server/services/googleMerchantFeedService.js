@@ -340,9 +340,12 @@ const googleRowsSql = `
     ci.primary_color_image,
     ci.color_gallery
   FROM products p
+  -- A colour hidden in the ERP is hidden per size row (is_storefront_visible), so without it here
+  -- Google kept advertising a colour whose landing page no longer shows it. Same join as the catalog.
   LEFT JOIN product_variants pv
     ON pv.product_id = p.id
     AND pv.is_active IS DISTINCT FROM FALSE
+    AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
     AND pv.deleted_at IS NULL
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN brands b ON b.id = p.brand_id

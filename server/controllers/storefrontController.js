@@ -239,6 +239,12 @@ const queryPositiveInt = (value, fallback, { min = 0, max = Number.MAX_SAFE_INTE
 
 const storefrontVisibilityConditionSql = "COALESCE(p.is_storefront_visible, TRUE) = TRUE";
 
+// What takes a whole product off sale, whatever its sizes say. The catalog lists through it and
+// checkout locks through it: checkout used to test only the size row, so a product the owner
+// switched off, drafted or archived vanished from the shop yet still sold to an old saved cart.
+const storefrontProductOnSaleConditionSql = `p.is_active IS DISTINCT FROM FALSE
+    AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')`;
+
 const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const normalizeStorefrontSort = (value = "") => STOREFRONT_SORT_ALIASES.get(queryText(value).toLowerCase()) || "";
@@ -1638,8 +1644,7 @@ const buildCatalogQuery = ({ where = "", trailing = "", productVisibility = true
     LEFT JOIN manufacturers m ON m.id = p.manufacturer_id
     LEFT JOIN product_variants pv ON pv.product_id = p.id${catalogVariantJoinSql}
     WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)
-    AND p.is_active IS DISTINCT FROM FALSE
-    AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
+    AND ${storefrontProductOnSaleConditionSql}
 ${productVisibility ? `    AND ${storefrontVisibilityConditionSql}\n` : ""}${where}
   ),
   candidate_purchase_items AS MATERIALIZED (
@@ -5464,6 +5469,9 @@ const storefrontCartVariantSql = ({ productColumns, variantColumns, idClause, fo
   const productTenantClause = productColumns.has("tenant_id")
     ? "AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)"
     : "";
+  // The catalog never checks products.deleted_at (a delete archives through status), but a
+  // soft-deleted row must not be sellable either; optional because older databases lack it.
+  const productDeletedClause = productColumns.has("deleted_at") ? "AND p.deleted_at IS NULL" : "";
   return `
         SELECT
           pv.*,
@@ -5487,10 +5495,15 @@ const storefrontCartVariantSql = ({ productColumns, variantColumns, idClause, fo
           COALESCE(p.is_offer_story, FALSE) AS product_is_offer_story
         FROM product_variants pv
         JOIN products p ON p.id = pv.product_id
-        WHERE ${idClause}
-          AND pv.is_active IS DISTINCT FROM FALSE
-          AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
-          AND pv.deleted_at IS NULL
+        WHERE ${idClause}${catalogVariantJoinSql}
+          -- The product row decides too, with the catalog's own conditions: hiding or switching off a
+          -- product writes only to products, so a size-only check kept selling it to saved carts and
+          -- to anyone posting variant ids. The till's online order is a website order and passes here
+          -- as well — it is priced from the same shelf projection, which cannot see a hidden product.
+          -- The cart re-price reads through here too, so a hidden product shows as unavailable.
+          AND ${storefrontProductOnSaleConditionSql}
+          AND ${storefrontVisibilityConditionSql}
+          ${productDeletedClause}
           ${variantTenantClause}
           ${productTenantClause}
         ${forUpdate ? "FOR UPDATE" : ""}

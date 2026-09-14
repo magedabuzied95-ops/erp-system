@@ -138,6 +138,7 @@ const queryMetaCatalogRows = async () => {
         AND COALESCE(NULLIF(LOWER(TRIM(vp.status)), ''), 'active') = 'active'
         AND vp.is_storefront_visible IS DISTINCT FROM FALSE
         AND v.is_active IS DISTINCT FROM FALSE
+        AND COALESCE(v.is_storefront_visible, TRUE) = TRUE
         AND v.deleted_at IS NULL
       GROUP BY LOWER(TRIM(v.sku))
     ),
@@ -232,6 +233,9 @@ const queryMetaCatalogRows = async () => {
       AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') = 'active'
       AND p.is_storefront_visible IS DISTINCT FROM FALSE
       AND pv.is_active IS DISTINCT FROM FALSE
+      -- The ERP hides a colour on its size rows, not on the product; the catalog drops those rows
+      -- and so must the ad, or Meta sells a colour the landing page no longer shows.
+      AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
       AND pv.deleted_at IS NULL
     ORDER BY p.id ASC, pv.color_sort_order ASC, pv.id ASC
   `);
