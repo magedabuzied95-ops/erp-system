@@ -2033,12 +2033,13 @@ const setCachedProductDetails = (identifier, data) => {
   if (!key || !data) return;
   storefrontProductDetailsCache.set(key, { at: Date.now(), data });
 };
+// The cart and wishlist are NOT cleared here. They are the customer's own data, not a cache:
+// a wiped local cart looks "removed on this device" to the three-way cart merge, which then
+// PUTs an empty cart and erases a signed-in customer's cart on every device.
 const cleanupStorefrontStorage = () => {
   if (typeof window === "undefined" || !window.localStorage) return;
   try {
     [
-      CART_KEY,
-      WISHLIST_KEY,
       RECENT_KEY,
       PROFILE_KEY,
     ].forEach((key) => window.localStorage.removeItem(key));
@@ -6361,7 +6362,21 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const [quickAddColorKey, setQuickAddColorKey] = useState("");
   const [quickAddVariantId, setQuickAddVariantId] = useState("");
   const [quickAddQty, setQuickAddQty] = useState(1);
-  const [secondaryImageReady, setSecondaryImageReady] = useState(false);
+  // The hover photo only shows on a pointer that can hover, so nothing is fetched until
+  // such a pointer reaches the card (or it takes keyboard focus). A phone never asks for it.
+  // The <img> itself is the preload: same responsive URL, so the browser downloads it once.
+  const [secondaryImageWanted, setSecondaryImageWanted] = useState(false);
+  const [secondaryLoadedUrl, setSecondaryLoadedUrl] = useState("");
+  const secondaryImageReady = Boolean(secondaryImageUrl) && secondaryLoadedUrl === secondaryImageUrl;
+  const requestSecondaryImage = (event) => {
+    if (secondaryImageWanted || !hasReadySecondaryImage || typeof window === "undefined") return;
+    if (event?.pointerType === "touch") return;
+    if (typeof window.matchMedia !== "function" || !window.matchMedia("(hover: hover)").matches) return;
+    setSecondaryImageWanted(true);
+  };
+  const markSecondaryImageLoaded = (node) => {
+    if (node?.complete && node.naturalWidth > 0 && node.dataset.cardSrc) setSecondaryLoadedUrl(node.dataset.cardSrc);
+  };
   useEffect(() => {
     let cancelled = false;
     setHoverProductDetails(null);
@@ -6376,30 +6391,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       cancelled = true;
     };
   }, [firstAvailableVariant, product.id, providedSelectedColor, providedSelectedVariant]);
-  useEffect(() => {
-    setSecondaryImageReady(false);
-    if (!hasReadySecondaryImage || typeof window === "undefined") return undefined;
-    let cancelled = false;
-    const preloadImage = new Image();
-    preloadImage.decoding = "async";
-    preloadImage.onload = () => {
-      if (!cancelled) setSecondaryImageReady(true);
-    };
-    preloadImage.onerror = () => {
-      if (!cancelled) setSecondaryImageReady(false);
-    };
-    preloadImage.src = imageFor(secondaryImageUrl);
-    if (preloadImage.complete) {
-      if (preloadImage.naturalWidth > 0) {
-        setSecondaryImageReady(true);
-      } else {
-        setSecondaryImageReady(false);
-      }
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [hasReadySecondaryImage, secondaryImageUrl]);
 
   useEffect(() => {
     if (!selectedVariantId || !activeSizes.length) return;
@@ -6530,9 +6521,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   return (
     <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 340px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={cardClassName}>
       <div className="m1h-card__plate">
-        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="sfx-card__media-link" aria-label={product.name}>
+        <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} onFocus={requestSecondaryImage} className="sfx-card__media-link" aria-label={product.name}>
           {displayImage ? (
-            <div className="sfx-card-media group/card-image">
+            <div className="sfx-card-media group/card-image" onPointerEnter={requestSecondaryImage}>
               <img
                 ref={primaryImageRef}
                 src={imageFor(displayImage)}
@@ -6548,14 +6539,17 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 width="360"
                 height="432"
               />
-              {hasReadySecondaryImage && secondaryImageReady ? (
+              {hasReadySecondaryImage && secondaryImageWanted ? (
                 <img
+                  ref={markSecondaryImageLoaded}
                   src={imageFor(secondaryImageUrl)}
                   {...responsiveImageProps(secondaryImageUrl, imagePreset)}
+                  data-card-src={secondaryImageUrl}
                   alt={product.name}
                   aria-hidden="true"
+                  onLoad={(event) => markSecondaryImageLoaded(event.currentTarget)}
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image sfx-card__img sfx-card__img--secondary opacity-0 md:group-hover/card-image:opacity-100"
+                  className={`sf-card-secondary-image sfx-card__img sfx-card__img--secondary opacity-0 ${secondaryImageReady ? "md:group-hover/card-image:opacity-100" : ""}`}
                   style={{ backfaceVisibility: "hidden" }}
                   loading="lazy"
                   decoding="async"
@@ -8633,6 +8627,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       }
       const couponCodeToSend = activeCouponValidation?.valid ? String(activeCouponValidation.coupon?.code || activeCouponCode).trim().toUpperCase() : "";
       const couponDiscountToSend = activeCouponValidation?.valid ? Math.max(0, Number(activeCouponValidation.discount_amount || 0)) : 0;
+      // `total` belongs to this render, which may predate the re-validation above (picking a
+      // governorate clears the coupon). The server charges subtotal - bundle - coupon + fee, so
+      // the order is priced from the validation actually being sent, the same way `total` is.
+      const orderTotal = Math.max(0, subtotal - (couponDiscountToSend + bundleDiscount) + deliveryFee);
+      // A transfer was made for the amount on screen. If the fresh discount changed it, sending
+      // now would be rejected (paid must equal total) after the customer already paid the old
+      // figure — stop here so they see the new amount, which is now rendered, and transfer that.
+      if (isShippingConfirmation && Math.abs(orderTotal - total) >= 0.01) {
+        toast.error(sfText("storefront.checkout.couponTotalChanged", "", { amount: money(orderTotal) }));
+        setSubmitting(false);
+        return;
+      }
       const cleanPhone = form.primary_phone.replace(/\s/g, "");
       const paymentMethod = paymentMode === "cod"
         ? "cod"
@@ -8642,7 +8648,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       const shippingPaymentMethod = paymentMode === "cod" || isOnlineGatewayPayment ? "" : paymentMethod;
       // A gateway order carries no money yet — the webhook is what records the
       // payment, so claiming an amount here would be rejected by the server.
-      const paidAmount = isOnlineGatewayPayment ? 0 : amountDueNow;
+      const paidAmount = isOnlineGatewayPayment || normalizedFormPaymentMethod === "cod" ? 0 : orderTotal;
       const selectedShippingProvider = bostaMode && form.shipping_city_id ? "bosta" : (shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery");
       const shippingProviderAddress = {
         country: "EG",
@@ -8688,7 +8694,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         shipping_zone_id: form.shipping_zone_id,
         shipping_district_id: form.shipping_district_id,
         paid_amount: paidAmount,
-        remaining_amount: Math.max(0, total - paidAmount),
+        remaining_amount: Math.max(0, orderTotal - paidAmount),
         shipping_address: shippingProviderAddress,
         shipping_provider_address: shippingProviderAddress,
         shipping_payment_method: shippingPaymentMethod,
@@ -8696,7 +8702,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         coupon_discount_amount: couponDiscountToSend,
       };
       trackGa4PaymentInfo(pricedCart, {
-        value: total,
+        value: orderTotal,
         coupon: couponCodeToSend,
         payment_type: paymentMethod,
       });
@@ -8747,7 +8753,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       trackMetaPurchase({
         order: data.order,
         items: data.items || pricedCart,
-        value: data.order?.total_amount ?? data.order?.total ?? total,
+        value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
         customer: {
           ...profile,
           full_name: form.full_name,
@@ -8762,7 +8768,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         order: data.order,
         items: data.items || pricedCart,
         checkout: successPayload.checkout,
-        value: data.order?.total_amount ?? data.order?.total ?? total,
+        value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
       });
       const publicNumber = displayPublicOrderNumber(data.order);
       const receiptPayload = compactStorefrontReceipt(successPayload, {
@@ -10629,6 +10635,14 @@ const writeCartSyncMarker = (phone = "", version = null, cart = []) => {
   });
 };
 
+/**
+ * Whose wishlist this browser holds. A guest's hearts carry no owner and are merged into
+ * the account on first sign-in; once merged they belong to that phone. Signing out, or a
+ * different phone signing in, drops them — otherwise the next account "merges" the
+ * previous customer's wishlist (and its price-drop follows) as if it were a guest's.
+ */
+const WISHLIST_OWNER_KEY = "storefront.wishlist.owner";
+
 const cartLinesEqual = (left = [], right = []) => {
   const a = normalizeCartCollection(left);
   const b = normalizeCartCollection(right);
@@ -10691,6 +10705,7 @@ function Storefront() {
   const cartSyncSaveTimerRef = useRef(null);
   const cartSyncConflictsRef = useRef(0);
   const cartRef = useRef(cart);
+  const wishlistRef = useRef(wishlist);
   const previousDocumentThemeRef = useRef(null);
   const [cartSyncReady, setCartSyncReady] = useState(false);
 
@@ -10734,7 +10749,20 @@ function Storefront() {
 
   useEffect(() => {
     writeStorefrontStorage(WISHLIST_KEY, wishlist);
+    wishlistRef.current = wishlist;
   }, [wishlist]);
+
+  // Declared before the sign-in sync below on purpose: both run in the same commit, and the
+  // sync must read the emptied ref, not the previous customer's list from its render closure.
+  useEffect(() => {
+    const owner = String(readStorefrontStorage(WISHLIST_OWNER_KEY, "") || "");
+    if (!owner) return;
+    if (customerAuth.token && String(customerAuth.phone || "") === owner) return;
+    wishlistRef.current = [];
+    writeStorefrontStorage(WISHLIST_KEY, []);
+    writeStorefrontStorage(WISHLIST_OWNER_KEY, "");
+    setWishlist([]);
+  }, [customerAuth.token, customerAuth.phone]);
 
   useEffect(() => {
     writeStorefrontStorage(RECENT_KEY, recent);
@@ -11042,7 +11070,7 @@ function Storefront() {
         const cartMarker = readCartSyncMarker(cartPhone);
         const backendWishlistIds = new Set(backendWishlist.map((item) => String(item.id)));
         const backendRecentIds = new Set(backendRecent.map((item) => String(item.id)));
-        const guestWishlist = normalizeWishlistCollection(wishlist);
+        const guestWishlist = normalizeWishlistCollection(wishlistRef.current);
         const guestRecent = (Array.isArray(recent) ? recent : []).map(normalizeStorefrontItem).filter((item) => item.id);
         // A browser joining the account for the first time has no base, so its guest
         // cart is added to the saved one; a browser that synced before merges only
@@ -11072,6 +11100,8 @@ function Storefront() {
         }));
         setCart(mergedCart);
         setWishlist(mergedWishlist);
+        // From here the list is this account's: a later sign-out or another phone clears it.
+        if (cartPhone) writeStorefrontStorage(WISHLIST_OWNER_KEY, cartPhone);
         setRecent(mergedRecent);
 
         const missingWishlistItems = guestWishlist.filter((item) => !backendWishlistIds.has(String(item.id)));
@@ -11677,7 +11707,13 @@ class StorefrontErrorBoundary extends Component {
 
   componentDidCatch(error) {
     console.error("[storefront] render error", error);
-    cleanupStorefrontStorage({ aggressive: true });
+    // A chunk that failed to load after a deploy is fixed by the reload alone; nothing
+    // stored in this browser caused it, so nothing stored is cleared.
+    if (isChunkLoadError(error)) {
+      recoverFromChunkLoadError(error);
+      return;
+    }
+    cleanupStorefrontStorage();
     recoverFromChunkLoadError(error);
   }
 

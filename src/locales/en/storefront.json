@@ -90,6 +90,7 @@
     "couponApplied": "Coupon applied",
     "couponAppliedSummary": "Coupon applied: {{code}} - {{discount}}",
     "couponNeedsApply": "Coupon entered. Apply it to calculate the discount.",
+    "couponTotalChanged": "Your discount was updated and the amount to transfer is now {{amount}}. Please review it, transfer that amount, upload the receipt and place the order again.",
     "couponErrors": {
       "invalid": "Invalid coupon code",
       "required": "Enter a coupon code first",
