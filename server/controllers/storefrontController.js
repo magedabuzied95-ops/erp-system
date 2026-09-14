@@ -3815,10 +3815,10 @@ const loadStorefrontProductSection = async (context) => {
 // quietly swapped for the last page's cards while still reporting the page that
 // was asked for, so /men?page=40 showed page 2 again under "937-30 of 30" and
 // an SEO section called that duplicate indexable.
-export const cutStorefrontProductsPage = (cards = [], offset = 0, limit = 24) => {
-  const list = Array.isArray(cards) ? cards : [];
-  const products = list.slice(offset, offset + limit);
-  return { products, outOfRange: !products.length && offset > 0 && offset >= list.length };
+export const cutStorefrontProductsPage = (sectionCards = [], offset = 0, limit = 24) => {
+  const cards = Array.isArray(sectionCards) ? sectionCards : [];
+  const products = cards.slice(offset, offset + limit);
+  return { products, outOfRange: !products.length && offset > 0 && offset >= cards.length };
 };
 
 export const listProducts = async (req, res) => {
