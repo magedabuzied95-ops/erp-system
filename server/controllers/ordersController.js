@@ -1422,9 +1422,13 @@ const decodePublicInvoiceIdentifier = (value) => {
   }
 };
 
+// The share link prefers the order's public_token: invoice numbers are `INV-<orders.id>`, so a
+// link built on one can be walked by counting. Number links already printed or sent keep working,
+// but only as a redacted invoice (see loadPublicInvoiceByToken).
 const publicInvoiceIdentifier = (invoice = {}) =>
   String(
-    invoice.invoice_number ||
+    invoice.public_token ||
+      invoice.invoice_number ||
       invoice.order_number ||
       invoice.invoice_code ||
       invoice.public_code ||
@@ -1460,6 +1464,13 @@ const buildShortPublicInvoiceUrl = (req, token) => {
 // same link, and a second copy of the Place ID is a second chance to point customers elsewhere.
 
 const normalizeInvoiceMoney = (value) => Number(Number(value || 0).toFixed(2));
+
+const maskInvoicePhone = (value = "") => {
+  const digits = String(value || "").replace(/D/g, "");
+  return digits.length > 3 ? `${"•".repeat(Math.max(4, digits.length - 3))}${digits.slice(-3)}` : "";
+};
+
+const firstInvoiceNameWord = (value = "") => String(value || "").trim().split(/s+/)[0] || "";
 
 const loadPublicInvoiceByToken = async (token, req = null) => {
   const requestedInvoice = decodePublicInvoiceIdentifier(token);
@@ -1690,7 +1701,19 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     .map((part) => String(part || "").trim())
     .filter(Boolean)
     .join("، ") || String(order.customer_address || "").trim();
-  const identifier = publicInvoiceIdentifier(order);
+  // Anything but the long random public_token is guessable (invoice numbers count up from 1), so
+  // such a lookup still shows the invoice — items, totals, payments — without who the customer is,
+  // where they live, the order's token or the receipt voucher. Anyone walking INV-1, INV-2, … used
+  // to read every customer's name, mobile and flat address.
+  const openedByToken = order.public_lookup_matched_by === "public_token";
+  if (!openedByToken) {
+    publicReceiptCoupon = null;
+  }
+  const shownCustomerName = openedByToken ? customerName : firstInvoiceNameWord(customerName);
+  const shownCustomerPhone = openedByToken ? customerPhone : maskInvoicePhone(customerPhone);
+  const shownCustomerAddress = openedByToken ? customerAddress : "";
+  const shownAddressPart = (value) => (openedByToken ? value || "" : "");
+  const identifier = publicInvoiceIdentifier(openedByToken ? order : { ...order, public_token: "" });
   const publicInvoiceUrl = buildPublicInvoiceUrl(req, identifier);
   const shortInvoiceUrl = buildShortPublicInvoiceUrl(req, identifier);
   const publicImageValue = (value) => {
@@ -1746,23 +1769,24 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
     invoice_code: order.invoice_code || "",
     public_code: order.public_code || "",
     code: order.code || "",
-    public_token: order.public_token,
+    public_token: openedByToken ? order.public_token : "",
+    customer_details_redacted: !openedByToken,
     public_invoice_url: publicInvoiceUrl,
     public_invoice_short_url: shortInvoiceUrl,
     short_invoice_url: shortInvoiceUrl,
     google_review_url: getGoogleReviewUrl(),
     created_at: order.created_at,
     order_date: order.created_at,
-    customer_name: customerName,
-    customer_phone: customerPhone,
-    customer_address: customerAddress,
+    customer_name: shownCustomerName,
+    customer_phone: shownCustomerPhone,
+    customer_address: shownCustomerAddress,
     governorate: order.governorate || "",
-    city_area: order.city_area || "",
-    street_address: order.street_address || "",
-    building_number: order.building_number || "",
-    floor_number: order.floor_number || "",
-    apartment_number: order.apartment_number || "",
-    landmark: order.landmark || "",
+    city_area: shownAddressPart(order.city_area),
+    street_address: shownAddressPart(order.street_address),
+    building_number: shownAddressPart(order.building_number),
+    floor_number: shownAddressPart(order.floor_number),
+    apartment_number: shownAddressPart(order.apartment_number),
+    landmark: shownAddressPart(order.landmark),
     shipping_cost: normalizeInvoiceMoney(order.shipping_cost),
     store: {
       name: process.env.STORE_NAME || process.env.APP_NAME || "ERP Store",
@@ -1777,9 +1801,9 @@ const loadPublicInvoiceByToken = async (token, req = null) => {
       branch_phone: order.branch_phone || "",
     },
     customer: {
-      name: customerName,
-      phone: customerPhone,
-      address: customerAddress,
+      name: shownCustomerName,
+      phone: shownCustomerPhone,
+      address: shownCustomerAddress,
     },
     items,
     totals: {

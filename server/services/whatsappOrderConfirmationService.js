@@ -734,7 +734,7 @@ const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", p
     confirmationLink: withLink ? publicUrl : "",
     order,
     items: order?.items || [],
-    invoiceUrl: order ? buildPublicInvoiceUrl(orderNumber(order)) : "",
+    invoiceUrl: order ? buildPublicInvoiceUrl(text(order.public_token) || orderNumber(order)) : "",
     withActions,
   });
 
@@ -803,7 +803,7 @@ export const orderConfirmationTemplateValues = (order = {}) => ({
   cod_amount: formatAmount(order?.total_amount ?? order?.total) || "0",
   items_summary: summariseItems(order?.items || []),
   address: addressLine(order),
-  invoice_url: buildPublicInvoiceUrl(orderNumber(order)),
+  invoice_url: buildPublicInvoiceUrl(text(order?.public_token) || orderNumber(order)),
 });
 
 export const sendOrderConfirmation = async (order = {}, options = {}) => {
@@ -1224,7 +1224,8 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
   const messageTenantId = tenantIdForMessage(current, current);
   const phone = normalizeEgyptPhone(current?.customer_phone || current?.phone || current?.whatsapp || current?.mobile);
   const invoiceNumber = text(current?.invoice_number);
-  const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(invoiceNumber) : "";
+  // The link opens on the order's random token; an invoice-number link shows no customer details.
+  const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(text(current?.public_token) || invoiceNumber) : "";
   const mode = text(options.mode || options.context).toLowerCase();
   const source = sourceOf(current);
   const isPosInvoice = mode === "pos" || source === "pos";

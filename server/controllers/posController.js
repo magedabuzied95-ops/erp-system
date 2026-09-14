@@ -16,6 +16,7 @@ import {
   ensurePaymentTransactionsSchema,
   getOrderStatus,
   normalizePaymobPaymentPayload,
+  normalizeSignedPaymobWebhookPayload,
   normalizePaymobError,
   verifyPaymobHmac,
 } from "../services/paymobPosService.js";
@@ -393,7 +394,11 @@ const recordPaymobEvent = async (client, transactionId, normalized, payload) => 
 };
 
 const findPaymobTransaction = async (client, normalized, explicitTransactionId = null, tenantId = null) => {
-  const localOrderId = numberOrNull(normalized.invoiceOrOrderId) || paymobMerchantOrderLocalId(normalized.merchantOrderId);
+  // A webhook carries no trusted local id: invoice_id / local_order_id sit outside the HMAC, so only
+  // the signed transaction id and Paymob order id match, with merchant_order_id as the fallback
+  // for an intention whose response never gave us a provider order id (checked below).
+  const signedWebhook = Boolean(normalized.signedWebhook);
+  const localOrderId = (signedWebhook ? null : numberOrNull(normalized.invoiceOrOrderId)) || paymobMerchantOrderLocalId(normalized.merchantOrderId);
   const params = [];
   const where = ["provider = 'paymob'"];
   if (explicitTransactionId) {
@@ -434,7 +439,19 @@ const findPaymobTransaction = async (client, normalized, explicitTransactionId =
     `,
     params
   );
-  return result.rows[0] || null;
+  const row = result.rows[0] || null;
+  if (row && signedWebhook) {
+    const signedOrderId = String(normalized.providerOrderId || "");
+    const signedReference = String(normalized.transactionReference || "");
+    const rowOrderId = String(row.provider_order_id || "");
+    const rowReference = String(row.transaction_reference || "");
+    const referenceMatches = Boolean(signedReference) && rowReference === signedReference;
+    // Picked through the unsigned merchant_order_id: it must still be the Paymob order that was
+    // signed, or a row that never learned its provider order id and has no other reference.
+    if (!referenceMatches && rowOrderId && rowOrderId !== signedOrderId) return null;
+    if (!referenceMatches && !rowOrderId && rowReference && rowReference !== signedReference) return null;
+  }
+  return row;
 };
 
 const applyPaymobConfirmation = async (client, normalized, options = {}) => {
@@ -2394,7 +2411,7 @@ export const receivePaymobWebhook = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid Paymob webhook signature" });
     }
 
-    const normalized = normalizePaymobPaymentPayload(req.body || {});
+    const normalized = normalizeSignedPaymobWebhookPayload(req.body || {});
     console.log("[paymob-pos-webhook]", {
       provider_order_id: normalized.providerOrderId || "",
       transaction_reference: normalized.transactionReference || "",

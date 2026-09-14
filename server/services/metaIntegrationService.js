@@ -19729,7 +19729,7 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   const goodsText = money(orderRow.subtotal);
   const shippingText = money(orderRow.shipping_cost);
   const totalText = money(orderRow.total_amount);
-  const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(invoiceNumber) : "";
+  const invoiceUrl = invoiceNumber ? buildPublicInvoiceUrl(text(orderRow.public_token || "") || invoiceNumber) : "";
   const successLines = ["✅ تم تأكيد طلبك بنجاح", ""];
   if (invoiceNumber) successLines.push(`🧾 رقم الفاتورة: ${invoiceNumber}`);
   if (goodsText) successLines.push(`👟 المنتج: ${goodsText} جنيه`);

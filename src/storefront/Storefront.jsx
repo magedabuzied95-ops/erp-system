@@ -8137,8 +8137,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
     let cancelled = false;
     let settled = false;
-    api
-      .get(`/storefront/customers/latest-shipping-address?${params.toString()}`)
+    // Saved addresses belong to a signed-in customer: the server answers a guest with none, so a
+    // typed phone number can never pull up a stranger's name and home address.
+    storefrontCustomerRequest(`/storefront/customers/latest-shipping-address?${params.toString()}`)
       .then((data) => {
         settled = true;
         if (cancelled) return;

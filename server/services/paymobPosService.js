@@ -256,6 +256,38 @@ export const normalizePaymobPaymentPayload = (payload = {}) => {
   };
 };
 
+// A webhook is trusted only as far as its HMAC reaches. verifyPaymobHmac signs a fixed field list on
+// `body.obj` (or the body itself), so this reads that same object and decides the status from the
+// signed flags alone. The general normalizer also honours txn_response_code / status / state and
+// top-level ids, none of them signed: copying a declined payment's signed fields and adding
+// `txn_response_code: "APPROVED"` used to confirm the order as paid.
+export const normalizeSignedPaymobWebhookPayload = (body = {}) => {
+  const obj = body.obj && typeof body.obj === "object" ? body.obj : body;
+  const normalized = normalizePaymobPaymentPayload({ obj });
+  const signedFlag = (field) => boolValue(valueAtPath(obj, field));
+  const success = signedFlag("success");
+  const pending = signedFlag("pending");
+  const errorOccured = signedFlag("error_occured");
+  const isVoided = signedFlag("is_voided");
+  const isRefunded = signedFlag("is_refunded");
+  let status = "failed";
+  if (success && !pending && !errorOccured && !isVoided && !isRefunded) status = "success";
+  else if (isVoided) status = "cancelled";
+  else if (errorOccured) status = "failed";
+  else if (pending || isRefunded) status = "pending";
+  return {
+    ...normalized,
+    status,
+    success,
+    pending,
+    isVoided,
+    isRefunded,
+    invoiceOrOrderId: undefined,
+    signedWebhook: true,
+    payload: body,
+  };
+};
+
 const extractTerminalTransactionReference = (payload = {}) => {
   const transaction = payload.transaction && typeof payload.transaction === "object" ? payload.transaction : null;
   const data = payload.data && typeof payload.data === "object" ? payload.data : null;

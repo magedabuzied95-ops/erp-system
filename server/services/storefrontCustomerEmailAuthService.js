@@ -169,6 +169,34 @@ const insertCustomerWithPassword = async (client, { tenantId, name, email, phone
   return result.rows[0] || null;
 };
 
+// Registration must never hand over an account the caller has not proven is theirs. A phone
+// that already belongs to a customer (or sits on any order) can only be linked with a token from
+// /auth/verify-otp for that same number; without one, anyone who knew a shopper's mobile could
+// overwrite their email and password and read their orders, addresses and wallet.
+const buildPhoneAlreadyRegisteredError = () => {
+  const error = new Error("PHONE_ALREADY_REGISTERED");
+  error.status = 409;
+  error.code = "PHONE_ALREADY_REGISTERED";
+  error.message = "رقم الموبايل ده عليه حساب بالفعل. ادخل بكود واتساب على نفس الرقم.";
+  return error;
+};
+
+const phoneHasOrders = async (clientOrPool, { tenantId, phone }) => {
+  const variants = getPhoneSearchVariants(normalizeRegisterPhone(phone));
+  if (!tenantId || !variants.length) return false;
+  const result = await clientOrPool.query(
+    `
+    SELECT 1
+    FROM orders
+    WHERE tenant_id = $1
+      AND ${phoneSqlDigits("customer_phone")} = ANY($2::text[])
+    LIMIT 1
+    `,
+    [tenantId, variants]
+  );
+  return result.rows.length > 0;
+};
+
 const buildEmailConflictError = () => {
   const error = new Error("EMAIL_ALREADY_EXISTS");
   error.status = 409;
@@ -197,7 +225,7 @@ const buildPasswordResetLink = (token) => {
   return baseUrl ? `${baseUrl}${resetPath}` : resetPath;
 };
 
-export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, name = "", email = "", phone = "", password = "" } = {}) => {
+export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, name = "", email = "", phone = "", password = "", otpVerifiedPhone = "" } = {}) => {
   await ensureCustomerEmailAuthSchema();
   const safeTenantId = Number(tenantId) || 0;
   const safeName = text(name).slice(0, 255);
@@ -217,6 +245,16 @@ export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, nam
     await client.query("BEGIN");
     const phoneCustomer = await resolveCustomerByPhone(client, { tenantId: safeTenantId, phone: safePhone });
     const emailCustomer = await resolveCustomerByEmail(client, { tenantId: safeTenantId, email: safeEmail });
+    const phoneProven = Boolean(otpVerifiedPhone) && normalizeRegisterPhone(otpVerifiedPhone) === safePhone;
+    if (!phoneProven && (phoneCustomer || await phoneHasOrders(client, { tenantId: safeTenantId, phone: safePhone }))) {
+      await client.query("ROLLBACK");
+      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_PHONE_NOT_PROVEN", {
+        tenant_id: safeTenantId,
+        phone_suffix: safePhone.slice(-4),
+        email_domain: safeEmailDomain(safeEmail),
+      });
+      throw buildPhoneAlreadyRegisteredError();
+    }
 
     if (emailCustomer && phoneCustomer && emailCustomer.id !== phoneCustomer.id) {
       await client.query("ROLLBACK");

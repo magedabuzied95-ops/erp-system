@@ -5724,7 +5724,11 @@ export const createWebsiteOrder = async (req, res) => {
       subtotal,
     });
     const deliveryFee = roundMoney(shippingQuote.price);
-    const manualDiscount = Math.max(0, toNumber(req.body?.discount || checkout.discount, 0));
+    // No caller may set a discount of its own: the public route is unauthenticated, and both the
+    // storefront and the till's online-order modal send 0. A client `discount` was once subtracted
+    // from the total as-is, so a replayed request with `discount: 99999` shipped goods for the fee.
+    // Coupons and bundles below are the only discounts, each recomputed here from the database.
+    const manualDiscount = 0;
     const couponCode = toText(checkout.coupon_code || checkout.coupon || req.body?.coupon_code || req.body?.coupon || "").trim().toUpperCase();
     // Coupon base = goods only; shipping is folded in by validateCoupon only when the campaign opts in.
     // A bundle discount is taken off first and counts as an applied discount, so a

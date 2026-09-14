@@ -5205,7 +5205,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, inboxR
       }).catch((error) => console.warn("[ai-inbox] saving the address failed", { message: error?.message }));
 
       const finalOrder = confirmed?.order || draft.order;
-      const invoiceUrl = buildPublicInvoiceUrl(finalOrder?.invoice_number || "");
+      const invoiceUrl = buildPublicInvoiceUrl(finalOrder?.public_token || finalOrder?.invoice_number || "");
       console.log("ai_inbox_composer_order", {
         tenant_id: tenantId,
         conversation_id: conversation.session_id,

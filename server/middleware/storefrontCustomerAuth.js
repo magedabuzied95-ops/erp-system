@@ -9,6 +9,21 @@ const getBearerToken = (req = {}) => {
 
 export const hasStorefrontCustomerToken = (req = {}) => Boolean(getBearerToken(req));
 
+// The phone this request has proven it owns, or "". Only the token /auth/verify-otp signs counts:
+// it carries no auth_method. An email/password token also carries a phone, but that phone was
+// typed at registration and never checked, so it proves nothing.
+export const readOtpVerifiedStorefrontPhone = (req = {}) => {
+  const token = getBearerToken(req);
+  if (!token) return "";
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "SECRET_KEY");
+    if (!decoded || decoded.type !== "storefront_customer" || decoded.auth_method) return "";
+    return String(decoded.phone || "").trim();
+  } catch {
+    return "";
+  }
+};
+
 export const requireStorefrontCustomerAuth = async (req, res, next) => {
   try {
     const token = getBearerToken(req);

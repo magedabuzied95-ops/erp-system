@@ -53,7 +53,7 @@ import {
   setStorefrontCustomerCookie,
 } from "../services/storefrontCustomerSessionService.js";
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
-import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
+import { hasStorefrontCustomerToken, readOtpVerifiedStorefrontPhone, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { createIntent as createRestockIntent, listIntents as listRestockIntents, cancelIntent as cancelRestockIntent } from "../services/restockIntentService.js";
 import { listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
 import { normalizePhone } from "../utils/phoneSearch.js";
@@ -513,6 +513,7 @@ router.post("/auth/register", async (req, res) => {
       email: req.body?.email || "",
       phone: req.body?.phone || req.body?.mobile || "",
       password: req.body?.password || "",
+      otpVerifiedPhone: readOtpVerifiedStorefrontPhone(req),
     });
     return res.status(201).json({
       success: true,
@@ -703,14 +704,20 @@ router.get("/customer/preferences", ...storefrontCustomerAuthRequired, async (re
 router.put("/customer/preferences", ...storefrontCustomerAuthRequired, async (req, res, next) => updateStorefrontCustomerPreferences(req, res, next));
 router.get("/customer/cart", ...storefrontCustomerAuthRequired, async (req, res, next) => getStorefrontCustomerCart(req, res, next));
 router.put("/customer/cart", ...storefrontCustomerAuthRequired, async (req, res, next) => updateStorefrontCustomerCart(req, res, next));
+// Saved addresses carry a name, a phone and a flat number, so only the signed-in owner gets them.
+// A guest (no token) is answered with none: the lookup used to take ?phone= / ?email= from the
+// query string, which let anyone type a stranger's number and read where they live.
 router.get("/customers/latest-shipping-address", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
-  const resolvedPhone = resolveStorefrontCustomerPhone(req);
+  if (!jwtPhone) {
+    logProtectedCustomerEndpoint(req, "");
+    return res.json({ success: true, address: null, addresses: [] });
+  }
   if (req.query && typeof req.query === "object") {
-    req.query.phone = jwtPhone || resolvedPhone;
-    req.query.primary_phone = jwtPhone || resolvedPhone;
-    req.query.email = jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || "");
-    req.query.customer_email = jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || "");
+    req.query.phone = jwtPhone;
+    req.query.primary_phone = jwtPhone;
+    req.query.email = "";
+    req.query.customer_email = "";
   }
   logProtectedCustomerEndpoint(req, jwtPhone);
   return latestShippingAddress(req, res, next);

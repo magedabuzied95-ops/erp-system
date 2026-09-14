@@ -60,7 +60,10 @@ test("the public invoice projection carries shipping, phone and address", () => 
   assert.match(projection, /const customerPhone = order\.customer_record_phone \|\| order\.customer_phone/);
   // The registered record is the identity, the order's copy is the fallback.
   assert.match(projection, /const customerName = order\.customer_record_name \|\| order\.order_customer_name/);
-  assert.match(projection, /address: customerAddress,/);
+  // Opened by its token the invoice shows the full address; opened by a guessable number it is
+  // redacted (tests/storefront-critical-audit-fixes.test.js).
+  assert.match(projection, /const shownCustomerAddress = openedByToken \? customerAddress : "";/);
+  assert.match(projection, /address: shownCustomerAddress,/);
   for (const part of ["street_address", "building_number", "floor_number", "apartment_number", "landmark", "city_area", "governorate"]) {
     assert.match(projection, new RegExp(`order\\.${part}`), `address part missing from the invoice: ${part}`);
   }
