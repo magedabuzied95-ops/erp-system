@@ -47,6 +47,7 @@ import { getWebsiteSettings } from "../services/liveActivityService.js";
 import { getSetting } from "../services/settingsService.js";
 import {
   createOrRestoreStorefrontCustomerSession,
+  createStorefrontCustomerSessionRateLimit,
   getStorefrontCustomerSession,
   readStorefrontCustomerToken,
   restoreStorefrontCustomerCart,
@@ -133,22 +134,8 @@ const visualUpload = (req, res, next) => {
   });
 };
 
-const customerSessionBuckets = new Map();
-const customerSessionRateLimit = (req, res, next) => {
-  const key = `${req.ip || req.socket?.remoteAddress || "unknown"}:${req.headers?.["x-tenant-id"] || req.body?.tenant_id || req.query?.tenant_id || "1"}`;
-  const now = Date.now();
-  const windowMs = 60_000;
-  const maxAttempts = 8;
-  const bucket = customerSessionBuckets.get(key) || [];
-  const recent = bucket.filter((time) => now - time < windowMs);
-  if (recent.length >= maxAttempts) {
-    customerSessionBuckets.set(key, recent);
-    return res.status(429).json({ success: false, message: "محاولات كثيرة. جرّب بعد دقيقة." });
-  }
-  recent.push(now);
-  customerSessionBuckets.set(key, recent);
-  next();
-};
+// publicTenantId is declared further down; the limiter only calls it per request, after load.
+const customerSessionRateLimit = createStorefrontCustomerSessionRateLimit({ tenantIdOf: (req) => publicTenantId(req) });
 
 const storefrontCustomerTransitionAuth = (req, res, next) => {
   if (!hasStorefrontCustomerToken(req)) {
@@ -404,8 +391,10 @@ router.post("/customer/session", customerSessionRateLimit, async (req, res) => {
       cartItems: Array.isArray(req.body?.cart_items) ? req.body.cart_items : [],
       wishlistItems: Array.isArray(req.body?.wishlist_items) ? req.body.wishlist_items : [],
       req,
+      otpVerifiedPhone: readOtpVerifiedStorefrontPhone(req),
     });
-    setStorefrontCustomerCookie(res, payload.token, req);
+    // Only a caller who proved the phone gets a session; anyone else just gets their own cart back.
+    if (payload.token) setStorefrontCustomerCookie(res, payload.token, req);
     return res.json({ success: true, ...payload });
   } catch (error) {
     const status = error.status || 500;

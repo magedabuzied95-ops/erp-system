@@ -157,14 +157,56 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
 };
 
 const tokenHash = (token = "") => crypto.createHash("sha256").update(String(token)).digest("hex");
-const createToken = () => crypto.randomBytes(TOKEN_BYTES).toString("base64url");
+// Until 2026-09-14 anyone who typed a phone got a session for that customer. Those cookies live
+// 180 days, so tokens issued since then carry a prefix (base64url never contains a dot) and a token
+// without it is treated as no token at all.
+const SESSION_TOKEN_PREFIX = "v2.";
+const createToken = () => `${SESSION_TOKEN_PREFIX}${crypto.randomBytes(TOKEN_BYTES).toString("base64url")}`;
+export const isCurrentStorefrontSessionToken = (token = "") => toText(token).startsWith(SESSION_TOKEN_PREFIX);
 
 export const readStorefrontCustomerToken = (req = {}) => {
   const headerToken = toText(req.headers?.["x-storefront-customer-token"]);
-  if (headerToken) return headerToken;
   const cookie = toText(req.headers?.cookie);
   const match = cookie.match(/(?:^|;\s*)sf_customer_session=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : "";
+  let token = headerToken;
+  if (!token && match) {
+    try {
+      token = decodeURIComponent(match[1]);
+    } catch {
+      token = "";
+    }
+  }
+  return isCurrentStorefrontSessionToken(token) ? token : "";
+};
+
+// Per tenant + IP, on the parsed tenant id so "1", "01" and "001" share one bucket. Buckets that
+// have gone quiet are swept once a window, otherwise every address ever seen stays in memory.
+export const createStorefrontCustomerSessionRateLimit = ({
+  tenantIdOf = () => 1,
+  windowMs = 60_000,
+  maxAttempts = 8,
+  now = Date.now,
+  buckets = new Map(),
+} = {}) => {
+  let lastSweepAt = now();
+  return (req, res, next) => {
+    const at = now();
+    if (at - lastSweepAt >= windowMs) {
+      for (const [key, times] of buckets) {
+        if (!times.length || at - times[times.length - 1] >= windowMs) buckets.delete(key);
+      }
+      lastSweepAt = at;
+    }
+    const key = `${tenantIdOf(req)}:${req.ip || req.socket?.remoteAddress || "unknown"}`;
+    const recent = (buckets.get(key) || []).filter((time) => at - time < windowMs);
+    if (recent.length >= maxAttempts) {
+      buckets.set(key, recent);
+      return res.status(429).json({ success: false, message: "محاولات كثيرة. جرّب بعد دقيقة." });
+    }
+    recent.push(at);
+    buckets.set(key, recent);
+    return next();
+  };
 };
 
 export const setStorefrontCustomerCookie = (res, token, req = {}) => {
@@ -461,18 +503,45 @@ const latestCustomerSession = async (client, { tenantId, customerId }) => {
   return result.rows[0] || null;
 };
 
-export const createOrRestoreStorefrontCustomerSession = async ({ tenantId, name, phone, cartItems = [], wishlistItems = [], req = {} }) => {
-  if (!isValidEgyptianMobile(phone)) {
+export const createOrRestoreStorefrontCustomerSession = async ({
+  tenantId,
+  name,
+  phone,
+  cartItems = [],
+  wishlistItems = [],
+  req = {},
+  otpVerifiedPhone = "",
+  pool = db,
+}) => {
+  const typedPhone = toText(phone) || toText(otpVerifiedPhone);
+  if (!isValidEgyptianMobile(typedPhone)) {
     const error = new Error("INVALID_PHONE");
     error.status = 400;
     throw error;
   }
 
-  const client = await db.connect();
+  // A typed phone proves nothing. Without an /auth/verify-otp token for this same number the
+  // caller gets back only what they sent: no customer row is found, renamed or created, no earlier
+  // session is merged in, and no cookie is issued. The answer is identical whether the phone
+  // belongs to a customer or not, so it cannot be used to discover who shops here either.
+  const phoneProven = Boolean(otpVerifiedPhone) && normalizeEgyptianMobile(otpVerifiedPhone) === normalizeEgyptianMobile(typedPhone);
+  if (!phoneProven) {
+    return {
+      token: "",
+      identified: false,
+      verification_required: true,
+      customer: null,
+      cart_items: mergeCartItems([], cartItems),
+      wishlist_items: mergeWishlistItems([], wishlistItems),
+      created: false,
+    };
+  }
+
+  const client = await pool.connect();
   try {
     await client.query("BEGIN");
     await ensureStorefrontCustomerSessionSchema(client);
-    const { customer, created } = await resolveOrCreateStorefrontCustomer(client, { tenantId, name, phone });
+    const { customer, created } = await resolveOrCreateStorefrontCustomer(client, { tenantId, name, phone: typedPhone });
     await ensureCustomerLoyaltyAccount(client, { tenantId, customerId: customer.id }).catch(() => {});
     const token = createToken();
     const previousSession = created ? null : await latestCustomerSession(client, { tenantId, customerId: customer.id });
@@ -486,9 +555,10 @@ export const createOrRestoreStorefrontCustomerSession = async ({ tenantId, name,
       metadata: { source: "storefront_customer_capture", cart_count: Array.isArray(cartItems) ? cartItems.length : 0, at: nowIso() },
     });
     await client.query("COMMIT");
-    const loyalty = await getCustomerLoyaltySummary(customer.id, tenantId).catch(() => null);
+    const loyalty = await getCustomerLoyaltySummary(client, customer.id, tenantId).catch(() => null);
     return {
       token,
+      identified: true,
       customer: publicCustomer(customer, loyalty),
       cart_items: session.cart_items || [],
       wishlist_items: session.wishlist_items || [],
@@ -515,7 +585,7 @@ export const createOrRestoreStorefrontCustomerSession = async ({ tenantId, name,
 };
 
 export const getStorefrontCustomerSession = async ({ tenantId, token }) => {
-  if (!token) return null;
+  if (!isCurrentStorefrontSessionToken(token)) return null;
   await ensureStorefrontCustomerSessionSchema();
   const result = await db.query(
     `
@@ -561,7 +631,7 @@ export const getStorefrontCustomerSession = async ({ tenantId, token }) => {
     `,
     [row.customer_id]
   );
-  const loyalty = await getCustomerLoyaltySummary(row.customer_id, tenantId).catch(() => null);
+  const loyalty = await getCustomerLoyaltySummary(db, row.customer_id, tenantId).catch(() => null);
   return {
     customer: publicCustomer(row, loyalty),
     cart_items: row.cart_items || [],
@@ -571,7 +641,7 @@ export const getStorefrontCustomerSession = async ({ tenantId, token }) => {
 };
 
 export const restoreStorefrontCustomerCart = async ({ tenantId, token, cartItems = [], wishlistItems = [] }) => {
-  if (!token) return null;
+  if (!isCurrentStorefrontSessionToken(token)) return null;
   const client = await db.connect();
   try {
     await client.query("BEGIN");
