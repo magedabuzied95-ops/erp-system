@@ -875,29 +875,87 @@
   },
   "faq": {
     "title": "FAQ",
-    "deliveryTime": {
-      "question": "Delivery time?",
-      "answer": "Usually 4 to 5 business days."
+    "lead": "Quick answers about ordering, shipping, payment, returns and sizes.",
+    "searchPlaceholder": "Search for your question...",
+    "noResults": "No question matches that. Try another word or message us on WhatsApp.",
+    "readReturnsPolicy": "Read the returns policy",
+    "groups": {
+      "orders": "Ordering",
+      "shipping": "Shipping & delivery",
+      "payment": "Payment",
+      "returns": "Returns & exchanges",
+      "sizes": "Sizes",
+      "account": "Account"
     },
-    "paymentMethods": {
-      "question": "Payment methods?",
-      "answer": "Cash on delivery is available, and electronic payment support is ready to add."
-    },
-    "exchangeReturns": {
-      "question": "Exchange and return?",
-      "answer": "Available within 14 days under the policy conditions."
-    },
-    "sizeHelp": {
-      "question": "Size help?",
-      "answer": "Use the size guide or contact us on WhatsApp."
-    },
-    "trackOrder": {
-      "question": "Track order?",
-      "answer": "Use the tracking page with order number and phone."
-    },
-    "shippingProviders": {
-      "question": "Shipping providers?",
-      "answer": "The system is ready for Bosta, Mylerz, Aramex, and manual delivery."
+    "items": {
+      "howToOrder": {
+        "q": "How do I order?",
+        "a": "Pick the product, colour and size and add it to your cart, then enter your details and address at checkout and confirm the order."
+      },
+      "confirmation": {
+        "q": "How do I know my order went through?",
+        "a": "Once you confirm, a page shows your order number and a confirmation with the details reaches you on WhatsApp."
+      },
+      "trackOrder": {
+        "q": "How do I track my order?",
+        "a": "On the order tracking page, enter your order number and the mobile number you ordered with. With an account, all your orders are on My account."
+      },
+      "changeOrder": {
+        "q": "Can I change or cancel my order?",
+        "a": "Message us on WhatsApp as soon as you can, before the order ships, and we will help you change or cancel it."
+      },
+      "deliveryTime": {
+        "q": "How long does delivery take?",
+        "a": "Usually 4 to 5 business days. Checkout shows the expected arrival date for your address."
+      },
+      "shippingCost": {
+        "q": "How much is shipping?",
+        "a": "Shipping depends on your governorate and is shown at checkout before you confirm. Any free-shipping offer shows in your cart."
+      },
+      "courier": {
+        "q": "Who delivers my order?",
+        "a": "We ship with Bosta. The tracking number appears on the order tracking page as soon as the courier picks up the parcel."
+      },
+      "paymentMethods": {
+        "q": "How can I pay?",
+        "a": "Cash on delivery is available. Other methods such as card or transfer appear at checkout when they are available."
+      },
+      "returnWindow": {
+        "q": "Can I exchange or return a product?",
+        "a": "Yes, within {{days}} days of delivery, as long as the product is in its original condition with its box and the invoice or order number."
+      },
+      "returnShipping": {
+        "q": "Who pays for exchange shipping?",
+        "a": "If the size or choice did not suit you, you cover shipping both ways. If the mistake was ours (a different size or product, or a manufacturing defect), we cover all shipping."
+      },
+      "startExchange": {
+        "q": "How do I request an exchange?",
+        "a": "Send us your order number and the reason on WhatsApp and we will arrange the pickup and the replacement."
+      },
+      "refund": {
+        "q": "When do I get my money back?",
+        "a": "Once the product reaches us, passes inspection and the return is approved. How long it takes depends on how you paid."
+      },
+      "findSize": {
+        "q": "How do I find my size?",
+        "a": "Tap Size guide on any product page: it lists only that model's sizes, and if you enter your foot length in cm we suggest a size."
+      },
+      "betweenSizes": {
+        "q": "What if I am between two sizes?",
+        "a": "Take the larger size, especially if your foot is wide. If you are unsure, message us on WhatsApp."
+      },
+      "crocsSizes": {
+        "q": "How are Crocs sizes written?",
+        "a": "Crocs use the factory size, like M9/W11. The size guide on the product page shows the EU size each one matches."
+      },
+      "needAccount": {
+        "q": "Do I need an account to order?",
+        "a": "No, you can order without one. An account lets you track and reorder your orders and keeps your wishlist on every device."
+      },
+      "signIn": {
+        "q": "How do I sign in?",
+        "a": "With your email and password, or with your mobile number and a code sent to you on WhatsApp."
+      }
     }
   },
   "recent": {
@@ -947,6 +1005,18 @@
       "title": "Exchanges and returns",
       "footer": "This section sets out the store's approved exchange and return conditions, so the process is clear and both the customer's and the store's rights are protected.",
       "durationText": "Exchanges or returns can be requested within {{days}} days of delivery."
+    },
+    "helpTitle": "Want to exchange or return?",
+    "helpText": "Send us your order number and the reason on WhatsApp and we will arrange the rest.",
+    "facts": {
+      "daysTitle": "{{days}} days",
+      "daysText": "from the day you receive your order",
+      "storeErrorTitle": "Our mistake? We pay shipping",
+      "storeErrorText": "A different size or product, or a manufacturing defect",
+      "changeTitle": "Changed your mind?",
+      "changeText": "You cover shipping both ways",
+      "inspectionTitle": "We inspect the product",
+      "inspectionText": "before approving the exchange or return"
     }
   },
   "reviews": {
@@ -1369,5 +1439,16 @@
       "availability": "Availability",
       "description": "Description & material"
     }
+  },
+  "policies": {
+    "faq": "FAQ",
+    "returns": "Returns & exchanges",
+    "privacy": "Privacy policy",
+    "terms": "Terms & conditions",
+    "navLabel": "Help and policies",
+    "contents": "On this page",
+    "helpTitle": "Still have a question?",
+    "helpText": "Our team answers on WhatsApp and can help with anything about your order.",
+    "whatsapp": "Message us on WhatsApp"
   }
 }

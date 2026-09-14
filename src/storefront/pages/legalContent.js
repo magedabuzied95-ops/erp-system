@@ -669,6 +669,10 @@ export const legalUiStrings = {
     dataDeletion: "حذف البيانات",
     languageSwitchLabel: "English",
     lastUpdatedLabel: "آخر تحديث:",
+    faq: "الأسئلة الشائعة",
+    returns: "الاستبدال والاسترجاع",
+    contents: "في الصفحة دي",
+    navLabel: "المساعدة والسياسات",
   },
   en: {
     backToShop: "Back to the store",
@@ -683,6 +687,10 @@ export const legalUiStrings = {
     dataDeletion: "Data Deletion",
     languageSwitchLabel: "العربية",
     lastUpdatedLabel: "Last updated:",
+    faq: "FAQ",
+    returns: "Returns & exchanges",
+    contents: "On this page",
+    navLabel: "Help and policies",
   },
 };
 
