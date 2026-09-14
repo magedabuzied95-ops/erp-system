@@ -25,7 +25,7 @@ import { logEmployeePushVapidCheck } from "./services/employeePortalPushService.
 import { loadEmployeePortalByToken } from "./services/employeePayrollPortalService.js";
 import { loadManagerPortalByToken } from "./services/managerPortalService.js";
 import { getEvolutionInstanceEventsDebug, syncEvolutionWebhookOnStartup } from "./services/evolutionWebhookSyncService.js";
-import { isStaffSessionToken, protect } from "./middleware/authMiddleware.js";
+import { isStaffSessionToken, protect, requireAdmin } from "./middleware/authMiddleware.js";
 import permit from "./middleware/permissionMiddleware.js";
 import { listRecentDisplayRefillAlerts } from "./services/displayRefillAlertService.js";
 import { ensureUsersLoginSchema } from "./controllers/authController.js";
@@ -910,6 +910,18 @@ app.use((req, res, next) => {
 
 app.get("/api/meta/webhook", handleMetaWebhookVerification);
 app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
+
+// Every /api/debug/* route answered anonymous callers: customer conversations,
+// raw webhook payloads, Graph-budget spending, DDL. One gate here covers the
+// inline routes below and the routers mounted later. Three paths keep their own
+// rules: /pwa only echoes the caller's query, /whatsapp checks a debug_key in
+// production, and /display-refill-alerts is a staff feature with its own permit.
+const DEBUG_PATHS_WITH_OWN_GATE = ["/pwa", "/whatsapp/", "/display-refill-alerts"];
+app.use("/api/debug", (req, res, next) => {
+  if (DEBUG_PATHS_WITH_OWN_GATE.some((prefix) => req.path === prefix || req.path.startsWith(prefix))) return next();
+  return protect(req, res, () => requireAdmin(req, res, next));
+});
+
 app.get("/api/debug/meta-webhook-health", async (req, res) => {
   try {
     const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;

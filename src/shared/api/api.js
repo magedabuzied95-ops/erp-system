@@ -18,7 +18,6 @@ const isProtectedRequest = (endpoint = "") => {
   const path = String(endpoint || "");
   return ![
     "/auth/login",
-    "/auth/register",
     "/health",
     "/api/health",
   ].some((publicPath) => path === publicPath || path.startsWith(`${publicPath}?`));

@@ -1564,7 +1564,10 @@ const handleAISuggestedReplies = async (req, res) => {
 router.post("/suggested-replies", protect, inboxView(), handleAISuggestedReplies);
 router.post("/sugested-replies", protect, inboxView(), handleAISuggestedReplies);
 
-router.post("/orders/draft", async (req, res) => {
+// Both routes create or confirm real orders from the body (product, variant,
+// unit price), so they need the same signed-in inbox agent as the composer's
+// create-draft-order. Without the gate anyone could post an order at any price.
+router.post("/orders/draft", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const result = await createAiOrderDraft({ ...req.body, tenant_id: tenantId });
@@ -1574,7 +1577,7 @@ router.post("/orders/draft", async (req, res) => {
   }
 });
 
-router.post("/orders/confirm", async (req, res) => {
+router.post("/orders/confirm", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const result = await confirmAiOrder({ ...req.body, tenant_id: tenantId, user_id: req.user?.id || null });
