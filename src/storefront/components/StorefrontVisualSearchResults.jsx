@@ -80,21 +80,21 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
           <span className="sf-visual-card-name">{safeProduct?.name}</span>
           <span className="sf-visual-card-meta">{meta}</span>
           <span className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-sm font-black text-stone-950 dark:text-white">{money(activePrice)}</span>
-            {comparePrice ? <span className="text-[11px] font-bold text-stone-400 line-through">{money(comparePrice)}</span> : null}
+            <span className="text-sm font-bold tabular-nums" style={{ color: "var(--m1h-text)" }}>{money(activePrice)}</span>
+            {comparePrice ? <span className="text-xs font-medium tabular-nums line-through" style={{ color: "var(--m1h-text-3)" }}>{money(comparePrice)}</span> : null}
           </span>
-          <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-black ${isAvailable ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-200" : "bg-rose-50 text-rose-700 dark:bg-rose-400/10 dark:text-rose-200"}`}>
+          <span className={`mt-2 sfx-badge ${isAvailable ? "sfx-badge--success" : "sfx-badge--danger"}`}>
             {isAvailable ? t("storefront.products.availableNow", "متاح الآن") : t("storefront.products.unavailable", "غير متاح")}
           </span>
         </span>
       </button>
       <div className="sf-visual-actions">
-        <button type="button" onClick={viewProduct} className="sf-visual-action-primary">{t("storefront.products.viewProduct", "عرض المنتج")}</button>
-        <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft">{t("storefront.cart.addToCart", "إضافة إلى السلة")}</button>
-        <button type="button" onClick={(event) => { event.stopPropagation(); setShowSizes((value) => !value); }} className="sf-visual-action-soft">{t("storefront.products.sizes", "المقاسات")}</button>
+        <button type="button" onClick={viewProduct} className="sf-visual-action-primary sfx-btn sfx-btn--primary sfx-btn--sm">{t("storefront.products.viewProduct", "عرض المنتج")}</button>
+        <button type="button" onClick={quickAdd} disabled={!isAvailable} className="sf-visual-action-soft sfx-btn sfx-btn--secondary sfx-btn--sm">{t("storefront.cart.addToCart", "إضافة إلى السلة")}</button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); setShowSizes((value) => !value); }} className="sf-visual-action-soft sfx-btn sfx-btn--secondary sfx-btn--sm">{t("storefront.products.sizes", "المقاسات")}</button>
       </div>
       {showSizes ? (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 px-3 pb-3">
           {(variants.length ? variants : [variant]).filter(Boolean).map((item) => {
             const selected = String(item.id) === String(variant?.id);
             const size = item.size || item.size_label || t("storefront.products.oneSize", "مقاس واحد");
@@ -108,7 +108,8 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
                   event.stopPropagation();
                   setSelectedVariantId(item.id || "");
                 }}
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] text-[#d4af37]" : "border-stone-200 bg-white text-stone-700 hover:border-[#d4af37]/50 dark:border-white/10 dark:bg-white/8 dark:text-stone-200"}`}
+                aria-pressed={selected}
+                className={`sfx-chip disabled:cursor-not-allowed disabled:opacity-40${selected ? " is-active" : ""}`}
               >
                 {size}
               </button>
@@ -124,19 +125,19 @@ function VisualSearchSkeleton() {
   return (
     <div className="sf-visual-card-list">
       {[0, 1].map((item) => (
-        <div key={item} className="sf-visual-card animate-pulse">
+        <div key={item} className="sf-visual-card">
           <div className="sf-visual-card-main">
-            <div className="h-24 w-24 shrink-0 rounded-2xl bg-stone-200/80 dark:bg-white/10" />
+            <div className="sfx-skel h-24 w-24 shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="h-4 w-4/5 rounded-full bg-stone-200 dark:bg-white/10" />
-              <div className="mt-3 h-3 w-3/5 rounded-full bg-stone-200 dark:bg-white/10" />
-              <div className="mt-4 h-4 w-24 rounded-full bg-stone-200 dark:bg-white/10" />
+              <div className="sfx-skel h-4 w-4/5" style={{ borderRadius: "var(--m1h-r-pill)" }} />
+              <div className="sfx-skel mt-3 h-3 w-3/5" style={{ borderRadius: "var(--m1h-r-pill)" }} />
+              <div className="sfx-skel mt-4 h-4 w-24" style={{ borderRadius: "var(--m1h-r-pill)" }} />
             </div>
           </div>
           <div className="sf-visual-actions">
-            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
-            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
-            <div className="h-9 rounded-full bg-stone-200 dark:bg-white/10" />
+            <div className="sfx-skel h-9" style={{ borderRadius: "var(--m1h-r-pill)" }} />
+            <div className="sfx-skel h-9" style={{ borderRadius: "var(--m1h-r-pill)" }} />
+            <div className="sfx-skel h-9" style={{ borderRadius: "var(--m1h-r-pill)" }} />
           </div>
         </div>
       ))}
@@ -148,16 +149,16 @@ function VisualSearchEmpty({ message, keywords, onPickTerm }) {
   const { t } = useTranslation();
   return (
     <div className="sf-visual-empty">
-      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] text-[#d4af37] shadow-[0_14px_34px_rgba(212,175,55,0.16)]">
+      <div className="grid h-14 w-14 shrink-0 place-items-center" style={{ borderRadius: "var(--m1h-r-lg)", background: "var(--m1h-accent-soft)", color: "var(--m1h-accent)" }}>
         <PackageSearch className="h-6 w-6" />
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black text-stone-50">{t("storefront.visualSearch.noSimilarProduct", "لم يتم العثور على منتج مشابه")}</div>
-        <div className="mt-1 text-xs font-bold leading-5 text-stone-400">{message || t("storefront.visualSearch.emptyHint", "جرّب صورة أوضح أو استخدم الكلمات المقترحة.")}</div>
+        <div className="text-sm font-semibold" style={{ color: "var(--m1h-text)" }}>{t("storefront.visualSearch.noSimilarProduct", "لم يتم العثور على منتج مشابه")}</div>
+        <div className="mt-1 text-xs leading-5" style={{ color: "var(--m1h-text-2)" }}>{message || t("storefront.visualSearch.emptyHint", "جرّب صورة أوضح أو استخدم الكلمات المقترحة.")}</div>
         {keywords.length ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {keywords.map((keyword) => (
-              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1.5 text-xs font-black text-stone-200 transition hover:border-[#d4af37]/40 hover:bg-[rgba(212,175,55,0.18)] hover:text-white active:scale-95">
+              <button key={keyword} type="button" onClick={() => onPickTerm(keyword)} className="sfx-chip">
                 {keyword}
               </button>
             ))}
@@ -183,12 +184,12 @@ export default function StorefrontVisualSearchResults({ products = [], loading, 
 
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h3 className="text-sm font-black text-stone-950 dark:text-white">{t("storefront.visualSearch.similarProducts", "منتجات مشابهة")}</h3>
-          <p className="mt-0.5 truncate text-[11px] font-bold text-stone-500 dark:text-stone-400">
+          <h3 className="text-sm font-semibold" style={{ color: "var(--m1h-text)" }}>{t("storefront.visualSearch.similarProducts", "منتجات مشابهة")}</h3>
+          <p className="mt-0.5 truncate text-xs" style={{ color: "var(--m1h-text-3)" }}>
             {loading ? t("storefront.visualSearch.analyzing", "جاري تحليل الصورة والبحث عن أقرب المنتجات...") : visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.resultsFromImage", "نتائج مبنية على الصورة المرفوعة")}
           </p>
         </div>
-        <span className="shrink-0 rounded-full border border-stone-200 bg-stone-950 px-3 py-1 text-[11px] font-black text-white shadow-sm dark:border-white/10 dark:bg-white dark:text-stone-950">
+        <span className="sfx-badge sfx-badge--ink shrink-0">
           {t("storefront.search.resultCount", "{{count}} result", { count: countLabel })}
         </span>
       </div>

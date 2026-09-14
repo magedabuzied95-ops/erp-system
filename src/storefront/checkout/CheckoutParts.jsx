@@ -4,7 +4,8 @@
  * Pure presentation: every value and handler comes from CheckoutPage in
  * ../Storefront.jsx, which still owns the form state, the Bosta cascade, the
  * saved-address restore, coupons, payment modes and the order request. Styles
- * live in ./checkout.css and read only homepage tokens.
+ * live in ./checkout.css and read only homepage tokens; headings and the order
+ * button also carry the site primitives (sfx-h2, sfx-btn) from ../site-skin.css.
  */
 
 import { memo, useDeferredValue, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -20,7 +21,7 @@ export function CheckoutBlock({ id, title, note, action = null, children }) {
   return (
     <section className="sfc-section" id={id} aria-labelledby={id ? `${id}-title` : undefined}>
       <div className="sfc-section__head">
-        <h2 className="sfc-h2" id={id ? `${id}-title` : undefined}>{title}</h2>
+        <h2 className="sfc-h2 sfx-h2" id={id ? `${id}-title` : undefined}>{title}</h2>
         {action}
       </div>
       {note ? <p className="sfc-note">{note}</p> : null}
@@ -250,7 +251,7 @@ export const CheckoutLocationSelect = memo(function CheckoutLocationSelect({
             <div className="sfc-sheet-backdrop" role="presentation" onClick={() => setOpen(false)}>
               <section className="sfc-sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(event) => event.stopPropagation()} dir={document.documentElement.dir || undefined}>
                 <div className="sfc-sheet__head">
-                  <span>{label}</span>
+                  <span className="sfx-drawer__title">{label}</span>
                   <button type="button" className="sfc-icon-btn" onClick={() => setOpen(false)} aria-label={closeLabel}>
                     <X size={16} />
                   </button>
@@ -294,7 +295,7 @@ export function CheckoutChoice({ active, onSelect, title, subtitle, meta = null,
 
 export function CheckoutSubmit({ submitting, disabled, label, busyLabel }) {
   return (
-    <button form="storefront-checkout-form" type="submit" className="sfc-btn-primary" disabled={disabled}>
+    <button form="storefront-checkout-form" type="submit" className="sfc-btn-primary sfx-btn sfx-btn--primary sfx-btn--lg sfx-btn--block" disabled={disabled}>
       {submitting ? <span className="sfc-spinner" aria-hidden="true" /> : null}
       <span>{submitting ? busyLabel : label}</span>
     </button>

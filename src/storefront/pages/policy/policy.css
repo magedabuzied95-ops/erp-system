@@ -1,37 +1,130 @@
 /* ============================================================================
    M1 STORE — HELP & POLICY PAGES
    ----------------------------------------------------------------------------
-   FAQ, returns, privacy, terms and data deletion share this frame. Colours are
-   the homepage `--m1h-*` tokens (site-skin.css on body.storefront-shell); the
-   legal pages can render outside that shell, so every token carries the
-   homepage's light value as a fallback. `sfp-*` is a fresh namespace, and
-   colour declarations repeat `!important` because the storefront's global
+   FAQ, returns, privacy, terms and data deletion share this frame, drawn from
+   the storefront design contract: the page header is `sfx-page-head` +
+   `sfx-title`, tabs are `sfx-chip`, the search is `sfx-input--pill`, buttons
+   are `sfx-btn`, fact and help boxes are `sfx-surface`, the no-result state is
+   `sfx-empty--compact`. The markup carries those primitive classes, so inside
+   the shop they (site-skin.css / catalog-skin.css) drive the look and Site
+   Studio edits reach these pages.
+
+   The `sfp-*` rules below repeat the same numbers from the same tokens. They
+   exist because the legal pages are routed from App.jsx, outside the
+   storefront chunk: opened straight from a reviewer's link, site-skin.css may
+   not be loaded at all. Those pages wrap their root in `.sfx-scope` with
+   `data-theme="light|dark"`, and the token block right below gives that scope
+   the site-skin default palette (keep the two in step). Inside the shell the
+   block does not match (`body:not(.storefront-shell)`), so Studio still wins.
+
+   Colour declarations repeat `!important` because the storefront's global
    text/border remaps would otherwise repaint them.
    ========================================================================== */
 
+/* ------------------------------------------- out-of-shell tokens (legal) */
+
+body:not(.storefront-shell) .sfp.sfx-scope {
+  --m1h-r-md: 12px;
+  --m1h-r-lg: 16px;
+  --m1h-r-pill: 999px;
+  --m1h-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --m1h-t-xs: 12px;
+  --m1h-t-sm: 13px;
+  --m1h-t-base: 14px;
+  --sfx-t-title: 26px;
+  --sfx-t-h2: 19px;
+  --sfx-t-h3: 15px;
+  --sfx-container: 1240px;
+  --sfx-gutter: 16px;
+
+  --m1h-bg: #f3f3f1;
+  --m1h-surface: #ffffff;
+  --m1h-line: #dedbd3;
+  --m1h-text: #25231f;
+  --m1h-text-2: #5d5952;
+  --m1h-text-3: #716e67;
+  --m1h-accent: #a47a12;
+  --m1h-accent-soft: #fff7df;
+  --m1h-invert-bg: #14120f;
+  --m1h-invert-text: #f8f6f1;
+  --sfx-panel: #efede8;
+  --sfx-accent-ink: color-mix(in srgb, var(--m1h-accent) 72%, var(--m1h-text));
+  --sfx-field: #ffffff;
+  --sfx-focus: rgba(164, 122, 18, 0.22);
+  --sfx-whatsapp: #25d366;
+  --sfx-whatsapp-ink: #0b2e17;
+
+  min-height: 100dvh;
+  color-scheme: only light;
+}
+
+@media (min-width: 768px) {
+  body:not(.storefront-shell) .sfp.sfx-scope {
+    --sfx-t-title: 32px;
+    --sfx-t-h2: 21px;
+    --sfx-gutter: 32px;
+  }
+}
+
+body:not(.storefront-shell) .sfp.sfx-scope[data-theme="dark"] {
+  --m1h-bg: #070707;
+  --m1h-surface: #101010;
+  --m1h-line: rgba(255, 255, 255, 0.1);
+  --m1h-text: #efeee9;
+  --m1h-text-2: #b9b6ae;
+  --m1h-text-3: #8d8981;
+  --m1h-accent: #d0a632;
+  --m1h-accent-soft: rgba(208, 166, 50, 0.12);
+  --m1h-invert-bg: #f6f5f1;
+  --m1h-invert-text: #14120f;
+  --sfx-panel: #181818;
+  --sfx-accent-ink: var(--m1h-accent);
+  --sfx-field: #121212;
+  --sfx-focus: rgba(208, 166, 50, 0.28);
+
+  color-scheme: only dark;
+}
+
+/* The ERP canvas (`html { background: var(--bg) }`, seeded dark on staff
+   devices) shows in the overscroll band above and below an out-of-shell legal
+   page. Paint the document ground in the page's own colour while it is mounted.
+   Literals mirror the scope tokens above: html sits outside .sfx-scope. */
+html:has(body:not(.storefront-shell) .sfp.sfx-scope),
+html:has(body:not(.storefront-shell) .sfp.sfx-scope) body {
+  background: #f3f3f1 !important;
+}
+
+html:has(body:not(.storefront-shell) .sfp.sfx-scope[data-theme="dark"]),
+html:has(body:not(.storefront-shell) .sfp.sfx-scope[data-theme="dark"]) body {
+  background: #070707 !important;
+}
+
+/* -------------------------------------------------------------------- frame */
+
 .sfp {
-  --sfp-bg: var(--m1h-bg, #f7f6f3);
-  --sfp-surface: var(--m1h-surface, #ffffff);
-  --sfp-panel: var(--sfx-panel, #efede8);
-  --sfp-line: var(--m1h-line, #e4e1d9);
-  --sfp-line-soft: var(--m1h-line-soft, #eeece6);
-  --sfp-text: var(--m1h-text, #1c1917);
-  --sfp-text-2: var(--m1h-text-2, #5d5952);
-  --sfp-text-3: var(--m1h-text-3, #8b857b);
-  --sfp-accent: var(--m1h-accent, #a47a12);
-  --sfp-accent-soft: var(--m1h-accent-soft, #fbf4e2);
-  --sfp-invert-bg: var(--m1h-invert-bg, #14120f);
-  --sfp-invert-text: var(--m1h-invert-text, #f8f6f1);
-  --sfp-success: var(--sfx-success, #1f7a4d);
-  --sfp-r-md: var(--m1h-r-md, 12px);
-  --sfp-r-lg: var(--m1h-r-lg, 16px);
-  --sfp-ease: var(--m1h-ease, cubic-bezier(0.32, 0.72, 0, 1));
+  --sfp-bg: var(--m1h-bg);
+  --sfp-surface: var(--m1h-surface);
+  --sfp-panel: var(--sfx-panel);
+  --sfp-field: var(--sfx-field);
+  --sfp-line: var(--m1h-line);
+  --sfp-text: var(--m1h-text);
+  --sfp-text-2: var(--m1h-text-2);
+  --sfp-text-3: var(--m1h-text-3);
+  --sfp-accent: var(--m1h-accent);
+  --sfp-accent-soft: var(--m1h-accent-soft);
+  --sfp-invert-bg: var(--m1h-invert-bg);
+  --sfp-invert-text: var(--m1h-invert-text);
+  --sfp-focus: var(--sfx-focus);
+  --sfp-r-md: var(--m1h-r-md);
+  --sfp-r-lg: var(--m1h-r-lg);
+  --sfp-r-pill: var(--m1h-r-pill);
+  --sfp-ease: var(--m1h-ease);
   width: 100%;
   min-height: 60vh;
   background: var(--sfp-bg) !important;
   color: var(--sfp-text) !important;
   font-family: inherit;
-  font-size: 15px;
+  font-size: var(--m1h-t-base);
   line-height: 1.6;
   padding-block-end: calc(56px + env(safe-area-inset-bottom));
 }
@@ -46,25 +139,27 @@
   margin: 0;
 }
 
-.sfp-wrap {
+.sfp .sfp-wrap {
   width: 100%;
-  max-width: 72rem;
+  max-width: var(--sfx-container);
   margin-inline: auto;
-  padding: 20px 16px 8px;
+  padding-block: 20px 8px;
+  padding-inline: var(--sfx-gutter);
 }
 
 @media (min-width: 768px) {
-  .sfp-wrap {
-    padding: 36px 32px 16px;
+  .sfp .sfp-wrap {
+    padding-block: 32px 16px;
   }
 }
 
 /* ------------------------------------------------------------------- tabs */
+/* Each tab is an `sfx-chip`; the same look is repeated here for out-of-shell. */
 
 .sfp-tabs {
   display: flex;
-  gap: 6px;
-  margin-block-end: 24px;
+  gap: 8px;
+  margin-block-end: 8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -78,14 +173,15 @@
   min-height: 36px;
   flex: none;
   align-items: center;
-  padding: 0 14px;
+  padding-inline: 14px;
   border: 1px solid var(--sfp-line) !important;
-  border-radius: 999px;
+  border-radius: var(--sfp-r-pill);
   background: var(--sfp-surface) !important;
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 500;
+  line-height: 1;
   text-decoration: none;
   white-space: nowrap;
   transition: border-color 160ms var(--sfp-ease);
@@ -102,72 +198,72 @@
 }
 
 /* ----------------------------------------------------------------- header */
+/* `sfx-page-head`: text on the start side, actions on the end, one h1. */
 
-.sfp-head {
-  display: grid;
-  gap: 8px;
-  padding-block-end: 22px;
+.sfp .sfp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding-block: 24px 20px;
   border-block-end: 1px solid var(--sfp-line);
+}
+
+.sfp-head__text {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 18rem;
+  gap: 8px;
 }
 
 .sfp .sfp-title {
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 28px;
+  font-size: var(--sfx-t-title);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
+  text-align: start;
 }
 
-@media (min-width: 768px) {
-  .sfp .sfp-title {
-    font-size: 36px;
-  }
-}
-
-.sfp .sfp-lead {
-  max-width: 44rem;
+.sfp .sfp-head .sfp-lead {
+  max-width: 48rem;
+  margin: 0;
   color: var(--sfp-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 15px;
-  line-height: 1.75;
-}
-
-.sfp-head__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 16px;
-  margin-block-start: 6px;
+  font-size: var(--m1h-t-base);
+  line-height: 1.7;
 }
 
 .sfp .sfp-meta {
   color: var(--sfp-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfp-head__actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
 /* ---------------------------------------------------------------- buttons */
+/* `sfx-btn` (44px pill, 14/600) + `--secondary` / `--whatsapp` / `--sm`. */
 
 .sfp .sfp-btn {
   display: inline-flex;
-  min-height: 42px;
+  min-height: 44px;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 0 18px;
+  gap: 8px;
+  padding-inline: 18px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--sfp-r-pill);
   box-shadow: none !important;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
   line-height: 1;
   text-decoration: none;
@@ -178,14 +274,8 @@
 
 .sfp .sfp-btn--sm {
   min-height: 36px;
-  padding: 0 14px;
-  font-size: 13px;
-}
-
-.sfp .sfp-btn--ink {
-  background: var(--sfp-invert-bg) !important;
-  color: var(--sfp-invert-text) !important;
-  -webkit-text-fill-color: currentColor;
+  padding-inline: 14px;
+  font-size: var(--m1h-t-sm);
 }
 
 .sfp .sfp-btn--outline {
@@ -200,16 +290,17 @@
 }
 
 .sfp .sfp-btn--whatsapp {
-  background: #25d366 !important;
-  color: #ffffff !important;
+  border-color: transparent !important;
+  background: var(--sfx-whatsapp) !important;
+  color: var(--sfx-whatsapp-ink) !important;
   -webkit-text-fill-color: currentColor;
 }
 
-.sfp .sfp-btn:hover {
-  opacity: 0.92;
+.sfp .sfp-btn--whatsapp:hover {
+  opacity: 0.9;
 }
 
-.sfp :is(.sfp-btn, .sfp-tab, .sfp-contents a, .sfp-link, .sfp-faq__q, .sfp-search__input):focus-visible {
+.sfp :is(.sfp-btn, .sfp-tab, .sfp-contents a, .sfp-link, .sfp-faq__q):focus-visible {
   outline: 2px solid var(--sfp-accent);
   outline-offset: 2px;
 }
@@ -247,9 +338,8 @@
 .sfp .sfp-contents__label {
   color: var(--sfp-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   font-weight: 600;
-  letter-spacing: 0.04em;
 }
 
 .sfp-contents ol {
@@ -267,13 +357,13 @@
   border-inline-start: 2px solid transparent;
   color: var(--sfp-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
+  font-size: var(--m1h-t-sm);
   line-height: 1.45;
   text-decoration: none;
 }
 
 .sfp .sfp-contents a:hover {
-  border-inline-start-color: var(--sfp-text);
+  border-inline-start-color: var(--sfp-accent);
   color: var(--sfp-text) !important;
 }
 
@@ -298,15 +388,17 @@
   border-block-start: 1px solid var(--sfp-line);
 }
 
+/* `sfx-h2` */
 .sfp .sfp-h2 {
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 19px;
+  font-size: var(--sfx-t-h2);
   font-weight: 700;
   letter-spacing: -0.01em;
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
+/* Prose may run at 15px; the frame is 14px. */
 .sfp .sfp-p {
   color: var(--sfp-text-2) !important;
   -webkit-text-fill-color: currentColor;
@@ -336,7 +428,7 @@
   inset-inline-start: 2px;
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--sfp-r-pill);
   background: var(--sfp-accent);
   content: "";
 }
@@ -352,13 +444,15 @@
 
 .sfp .sfp-link:hover {
   color: var(--sfp-accent) !important;
+  text-decoration-color: currentColor;
 }
 
 /* ------------------------------------------------------------------ facts */
+/* Each fact is an `sfx-surface` with an accent-soft icon bubble. */
 
 .sfp-facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr));
   gap: 10px;
   margin-block-start: 24px;
 }
@@ -371,6 +465,13 @@
   border: 1px solid var(--sfp-line) !important;
   border-radius: var(--sfp-r-lg);
   background: var(--sfp-surface) !important;
+  box-shadow: none;
+}
+
+@media (min-width: 768px) {
+  .sfp .sfp-fact {
+    padding: 20px;
+  }
 }
 
 .sfp .sfp-fact__icon {
@@ -379,24 +480,25 @@
   height: 38px;
   flex: none;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--sfp-r-pill);
   background: var(--sfp-accent-soft) !important;
   color: var(--sfp-accent) !important;
 }
 
+/* `sfx-h3` */
 .sfp .sfp-fact__title {
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.35;
+  font-size: var(--sfx-t-h3);
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .sfp .sfp-fact__text {
   margin-block-start: 2px !important;
   color: var(--sfp-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   line-height: 1.55;
 }
 
@@ -411,6 +513,7 @@
 
 .sfp .sfp-search__icon {
   position: absolute;
+  z-index: 1;
   top: 50%;
   inset-inline-start: 16px;
   color: var(--sfp-text-3) !important;
@@ -418,28 +521,36 @@
   pointer-events: none;
 }
 
-.sfp .sfp-search__input {
+/* `sfx-input sfx-input--pill`, with room for the icon. The extra `.sfp-search`
+   step outranks the primitive's own padding-inline. */
+.sfp .sfp-search .sfp-search__input {
+  display: block;
   width: 100%;
-  height: 50px;
-  padding-inline: 46px 16px;
+  min-height: 48px;
+  padding-block: 10px;
+  padding-inline: 46px 18px;
   border: 1px solid var(--sfp-line) !important;
-  border-radius: 999px;
-  background: var(--sfp-surface) !important;
+  border-radius: var(--sfp-r-pill);
+  background: var(--sfp-field) !important;
   box-shadow: none !important;
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
   font: inherit;
   font-size: 16px;
+  line-height: 1.4;
   outline: none;
+  transition: border-color 160ms var(--sfp-ease), box-shadow 160ms var(--sfp-ease);
 }
 
 .sfp .sfp-search__input::placeholder {
   color: var(--sfp-text-3);
   -webkit-text-fill-color: var(--sfp-text-3);
+  opacity: 1;
 }
 
-.sfp .sfp-search__input:focus {
-  border-color: var(--sfp-text) !important;
+.sfp .sfp-search .sfp-search__input:focus {
+  border-color: var(--sfp-accent) !important;
+  box-shadow: 0 0 0 3px var(--sfp-focus) !important;
 }
 
 .sfp-faq {
@@ -456,10 +567,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px 2px;
+  padding-block: 16px;
+  padding-inline: 2px;
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.45;
   list-style: none;
@@ -478,14 +590,14 @@
   flex: none;
   place-items: center;
   border: 1px solid var(--sfp-line) !important;
-  border-radius: 999px;
+  border-radius: var(--sfp-r-pill);
   color: var(--sfp-text-2) !important;
   transition: transform 200ms var(--sfp-ease), background-color 200ms var(--sfp-ease);
 }
 
-.sfp-faq__item[open] .sfp-faq__sign {
-  background: var(--sfp-invert-bg) !important;
+.sfp .sfp-faq__item[open] .sfp-faq__sign {
   border-color: var(--sfp-invert-bg) !important;
+  background: var(--sfp-invert-bg) !important;
   color: var(--sfp-invert-text) !important;
   transform: rotate(45deg);
 }
@@ -493,7 +605,8 @@
 .sfp-faq__a {
   display: grid;
   gap: 8px;
-  padding: 0 2px 18px;
+  padding-block: 0 18px;
+  padding-inline: 2px;
 }
 
 .sfp .sfp-faq__a p {
@@ -505,18 +618,32 @@
 
 .sfp-faq__a .sfp-link {
   justify-self: start;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
 }
 
+/* `sfx-empty sfx-empty--compact` */
 .sfp .sfp-empty {
-  padding: 32px 16px;
-  border: 1px dashed var(--sfp-line) !important;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px 16px;
+  border: 1px solid var(--sfp-line) !important;
   border-radius: var(--sfp-r-lg);
-  color: var(--sfp-text-2) !important;
+  background: var(--sfp-surface) !important;
   text-align: center;
 }
 
+.sfp .sfp-empty .sfp-empty__text {
+  max-width: 28rem;
+  margin: 0;
+  color: var(--sfp-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-base);
+  line-height: 1.7;
+}
+
 /* ------------------------------------------------------------------- help */
+/* `sfx-surface`: surface, hairline, r-lg, 16/20px padding, no shadow. */
 
 .sfp .sfp-help {
   display: flex;
@@ -525,15 +652,16 @@
   justify-content: space-between;
   gap: 16px 24px;
   margin-block-start: 40px;
-  padding: 22px;
+  padding: 16px;
   border: 1px solid var(--sfp-line) !important;
   border-radius: var(--sfp-r-lg);
   background: var(--sfp-surface) !important;
+  box-shadow: none;
 }
 
 @media (min-width: 768px) {
   .sfp .sfp-help {
-    padding: 28px 32px;
+    padding: 20px;
   }
 }
 
@@ -544,17 +672,20 @@
   gap: 4px;
 }
 
+/* `sfx-h2` */
 .sfp .sfp-help__title {
   color: var(--sfp-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 19px;
+  font-size: var(--sfx-t-h2);
   font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .sfp .sfp-help__text {
   color: var(--sfp-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   line-height: 1.65;
 }
 
@@ -571,4 +702,10 @@
 /* FAQ groups already end on a hairline; a second one above the next group doubles it. */
 .sfp-section + .sfp-section:has(> .sfp-faq) {
   border-block-start: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sfp :is(.sfp-btn, .sfp-tab, .sfp-faq__sign, .sfp-search__input) {
+    transition: none;
+  }
 }

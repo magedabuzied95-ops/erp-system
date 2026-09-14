@@ -1,0 +1,458 @@
+/* ============================================================================
+   Customer link pages — /c/:code (order confirmation) and /addr/:code (address).
+   ----------------------------------------------------------------------------
+   Both pages open from a WhatsApp/Instagram link and usually render OUTSIDE the
+   storefront shell (App.jsx routes), so the root is `.sfx-scope` with the shop's
+   stored theme: the same tokens and primitives as every other page (site-skin.css
+   + catalog-skin.css), light and dark. Inside the shell (/confirm) `.sfx-scope`
+   is inert and Site Studio's tokens win.
+
+   Only what the shared primitives do not cover lives here. Every colour is a
+   token; every radius comes from the Studio profile. The `sfl-` prefix is local.
+   ========================================================================== */
+
+.sfl {
+  font-family: var(--sf-font-family, inherit);
+}
+
+.sfl .sfl-page {
+  display: grid;
+  gap: var(--m1h-s4);
+}
+
+/* Page header: an icon bubble beside the one h1. */
+.sfl .sfl-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--m1h-s3);
+}
+
+.sfl .sfl-head .sfx-kicker {
+  margin-bottom: var(--m1h-s1);
+}
+
+.sfl .sfl-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-accent-soft) !important;
+  color: var(--m1h-accent) !important;
+}
+
+.sfl .sfl-icon--sm {
+  width: 40px;
+  height: 40px;
+}
+
+.sfl .sfl-icon--success {
+  background: var(--sfx-success-soft) !important;
+  color: var(--sfx-success) !important;
+}
+
+.sfl .sfl-icon--danger {
+  background: var(--sfx-danger-soft) !important;
+  color: var(--sfx-danger) !important;
+}
+
+/* A surface heading: small accent glyph + sfx-h3. */
+.sfl .sfl-block-title {
+  display: flex;
+  align-items: center;
+  gap: var(--m1h-s2);
+  margin: 0 0 var(--m1h-s3);
+}
+
+.sfl .sfl-block-title > svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--m1h-accent);
+}
+
+.sfl .sfl-text {
+  margin: 0;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-base);
+  line-height: 1.7;
+}
+
+.sfl .sfl-text--sm {
+  font-size: var(--m1h-t-xs);
+  line-height: 1.6;
+}
+
+.sfl .sfl-text--strong {
+  color: var(--m1h-text) !important;
+  font-weight: 600;
+}
+
+.sfl .sfl-text--muted {
+  color: var(--m1h-text-3) !important;
+}
+
+.sfl .sfl-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--m1h-s3);
+  color: var(--m1h-text-2) !important;
+  font-size: var(--m1h-t-base);
+}
+
+.sfl .sfl-loading > svg {
+  color: var(--m1h-accent);
+}
+
+/* Notice body: title + text stacked beside the notice icon. */
+.sfl .sfl-notice-body {
+  display: grid;
+  min-width: 0;
+  gap: var(--m1h-s1);
+}
+
+.sfl .sfl-notice-body .sfx-h3 {
+  margin: 0;
+}
+
+.sfl .sfx-notice > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-top: 2px;
+}
+
+.sfl .sfx-notice--accent > svg {
+  color: var(--m1h-accent);
+}
+
+/* ---------------------------------------------------------------- items */
+
+.sfl .sfl-items {
+  display: grid;
+  gap: var(--m1h-s3);
+}
+
+@media (min-width: 560px) {
+  .sfl .sfl-items--multi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.sfl .sfl-item__media {
+  display: grid;
+  aspect-ratio: 4 / 3;
+  max-width: 100%;
+  place-items: center;
+  border-bottom: 1px solid var(--m1h-line);
+  background: var(--m1h-plate) !important;
+  color: var(--m1h-text-3);
+}
+
+.sfl .sfl-item__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sfl .sfl-item__body {
+  display: grid;
+  gap: var(--m1h-s3);
+  padding: var(--m1h-s4);
+}
+
+.sfl .sfl-item__name {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-product);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.sfl .sfl-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--m1h-s2);
+}
+
+/* ---------------------------------------------------------- confirm actions */
+
+.sfl .sfl-actions {
+  display: grid;
+  gap: var(--m1h-s3);
+}
+
+@media (min-width: 560px) {
+  .sfl .sfl-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.sfl .sfl-action {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  gap: var(--m1h-s3);
+  padding: var(--m1h-s4);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+.sfl .sfl-action:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+.sfl .sfl-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.sfl .sfl-action__icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--m1h-r-pill);
+  background: var(--sfx-panel) !important;
+  color: currentColor;
+}
+
+.sfl .sfl-action__label {
+  display: block;
+  font-size: var(--m1h-t-product);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sfl .sfl-action__hint {
+  display: block;
+  margin-top: var(--m1h-s1);
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-xs);
+  line-height: 1.5;
+}
+
+/* Confirm is the page CTA: the primary (inverted) fill. */
+.sfl .sfl-action--confirm {
+  border-color: transparent !important;
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+}
+
+.sfl .sfl-action--confirm .sfl-action__hint {
+  color: var(--m1h-invert-text-2) !important;
+}
+
+.sfl .sfl-action--confirm .sfl-action__icon {
+  background: var(--m1h-accent) !important;
+  color: var(--sfx-on-accent) !important;
+}
+
+.sfl .sfl-action--edit .sfl-action__icon {
+  background: var(--m1h-accent-soft) !important;
+  color: var(--m1h-accent) !important;
+}
+
+.sfl .sfl-action--cancel {
+  color: var(--sfx-danger) !important;
+}
+
+.sfl .sfl-action--cancel .sfl-action__icon {
+  background: var(--sfx-danger-soft) !important;
+}
+
+@media (hover: hover) {
+  .sfl .sfl-action:hover:not(:disabled) {
+    border-color: var(--sfx-line-strong) !important;
+  }
+
+  .sfl .sfl-action--confirm:hover:not(:disabled) {
+    background: var(--m1h-accent) !important;
+    color: var(--sfx-on-accent) !important;
+  }
+
+  .sfl .sfl-action--confirm:hover:not(:disabled) .sfl-action__hint {
+    color: var(--sfx-on-accent) !important;
+  }
+
+  .sfl .sfl-action--confirm:hover:not(:disabled) .sfl-action__icon {
+    background: var(--m1h-surface) !important;
+    color: var(--m1h-text) !important;
+  }
+
+  .sfl .sfl-action--cancel:hover:not(:disabled) {
+    border-color: var(--sfx-danger) !important;
+  }
+}
+
+/* ------------------------------------------------------------- address form */
+
+.sfl .sfl-fields {
+  display: grid;
+  gap: var(--m1h-s3);
+}
+
+.sfl .sfl-fields--pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.sfl .sfl-fields--pair > .sfl-span {
+  grid-column: 1 / -1;
+}
+
+/* The masked phone on file: a read-only row in the field look. */
+.sfl .sfl-static-field {
+  display: flex;
+  min-height: var(--sfx-control-h);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
+  padding-block: 6px;
+  padding-inline: 14px 6px;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--sfx-field) !important;
+  color: var(--m1h-text) !important;
+}
+
+.sfl .sfl-static-field__value {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The chosen Bosta location. */
+.sfl .sfl-picked {
+  display: flex;
+  min-height: var(--sfx-control-h);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
+  padding-block: 6px;
+  padding-inline: 14px 6px;
+  border: 1px solid var(--m1h-accent) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-accent-soft) !important;
+  color: var(--m1h-text) !important;
+}
+
+.sfl .sfl-picked__label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sfl .sfl-search {
+  position: relative;
+}
+
+.sfl .sfl-search__icon {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: 16px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: var(--m1h-text-3);
+  pointer-events: none;
+}
+
+.sfl .sfl-search .sfx-input {
+  padding-inline-start: 44px;
+}
+
+.sfl .sfl-results {
+  max-height: 16rem;
+  margin-top: var(--m1h-s2);
+  overflow-y: auto;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface) !important;
+}
+
+.sfl .sfl-results__row {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0 !important;
+  border-bottom: 1px solid var(--m1h-line) !important;
+  background: transparent !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: var(--m1h-t-base);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.sfl .sfl-results__row:last-child {
+  border-bottom: 0 !important;
+}
+
+.sfl .sfl-results__row:hover,
+.sfl .sfl-results__row:focus-visible {
+  background: var(--sfx-surface-2) !important;
+  outline: none;
+}
+
+.sfl .sfl-select {
+  width: 100%;
+}
+
+.sfl .sfl-select .sfx-select__control option {
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+}
+
+.sfl .sfl-select:has(.sfx-select__control:focus-visible) {
+  border-color: var(--m1h-accent);
+  box-shadow: 0 0 0 3px var(--sfx-focus);
+}
+
+.sfl .sfl-select:has(.sfx-select__control:disabled) {
+  opacity: 0.55;
+}
+
+.sfl .sfl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m1h-s1);
+  justify-self: start;
+}
+
+.sfl .sfl-toggle > svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 180ms var(--m1h-ease);
+}
+
+.sfl .sfl-toggle.is-open > svg {
+  transform: rotate(180deg);
+}
+
+.sfl .sfl-footnote {
+  margin: 0;
+  color: var(--m1h-text-3) !important;
+  font-size: var(--m1h-t-xs);
+  line-height: 1.6;
+  text-align: center;
+}

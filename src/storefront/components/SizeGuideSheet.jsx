@@ -78,11 +78,11 @@ function FullChart({ initialType }) {
   const chart = getSizeGuideConfig(active);
   return (
     <>
-      <div className="sfg-tabs" role="tablist">
+      <div className="sfg-tabs sfx-tabs" role="tablist">
         {SIZE_GUIDE_TABS.map((type) => {
           const config = getSizeGuideConfig(type);
           return (
-            <button key={type} type="button" role="tab" aria-selected={type === active} onClick={() => setActive(type)} className={`sfg-tab${type === active ? " is-active" : ""}`}>
+            <button key={type} type="button" role="tab" aria-selected={type === active} onClick={() => setActive(type)} className={`sfg-tab sfx-tab${type === active ? " is-active" : ""}`}>
               {sfText(config.labelKey, config.label)}
             </button>
           );
@@ -142,7 +142,7 @@ function SizeGuideBody({ product, variants, selectedSize, type, whatsappHref }) 
                   inputMode="decimal"
                   dir="ltr"
                   placeholder="27.0"
-                  className="sfg-finder__input"
+                  className="sfg-finder__input sfx-input sfx-input--sm"
                 />
                 <span className="sfg-finder__unit">cm</span>
               </div>

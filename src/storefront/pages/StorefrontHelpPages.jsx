@@ -151,7 +151,7 @@ export function FaqPage({ publicStoreSettings = {}, whatsappHref = "" }) {
             onChange={(event) => setQuery(event.target.value)}
             placeholder={sfText("storefront.faq.searchPlaceholder", "دوّر على سؤالك...")}
             aria-label={sfText("storefront.faq.searchPlaceholder", "دوّر على سؤالك...")}
-            className="sfp-search__input"
+            className="sfp-search__input sfx-input sfx-input--pill"
           />
         </label>
       )}
@@ -177,7 +177,7 @@ export function FaqPage({ publicStoreSettings = {}, whatsappHref = "" }) {
       }))}
       help={<StoreHelp whatsappHref={whatsappHref} />}
     >
-      {!visible.length ? <p className="sfp-empty">{sfText("storefront.faq.noResults", "مفيش سؤال بالكلام ده، جرّب كلمة تانية أو كلّمنا على واتساب.")}</p> : null}
+      {!visible.length ? <div className="sfp-empty sfx-empty sfx-empty--compact"><p className="sfp-empty__text sfx-empty__text">{sfText("storefront.faq.noResults", "مفيش سؤال بالكلام ده، جرّب كلمة تانية أو كلّمنا على واتساب.")}</p></div> : null}
     </PolicyLayout>
   );
 }
@@ -314,10 +314,10 @@ export function ReturnsPolicyPage({ publicStoreSettings = {}, whatsappHref = "" 
       intro={(
         <div className="sfp-facts">
           {facts.map(({ key, Icon, title, text }) => (
-            <div key={key} className="sfp-fact">
+            <div key={key} className="sfp-fact sfx-surface">
               <span className="sfp-fact__icon" aria-hidden="true"><Icon size={18} /></span>
               <div>
-                <p className="sfp-fact__title">{title}</p>
+                <p className="sfp-fact__title sfx-h3">{title}</p>
                 <p className="sfp-fact__text">{text}</p>
               </div>
             </div>

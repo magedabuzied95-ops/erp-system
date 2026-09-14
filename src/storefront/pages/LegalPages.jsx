@@ -15,6 +15,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Languages } from "lucide-react";
 
 import { getLanguageDirection, normalizeLanguage, resolveInitialLanguage } from "../../i18n/i18n";
+import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
 import {
   LEGAL_LAST_UPDATED,
   SUPPORT_EMAIL,
@@ -26,6 +27,19 @@ import PolicyLayout, { PolicyHelp, PolicyList, PolicyTabs } from "./policy/Polic
 
 const CANONICAL_ORIGIN = "https://m1store-egy.com";
 const canonicalPath = { privacy: "/privacy", terms: "/terms", "data-deletion": "/data-deletion" };
+
+// These pages render outside the storefront shell, so they read the shop's stored theme
+// themselves (same key and JSON encoding as Storefront.jsx; the shop defaults to dark).
+const STOREFRONT_THEME_KEY = "storefront.theme";
+const readStorefrontTheme = () => {
+  if (typeof window === "undefined") return "dark";
+  try {
+    const raw = window.localStorage.getItem(STOREFRONT_THEME_KEY);
+    return raw && JSON.parse(raw) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+};
 
 // Legal pages must stay indexable and must advertise both language variants, so a
 // crawler (and a reviewer following a link) reaches the right one.
@@ -79,6 +93,17 @@ function LegalShell({ pageKey }) {
   const sections = useMemo(() => legalSectionsFor(pageKey, language), [pageKey, language]);
   const ui = legalUiStrings[language] || legalUiStrings.ar;
   const direction = getLanguageDirection(language);
+  const [theme] = useState(readStorefrontTheme);
+
+  // Outside the shell nobody else claims the document colour scheme for the
+  // shop's theme: without this the ERP's dark `color-scheme` and theme-color
+  // stayed on <html> behind a light legal page (dark toolbar and overscroll).
+  // Same call the /c and /addr pages make; inside the shell the storefront owns it.
+  useEffect(() => {
+    if (typeof document === "undefined" || document.body?.classList?.contains("storefront-shell")) return undefined;
+    setStorefrontColorScheme(theme, theme === "dark" ? "#070707" : "#f3f3f1");
+    return () => releaseStorefrontColorScheme();
+  }, [theme]);
 
   useEffect(() => {
     if (typeof document === "undefined") return undefined;
@@ -113,6 +138,7 @@ function LegalShell({ pageKey }) {
   return (
     <PolicyLayout
       as="main"
+      theme={theme}
       dir={direction}
       lang={language}
       tabs={<PolicyTabs label={ui.navLabel} links={tabs} />}
@@ -123,11 +149,11 @@ function LegalShell({ pageKey }) {
         <>
           {/* Language switch keeps the same URL and only adds ?lang=, so the
               public /privacy and /terms links never break. */}
-          <button type="button" onClick={toggleLanguage} className="sfp-btn sfp-btn--outline sfp-btn--sm">
+          <button type="button" onClick={toggleLanguage} className="sfp-btn sfp-btn--outline sfp-btn--sm sfx-btn sfx-btn--secondary sfx-btn--sm">
             <Languages size={15} aria-hidden="true" />
             {ui.languageSwitchLabel}
           </button>
-          <Link to="/" className="sfp-btn sfp-btn--outline sfp-btn--sm">
+          <Link to="/" className="sfp-btn sfp-btn--outline sfp-btn--sm sfx-btn sfx-btn--secondary sfx-btn--sm">
             <ArrowLeft size={15} aria-hidden="true" className="sfp-back-icon" />
             {ui.backToShop}
           </Link>

@@ -57,37 +57,39 @@ export function CheckoutTotals({ subtotal, discount, bundleDiscount = 0, freeShi
   return (
     <div className="sfc-totals">
       <FreeShippingProgress subtotal={subtotal} threshold={freeShippingThreshold} money={money} />
-      <div className="sfc-total-row">
-        <span>{t("storefront.checkout.onePage.subtotal", "المجموع الفرعي")}</span>
-        <span>{money(subtotal)}</span>
+      <dl className="sfx-summary">
+      <div className="sfc-total-row sfx-summary__row">
+        <dt>{t("storefront.checkout.onePage.subtotal", "المجموع الفرعي")}</dt>
+        <dd>{money(subtotal)}</dd>
       </div>
       {bundleSaving ? (
-        <div className="sfc-total-row">
-          <span>{t("storefront.bundle.discountLabel", "خصم الباقة")}</span>
-          <span className="sfc-total-row__free">-{money(bundleSaving)}</span>
+        <div className="sfc-total-row sfx-summary__row sfx-summary__row--discount">
+          <dt>{t("storefront.bundle.discountLabel", "خصم الباقة")}</dt>
+          <dd className="sfc-total-row__free">-{money(bundleSaving)}</dd>
         </div>
       ) : null}
       {goodsDiscount ? (
-        <div className="sfc-total-row">
-          <span>{t("storefront.checkout.discount", "الخصم")}</span>
-          <span>-{money(goodsDiscount)}</span>
+        <div className="sfc-total-row sfx-summary__row sfx-summary__row--discount">
+          <dt>{t("storefront.checkout.discount", "الخصم")}</dt>
+          <dd>-{money(goodsDiscount)}</dd>
         </div>
       ) : null}
-      <div className="sfc-total-row">
-        <span>{t("storefront.checkout.shipping", "الشحن")}</span>
+      <div className="sfc-total-row sfx-summary__row">
+        <dt>{t("storefront.checkout.shipping", "الشحن")}</dt>
         {shippingWaived ? (
-          <span>
+          <dd>
             <span className="sfc-total-row__free">{t("storefront.checkout.freeShipping", "مجاني")}</span>
             <s className="sfc-total-row__strike">{money(deliveryFee)}</s>
-          </span>
+          </dd>
         ) : (
-          <span>{shippingText}</span>
+          <dd>{shippingText}</dd>
         )}
       </div>
-      <div className="sfc-total-row sfc-total-row--grand">
-        <span>{t("storefront.checkout.total", "الإجمالي")}</span>
-        <span>{money(total)}</span>
+      <div className="sfc-total-row sfc-total-row--grand sfx-summary__row sfx-summary__row--total">
+        <dt>{t("storefront.checkout.total", "الإجمالي")}</dt>
+        <dd>{money(total)}</dd>
       </div>
+      </dl>
     </div>
   );
 }
@@ -125,7 +127,7 @@ export default function StorefrontCheckoutSummary({
         <span className="sfc-summary-toggle__total">{money(total)}</span>
       </button>
       <div id="sfc-summary-body" className={`sfc-summary-body${open ? " is-open" : ""}`}>
-        <h2 className="sfc-summary-title">{t("storefront.checkout.orderSummary", "ملخص الطلب")}</h2>
+        <h2 className="sfc-summary-title sfx-h3">{t("storefront.checkout.orderSummary", "ملخص الطلب")}</h2>
         <div className="sfc-lines">
           {cart.map((item) => {
             const quantity = cartItemQuantity(item);

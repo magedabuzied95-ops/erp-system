@@ -36,7 +36,7 @@ import { parseProductDescription } from "../../shared/lib/productDescriptionForm
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
-import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShieldCheck, ShoppingCart, Sparkles, Star, TrendingDown, Truck } from "lucide-react";
+import { BellRing, Check, ChevronLeft, ChevronRight, Heart, Loader2, Ruler, Share2, ShoppingCart, Sparkles, TrendingDown } from "lucide-react";
 import { shouldShowRestockCta, restockVariantKey, restockSuccessCopy, RESTOCK_COPY } from "../lib/restockIntentUi";
 import { usePriceDropAlerts } from "../lib/priceDropAlerts";
 import { isInWishlist } from "../lib/wishlistIdentity";
@@ -50,6 +50,7 @@ import DeliveryEstimate from "../components/DeliveryEstimate";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 import { CompareToggleButton } from "../components/StorefrontCompare";
 import { releaseBootLoader } from "../lib/bootLoader";
+import "./pdp.css";
 
 const variantColorIdentity = (variant = {}) => {
   const safeVariant = variant && typeof variant === "object" ? variant : {};
@@ -99,42 +100,30 @@ const isBagProduct = (product = {}) => {
 
 function StorefrontProductDetailSkeleton() {
   return (
-    <section className="sf-product-detail-skeleton mx-auto grid max-w-7xl gap-4 px-3 pb-20 pt-3 md:px-4 md:pb-28 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)]">
+    <section className="sf-product-detail-skeleton sfx-pdp-skeleton sfx-wrap grid gap-6 pb-20 pt-3 md:gap-10 md:pb-28 md:pt-8 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)]">
       <div className="min-w-0">
-        <div className="sf-skeleton-shimmer h-[clamp(250px,42vh,340px)] w-full rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:rounded-[1.75rem] dark:bg-white/5" />
+        <div className="sfx-skel sfx-pdp-skeleton__plate" />
         <div className="mt-3 flex gap-2">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="sf-skeleton-shimmer h-12 w-12 rounded-xl bg-white/80 dark:bg-white/5 md:h-20 md:w-20 md:rounded-2xl" />
+            <div key={index} className="sfx-skel sfx-pdp-skeleton__thumb" />
           ))}
         </div>
       </div>
-      <div className="space-y-4">
-        <div className="overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#080808_0%,#080808_100%)] p-3.5 shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
-          <div className="sf-skeleton-shimmer h-4 w-28 rounded-full bg-white/[0.08]" />
-          <div className="mt-3 sf-skeleton-shimmer h-10 w-4/5 rounded-[1rem] bg-white/[0.08] md:h-14" />
-          <div className="mt-3 sf-skeleton-shimmer h-5 w-1/3 rounded-full bg-white/[0.08]" />
-          <div className="mt-6 flex gap-2">
-            <div className="sf-skeleton-shimmer h-10 w-24 rounded-full bg-white/[0.08]" />
-            <div className="sf-skeleton-shimmer h-10 w-20 rounded-full bg-white/[0.08]" />
-          </div>
+      <div className="grid content-start gap-4">
+        <div className="sfx-skel h-10 w-4/5" />
+        <div className="sfx-skel h-7 w-1/3" />
+        <div className="mt-4 flex gap-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="sfx-skel sfx-pdp-skeleton__swatch" />
+          ))}
         </div>
-        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 md:rounded-[1.45rem] md:p-4">
-          <div className="sf-skeleton-shimmer h-4 w-24 rounded-full bg-white/[0.08]" />
-          <div className="mt-3 flex gap-2">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="sf-skeleton-shimmer h-9 w-20 rounded-full bg-white/[0.08]" />
-            ))}
-          </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="sfx-skel h-11 w-14" />
+          ))}
         </div>
-        <div className="rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 md:rounded-[1.45rem] md:p-4">
-          <div className="sf-skeleton-shimmer h-4 w-24 rounded-full bg-white/[0.08]" />
-          <div className="mt-3 flex flex-wrap gap-2">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="sf-skeleton-shimmer h-8 w-14 rounded-full bg-white/[0.08]" />
-            ))}
-          </div>
-        </div>
-        <div className="sf-skeleton-shimmer h-12 rounded-2xl bg-white/[0.08]" />
+        <div className="sfx-skel sfx-pdp-skeleton__cta mt-4" />
+        <div className="sfx-skel sfx-pdp-skeleton__cta" />
       </div>
     </section>
   );
@@ -142,66 +131,23 @@ function StorefrontProductDetailSkeleton() {
 
 function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, backToProductsLabel }) {
   return (
-    <div className="mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-rose-400/18 bg-[linear-gradient(180deg,rgba(26,10,18,0.98),rgba(11,8,16,0.96))] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-rose-300/20 bg-rose-500/12 text-rose-200 shadow-[0_14px_34px_rgba(244,63,94,0.16)]">
-        <ShoppingCart className="h-7 w-7" />
-      </div>
-      <h2 className="mt-4 text-2xl font-black text-stone-50">{title}</h2>
-      <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-stone-400">{text}</p>
-      <div className="mt-5 flex flex-col items-stretch justify-center gap-3 sm:flex-row">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-3 text-sm font-black text-[#151515] shadow-[0_14px_34px_rgba(212,175,55,0.25)] transition hover:-translate-y-0.5 hover:border-[#f3d77a]/45 hover:shadow-[0_18px_42px_rgba(212,175,55,0.34)] active:scale-[0.98]"
-        >
-          {retryLabel}
-        </button>
-        <Link
-          to="/products"
-          className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white/80 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white active:scale-[0.98]"
-        >
-          {backToProductsLabel}
-        </Link>
+    <div className="sfx-wrap sfx-wrap--sm sfx-pdp-error-state">
+      <div className="sfx-empty">
+        <div className="sfx-empty__icon">
+          <ShoppingCart className="h-7 w-7" aria-hidden="true" />
+        </div>
+        <h2 className="sfx-empty__title">{title}</h2>
+        <p className="sfx-empty__text">{text}</p>
+        <div className="sfx-pdp-error-state__actions">
+          <button type="button" onClick={onRetry} className="sfx-btn sfx-btn--primary sfx-btn--lg">
+            {retryLabel}
+          </button>
+          <Link to="/products" className="sfx-btn sfx-btn--secondary sfx-btn--lg">
+            {backToProductsLabel}
+          </Link>
+        </div>
       </div>
     </div>
-  );
-}
-
-function ProductDetailReviewSection() {
-  const reviews = [
-    { id: "quality", name: "M", text: sfText("storefront.reviews.items.quality"), badge: sfText("storefront.reviews.badges.quality") },
-    { id: "size", name: "A", text: sfText("storefront.reviews.items.size"), badge: sfText("storefront.reviews.badges.size") },
-    { id: "experience", name: "S", text: sfText("storefront.reviews.items.experience"), badge: sfText("storefront.reviews.badges.experience") },
-  ];
-
-  return (
-    <section className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#090909_0%,#111111_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.28)] md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.reviews.eyebrow")}</div>
-          <h2 className="mt-2 text-2xl font-black">{sfText("storefront.reviews.title")}</h2>
-        </div>
-        <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white/80">
-          {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-[#f3d77a] text-[#f3d77a]" />)}
-          <span className="ms-1">4.9/5</span>
-        </div>
-      </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {reviews.map((review) => (
-          <div key={review.id} className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <div className="flex items-start justify-between gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-full bg-[#d4af37]/14 text-sm font-black text-[#f3d77a]">
-                {review.name}
-              </div>
-              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-black text-white/65">
-                {review.badge}
-              </span>
-            </div>
-            <p className="mt-4 text-sm font-bold leading-6 text-white/85">{review.text}</p>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -591,7 +537,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   // Headline, intro, "المميزات:" with • bullets, "مناسب لـ:" with ✓ items; an
   // older plain description comes back as paragraphs only.
   const descriptionBlocks = useMemo(() => parseProductDescription(descriptionParagraphs.join("\n")), [descriptionParagraphs]);
-  const descriptionText = descriptionParagraphs.join(" ") || sfText("storefront.products.defaultDescription");
   const inWishlist = Boolean(product) && isInWishlist(wishlist, product);
 
   useEffect(() => {
@@ -784,7 +729,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }
 
   return (
-    <section dir={isRtl ? "rtl" : "ltr"} className="sf-product-details-page sfx-pdp mx-auto max-w-7xl px-4 pb-4 pt-3 md:px-8 md:pb-8 md:pt-8">
+    <section dir={isRtl ? "rtl" : "ltr"} className="sf-product-details-page sfx-pdp sfx-wrap pb-4 pt-3 md:pb-8 md:pt-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
       <div className="grid gap-6 md:gap-10 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
         <div className="sfx-pdp-gallery">
@@ -844,16 +789,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 </span>
               ) : null}
             </div>
-            {false && <div className="mt-4 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/78">
-                <Star className="h-3.5 w-3.5 fill-[#f3d77a] text-[#f3d77a]" />
-                {sfText("storefront.products.highRating")}
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/78">
-                <Truck className="h-3.5 w-3.5 text-emerald-200" />
-                {sfText("storefront.products.fastShipping")}
-              </span>
-            </div>}
           </div>
 
           {colors.length > 1 ? (
@@ -1060,7 +995,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           <PairsWellWith key={product.id} product={product} currentVariant={safeActiveVariant} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         </div>
       </div>
-      <Suspense fallback={<div className="h-40 animate-pulse rounded-[1.5rem] bg-white/50" />}>
+      <Suspense fallback={<div className="sfx-skel h-40" />}>
         <LazyProductDetailsVariantSheet
           product={product}
           variant={safeActiveVariant}
@@ -1091,39 +1026,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           rails then stretched this column past the page's padding on one side and the
           row sat off centre. The width of every child here comes from the column. */}
       <div className="mt-6 grid gap-5 [&>*]:min-w-0 md:mt-8">
-        {false && <div className="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
-          <div className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0b0b0b_0%,#111111_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-5">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
-            <h2 className="mt-3 text-xl font-black md:text-2xl">{sfText("storefront.products.productDetails", "Product details")}</h2>
-            <p className="mt-3 text-sm font-bold leading-7 text-white/82">{descriptionText}</p>
-          </div>
-          <div className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0a0a0a_0%,#101010_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-5">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.whyYouWillLoveIt")}</div>
-            <div className="mt-4 space-y-3">
-              <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37]/14 text-[#f3d77a]"><Sparkles className="h-4 w-4" /></span>
-                <div>
-                  <div className="font-black text-white">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">{sfText("storefront.products.perks.materialsText")}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-400/12 text-emerald-200"><Truck className="h-4 w-4" /></span>
-                <div>
-                  <div className="font-black text-white">{sfText("storefront.products.fastShipping")}</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">{sfText("storefront.products.perks.shippingText")}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-200"><ShieldCheck className="h-4 w-4" /></span>
-                <div>
-                  <div className="font-black text-white">{sfText("storefront.products.perks.safeChoiceTitle")}</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">{sfText("storefront.products.perks.safeChoiceText")}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>}
         {/* The product description is real page content for the crawler as well
             as for the shopper: it used to be authored in the ERP and then never
             rendered here. One card, the language of the page, paragraphs kept. */}
@@ -1183,7 +1085,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           </section>
         ) : null}
-        {false && <ProductDetailReviewSection />}
         <RelatedProducts currentProduct={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         <RecentProductsSection currentId={product.id} recent={recent} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
       </div>

@@ -73,20 +73,20 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
 
   return (
     <div className="sft-result">
-      <div className="sft-card sft-head">
+      <div className="sft-card sft-head sfx-surface">
         <div className="sft-head__row">
           <div className="min-w-0">
             <div className="sft-label">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</div>
             <div className="sft-order-number" dir="ltr">{publicNumber}</div>
             <div className="sft-muted">{formatDate(order.created_at)}</div>
           </div>
-          <span className={`sft-pill${derailedKey ? " sft-pill--bad" : currentIndex === timeline.length - 1 ? " sft-pill--good" : ""}`}>
+          <span className={`sft-pill sfx-badge ${derailedKey ? "sft-pill--bad sfx-badge--danger" : currentIndex === timeline.length - 1 ? "sft-pill--good sfx-badge--success" : "sfx-badge--accent"}`}>
             {derailedKey ? sfText(`storefront.tracking.${derailedKey}`) : timeline[currentIndex]?.label || statusCopy(order.status || "pending")}
           </span>
         </div>
 
         {derailedKey ? (
-          <div className="sft-derailed">
+          <div className="sft-derailed sfx-notice sfx-notice--danger">
             <PackageX className="h-5 w-5 shrink-0" aria-hidden="true" />
             {/* The pill above already names what happened; this only says what to do. */}
             <p className="sft-muted">{sfText("storefront.tracking.derailedText", "لو عندك أي استفسار كلّمنا على واتساب وهنساعدك.")}</p>
@@ -101,7 +101,7 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
                     {state === "done" ? <Check className="h-3.5 w-3.5" /> : null}
                   </span>
                   <span className="sft-step__label">{step.label}</span>
-                  {state === "current" ? <span className="sft-step__now">{sfText("storefront.tracking.now", "دلوقتي")}</span> : null}
+                  {state === "current" ? <span className="sft-step__now sfx-badge sfx-badge--accent">{sfText("storefront.tracking.now", "دلوقتي")}</span> : null}
                 </li>
               );
             })}
@@ -109,19 +109,19 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
         )}
       </div>
 
-      <div className="sft-card">
-        <h2 className="sft-h2"><Truck className="h-4 w-4" aria-hidden="true" />{sfText("storefront.tracking.shipment", "الشحنة")}</h2>
-        <div className="sft-rows">
-          <div className="sft-row">
+      <div className="sft-card sfx-surface">
+        <h2 className="sft-h2 sfx-h3"><Truck className="h-4 w-4" aria-hidden="true" />{sfText("storefront.tracking.shipment", "الشحنة")}</h2>
+        <div className="sft-rows sfx-summary">
+          <div className="sft-row sfx-summary__row">
             <span className="sft-label">{sfText("storefront.shipping.provider", "شركة الشحن")}</span>
             <span className="sft-value">{shippingProviderCopy(order.shipping_provider || order.shipping_provider_id)}</span>
           </div>
-          <div className="sft-row">
+          <div className="sft-row sfx-summary__row">
             <span className="sft-label">{sfText("storefront.shipping.trackingNumber", "رقم التتبع")}</span>
             {trackingNumber ? (
               <span className="sft-value sft-tracking">
                 <span dir="ltr">{trackingNumber}</span>
-                <button type="button" onClick={copyTracking} className="sft-icon-btn" aria-label={sfText("storefront.tracking.copyTracking", "انسخ رقم التتبع")}>
+                <button type="button" onClick={copyTracking} className="sft-icon-btn sfx-icon-btn" aria-label={sfText("storefront.tracking.copyTracking", "انسخ رقم التتبع")}>
                   {copied ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </span>
@@ -131,7 +131,7 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
           </div>
         </div>
         {trackingNumber && bosta ? (
-          <a href={`https://bosta.co/tracking/${encodeURIComponent(trackingNumber)}`} target="_blank" rel="noopener noreferrer" className="sft-btn sft-btn--outline">
+          <a href={`https://bosta.co/tracking/${encodeURIComponent(trackingNumber)}`} target="_blank" rel="noopener noreferrer" className="sft-btn sfx-btn sfx-btn--outline sfx-btn--lg sfx-btn--block">
             {sfText("storefront.tracking.trackOnBosta", "تابع الشحنة على موقع بوسطة")}
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
           </a>
@@ -140,8 +140,8 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
       </div>
 
       {items.length ? (
-        <div className="sft-card">
-          <h2 className="sft-h2">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h2>
+        <div className="sft-card sfx-surface">
+          <h2 className="sft-h2 sfx-h3">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h2>
           <ul className="sft-items">
             {items.map((item) => {
               const image = item.variant_image || item.variant_image_url || item.color_image || item.color_image_url || item.image_url || item.product_image || item.product_image_url;
@@ -160,23 +160,23 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
               );
             })}
           </ul>
-          <div className="sft-rows sft-totals">
+          <div className="sft-rows sft-totals sfx-summary">
             {shippingFee > 0 ? (
-              <div className="sft-row">
+              <div className="sft-row sfx-summary__row">
                 <span className="sft-label">{sfText("storefront.checkout.shipping", "الشحن")}</span>
                 <span className="sft-value">{money(shippingFee)}</span>
               </div>
             ) : null}
-            <div className="sft-row sft-row--total">
+            <div className="sft-row sft-row--total sfx-summary__row sfx-summary__row--total">
               <span>{sfText("storefront.checkout.total", "الإجمالي")}</span>
               <span>{money(total)}</span>
             </div>
-            <div className="sft-row">
+            <div className="sft-row sfx-summary__row">
               <span className="sft-label">{sfText("storefront.checkout.paymentMethod", "طريقة الدفع")}</span>
               <span className="sft-value">{paymentCopy(order.payment_method)}</span>
             </div>
             {remaining > 0 && !derailedKey ? (
-              <div className="sft-row">
+              <div className="sft-row sfx-summary__row">
                 <span className="sft-label">{sfText("storefront.checkout.remainingOnDelivery", "المتبقي عند الاستلام")}</span>
                 <span className="sft-value">{money(remaining)}</span>
               </div>
@@ -186,18 +186,18 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
       ) : null}
 
       {address ? (
-        <div className="sft-card">
-          <h2 className="sft-h2">{sfText("storefront.checkout.deliveryAddress", "عنوان التوصيل")}</h2>
+        <div className="sft-card sfx-surface">
+          <h2 className="sft-h2 sfx-h3">{sfText("storefront.checkout.deliveryAddress", "عنوان التوصيل")}</h2>
           <p className="sft-address">{order.customer_name ? <strong>{order.customer_name}</strong> : null}{address}</p>
         </div>
       ) : null}
 
       <div className="sft-actions">
-        <a href={supportHref(publicNumber)} target="_blank" rel="noopener noreferrer" className="sft-btn sft-btn--whatsapp">
+        <a href={supportHref(publicNumber)} target="_blank" rel="noopener noreferrer" className="sft-btn sfx-btn sfx-btn--whatsapp sfx-btn--lg sfx-btn--block">
           <MessageCircle className="h-5 w-5" aria-hidden="true" />
           {sfText("storefront.support.needHelpWhatsapp", "تحتاج مساعدة؟ تواصل معنا على واتساب")}
         </a>
-        <button type="button" onClick={onSearchAnother} className="sft-btn sft-btn--ghost">
+        <button type="button" onClick={onSearchAnother} className="sft-btn sfx-btn sfx-btn--ghost sfx-btn--lg sfx-btn--block">
           {sfText("storefront.tracking.searchAnother", "تتبع طلب تاني")}
         </button>
       </div>
@@ -274,36 +274,36 @@ export function TrackOrderPage({ helpers }) {
   };
 
   return (
-    <section className="sft">
+    <section className="sft sfx-wrap sfx-wrap--sm">
       <header className="sft-header">
         <span className="sft-header__icon" aria-hidden="true"><PackageSearch className="h-6 w-6" /></span>
-        <h1 className="sft-title">{sfText("storefront.tracking.title", "تتبع الطلب")}</h1>
-        <p className="sft-muted">{sfText("storefront.tracking.subtitle", "اكتب رقم الطلب ورقم الموبايل، أو افتح رابط التتبع المباشر من رسالة التأكيد.")}</p>
+        <h1 className="sft-title sfx-title">{sfText("storefront.tracking.title", "تتبع الطلب")}</h1>
+        <p className="sft-subtitle sfx-subtitle">{sfText("storefront.tracking.subtitle", "اكتب رقم الطلب ورقم الموبايل، أو افتح رابط التتبع المباشر من رسالة التأكيد.")}</p>
       </header>
 
       {!state.data ? (
-        <form onSubmit={submit} className="sft-card sft-form" noValidate>
-          <label className="sft-field">
-            <span className="sft-field__label">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</span>
+        <form onSubmit={submit} className="sft-card sft-form sfx-surface" noValidate>
+          <label className="sft-field sfx-form-row">
+            <span className="sft-field__label sfx-label">{sfText("storefront.orders.orderNumber", "رقم الطلب")}</span>
             <input
               ref={orderInputRef}
               value={form.order_number}
               onChange={(event) => setForm((prev) => ({ ...prev, order_number: event.target.value }))}
-              className="sft-input"
+              className="sft-input sfx-input"
               dir="ltr"
               autoComplete="off"
               autoCapitalize="characters"
               enterKeyHint="next"
               placeholder="WEB-1234"
             />
-            <span className="sft-field__hint">{sfText("storefront.tracking.orderNumberHint", "موجود في رسالة تأكيد الطلب")}</span>
+            <span className="sft-field__hint sfx-help">{sfText("storefront.tracking.orderNumberHint", "موجود في رسالة تأكيد الطلب")}</span>
           </label>
-          <label className="sft-field">
-            <span className="sft-field__label">{sfText("storefront.form.mobileNumber", "رقم الموبايل")}</span>
+          <label className="sft-field sfx-form-row">
+            <span className="sft-field__label sfx-label">{sfText("storefront.form.mobileNumber", "رقم الموبايل")}</span>
             <input
               value={form.phone}
               onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-              className="sft-input"
+              className="sft-input sfx-input"
               dir="ltr"
               type="tel"
               inputMode="tel"
@@ -311,10 +311,10 @@ export function TrackOrderPage({ helpers }) {
               enterKeyHint="search"
               placeholder="01xxxxxxxxx"
             />
-            <span className="sft-field__hint">{sfText("storefront.tracking.phoneHint", "نفس الرقم اللي كتبته وانت بتطلب")}</span>
+            <span className="sft-field__hint sfx-help">{sfText("storefront.tracking.phoneHint", "نفس الرقم اللي كتبته وانت بتطلب")}</span>
           </label>
-          {state.error ? <p role="alert" className="sft-error">{state.error}</p> : null}
-          <button type="submit" disabled={state.loading} className="sft-btn sft-btn--primary">
+          {state.error ? <p role="alert" className="sft-error sfx-error">{state.error}</p> : null}
+          <button type="submit" disabled={state.loading} className="sft-btn sfx-btn sfx-btn--primary sfx-btn--lg sfx-btn--block">
             {state.loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
             {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
           </button>
@@ -330,14 +330,16 @@ export function RecentPageRoute({ recent, helpers, components }) {
   const { sfText } = helpers;
   const { EmptyState, SmallProductGrid } = components;
   return (
-    <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.recent.lastTwenty", "آخر 20 منتجًا")}</p>
-          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا")}</h1>
+    <section className="sfr sfx-wrap">
+      <header className="sfx-page-head">
+        <div className="sfx-page-head__text">
+          <h1 className="sfx-title">{sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا")}</h1>
+          <p className="sfx-subtitle">{sfText("storefront.recent.lastTwenty", "آخر 20 منتجًا")}</p>
         </div>
-        <Link to="/products" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(135deg,var(--sf-purple),var(--sf-purple-2))] px-5 py-3 font-black text-stone-950 shadow-[0_16px_36px_rgba(212,175,55,0.20)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(212,175,55,0.28)]">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>
-      </div>
+        <div className="sfx-page-head__actions">
+          <Link to="/products" className="sfx-btn sfx-btn--primary sfx-btn--lg">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>
+        </div>
+      </header>
       {recent.length ? <SmallProductGrid items={recent.slice(0, 20)} /> : <EmptyState title={sfText("storefront.recent.emptyTitle", "لا توجد منتجات هنا بعد")} text={sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")} />}
     </section>
   );

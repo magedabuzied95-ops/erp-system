@@ -2,8 +2,11 @@
    M1 STORE — SIZE GUIDE SHEET
    ----------------------------------------------------------------------------
    Opens over the page that asked for it: a bottom sheet on phones, a centred
-   dialog from 768px. Colours are the homepage `--m1h-*` tokens, which live on
-   body.storefront-shell — the sheet is portalled into body to read them.
+   dialog from 768px. Colours are the homepage `--m1h-*` / `--sfx-*` tokens,
+   which live on body.storefront-shell — the sheet is portalled into body to
+   read them. The panel follows the shared drawer (`sfx-drawer--bottom`), the
+   chart switcher is the shared `sfx-tabs` and the foot box is `sfx-input`
+   (both applied in SizeGuideSheet.jsx), so only layout lives here.
    `sfg-*` is a fresh namespace; colour declarations repeat `!important`
    because the global text/border remaps would otherwise repaint them.
    ========================================================================== */
@@ -15,7 +18,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  color: var(--m1h-text, #1c1917);
+  color: var(--m1h-text);
   font-family: inherit;
   -webkit-tap-highlight-color: transparent;
 }
@@ -35,10 +38,10 @@ body.storefront-shell .sfg__scrim {
   inset: 0;
   padding: 0;
   border: 0;
-  background: rgba(20, 18, 15, 0.5) !important;
+  background: var(--sfx-scrim) !important;
   opacity: 0;
   cursor: default;
-  transition: opacity 240ms var(--m1h-ease, ease);
+  transition: opacity 240ms var(--m1h-ease);
 }
 
 .sfg.is-open .sfg__scrim {
@@ -49,14 +52,14 @@ body.storefront-shell .sfg__panel {
   position: relative;
   display: flex;
   width: 100%;
-  max-height: 88dvh;
+  max-height: 92dvh;
   flex-direction: column;
-  border-radius: var(--m1h-r-xl, 20px) var(--m1h-r-xl, 20px) 0 0;
-  background: var(--m1h-surface, #fff) !important;
-  box-shadow: var(--m1h-shadow-float) !important;
+  border-radius: var(--m1h-r-xl) var(--m1h-r-xl) 0 0;
+  background: var(--m1h-surface) !important;
+  box-shadow: var(--sfx-shadow-sheet) !important;
   color: var(--m1h-text) !important;
   transform: translateY(100%);
-  transition: transform 260ms var(--m1h-ease, ease);
+  transition: transform 260ms var(--m1h-ease);
 }
 
 .sfg.is-open .sfg__panel {
@@ -72,10 +75,11 @@ body.storefront-shell .sfg__panel {
   body.storefront-shell .sfg__panel {
     max-width: 560px;
     max-height: min(86vh, 760px);
-    border-radius: var(--m1h-r-xl, 20px);
+    border-radius: var(--m1h-r-xl);
+    box-shadow: var(--m1h-shadow-float) !important;
     opacity: 0;
     transform: translateY(12px) scale(0.98);
-    transition: transform 240ms var(--m1h-ease, ease), opacity 200ms var(--m1h-ease, ease);
+    transition: transform 240ms var(--m1h-ease), opacity 200ms var(--m1h-ease);
   }
 
   .sfg.is-open .sfg__panel {
@@ -96,7 +100,7 @@ body.storefront-shell .sfg__panel {
   width: 40px;
   height: 4px;
   margin-block-start: 8px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-line);
 }
 
@@ -128,9 +132,8 @@ body.storefront-shell .sfg__panel {
 body.storefront-shell .sfg__title {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 19px;
+  font-size: var(--m1h-t-price);
   font-weight: 700;
-  letter-spacing: -0.01em;
 }
 
 body.storefront-shell .sfg__product {
@@ -138,7 +141,7 @@ body.storefront-shell .sfg__product {
   overflow: hidden;
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -149,10 +152,12 @@ body.storefront-shell .sfg__close {
   height: 36px;
   flex: none;
   place-items: center;
-  margin: -4px -6px 0 0;
+  margin: 0;
+  margin-block-start: -4px;
+  margin-inline-end: -6px;
   padding: 0;
   border: 1px solid var(--m1h-line) !important;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-surface) !important;
   box-shadow: none !important;
   color: var(--m1h-text) !important;
@@ -203,7 +208,7 @@ body.storefront-shell .sfg-finder {
   gap: 8px;
   padding: 14px;
   border-radius: var(--m1h-r-md);
-  background: var(--sfx-panel, #efede8) !important;
+  background: var(--sfx-panel) !important;
 }
 
 body.storefront-shell .sfg-finder__label {
@@ -226,27 +231,13 @@ body.storefront-shell .sfg-finder__label {
   max-width: 11rem;
 }
 
-body.storefront-shell .sfg-finder__input {
-  width: 100%;
-  height: 44px;
-  padding: 0 44px 0 14px;
-  border: 1px solid var(--m1h-line) !important;
-  border-radius: var(--m1h-r-md);
-  background: var(--sfx-field, #fff) !important;
-  box-shadow: none !important;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font: inherit;
-  font-size: 16px;
+/* Colours, border, focus ring and 16px text come from `sfx-input sfx-input--sm`.
+   The field is dir="ltr", so the unit sits on the physical right in both
+   languages and the text keeps clear of it. */
+body.storefront-shell .sfg-finder__row .sfg-finder__input {
+  padding-inline: 14px 44px;
   font-weight: 600;
-  text-align: left;
   font-variant-numeric: tabular-nums;
-  outline: none;
-}
-
-body.storefront-shell .sfg-finder__input:focus {
-  border-color: var(--m1h-accent) !important;
-  box-shadow: 0 0 0 3px var(--sfx-focus, rgba(164, 122, 18, 0.22)) !important;
 }
 
 body.storefront-shell .sfg-finder__unit {
@@ -254,7 +245,8 @@ body.storefront-shell .sfg-finder__unit {
   top: 50%;
   right: 14px;
   color: var(--m1h-text-3) !important;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
+  pointer-events: none;
   transform: translateY(-50%);
 }
 
@@ -267,7 +259,7 @@ body.storefront-shell .sfg-finder__hint {
 body.storefront-shell .sfg-finder__result {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 700;
 }
 
@@ -283,15 +275,15 @@ body.storefront-shell .sfg-table {
   width: 100%;
   border-collapse: collapse;
   color: var(--m1h-text) !important;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
 }
 
 body.storefront-shell .sfg-table th {
   padding: 10px 14px;
-  background: var(--sfx-panel, #efede8) !important;
+  background: var(--sfx-surface-2) !important;
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
   font-weight: 600;
   text-align: start;
   white-space: nowrap;
@@ -340,7 +332,7 @@ body.storefront-shell .sfg-table tr.is-recommended td {
 
 body.storefront-shell .sfg-tag {
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-invert-bg) !important;
   color: var(--m1h-invert-text) !important;
   -webkit-text-fill-color: currentColor;
@@ -350,7 +342,7 @@ body.storefront-shell .sfg-tag {
 
 body.storefront-shell .sfg-tag--accent {
   background: var(--m1h-accent) !important;
-  color: #fff !important;
+  color: var(--sfx-on-accent) !important;
 }
 
 body.storefront-shell .sfg-stock {
@@ -361,43 +353,20 @@ body.storefront-shell .sfg-stock {
 }
 
 body.storefront-shell .sfg-stock.is-in {
-  color: var(--sfx-success, #1f7a4d) !important;
+  color: var(--sfx-success) !important;
   font-weight: 600;
 }
 
 /* ------------------------------------------------------------------- tabs */
 
+/* The track and the tabs are the shared `sfx-tabs` / `sfx-tab`; a grid item
+   would otherwise stretch the track across the sheet. */
 .sfg-tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  justify-self: start;
 }
 
 .sfg-tabs::-webkit-scrollbar {
   display: none;
-}
-
-body.storefront-shell .sfg-tab {
-  min-height: 34px;
-  flex: none;
-  padding: 0 14px;
-  border: 1px solid var(--m1h-line) !important;
-  border-radius: 999px;
-  background: var(--m1h-surface) !important;
-  box-shadow: none !important;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-body.storefront-shell .sfg-tab.is-active {
-  border-color: var(--m1h-invert-bg) !important;
-  background: var(--m1h-invert-bg) !important;
-  color: var(--m1h-invert-text) !important;
 }
 
 /* ---------------------------------------------------------------- measure */
@@ -423,7 +392,7 @@ body.storefront-shell .sfg-measure > summary {
 }
 
 .sfg-measure > summary svg {
-  transition: transform 200ms var(--m1h-ease, ease);
+  transition: transform 200ms var(--m1h-ease);
 }
 
 .sfg-measure[open] > summary svg {
@@ -450,9 +419,9 @@ body.storefront-shell .sfg-step__num {
   height: 24px;
   flex: none;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-accent-soft) !important;
-  color: var(--m1h-accent) !important;
+  color: var(--sfx-accent-ink) !important;
   font-size: 12px;
   font-weight: 700;
 }
@@ -487,10 +456,10 @@ body.storefront-shell .sfg-help {
 }
 
 body.storefront-shell .sfg-help svg {
-  color: #25d366 !important;
+  color: var(--sfx-whatsapp) !important;
 }
 
-body.storefront-shell .sfg :is(.sfg__close, .sfg-tab, .sfg-help, .sfg-measure > summary):focus-visible {
+body.storefront-shell .sfg :is(.sfg__close, .sfg-help, .sfg-measure > summary):focus-visible {
   outline: 2px solid var(--m1h-accent);
   outline-offset: 2px;
 }

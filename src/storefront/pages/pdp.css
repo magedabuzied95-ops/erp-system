@@ -1,0 +1,271 @@
+/* ============================================================================
+   PRODUCT PAGE (StorefrontProductDetailPage) — the design contract's pieces.
+
+   catalog-skin.css already paints the summary, options, description and the
+   sticky bar from the tokens. This file carries what that one leaves to legacy
+   rules: the buy bar, the gallery thumbnails, the loading skeleton and the
+   error card.
+
+   The buy bar keeps its sf-buy-* class names (tests pin them, and index.css
+   still carries their motion rules). index.css paints them with hardcoded
+   colours at up to (0,4,1) !important, so every colour here sits under
+   `body.storefront-shell .sfx-pdp :is(.sf-buy-bar, .sfx-sticky-buy)`, which
+   outranks those rules in both themes and follows Site Studio.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ buy bar */
+
+/* Quantity: the sfx-stepper look, at the 48px height of the button beside it. */
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-qty {
+  height: var(--sfx-control-h);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-qty__step {
+  width: 44px;
+  border-radius: var(--m1h-r-pill);
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-qty__step:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: -2px;
+}
+
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-qty__value {
+  min-width: 28px;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Both buttons: the sfx-btn --lg shape — 48px pill, 14/600, never uppercase. */
+body.storefront-shell .sfx-pdp :is(.sf-buy-bar, .sfx-sticky-buy) :is(.sf-buy-atc, .sf-buy-now) {
+  height: var(--sfx-control-h);
+  gap: var(--m1h-s2);
+  padding-inline: var(--m1h-s6);
+  border-radius: var(--m1h-r-pill);
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+body.storefront-shell .sfx-pdp :is(.sf-buy-bar, .sfx-sticky-buy) :is(.sf-buy-atc, .sf-buy-now):focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+/* Add to cart: sfx-btn--secondary. The owner's sweep-up fill stays, now in the
+   primary button's colours, so hover lands on the same look as buy it now. */
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-atc {
+  border: 1px solid var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-atc::before {
+  background: var(--m1h-invert-bg);
+}
+
+@media (hover: hover) {
+  body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-atc:not(:disabled):hover {
+    border-color: var(--m1h-invert-bg) !important;
+    color: var(--m1h-invert-text) !important;
+  }
+}
+
+body.storefront-shell .sfx-pdp .sf-buy-bar .sf-buy-atc:disabled {
+  border-color: var(--m1h-line) !important;
+  color: var(--m1h-text) !important;
+  opacity: 0.45;
+}
+
+/* Buy it now (and the sticky bar's button): sfx-btn--primary. */
+body.storefront-shell .sfx-pdp :is(.sf-buy-bar, .sfx-sticky-buy) .sf-buy-now {
+  border: 1px solid transparent !important;
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+  transition: background-color 180ms var(--m1h-ease), color 180ms var(--m1h-ease), transform 160ms var(--m1h-ease);
+}
+
+@media (hover: hover) {
+  body.storefront-shell .sfx-pdp :is(.sf-buy-bar, .sfx-sticky-buy) .sf-buy-now:not(:disabled):hover {
+    background: var(--m1h-accent) !important;
+    color: var(--sfx-on-accent) !important;
+  }
+}
+
+body.storefront-shell .sfx-pdp :is(.sf-buy-bar, .sfx-sticky-buy) .sf-buy-now:disabled {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+  opacity: 0.45;
+}
+
+body.storefront-shell .sfx-pdp .sfx-sticky-buy .sfx-sticky-buy__cta {
+  padding-inline: 18px;
+}
+
+/* ------------------------------------------------------------------ gallery */
+
+/* The white photo plate itself is painted in catalog-skin.css.
+   The frame carries aspect-ratio 4/3 with a clamped height (index.css), so its
+   min-content width is 340px x 4/3 = 453px: a grid item at min-width:auto would
+   stretch the single phone column past the screen. The column decides. */
+body.storefront-shell .sfx-pdp .sfx-pdp-gallery {
+  min-width: 0;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-gallery-frame {
+  max-width: 100%;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb {
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  padding: var(--m1h-s1);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate) !important;
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb:hover {
+  border-color: var(--m1h-text-3) !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb.is-active {
+  border-color: var(--m1h-text) !important;
+  box-shadow: 0 0 0 1px var(--m1h-text) inset !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+/* Colours come from catalog-skin's `.sf-product-thumbnails button` rule. */
+body.storefront-shell .sfx-pdp .sf-product-thumb-nav {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-pill);
+  cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease);
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb-nav:hover {
+  border-color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sfx-pdp .sf-product-thumb-nav:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfx-pdp .sf-product-thumb {
+    width: 80px;
+    height: 80px;
+    padding: 6px;
+    border-radius: var(--m1h-r-lg);
+  }
+
+  body.storefront-shell .sfx-pdp .sf-product-thumb-nav {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ------------------------------------------------------------ headings */
+
+/* Section heading at the contract's sfx-h2 size; block headings at sfx-h3. */
+body.storefront-shell .sfx-pdp .sfx-pdp-h2 {
+  font-size: var(--sfx-t-h2);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+body.storefront-shell .sfx-pdp .sfx-pdp-h3,
+body.storefront-shell .sfx-pdp .sfx-pdp-option__title {
+  font-size: var(--sfx-t-h3);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------ loading state */
+
+body.storefront-shell .sfx-pdp-skeleton__plate {
+  width: 100%;
+  height: clamp(250px, 42vh, 340px);
+  border-radius: var(--m1h-r-lg);
+}
+
+body.storefront-shell .sfx-pdp-skeleton__thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--m1h-r-md);
+}
+
+body.storefront-shell .sfx-pdp-skeleton__swatch {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--m1h-r-lg);
+}
+
+body.storefront-shell .sfx-pdp-skeleton__cta {
+  height: var(--sfx-control-h);
+  border-radius: var(--m1h-r-pill);
+}
+
+@media (min-width: 768px) {
+  body.storefront-shell .sfx-pdp-skeleton__plate {
+    height: clamp(420px, 58vh, 540px);
+  }
+
+  body.storefront-shell .sfx-pdp-skeleton__thumb {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--m1h-r-lg);
+  }
+
+  body.storefront-shell .sfx-pdp-skeleton__swatch {
+    width: 72px;
+    height: 72px;
+  }
+}
+
+/* -------------------------------------------------------------- error state */
+
+body.storefront-shell .sfx-pdp-error-state {
+  padding-block: var(--m1h-s6);
+}
+
+.sfx-pdp-error-state__actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--m1h-s3);
+}
+
+@media (min-width: 640px) {
+  .sfx-pdp-error-state__actions {
+    width: auto;
+    flex-direction: row;
+  }
+}

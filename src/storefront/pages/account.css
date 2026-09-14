@@ -1,12 +1,15 @@
 /* ============================================================================
    M1 STORE — MY ACCOUNT
    ----------------------------------------------------------------------------
-   The same site as the homepage, the wishlist and order tracking: every colour
-   is a `--m1h-*` token (site-skin.css), panels are the white surface + hairline
-   on the page ground. `sfa-*` on purpose — the legacy `sf-account-*` hooks still
-   carry layered `!important` gold-on-black rules in index.css and
-   storefront-light.css. Colour declarations repeat `!important` because the
-   global text/border remaps would otherwise repaint them.
+   The look comes from the shared primitives (site-skin.css + catalog-skin.css):
+   sfx-wrap, sfx-title, sfx-h2, sfx-surface, sfx-btn, sfx-tabs, sfx-input,
+   sfx-badge, sfx-notice, sfx-empty, sfx-invert, sfx-skel. This file only lays
+   the page out and styles the pieces no primitive covers (stats, orders,
+   steps, member card, thumbs). Every colour is a `--m1h-*` / `--sfx-*` token,
+   so it is right in light and dark and follows Site Studio. `sfa-*` on purpose
+   — the legacy `sf-account-*` hooks still carry `!important` gold-on-black
+   rules in index.css and storefront-light.css. Colour declarations repeat
+   `!important` because the global text/border remaps would repaint them.
    ========================================================================== */
 
 body.storefront-shell .sfa {
@@ -18,7 +21,7 @@ body.storefront-shell .sfa {
 
 @media (min-width: 768px) {
   body.storefront-shell .sfa {
-    padding-block-end: 48px;
+    padding-block-end: var(--m1h-s12);
   }
 }
 
@@ -37,35 +40,18 @@ body.storefront-shell .sfa {
   list-style: none;
 }
 
+/* `sfx-wrap` owns width and gutters; this adds the vertical rhythm. */
 .sfa-wrap {
-  width: 100%;
-  max-width: 80rem;
-  margin-inline: auto;
-  padding: 20px 16px 8px;
+  padding-block: var(--m1h-s5) var(--m1h-s2);
 }
 
 @media (min-width: 768px) {
   .sfa-wrap {
-    padding: 40px 32px 16px;
+    padding-block: var(--m1h-s10) var(--m1h-s4);
   }
 }
 
 /* ------------------------------------------------------------------- type */
-
-body.storefront-shell .sfa-title {
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
-@media (min-width: 768px) {
-  body.storefront-shell .sfa-title {
-    font-size: 32px;
-  }
-}
 
 body.storefront-shell .sfa-title--name {
   overflow: hidden;
@@ -73,94 +59,14 @@ body.storefront-shell .sfa-title--name {
   white-space: nowrap;
 }
 
-body.storefront-shell .sfa-muted {
-  color: var(--m1h-text-3) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
-  font-weight: 500;
+body.storefront-shell .sfa .sfx-muted {
   line-height: 1.65;
 }
 
 /* ---------------------------------------------------------------- buttons */
 
-body.storefront-shell .sfa-btn {
-  display: inline-flex;
-  min-height: 42px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 18px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  box-shadow: none !important;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: border-color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease), opacity 160ms var(--m1h-ease);
-}
-
-body.storefront-shell .sfa-btn:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-body.storefront-shell .sfa-btn--sm {
-  min-height: 36px;
-  padding: 0 14px;
-  font-size: 13px;
-}
-
-body.storefront-shell .sfa-btn--block {
-  display: flex;
-  width: 100%;
-  min-height: 48px;
-  border-radius: var(--m1h-r-md);
-  font-size: 15px;
-}
-
-body.storefront-shell .sfa-btn--ink {
-  background: var(--m1h-invert-bg) !important;
-  color: var(--m1h-invert-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell .sfa-btn--ink:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-body.storefront-shell .sfa-btn--outline {
-  border-color: var(--m1h-line) !important;
-  background: var(--m1h-surface) !important;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell .sfa-btn--outline:hover:not(:disabled) {
-  border-color: var(--m1h-text) !important;
-}
-
-body.storefront-shell .sfa-btn--quiet {
-  background: transparent !important;
-  color: var(--m1h-text-2) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell .sfa-btn--quiet:hover:not(:disabled) {
-  color: var(--m1h-text) !important;
-}
-
-body.storefront-shell .sfa-btn--danger:hover:not(:disabled) {
-  color: var(--m1h-sale) !important;
-}
-
-body.storefront-shell .sfa-btn--whatsapp {
-  background: #25d366 !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: currentColor;
+body.storefront-shell .sfa-signout.sfx-btn--ghost:hover:not(:disabled) {
+  color: var(--sfx-danger) !important;
 }
 
 body.storefront-shell .sfa-text-btn {
@@ -174,7 +80,7 @@ body.storefront-shell .sfa-text-btn {
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
   text-decoration: underline;
   text-decoration-color: var(--m1h-line);
@@ -183,7 +89,7 @@ body.storefront-shell .sfa-text-btn {
 }
 
 body.storefront-shell .sfa-text-btn:hover:not(:disabled) {
-  color: var(--m1h-accent) !important;
+  color: var(--sfx-accent-ink) !important;
 }
 
 body.storefront-shell .sfa-text-btn:disabled {
@@ -199,35 +105,25 @@ body.storefront-shell .sfa-text-btn:disabled {
   align-self: center;
 }
 
-body.storefront-shell .sfa :is(.sfa-btn, .sfa-text-btn, .sfa-tab, .sfa-stat, .sfa-thumb, .sfa-field__toggle):focus-visible {
+body.storefront-shell .sfa :is(.sfa-text-btn, .sfa-stat, .sfa-thumb, .sfa-field__toggle):focus-visible {
   outline: 2px solid var(--m1h-accent);
   outline-offset: 2px;
 }
 
 /* ------------------------------------------------------------------ cards */
 
-body.storefront-shell .sfa-card {
+/* `sfx-surface` paints the card; this stacks its content. */
+.sfa-card {
   display: grid;
   min-width: 0;
-  gap: 16px;
-  padding: 18px;
-  border: 1px solid var(--m1h-line) !important;
-  border-radius: var(--m1h-r-lg);
-  background: var(--m1h-surface) !important;
-  color: var(--m1h-text) !important;
-}
-
-@media (min-width: 768px) {
-  body.storefront-shell .sfa-card {
-    padding: 22px;
-  }
+  gap: var(--m1h-s4);
 }
 
 .sfa-card__head {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: var(--m1h-s3);
 }
 
 body.storefront-shell .sfa-card__icon {
@@ -236,37 +132,22 @@ body.storefront-shell .sfa-card__icon {
   height: 38px;
   flex: none;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-accent-soft) !important;
   color: var(--m1h-accent) !important;
 }
 
-body.storefront-shell .sfa-card__title {
+.sfa-card__title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 17px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-body.storefront-shell .sfa-card__count {
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--sfx-panel) !important;
-  color: var(--m1h-text-2) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 12px;
-  font-weight: 600;
+  gap: var(--m1h-s2);
 }
 
 body.storefront-shell .sfa-card__subtitle {
   margin-block-start: 2px !important;
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
   line-height: 1.5;
 }
 
@@ -277,28 +158,37 @@ body.storefront-shell .sfa-card__subtitle {
   text-align: center;
 }
 
+/* The empty state already sits on a card: no second frame. */
+body.storefront-shell .sfa-card > .sfx-empty.sfa-card-empty {
+  border: 0;
+  background: transparent;
+}
+
 /* ------------------------------------------------------------------ guest */
 
-.sfa-guest {
+body.storefront-shell .sfa-guest.sfx-wrap {
   display: grid;
-  width: 100%;
-  max-width: 28rem;
-  margin-inline: auto;
-  gap: 16px;
-  padding: 28px 16px 8px;
+  max-width: calc(28rem + 2 * var(--sfx-gutter));
+  gap: var(--m1h-s4);
+  padding-block: 28px var(--m1h-s2);
 }
 
 @media (min-width: 768px) {
-  .sfa-guest {
-    padding-top: 56px;
+  body.storefront-shell .sfa-guest.sfx-wrap {
+    padding-block-start: 56px;
   }
 }
 
 .sfa-guest__head {
   display: grid;
   justify-items: center;
-  gap: 8px;
-  padding-block-end: 4px;
+  gap: var(--m1h-s2);
+  padding-block-end: var(--m1h-s1);
+  text-align: center;
+}
+
+body.storefront-shell .sfa-guest__head :is(.sfx-title, .sfx-subtitle) {
+  margin: 0;
   text-align: center;
 }
 
@@ -307,8 +197,8 @@ body.storefront-shell .sfa-guest__icon {
   width: 56px;
   height: 56px;
   place-items: center;
-  margin-block-end: 4px;
-  border-radius: 999px;
+  margin-block-end: var(--m1h-s1);
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-accent-soft) !important;
   color: var(--m1h-accent) !important;
 }
@@ -318,7 +208,7 @@ body.storefront-shell .sfa-guest__icon {
   display: block;
   width: 96px;
   height: 100px;
-  margin-block-end: 4px;
+  margin-block-end: var(--m1h-s1);
 }
 
 @media (min-width: 768px) {
@@ -343,39 +233,6 @@ body.storefront-shell.storefront-dark .sfa-brand--mone .sfa-brand__layer {
   filter: invert(1);
 }
 
-body.storefront-shell .sfa-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--m1h-line) !important;
-  border-radius: 999px;
-  background: var(--sfx-panel) !important;
-}
-
-body.storefront-shell .sfa-tab {
-  min-height: 38px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--m1h-text-2) !important;
-  -webkit-text-fill-color: currentColor;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
-}
-
-body.storefront-shell .sfa-tab.is-active {
-  background: var(--m1h-surface) !important;
-  box-shadow: var(--m1h-shadow-soft) !important;
-  color: var(--m1h-text) !important;
-  font-weight: 700;
-}
-
 .sfa-form {
   display: grid;
   gap: 14px;
@@ -384,61 +241,11 @@ body.storefront-shell .sfa-tab.is-active {
 .sfa-form__stack {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.sfa-field {
-  display: grid;
-  gap: 6px;
-}
-
-body.storefront-shell .sfa-field__label {
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-body.storefront-shell .sfa-field__hint {
-  color: var(--m1h-text-3) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 12px;
-  line-height: 1.6;
+  gap: var(--m1h-s2);
 }
 
 .sfa-field__control {
   position: relative;
-}
-
-body.storefront-shell .sfa-input {
-  width: 100%;
-  min-height: 48px;
-  padding: 0 14px;
-  border: 1px solid var(--m1h-line) !important;
-  border-radius: var(--m1h-r-md);
-  background: var(--sfx-field, var(--m1h-surface)) !important;
-  box-shadow: none !important;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font: inherit;
-  font-size: 16px;
-  transition: border-color 160ms var(--m1h-ease), box-shadow 160ms var(--m1h-ease);
-}
-
-body.storefront-shell .sfa-input[dir="ltr"] {
-  text-align: left;
-}
-
-body.storefront-shell .sfa-input:focus {
-  border-color: var(--m1h-text) !important;
-  outline: none;
-  box-shadow: 0 0 0 3px var(--sfx-focus, var(--m1h-accent-soft)) !important;
-}
-
-body.storefront-shell .sfa-input::placeholder {
-  color: var(--m1h-text-3);
-  -webkit-text-fill-color: var(--m1h-text-3);
-  opacity: 0.7;
 }
 
 /* The eye sits at the physical right of an LTR password, whatever the page direction. */
@@ -456,7 +263,7 @@ body.storefront-shell .sfa-field__toggle {
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: transparent !important;
   box-shadow: none !important;
   color: var(--m1h-text-3) !important;
@@ -468,19 +275,12 @@ body.storefront-shell .sfa-field__toggle:hover {
   color: var(--m1h-text) !important;
 }
 
-body.storefront-shell .sfa-input--sm {
-  min-height: 40px;
-  padding: 0 10px;
-  font-size: 15px;
-  text-align: center !important;
-}
-
 body.storefront-shell .sfa-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--m1h-s3);
   color: var(--m1h-text-3) !important;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   font-weight: 600;
 }
 
@@ -494,40 +294,30 @@ body.storefront-shell .sfa-divider {
 
 body.storefront-shell .sfa-otp {
   display: grid;
-  gap: 12px;
+  gap: var(--m1h-s3);
   padding: 14px;
-  border: 1px solid var(--m1h-line-soft) !important;
+  border: 1px solid var(--m1h-line) !important;
   border-radius: var(--m1h-r-md);
-  background: var(--m1h-bg) !important;
+  background: var(--sfx-surface-2) !important;
 }
 
 .sfa-otp__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--m1h-s3);
 }
 
 body.storefront-shell .sfa-otp__title {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14.5px;
-  font-weight: 700;
-}
-
-body.storefront-shell .sfa-alert {
-  padding: 12px 14px;
-  border-radius: var(--m1h-r-md);
-  background: var(--m1h-accent-soft) !important;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
-  line-height: 1.6;
+  font-size: var(--sfx-t-h3);
+  font-weight: 600;
 }
 
 .sfa-perks {
   display: grid;
-  gap: 8px;
+  gap: var(--m1h-s2);
 }
 
 body.storefront-shell .sfa-perk {
@@ -536,7 +326,7 @@ body.storefront-shell .sfa-perk {
   gap: 10px;
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
+  font-size: var(--m1h-t-base);
   font-weight: 500;
 }
 
@@ -547,7 +337,7 @@ body.storefront-shell .sfa-perk__icon {
   flex: none;
   place-items: center;
   border: 1px solid var(--m1h-line) !important;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-surface) !important;
   color: var(--m1h-accent) !important;
 }
@@ -559,7 +349,7 @@ body.storefront-shell .sfa-secure {
   gap: 6px;
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 /* ----------------------------------------------------------------- header */
@@ -569,8 +359,8 @@ body.storefront-shell .sfa-secure {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px 20px;
-  padding-block-end: 20px;
+  gap: var(--m1h-s4) var(--m1h-s5);
+  padding-block-end: var(--m1h-s5);
   border-block-end: 1px solid var(--m1h-line);
 }
 
@@ -588,7 +378,7 @@ body.storefront-shell .sfa-avatar {
   height: 60px;
   flex: none;
   place-items: center;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-invert-bg) !important;
   color: var(--m1h-invert-text) !important;
   -webkit-text-fill-color: currentColor;
@@ -608,7 +398,7 @@ body.storefront-shell .sfa-head__phone {
   margin-block-start: 2px !important;
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 500;
   letter-spacing: 0.02em;
   text-align: start;
@@ -627,7 +417,7 @@ body.storefront-shell .sfa-head__phone {
     width: 100%;
   }
 
-  .sfa-head__actions .sfa-btn {
+  .sfa-head__actions .sfx-btn {
     flex: 1;
   }
 }
@@ -638,7 +428,7 @@ body.storefront-shell .sfa-head__phone {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-block: 20px;
+  margin-block: var(--m1h-s5);
 }
 
 @media (min-width: 768px) {
@@ -655,8 +445,8 @@ body.storefront-shell .sfa-stat {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "value icon" "label label";
   align-items: center;
-  gap: 2px 8px;
-  padding: 14px 16px;
+  gap: 2px var(--m1h-s2);
+  padding: 14px var(--m1h-s4);
   border: 1px solid var(--m1h-line) !important;
   border-radius: var(--m1h-r-lg);
   background: var(--m1h-surface) !important;
@@ -666,7 +456,7 @@ body.storefront-shell .sfa-stat {
   text-align: start;
   text-decoration: none;
   cursor: pointer;
-  transition: border-color 160ms var(--m1h-ease), transform 160ms var(--m1h-ease);
+  transition: border-color 160ms var(--m1h-ease);
 }
 
 body.storefront-shell .sfa-stat:hover {
@@ -696,7 +486,7 @@ body.storefront-shell .sfa-stat__label {
   grid-area: label;
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 500;
 }
 
@@ -704,14 +494,14 @@ body.storefront-shell .sfa-stat__label {
 
 .sfa-grid {
   display: grid;
-  gap: 16px;
+  gap: var(--m1h-s4);
 }
 
 @media (min-width: 1024px) {
   .sfa-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
     align-items: start;
-    gap: 24px;
+    gap: var(--m1h-s6);
   }
 }
 
@@ -719,7 +509,7 @@ body.storefront-shell .sfa-stat__label {
 .sfa-side {
   display: grid;
   min-width: 0;
-  gap: 16px;
+  gap: var(--m1h-s4);
 }
 
 /* ----------------------------------------------------------------- orders */
@@ -732,16 +522,16 @@ body.storefront-shell .sfa-stat__label {
 body.storefront-shell .sfa-order {
   display: grid;
   min-width: 0;
-  gap: 12px;
+  gap: var(--m1h-s3);
   padding: 14px;
-  border: 1px solid var(--m1h-line-soft) !important;
+  border: 1px solid var(--m1h-line) !important;
   border-radius: var(--m1h-r-md);
-  background: var(--m1h-bg) !important;
+  background: var(--sfx-surface-2) !important;
   transition: border-color 160ms var(--m1h-ease);
 }
 
 body.storefront-shell .sfa-order.is-open {
-  border-color: var(--m1h-line) !important;
+  border-color: var(--sfx-line-strong) !important;
   background: var(--m1h-surface) !important;
 }
 
@@ -752,13 +542,13 @@ body.storefront-shell .sfa-order.is-open {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 12px;
+  gap: var(--m1h-s2) var(--m1h-s3);
 }
 
 body.storefront-shell .sfa-order__number {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 15.5px;
+  font-size: var(--m1h-t-product);
   font-weight: 700;
   letter-spacing: 0.01em;
   text-align: start;
@@ -768,14 +558,15 @@ body.storefront-shell .sfa-order__number {
 body.storefront-shell .sfa-order__date {
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 body.storefront-shell .sfa-order__total {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 16px;
+  font-size: var(--m1h-t-price);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .sfa-order__actions {
@@ -804,30 +595,12 @@ body.storefront-shell .sfa-order__total {
   transform: rotate(180deg);
 }
 
-body.storefront-shell .sfa-pill {
+.sfa-order .sfx-badge {
   flex: none;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: var(--m1h-accent-soft) !important;
-  color: var(--m1h-accent) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-body.storefront-shell .sfa-pill--good {
-  background: var(--sfx-success-soft, rgba(22, 163, 74, 0.12)) !important;
-  color: var(--sfx-success, #15803d) !important;
-}
-
-body.storefront-shell .sfa-pill--bad {
-  background: color-mix(in srgb, var(--m1h-sale) 12%, transparent) !important;
-  color: var(--m1h-sale) !important;
 }
 
 body.storefront-shell .sfa-more {
-  margin-block-start: 4px;
+  margin-block-start: var(--m1h-s1);
 }
 
 /* ---------------------------------------------------------- order details */
@@ -836,7 +609,7 @@ body.storefront-shell .sfa-more {
   display: grid;
   gap: 14px;
   padding-block-start: 14px;
-  border-block-start: 1px solid var(--m1h-line-soft);
+  border-block-start: 1px solid var(--m1h-line);
 }
 
 .sfa-steps {
@@ -881,26 +654,27 @@ body.storefront-shell .sfa-step__dot {
   height: 20px;
   flex: none;
   place-items: center;
-  border: 2px solid var(--m1h-line);
-  border-radius: 999px;
+  border: 2px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-surface);
   color: var(--m1h-invert-text) !important;
 }
 
 body.storefront-shell .sfa-step--done .sfa-step__dot {
-  border-color: var(--m1h-text);
+  border-color: var(--m1h-text) !important;
   background: var(--m1h-text);
+  color: var(--m1h-surface) !important;
 }
 
 body.storefront-shell .sfa-step--current .sfa-step__dot {
-  border-color: var(--m1h-accent);
+  border-color: var(--m1h-accent) !important;
   box-shadow: 0 0 0 4px var(--m1h-accent-soft);
 }
 
 body.storefront-shell .sfa-step--current .sfa-step__dot::after {
   width: 6px;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-accent);
   content: "";
 }
@@ -908,7 +682,7 @@ body.storefront-shell .sfa-step--current .sfa-step__dot::after {
 body.storefront-shell .sfa-step__label {
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
+  font-size: var(--m1h-t-base);
   font-weight: 500;
   line-height: 20px;
 }
@@ -922,21 +696,9 @@ body.storefront-shell .sfa-step--current .sfa-step__label {
   font-weight: 700;
 }
 
-body.storefront-shell .sfa-derailed {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  border-radius: var(--m1h-r-md);
-  background: color-mix(in srgb, var(--m1h-sale) 8%, transparent) !important;
-  color: var(--m1h-sale) !important;
-  font-size: 13.5px;
-  line-height: 1.6;
-}
-
 .sfa-facts {
   display: grid;
-  gap: 8px;
+  gap: var(--m1h-s2);
 }
 
 @media (min-width: 640px) {
@@ -948,7 +710,7 @@ body.storefront-shell .sfa-derailed {
 body.storefront-shell .sfa-facts > div {
   display: grid;
   gap: 2px;
-  padding: 10px 12px;
+  padding: 10px var(--m1h-s3);
   border-radius: var(--m1h-r-sm);
   background: var(--sfx-panel) !important;
 }
@@ -956,13 +718,13 @@ body.storefront-shell .sfa-facts > div {
 body.storefront-shell .sfa-facts dt {
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
 }
 
 body.storefront-shell .sfa-facts dd {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
 }
 
@@ -975,7 +737,7 @@ body.storefront-shell .sfa-facts dd {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: var(--m1h-s3);
 }
 
 body.storefront-shell .sfa-item__img {
@@ -993,7 +755,7 @@ body.storefront-shell .sfa-item__name {
   overflow: hidden;
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1002,15 +764,16 @@ body.storefront-shell .sfa-item__name {
 body.storefront-shell .sfa-item__meta {
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 body.storefront-shell .sfa-item__price {
   flex: none;
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 body.storefront-shell .sfa-link {
@@ -1020,7 +783,7 @@ body.storefront-shell .sfa-link {
   justify-self: start;
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
   text-decoration: underline;
   text-decoration-color: var(--m1h-line);
@@ -1028,65 +791,19 @@ body.storefront-shell .sfa-link {
 }
 
 body.storefront-shell .sfa-link:hover {
-  color: var(--m1h-accent) !important;
+  color: var(--sfx-accent-ink) !important;
 }
 
-/* ------------------------------------------------------------ empty/skeleton */
-
-body.storefront-shell .sfa-empty {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-  padding: 32px 16px;
-  text-align: center;
-}
-
-.sfa-empty .sfa-muted {
-  max-width: 24rem;
-  margin-block-end: 6px;
-}
-
-body.storefront-shell .sfa-empty__icon {
-  display: grid;
-  width: 56px;
-  height: 56px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m1h-accent-soft) !important;
-  color: var(--m1h-accent) !important;
-}
-
-body.storefront-shell .sfa-empty__title {
-  margin-block-start: 4px !important;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 19px;
-  font-weight: 700;
-}
+/* --------------------------------------------------------------- skeleton */
 
 .sfa-skeleton-list {
   display: grid;
   gap: 10px;
 }
 
+/* `sfx-skel` paints the shimmer; this is the row height. */
 .sfa-skeleton {
   height: 104px;
-  border-radius: var(--m1h-r-md);
-  background: linear-gradient(90deg, var(--sfx-panel) 25%, var(--m1h-line-soft) 50%, var(--sfx-panel) 75%);
-  background-size: 200% 100%;
-  animation: sfa-shimmer 1.4s ease-in-out infinite;
-}
-
-@keyframes sfa-shimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sfa-skeleton {
-    animation: none;
-  }
 }
 
 /* --------------------------------------------------------------- wishlist */
@@ -1094,7 +811,7 @@ body.storefront-shell .sfa-empty__title {
 .sfa-thumbs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--m1h-s3);
 }
 
 @media (min-width: 640px) {
@@ -1106,7 +823,7 @@ body.storefront-shell .sfa-empty__title {
 body.storefront-shell .sfa-thumb {
   display: grid;
   min-width: 0;
-  gap: 8px;
+  gap: var(--m1h-s2);
   color: var(--m1h-text) !important;
   text-decoration: none;
 }
@@ -1114,6 +831,7 @@ body.storefront-shell .sfa-thumb {
 .sfa-thumb__plate {
   display: block;
   aspect-ratio: 5 / 6;
+  max-width: 100%;
   overflow: hidden;
   border: 1px solid var(--m1h-plate-edge);
   border-radius: var(--m1h-r-md);
@@ -1136,22 +854,21 @@ body.storefront-shell .sfa-thumb__name {
   overflow: hidden;
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
   line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-/* ------------------------------------------------------------- membership */
+/* ------------------------------------------------------------- membership
+   `sfx-invert` paints the band (and rescues .text-white); these are its parts. */
 
 body.storefront-shell .sfa-member {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  gap: var(--m1h-s3);
+  padding: var(--m1h-s5);
   border-radius: var(--m1h-r-lg);
-  background: var(--m1h-invert-bg) !important;
-  color: var(--m1h-invert-text) !important;
 }
 
 body.storefront-shell .sfa-member--loading {
@@ -1169,10 +886,10 @@ body.storefront-shell .sfa-member--loading {
 body.storefront-shell .sfa-member__title {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--m1h-s2);
   color: var(--m1h-invert-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
 }
 
@@ -1180,23 +897,24 @@ body.storefront-shell .sfa-member__title svg {
   color: var(--m1h-accent) !important;
 }
 
+/* A gold fill with on-accent ink: gold text on the pale dark-theme band read at 2:1. */
 body.storefront-shell .sfa-member__tier {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 4px 10px;
-  border: 1px solid color-mix(in srgb, var(--m1h-accent) 55%, transparent) !important;
-  border-radius: 999px;
-  color: var(--m1h-accent) !important;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-accent) !important;
+  color: var(--sfx-on-accent) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   font-weight: 700;
 }
 
 .sfa-member__points {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--m1h-s2);
 }
 
 body.storefront-shell .sfa-member__value {
@@ -1206,18 +924,19 @@ body.storefront-shell .sfa-member__value {
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 body.storefront-shell .sfa-member__unit {
   color: var(--m1h-invert-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
 }
 
 .sfa-member__bar {
   height: 6px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: color-mix(in srgb, var(--m1h-invert-text) 16%, transparent);
 }
 
@@ -1232,7 +951,7 @@ body.storefront-shell .sfa-member__unit {
 body.storefront-shell .sfa-member__note {
   color: var(--m1h-invert-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 /* ------------------------------------------------------------------ sizes */
@@ -1243,35 +962,27 @@ body.storefront-shell .sfa-member__note {
   gap: 10px;
 }
 
-.sfa-size {
-  display: grid;
-  gap: 5px;
-}
-
-body.storefront-shell .sfa-size__label {
-  color: var(--m1h-text-2) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 12.5px;
-  font-weight: 600;
+body.storefront-shell .sfa-size-input {
+  text-align: center !important;
 }
 
 /* -------------------------------------------------------------- addresses */
 
 .sfa-addresses {
   display: grid;
-  gap: 8px;
+  gap: var(--m1h-s2);
 }
 
 body.storefront-shell .sfa-address {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 12px;
+  padding: var(--m1h-s3);
   border-radius: var(--m1h-r-md);
-  background: var(--m1h-bg) !important;
+  background: var(--sfx-surface-2) !important;
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13.5px;
+  font-size: var(--m1h-t-base);
   line-height: 1.6;
 }
 
@@ -1283,5 +994,5 @@ body.storefront-shell .sfa-address svg {
 .sfa-help__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--m1h-s2);
 }

@@ -324,12 +324,12 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
 
   if (!items.length) {
     return (
-      <section className="sfx-cmp sfx-cmp--empty" dir={lang === "ar" ? "rtl" : "ltr"}>
-        <div className="sfx-cmp-empty">
-          <span className="sfx-cmp-empty__icon"><GitCompareArrows size={28} aria-hidden="true" /></span>
-          <h1>{t("storefront.compare.emptyTitle")}</h1>
-          <p>{t("storefront.compare.emptyText")}</p>
-          <Link to={ROOT_PATHS.products} className="sfx-cmp-btn sfx-cmp-btn--primary">{t("storefront.compare.browse")}</Link>
+      <section className="sfx-cmp sfx-cmp--empty sfx-wrap" dir={lang === "ar" ? "rtl" : "ltr"}>
+        <div className="sfx-empty sfx-cmp-empty">
+          <span className="sfx-empty__icon"><GitCompareArrows size={28} aria-hidden="true" /></span>
+          <h1 className="sfx-empty__title">{t("storefront.compare.emptyTitle")}</h1>
+          <p className="sfx-empty__text">{t("storefront.compare.emptyText")}</p>
+          <Link to={ROOT_PATHS.products} className="sfx-btn sfx-btn--primary sfx-btn--lg">{t("storefront.compare.browse")}</Link>
         </div>
       </section>
     );
@@ -340,29 +340,29 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
 
   const cell = (column, render, extraClass = "") => (
     <div key={column.item.id} className={`sfx-cmp-cell ${extraClass}`} role="cell">
-      {column.data ? render(column.data, column.item) : <span className="sfx-cmp-skeleton" aria-hidden="true" />}
+      {column.data ? render(column.data, column.item) : <span className="sfx-skel sfx-cmp-skeleton" aria-hidden="true" />}
     </div>
   );
   const addSlot = (key, content = null) => (items.length < COMPARE_MAX_ITEMS ? <div key={key} className="sfx-cmp-cell sfx-cmp-cell--slot" role="cell">{content}</div> : null);
 
   return (
-    <section className="sfx-cmp" dir={lang === "ar" ? "rtl" : "ltr"} style={gridStyle}>
-      <header className="sfx-cmp-top">
-        <div>
-          <h1>{t("storefront.compare.title")}</h1>
-          <p>{t("storefront.compare.subtitle")}</p>
+    <section className="sfx-cmp sfx-wrap" dir={lang === "ar" ? "rtl" : "ltr"} style={gridStyle}>
+      <header className="sfx-page-head sfx-cmp-top">
+        <div className="sfx-page-head__text">
+          <h1 className="sfx-title">{t("storefront.compare.title")}</h1>
+          <p className="sfx-subtitle">{t("storefront.compare.subtitle")}</p>
         </div>
-        <div className="sfx-cmp-top__actions">
+        <div className="sfx-page-head__actions sfx-cmp-top__actions">
           <label className={`sfx-cmp-switch${items.length < 2 ? " is-disabled" : ""}`}>
             <input type="checkbox" checked={onlyDifferences} disabled={items.length < 2} onChange={(event) => setOnlyDifferences(event.target.checked)} />
             <span className="sfx-cmp-switch__track" aria-hidden="true"><span /></span>
             <span>{t("storefront.compare.onlyDifferences")}</span>
           </label>
-          <button type="button" className="sfx-cmp-btn" onClick={share}>
+          <button type="button" className="sfx-btn sfx-btn--secondary sfx-btn--sm sfx-cmp-btn" onClick={share}>
             <Share2 size={15} aria-hidden="true" />
             <span>{t("storefront.compare.share")}</span>
           </button>
-          <button type="button" className="sfx-cmp-btn sfx-cmp-btn--ghost" onClick={clearCompareItems}>
+          <button type="button" className="sfx-btn sfx-btn--ghost sfx-btn--sm sfx-cmp-btn sfx-cmp-btn--ghost" onClick={clearCompareItems}>
             <Trash2 size={15} aria-hidden="true" />
             <span>{t("storefront.compare.clear")}</span>
           </button>
@@ -418,12 +418,12 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
               ) : column.entry.error ? (
                 <div className="sfx-cmp-error">
                   <p>{t("storefront.compare.loadFailed")}</p>
-                  <button type="button" className="sfx-cmp-btn" onClick={retry}>{t("storefront.compare.retry")}</button>
+                  <button type="button" className="sfx-btn sfx-btn--secondary sfx-btn--sm" onClick={retry}>{t("storefront.compare.retry")}</button>
                 </div>
               ) : (
                 <>
-                  <span className="sfx-cmp-skeleton sfx-cmp-skeleton--media" aria-hidden="true" />
-                  <span className="sfx-cmp-skeleton" aria-hidden="true" />
+                  <span className="sfx-skel sfx-cmp-skeleton sfx-cmp-skeleton--media" aria-hidden="true" />
+                  <span className="sfx-skel sfx-cmp-skeleton" aria-hidden="true" />
                 </>
               )}
             </div>
@@ -443,7 +443,7 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
                 <span className={`sfx-cmp-price__now${data.comparePrice ? " is-sale" : ""}`}>{data.price > 0 ? money(data.price) : "—"}</span>
                 {data.comparePrice ? <span className="sfx-cmp-price__was">{money(data.comparePrice)}</span> : null}
                 {pricesDiffer && data.price > 0 && data.price === lowestPrice ? (
-                  <span className="sfx-cmp-flag"><Crown size={12} aria-hidden="true" />{t("storefront.compare.bestPrice")}</span>
+                  <span className="sfx-badge sfx-badge--success sfx-cmp-flag"><Crown size={12} aria-hidden="true" />{t("storefront.compare.bestPrice")}</span>
                 ) : null}
               </div>
             ), pricesDiffer && column.data?.price === lowestPrice ? "is-best" : ""))}
@@ -476,7 +476,7 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
 
         {differs((data) => data.grade) ? (
           <CompareRow label={t("storefront.compare.rows.grade")}>
-            {columns.map((column) => cell(column, (data) => (data.grade ? <span className="sfx-cmp-chip">{data.grade}</span> : <span className="sfx-cmp-muted">—</span>)))}
+            {columns.map((column) => cell(column, (data) => (data.grade ? <span className="sfx-badge sfx-badge--accent sfx-cmp-chip">{data.grade}</span> : <span className="sfx-cmp-muted">—</span>)))}
             {addSlot("grade-slot")}
           </CompareRow>
         ) : null}
@@ -541,7 +541,7 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
                 <span className="sfx-cmp-muted">
                   {data.inStockSizes.length ? t("storefront.compare.sizesCount", { count: data.inStockSizes.length }) : t("storefront.compare.noSizes")}
                 </span>
-                {sizesDiffer && data.inStockSizes.length === mostSizes && mostSizes > 0 ? <span className="sfx-cmp-flag">{t("storefront.compare.mostSizes")}</span> : null}
+                {sizesDiffer && data.inStockSizes.length === mostSizes && mostSizes > 0 ? <span className="sfx-badge sfx-badge--success sfx-cmp-flag">{t("storefront.compare.mostSizes")}</span> : null}
                 <button type="button" onClick={() => openSizeGuide({ product: data.product })} className="sfx-cmp-link">
                   <Ruler size={13} aria-hidden="true" />
                   {t("storefront.products.sizeGuide")}
@@ -576,7 +576,7 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
           <div className="sfx-cmp-row__label" aria-hidden="true" />
           {columns.map((column) => cell(column, (data) => (
             <div className="sfx-cmp-buy">
-              <button type="button" className="sfx-cmp-btn sfx-cmp-btn--primary" disabled={!data.inStockSizes.length} onClick={() => addToCart(column)}>
+              <button type="button" className="sfx-btn sfx-btn--primary sfx-btn--block sfx-cmp-btn--primary" disabled={!data.inStockSizes.length} onClick={() => addToCart(column)}>
                 <ShoppingCart size={16} aria-hidden="true" />
                 <span>{data.inStockSizes.length ? t("storefront.cart.addToCart") : t("storefront.compare.outOfStock")}</span>
               </button>

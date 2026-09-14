@@ -7,25 +7,28 @@
 
 .sfx-cmp-toggle {
   position: absolute;
-  inset-inline-end: var(--m1h-s2, 8px);
-  top: calc(var(--m1h-s2, 8px) + 36px);
+  inset-inline-end: var(--m1h-s2);
+  top: calc(var(--m1h-s2) + 36px);
   z-index: 3;
   display: grid;
   height: 30px;
   width: 30px;
   place-items: center;
   border: 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #57534e;
+  border-radius: var(--m1h-r-pill);
+  /* It sits on the product photo plate, which stays white in both themes, so
+     it paints from the plate and dark ink (not the themed text tokens, which
+     turn light in dark mode) - the same frosted disc as the wishlist heart. */
+  background: color-mix(in srgb, var(--m1h-plate) 82%, transparent);
+  color: color-mix(in srgb, var(--sfx-on-accent) 72%, transparent);
   cursor: pointer;
   padding: 0;
   transition: transform 160ms var(--m1h-ease), color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease);
 }
 
 .sfx-cmp-toggle:hover {
-  background: #fff;
-  color: var(--m1h-text, #1c1917);
+  background: var(--m1h-plate);
+  color: var(--sfx-on-accent);
 }
 
 .sfx-cmp-toggle:active {
@@ -33,15 +36,15 @@
 }
 
 .sfx-cmp-toggle.is-on {
-  background: var(--m1h-invert-bg, #14120f);
-  color: var(--m1h-invert-text, #f8f6f1);
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
 }
 
 .sfx-cmp-toggle:focus-visible,
 .sfx-cmp-pill:focus-visible,
 .sfx-cmp-tray button:focus-visible,
 .sfx-cmp-tray a:focus-visible {
-  outline: 2px solid var(--m1h-accent, #a47a12);
+  outline: 2px solid var(--m1h-accent);
   outline-offset: 2px;
 }
 
@@ -50,26 +53,26 @@
   min-height: 36px;
   align-items: center;
   gap: 6px;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: 999px;
-  background: var(--m1h-surface, #fff);
-  color: var(--m1h-text, #1c1917);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
   padding: 0 14px;
   transition: background-color 160ms var(--m1h-ease), border-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
 }
 
 .sfx-cmp-pill:hover {
-  border-color: var(--m1h-text-3, #8b857b);
+  border-color: var(--m1h-text-3);
 }
 
 .sfx-cmp-pill.is-on {
-  border-color: var(--m1h-invert-bg, #14120f);
-  background: var(--m1h-invert-bg, #14120f);
-  color: var(--m1h-invert-text, #f8f6f1);
+  border-color: var(--m1h-invert-bg);
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
 }
 
 /* ---------------------------------------------------------------- tray ---- */
@@ -83,7 +86,7 @@
   justify-content: center;
   padding: 0 12px;
   pointer-events: none;
-  animation: sfxCmpTrayIn 320ms var(--m1h-ease, ease) both;
+  animation: sfxCmpTrayIn 320ms var(--m1h-ease) both;
 }
 
 @keyframes sfxCmpTrayIn {
@@ -104,11 +107,11 @@
   width: min(100%, 640px);
   align-items: center;
   gap: 12px;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: 18px;
-  background: var(--m1h-surface, #fff);
-  box-shadow: 0 18px 48px rgba(28, 25, 23, 0.18);
-  color: var(--m1h-text, #1c1917);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface);
+  box-shadow: var(--m1h-shadow-float);
+  color: var(--m1h-text);
   padding: 10px;
   pointer-events: auto;
 }
@@ -128,21 +131,21 @@
   height: 48px;
   width: 48px;
   place-items: center;
-  border: 1px solid var(--m1h-line-soft, #eeece6);
-  border-radius: 12px;
-  background: var(--m1h-plate, #fff);
+  border: 1px solid var(--m1h-line-soft);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate);
 }
 
 .sfx-cmp-tray__slot img {
   height: 100%;
   width: 100%;
-  border-radius: 11px;
+  border-radius: calc(var(--m1h-r-md) - 1px);
   object-fit: contain;
 }
 
 .sfx-cmp-tray__slot.is-empty {
   border-style: dashed;
-  border-color: var(--m1h-line, #e4e1d9);
+  border-color: var(--m1h-line);
   background: transparent;
 }
 
@@ -151,12 +154,12 @@
   height: 100%;
   width: 100%;
   place-items: center;
-  color: var(--m1h-text-3, #8b857b);
+  color: var(--m1h-text-3);
 }
 
 .sfx-cmp-tray__initial {
-  font-weight: 800;
-  color: var(--m1h-text-2, #5d5952);
+  font-weight: 700;
+  color: var(--m1h-text-2);
 }
 
 .sfx-cmp-tray__remove {
@@ -167,10 +170,10 @@
   height: 20px;
   width: 20px;
   place-items: center;
-  border: 2px solid var(--m1h-surface, #fff);
-  border-radius: 999px;
-  background: var(--m1h-invert-bg, #14120f);
-  color: var(--m1h-invert-text, #f8f6f1);
+  border: 2px solid var(--m1h-surface);
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
   cursor: pointer;
   padding: 0;
 }
@@ -184,14 +187,14 @@
 }
 
 .sfx-cmp-tray__copy strong {
-  font-size: 14px;
-  font-weight: 800;
+  font-size: var(--m1h-t-base);
+  font-weight: 700;
 }
 
 .sfx-cmp-tray__copy span {
   overflow: hidden;
-  color: var(--m1h-text-3, #8b857b);
-  font-size: 12px;
+  color: var(--m1h-text-3);
+  font-size: var(--m1h-t-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -203,41 +206,19 @@
   gap: 4px;
 }
 
-.sfx-cmp-tray__clear {
-  border: 0;
-  background: transparent;
-  color: var(--m1h-text-2, #5d5952);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px;
+/* "Clear" is `sfx-btn--ghost --sm` and "Compare now" `sfx-btn--primary`: the
+   shared pill buttons. Only the tray's own spacing lives here. */
+.sfx-cmp-tray .sfx-btn.sfx-cmp-tray__clear {
+  padding-inline: 10px;
 }
 
-.sfx-cmp-tray__go {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
+.sfx-cmp-tray .sfx-btn.sfx-cmp-tray__go {
   gap: 6px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--m1h-invert-bg, #14120f);
-  color: var(--m1h-invert-text, #f8f6f1);
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
-  padding: 0 16px;
-  transition: opacity 160ms var(--m1h-ease), transform 160ms var(--m1h-ease);
+  padding-inline: var(--m1h-s4);
 }
 
 .sfx-cmp-tray__go:active:not(:disabled) {
   transform: scale(0.97);
-}
-
-.sfx-cmp-tray__go:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
 }
 
 @media (max-width: 520px) {
@@ -264,8 +245,8 @@
     justify-content: flex-end;
   }
 
-  .sfx-cmp-tray__go {
-    padding: 0 12px;
+  .sfx-cmp-tray .sfx-btn.sfx-cmp-tray__go {
+    padding-inline: var(--m1h-s3);
   }
 }
 

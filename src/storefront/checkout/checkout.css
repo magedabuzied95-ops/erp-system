@@ -13,12 +13,13 @@
    ========================================================================== */
 
 .sfc {
-  --sfc-field-h: 52px;
+  /* Controls follow the site contract: 48px fields and buttons (--sfx-control-h). */
+  --sfc-field-h: var(--sfx-control-h, 48px);
   width: 100%;
   background: var(--m1h-bg);
   color: var(--m1h-text);
   font-family: var(--sf-font-family, inherit);
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   line-height: 1.5;
 }
 
@@ -40,7 +41,8 @@
 .sfc-main {
   order: 2;
   width: 100%;
-  padding: 20px 16px 40px;
+  padding-block: var(--m1h-s5) var(--m1h-s10);
+  padding-inline: var(--sfx-gutter);
 }
 
 .sfc-side {
@@ -48,6 +50,10 @@
   width: 100%;
   background: var(--sfx-panel);
   border-block-end: 1px solid var(--m1h-line);
+  /* Muted ink on the panel: text-3 is 4.35:1 on --sfx-panel in light, short of
+     4.5:1 for the 12px notes, variants and labels here. The second ink clears
+     it (~6:1) and still follows Site Studio. The cart's side panel shares this. */
+  --m1h-text-3: var(--m1h-text-2);
 }
 
 @media (min-width: 1000px) {
@@ -61,7 +67,8 @@
     order: 0;
     justify-self: end;
     max-width: 660px;
-    padding: 40px 48px 64px;
+    padding-block: var(--m1h-s10) var(--m1h-s16);
+    padding-inline: var(--m1h-s12);
   }
 
   .sfc-side {
@@ -74,35 +81,37 @@
     position: sticky;
     top: 96px;
     max-width: 500px;
-    padding: 40px 48px;
+    padding: var(--m1h-s10) var(--m1h-s12);
   }
 }
 
 /* ---------------------------------------------------------------- sections */
 
 .sfc-section + .sfc-section {
-  margin-block-start: 32px;
+  margin-block-start: var(--m1h-s8);
 }
 
 .sfc-section__head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
-  margin-block-end: 12px;
+  gap: var(--m1h-s3);
+  margin-block-end: var(--m1h-s3);
 }
 
+/* Section headings render `sfc-h2 sfx-h2`; this is the same look for any
+   heading that still carries only the local hook. */
 .sfc-h2 {
-  font-size: 20px;
+  font-size: var(--sfx-t-h2);
   font-weight: 700;
   letter-spacing: -0.01em;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--m1h-text);
 }
 
 .sfc-note {
   margin-block: -4px 14px;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   color: var(--m1h-text-2);
 }
 
@@ -141,9 +150,9 @@
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
@@ -162,23 +171,18 @@
   height: var(--sfc-field-h);
   margin: 0;
   padding: 0 14px;
-  border: 1px solid var(--m1h-line);
+  border: 1px solid var(--sfx-field-line);
   border-radius: var(--m1h-r-md);
   background: var(--sfx-field);
   color: var(--m1h-text);
   font: inherit;
-  font-size: 16px; /* 16px or iOS zooms the page on focus */
-  font-weight: 500;
+  font-size: 16px; /* 16px at every width, or iOS zooms the page on focus */
+  font-weight: 400;
+  line-height: 1.4;
   outline: none;
   box-shadow: none;
   appearance: none;
   transition: border-color 160ms var(--m1h-ease), box-shadow 160ms var(--m1h-ease);
-}
-
-@media (min-width: 768px) {
-  .sfc-input {
-    font-size: 15px;
-  }
 }
 
 .sfc-input::placeholder {
@@ -192,7 +196,11 @@
 
 .sfc-input:focus,
 .sfc-input:not(:placeholder-shown) {
-  padding-block: 20px 4px;
+  padding-block: 18px 2px;
+}
+
+.sfc-input[aria-invalid="true"] {
+  border-color: var(--sfx-danger);
 }
 
 .sfc-input:-webkit-autofill {
@@ -208,8 +216,8 @@
   overflow: hidden;
   transform: translateY(-50%);
   color: var(--m1h-text-3);
-  font-size: 15px;
-  font-weight: 500;
+  font-size: var(--m1h-t-product);
+  font-weight: 400;
   line-height: 1.2;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -220,14 +228,14 @@
 .sfc-input:focus + .sfc-label,
 .sfc-input:not(:placeholder-shown) + .sfc-label,
 .sfc-label--pinned {
-  top: 8px;
+  top: 6px;
   transform: none;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfc-textarea {
   height: auto;
-  min-height: 92px;
+  min-height: 112px;
   padding-block: 24px 10px !important;
   resize: vertical;
   line-height: 1.5;
@@ -244,7 +252,7 @@
 }
 
 .sfc-native-select {
-  padding-block: 20px 4px;
+  padding-block: 18px 2px;
   padding-inline-end: 40px;
   cursor: pointer;
 }
@@ -271,15 +279,17 @@
 .sfc-error {
   display: block;
   margin-block-start: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--m1h-t-xs);
+  font-weight: 500;
+  line-height: 1.5;
   color: var(--sfx-danger);
 }
 
 .sfc-hint {
   display: block;
   margin-block-start: 6px;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
+  line-height: 1.5;
   color: var(--m1h-text-3);
 }
 
@@ -296,7 +306,7 @@
   margin: 0;
   padding-block: 0;
   padding-inline: 14px 40px;
-  border: 1px solid var(--m1h-line);
+  border: 1px solid var(--sfx-field-line);
   border-radius: var(--m1h-r-md);
   background: var(--sfx-field);
   color: var(--m1h-text);
@@ -321,7 +331,7 @@
 .sfc-select__label {
   overflow: hidden;
   color: var(--m1h-text-3);
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   line-height: 1.2;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -329,7 +339,7 @@
 
 .sfc-select__value {
   overflow: hidden;
-  font-size: 15px;
+  font-size: var(--m1h-t-product);
   font-weight: 500;
   line-height: 1.3;
   white-space: nowrap;
@@ -337,7 +347,7 @@
 }
 
 .sfc-select.is-empty .sfc-select__label {
-  font-size: 15px;
+  font-size: var(--m1h-t-product);
 }
 
 .sfc-select__icon {
@@ -373,7 +383,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 42px;
+  height: var(--sfx-control-h-sm, 40px);
   padding-inline: 12px;
   border: 1px solid var(--m1h-line);
   border-radius: var(--m1h-r-sm);
@@ -448,7 +458,7 @@
 .sfc-option__label {
   display: block;
   overflow: hidden;
-  font-size: 14.5px;
+  font-size: var(--m1h-t-base);
   font-weight: 500;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -458,7 +468,7 @@
   display: block;
   overflow: hidden;
   color: var(--m1h-text-3);
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -479,14 +489,14 @@
   justify-content: center;
   gap: 8px;
   color: var(--m1h-text-2);
-  font-size: 13.5px;
+  font-size: var(--m1h-t-sm);
 }
 
 .sfc-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 100000;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--sfx-scrim);
 }
 
 .sfc-sheet {
@@ -494,23 +504,25 @@
   inset-inline: 0;
   bottom: 0;
   display: flex;
-  max-height: 80vh;
+  max-height: 80dvh;
   flex-direction: column;
   gap: 10px;
   padding: 14px 14px calc(env(safe-area-inset-bottom) + 14px);
-  border-radius: 18px 18px 0 0;
+  border-start-start-radius: var(--m1h-r-xl);
+  border-start-end-radius: var(--m1h-r-xl);
   background: var(--m1h-surface);
   color: var(--m1h-text);
   font-family: var(--sf-font-family, inherit);
-  box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--sfx-shadow-sheet);
 }
 
+/* The sfx-drawer__title look: 17px / 700, no uppercase. */
 .sfc-sheet__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 16px;
+  font-size: var(--m1h-t-price);
   font-weight: 700;
 }
 
@@ -526,7 +538,7 @@
   place-items: center;
   padding: 0;
   border: 1px solid var(--m1h-line);
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: transparent;
   color: var(--m1h-text-2);
   cursor: pointer;
@@ -540,12 +552,13 @@
   justify-content: space-between;
   gap: 12px;
   margin-block-end: 12px;
-  padding: 10px 14px;
+  padding: var(--m1h-s3) var(--m1h-s4);
   border-radius: var(--m1h-r-md);
   background: var(--sfx-success-soft);
   color: var(--sfx-success);
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
+  line-height: 1.6;
 }
 
 .sfc-notice--warn {
@@ -559,14 +572,14 @@
   border-radius: var(--m1h-r-md);
   background: var(--sfx-panel);
   color: var(--m1h-text-2);
-  font-size: 13.5px;
+  font-size: var(--m1h-t-sm);
 }
 
 /* ---------------------------------------------------------- radio choices */
 
 .sfc-choices {
   overflow: hidden;
-  border: 1px solid var(--m1h-line);
+  border: 1px solid var(--sfx-field-line);
   border-radius: var(--m1h-r-md);
   background: var(--sfx-field);
 }
@@ -618,7 +631,7 @@ div.sfc-choice__head {
   flex: none;
   place-items: center;
   border: 1.5px solid var(--m1h-text-3);
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   transition: border-color 140ms var(--m1h-ease), background 140ms var(--m1h-ease);
 }
 
@@ -631,8 +644,8 @@ div.sfc-choice__head {
   content: "";
   width: 6px;
   height: 6px;
-  border-radius: 999px;
-  background: var(--m1h-surface);
+  border-radius: var(--m1h-r-pill);
+  background: var(--sfx-on-accent);
 }
 
 .sfc-choice__text {
@@ -642,7 +655,7 @@ div.sfc-choice__head {
 
 .sfc-choice__title {
   display: block;
-  font-size: 14.5px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
   line-height: 1.35;
 }
@@ -651,14 +664,15 @@ div.sfc-choice__head {
   display: block;
   margin-block-start: 2px;
   color: var(--m1h-text-2);
-  font-size: 12.5px;
-  line-height: 1.45;
+  font-size: var(--m1h-t-xs);
+  line-height: 1.5;
 }
 
 .sfc-choice__meta {
   flex: none;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -677,7 +691,7 @@ div.sfc-choice__head {
   border-block-start: 1px solid var(--m1h-line);
   background: var(--sfx-panel);
   color: var(--m1h-text-2);
-  font-size: 13.5px;
+  font-size: var(--m1h-t-sm);
 }
 
 .sfc-amount {
@@ -690,15 +704,16 @@ div.sfc-choice__head {
 
 .sfc-amount__label {
   color: var(--m1h-text-2);
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
 }
 
 .sfc-amount__value {
   color: var(--m1h-text);
-  font-size: 22px;
+  font-size: var(--sfx-t-h2);
   font-weight: 700;
   letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 .sfc-methods {
@@ -730,19 +745,26 @@ div.sfc-choice__head {
 
 .sfc-method.is-active {
   border-color: var(--m1h-accent);
+  background: var(--m1h-accent-soft);
   box-shadow: inset 0 0 0 1px var(--m1h-accent);
+}
+
+.sfc-method:focus-visible,
+.sfc-choice__head:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: -2px;
 }
 
 .sfc-method__title {
   display: block;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
 }
 
 .sfc-method__sub {
   display: block;
   color: var(--m1h-text-3);
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfc-copy {
@@ -760,7 +782,7 @@ div.sfc-choice__head {
   background: var(--sfx-field);
   color: var(--m1h-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 15px;
+  font-size: var(--m1h-t-product);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -771,7 +793,7 @@ div.sfc-choice__head {
   align-items: center;
   gap: 12px;
   padding: 14px;
-  border: 1.5px dashed var(--m1h-line);
+  border: 1.5px dashed var(--sfx-line-strong);
   border-radius: var(--m1h-r-md);
   background: var(--sfx-field);
   color: var(--m1h-text);
@@ -811,14 +833,14 @@ div.sfc-choice__head {
 
 .sfc-upload__title {
   display: block;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
 }
 
 .sfc-upload__sub {
   display: block;
   color: var(--m1h-text-3);
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfc-file {
@@ -826,7 +848,7 @@ div.sfc-choice__head {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfc-file__name {
@@ -838,30 +860,39 @@ div.sfc-choice__head {
   white-space: nowrap;
 }
 
-/* ----------------------------------------------------------------- buttons */
+/* ----------------------------------------------------------------- buttons
+   The site buttons (site-skin.css): the order button renders
+   `sfc-btn-primary sfx-btn sfx-btn--primary sfx-btn--lg sfx-btn--block`, and
+   these local hooks carry the same look for markup that has only the hook —
+   a 48px pill, 14px / 600, never uppercase. */
 
 .sfc-btn-primary {
   display: inline-flex;
   width: 100%;
-  min-height: 56px;
+  min-height: var(--sfx-control-h, 48px);
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: var(--m1h-s2);
   margin: 0;
-  padding: 14px 20px;
-  border: 0;
-  border-radius: var(--m1h-r-md);
+  padding-block: 0;
+  padding-inline: var(--m1h-s6);
+  border: 1px solid transparent;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-invert-bg);
   color: var(--m1h-invert-text);
   font: inherit;
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
+  text-transform: none;
   cursor: pointer;
-  transition: opacity 160ms var(--m1h-ease), transform 160ms var(--m1h-ease);
+  transition: background-color 180ms var(--m1h-ease), color 180ms var(--m1h-ease), transform 160ms var(--m1h-ease);
 }
 
-.sfc-btn-primary:hover:not(:disabled) {
-  opacity: 0.9;
+@media (hover: hover) {
+  .sfc-btn-primary:hover:not(:disabled) {
+    background: var(--m1h-accent);
+    color: var(--sfx-on-accent);
+  }
 }
 
 .sfc-btn-primary:active:not(:disabled) {
@@ -882,9 +913,10 @@ div.sfc-choice__head {
 .sfc-spinner {
   width: 16px;
   height: 16px;
+  flex: none;
   border: 2px solid currentColor;
   border-top-color: transparent;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   animation: sfc-spin 700ms linear infinite;
 }
 
@@ -894,6 +926,7 @@ div.sfc-choice__head {
   }
 }
 
+/* The `sfx-btn--secondary sfx-btn--lg` look. */
 .sfc-btn-secondary {
   display: inline-flex;
   min-height: var(--sfc-field-h);
@@ -902,59 +935,64 @@ div.sfc-choice__head {
   justify-content: center;
   gap: 6px;
   margin: 0;
-  padding: 0 18px;
+  padding-block: 0;
+  padding-inline: 18px;
   border: 1px solid var(--m1h-line);
-  border-radius: var(--m1h-r-md);
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-surface);
   color: var(--m1h-text);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+  transition: border-color 160ms var(--m1h-ease);
+}
+
+.sfc-btn-secondary:hover:not(:disabled) {
+  border-color: var(--m1h-text);
 }
 
 .sfc-btn-secondary:disabled {
   cursor: not-allowed;
-  color: var(--m1h-text-3);
-  opacity: 0.7;
+  opacity: 0.45;
 }
 
 .sfc-btn-secondary--sm {
-  min-height: 42px;
-  padding: 0 14px;
+  min-height: var(--sfx-control-h-sm, 40px);
+  padding-inline: 14px;
 }
 
 .sfc-submit {
-  margin-block-start: 28px;
+  margin-block-start: var(--m1h-s6);
 }
 
 .sfc-legal {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 18px;
-  margin-block-start: 28px;
-  padding-block-start: 16px;
+  gap: var(--m1h-s2) 18px;
+  margin-block-start: var(--m1h-s6);
+  padding-block-start: var(--m1h-s4);
   border-block-start: 1px solid var(--m1h-line);
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
 }
 
 .sfc-legal a {
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 .sfc-details {
-  margin-block-start: 16px;
+  margin-block-start: var(--m1h-s4);
 }
 
 .sfc-details > summary {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--m1h-accent);
-  font-size: 13.5px;
+  color: var(--sfx-accent-ink);
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
   list-style: none;
   cursor: pointer;
@@ -975,9 +1013,9 @@ div.sfc-choice__head {
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--m1h-s3);
   margin: 0;
-  padding: 16px;
+  padding: var(--m1h-s4) var(--sfx-gutter);
   border: 0;
   background: transparent;
   color: var(--m1h-text);
@@ -985,23 +1023,30 @@ div.sfc-choice__head {
   cursor: pointer;
 }
 
+.sfc-summary-toggle:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: -2px;
+}
+
 .sfc-summary-toggle__label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--m1h-accent);
-  font-size: 14px;
+  color: var(--sfx-accent-ink);
+  font-size: var(--m1h-t-base);
   font-weight: 600;
 }
 
 .sfc-summary-toggle__total {
-  font-size: 17px;
+  font-size: var(--m1h-t-price);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .sfc-summary-body {
   display: none;
-  padding: 4px 16px 20px;
+  padding-block: var(--m1h-s1) var(--m1h-s5);
+  padding-inline: var(--sfx-gutter);
 }
 
 .sfc-summary-body.is-open {
@@ -1019,11 +1064,12 @@ div.sfc-choice__head {
   }
 }
 
+/* Renders `sfc-summary-title sfx-h3`; the size here matches for a bare hook. */
 .sfc-summary-title {
   display: none;
-  margin-block-end: 20px;
-  font-size: 18px;
-  font-weight: 700;
+  margin-block-end: var(--m1h-s5);
+  font-size: var(--sfx-t-h3);
+  font-weight: 600;
 }
 
 @media (min-width: 1000px) {
@@ -1034,7 +1080,7 @@ div.sfc-choice__head {
 
 .sfc-lines {
   display: grid;
-  gap: 16px;
+  gap: var(--m1h-s4);
 }
 
 .sfc-line {
@@ -1048,7 +1094,7 @@ div.sfc-choice__head {
   position: relative;
   width: 64px;
   height: 64px;
-  border: 1px solid var(--m1h-line);
+  border: 1px solid var(--m1h-plate-edge);
   border-radius: var(--m1h-r-md);
   background: var(--m1h-plate);
 }
@@ -1069,19 +1115,20 @@ div.sfc-choice__head {
   height: 22px;
   place-items: center;
   padding-inline: 6px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-invert-bg);
   color: var(--m1h-invert-text);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .sfc-line__name {
   display: -webkit-box;
   overflow: hidden;
   color: var(--m1h-text);
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -1091,20 +1138,22 @@ div.sfc-choice__head {
 .sfc-line__variant {
   margin-block-start: 2px;
   color: var(--m1h-text-3);
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfc-line__price {
   display: grid;
   justify-items: end;
-  font-size: 14px;
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-base);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .sfc-line__was {
   color: var(--m1h-text-3);
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   font-weight: 500;
   text-decoration: line-through;
 }
@@ -1112,8 +1161,8 @@ div.sfc-choice__head {
 .sfc-coupon {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  margin-block: 20px;
+  gap: var(--m1h-s2);
+  margin-block: var(--m1h-s5);
 }
 
 .sfc-coupon .sfc-field {
@@ -1122,7 +1171,7 @@ div.sfc-choice__head {
 
 .sfc-coupon-state {
   margin-block: -12px 16px;
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
   font-weight: 600;
 }
 
@@ -1134,36 +1183,45 @@ div.sfc-choice__head {
   color: var(--m1h-text-2);
 }
 
+/* Totals: the progress bar, then `dl.sfx-summary` whose rows also carry the
+   local `sfc-total-row` hooks. Row colours, the discount ink and the total's
+   top line come from the primitive; this only resets the dl/dd defaults. */
 .sfc-totals {
   display: grid;
-  gap: 8px;
+  gap: var(--m1h-s2);
+}
+
+.sfc-totals :where(dl, dt, dd) {
+  margin: 0;
 }
 
 .sfc-total-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--m1h-s3);
   color: var(--m1h-text-2);
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
 }
 
 .sfc-total-row > :last-child {
   color: var(--m1h-text);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
 }
 
 .sfc-total-row--grand {
-  margin-block-start: 6px;
+  margin-block-start: var(--m1h-s1);
+  padding-block-start: var(--m1h-s3);
+  border-block-start: 1px solid var(--m1h-line);
   color: var(--m1h-text);
-  font-size: 18px;
+  font-size: var(--m1h-t-price);
   font-weight: 700;
 }
 
 .sfc-total-row--grand > :last-child {
-  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.01em;
 }
 
 .sfc-total-row__free {
@@ -1180,9 +1238,9 @@ div.sfc-choice__head {
 .sfc-summary-notes {
   display: grid;
   gap: 6px;
-  margin-block-start: 16px;
+  margin-block-start: var(--m1h-s4);
   color: var(--m1h-text-3);
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 /* The discount field lives in the side panel on wide screens and above the
@@ -1198,8 +1256,8 @@ div.sfc-choice__head {
 }
 
 .sfc-mobile-totals {
-  margin-block-start: 28px;
-  padding-block-start: 20px;
+  margin-block-start: var(--m1h-s6);
+  padding-block-start: var(--m1h-s5);
   border-block-start: 1px solid var(--m1h-line);
 }
 
@@ -1212,10 +1270,10 @@ div.sfc-choice__head {
 .sfc-trust {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 16px;
+  gap: var(--m1h-s2) var(--m1h-s4);
   margin-block-start: 14px;
   color: var(--m1h-text-2);
-  font-size: 12.5px;
+  font-size: var(--m1h-t-xs);
 }
 
 .sfc-trust span {
@@ -1228,20 +1286,30 @@ div.sfc-choice__head {
   color: var(--m1h-accent);
 }
 
+/* The empty checkout takes the site empty-state look (catalog `.sfx-empty`):
+   one surface card, 21px title, muted text. */
 .sfc-empty {
   display: grid;
-  max-width: 520px;
-  margin: 48px auto;
-  padding: 32px 20px;
+  width: calc(100% - 2 * var(--sfx-gutter));
+  max-width: var(--sfx-container-sm);
+  margin-block: var(--sfx-section-gap);
+  margin-inline: auto;
+  padding: 36px 20px;
   justify-items: center;
-  gap: 12px;
+  gap: 10px;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-xl);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
   text-align: center;
 }
 
 .sfc-empty .sfc-h2 {
-  font-size: 22px;
+  font-size: var(--m1h-t-section);
 }
 
 .sfc-empty p {
+  max-width: 28rem;
   color: var(--m1h-text-2);
+  line-height: 1.7;
 }

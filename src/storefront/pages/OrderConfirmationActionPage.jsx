@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 
 import { api } from "../../shared/api/api";
+import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
+// The /c/:code route renders outside the storefront shell (App.jsx), where
+// Storefront.jsx and its stylesheets never load — so the page brings the site's
+// tokens and primitives itself. Inside the shell these are already loaded.
+import "../site-skin.css";
+import "../catalog-skin.css";
+import "./customerLinks.css";
 
 const ACTION_META = {
   confirm: {
@@ -23,22 +30,48 @@ const ACTION_META = {
     get success() { return sfText("storefront.confirmLink.confirm.success"); },
     get hint() { return sfText("storefront.confirmLink.confirm.hint"); },
     icon: CheckCircle2,
-    className: "border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-500",
+    className: "sfl-action--confirm",
   },
   edit: {
     get label() { return sfText("storefront.confirmLink.modify.label"); },
     get success() { return sfText("storefront.confirmLink.modify.success"); },
     get hint() { return sfText("storefront.confirmLink.modify.hint"); },
     icon: PencilLine,
-    className: "border-amber-200 bg-amber-400 text-slate-950 hover:bg-amber-300",
+    className: "sfl-action--edit",
   },
   cancel: {
     get label() { return sfText("storefront.confirmLink.cancel.label"); },
     get success() { return sfText("storefront.confirmLink.cancel.success"); },
     get hint() { return sfText("storefront.confirmLink.cancel.hint"); },
     icon: XCircle,
-    className: "border-rose-200 bg-rose-600 text-white hover:bg-rose-500",
+    className: "sfl-action--cancel",
   },
+};
+
+// Same key and JSON encoding as Storefront.jsx; the shop defaults to dark.
+const STOREFRONT_THEME_KEY = "storefront.theme";
+const readStorefrontTheme = () => {
+  if (typeof window === "undefined") return "dark";
+  try {
+    const raw = window.localStorage.getItem(STOREFRONT_THEME_KEY);
+    return raw && JSON.parse(raw) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+};
+
+const isInsideStorefrontShell = () =>
+  typeof document !== "undefined" && Boolean(document.body?.classList?.contains("storefront-shell"));
+
+// Outside the shell nobody else claims the root colour scheme for the shop's
+// theme; `only light|dark` also stops force-dark phones repainting the page.
+// Inside the shell the storefront owns it, so stay out of its way.
+const useOutOfShellColorScheme = (theme) => {
+  useEffect(() => {
+    if (isInsideStorefrontShell()) return undefined;
+    setStorefrontColorScheme(theme, theme === "dark" ? "#070707" : "#f3f3f1");
+    return () => releaseStorefrontColorScheme();
+  }, [theme]);
 };
 
 const EXPIRED_CODES = new Set([
@@ -227,13 +260,13 @@ const getStructuredAddressFields = (order = null) => {
 
 function InfoCard({ title, icon: Icon, children }) {
   return (
-    <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="mb-3 flex items-center gap-2 text-sm font-black text-white">
-        <Icon className="h-4 w-4 text-[#d4af37]" />
+    <section className="sfx-surface">
+      <h2 className="sfx-h3 sfl-block-title">
+        <Icon aria-hidden="true" />
         {title}
-      </div>
+      </h2>
       {children}
-    </div>
+    </section>
   );
 }
 
@@ -254,10 +287,15 @@ class OrderConfirmationActionPageErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-8 text-white">
-          <div className="mx-auto max-w-3xl rounded-[1.5rem] border border-white/10 bg-[#101010] p-5 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-            <h1 className="text-xl font-black">{sfText("storefront.confirmLink.errorTitle")}</h1>
-            <p className="mt-2 text-sm leading-7 text-slate-700">{sfText("storefront.confirmLink.errorText")}</p>
+        <main className="sf-order-confirmation-page sfx-scope sfl" data-theme={readStorefrontTheme()}>
+          <div className="sfx-wrap sfx-wrap--sm sfx-section">
+            <div className="sfx-empty">
+              <span className="sfx-empty__icon">
+                <MessageCircleWarning className="h-7 w-7" aria-hidden="true" />
+              </span>
+              <h1 className="sfx-empty__title">{sfText("storefront.confirmLink.errorTitle")}</h1>
+              <p className="sfx-empty__text">{sfText("storefront.confirmLink.errorText")}</p>
+            </div>
           </div>
         </main>
       );
@@ -277,6 +315,8 @@ export function OrderConfirmationActionPage() {
 
 function OrderConfirmationActionPageInner() {
   useTranslation();
+  const [theme] = useState(readStorefrontTheme);
+  useOutOfShellColorScheme(theme);
   const { code, token } = useParams();
   const [loading, setLoading] = useState(true);
   const [pendingAction, setPendingAction] = useState("");
@@ -451,291 +491,186 @@ function OrderConfirmationActionPageInner() {
     ? (result?.link_locked && !result?.already_used ? sfText("storefront.confirmLink.linkLocked") : resultMessage)
     : (actionMeta?.hint || sfText("storefront.confirmLink.chooseAction"));
   const ResultCardIcon = isReadOnlyResult ? MessageCircleWarning : CheckCircle2;
-  const resultCardClassName = isReadOnlyResult
-    ? "rounded-[1.35rem] border border-amber-200 bg-amber-50 p-4 text-slate-950 shadow-sm"
-    : "rounded-[1.35rem] border border-emerald-200 bg-emerald-50 p-4 text-slate-950 shadow-sm";
-  const resultCardIconClassName = isReadOnlyResult
-    ? "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-200/80 text-slate-950"
-    : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-200/80 text-slate-950";
+  const resultNoticeClassName = isReadOnlyResult ? "sfx-notice sfx-notice--accent" : "sfx-notice sfx-notice--success";
+  const displayItems = items.length > 1 ? items : [primaryItem || { key: "fallback" }];
+
+  const whatsappButton = (
+    <a href={waUrl} target="_blank" rel="noreferrer" className="sfx-btn sfx-btn--whatsapp sfx-btn--lg sfx-btn--block">
+      <Phone className="h-4 w-4" aria-hidden="true" />
+      {sfText("storefront.confirmLink.contactWhatsapp")}
+    </a>
+  );
 
   return (
-    <main className="sf-order-confirmation-page min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-5 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[100svh] max-w-3xl items-center justify-center py-3">
-        <section className="w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_30px_90px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <div className="px-4 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
-            <div className="h-1 w-full rounded-full bg-[linear-gradient(90deg,#d4af37,#e5c158)]" />
+    <main className="sf-order-confirmation-page sfx-scope sfl" data-theme={theme}>
+      <div className="sfx-wrap sfx-wrap--sm sfx-section sfl-page">
+        <header className="sfl-head">
+          <span className="sfl-icon" aria-hidden="true">
+            <CheckCircle2 className="h-6 w-6" />
+          </span>
+          <div className="sfx-page-head__text">
+            <p className="sfx-kicker">{sfText("storefront.confirmLink.eyebrow")}</p>
+            <h1 className="sfx-title">{sfText("storefront.confirmLink.title")}</h1>
+            <p className="sfx-subtitle">
+              {sfText("storefront.confirmLink.orderNumberLabel")}{" "}
+              <span className="sfx-badge sfx-badge--accent" dir="ltr">{orderNumber || "—"}</span>
+            </p>
+          </div>
+        </header>
 
-            <div className="mt-4 space-y-4">
-              <div className="rounded-[1.5rem] border border-white/10 bg-[#101010] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.04)] sm:p-5">
-                <div className="mb-3 flex items-start gap-3">
-                  <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.12)] text-[#d4af37]">
-                    <CheckCircle2 className="h-7 w-7" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] font-black uppercase tracking-[0.28em] text-[#d4af37]">{sfText("storefront.confirmLink.eyebrow")}</p>
-                    <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-white sm:text-3xl">{sfText("storefront.confirmLink.title")}</h1>
-                    <p className="mt-2 text-sm leading-6 text-white/72">{sfText("storefront.confirmLink.orderNumberLabel")} {orderNumber || "—"}</p>
-                  </div>
-                </div>
-
-                {loading ? (
-                  <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] px-4 py-5 text-sm font-bold text-white/72 shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-                    <div className="flex items-center gap-3">
-                      <Loader2 className="h-5 w-5 animate-spin text-[#d4af37]" />
-                      {sfText("storefront.confirmLink.loading")}
-                    </div>
-                  </div>
-                ) : error && isExpiredState ? (
-                  <div className="space-y-4 rounded-[1.35rem] border border-amber-200/35 bg-[#101010] p-4 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-200/30 bg-[rgba(212,175,55,0.12)] text-[#d4af37]">
-                        <MessageCircleWarning className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-black">{sfText("storefront.confirmLink.linkExpiredTitle")}</h2>
-                        <p className="mt-1 text-sm leading-7 text-white/72">{sfText("storefront.confirmLink.linkExpiredText")}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
-                        <Phone className="h-4 w-4" />
-                        {sfText("storefront.confirmLink.contactWhatsapp")}
-                      </a>
-                    </div>
-                  </div>
-                ) : error ? (
-                  <div className="space-y-4 rounded-[1.35rem] border border-rose-200/35 bg-[#101010] p-4 text-white shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-rose-200/30 bg-[rgba(244,63,94,0.12)] text-rose-200">
-                        <MessageCircleWarning className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-black">{sfText("storefront.confirmLink.linkLoadFailedTitle")}</h2>
-                        <p className="mt-1 text-sm leading-7 text-white/72">{error}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
-                        <Phone className="h-4 w-4" />
-                        {sfText("storefront.confirmLink.contactWhatsapp")}
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.24)]">
-                      {items.length > 1 ? (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {items.map((item) => {
-                            const itemPrice = getItemPrice(item);
-                            return (
-                              <div key={item.key} className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#101010]">
-                                <div className="aspect-[4/3] bg-[#101010]">
-                                  {item.image_url ? (
-                                    <img src={item.image_url} alt={item.product_name} className="h-full w-full object-cover" loading="lazy" />
-                                  ) : (
-                                    <div className="flex h-full items-center justify-center text-white/24">
-                                      <ImageIcon className="h-12 w-12" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="space-y-3 p-4">
-                                  <h3 className="text-lg font-black leading-snug text-white">{item.product_name || sfText("storefront.confirmLink.productFallback")}</h3>
-                                  <div className="flex flex-wrap gap-2 text-xs font-bold text-white/72">
-                                    {item.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.colorLabel")} {item.color}</span> : null}
-                                    {item.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.sizeLabel")} {item.size}</span> : null}
-                                    <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.quantityLabel")} {item.quantity || 1}</span>
-                                    {itemPrice !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.priceLabel")} {formatMoney(itemPrice)}</span> : null}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#101010]">
-                          <div className="aspect-[4/3] bg-[#101010]">
-                            {primaryItem?.image_url ? (
-                              <img src={primaryItem.image_url} alt={primaryItem.product_name} className="h-full w-full object-cover" loading="lazy" />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-white/24">
-                                <ImageIcon className="h-12 w-12" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="space-y-3 p-4">
-                            <h3 className="text-lg font-black leading-snug text-white">{primaryItem?.product_name || sfText("storefront.confirmLink.productFallback")}</h3>
-                            <div className="flex flex-wrap gap-2 text-xs font-bold text-white/72">
-                              {primaryItem?.color ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.colorLabel")} {primaryItem.color}</span> : null}
-                              {primaryItem?.size ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.sizeLabel")} {primaryItem.size}</span> : null}
-                              <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.quantityLabel")} {primaryItem?.quantity || 1}</span>
-                              {getItemPrice(primaryItem) !== undefined ? <span className="inline-flex items-center rounded-full border border-white/10 bg-[#101010] px-3 py-1">{sfText("storefront.confirmLink.priceLabel")} {formatMoney(getItemPrice(primaryItem))}</span> : null}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {false && (<div className="grid gap-4 sm:grid-cols-2">
-                      <InfoCard title={sfText("storefront.confirmLink.customer")} icon={ShoppingBag}>
-                        <div className="space-y-2">
-                          <div className="text-sm font-black text-slate-950">{customerName || "â€”"}</div>
-                          <div className="text-sm font-bold text-slate-700">{customerPhone || "â€”"}</div>
-                        </div>
-                      </InfoCard>
-
-                      <InfoCard title={sfText("storefront.confirmLink.address")} icon={MapPin}>
-                        <div className="space-y-4">
-                          <div className="space-y-2 text-sm">
-                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.itemsPrice")}</span>
-                              <span className="font-black text-slate-950">{formatMoney(itemsSubtotal)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.shipping")}</span>
-                              <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : sfText("storefront.confirmLink.notSpecified")}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.discount")}</span>
-                              <span className="font-black text-slate-950">{formatMoney(discountValue || 0)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                              <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.finalTotal")}</span>
-                              <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : sfText("storefront.confirmLink.notSpecified")}</span>
-                            </div>
-                          </div>
-
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{sfText("storefront.confirmLink.locationHeading")}</div>
-                            <div className="mt-1 text-sm font-bold text-slate-900">
-                              {addressSummary.locationLine || sfText("storefront.confirmLink.notSpecified")}
-                            </div>
-                            <div className="mt-3 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">{sfText("storefront.confirmLink.detailedAddress")}</div>
-                            <div className="mt-1 text-sm leading-7 text-slate-700">
-                              {addressSummary.addressLine || sfText("storefront.confirmLink.notSpecified")}
-                            </div>
-                          </div>
-                        </div>
-                      </InfoCard>
-                    </div>)}
-
-                    <div className="space-y-4">
-                      <InfoCard title={sfText("storefront.confirmLink.customer")} icon={ShoppingBag}>
-                        <div className="space-y-2">
-                          <div className="text-sm font-black text-slate-950">{customerName || "—"}</div>
-                          <div className="text-sm font-bold text-slate-700">{customerPhone || "—"}</div>
-                        </div>
-                      </InfoCard>
-
-                      <InfoCard title={sfText("storefront.confirmLink.address")} icon={MapPin}>
-                        <div className="space-y-3">
-                          {hasStructuredAddressFields ? (
-                            <div className="grid gap-2 text-sm">
-                              {structuredAddressFields.map((field) => (
-                                <div key={field.label} className="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-3 py-2">
-                                  <span className="min-w-0 shrink-0 font-bold text-slate-600">{field.label}</span>
-                                  <span className="min-w-0 text-left font-black leading-6 text-slate-950 rtl:text-right">{field.value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : shouldUseFallbackAddress ? (
-                            <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm leading-7 font-bold text-slate-900">
-                              {fallbackAddress}
-                            </div>
-                          ) : (
-                            <div className="rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
-                              {sfText("storefront.confirmLink.notSpecified")}
-                            </div>
-                          )}
-                        </div>
-                      </InfoCard>
-
-                      <InfoCard title={sfText("storefront.confirmLink.paymentSummary")} icon={ShoppingBag}>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.itemsPrice")}</span>
-                            <span className="font-black text-slate-950">{formatMoney(itemsSubtotal)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.shipping")}</span>
-                            <span className="font-black text-slate-950">{pricing.shippingAvailable ? formatMoney(shippingFee) : sfText("storefront.confirmLink.notSpecified")}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2">
-                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.discount")}</span>
-                            <span className="font-black text-slate-950">{formatMoney(discountValue || 0)}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                            <span className="font-bold text-slate-600">{sfText("storefront.confirmLink.finalTotal")}</span>
-                            <span className="font-black text-slate-950">{pricing.totalAvailable ? formatMoney(totalAmount) : sfText("storefront.confirmLink.notSpecified")}</span>
-                          </div>
-                        </div>
-                      </InfoCard>
-                    </div>
-
-                    {!(resultAction || isReadOnlyResult) ? (
-                      <div className="space-y-3 pt-1">
-                        <div className="grid gap-3 sm:grid-cols-3">
-                          {Object.entries(ACTION_META).map(([action, meta]) => {
-                            const Icon = meta.icon;
-                            const isBusy = pendingAction === action;
-                            const disabled = Boolean(pendingAction);
-                            return (
-                              <button
-                                key={action}
-                                type="button"
-                                onClick={() => applyAction(action)}
-                                disabled={disabled}
-                                className={["flex min-h-[88px] items-center gap-3 rounded-[1.35rem] border px-4 py-4 text-start transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60", meta.className].join(" ")}
-                              >
-                                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/15 text-current">
-                                  {isBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-base font-black leading-tight text-current">{meta.label}</div>
-                                  <div className="mt-1 text-xs font-semibold leading-5 text-current opacity-90">{meta.hint}</div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {pendingAction ? (
-                          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm">
-                            {sfText("storefront.confirmLink.running")} {ACTION_META[pendingAction]?.label || sfText("storefront.confirmLink.theAction")}...
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <>
-                        <div className={resultCardClassName}>
-                          <div className="flex items-start gap-3">
-                            <div className={resultCardIconClassName}>
-                              <ResultCardIcon className="h-5 w-5" />
-                            </div>
-                            <div>
-                              <h2 className="text-lg font-black">{resultHeadline}</h2>
-                              <p className="mt-1 text-sm leading-7 text-slate-700">{resultSubtext}</p>
-                              {isReadOnlyResult ? <p className="mt-2 text-xs font-bold text-slate-700">{sfText("storefront.confirmLink.readOnly")}</p> : null}
-                              {!isReadOnlyResult && result?.already_applied ? <p className="mt-2 text-xs font-bold text-slate-700">{sfText("storefront.confirmLink.alreadyApplied")}</p> : null}
-                            </div>
-                          </div>
-                        </div>
-                        {isReadOnlyResult ? (
-                          <div className="flex flex-col gap-3 sm:flex-row">
-                            <a href={waUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#16a34a] px-4 py-3 text-sm font-black text-white transition hover:-translate-y-0.5">
-                              <Phone className="h-4 w-4" />
-                              {sfText("storefront.confirmLink.contactWhatsapp")}
-                            </a>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
-                )}
+        {loading ? (
+          <div className="sfx-surface sfl-loading" role="status">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            {sfText("storefront.confirmLink.loading")}
+          </div>
+        ) : error && isExpiredState ? (
+          <div className="sfx-stack">
+            <div className="sfx-notice sfx-notice--accent" role="alert">
+              <MessageCircleWarning aria-hidden="true" />
+              <div className="sfl-notice-body">
+                <h2 className="sfx-h3">{sfText("storefront.confirmLink.linkExpiredTitle")}</h2>
+                <p className="sfl-text">{sfText("storefront.confirmLink.linkExpiredText")}</p>
               </div>
             </div>
+            {whatsappButton}
           </div>
-        </section>
+        ) : error ? (
+          <div className="sfx-stack">
+            <div className="sfx-notice sfx-notice--danger" role="alert">
+              <MessageCircleWarning aria-hidden="true" />
+              <div className="sfl-notice-body">
+                <h2 className="sfx-h3">{sfText("storefront.confirmLink.linkLoadFailedTitle")}</h2>
+                <p className="sfl-text">{error}</p>
+              </div>
+            </div>
+            {whatsappButton}
+          </div>
+        ) : (
+          <div className="sfx-stack">
+            <div className={`sfl-items${displayItems.length > 1 ? " sfl-items--multi" : ""}`}>
+              {displayItems.map((item) => {
+                const itemPrice = getItemPrice(item);
+                return (
+                  <article key={item.key} className="sfx-surface sfx-surface--flush">
+                    <div className="sfl-item__media">
+                      {item.image_url ? (
+                        <img src={item.image_url} alt={item.product_name} loading="lazy" />
+                      ) : (
+                        <ImageIcon className="h-12 w-12" aria-hidden="true" />
+                      )}
+                    </div>
+                    <div className="sfl-item__body">
+                      <h3 className="sfl-item__name">{item.product_name || sfText("storefront.confirmLink.productFallback")}</h3>
+                      <div className="sfl-badges">
+                        {item.color ? <span className="sfx-badge">{sfText("storefront.confirmLink.colorLabel")} {item.color}</span> : null}
+                        {item.size ? <span className="sfx-badge">{sfText("storefront.confirmLink.sizeLabel")} {item.size}</span> : null}
+                        <span className="sfx-badge">{sfText("storefront.confirmLink.quantityLabel")} {item.quantity || 1}</span>
+                        {itemPrice !== undefined ? <span className="sfx-badge sfx-badge--accent">{sfText("storefront.confirmLink.priceLabel")} {formatMoney(itemPrice)}</span> : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <InfoCard title={sfText("storefront.confirmLink.customer")} icon={ShoppingBag}>
+              <div className="sfx-stack" style={{ gap: "var(--m1h-s1)" }}>
+                <p className="sfl-text sfl-text--strong">{customerName || "—"}</p>
+                <p className="sfl-text" dir="ltr" style={{ textAlign: "start" }}>{customerPhone || "—"}</p>
+              </div>
+            </InfoCard>
+
+            <InfoCard title={sfText("storefront.confirmLink.address")} icon={MapPin}>
+              {hasStructuredAddressFields ? (
+                <dl className="sfx-summary">
+                  {structuredAddressFields.map((field) => (
+                    <div key={field.label} className="sfx-summary__row">
+                      <dt>{field.label}</dt>
+                      <dd style={{ margin: 0 }}>{field.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : shouldUseFallbackAddress ? (
+                <p className="sfl-text sfl-text--strong">{fallbackAddress}</p>
+              ) : (
+                <p className="sfl-text sfl-text--muted">{sfText("storefront.confirmLink.notSpecified")}</p>
+              )}
+            </InfoCard>
+
+            <InfoCard title={sfText("storefront.confirmLink.paymentSummary")} icon={ShoppingBag}>
+              <dl className="sfx-summary">
+                <div className="sfx-summary__row">
+                  <dt>{sfText("storefront.confirmLink.itemsPrice")}</dt>
+                  <dd style={{ margin: 0 }}>{formatMoney(itemsSubtotal)}</dd>
+                </div>
+                <div className="sfx-summary__row">
+                  <dt>{sfText("storefront.confirmLink.shipping")}</dt>
+                  <dd style={{ margin: 0 }}>{pricing.shippingAvailable ? formatMoney(shippingFee) : sfText("storefront.confirmLink.notSpecified")}</dd>
+                </div>
+                <div className={`sfx-summary__row${discountValue ? " sfx-summary__row--discount" : ""}`}>
+                  <dt>{sfText("storefront.confirmLink.discount")}</dt>
+                  <dd style={{ margin: 0 }}>{formatMoney(discountValue || 0)}</dd>
+                </div>
+                <div className="sfx-summary__row sfx-summary__row--total">
+                  <dt>{sfText("storefront.confirmLink.finalTotal")}</dt>
+                  <dd style={{ margin: 0 }}>{pricing.totalAvailable ? formatMoney(totalAmount) : sfText("storefront.confirmLink.notSpecified")}</dd>
+                </div>
+              </dl>
+            </InfoCard>
+
+            {!(resultAction || isReadOnlyResult) ? (
+              <div className="sfx-stack">
+                <div className="sfl-actions">
+                  {Object.entries(ACTION_META).map(([action, meta]) => {
+                    const Icon = meta.icon;
+                    const isBusy = pendingAction === action;
+                    const disabled = Boolean(pendingAction);
+                    return (
+                      <button
+                        key={action}
+                        type="button"
+                        onClick={() => applyAction(action)}
+                        disabled={disabled}
+                        aria-busy={isBusy || undefined}
+                        className={`sfl-action ${meta.className}`}
+                      >
+                        <span className="sfl-action__icon" aria-hidden="true">
+                          {isBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="sfl-action__label">{meta.label}</span>
+                          <span className="sfl-action__hint">{meta.hint}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {pendingAction ? (
+                  <div className="sfx-notice" role="status">
+                    <Loader2 className="animate-spin" aria-hidden="true" />
+                    <p className="sfl-text sfl-text--strong">
+                      {sfText("storefront.confirmLink.running")} {ACTION_META[pendingAction]?.label || sfText("storefront.confirmLink.theAction")}...
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <div className={resultNoticeClassName} role="status">
+                  <ResultCardIcon aria-hidden="true" />
+                  <div className="sfl-notice-body">
+                    <h2 className="sfx-h3">{resultHeadline}</h2>
+                    <p className="sfl-text">{resultSubtext}</p>
+                    {isReadOnlyResult ? <p className="sfl-text sfl-text--sm sfl-text--strong">{sfText("storefront.confirmLink.readOnly")}</p> : null}
+                    {!isReadOnlyResult && result?.already_applied ? <p className="sfl-text sfl-text--sm sfl-text--strong">{sfText("storefront.confirmLink.alreadyApplied")}</p> : null}
+                  </div>
+                </div>
+                {isReadOnlyResult ? whatsappButton : null}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </main>
   );

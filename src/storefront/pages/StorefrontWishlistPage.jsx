@@ -123,13 +123,13 @@ const buildRows = (entries, details, saleModeEnabled) => {
 
 function WishlistEmpty() {
   return (
-    <div className="sfw-empty">
-      <span className="sfw-empty__icon" aria-hidden="true">
+    <div className="sfx-empty sfw-empty">
+      <span className="sfx-empty__icon" aria-hidden="true">
         <Heart size={26} strokeWidth={1.75} />
       </span>
-      <h2 className="sfw-empty__title">{sfText("storefront.wishlist.emptyTitle", "المفضلة فاضية")}</h2>
-      <p className="sfw-empty__text">{sfText("storefront.wishlist.emptyHint", "دوس على القلب اللي على أي منتج، وهتلاقيه هنا وقت ما تحب ترجع له.")}</p>
-      <Link to={ROOT_PATHS.products || "/products"} className="sfw-btn sfw-btn--ink">
+      <h2 className="sfx-empty__title">{sfText("storefront.wishlist.emptyTitle", "المفضلة فاضية")}</h2>
+      <p className="sfx-empty__text">{sfText("storefront.wishlist.emptyHint", "دوس على القلب اللي على أي منتج، وهتلاقيه هنا وقت ما تحب ترجع له.")}</p>
+      <Link to={ROOT_PATHS.products || "/products"} className="sfx-btn sfx-btn--primary sfx-btn--lg">
         {sfText("storefront.common.shopNow", "تسوق الآن")}
       </Link>
     </div>
@@ -138,12 +138,12 @@ function WishlistEmpty() {
 
 function PriceDropNotice({ dropped }) {
   return (
-    <div className="sfw-notice">
+    <div className="sfx-notice sfw-notice">
       <span className="sfw-notice__icon" aria-hidden="true">
         <Bell size={18} />
       </span>
       <div className="sfw-notice__body">
-        <p className="sfw-notice__title">{sfText("storefront.priceDrop.panelTitle", "تنبيه نزول السعر")}</p>
+        <p className="sfx-h3 sfw-notice__title">{sfText("storefront.priceDrop.panelTitle", "تنبيه نزول السعر")}</p>
         <p className="sfw-notice__text">{sfText("storefront.priceDrop.panelText", "بنتابع أسعار المنتجات اللي في المفضلة واللي طلبت تتنبّه لها، وأول ما سعر أي منتج ينزل هنبلغك.")}</p>
         {dropped.length ? (
           <ul className="sfw-drops">
@@ -158,7 +158,7 @@ function PriceDropNotice({ dropped }) {
                       <span className="sfw-drop__was">{sfText("storefront.priceDrop.was", "كان {{price}}", { price: money(alert.followed_price) })}</span>
                     </span>
                   </span>
-                  <span className="sfw-drop__flag">{sfText("storefront.wishlist.priceDropped", "نزل سعرها")}</span>
+                  <span className="sfx-badge sfx-badge--sale sfw-drop__flag">{sfText("storefront.wishlist.priceDropped", "نزل سعرها")}</span>
                 </Link>
               </li>
             ))}
@@ -290,41 +290,43 @@ export default function StorefrontWishlistPage({ wishlist = [], toggleWishlist, 
 
   return (
     <section className="sfw">
-      <div className="sfw-wrap">
+      <div className="sfx-wrap sfw-wrap">
         <header className="sfw-head">
-          <div className="sfw-head__title">
-            <h1 className="sfw-title">{sfText("storefront.header.wishlist", "المفضلة")}</h1>
+          <div className="sfx-page-head">
+            <div className="sfx-page-head__text">
+            <h1 className="sfx-title">{sfText("storefront.header.wishlist", "المفضلة")}</h1>
             {entries.length ? (
-              <span className="sfw-count">{sfText("storefront.products.productCount", "{{count}} منتج", { count: entries.length })}</span>
+              <p className="sfx-subtitle sfw-count">{sfText("storefront.products.productCount", "{{count}} منتج", { count: entries.length })}</p>
             ) : null}
           </div>
           {entries.length ? (
-            <div className="sfw-head__actions">
+            <div className="sfx-page-head__actions">
               <button
                 type="button"
                 onClick={clearAll}
-                className={`sfw-btn sfw-btn--quiet${confirmingClear ? " is-confirming" : ""}`}
+                className={`sfx-btn ${confirmingClear ? "sfx-btn--danger is-confirming" : "sfx-btn--ghost"}`}
                 aria-live="polite"
               >
                 <Trash2 size={15} aria-hidden="true" />
                 {confirmingClear ? sfText("storefront.wishlist.confirmClear", "تأكيد المسح") : sfText("storefront.wishlist.clearAll", "مسح الكل")}
               </button>
-              <Link to={ROOT_PATHS.products || "/products"} className="sfw-btn sfw-btn--outline">
+              <Link to={ROOT_PATHS.products || "/products"} className="sfx-btn sfx-btn--secondary">
                 {sfText("storefront.common.continueShopping", "متابعة التسوق")}
               </Link>
             </div>
           ) : null}
+          </div>
         </header>
 
         {!signedIn && entries.length ? (
-          <div className="sfw-notice sfw-notice--quiet">
+          <div className="sfx-notice sfw-notice sfw-notice--quiet">
             <span className="sfw-notice__icon" aria-hidden="true">
               <Heart size={18} />
             </span>
             <p className="sfw-notice__text sfw-notice__text--inline">
               {sfText("storefront.wishlist.guestNote", "مفضلتك محفوظة على الجهاز ده بس. سجّل دخولك علشان تلاقيها على أي جهاز.")}
             </p>
-            <Link to={ROOT_PATHS.account || "/account"} className="sfw-btn sfw-btn--ink sfw-btn--sm">
+            <Link to={ROOT_PATHS.account || "/account"} className="sfx-btn sfx-btn--primary sfx-btn--sm">
               {sfText("storefront.wishlist.signIn", "تسجيل الدخول")}
             </Link>
           </div>
@@ -346,22 +348,22 @@ export default function StorefrontWishlistPage({ wishlist = [], toggleWishlist, 
                       onClick={() => setFilter(key)}
                       aria-pressed={filter === key}
                       disabled={disabled}
-                      className={`sfw-chip${filter === key ? " is-active" : ""}`}
+                      className={`sfx-chip sfw-chip${filter === key ? " is-active" : ""}`}
                     >
                       {label()}
-                      <span className="sfw-chip__count" dir="ltr">{count}</span>
+                      <span className="sfx-chip__count" dir="ltr">{count}</span>
                     </button>
                   );
                 })}
               </div>
-              <div className="sfw-sort" role="group" aria-label={sfText("storefront.wishlist.sortLabel", "ترتيب")}>
+              <div className="sfx-tabs sfw-sort" role="group" aria-label={sfText("storefront.wishlist.sortLabel", "ترتيب")}>
                 {SORTS.map(({ key, label }) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setSort(key)}
                     aria-pressed={sort === key}
-                    className={`sfw-sort__option${sort === key ? " is-active" : ""}`}
+                    className={`sfx-tab${sort === key ? " is-active" : ""}`}
                   >
                     {label()}
                   </button>
@@ -390,9 +392,9 @@ export default function StorefrontWishlistPage({ wishlist = [], toggleWishlist, 
                 })}
               </div>
             ) : (
-              <div className="sfw-empty sfw-empty--compact">
-                <p className="sfw-empty__text">{sfText("storefront.wishlist.noMatches", "مفيش منتجات في المفضلة بالفلتر ده")}</p>
-                <button type="button" onClick={() => setFilter("all")} className="sfw-btn sfw-btn--outline">
+              <div className="sfx-empty sfx-empty--compact sfw-empty">
+                <p className="sfx-empty__text">{sfText("storefront.wishlist.noMatches", "مفيش منتجات في المفضلة بالفلتر ده")}</p>
+                <button type="button" onClick={() => setFilter("all")} className="sfx-btn sfx-btn--secondary">
                   {sfText("storefront.wishlist.showAll", "عرض الكل")}
                 </button>
               </div>

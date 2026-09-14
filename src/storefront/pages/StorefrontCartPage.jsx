@@ -13,7 +13,6 @@ import {
   sfText,
   usePublicBundleConfig,
 } from "../Storefront";
-import { CheckoutBlock } from "../checkout/CheckoutParts";
 import { CheckoutTotals } from "../components/StorefrontCheckoutSummary";
 import { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import { trackGa4ViewCart } from "../lib/ga4Events";
@@ -66,7 +65,7 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
         ) : null}
 
         <div className="sfk-line__bottom">
-          <div className="sfk-stepper">
+          <div className="sfx-stepper sfk-stepper">
             <button
               type="button"
               onClick={() => (quantity > 1 ? updateCart(item.lineId, quantity - 1) : removeFromCart(item.lineId))}
@@ -74,7 +73,7 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
             >
               {quantity > 1 ? <Minus aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
             </button>
-            <span className="sfk-stepper__qty" aria-live="polite">{quantity}</span>
+            <span className="sfx-stepper__value sfk-stepper__qty" aria-live="polite">{quantity}</span>
             <button type="button" onClick={() => updateCart(item.lineId, quantity + 1)} aria-label={sfText("storefront.cart.increaseQuantity", "زيادة الكمية")}>
               <Plus aria-hidden="true" />
             </button>
@@ -141,11 +140,13 @@ export default function StorefrontCartPage({
     return (
       <>
         <section className="sfc sfk" data-theme={themeMode}>
-          <div className="sfc-empty">
-            <span className="sfk-empty__icon" aria-hidden="true"><ShoppingBag /></span>
-            <h1 className="sfc-h2">{sfText("storefront.cart.emptyTitle", "السلة فارغة")}</h1>
-            <p>{sfText("storefront.cart.emptyPageText", "اختر منتجًا أولًا ثم أكمل الدفع")}</p>
-            <Link to={productsPath} className="sfc-btn-secondary">{sfText("storefront.common.shopNow", "تسوق الآن")}</Link>
+          <div className="sfx-wrap sfx-wrap--sm sfx-section">
+            <div className="sfx-empty sfk-empty">
+            <span className="sfx-empty__icon sfk-empty__icon" aria-hidden="true"><ShoppingBag /></span>
+            <h1 className="sfx-empty__title">{sfText("storefront.cart.emptyTitle", "السلة فارغة")}</h1>
+            <p className="sfx-empty__text">{sfText("storefront.cart.emptyPageText", "اختر منتجًا أولًا ثم أكمل الدفع")}</p>
+            <Link to={productsPath} className="sfx-btn sfx-btn--primary sfx-btn--lg">{sfText("storefront.common.shopNow", "تسوق الآن")}</Link>
+            </div>
           </div>
         </section>
         {recentRail}
@@ -168,7 +169,7 @@ export default function StorefrontCartPage({
     />
   );
   const checkoutButton = (
-    <Link to={checkoutPath} className="sfc-btn-primary sfk-checkout">
+    <Link to={checkoutPath} className="sfx-btn sfx-btn--primary sfx-btn--lg sfx-btn--block sfk-checkout">
       {sfText("storefront.cart.proceedToCheckout", "إتمام الشراء")}
     </Link>
   );
@@ -179,16 +180,18 @@ export default function StorefrontCartPage({
       <section className="sfc sfk" data-theme={themeMode}>
         <div className="sfc-grid">
           <div className="sfc-main">
-            <CheckoutBlock
-              id="sfk-cart"
-              title={(
-                <>
+            <header className="sfx-page-head sfk-head">
+              <div className="sfx-page-head__text">
+                <h1 className="sfx-title" id="sfk-cart-title">
                   {sfText("storefront.cart.title", "السلة")}
-                  <span className="sfk-count">{sfText("storefront.products.productCount", "{{count}} منتج", { count: itemCount })}</span>
-                </>
-              )}
-              action={<Link to={productsPath} className="sfc-link">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>}
-            >
+                </h1>
+                <p className="sfx-subtitle sfk-count">{sfText("storefront.products.productCount", "{{count}} منتج", { count: itemCount })}</p>
+              </div>
+              <div className="sfx-page-head__actions">
+                <Link to={productsPath} className="sfx-link-btn sfk-continue">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>
+              </div>
+            </header>
+            <section className="sfk-section" aria-labelledby="sfk-cart-title">
               <ul className="sfk-lines">
                 {lines.map((item) => (
                   <CartLine
@@ -201,7 +204,7 @@ export default function StorefrontCartPage({
                   />
                 ))}
               </ul>
-            </CheckoutBlock>
+            </section>
 
             {/* Phones: the side panel is not shown, so its totals and button close the page. */}
             <div className="sfc-mobile-totals">
@@ -216,7 +219,7 @@ export default function StorefrontCartPage({
 
           <aside className="sfc-side sfk-side" aria-label={sfText("storefront.checkout.orderSummary", "ملخص الطلب")}>
             <div className="sfc-side__inner">
-              <h2 className="sfc-summary-title sfk-summary-title">{sfText("storefront.checkout.orderSummary", "ملخص الطلب")}</h2>
+              <h2 className="sfc-summary-title sfx-h3 sfk-summary-title">{sfText("storefront.checkout.orderSummary", "ملخص الطلب")}</h2>
               {totals}
               {savedNote}
               <div className="sfc-submit">

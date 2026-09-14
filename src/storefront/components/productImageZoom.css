@@ -1,19 +1,21 @@
 /* Full-screen product photo viewer (ProductImageZoom.jsx).
 
    White in both shop themes, like the photo plate on the page: the product photos
-   are shot on white, and on black each one read as a white box. Colours are
-   spelled out with the body.storefront-shell prefix because the shop remaps
-   Tailwind's white/black utilities per theme, which would repaint a surface
-   that must not change. */
+   are shot on white, and on black each one read as a white box. The stage is
+   the plate token (white in both themes); its ink is a fixed dark one, declared
+   once below as --sfx-plate-ink, because the theme's --m1h-text turns light in
+   dark mode and would vanish on the white stage. The body.storefront-shell
+   prefix beats the shop's Tailwind white/black remaps. */
 
 body.storefront-shell .sfz {
+  --sfx-plate-ink: #14120f;
   position: fixed;
   inset: 0;
   z-index: 120;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
-  color: #14120f !important;
+  background: var(--m1h-plate);
+  color: var(--sfx-plate-ink) !important;
   animation: sfz-in 180ms ease-out;
   -webkit-user-select: none;
   user-select: none;
@@ -35,7 +37,7 @@ body.storefront-shell .sfz {
 }
 
 body.storefront-shell .sfz__count {
-  color: rgba(20, 18, 15, 0.62) !important;
+  color: color-mix(in srgb, var(--sfx-plate-ink) 62%, transparent) !important;
   -webkit-text-fill-color: currentColor;
   font-size: 14px;
   font-weight: 600;
@@ -49,23 +51,23 @@ body.storefront-shell .sfz__nav {
   height: 44px;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(20, 18, 15, 0.12) !important;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92) !important;
-  color: #14120f !important;
+  border: 1px solid color-mix(in srgb, var(--sfx-plate-ink) 12%, transparent) !important;
+  border-radius: var(--m1h-r-pill);
+  background: color-mix(in srgb, var(--m1h-plate) 92%, transparent) !important;
+  color: var(--sfx-plate-ink) !important;
   cursor: pointer;
   transition: background-color 160ms ease;
 }
 
 body.storefront-shell .sfz__icon:hover,
 body.storefront-shell .sfz__nav:hover {
-  background: #f1efea !important;
+  background: color-mix(in srgb, var(--sfx-plate-ink) 6%, var(--m1h-plate)) !important;
 }
 
 body.storefront-shell .sfz__icon:focus-visible,
 body.storefront-shell .sfz__nav:focus-visible,
 body.storefront-shell .sfz__thumb:focus-visible {
-  outline: 2px solid #a47a12;
+  outline: 2px solid var(--m1h-accent);
   outline-offset: 2px;
 }
 
@@ -104,9 +106,9 @@ body.storefront-shell .sfz__hint {
   left: 50%;
   margin: 0;
   padding: 6px 12px;
-  border-radius: 999px;
-  background: rgba(20, 18, 15, 0.78);
-  color: #f8f6f1 !important;
+  border-radius: var(--m1h-r-pill);
+  background: var(--sfx-media-scrim);
+  color: var(--sfx-media-ink) !important;
   -webkit-text-fill-color: currentColor;
   font-size: 12px;
   font-weight: 500;
@@ -163,16 +165,16 @@ body.storefront-shell .sfz__thumb {
   flex: none;
   overflow: hidden;
   padding: 3px;
-  border: 1px solid rgba(20, 18, 15, 0.12) !important;
-  border-radius: 10px;
-  background: #ffffff !important;
+  border: 1px solid color-mix(in srgb, var(--sfx-plate-ink) 12%, transparent) !important;
+  border-radius: var(--m1h-r-sm);
+  background: var(--m1h-plate) !important;
   opacity: 0.55;
   cursor: pointer;
   transition: opacity 160ms ease, border-color 160ms ease;
 }
 
 body.storefront-shell .sfz__thumb.is-active {
-  border-color: #14120f !important;
+  border-color: var(--sfx-plate-ink) !important;
   opacity: 1;
 }
 
@@ -207,6 +209,11 @@ body.storefront-shell .sfz__thumb.is-active {
   transition: transform 160ms ease-out;
 }
 
+body.storefront-shell .sfz-open:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
 body.storefront-shell .sfz-open {
   position: absolute;
   z-index: 20;
@@ -217,11 +224,11 @@ body.storefront-shell .sfz-open {
   height: 40px;
   place-items: center;
   padding: 0;
-  border: 1px solid var(--m1h-line, rgba(0, 0, 0, 0.1)) !important;
-  border-radius: 999px;
-  background: var(--m1h-surface, #ffffff) !important;
-  color: var(--m1h-text, #1c1917) !important;
-  box-shadow: var(--m1h-shadow-soft, none);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: var(--m1h-shadow-soft);
   cursor: pointer;
 }
 

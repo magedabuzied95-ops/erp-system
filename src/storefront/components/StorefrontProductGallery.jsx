@@ -50,9 +50,8 @@ export default function StorefrontProductGallery({
       <div
         onPointerMove={followHoverZoom}
         onClick={() => setZoomOpen(true)}
-        className="sf-product-gallery-frame sfz-hover-zoom relative mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] overflow-hidden rounded-[24px] border border-stone-200 bg-[linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] md:p-5 md:shadow-[0_20px_55px_rgba(39,20,75,0.10)]">
-        <div className="absolute inset-x-10 bottom-5 h-12 rounded-full bg-white/80 blur-2xl md:inset-x-16 md:bottom-8 md:h-16" />
-        <img ref={mainImageRef} src={imageFor(mainImage)} {...getStorefrontResponsiveImageProps(imageFor(mainImage), "hero")} onError={fallbackProductImage} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:max-h-full md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
+        className="sf-product-gallery-frame sfz-hover-zoom relative mx-auto h-[clamp(250px,42vh,340px)] w-full overflow-hidden p-2 md:h-[clamp(420px,58vh,540px)] md:p-5">
+        <img ref={mainImageRef} src={imageFor(mainImage)} {...getStorefrontResponsiveImageProps(imageFor(mainImage), "hero")} onError={fallbackProductImage} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain md:max-h-full" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
         <button
           type="button"
           onClick={(event) => {
@@ -82,7 +81,7 @@ export default function StorefrontProductGallery({
           <button
             type="button"
             onClick={() => stepGallery(-1)}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-[0_8px_18px_rgba(39,20,75,0.08)] transition hover:border-stone-300 hover:text-stone-950 md:h-11 md:w-11"
+            className="sf-product-thumb-nav"
             aria-label={sfText("storefront.products.previousImage")}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -97,7 +96,7 @@ export default function StorefrontProductGallery({
                   type="button"
                   data-gallery-index={imageIndex}
                   onClick={() => onSelectImage?.(item, imageIndex)}
-                  className={`sf-product-thumb h-12 w-12 shrink-0 snap-start overflow-hidden rounded-xl border bg-white p-1 transition-[background-color,border-color,box-shadow,opacity,transform] duration-75 hover:border-stone-900 hover:shadow-[0_10px_24px_rgba(39,20,75,0.10)] md:h-20 md:w-20 md:rounded-2xl md:p-1.5 ${active ? "border-stone-950 shadow-[0_12px_28px_rgba(39,20,75,0.14)]" : "border-stone-200"}`}
+                  className={`sf-product-thumb shrink-0 snap-start${active ? " is-active" : ""}`}
                 >
                   <img src={imageFor(image)} {...getStorefrontResponsiveImageProps(imageFor(image), "thumbnail")} onError={fallbackProductImage} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
                 </button>
@@ -107,7 +106,7 @@ export default function StorefrontProductGallery({
           <button
             type="button"
             onClick={() => stepGallery(1)}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-[0_8px_18px_rgba(39,20,75,0.08)] transition hover:border-stone-300 hover:text-stone-950 md:h-11 md:w-11"
+            className="sf-product-thumb-nav"
             aria-label={sfText("storefront.products.nextImage")}
           >
             <ChevronRight className="h-4 w-4" />

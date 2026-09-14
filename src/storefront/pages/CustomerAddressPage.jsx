@@ -18,6 +18,11 @@ import {
 import { api } from "../../shared/api/api";
 import i18n, { normalizeLanguage } from "../../i18n/i18n";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
+// /addr/:code renders outside the storefront shell (App.jsx), where Storefront.jsx and its
+// stylesheets never load — so the page brings the site's tokens and primitives itself.
+import "../site-skin.css";
+import "../catalog-skin.css";
+import "./customerLinks.css";
 
 /*
   The customer's side of the AI-inbox address link (/addr/:code).
@@ -41,11 +46,22 @@ const searchRowLabel = (row = {}) => {
   return [city, zone, district && district !== zone ? district : ""].filter(Boolean).join(" — ");
 };
 
-const inputClass =
-  // 32% white on #0d0d0d measures 2.85:1 — under the 4.5:1 floor, and these placeholders ARE the
-  // field labels, so a customer squinting at "رقم المبنى / العمارة *" cannot tell it is required.
-  // 60% measures 6.9:1 and still reads as a placeholder rather than a filled value.
-  "w-full rounded-2xl border border-white/12 bg-[#0d0d0d] px-4 py-3.5 text-[15px] font-bold text-white placeholder:text-white/60 outline-none transition focus:border-[#d4af37]/60";
+// The site's input (site-skin.css): 48px, 16px text, token field colours in both themes.
+// The placeholders ARE the field labels here, so they use --m1h-text-3, which clears the
+// 4.5:1 floor on --sfx-field in light and dark alike.
+const inputClass = "sfx-input";
+
+// Same key and JSON encoding as Storefront.jsx; the shop defaults to dark.
+const STOREFRONT_THEME_KEY = "storefront.theme";
+const readStorefrontTheme = () => {
+  if (typeof window === "undefined") return "dark";
+  try {
+    const raw = window.localStorage.getItem(STOREFRONT_THEME_KEY);
+    return raw && JSON.parse(raw) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+};
 
 class CustomerAddressPageErrorBoundary extends Component {
   constructor(props) {
@@ -64,10 +80,15 @@ class CustomerAddressPageErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <main className="min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-8 text-white">
-          <div className="mx-auto max-w-xl rounded-[1.5rem] border border-white/10 bg-[#101010] p-5">
-            <h1 className="text-xl font-black">{sfText("storefront.addressLink.errorTitle")}</h1>
-            <p className="mt-2 text-sm leading-7 text-white/72">{sfText("storefront.addressLink.errorText")}</p>
+        <main className="sf-address-link-page sfx-scope sfl" data-theme={readStorefrontTheme()}>
+          <div className="sfx-wrap sfx-wrap--sm sfx-section">
+            <div className="sfx-empty">
+              <span className="sfx-empty__icon">
+                <MessageCircleWarning className="h-7 w-7" aria-hidden="true" />
+              </span>
+              <h1 className="sfx-empty__title">{sfText("storefront.addressLink.errorTitle")}</h1>
+              <p className="sfx-empty__text">{sfText("storefront.addressLink.errorText")}</p>
+            </div>
           </div>
         </main>
       );
@@ -88,18 +109,21 @@ function CustomerAddressPageInner() {
   useTranslation();
   const { code } = useParams();
 
-  // This page is unconditionally dark and is reached only from an Arabic DM, but it renders
-  // OUTSIDE the storefront shell — so it inherited the ERP app's light signals: the root said
-  // `color-scheme: light only` with `theme-color: #eae7e0` on a black page, and the language fell
-  // back to the phone's browser locale, which handed an Egyptian customer an English form.
+  // This page is reached from an Arabic DM and renders OUTSIDE the storefront shell — so it
+  // inherited the ERP app's signals: the wrong root `color-scheme`/`theme-color`, and the language
+  // fell back to the phone's browser locale, which handed an Egyptian customer an English form.
   //
-  // Claiming `only dark` is what stops Chrome-on-Android, Samsung Internet and the Facebook /
-  // Instagram in-app browsers re-colouring a page they judge to be light — see
-  // src/theme/documentColorScheme.js. Released on unmount so the ERP theme takes over again.
+  // It now paints in the shop's own theme (the stored storefront theme, dark by default — which is
+  // what a first-time visitor from WhatsApp gets) and claims `only light|dark` to match: that is
+  // what stops Chrome-on-Android, Samsung Internet and the Facebook / Instagram in-app browsers
+  // re-colouring the page — see src/theme/documentColorScheme.js. Released on unmount so the ERP
+  // theme takes over again. Inside the shell the storefront owns the claim, so stay out of it.
+  const [theme] = useState(readStorefrontTheme);
   useEffect(() => {
-    setStorefrontColorScheme("dark", "#050505");
+    if (typeof document !== "undefined" && document.body?.classList?.contains("storefront-shell")) return undefined;
+    setStorefrontColorScheme(theme, theme === "dark" ? "#070707" : "#f3f3f1");
     return () => releaseStorefrontColorScheme();
-  }, []);
+  }, [theme]);
 
   useEffect(() => {
     if (normalizeLanguage(i18n.language) === "ar") return;
@@ -284,299 +308,307 @@ function CustomerAddressPageInner() {
   const submittedAddress = request?.address || {};
 
   return (
-    <main className="sf-address-link-page min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-6 text-white sm:px-6">
-      <div className="mx-auto flex min-h-[92svh] max-w-xl flex-col justify-center py-3">
-        <section className="w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] shadow-[0_30px_90px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <div className="px-4 pb-6 pt-5 sm:px-6">
-            <div className="h-1 w-full rounded-full bg-[linear-gradient(90deg,#d4af37,#e5c158)]" />
+    <main className="sf-address-link-page sfx-scope sfl" data-theme={theme}>
+      <div className="sfx-wrap sfx-wrap--sm sfx-section sfl-page">
+        <header className="sfl-head">
+          <span className="sfl-icon" aria-hidden="true">
+            <MapPin className="h-6 w-6" />
+          </span>
+          <div className="sfx-page-head__text">
+            <p className="sfx-kicker">{sfText("storefront.addressLink.eyebrow")}</p>
+            <h1 className="sfx-title">
+              {linkState === "submitted" ? sfText("storefront.addressLink.receivedHeading") : sfText("storefront.addressLink.greeting", undefined, { name: text(customerName).split(" ")[0] || sfText("storefront.addressLink.greetingFallbackName") })}
+            </h1>
+            <p className="sfx-subtitle">
+              {linkState === "submitted"
+                ? sfText("storefront.addressLink.receivedSubtitle")
+                : sfText("storefront.addressLink.introSubtitle")}
+            </p>
+          </div>
+        </header>
 
-            <header className="mt-5 flex items-start gap-3">
-              <div className="grid h-13 w-13 shrink-0 place-items-center rounded-2xl border border-[#d4af37]/20 bg-[rgba(212,175,55,0.12)] p-3 text-[#d4af37]">
-                <MapPin className="h-6 w-6" />
+        {linkState === "loading" ? (
+          <div className="sfx-surface sfl-loading" role="status">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+            {sfText("storefront.addressLink.loading")}
+          </div>
+        ) : null}
+
+        {linkState === "expired" || linkState === "error" ? (
+          <div className="sfx-notice sfx-notice--accent" role="alert">
+            <MessageCircleWarning aria-hidden="true" />
+            <div className="sfl-notice-body">
+              <h2 className="sfx-h3">{linkState === "expired" ? sfText("storefront.addressLink.linkExpired") : sfText("storefront.addressLink.linkUnavailable")}</h2>
+              <p className="sfl-text">
+                {error || sfText("storefront.addressLink.askForNewLink")}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {linkState === "submitted" ? (
+          <div className="sfx-stack">
+            <div className="sfx-notice sfx-notice--success" role="status">
+              <CheckCircle2 aria-hidden="true" />
+              <div className="sfl-notice-body">
+                <h2 className="sfx-h3">{sfText("storefront.addressLink.submittedTitle")}</h2>
+                <p className="sfl-text">{sfText("storefront.addressLink.submittedText")}</p>
               </div>
-              <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.26em] text-[#d4af37]">{sfText("storefront.addressLink.eyebrow")}</p>
-                <h1 className="mt-1 text-2xl font-black leading-tight">
-                  {linkState === "submitted" ? sfText("storefront.addressLink.receivedHeading") : sfText("storefront.addressLink.greeting", undefined, { name: text(customerName).split(" ")[0] || sfText("storefront.addressLink.greetingFallbackName") })}
-                </h1>
-                <p className="mt-1.5 text-sm leading-6 text-white/64">
-                  {linkState === "submitted"
-                    ? sfText("storefront.addressLink.receivedSubtitle")
-                    : sfText("storefront.addressLink.introSubtitle")}
+            </div>
+            {[submittedAddress.governorate, submittedAddress.city_area, submittedAddress.street_address].some(Boolean) ? (
+              <section className="sfx-surface">
+                <h2 className="sfx-h3 sfl-block-title">
+                  <MapPin aria-hidden="true" />
+                  {sfText("storefront.addressLink.submittedAddressLabel")}
+                </h2>
+                <p className="sfl-text sfl-text--strong">
+                  {[
+                    submittedAddress.governorate,
+                    submittedAddress.city_area,
+                    submittedAddress.street_address,
+                    submittedAddress.building_number ? sfText("storefront.addressLink.buildingPrefix", undefined, { value: submittedAddress.building_number }) : "",
+                    submittedAddress.floor_number ? sfText("storefront.addressLink.floorPrefix", undefined, { value: submittedAddress.floor_number }) : "",
+                    submittedAddress.apartment_number ? sfText("storefront.addressLink.apartmentPrefix", undefined, { value: submittedAddress.apartment_number }) : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" — ")}
                 </p>
-              </div>
-            </header>
-
-            {linkState === "loading" ? (
-              <div className="mt-6 flex items-center gap-3 rounded-[1.35rem] border border-white/10 bg-[#101010] px-4 py-5 text-sm font-bold text-white/72">
-                <Loader2 className="h-5 w-5 animate-spin text-[#d4af37]" />
-                {sfText("storefront.addressLink.loading")}
-              </div>
-            ) : null}
-
-            {linkState === "expired" || linkState === "error" ? (
-              <div className="mt-6 space-y-3 rounded-[1.35rem] border border-amber-200/30 bg-[#101010] p-4">
-                <div className="flex items-start gap-3">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-amber-200/30 bg-[rgba(212,175,55,0.12)] text-[#d4af37]">
-                    <MessageCircleWarning className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-black">{linkState === "expired" ? sfText("storefront.addressLink.linkExpired") : sfText("storefront.addressLink.linkUnavailable")}</h2>
-                    <p className="mt-1 text-sm leading-7 text-white/72">
-                      {error || sfText("storefront.addressLink.askForNewLink")}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {linkState === "submitted" ? (
-              <div className="mt-6 space-y-4">
-                <div className="rounded-[1.35rem] border border-emerald-300/25 bg-[rgba(16,185,129,0.08)] p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-400/15 text-emerald-300">
-                      <CheckCircle2 className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-black text-emerald-200">{sfText("storefront.addressLink.submittedTitle")}</h2>
-                      <p className="mt-1 text-sm leading-7 text-white/72">{sfText("storefront.addressLink.submittedText")}</p>
-                    </div>
-                  </div>
-                </div>
-                {[submittedAddress.governorate, submittedAddress.city_area, submittedAddress.street_address].some(Boolean) ? (
-                  <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
-                    <div className="mb-2 flex items-center gap-2 text-sm font-black">
-                      <MapPin className="h-4 w-4 text-[#d4af37]" />
-                      {sfText("storefront.addressLink.submittedAddressLabel")}
-                    </div>
-                    <p className="text-sm leading-7 text-white/80">
-                      {[
-                        submittedAddress.governorate,
-                        submittedAddress.city_area,
-                        submittedAddress.street_address,
-                        submittedAddress.building_number ? sfText("storefront.addressLink.buildingPrefix", undefined, { value: submittedAddress.building_number }) : "",
-                        submittedAddress.floor_number ? sfText("storefront.addressLink.floorPrefix", undefined, { value: submittedAddress.floor_number }) : "",
-                        submittedAddress.apartment_number ? sfText("storefront.addressLink.apartmentPrefix", undefined, { value: submittedAddress.apartment_number }) : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" — ")}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {linkState === "ready" ? (
-              <div className="mt-6 space-y-4">
-                {/* Who */}
-                <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
-                  <div className="mb-3 text-sm font-black text-white/88">{sfText("storefront.addressLink.yourDetails")}</div>
-                  <div className="space-y-2.5">
-                    <input
-                      value={customerName}
-                      onChange={(event) => setCustomerName(event.target.value)}
-                      placeholder={sfText("storefront.addressLink.fullNamePlaceholder")}
-                      className={inputClass}
-                    />
-                    {request?.has_phone && !editingPhone ? (
-                      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/12 bg-[#0d0d0d] px-4 py-3.5">
-                        <span dir="ltr" className="text-[15px] font-black tracking-wide text-white/80">{request.customer_phone_masked}</span>
-                        <button
-                          type="button"
-                          onClick={() => setEditingPhone(true)}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-white/8 px-3 py-1.5 text-xs font-black text-[#d4af37]"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          {sfText("storefront.addressLink.changePhone")}
-                        </button>
-                      </div>
-                    ) : (
-                      <input
-                        value={phoneOverride}
-                        onChange={(event) => setPhoneOverride(event.target.value)}
-                        placeholder={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.phonePlaceholder")}
-                        inputMode="tel"
-                        dir="ltr"
-                        className={`${inputClass} text-left rtl:text-right`}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Where */}
-                <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
-                  <div className="mb-1 flex items-center gap-2 text-sm font-black text-white/88">
-                    <MapPin className="h-4 w-4 text-[#d4af37]" />
-                    {sfText("storefront.addressLink.yourArea")}
-                  </div>
-                  <p className="mb-3 text-xs leading-5 text-white/48">
-                    {manualMode ? sfText("storefront.addressLink.manualHint") : sfText("storefront.addressLink.searchHint")}
-                  </p>
-
-                  {location ? (
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#d4af37]/35 bg-[rgba(212,175,55,0.10)] px-4 py-3.5">
-                      <span className="min-w-0 flex-1 truncate text-sm font-black text-[#e5c158]">{location.label}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setLocation(null);
-                          setSearchTerm("");
-                          window.setTimeout(() => searchBoxRef.current?.focus(), 50);
-                        }}
-                        aria-label={sfText("storefront.addressLink.changeArea")}
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-white/72"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ) : manualMode ? (
-                    <div className="space-y-2.5">
-                      <select
-                        value={manual.cityId}
-                        onChange={(event) => setManual((current) => ({ ...current, cityId: event.target.value, zoneId: "", districtId: "", zones: [], districts: [] }))}
-                        className={inputClass}
-                      >
-                        <option value="">{sfText("storefront.addressLink.cityPlaceholder")}</option>
-                        {manual.cities.map((item) => (
-                          <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={manual.zoneId}
-                        onChange={(event) => setManual((current) => ({ ...current, zoneId: event.target.value, districtId: "", districts: [] }))}
-                        disabled={!manual.cityId}
-                        className={inputClass}
-                      >
-                        <option value="">{sfText("storefront.addressLink.areaPlaceholder")}</option>
-                        {manual.zones.map((item) => (
-                          <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={manual.districtId}
-                        onChange={(event) => setManual((current) => ({ ...current, districtId: event.target.value }))}
-                        disabled={!manual.zoneId}
-                        className={inputClass}
-                      >
-                        <option value="">{sfText("storefront.addressLink.districtPlaceholder")}</option>
-                        {manual.districts.map((item) => (
-                          <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
-                        ))}
-                      </select>
-                      <button type="button" onClick={() => setManualMode(false)} className="text-xs font-black text-[#d4af37]">
-                        {sfText("storefront.addressLink.quickSearch")}
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute right-4 top-1/2 h-4.5 w-4.5 -translate-y-1/2 text-white/36" />
-                        <input
-                          ref={searchBoxRef}
-                          value={searchTerm}
-                          onChange={(event) => setSearchTerm(event.target.value)}
-                          placeholder={sfText("storefront.addressLink.searchPlaceholder")}
-                          className={`${inputClass} pr-11`}
-                        />
-                      </div>
-                      {searching ? (
-                        <div className="mt-2 flex items-center gap-2 px-1 text-xs font-bold text-white/48">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          {sfText("storefront.addressLink.searching")}
-                        </div>
-                      ) : null}
-                      {!searching && searchResults.length ? (
-                        <div className="mt-2 max-h-64 overflow-y-auto rounded-2xl border border-white/10 bg-[#0d0d0d]">
-                          {searchResults.map((row) => (
-                            <button
-                              key={`${row.city_id}-${row.zone_id}-${row.district_id}`}
-                              type="button"
-                              onClick={() => {
-                                setLocation({
-                                  city_id: text(row.city_id),
-                                  zone_id: text(row.zone_id),
-                                  district_id: text(row.district_id),
-                                  label: searchRowLabel(row),
-                                });
-                                setSearchResults([]);
-                              }}
-                              className="block w-full border-b border-white/6 px-4 py-3 text-start text-sm font-bold text-white/84 transition last:border-b-0 hover:bg-white/5"
-                            >
-                              {searchRowLabel(row)}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      {!searching && text(searchTerm).length >= 2 && !searchResults.length ? (
-                        <p className="mt-2 px-1 text-xs font-bold text-white/48">{sfText("storefront.addressLink.noResults")}</p>
-                      ) : null}
-                      <button type="button" onClick={() => setManualMode(true)} className="mt-3 text-xs font-black text-[#d4af37]">
-                        {sfText("storefront.addressLink.manualPick")}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Street-level detail */}
-                <div className="rounded-[1.35rem] border border-white/10 bg-[#101010] p-4">
-                  <div className="mb-3 flex items-center gap-2 text-sm font-black text-white/88">
-                    <Building2 className="h-4 w-4 text-[#d4af37]" />
-                    {sfText("storefront.addressLink.detailedAddress")}
-                  </div>
-                  <div className="space-y-2.5">
-                    <textarea
-                      value={streetAddress}
-                      onChange={(event) => setStreetAddress(event.target.value)}
-                      placeholder={sfText("storefront.addressLink.streetPlaceholder")}
-                      rows={3}
-                      className={`${inputClass} min-h-[88px] resize-none leading-6`}
-                    />
-                    <input
-                      value={buildingNumber}
-                      onChange={(event) => setBuildingNumber(event.target.value)}
-                      placeholder={sfText("storefront.addressLink.buildingPlaceholder")}
-                      className={inputClass}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setExtrasOpen((current) => !current)}
-                      className="flex items-center gap-1.5 text-xs font-black text-[#d4af37]"
-                    >
-                      <ChevronDown className={`h-4 w-4 transition-transform ${extrasOpen ? "rotate-180" : ""}`} />
-                      {sfText("storefront.addressLink.extraDetails")}
-                    </button>
-                    {extrasOpen ? (
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={sfText("storefront.addressLink.floorPlaceholder")} className={inputClass} />
-                        <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={sfText("storefront.addressLink.apartmentPlaceholder")} className={inputClass} />
-                        <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={sfText("storefront.addressLink.landmarkPlaceholder")} className={`${inputClass} col-span-2`} />
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                {fieldError ? (
-                  <div className="rounded-2xl border border-rose-300/25 bg-[rgba(244,63,94,0.10)] px-4 py-3 text-sm font-bold text-rose-200">
-                    {fieldError}
-                  </div>
-                ) : null}
-
-                <button
-                  type="button"
-                  onClick={submit}
-                  disabled={!canSubmit}
-                  className="inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#d4af37,#e5c158)] text-[15px] font-black text-[#151515] transition disabled:opacity-40"
-                >
-                  {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-                  {sfText("storefront.addressLink.submit")}
-                </button>
-                <p className="text-center text-[11px] leading-5 text-white/40">
-                  {sfText("storefront.addressLink.privacyNote")}
-                </p>
-              </div>
+              </section>
             ) : null}
           </div>
-        </section>
+        ) : null}
+
+        {linkState === "ready" ? (
+          <div className="sfx-stack">
+            {/* Who */}
+            <section className="sfx-surface">
+              <h2 className="sfx-h3 sfl-block-title">{sfText("storefront.addressLink.yourDetails")}</h2>
+              <div className="sfl-fields">
+                <input
+                  value={customerName}
+                  onChange={(event) => setCustomerName(event.target.value)}
+                  placeholder={sfText("storefront.addressLink.fullNamePlaceholder")}
+                  aria-label={sfText("storefront.addressLink.fullNamePlaceholder")}
+                  className={inputClass}
+                />
+                {request?.has_phone && !editingPhone ? (
+                  <div className="sfl-static-field">
+                    <span dir="ltr" className="sfl-static-field__value">{request.customer_phone_masked}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPhone(true)}
+                      className="sfx-btn sfx-btn--ghost sfx-btn--sm"
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      {sfText("storefront.addressLink.changePhone")}
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    value={phoneOverride}
+                    onChange={(event) => setPhoneOverride(event.target.value)}
+                    placeholder={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.phonePlaceholder")}
+                    aria-label={request?.has_phone ? sfText("storefront.addressLink.newPhonePlaceholder") : sfText("storefront.addressLink.phonePlaceholder")}
+                    inputMode="tel"
+                    dir="ltr"
+                    className={inputClass}
+                  />
+                )}
+              </div>
+            </section>
+
+            {/* Where */}
+            <section className="sfx-surface">
+              <h2 className="sfx-h3 sfl-block-title" style={{ marginBottom: "var(--m1h-s1)" }}>
+                <MapPin aria-hidden="true" />
+                {sfText("storefront.addressLink.yourArea")}
+              </h2>
+              <p className="sfl-text sfl-text--sm" style={{ marginBottom: "var(--m1h-s3)" }}>
+                {manualMode ? sfText("storefront.addressLink.manualHint") : sfText("storefront.addressLink.searchHint")}
+              </p>
+
+              {location ? (
+                <div className="sfl-picked">
+                  <span className="sfl-picked__label">{location.label}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocation(null);
+                      setSearchTerm("");
+                      window.setTimeout(() => searchBoxRef.current?.focus(), 50);
+                    }}
+                    aria-label={sfText("storefront.addressLink.changeArea")}
+                    className="sfx-icon-btn"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+              ) : manualMode ? (
+                <div className="sfl-fields">
+                  <label className="sfx-select sfx-select--lg sfx-select--block sfl-select">
+                    <select
+                      value={manual.cityId}
+                      onChange={(event) => setManual((current) => ({ ...current, cityId: event.target.value, zoneId: "", districtId: "", zones: [], districts: [] }))}
+                      aria-label={sfText("storefront.addressLink.cityPlaceholder")}
+                      className="sfx-select__control"
+                    >
+                      <option value="">{sfText("storefront.addressLink.cityPlaceholder")}</option>
+                      {manual.cities.map((item) => (
+                        <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="sfx-select__icon" aria-hidden="true" />
+                  </label>
+                  <label className="sfx-select sfx-select--lg sfx-select--block sfl-select">
+                    <select
+                      value={manual.zoneId}
+                      onChange={(event) => setManual((current) => ({ ...current, zoneId: event.target.value, districtId: "", districts: [] }))}
+                      disabled={!manual.cityId}
+                      aria-label={sfText("storefront.addressLink.areaPlaceholder")}
+                      className="sfx-select__control"
+                    >
+                      <option value="">{sfText("storefront.addressLink.areaPlaceholder")}</option>
+                      {manual.zones.map((item) => (
+                        <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="sfx-select__icon" aria-hidden="true" />
+                  </label>
+                  <label className="sfx-select sfx-select--lg sfx-select--block sfl-select">
+                    <select
+                      value={manual.districtId}
+                      onChange={(event) => setManual((current) => ({ ...current, districtId: event.target.value }))}
+                      disabled={!manual.zoneId}
+                      aria-label={sfText("storefront.addressLink.districtPlaceholder")}
+                      className="sfx-select__control"
+                    >
+                      <option value="">{sfText("storefront.addressLink.districtPlaceholder")}</option>
+                      {manual.districts.map((item) => (
+                        <option key={idOf(item)} value={idOf(item)}>{labelOf(item)}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="sfx-select__icon" aria-hidden="true" />
+                  </label>
+                  <button type="button" onClick={() => setManualMode(false)} className="sfx-link-btn sfl-toggle">
+                    <Search aria-hidden="true" />
+                    {sfText("storefront.addressLink.quickSearch")}
+                  </button>
+                </div>
+              ) : (
+                <div className="sfl-fields">
+                  <div>
+                    <div className="sfl-search">
+                      <Search className="sfl-search__icon" aria-hidden="true" />
+                      <input
+                        ref={searchBoxRef}
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder={sfText("storefront.addressLink.searchPlaceholder")}
+                        aria-label={sfText("storefront.addressLink.searchPlaceholder")}
+                        className="sfx-input sfx-input--pill"
+                      />
+                    </div>
+                    {searching ? (
+                      <div className="sfl-loading sfl-text--sm" role="status" style={{ marginTop: "var(--m1h-s2)", paddingInline: "var(--m1h-s1)" }}>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        {sfText("storefront.addressLink.searching")}
+                      </div>
+                    ) : null}
+                    {!searching && searchResults.length ? (
+                      <div className="sfl-results">
+                        {searchResults.map((row) => (
+                          <button
+                            key={`${row.city_id}-${row.zone_id}-${row.district_id}`}
+                            type="button"
+                            onClick={() => {
+                              setLocation({
+                                city_id: text(row.city_id),
+                                zone_id: text(row.zone_id),
+                                district_id: text(row.district_id),
+                                label: searchRowLabel(row),
+                              });
+                              setSearchResults([]);
+                            }}
+                            className="sfl-results__row"
+                          >
+                            {searchRowLabel(row)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {!searching && text(searchTerm).length >= 2 && !searchResults.length ? (
+                      <p className="sfl-text sfl-text--sm sfl-text--muted" style={{ marginTop: "var(--m1h-s2)", paddingInline: "var(--m1h-s1)" }}>{sfText("storefront.addressLink.noResults")}</p>
+                    ) : null}
+                  </div>
+                  <button type="button" onClick={() => setManualMode(true)} className="sfx-link-btn sfl-toggle">
+                    {sfText("storefront.addressLink.manualPick")}
+                  </button>
+                </div>
+              )}
+            </section>
+
+            {/* Street-level detail */}
+            <section className="sfx-surface">
+              <h2 className="sfx-h3 sfl-block-title">
+                <Building2 aria-hidden="true" />
+                {sfText("storefront.addressLink.detailedAddress")}
+              </h2>
+              <div className="sfl-fields">
+                <textarea
+                  value={streetAddress}
+                  onChange={(event) => setStreetAddress(event.target.value)}
+                  placeholder={sfText("storefront.addressLink.streetPlaceholder")}
+                  aria-label={sfText("storefront.addressLink.streetPlaceholder")}
+                  rows={3}
+                  className={inputClass}
+                />
+                <input
+                  value={buildingNumber}
+                  onChange={(event) => setBuildingNumber(event.target.value)}
+                  placeholder={sfText("storefront.addressLink.buildingPlaceholder")}
+                  aria-label={sfText("storefront.addressLink.buildingPlaceholder")}
+                  className={inputClass}
+                />
+                <button
+                  type="button"
+                  onClick={() => setExtrasOpen((current) => !current)}
+                  aria-expanded={extrasOpen}
+                  className={`sfx-link-btn sfl-toggle${extrasOpen ? " is-open" : ""}`}
+                >
+                  <ChevronDown aria-hidden="true" />
+                  {sfText("storefront.addressLink.extraDetails")}
+                </button>
+                {extrasOpen ? (
+                  <div className="sfl-fields sfl-fields--pair">
+                    <input value={floorNumber} onChange={(event) => setFloorNumber(event.target.value)} placeholder={sfText("storefront.addressLink.floorPlaceholder")} aria-label={sfText("storefront.addressLink.floorPlaceholder")} className={inputClass} />
+                    <input value={apartmentNumber} onChange={(event) => setApartmentNumber(event.target.value)} placeholder={sfText("storefront.addressLink.apartmentPlaceholder")} aria-label={sfText("storefront.addressLink.apartmentPlaceholder")} className={inputClass} />
+                    <input value={landmark} onChange={(event) => setLandmark(event.target.value)} placeholder={sfText("storefront.addressLink.landmarkPlaceholder")} aria-label={sfText("storefront.addressLink.landmarkPlaceholder")} className={`${inputClass} sfl-span`} />
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            {fieldError ? (
+              <div className="sfx-notice sfx-notice--danger" role="alert">
+                <MessageCircleWarning aria-hidden="true" />
+                <p className="sfl-text sfl-text--strong">{fieldError}</p>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!canSubmit}
+              className="sfx-btn sfx-btn--primary sfx-btn--lg sfx-btn--block"
+            >
+              {submitting ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Send className="h-5 w-5" aria-hidden="true" />}
+              {sfText("storefront.addressLink.submit")}
+            </button>
+            <p className="sfl-footnote">
+              {sfText("storefront.addressLink.privacyNote")}
+            </p>
+          </div>
+        ) : null}
       </div>
     </main>
   );

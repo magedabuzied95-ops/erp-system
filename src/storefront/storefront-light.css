@@ -1,1368 +1,236 @@
 /*
- * Light storefront surfaces.
+ * Legacy storefront hooks, repainted from the homepage tokens.
  *
- * The storefront used to rely on hard-coded dark utility classes in a number
- * of route-level components. Keep these overrides scoped to the storefront's
- * explicit light state so the ERP theme and the dark storefront remain
- * completely independent.
+ * This file used to hold ~1,300 lines of per-page light overrides written in
+ * literals (#fff, #25231f, gold gradients) for markup that painted itself dark.
+ * Most of those hooks are gone: account (sfa-*), cart (sfk-*), checkout (sfc-*),
+ * wishlist (sfw-*), track, the size-guide sheet and the listing filter sheet
+ * (sfx-sheet) all render their own token-based classes now, and ProductCard is
+ * the homepage card. The rules for hooks that nothing renders were deleted.
+ *
+ * What is left styles hooks that still exist in the markup, and every colour
+ * here is a `--m1h-*` / `--sfx-*` token (src/storefront/site-skin.css), so the
+ * same rule is right in the light theme, in the dark theme
+ * (`body.storefront-shell.storefront-dark`) and after a Site Studio edit.
+ * Rules that apply to both themes are scoped to `body.storefront-shell`.
+ *
+ * Do not add literals here. Do not key anything on `html[data-theme]` or a
+ * Tailwind `dark:` variant — neither is the storefront theme switch.
  */
+
+/* The older --sf-light-* vocabulary, still read by a few legacy rules in
+   index.css, now points at the homepage tokens. Site Studio re-points both
+   families (shared/siteDesign.js), so neither can drift from the other. */
 body.storefront-shell:not(.storefront-dark) {
-  --sf-light-bg: #f3f3f1;
-  --sf-light-surface: #ffffff;
-  --sf-light-soft: #f7f7f5;
-  --sf-light-border: #dedbd3;
-  --sf-light-border-strong: #c9c5bc;
-  --sf-light-text: #25231f;
-  --sf-light-text-secondary: #5d5952;
-  --sf-light-muted: #716e67;
-  --sf-light-accent: #a47a12;
-  background: var(--sf-light-bg);
-  color: var(--sf-light-text);
+  --sf-light-bg: var(--m1h-bg);
+  --sf-light-surface: var(--m1h-surface);
+  --sf-light-soft: var(--sfx-surface-2);
+  --sf-light-border: var(--m1h-line);
+  --sf-light-border-strong: var(--sfx-line-strong);
+  --sf-light-text: var(--m1h-text);
+  --sf-light-text-secondary: var(--m1h-text-2);
+  --sf-light-muted: var(--m1h-text-3);
+  --sf-light-accent: var(--m1h-accent);
+  background: var(--m1h-bg);
+  color: var(--m1h-text);
 }
 
-/* Customer account: one visual language across light and dark storefront modes. */
-.storefront-shell .sf-account-page {
-  --sf-account-gold: #d4af37;
-  --sf-account-gold-strong: #f0ce63;
-  --sf-account-surface: #111111;
-  --sf-account-surface-soft: #191919;
-  --sf-account-border: rgba(255, 255, 255, 0.1);
-  --sf-account-text: #f7f7f5;
-  --sf-account-muted: #aaa69e;
-  color: var(--sf-account-text);
-}
-
-.storefront-shell .sf-account-layout.is-auth {
-  margin-inline: auto;
-  max-width: 34rem;
-}
-
-.storefront-shell .sf-account-hero {
-  position: relative;
-  isolation: isolate;
-  border-color: rgba(212, 175, 55, 0.2);
-  background:
-    linear-gradient(120deg, rgba(212, 175, 55, 0.08), transparent 42%),
-    radial-gradient(circle at 82% -25%, rgba(212, 175, 55, 0.2), transparent 38%),
-    linear-gradient(145deg, #191919 0%, #090909 72%);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
-}
-
-.storefront-shell .sf-account-hero::before {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  content: "";
-  opacity: 0.16;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: linear-gradient(90deg, transparent, #000 45%, #000);
-}
-
-.storefront-shell .sf-account-hero-orb {
-  position: absolute;
-  top: -7rem;
-  left: -4rem;
-  width: 22rem;
-  height: 22rem;
-  border-radius: 999px;
-  background: rgba(212, 175, 55, 0.12);
-  filter: blur(70px);
-  pointer-events: none;
-}
-
-.storefront-shell .sf-account-eyebrow,
-.storefront-shell .sf-account-count {
-  border: 1px solid rgba(212, 175, 55, 0.24);
-  background: rgba(212, 175, 55, 0.1);
-  color: var(--sf-account-gold-strong);
-}
-
-.storefront-shell .sf-account-avatar {
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  background: linear-gradient(145deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.04));
-  color: var(--sf-account-gold-strong);
-  box-shadow: inset 0 0 24px rgba(212, 175, 55, 0.08);
-}
-
-.storefront-shell .sf-account-hero-button {
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
-  backdrop-filter: blur(12px);
-  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
-}
-
-.storefront-shell .sf-account-hero-button:hover {
-  border-color: rgba(212, 175, 55, 0.45);
-  background: rgba(212, 175, 55, 0.1);
-  transform: translateY(-1px);
-}
-
-.storefront-shell .sf-account-hero-button.is-danger:hover {
-  border-color: rgba(248, 113, 113, 0.38);
-  background: rgba(248, 113, 113, 0.09);
-}
-
-.storefront-shell .sf-account-stat {
-  border-color: rgba(255, 255, 255, 0.09);
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(10px);
-}
-
-.storefront-shell .sf-account-section {
-  border-color: var(--sf-account-border);
-  background: linear-gradient(155deg, rgba(26, 26, 26, 0.96), rgba(13, 13, 13, 0.98));
-  color: var(--sf-account-text);
-  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.24);
-}
-
-.storefront-shell .sf-account-section-icon {
-  border: 1px solid rgba(212, 175, 55, 0.19);
-  background: rgba(212, 175, 55, 0.08);
-  color: var(--sf-account-gold-strong);
-}
-
-.storefront-shell .sf-account-empty {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.025);
-  color: var(--sf-account-muted);
-}
-
-.storefront-shell .sf-account-empty > div > span {
-  background: rgba(212, 175, 55, 0.09);
-  color: var(--sf-account-gold-strong);
-}
-
-.storefront-shell .sf-account-address-row {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.035) !important;
-  color: var(--sf-account-text) !important;
-}
-
-.storefront-shell .sf-account-address-row + .sf-account-address-row {
-  margin-top: 0.65rem;
-}
-
-.storefront-shell .sf-account-section .sf-account-order-row,
-.storefront-shell .sf-account-section .sf-order-item-row {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.035) !important;
-}
-
-.storefront-shell .sf-account-section .sf-account-order-row + .sf-account-order-row {
-  margin-top: 0.75rem;
-}
-
-.storefront-shell .sf-account-section .sf-soft-pill {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: var(--sf-account-text) !important;
-}
-
-.storefront-shell .sf-account-section .sf-primary-text,
-.storefront-shell .sf-account-section .sf-order-item-name,
-.storefront-shell .sf-account-section .sf-order-item-price {
-  color: var(--sf-account-text) !important;
-}
-
-.storefront-shell .sf-account-section .sf-muted-text,
-.storefront-shell .sf-account-section .sf-order-item-meta,
-.storefront-shell .sf-account-section .sf-muted-empty {
-  color: var(--sf-account-muted) !important;
-}
-
-.storefront-shell .sf-account-section .sf-loyalty-card {
-  border-color: rgba(212, 175, 55, 0.18) !important;
-  background: linear-gradient(145deg, rgba(212, 175, 55, 0.1), rgba(255, 255, 255, 0.025)) !important;
-  box-shadow: none !important;
-}
-
-.storefront-shell .sf-account-section .sf-loyalty-icon {
-  background: rgba(212, 175, 55, 0.12) !important;
-}
-
-.storefront-shell .sf-account-section .sf-loyalty-progress {
-  background: rgba(255, 255, 255, 0.1) !important;
-}
-
-.storefront-shell .sf-account-section .sf-secondary-text {
-  color: var(--sf-account-muted) !important;
-}
-
-@media (max-width: 639px) {
-  .storefront-shell .sf-account-hero {
-    border-radius: 1.5rem;
-  }
-
-  .storefront-shell .sf-account-hero-button {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-}
-
-.storefront-shell .sf-account-page .sf-panel {
-  border-color: var(--sf-account-border) !important;
-  background: linear-gradient(180deg, #171717 0%, #101010 100%) !important;
-  color: var(--sf-account-text) !important;
-  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.3) !important;
-}
-
-.storefront-shell .sf-account-page .sf-section-heading {
-  color: var(--sf-account-text) !important;
-}
-
-.storefront-shell .sf-account-guest-shell {
-  border-color: var(--sf-account-border);
-  background: linear-gradient(180deg, #171717 0%, #101010 100%);
-  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.3);
-}
-
-.storefront-shell .sf-account-guest-hero {
-  position: relative;
-  overflow: hidden;
-  padding: 1.4rem 1.25rem 1.25rem;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(212, 175, 55, 0.13), transparent 40%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 58%);
-}
-
-.storefront-shell .sf-account-guest-hero::after {
-  position: absolute;
-  inset-inline-start: 1.25rem;
-  bottom: 0;
-  width: 3.25rem;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--sf-premium-gold-gradient, linear-gradient(135deg, #b68a2c, #d8b75f));
-  content: "";
-}
-
-.storefront-shell .sf-account-guest-hero-content {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.storefront-shell .sf-account-guest-eyebrow {
-  display: inline-flex;
-  color: var(--sf-account-gold-strong);
-  font-size: 0.65rem;
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  direction: ltr;
-}
-
-.storefront-shell .sf-account-guest-title {
-  margin-top: 0.45rem;
-  color: var(--sf-account-text);
-  font-size: clamp(1.3rem, 5vw, 1.65rem);
-  font-weight: 900;
-  line-height: 1.35;
-}
-
-.storefront-shell .sf-account-guest-copy {
-  max-width: 31rem;
-  margin-top: 0.45rem;
-  color: var(--sf-account-muted);
-  font-size: 0.86rem;
-  font-weight: 700;
-  line-height: 1.85;
-}
-
-.storefront-shell .sf-account-guest-security {
-  display: grid;
-  flex: 0 0 auto;
-  justify-items: center;
-  gap: 0.4rem;
-}
-
-.storefront-shell .sf-account-security-label {
-  color: var(--sf-account-muted);
-  font-size: 0.62rem;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.storefront-shell .sf-account-auth-card,
-.storefront-shell .sf-account-otp-card {
-  border-color: var(--sf-account-border);
-  background: var(--sf-account-surface-soft);
-}
-
-.storefront-shell .sf-account-auth-card {
-  box-shadow: none;
-}
-
-.storefront-shell .sf-account-intro-icon {
-  background: #050505;
-  color: var(--sf-account-gold-strong);
-  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.2);
-}
-
-.storefront-shell .sf-account-intro-title {
-  color: var(--sf-account-text);
-}
-
-.storefront-shell .sf-account-intro-copy {
-  color: var(--sf-account-muted);
-}
-
-.storefront-shell .sf-account-tabs {
-  border-color: var(--sf-account-border);
-  background: #0b0b0b;
-}
-
-.storefront-shell .sf-account-tab {
-  color: var(--sf-account-muted);
-}
-
-.storefront-shell .sf-account-tab.is-active,
-.storefront-shell .sf-account-primary-button {
-  background: var(--sf-premium-gold-gradient, linear-gradient(135deg, #b68a2c, #d8b75f));
-  color: #181307;
-}
-
-.storefront-shell .sf-account-primary-button:hover {
-  filter: brightness(1.06);
-}
-
-.storefront-shell .sf-account-primary-button:disabled {
-  cursor: not-allowed;
-  background: #3b3934;
-  color: #8e8a81;
-}
-
-.storefront-shell .sf-account-secondary-button {
-  border-color: rgba(212, 175, 55, 0.38);
-  background: rgba(212, 175, 55, 0.08);
-  color: var(--sf-account-gold-strong);
-}
-
-.storefront-shell .sf-account-secondary-button:hover {
-  border-color: var(--sf-account-gold);
-  background: rgba(212, 175, 55, 0.14);
-}
-
-.storefront-shell .sf-account-page .sf-field-label {
-  color: var(--sf-account-muted) !important;
-}
-
-.storefront-shell .sf-account-page .sf-field-input {
-  border-color: var(--sf-account-border) !important;
-  background: #0c0c0c !important;
-  color: var(--sf-account-text) !important;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035) !important;
-}
-
-.storefront-shell .sf-account-page .sf-field-input:focus {
-  border-color: rgba(212, 175, 55, 0.72) !important;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12) !important;
-}
-
-body.storefront-dark .sf-account-page input.sf-field-input,
-body.storefront-dark .sf-account-page input.sf-field-input:hover,
-body.storefront-dark .sf-account-page input.sf-field-input:focus,
-body.storefront-dark .sf-account-page input.sf-field-input:active {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  background: #0c0c0c !important;
-  background-color: #0c0c0c !important;
+/* ---------------------------------------------------------------------------
+   SmallProductGrid (/recently-viewed). Its markup is an always-dark card built
+   from Tailwind literals; these rules give it the homepage card surface in both
+   themes until it is replaced by ProductCard.
+   ------------------------------------------------------------------------- */
+body.storefront-shell .sf-small-product-card {
+  border-color: var(--m1h-line) !important;
+  background-color: var(--m1h-surface) !important;
   background-image: none !important;
-  color: #f7f7f5 !important;
-  caret-color: #f0ce63 !important;
-  -webkit-text-fill-color: #f7f7f5 !important;
-}
-
-body.storefront-dark .sf-account-page input.sf-field-input:focus {
-  border-color: rgba(212, 175, 55, 0.72) !important;
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.12) !important;
-}
-
-body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill,
-body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill:hover,
-body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill:focus,
-body.storefront-dark .sf-account-page input.sf-field-input:-webkit-autofill:active {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  background-color: #0c0c0c !important;
-  caret-color: #f0ce63 !important;
-  -webkit-text-fill-color: #f7f7f5 !important;
-  -webkit-box-shadow: 0 0 0 1000px #0c0c0c inset !important;
-  box-shadow: 0 0 0 1000px #0c0c0c inset !important;
-  transition: background-color 999999s ease-in-out 0s !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-page {
-  --sf-account-gold: #a47a12;
-  --sf-account-gold-strong: #8a660d;
-  --sf-account-surface: var(--sf-light-surface);
-  --sf-account-surface-soft: var(--sf-light-soft);
-  --sf-account-border: var(--sf-light-border);
-  --sf-account-text: var(--sf-light-text);
-  --sf-account-muted: var(--sf-light-text-secondary);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-hero {
-  border-color: rgba(164, 122, 18, 0.22);
-  background:
-    radial-gradient(circle at 12% -20%, rgba(212, 175, 55, 0.2), transparent 38%),
-    linear-gradient(135deg, #fffdf7 0%, #f4efe3 100%);
-  box-shadow: 0 24px 60px rgba(56, 45, 18, 0.13);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-hero::before {
-  opacity: 0.32;
-  background-image:
-    linear-gradient(rgba(164, 122, 18, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(164, 122, 18, 0.08) 1px, transparent 1px);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-hero [class*="text-white"] {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-hero [class*="text-white/"] {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-avatar {
-  border-color: rgba(164, 122, 18, 0.28);
-  background: linear-gradient(145deg, #fff9e8, #eee3c5);
-  color: #8a660d;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-hero-button {
-  border-color: rgba(37, 35, 31, 0.14);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--sf-light-text);
-  box-shadow: 0 8px 20px rgba(37, 35, 31, 0.06);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-hero-button:hover {
-  border-color: rgba(164, 122, 18, 0.42);
-  background: #fff;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-stat {
-  border-color: rgba(37, 35, 31, 0.1);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 8px 24px rgba(37, 35, 31, 0.055);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section {
-  border-color: var(--sf-light-border);
-  background: var(--sf-light-surface);
-  color: var(--sf-light-text);
-  box-shadow: 0 18px 44px rgba(31, 29, 25, 0.09);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section h2,
-body.storefront-shell:not(.storefront-dark) .sf-account-section h3,
-body.storefront-shell:not(.storefront-dark) .sf-account-section [class*="text-white"] {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section [class*="text-white/"] {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section-icon {
-  border-color: rgba(164, 122, 18, 0.2);
-  background: #f7efd8;
-  color: #8a660d;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-count {
-  border-color: rgba(164, 122, 18, 0.2);
-  background: #f7efd8;
-  color: #79580b;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-empty {
-  border-color: var(--sf-light-border);
-  background: var(--sf-light-soft);
-  color: var(--sf-light-text-secondary);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-address-row,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-account-order-row,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-row {
-  border-color: var(--sf-light-border);
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-soft-pill {
-  border-color: var(--sf-light-border-strong) !important;
-  background: #fff !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-primary-text,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-name,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-price {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-muted-text,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-order-item-meta,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-muted-empty,
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-secondary-text {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-loyalty-card {
-  border-color: rgba(164, 122, 18, 0.24) !important;
-  background: linear-gradient(145deg, #fffaf0, #f4ead0) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-loyalty-progress {
-  background: rgba(164, 122, 18, 0.14) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-section .sf-small-product-card,
-body.storefront-shell:not(.storefront-dark) .sf-account-section a[class*="rounded"] {
-  border-color: var(--sf-light-border) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-page .sf-panel {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 18px 42px rgba(31, 29, 25, 0.1) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-guest-shell {
-  border-color: var(--sf-light-border);
-  background: var(--sf-light-surface);
-  box-shadow: 0 18px 42px rgba(31, 29, 25, 0.1);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-guest-hero {
-  background:
-    radial-gradient(circle at 100% 0%, rgba(164, 122, 18, 0.11), transparent 42%),
-    linear-gradient(145deg, #ffffff, #f7f7f5);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-auth-card {
-  box-shadow: none;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-otp-card {
-  background: #fbf7ea;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-intro-icon {
-  background: #25231f;
-  color: #e2bd55;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-tabs {
-  background: #eceae5;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-tab.is-active {
-  background: #25231f;
-  color: #ffffff;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-page .sf-field-input {
-  border-color: var(--sf-light-border-strong) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 8px 22px rgba(31, 29, 25, 0.06) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill,
-body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill:hover,
-body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill:focus,
-body.storefront-shell:not(.storefront-dark) .sf-account-page input.sf-field-input:-webkit-autofill:active {
-  -webkit-text-fill-color: var(--sf-light-text) !important;
-  -webkit-box-shadow: 0 0 0 1000px var(--sf-light-surface) inset !important;
-  box-shadow: 0 0 0 1000px var(--sf-light-surface) inset !important;
-}
-
-/* Order tracking: warm light palette, strictly scoped away from dark mode. */
-body.storefront-shell:not(.storefront-dark) .sf-track-hero {
-  border-color: rgba(164, 122, 18, 0.2) !important;
-  background:
-    radial-gradient(circle at 10% -20%, rgba(212, 175, 55, 0.18), transparent 42%),
-    linear-gradient(135deg, #fffdf8 0%, #f3ecdc 100%) !important;
-  color: #25231f !important;
-  box-shadow: 0 24px 58px rgba(61, 48, 19, 0.13) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-white"] {
-  color: #25231f !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-stone-3"],
-body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-stone-4"] {
-  color: #625d54 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-hero [class*="text-emerald"] {
-  color: #08745b !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-hero-support {
-  border-color: rgba(37, 35, 31, 0.15) !important;
-  background: rgba(255, 255, 255, 0.76) !important;
-  color: #25231f !important;
-  box-shadow: 0 8px 22px rgba(37, 35, 31, 0.07);
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-hero-support:hover {
-  border-color: rgba(164, 122, 18, 0.4) !important;
-  background: #fff !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-search-form {
-  border-color: var(--sf-light-border) !important;
-  background: #fff !important;
-  box-shadow: 0 18px 44px rgba(31, 29, 25, 0.09) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-search-form .sf-field-label {
-  color: #5d5952 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-search-form .sf-field-input {
-  border-color: #d8d3c8 !important;
-  background: #faf9f6 !important;
-  color: #25231f !important;
-  -webkit-text-fill-color: #25231f !important;
-  box-shadow: inset 0 1px 0 rgba(37, 35, 31, 0.025) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-search-form .sf-field-input:focus {
-  border-color: rgba(164, 122, 18, 0.62) !important;
-  background: #fff !important;
-  box-shadow: 0 0 0 4px rgba(164, 122, 18, 0.1) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-track-search-form > button {
-  border-color: #9b7310 !important;
-  background: linear-gradient(135deg, #e2bd50, #bd8e19) !important;
-  color: #211a08 !important;
-  box-shadow: 0 14px 30px rgba(164, 122, 18, 0.2) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result {
-  border-color: var(--sf-light-border) !important;
-  background: #fff !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 22px 56px rgba(31, 29, 25, 0.1) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-card-section {
-  border-color: #ece8df !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-info-box,
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-row {
-  border: 1px solid #ece8df;
-  background: #faf9f6 !important;
-  color: #25231f !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-info-label,
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-muted-text,
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-meta {
-  color: #716c63 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-info-value,
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-section-heading,
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-name,
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-item-price {
-  color: #25231f !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step {
-  border-color: #e5e0d6 !important;
-  background: #faf9f6 !important;
-  color: #38342d !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step--done {
-  border-color: rgba(5, 150, 105, 0.28) !important;
-  background: #ecfdf5 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step--active {
-  border-color: rgba(164, 122, 18, 0.3) !important;
-  background: #fff8e6 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-tracking-result .sf-order-step-label {
-  color: #4f4a42 !important;
-}
-
-/* Catalog heading must stay readable while the light palette is active. */
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-title {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-eyebrow,
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-count {
-  color: var(--sf-light-text-secondary) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-/* Product cards and their loading placeholders */
-body.storefront-shell:not(.storefront-dark) .sf-product-card,
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card {
-  border-color: var(--sf-light-border) !important;
-  background-color: var(--sf-light-surface) !important;
-  background-image: none !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 12px 30px rgba(31, 29, 25, 0.11) !important;
-  --tw-ring-color: rgba(37, 35, 31, 0.04) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-card:hover,
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card:hover {
-  border-color: rgba(164, 122, 18, 0.35) !important;
-  box-shadow: 0 18px 38px rgba(31, 29, 25, 0.15) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-card > div:nth-child(2) {
-  background-color: var(--sf-light-soft) !important;
-  background-image: linear-gradient(180deg, #fafaf8, #f2f1ed) !important;
-  --tw-ring-color: rgba(37, 35, 31, 0.06) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-card a[dir="ltr"],
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card a,
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-white"] {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-card a[dir="ltr"]:first-of-type,
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-white/50"],
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-white/40"] {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-card span[class*="text-[#d4af37]"] {
-  color: #8a660d !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-card button[class*="text-stone-600"] {
-  border-color: var(--sf-light-border-strong) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text-secondary) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-[#f3d77a]"] {
-  color: var(--sf-light-accent) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card .sf-wishlist-add-button {
-  background: var(--sf-premium-gold-gradient, linear-gradient(135deg, #b68a2c, #d8b75f)) !important;
-  color: #241c08 !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-small-product-card .sf-wishlist-remove-button {
-  border-color: #e7c7c7 !important;
-  background: #fff7f7 !important;
-  color: #b42332 !important;
-}
-
-/* Wishlist */
-body.storefront-shell:not(.storefront-dark) .sf-wishlist-panel {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 24px 64px rgba(31, 29, 25, 0.13) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-wishlist-panel h1,
-body.storefront-shell:not(.storefront-dark) .sf-wishlist-panel .sf-wishlist-alert [class*="text-white"] {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-wishlist-count,
-body.storefront-shell:not(.storefront-dark) .sf-wishlist-alert {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text-secondary) !important;
-  box-shadow: 0 10px 24px rgba(31, 29, 25, 0.07) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-wishlist-alert p {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-/* Shared empty state */
-body.storefront-shell:not(.storefront-dark) .sf-empty-state {
-  border-color: var(--sf-light-border) !important;
-  background: linear-gradient(180deg, #ffffff, #f7f7f5) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 20px 50px rgba(31, 29, 25, 0.12) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-empty-state h2 {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-empty-state p {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-/* Product details */
-body.storefront-shell:not(.storefront-dark) .sf-product-gallery-shell,
-body.storefront-shell:not(.storefront-dark) .sf-product-summary-card,
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card,
-body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card {
-  border-color: var(--sf-light-border) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfaf7 100%) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 14px 36px rgba(31, 29, 25, 0.09) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-gallery-shell {
-  background: linear-gradient(180deg, #ffffff, #f4f3ef) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-summary-card [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card [class*="text-white"] {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-summary-card [class*="text-white/60"],
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-white/35"],
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-white/55"],
-body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card [class*="text-white/35"] {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-summary-card [class*="text-[#f3d77a]"],
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-[#f3d77a]"] {
-  color: var(--sf-light-accent) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-summary-card button,
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card button,
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card a:not(.sf-size-guide-link),
-body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
-  border-color: var(--sf-light-border-strong) !important;
-  background-color: var(--sf-light-soft) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-option-choice.is-active {
-  border-color: #b88708 !important;
-  background: linear-gradient(180deg, #fff8e6, #fff1c7) !important;
-  color: #7b5900 !important;
-  box-shadow: 0 8px 20px rgba(184, 135, 8, 0.16) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-option-choice.is-available:not(.is-active) {
-  border-color: #d7d2c8 !important;
-  background: #ffffff !important;
-  color: #4d4942 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-option-choice.is-unavailable {
-  border-color: #e5e2dc !important;
-  background: #f3f2ef !important;
-  color: #9a968f !important;
+  color: var(--m1h-text) !important;
   box-shadow: none !important;
-  opacity: 0.72 !important;
+  --tw-ring-color: transparent !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice.is-unavailable > span:first-child {
-  background: #aaa69e !important;
-  opacity: 0.75;
+body.storefront-shell .sf-small-product-card:hover {
+  border-color: var(--sfx-line-strong) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
-  border: 1px solid #ead9a6 !important;
-  background: #fff8e8 !important;
-  color: #72520a !important;
-}
-
-/* Mobile search and image-search panel */
-body.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel,
-.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel {
-  background:
-    radial-gradient(circle at 16% 0%, rgba(164, 122, 18, 0.06), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 247, 244, 0.97)) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card,
-.storefront-shell:not(.storefront-dark) .sf-image-search-card {
-  border-color: rgba(164, 122, 18, 0.18) !important;
-  background: linear-gradient(180deg, #fff8e4 0%, #fffdf7 46%, #ffffff 100%) !important;
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-  box-shadow: 0 18px 42px rgba(31, 29, 25, 0.12) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card h3,
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card p,
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card span,
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card div,
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row,
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row *,
-.storefront-shell:not(.storefront-dark) .sf-image-search-card h3,
-.storefront-shell:not(.storefront-dark) .sf-image-search-card p,
-.storefront-shell:not(.storefront-dark) .sf-image-search-card span,
-.storefront-shell:not(.storefront-dark) .sf-image-search-card div,
-.storefront-shell:not(.storefront-dark) .sf-search-result-row,
-.storefront-shell:not(.storefront-dark) .sf-search-result-row * {
+body.storefront-shell .sf-small-product-card a,
+body.storefront-shell .sf-small-product-card [class*="text-white"] {
+  color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="dark:text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-50"],
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-100"],
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="dark:text-white"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-white"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="dark:text-white"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-50"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-100"],
-.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-white"],
-.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="dark:text-white"] {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: var(--sf-light-text) !important;
+body.storefront-shell .sf-small-product-card [class*="text-white/50"],
+body.storefront-shell .sf-small-product-card [class*="text-white/40"] {
+  color: var(--m1h-text-3) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-300"],
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-400"],
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-500"],
-body.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-600"],
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-300"],
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-400"],
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-500"],
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-600"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-300"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-400"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-500"],
-.storefront-shell:not(.storefront-dark) .sf-image-search-card [class*="text-stone-600"],
-.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-300"],
-.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-400"],
-.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-500"],
-.storefront-shell:not(.storefront-dark) .sf-search-result-row [class*="text-stone-600"] {
-  color: var(--sf-light-text-secondary) !important;
-  -webkit-text-fill-color: var(--sf-light-text-secondary) !important;
+body.storefront-shell .sf-small-product-card [class*="text-[#f3d77a]"] {
+  color: var(--m1h-text) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-search-result-row,
-.storefront-shell:not(.storefront-dark) .sf-search-result-row {
-  border-color: var(--sf-light-border) !important;
-  background: rgba(255, 255, 255, 0.96) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 12px 28px rgba(31, 29, 25, 0.10) !important;
-}
-
-/* Product-detail and grid skeletons must never inherit the dark placeholders. */
-body.storefront-shell:not(.storefront-dark) .sf-product-detail-skeleton .space-y-4 > div {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-surface) !important;
-  box-shadow: 0 14px 34px rgba(31, 29, 25, 0.08) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-product-detail-skeleton .sf-skeleton-shimmer,
-body.storefront-shell:not(.storefront-dark) article .sf-skeleton-shimmer {
-  background: #e7e5df !important;
-}
-
-/* Listing sort, mobile filters and quick-filter chips. */
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page select,
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page select option {
-  background-color: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
+body.storefront-shell .sf-small-product-card .sf-wishlist-add-button {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
   -webkit-text-fill-color: currentColor;
+  font-weight: 600 !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page :is(button, a, label)[class*="dark:bg-white/5"] {
-  border-color: var(--sf-light-border) !important;
-  background-color: var(--sf-light-surface) !important;
-  color: var(--sf-light-text-secondary) !important;
-  -webkit-text-fill-color: currentColor;
+body.storefront-shell .sf-small-product-card .sf-wishlist-add-button:hover {
+  background: var(--m1h-accent) !important;
+  color: var(--sfx-on-accent) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[class*="dark:bg-[#0d0d0d]"] {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
+body.storefront-shell .sf-small-product-card .sf-wishlist-remove-button {
+  border-color: var(--sfx-danger) !important;
+  background: transparent !important;
+  color: var(--sfx-danger) !important;
+  font-weight: 600 !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[class*="dark:bg-[#0d0d0d]"] h3 {
-  color: var(--sf-light-text) !important;
-}
-
-/* Cart and checkout summaries */
-body.storefront-shell:not(.storefront-dark) .sf-cart-page {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-page > h1,
-body.storefront-shell:not(.storefront-dark) .sf-cart-row [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-cart-item-card [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card [class*="text-white"],
-body.storefront-shell:not(.storefront-dark) .sf-checkout-summary [class*="text-white"] {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-row,
-body.storefront-shell:not(.storefront-dark) .sf-cart-item-card,
-body.storefront-shell:not(.storefront-dark) .sf-cart-hero,
-body.storefront-shell:not(.storefront-dark) .sf-cart-empty,
-body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card,
-body.storefront-shell:not(.storefront-dark) .sf-checkout-summary {
-  border-color: var(--sf-light-border) !important;
-  background-color: var(--sf-light-surface) !important;
-  background-image: none !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 18px 48px rgba(31, 29, 25, 0.12) !important;
-}
-
-/* Override the legacy high-specificity cart-page dark surface rule. */
-body.storefront-shell:not(.storefront-dark) .sf-cart-page .sf-cart-row,
-body.storefront-shell:not(.storefront-dark) .sf-cart-page .sf-cart-item-card,
-body.storefront-shell:not(.storefront-dark) .sf-cart-page .sf-cart-summary-card,
-body.storefront-shell:not(.storefront-dark) .sf-cart-page .sf-checkout-summary,
-body.storefront-shell:not(.storefront-dark) .sf-cart-page .sf-empty-state {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 18px 48px rgba(31, 29, 25, 0.12) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-row [class*="text-white/"],
-body.storefront-shell:not(.storefront-dark) .sf-cart-item-card [class*="text-white/"],
-body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card [class*="text-white/"],
-body.storefront-shell:not(.storefront-dark) .sf-checkout-summary [class*="text-white/"] {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-row button,
-body.storefront-shell:not(.storefront-dark) .sf-cart-item-card button,
-body.storefront-shell:not(.storefront-dark) .sf-cart-qty-control,
-body.storefront-shell:not(.storefront-dark) .sf-checkout-summary [class*="bg-white/"] {
-  border-color: var(--sf-light-border-strong) !important;
-  background-color: var(--sf-light-soft) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card .sf-summary-row,
-body.storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-summary-row {
-  color: var(--sf-light-text-secondary) !important;
-  border-color: var(--sf-light-border) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card .sf-summary-row-value,
-body.storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-summary-row-value {
-  color: var(--sf-light-text) !important;
-  background: var(--sf-light-soft) !important;
-  border-color: var(--sf-light-border) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card a[href="/checkout"] {
-  background: linear-gradient(135deg, #d4af37, #e5c158) !important;
-  color: #151515 !important;
-  -webkit-text-fill-color: #151515 !important;
-}
-
-/* Product-detail rails */
-body.storefront-shell:not(.storefront-dark) .sf-related-products,
-body.storefront-shell:not(.storefront-dark) .sf-recent-products {
-  border-color: var(--sf-light-border) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-recent-products {
-  background: var(--sf-light-surface) !important;
-  box-shadow: 0 16px 42px rgba(31, 29, 25, 0.1) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-related-products h2,
-body.storefront-shell:not(.storefront-dark) .sf-recent-products h2 {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-related-products p,
-body.storefront-shell:not(.storefront-dark) .sf-recent-products p {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-related-products > div:first-child > a {
-  border-color: var(--sf-light-border-strong) !important;
-  background: #ffffff !important;
-  color: var(--sf-light-text-secondary) !important;
-  -webkit-text-fill-color: currentColor;
-  box-shadow: 0 6px 16px rgba(31, 29, 25, 0.07) !important;
-}
-
-/* Size guide */
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-page {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-page h1,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-page h2,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-page h3 {
-  color: var(--sf-light-text) !important;
-  -webkit-text-fill-color: currentColor;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-subtitle,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-measure-intro,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-heading p,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-step p,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration > p {
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-unit,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-tab:not(.is-active),
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-step {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-tab.is-active {
-  border-color: rgba(164, 122, 18, 0.45) !important;
-  background: #fff7df !important;
-  color: #7b5900 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-measure-card,
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration {
-  border-color: var(--sf-light-border) !important;
-  background-color: var(--sf-light-surface) !important;
-  background-image: none !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 18px 50px rgba(31, 29, 25, 0.11) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card :is(th, td, tr),
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-heading {
-  border-color: var(--sf-light-border) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card thead tr {
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card tbody tr:hover {
-  background: #faf9f6 !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration > div > div {
-  border-color: var(--sf-light-border) !important;
-  background: #ffffff !important;
-}
-
-/* Mobile menu lives in a portal, so its light colors must not depend on the
- * device color preference used by Tailwind's dark utilities. */
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer.sf-mobile-menu-drawer[data-theme="light"] {
-  border-color: var(--sf-light-border) !important;
-  background: linear-gradient(180deg, #ffffff 0%, #faf9f6 58%, #f2efe8 100%) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 0 64px rgba(31, 29, 25, 0.18) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-toolbar-button {
-  border-color: var(--sf-light-border) !important;
-  background: #ffffff !important;
-  color: var(--sf-light-text-secondary) !important;
-  box-shadow: 0 5px 14px rgba(31, 29, 25, 0.07) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-title {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-eyebrow {
-  color: var(--sf-light-accent) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-link {
-  border-color: var(--sf-light-border) !important;
-  background: rgba(255, 255, 255, 0.9) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 6px 16px rgba(31, 29, 25, 0.06) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-input-shell,
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-search-panel,
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-quick-card {
-  border-color: var(--sf-light-border) !important;
-  background: rgba(255, 255, 255, 0.96) !important;
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-input {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-input::placeholder {
-  color: #8a867e !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-tool-button,
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-chip,
-body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-quick-item {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text-secondary) !important;
+/* ---------------------------------------------------------------------------
+   Product-detail loading skeleton: the placeholder blocks carry `bg-white/80`
+   and `bg-white/[0.08]`, which are the wrong ground in one theme or the other.
+   ------------------------------------------------------------------------- */
+body.storefront-shell .sf-product-detail-skeleton .space-y-4 > div {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
   box-shadow: none !important;
 }
 
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer.sf-mobile-menu-drawer[data-theme="dark"] {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  background: linear-gradient(180deg, #050505 0%, #0a0a0a 55%, #111111 100%) !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 70px rgba(0, 0, 0, 0.48) !important;
-}
-
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-toolbar-button {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  background: rgba(255, 255, 255, 0.07) !important;
-  color: rgba(255, 255, 255, 0.9) !important;
+body.storefront-shell .sf-product-detail-skeleton .sf-skeleton-shimmer {
+  background: var(--m1h-line) !important;
   box-shadow: none !important;
 }
 
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-title {
-  color: #ffffff !important;
+/* ---------------------------------------------------------------------------
+   Listing: the native option list of a sort select opens outside the page and
+   takes these colours, not the select's own.
+   ------------------------------------------------------------------------- */
+body.storefront-shell .sf-product-listing-page select option {
+  background-color: var(--sfx-field) !important;
+  color: var(--m1h-text) !important;
 }
 
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-eyebrow {
-  color: #f3d77a !important;
-}
-
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-link,
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-input-shell,
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-search-panel,
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-quick-card {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  color: #ffffff !important;
-  box-shadow: none !important;
-}
-
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-input {
-  color: #ffffff !important;
-}
-
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.42) !important;
-}
-
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-tool-button,
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-chip,
-body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-quick-item {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  background: rgba(255, 255, 255, 0.055) !important;
-  color: rgba(255, 255, 255, 0.82) !important;
-  box-shadow: none !important;
-}
-
-/* Product catalog filters render through a portal, so they need explicit
- * storefront theme surfaces instead of inheriting the route card colors. */
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-sheet {
-  border-color: var(--sf-light-border) !important;
-  background:
-    radial-gradient(circle at 16% 0%, rgba(212, 175, 55, 0.09), transparent 34%),
-    linear-gradient(180deg, #ffffff 0%, #f7f7f5 100%) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 -24px 70px rgba(31, 29, 25, 0.16) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-handle {
-  background: rgba(93, 89, 82, 0.3) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-header,
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-footer {
-  border-color: var(--sf-light-border) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-footer {
-  background: rgba(255, 255, 255, 0.94) !important;
-  box-shadow: 0 -12px 32px rgba(31, 29, 25, 0.08) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-close,
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-reset {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text-secondary) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-apply {
-  background: linear-gradient(135deg, #d4af37 0%, #b48a1c 100%) !important;
-  color: #211b0c !important;
-  box-shadow: 0 12px 30px rgba(180, 138, 28, 0.24) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content {
-  scrollbar-color: rgba(164, 122, 18, 0.38) transparent;
-}
-
-/* The catalog drawer is portalled under <body>. Explicitly neutralize any
- * stale/global dark utilities so the drawer follows the storefront theme. */
+/* Listing drawer is portalled under <body>; it keeps the storefront face. */
 body.storefront-shell .sf-catalog-filter-drawer,
 body.storefront-shell .sf-catalog-filter-drawer :where(button, input, select, textarea, option) {
   font-family: var(--sf-font-family, "Cairo", "Segoe UI", sans-serif) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
-  box-shadow: 0 10px 28px rgba(31, 29, 25, 0.07) !important;
+/* ---------------------------------------------------------------------------
+   Search panel, image-search card and result rows. Their markup carries a
+   light surface plus `dark:` variants, and `dark:` never applies under the
+   storefront, so the dark theme used to show cream cards on a black sheet.
+   ------------------------------------------------------------------------- */
+body.storefront-shell .sf-mobile-search-panel {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section :is(h3, [class*="text-stone-950"]) {
-  color: var(--sf-light-text) !important;
-}
-
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:bg-white/5"] {
-  border-color: var(--sf-light-border) !important;
-  background: var(--sf-light-soft) !important;
-  color: var(--sf-light-text-secondary) !important;
+body.storefront-shell .sf-image-search-card {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-accent-soft) !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
   box-shadow: none !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:text-stone-200"],
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:text-stone-300"] {
-  color: var(--sf-light-text-secondary) !important;
+body.storefront-shell :is(.sf-image-search-card, .sf-search-result-row) :is(h3, p, span, div),
+body.storefront-shell .sf-search-result-row {
+  -webkit-text-fill-color: currentColor;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:text-stone-500"] {
-  color: var(--sf-light-muted) !important;
+body.storefront-shell :is(.sf-image-search-card, .sf-search-result-row) :is([class*="text-white"], [class*="text-stone-950"], [class*="text-stone-50"], [class*="text-stone-100"]) {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: var(--m1h-text) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section select,
-body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section option {
-  background: var(--sf-light-surface) !important;
-  color: var(--sf-light-text) !important;
+body.storefront-shell :is(.sf-image-search-card, .sf-search-result-row) :is([class*="text-stone-300"], [class*="text-stone-400"], [class*="text-stone-500"], [class*="text-stone-600"]) {
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: var(--m1h-text-2) !important;
+}
+
+body.storefront-shell .sf-search-result-row {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: none !important;
+}
+
+/* The active row is marked by its `--sf-purple` border utility. */
+body.storefront-shell .sf-search-result-row[class*="border-[var(--sf-purple)]"] {
+  border-color: var(--m1h-accent) !important;
+  background: var(--m1h-accent-soft) !important;
+}
+
+body.storefront-shell .sf-search-result-row img {
+  background-color: var(--m1h-plate) !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Product-detail rails: headings and the "view all" link.
+   ------------------------------------------------------------------------- */
+body.storefront-shell .sf-related-products {
+  border-color: var(--m1h-line) !important;
+  color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sf-related-products h2 {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell .sf-related-products p {
+  color: var(--m1h-text-2) !important;
+}
+
+body.storefront-shell .sf-related-products > div:first-child > a {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  box-shadow: none !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Mobile menu (portalled). The panel's own ground belongs to `.sf-menu-panel`
+   in index.css; these paint the rows inside it, whose markup is a white card
+   with inert `dark:` variants.
+   ------------------------------------------------------------------------- */
+body.storefront-shell .sf-mobile-menu-drawer .sf-mobile-menu-link {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: none !important;
+}
+
+body.storefront-shell .sf-mobile-menu-drawer .sf-mobile-menu-link:hover {
+  border-color: var(--sfx-line-strong) !important;
+  background: var(--sfx-surface-2) !important;
+}
+
+body.storefront-shell .sf-mobile-menu-drawer .sf-mobile-menu-link svg {
+  color: var(--m1h-accent) !important;
+}
+
+body.storefront-shell .sf-mobile-menu-drawer :is(.sf-search-input-shell, .sf-mobile-search-panel) {
+  border-color: var(--m1h-line) !important;
+  background: var(--sfx-field) !important;
+  color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sf-mobile-menu-drawer .sf-search-input {
+  color: var(--m1h-text) !important;
+}
+
+body.storefront-shell .sf-mobile-menu-drawer .sf-search-input::placeholder {
+  color: var(--m1h-text-3) !important;
+}
+
+body.storefront-shell .sf-mobile-menu-drawer .sf-search-tool-button {
+  border-color: var(--m1h-line) !important;
+  background: var(--sfx-surface-2) !important;
+  color: var(--m1h-text-2) !important;
+  box-shadow: none !important;
 }

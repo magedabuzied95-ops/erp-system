@@ -3,20 +3,27 @@
  * old `.sf-cart-drawer` / `.sf-cart-row` names carry dozens of light/dark
  * overrides in index.css, and Tailwind colour utilities are remapped globally,
  * so this panel paints only from its own tokens.
+ *
+ * Those tokens are the site's (site-skin.css, re-pointed by Site Studio): the
+ * portal lands in body.storefront-shell, so the bag inherits the light or dark
+ * palette from 'body.storefront-dark' and follows every Studio colour edit.
+ * No literal colours here - a hex in this file is a colour Studio cannot move.
  */
 .sf-bag {
-  --bag-bg: #ffffff;
-  --bag-ink: #111111;
-  --bag-muted: #6f6f6f;
-  --bag-line: #ececec;
-  --bag-surface: #f6f6f6;
-  --bag-tile: #f3f3f1;
-  --bag-sale: #d92d20;
-  --bag-accent-bg: #111111;
-  --bag-accent-ink: #ffffff;
-  --bag-scrim: rgba(17, 17, 17, 0.5);
-  --bag-shadow: 0 0 60px rgba(0, 0, 0, 0.18);
-  --bag-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --bag-bg: var(--m1h-surface);
+  --bag-ink: var(--m1h-text);
+  --bag-muted: var(--m1h-text-2);
+  --bag-muted-2: var(--m1h-text-3);
+  --bag-line: var(--m1h-line);
+  --bag-surface: var(--sfx-panel);
+  --bag-tile: var(--m1h-plate);
+  --bag-sale: var(--m1h-sale);
+  --bag-sale-ink: var(--m1h-sale-fg);
+  --bag-accent-bg: var(--m1h-invert-bg);
+  --bag-accent-ink: var(--m1h-invert-text);
+  --bag-scrim: var(--sfx-scrim);
+  --bag-shadow: var(--sfx-shadow-sheet);
+  --bag-ease: var(--m1h-ease);
   position: fixed;
   inset: 0;
   z-index: 190;
@@ -26,17 +33,15 @@
 }
 
 .sf-bag[data-theme="dark"] {
-  --bag-bg: #111112;
-  --bag-ink: #f4f4f4;
-  --bag-muted: #9c9c9c;
-  --bag-line: #252527;
-  --bag-surface: #1a1a1c;
-  --bag-tile: #f3f3f1;
-  --bag-sale: #ff6f61;
-  --bag-accent-bg: #f4f4f4;
-  --bag-accent-ink: #111111;
-  --bag-scrim: rgba(0, 0, 0, 0.62);
-  --bag-shadow: 0 0 60px rgba(0, 0, 0, 0.55);
+  color-scheme: only dark;
+}
+
+/* The free-shipping bar (freeShippingProgress.css) takes the site's success
+   ink and hairline instead of its own greens. Doubled class: that sheet's
+   '.sf-bag[data-theme="dark"] .sf-fsp' must not win on specificity. */
+.sf-bag.sf-bag[data-theme] .sf-fsp {
+  --fsp-fill: var(--sfx-success);
+  --fsp-track: var(--m1h-line);
 }
 
 .sf-bag *,
@@ -125,10 +130,8 @@
   align-items: center;
   gap: 0.55rem;
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  font-size: var(--m1h-t-price);
+  font-weight: 700;
   color: var(--bag-ink);
 }
 
@@ -138,10 +141,10 @@
   min-width: 1.45rem;
   height: 1.45rem;
   padding: 0 0.4rem;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--bag-accent-bg);
   color: var(--bag-accent-ink);
-  font-size: 0.72rem;
+  font-size: var(--m1h-t-xs);
   font-weight: 600;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
@@ -153,7 +156,7 @@
   width: 2.5rem;
   height: 2.5rem;
   margin-inline-end: -0.5rem;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   transition: background-color 160ms ease, transform 160ms ease;
 }
 
@@ -195,8 +198,9 @@
   width: 4.25rem;
   height: 4.25rem;
   margin-bottom: 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--bag-surface);
+  color: var(--bag-muted);
 }
 
 .sf-bag__empty-icon svg {
@@ -206,13 +210,15 @@
 
 .sf-bag__empty-title {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: var(--m1h-t-price);
+  font-weight: 700;
+  color: var(--bag-ink);
 }
 
 .sf-bag__empty-text {
   margin: 0 0 1rem;
-  font-size: 0.88rem;
+  font-size: var(--m1h-t-base);
+  line-height: 1.6;
   color: var(--bag-muted);
 }
 
@@ -240,7 +246,8 @@
   align-self: start;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 0.6rem;
+  border: 1px solid var(--bag-line);
+  border-radius: var(--m1h-r-md);
   background: var(--bag-tile);
 }
 
@@ -263,19 +270,19 @@
 .sf-bag__line-brand,
 .sf-bag__rec-brand {
   margin: 0;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: var(--m1h-t-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--bag-muted);
+  color: var(--bag-muted-2);
 }
 
 .sf-bag__line-name {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: var(--m1h-t-product);
+  font-weight: 600;
   line-height: 1.4;
   color: var(--bag-ink);
   -webkit-box-orient: vertical;
@@ -284,7 +291,7 @@
 
 .sf-bag__line-variant {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--m1h-t-sm);
   color: var(--bag-muted);
 }
 
@@ -298,14 +305,14 @@
 }
 
 .sf-bag__price-was {
-  font-size: 0.8rem;
-  color: var(--bag-muted);
+  font-size: var(--m1h-t-sm);
+  color: var(--bag-muted-2);
   text-decoration: line-through;
 }
 
 .sf-bag__price-now {
-  font-size: 0.92rem;
-  font-weight: 600;
+  font-size: var(--m1h-t-product);
+  font-weight: 700;
   color: var(--bag-ink);
 }
 
@@ -324,17 +331,19 @@
 .sf-bag__stepper {
   display: inline-flex;
   align-items: center;
-  height: 2.5rem;
-  border: 1px solid var(--bag-ink);
-  border-radius: 0.55rem;
+  height: var(--sfx-control-h-xs);
+  border: 1px solid var(--bag-line);
+  border-radius: var(--m1h-r-pill);
+  background: var(--bag-bg);
+  color: var(--bag-ink);
 }
 
 .sf-bag__stepper button {
   display: grid;
   place-items: center;
-  width: 2.5rem;
+  width: var(--sfx-control-h-xs);
   height: 100%;
-  border-radius: 0.5rem;
+  border-radius: var(--m1h-r-pill);
   transition: background-color 160ms ease;
 }
 
@@ -350,13 +359,13 @@
 .sf-bag__qty {
   min-width: 1.75rem;
   text-align: center;
-  font-size: 0.92rem;
-  font-weight: 500;
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .sf-bag__remove {
-  font-size: 0.8rem;
+  font-size: var(--m1h-t-sm);
   color: var(--bag-muted) !important;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -372,7 +381,7 @@
   margin-top: 1.5rem;
   overflow: hidden;
   border: 1px solid var(--bag-line);
-  border-radius: 0.85rem;
+  border-radius: var(--m1h-r-lg);
   background: var(--bag-bg);
 }
 
@@ -385,7 +394,7 @@
 
 .sf-bag__recs-head h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: var(--sfx-t-h3);
   font-weight: 600;
   color: var(--bag-ink);
 }
@@ -422,7 +431,8 @@
   display: block;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 0.6rem;
+  border: 1px solid var(--bag-line);
+  border-radius: var(--m1h-r-md);
   background: var(--bag-tile);
 }
 
@@ -439,9 +449,9 @@
   inset-block-start: 0.35rem;
   inset-inline-start: 0.35rem;
   padding: 0.1rem 0.4rem;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--bag-sale);
-  color: #ffffff;
+  color: var(--bag-sale-ink);
   font-size: 0.66rem;
   font-weight: 600;
   direction: ltr;
@@ -457,8 +467,8 @@
 .sf-bag__rec-name {
   display: -webkit-box;
   overflow: hidden;
-  font-size: 0.88rem;
-  font-weight: 500;
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
   line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -469,7 +479,7 @@
   align-items: center;
   gap: 0.25rem;
   margin-top: 0.35rem;
-  font-size: 0.78rem;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
   color: var(--bag-ink);
   text-decoration: underline;
@@ -528,8 +538,8 @@
   width: 0.55rem;
   height: 0.55rem;
   flex: none;
-  border: 1px solid var(--bag-muted) !important;
-  border-radius: 999px;
+  border: 1px solid var(--bag-muted-2) !important;
+  border-radius: var(--m1h-r-pill);
   transition: width 240ms var(--bag-ease), background-color 240ms ease, border-color 240ms ease;
 }
 
@@ -547,7 +557,7 @@
   display: block;
   height: 0.8rem;
   width: 85%;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--bag-surface);
 }
 
@@ -562,7 +572,7 @@
   padding: 1.1rem 1.25rem calc(1.1rem + env(safe-area-inset-bottom));
   border-top: 1px solid var(--bag-line);
   background: var(--bag-bg);
-  box-shadow: 0 -12px 30px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--m1h-shadow-soft);
 }
 
 .sf-bag__subtotal {
@@ -573,7 +583,7 @@
 }
 
 .sf-bag__subtotal-label {
-  font-size: 1rem;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
 }
 
@@ -585,27 +595,27 @@
 }
 
 .sf-bag__subtotal-was {
-  font-size: 0.82rem;
-  color: var(--bag-muted);
+  font-size: var(--m1h-t-sm);
+  color: var(--bag-muted-2);
   text-decoration: line-through;
 }
 
 .sf-bag__subtotal-now {
-  font-size: 1.2rem;
+  font-size: var(--m1h-t-price);
   font-weight: 700;
 }
 
 .sf-bag__saved {
   margin: 0.35rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
-  color: var(--bag-sale);
+  color: var(--sfx-success);
 }
 
 .sf-bag__note {
   margin: 0.25rem 0 0;
-  font-size: 0.76rem;
-  color: var(--bag-muted);
+  font-size: var(--m1h-t-xs);
+  color: var(--bag-muted-2);
 }
 
 .sf-bag__actions {
@@ -618,19 +628,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 3.1rem;
-  padding: 0 1.25rem;
-  border-radius: 0.55rem;
-  font-size: 0.82rem;
+  min-height: var(--sfx-control-h);
+  padding: 0 var(--m1h-s6);
+  border: 1px solid transparent !important;
+  border-radius: var(--m1h-r-pill);
+  font-size: var(--m1h-t-base);
   font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  transition: background-color 180ms ease, color 180ms ease, transform 160ms ease, opacity 180ms ease;
+  letter-spacing: 0;
+  text-transform: none;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, transform 160ms ease;
 }
 
-.sf-bag[dir="rtl"] .sf-bag__btn {
-  letter-spacing: 0;
-  font-size: 0.95rem;
+.sf-bag__btn:focus-visible,
+.sf-bag__close:focus-visible,
+.sf-bag__stepper button:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
 }
 
 .sf-bag__btn:active {
@@ -642,17 +655,22 @@
   color: var(--bag-accent-ink) !important;
 }
 
-.sf-bag__btn--primary:hover {
-  opacity: 0.88;
+@media (hover: hover) {
+  .sf-bag__btn--primary:hover {
+    background: var(--m1h-accent) !important;
+    color: var(--sfx-on-accent) !important;
+  }
 }
 
+/* The secondary look: surface fill with a hairline, like sfx-btn--secondary. */
 .sf-bag__btn--ghost {
-  background: var(--bag-surface) !important;
+  border-color: var(--bag-line) !important;
+  background: var(--bag-bg) !important;
   color: var(--bag-ink) !important;
 }
 
 .sf-bag__btn--ghost:hover {
-  background: var(--bag-line) !important;
+  border-color: var(--bag-ink) !important;
 }
 
 /* ---- bundle discount ("Pairs well with") ---- */

@@ -1865,7 +1865,6 @@ const repairedDefaultEgyptShippingLocations = defaultEgyptShippingLocations;
 // each one a second chance past a CDN edge that cached a 404, and falls back to
 // a silent reload only when the chunk is really gone.
 const OrderInvoiceCard = lazy(() => importWithChunkRetry(() => import("../shared/components/invoices/OrderInvoiceCard")));
-const Select = lazy(() => importWithChunkRetry(() => import("react-select")));
 const LazyFiltersDrawer = lazy(() => Promise.resolve({ default: MobileFilterDrawer }));
 const LazyStorefrontProductListingPage = lazy(() =>
   importWithChunkRetry(() => import("./pages/StorefrontProductListingPage.jsx"))
@@ -3555,17 +3554,26 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger hidden border-y border-white/[0.08] bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] text-white md:mt-12 md:block">
-      <div className="mx-auto grid max-w-[1440px] divide-y divide-white/15 px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 md:grid-cols-4 md:px-8 rtl:sm:divide-x-reverse">
+    // The `bg-[linear-gradient(...)]` utility stays only because
+    // tests/storefront-home-footer.test.js pins it; the inline token background
+    // outranks it. The strip used to be an always-black band whose headings the
+    // `.text-white` remap turned black-on-black in light mode — it is now the
+    // site surface in both themes, with accent-soft icon bubbles.
+    <section
+      data-testid="storefront-service-strip"
+      className="sf-home-motion sf-home-motion--stagger hidden bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] md:mt-12 md:block"
+      style={{ background: "var(--m1h-surface)", color: "var(--m1h-text)", borderBlock: "1px solid var(--m1h-line)" }}
+    >
+      <div className="sfx-wrap grid sm:grid-cols-2 md:grid-cols-4">
           {items.map((item, index) => {
             const Icon = item.icon;
             return (
               <div key={item.title} className="sf-home-motion-item flex min-h-[190px] flex-col items-center justify-center px-4 py-7 text-center md:min-h-[230px] md:px-7" style={{ "--sf-motion-index": index }}>
-                <span className="grid h-16 w-16 place-items-center rounded-[42%_58%_52%_48%/48%_42%_58%_52%] bg-white text-[#d4af37] shadow-[0_14px_35px_rgba(0,0,0,0.12)] dark:bg-white/[0.08] dark:text-[#f3d77a] dark:ring-1 dark:ring-white/10">
+                <span className="grid h-16 w-16 place-items-center rounded-full" style={{ background: "var(--m1h-accent-soft)", color: "var(--m1h-accent)" }}>
                   <Icon className="h-8 w-8" strokeWidth={1.55} />
                 </span>
-                <h3 className="mt-5 text-base font-black leading-6 text-white md:text-lg">{item.title}</h3>
-                <p className="mt-2 max-w-[250px] text-xs font-semibold leading-6 text-white/80 md:text-sm">{item.text}</p>
+                <h3 className="sfx-h3 mt-5">{item.title}</h3>
+                <p className="mt-2 mb-0 max-w-[250px] text-sm leading-6" style={{ color: "var(--m1h-text-2)" }}>{item.text}</p>
               </div>
             );
           })}
@@ -3645,6 +3653,11 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: isRtl ? "شنط" : "Bags", to: "/bags" },
     { label: isRtl ? "ميرور أوريجنال" : "Mirror Original", to: "/products?quality=mirror_original" },
   ];
+  // Footer ink follows the Site Studio footer colours (--sf-footer-*, painted on
+  // .sf-footer by index.css), never a Tailwind stone utility: those are
+  // remapped to the ERP palette and their dark: twins never fire in the shop.
+  const footerHeadingStyle = { fontSize: "var(--sfx-t-h3)", color: "var(--sf-footer-ink, var(--m1h-text))" };
+  const footerMutedStyle = { color: "var(--sf-footer-ink, var(--m1h-text-2))", opacity: 0.78 };
   const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة من خدمة العملاء" : "Hi, I need customer support");
   const currentYear = new Date().getFullYear();
   const supportEmail = "support@m1store-egy.com";
@@ -3676,7 +3689,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
 
   return (
     <footer data-testid="storefront-modern-footer" data-theme={themeTokens.resolvedMode || "light"} dir={isRtl ? "rtl" : "ltr"} className="sf-footer border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
-      <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
+      <div className="sfx-wrap pb-10 pt-10 md:pb-12 md:pt-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr]">
           <div>
             <div className="relative h-16 w-16 md:h-20 md:w-20" aria-label="M1 Store">
@@ -3693,18 +3706,18 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
                 <img src="/branding/m-one-logo-white-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" loading="lazy" decoding="async" />
               </div>
             </div>
-            <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
-            <a href={whatsappHref} target="_blank" rel="noreferrer" className="sf-footer__contact mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#121212] dark:text-white dark:hover:text-[#f3d77a]">
-              <FaWhatsapp className="h-5 w-5 text-[#25D366]" />
+            <p className="mt-5 text-xs font-medium" style={footerMutedStyle}>{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="sf-footer__contact mt-2 flex items-center gap-2 text-sm font-semibold transition">
+              <FaWhatsapp className="h-5 w-5" style={{ color: "var(--sfx-whatsapp)" }} />
               {isRtl ? "خدمة العملاء" : "Customer service"}
             </a>
-            <a href={`mailto:${supportEmail}`} className="sf-footer__contact mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#121212] dark:text-white/80 dark:hover:text-[#f3d77a]">
-              <Mail className="h-5 w-5 text-[#121212] dark:text-[#d4af37]" />
+            <a href={`mailto:${supportEmail}`} className="sf-footer__contact mt-4 flex items-center gap-2 text-sm font-semibold transition">
+              <Mail className="h-5 w-5" style={{ color: "var(--m1h-accent)" }} />
               <span dir="ltr">{supportEmail}</span>
             </a>
             <div className="mt-5 flex flex-wrap gap-2">
               {socialLinks.map(({ label, href, icon: SocialIcon }) => (
-                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="sf-footer__social grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#121212] hover:text-[#121212] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
+                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="sf-footer__social grid h-10 w-10 place-items-center rounded-full transition hover:-translate-y-0.5" style={{ border: "1px solid var(--m1h-line)", background: "var(--m1h-surface)", color: "var(--m1h-text)" }}>
                   <SocialIcon className="h-4 w-4" />
                 </a>
               ))}
@@ -3712,8 +3725,8 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
           </div>
 
           <div>
-            <h3 className="text-base font-black">{isRtl ? "معلومات عنا" : "About M1 Store"}</h3>
-            <p className="mt-4 text-sm font-semibold leading-7 text-stone-600 dark:text-white/58">
+            <h3 className="font-semibold" style={footerHeadingStyle}>{isRtl ? "معلومات عنا" : "About M1 Store"}</h3>
+            <p className="mt-4 text-sm leading-7" style={footerMutedStyle}>
               {isRtl
                 ? "M1 Store متجر متخصص في الأحذية والسنيكرز والشنط المختارة بعناية. نهتم بالجودة، الراحة، التصميم العصري والسعر المناسب لتجد اختيارك المناسب لكل يوم."
                 : "M1 Store offers carefully selected sneakers, footwear and bags. We focus on quality, comfort, modern design and fair prices for every day."}
@@ -3721,19 +3734,19 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
           </div>
 
           <nav aria-label={isRtl ? "الأقسام المميزة" : "Featured categories"}>
-            <h3 className="text-base font-black">{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
+            <h3 className="font-semibold" style={footerHeadingStyle}>{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
             <div className="mt-4 grid gap-3">
               {categoryLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-medium transition" style={footerMutedStyle}>{link.label}</Link>
               ))}
             </div>
           </nav>
 
           <nav aria-label={isRtl ? "روابط مهمة" : "Important links"}>
-            <h3 className="text-base font-black">{isRtl ? "روابط مهمة" : "Important links"}</h3>
+            <h3 className="font-semibold" style={footerHeadingStyle}>{isRtl ? "روابط مهمة" : "Important links"}</h3>
             <div className="mt-4 grid gap-3">
               {importantLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-bold text-stone-600 transition hover:text-[#121212] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-medium transition" style={footerMutedStyle}>{link.label}</Link>
               ))}
             </div>
           </nav>
@@ -3753,8 +3766,8 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
           Phones: logos first, copyright as the last line of the page. Desktop:
           one row. The floating WhatsApp button fades while the page bottom is
           in view (StorefrontWhatsAppFloat) instead of the bar reserving room. */}
-      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold text-white dark:text-white/55">
-        <div className="mx-auto flex max-w-[1440px] flex-col-reverse items-center gap-4 md:flex-row md:justify-between md:px-3">
+      <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold">
+        <div className="sfx-wrap flex flex-col-reverse items-center gap-4 md:flex-row md:justify-between">
           <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
           <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3" dir="ltr">
             {paymentMarks.map(({ label, mark }) => (
@@ -3772,29 +3785,39 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
 function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
   return (
     <div className={compact ? "max-w-2xl" : "max-w-3xl"}>
-      <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{eyebrow}</div>
-      <h2 className={`${compact ? "text-[1.4rem] md:text-[2.2rem]" : "text-[1.65rem] md:text-[2.6rem]"} font-black tracking-tight text-stone-950 dark:text-stone-100`}>{title}</h2>
-      {subtitle ? <p className="mt-1.5 text-xs font-semibold leading-5 text-stone-500 dark:text-stone-400 md:mt-2.5 md:text-sm md:leading-6">{subtitle}</p> : null}
-      <div className="mt-2 h-1 w-12 rounded-full bg-gradient-to-l from-[#d4af37] to-[#f3d77a] md:mt-2.5 md:h-[3px] md:w-16" />
+      {/* A kicker only when it says something the title does not (owner decree). */}
+      {eyebrow && String(eyebrow).trim() !== String(title || "").trim() ? <span className="sfx-kicker">{eyebrow}</span> : null}
+      <h2 className="sfx-h2">{title}</h2>
+      {subtitle ? <p className="sfx-subtitle">{subtitle}</p> : null}
     </div>
   );
 }
 
 
 
+// The offers story stays a dark media surface in both themes (a story reads
+// over black), so it paints from the media tokens instead of Tailwind colour
+// utilities: `text-white` is remapped to the ERP ink in light mode, which made
+// this viewer black-on-black. Hairlines and glass are tints of the media ink (color-mix),
+// so they move with the token too.
+const OFFER_STORY_INK = { color: "var(--sfx-media-ink)" };
+const OFFER_STORY_GOLD = { borderColor: "transparent", background: "var(--sfx-accent-strong)", color: "var(--sfx-on-accent)" };
+const OFFER_STORY_GLASS = { borderColor: "color-mix(in srgb, var(--sfx-media-ink) 12%, transparent)", background: "color-mix(in srgb, var(--sfx-media-ink) 6%, transparent)", color: "var(--sfx-media-ink)" };
+const OFFER_STORY_ICON = { background: "color-mix(in srgb, var(--sfx-media-ink) 8%, transparent)", color: "var(--sfx-accent-strong)" };
+
 function OfferStoryEmptyState({ title, text, actionLabel, onAction }) {
   return (
-    <div className="grid place-items-center rounded-[1.5rem] border border-white/12 bg-white/[0.08] p-6 text-center backdrop-blur">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#f8e7b3]/20 bg-[#d4af37]/10 text-[#f8e7b3]">
+    <div className="grid place-items-center border p-6 text-center backdrop-blur" style={{ ...OFFER_STORY_GLASS, borderRadius: "var(--m1h-r-xl)" }}>
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={OFFER_STORY_ICON}>
         <BadgePercent className="h-7 w-7" />
       </div>
-      <h3 className="mt-4 text-xl font-black text-white">{title}</h3>
-      <p className="mx-auto mt-2 max-w-md text-sm font-bold leading-6 text-white/66">{text}</p>
+      <h3 className="mt-4 text-xl font-bold">{title}</h3>
+      <p className="mx-auto mt-2 max-w-md text-sm font-medium leading-6" style={{ opacity: 0.72 }}>{text}</p>
       {onAction ? (
         <button
           type="button"
           onClick={onAction}
-          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-[#f8e7b3]/20 bg-[#f8e7b3] px-5 py-3 text-sm font-black text-stone-950 transition hover:bg-[#f3d77a] active:scale-[0.98]"
+          className="sfx-btn mt-5 active:scale-[0.98]" style={OFFER_STORY_GOLD}
         >
           {actionLabel}
         </button>
@@ -3808,10 +3831,11 @@ function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
     <button
       type="button"
       onClick={onClick}
-      className={`relative overflow-hidden rounded-full border px-3 py-2.5 text-center font-black transition active:scale-[0.98] ${ active ? "border-[#f8e7b3]/55 bg-[#f8e7b3] text-stone-950 shadow-[0_18px_34px_rgba(248,231,179,0.18)]" : "border-white/10 bg-white/[0.06] text-white hover:border-[#f8e7b3]/35 hover:bg-[#f8e7b3]/10" } ${compact ? "min-h-11 text-sm" : "min-h-14 text-[0.95rem] md:min-h-16 md:text-base"}`}
+      className={`relative overflow-hidden rounded-full border px-3 py-2.5 text-center font-semibold transition active:scale-[0.98] ${compact ? "min-h-11 text-sm" : "min-h-14 text-[0.95rem] md:min-h-16 md:text-base"}`}
+      style={active ? OFFER_STORY_GOLD : OFFER_STORY_GLASS}
     >
       <span className="block truncate">{label}</span>
-      {Number.isFinite(Number(count)) ? <span className={`mt-0.5 block text-[10px] font-black ${active ? "text-stone-800" : "text-white/45"}`}>{count} {Number(count) === 1 ? sfText("storefront.offers.modelOne") : sfText("storefront.offers.modelMany")}</span> : null}
+      {Number.isFinite(Number(count)) ? <span className="mt-0.5 block text-[10px] font-semibold" style={{ opacity: active ? 0.8 : 0.55 }}>{count} {Number(count) === 1 ? sfText("storefront.offers.modelOne") : sfText("storefront.offers.modelMany")}</span> : null}
     </button>
   );
 }
@@ -3824,14 +3848,15 @@ function OfferStorySlide({ storyItem, selectedSize, onViewProduct, onTouchStart,
   const priceInfo = offerStoryPriceInfo(product);
   return (
     <div
-      className="relative isolate flex h-full min-h-[72dvh] overflow-hidden rounded-[2rem] border border-white/10 bg-black shadow-[0_28px_90px_rgba(0,0,0,0.45)] md:min-h-[76dvh]"
+      className="relative isolate flex h-full min-h-[72dvh] overflow-hidden border md:min-h-[76dvh]"
+      style={{ borderColor: "color-mix(in srgb, var(--sfx-media-ink) 10%, transparent)", borderRadius: "var(--m1h-r-xl)", background: "var(--sfx-media-scrim)" }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14)_0%,rgba(0,0,0,0.03)_18%,rgba(0,0,0,0.22)_68%,rgba(0,0,0,0.64)_100%)]" />
       <div className="relative z-20 flex h-full w-full flex-col px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[3.25rem] md:px-5 md:pt-[3.5rem]">
         <div className="relative flex min-h-0 flex-[1.55] items-center justify-center">
-          <div className="flex h-full w-full max-w-[58rem] items-center justify-center rounded-[1.5rem] bg-white/100 p-3 shadow-[0_18px_60px_rgba(0,0,0,0.22)] md:p-4">
+          <div className="flex h-full w-full max-w-[58rem] items-center justify-center p-3 md:p-4" style={{ background: "var(--m1h-plate)", borderRadius: "var(--m1h-r-lg)" }}>
             <img
               src={imageSrc}
               onError={fallbackProductImage}
@@ -3844,16 +3869,16 @@ function OfferStorySlide({ storyItem, selectedSize, onViewProduct, onTouchStart,
         </div>
         <div className="mx-auto mt-4 flex w-full max-w-2xl flex-[1] min-h-0 flex-col">
           <div className="min-w-0">
-            <h3 className="line-clamp-2 text-lg font-black leading-6 text-white md:text-2xl md:leading-7">{product.name}</h3>
-            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/48">{product.brand_name || product.brand || ""}</p>
+            <h3 className="line-clamp-2 text-lg font-bold leading-6 md:text-2xl md:leading-7">{product.name}</h3>
+            <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em]" style={{ opacity: 0.55 }}>{product.brand_name || product.brand || ""}</p>
             <div className="mt-2 flex items-end gap-2">
-              <span className="text-2xl font-black text-white md:text-4xl">{money(priceInfo.displayPrice)}</span>
-              {priceInfo.crossedPrice > priceInfo.displayPrice ? <span className="pb-1 text-sm font-bold text-white/40 line-through md:text-base">{money(priceInfo.crossedPrice)}</span> : null}
+              <span className="text-2xl font-bold md:text-4xl">{money(priceInfo.displayPrice)}</span>
+              {priceInfo.crossedPrice > priceInfo.displayPrice ? <span className="pb-1 text-sm font-medium line-through md:text-base" style={{ opacity: 0.5 }}>{money(priceInfo.crossedPrice)}</span> : null}
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {sizeChips.map((size) => (
-              <span key={size} className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${String(size) === String(selectedSize) ? "border-[#f8e7b3]/40 bg-[#f8e7b3] text-stone-950" : "border-white/12 bg-black/30 text-white/86"}`}>
+              <span key={size} className="rounded-full border px-2.5 py-1 text-[10px] font-semibold" style={String(size) === String(selectedSize) ? OFFER_STORY_GOLD : OFFER_STORY_GLASS}>
                 {size}
               </span>
             ))}
@@ -3865,7 +3890,7 @@ function OfferStorySlide({ storyItem, selectedSize, onViewProduct, onTouchStart,
                 event.stopPropagation();
                 onViewProduct(variant);
               }}
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#f8e7b3]/25 bg-[#f8e7b3] px-5 py-3 text-sm font-black text-stone-950 transition hover:bg-[#f3d77a] active:scale-[0.98]"
+              className="sfx-btn active:scale-[0.98]" style={OFFER_STORY_GOLD}
             >
               {sfText("storefront.products.viewProduct")}
             </button>
@@ -4085,24 +4110,24 @@ function OfferStoryViewer() {
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="sf-offer-story-viewer fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)] text-white" onClick={handleViewerClick}>
+    <div className="sf-offer-story-viewer fixed inset-0 z-[2000] overflow-hidden bg-[linear-gradient(180deg,#040404_0%,#101010_45%,#040404_100%)]" style={OFFER_STORY_INK} onClick={handleViewerClick}>
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(212,175,55,0.22),transparent_24%),radial-gradient(circle_at_82%_10%,rgba(248,231,179,0.12),transparent_18%)]" />
       <div className="relative flex h-[100dvh] w-[100vw] flex-col px-3 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-[calc(env(safe-area-inset-top,12px)+0.35rem)] md:px-5">
         <div className="flex items-start gap-3">
-          <button type="button" onClick={(event) => { event.stopPropagation(); closeStory(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label={sfText("storefront.common.close")}>
+          <button type="button" onClick={(event) => { event.stopPropagation(); closeStory(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border transition active:scale-95" style={OFFER_STORY_GLASS} aria-label={sfText("storefront.common.close")}>
             <X className="h-5 w-5" />
           </button>
           <div className="flex-1 pt-1">
             {stage === "story" && storyProgressTotal > 0 ? (
               <div className="relative z-30 flex gap-1.5">
                 {Array.from({ length: storyProgressTotal }).map((_, itemIndex) => (
-                  <span key={itemIndex} className={`h-1 flex-1 overflow-hidden rounded-full ${itemIndex === storyProgressIndex ? "bg-white/22 after:block after:h-full after:w-full after:rounded-full after:bg-[#f8e7b3] after:content-['']" : itemIndex < storyProgressIndex ? "bg-[#f8e7b3]" : "bg-white/16"}`} />
+                  <span key={itemIndex} className="h-1 flex-1 overflow-hidden rounded-full" style={{ background: itemIndex <= storyProgressIndex ? "var(--sfx-accent-strong)" : "color-mix(in srgb, var(--sfx-media-ink) 18%, transparent)" }} />
                 ))}
               </div>
             ) : null}
           </div>
           {stage === "story" ? (
-            <button type="button" onClick={(event) => { event.stopPropagation(); goPrev(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/12 bg-white/8 text-white transition active:scale-95" aria-label={sfText("storefront.common.back")}>
+            <button type="button" onClick={(event) => { event.stopPropagation(); goPrev(); }} className="relative z-30 grid h-11 w-11 shrink-0 place-items-center rounded-full border transition active:scale-95" style={OFFER_STORY_GLASS} aria-label={sfText("storefront.common.back")}>
               <ChevronLeft className="h-5 w-5 rotate-180" />
             </button>
           ) : (
@@ -4114,8 +4139,8 @@ function OfferStoryViewer() {
           {isLoading && !offerProducts.length ? (
             <div className="grid h-full min-h-[52vh] place-items-center">
               <div className="text-center">
-                <div className="mx-auto h-14 w-14 animate-pulse rounded-full border border-[#f8e7b3]/30 bg-[#f8e7b3]/12" />
-                <p className="mt-4 text-sm font-black text-white/70">{sfText("storefront.offers.loading")}</p>
+                <div className="mx-auto h-14 w-14 animate-pulse rounded-full" style={OFFER_STORY_ICON} />
+                <p className="mt-4 text-sm font-semibold" style={{ opacity: 0.72 }}>{sfText("storefront.offers.loading")}</p>
               </div>
             </div>
           ) : loadError && !offerProducts.length ? (
@@ -4130,8 +4155,8 @@ function OfferStoryViewer() {
           ) : stage === "size" ? (
             <div className="flex h-full min-h-0 flex-col justify-start pt-0">
               <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-2xl font-black md:text-4xl">{sfText("storefront.offers.chooseSize")}</h2>
-                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">{sfText("storefront.offers.sizesInOffers")}</p>
+                <h2 className="text-2xl font-bold md:text-4xl">{sfText("storefront.offers.chooseSize")}</h2>
+                <p className="mt-1 text-sm font-medium md:text-base" style={{ opacity: 0.62 }}>{sfText("storefront.offers.sizesInOffers")}</p>
               </div>
               {availableSizes.length > 0 ? (
                 <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
@@ -4151,15 +4176,15 @@ function OfferStoryViewer() {
                 </div>
               ) : null}
               {!availableSizes.length && hasOfferProducts ? (
-                <div className="mt-6 rounded-[1.4rem] border border-[#f8e7b3]/18 bg-[linear-gradient(145deg,rgba(212,175,55,0.10),rgba(255,255,255,0.03))] p-5 text-center shadow-[0_14px_30px_rgba(0,0,0,0.18)]">
-                  <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#f8e7b3]/20 bg-[#f8e7b3]/10 text-[#f8e7b3]">
+                <div className="mt-6 border p-5 text-center" style={{ ...OFFER_STORY_GLASS, borderRadius: "var(--m1h-r-lg)" }}>
+                  <div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={OFFER_STORY_ICON}>
                     <BadgePercent className="h-7 w-7" />
                   </div>
-                  <h3 className="mt-4 text-lg font-black text-white">{sfText("storefront.offers.foundProducts")}</h3>
-                  <p className="mt-2 text-sm font-bold leading-6 text-white/72">
+                  <h3 className="mt-4 text-lg font-bold">{sfText("storefront.offers.foundProducts")}</h3>
+                  <p className="mt-2 text-sm font-medium leading-6" style={{ opacity: 0.76 }}>
                     {sfText("storefront.offers.noSizesInData")}
                   </p>
-                  <p className="mt-2 text-xs font-bold leading-5 text-white/50">
+                  <p className="mt-2 text-xs font-medium leading-5" style={{ opacity: 0.55 }}>
                     {sfText("storefront.offers.noSizesHint")}
                   </p>
                 </div>
@@ -4178,8 +4203,8 @@ function OfferStoryViewer() {
           ) : stage === "type" ? (
             <div className="flex h-full min-h-0 flex-col justify-start pt-0">
               <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-2xl font-black md:text-4xl">{sfText("storefront.offers.chooseType")}</h2>
-                <p className="mt-1 text-sm font-bold text-white/58 md:text-base">{sfText("storefront.offers.selectedSize")} {selectedSize}</p>
+                <h2 className="text-2xl font-bold md:text-4xl">{sfText("storefront.offers.chooseType")}</h2>
+                <p className="mt-1 text-sm font-medium md:text-base" style={{ opacity: 0.62 }}>{sfText("storefront.offers.selectedSize")} {selectedSize}</p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
                 {typeOptions.map((option) => (
@@ -4252,22 +4277,20 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
   const cardDensity = railType === "new" || railType === "similar" ? "compact" : "standard";
   if (!loading && !hasProducts) return null;
   return (
-    <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
-      <div className="mb-2 flex items-end justify-between gap-3 text-start md:mb-4 md:gap-4">
+    <section className="sf-reveal sfx-wrap py-2 md:py-4">
+      <div className="mb-3 flex items-end justify-between gap-3 text-start md:mb-4 md:gap-4">
         <div className="min-w-0">
-          <div className="mb-0.5 text-[9px] font-black uppercase tracking-[0.15em] text-[#d4af37] dark:text-[#f3d77a] md:mb-1 md:text-[11px] md:tracking-[0.18em]">{t("storefront.common.shopNow")}</div>
-          <h2 className="text-[1.25rem] font-black tracking-normal md:text-3xl">{title}</h2>
-          {subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{subtitle}</p> : null}
-          <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#d4af37] to-[#f3d77a] md:mt-1.5 md:h-1 md:w-14" />
+          <h2 className="sfx-h2">{title}</h2>
+          {subtitle ? <p className="sfx-subtitle" style={{ marginTop: "var(--m1h-s1)" }}>{subtitle}</p> : null}
         </div>
-        <Link to="/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <Link to="/products" className="sfx-btn sfx-btn--secondary sfx-btn--sm shrink-0">
           {t("common.viewAll")}
         </Link>
       </div>
       <div className="sf-product-rail sf-scroll flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1.5 md:flex-nowrap md:gap-4 md:overflow-hidden md:pb-1">
         {loading ? skeletonItems.map((_, index) => (
           <div key={index} className={`w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none md:basis-[calc((100%_-_2rem)/3)] xl:basis-[calc((100%_-_4rem)/5)] ${index >= 3 ? "md:hidden xl:block" : ""}`}>
-            <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
+            <div className="sfx-skel h-56 md:h-72" style={{ borderRadius: "var(--m1h-r-lg)" }} />
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className={`w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none md:basis-[calc((100%_-_2rem)/3)] xl:basis-[calc((100%_-_4rem)/5)] ${index >= 3 ? "md:hidden xl:block" : ""}`}>
@@ -4932,7 +4955,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     return (
       <span className={frameClassName} aria-busy={logoStatus === "loading"}>
         {logoStatus === "loading" ? (
-          <span data-testid="storefront-logo-loading" className="sf-skeleton-shimmer block h-full w-full rounded-full bg-white/10" aria-hidden="true" />
+          <span data-testid="storefront-logo-loading" className="sf-skeleton-shimmer block h-full w-full rounded-full" style={{ background: "var(--m1h-line)" }} aria-hidden="true" />
         ) : null}
         {logoStatus === "loaded" ? (
           useAnimatedMOneHeaderLogo ? (
@@ -4945,7 +4968,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
           )
         ) : null}
         {logoStatus === "error" ? (
-          <span data-testid="storefront-logo-fallback" className="grid h-full w-full place-items-center rounded-full bg-white/10" aria-label={brandName}>
+          <span data-testid="storefront-logo-fallback" className="grid h-full w-full place-items-center rounded-full" style={{ background: "var(--m1h-line)" }} aria-label={brandName}>
             <ShoppingBag className={mobile ? "h-6 w-6" : "h-7 w-7"} aria-hidden="true" />
           </span>
         ) : null}
@@ -5092,10 +5115,12 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   const themeToggleLabel = themeIsDark
     ? (isRtl ? "تفعيل الوضع الفاتح" : "Switch to light mode")
     : (isRtl ? "تفعيل الوضع الداكن" : "Switch to dark mode");
-  const headerShellClassName = [
-    "sf-luxury-header sf-header-v2 sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent",
-    themeIsDark ? "" : "border-b border-black/5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]",
-  ].join(" ");
+  // One header shell for both themes: its palette comes from index.css /
+  // site tokens, and the bottom hairline is the site line (inline, below). The
+  // light-only `border-black/5` + shadow literals made the two themes differ.
+  const headerShellClassName = "sf-luxury-header sf-header-v2 sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300";
+  const mobileMenuLinkClassName = "sf-mobile-menu-link flex min-h-12 items-center gap-3 border px-4 py-3.5 text-sm font-semibold transition active:scale-[0.98]";
+  const mobileMenuLinkStyle = { borderRadius: "var(--m1h-r-lg)" };
   const mobileMenuIsRtl = currentLanguage === "ar";
   // Which edge the panel hangs off, and nothing else. The rounded corner, the
   // border and the drop shadow used to live here as utilities — and a utility
@@ -5426,6 +5451,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     <header
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className={headerShellClassName}
+      style={{ borderBottom: "1px solid var(--m1h-line)" }}
     >
       <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement relative overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
         {/* The two corner controls of the site live on the announcement strip,
@@ -5487,7 +5513,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                     ticker is decoration competing with the words it decorates. A
                     dot separates them and stays out of the way. */}
                 {announcementItems.map((announcement, itemIndex) => (
-                  <span key={`${copyIndex}-${itemIndex}`} dir="auto" className="inline-flex shrink-0 items-center gap-10 text-[11px] font-medium tracking-normal text-stone-100/80 md:text-[12px]">
+                  <span key={`${copyIndex}-${itemIndex}`} dir="auto" className="inline-flex shrink-0 items-center gap-10 text-[11px] font-medium tracking-normal md:text-[12px]">
                     {announcement}
                     <span className="sf-header-announcement-dot" aria-hidden="true" />
                   </span>
@@ -5554,7 +5580,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-1.5">
             {utilityItems.map((item) => {
-              const className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition hover:bg-white/10 hover:text-white";
+              const className = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 transition hover:opacity-80";
               return item.external ? (
                 <a key={item.label} href={item.to} target="_blank" rel="noopener noreferrer" className={className}>
                   {item.icon}
@@ -5571,7 +5597,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
           <div className="hidden items-center gap-2 lg:flex">
             {/* Language used to sit here too; it moved to the announcement strip
                 above, so this row keeps only the currency. */}
-            <button type="button" className="rounded-full px-2.5 py-1 text-white/80 transition hover:bg-white/10 hover:text-white">{getCurrency().code}</button>
+            <button type="button" className="rounded-full px-2.5 py-1 transition hover:opacity-80">{getCurrency().code}</button>
           </div>
         </div>
       </div>
@@ -5589,11 +5615,11 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
             <span className="sf-header-divider hidden h-12 w-px md:block" />
-            <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
+            <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center transition" aria-label={brandName || "MONE"}>
               {renderHeaderLogo()}
             </Link>
           </div>
-          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
+          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-semibold lg:flex">
             {headerCategoryItems.map(({ label, to }) => (
               <NavLink
                 key={`${label}-${to}`}
@@ -5608,7 +5634,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
             <button
               type="button"
               onClick={onThemeToggle}
-              className="sf-header-action hidden md:grid transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10"
+              className="sf-header-action hidden md:grid transition duration-200 ease-out hover:-translate-y-px active:scale-[0.98]"
               aria-label={themeToggleLabel}
               title={themeToggleLabel}
             >
@@ -5617,14 +5643,14 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="sf-header-action hidden md:grid transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10"
+              className="sf-header-action hidden md:grid transition duration-200 ease-out hover:-translate-y-px active:scale-[0.98]"
               aria-label={t("storefront.header.search")}
               title={t("storefront.header.search")}
             >
               <Search className="h-5 w-5" />
             </button>
             <HeaderAction to="/account" label={t("storefront.header.account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
-            <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title")} type="button">
+            <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
               <ShoppingCart className="h-5 w-5" />
               {cartCount ? <span key={cartCount} className="sf-action-badge sf-cart-count-pop">{cartCount}</span> : null}
             </button>
@@ -5728,7 +5754,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         >
           <button
             type="button"
-            className="absolute inset-0 bg-black/65 backdrop-blur-sm"
+            className="sfx-overlay absolute inset-0"
             aria-label={t("storefront.common.close")}
             onClick={closeMobileMenu}
           />
@@ -5812,9 +5838,10 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                       target="_blank"
                       rel="noreferrer"
                       onClick={closeMobileMenu}
-                      className="sf-mobile-menu-link flex min-h-12 items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/82 px-4 py-3.5 text-sm font-bold text-stone-800 shadow-sm transition hover:border-[#d4af37]/40 hover:bg-white active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.045] dark:text-white dark:shadow-none dark:hover:bg-white/[0.08]"
+                      className={mobileMenuLinkClassName}
+                      style={mobileMenuLinkStyle}
                     >
-                      {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#f3d77a]" /> : null}
+                      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
                       <span>{label}</span>
                     </a>
                   ) : (
@@ -5822,9 +5849,10 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                       key={`${label}-${to}`}
                       to={to}
                       onClick={closeMobileMenu}
-                      className="sf-mobile-menu-link flex min-h-12 items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/82 px-4 py-3.5 text-sm font-bold text-stone-800 shadow-sm transition hover:border-[#d4af37]/40 hover:bg-white active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.045] dark:text-white dark:shadow-none dark:hover:bg-white/[0.08]"
+                      className={mobileMenuLinkClassName}
+                      style={mobileMenuLinkStyle}
                     >
-                      {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#f3d77a]" /> : null}
+                      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
                       <span>{label}</span>
                     </Link>
                   )
@@ -5919,9 +5947,13 @@ function PremiumSearch({
 
   const searchInput = (
     <form onSubmit={onSubmit} className="relative">
-      <div className="sf-search-input-shell group relative overflow-hidden rounded-[1.35rem] border border-white/50 bg-white/72 shadow-[0_18px_50px_rgba(39,20,75,0.10)] backdrop-blur-2xl transition duration-300 focus-within:border-[#e5c158]/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(212,175,55,0.10),0_24px_70px_rgba(212,175,55,0.18)] dark:border-white/10 dark:bg-white/[0.075] dark:focus-within:bg-white/[0.10]">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(216,180,254,0.22),transparent_28%)] opacity-0 transition group-focus-within:opacity-100" />
-        <Search className="pointer-events-none absolute right-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#d4af37] dark:text-[#f3d77a]" />
+      {/* A pill field (the sfx-input--pill look): field ground, site hairline,
+          gold focus ring. Colours come from the tokens, not utilities. */}
+      <div
+        className="sf-search-input-shell group relative overflow-hidden border transition duration-300"
+        style={{ borderRadius: "var(--m1h-r-pill)", borderColor: "var(--m1h-line)", background: "var(--sfx-field)" }}
+      >
+        <Search className="pointer-events-none absolute right-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2" style={{ color: "var(--m1h-accent)" }} />
         <input
           ref={inputRef}
           value={value}
@@ -5932,16 +5964,17 @@ function PremiumSearch({
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="sf-search-input relative z-10 h-13 w-full bg-transparent pr-12 pl-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
+          className="sf-search-input relative z-10 h-12 w-full bg-transparent pr-12 pl-24 text-base font-medium outline-none"
+          style={{ color: "var(--m1h-text)" }}
           aria-label={t("storefront.search.aria")}
           role="combobox"
           aria-expanded={Boolean(open || mobileOpen)}
         />
         <div className="absolute left-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5">
-          <button type="button" onClick={onVoice} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#d4af37] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.voice")}>
+          <button type="button" onClick={onVoice} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full transition" style={{ background: "var(--sfx-panel)", color: "var(--m1h-text-2)" }} aria-label={t("storefront.search.voice")}>
             <Mic className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#d4af37] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.image")}>
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full transition" style={{ background: "var(--sfx-panel)", color: "var(--m1h-text-2)" }} aria-label={t("storefront.search.image")}>
             <ImagePlus className="h-4 w-4" />
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onImage} />
@@ -5951,7 +5984,7 @@ function PremiumSearch({
   );
 
   const resultsPanel = (
-    <div className="sf-mobile-search-panel rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#0a0a0a]/96 dark:text-white">
+    <div className="sf-mobile-search-panel sfx-surface sfx-surface--float p-3">
       <SearchQuickSections
         value={value}
         loading={loading}
@@ -5980,11 +6013,11 @@ function PremiumSearch({
   if (mobileOnly) {
     if (!mobileOpen) return null;
     return (
-      <div className="sf-mobile-search-sheet fixed inset-0 z-[100] bg-[#050505]/88 p-4 pt-[calc(1rem+env(safe-area-inset-top))] text-white backdrop-blur-2xl md:hidden">
+      <div className="sf-mobile-search-sheet fixed inset-0 z-[100] p-4 pt-[calc(1rem+env(safe-area-inset-top))] md:hidden" style={{ background: "var(--m1h-bg)", color: "var(--m1h-text)" }}>
         <div className="mx-auto flex h-full max-w-xl flex-col">
           <div className="sticky top-0 z-10 flex items-center gap-2 pb-4">
             <div className="min-w-0 flex-1">{searchInput}</div>
-            <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white">
+            <button type="button" onClick={onClose} className="sfx-icon-btn grid h-11 w-11 shrink-0 place-items-center rounded-full border" style={{ borderColor: "var(--m1h-line)", background: "var(--m1h-surface)", color: "var(--m1h-text)" }} aria-label={sfText("storefront.search.close")}>
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -5998,7 +6031,7 @@ function PremiumSearch({
 
   return (
     <div className={`relative w-full max-w-[520px] justify-self-center transition-all duration-300 ${open ? "max-w-[640px]" : ""} ${className}`}>
-      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden bg-stone-950/24 backdrop-blur-[2px] md:block" aria-label={sfText("storefront.search.close")} /> : null}
+      {open ? <button type="button" onClick={onClose} className="fixed inset-0 z-40 hidden md:block" style={{ background: "var(--sfx-scrim)" }} aria-label={sfText("storefront.search.close")} /> : null}
       <div className="relative z-50">
         {searchInput}
         {open ? <div className="absolute left-0 right-0 top-full mt-3 animate-[sfFadeUp_180ms_ease-out_both]">{resultsPanel}</div> : null}
@@ -6045,38 +6078,35 @@ function SearchQuickSections({
   return (
     <div className="grid gap-3">
       {hasImageSearch ? (
-        <div className="sf-image-search-card rounded-[1.4rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,rgba(255,248,225,0.94),rgba(255,255,255,0.98))] p-3 text-stone-950 shadow-[0_18px_40px_rgba(212,175,55,0.08)] dark:border-[#d4af37]/18 dark:bg-white/[0.04] dark:text-white">
+        <div className="sf-image-search-card sfx-surface p-3">
           <div className="flex items-start gap-3">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/60 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden" style={{ border: "1px solid var(--m1h-line)", borderRadius: "var(--m1h-r-md)", background: "var(--m1h-plate)" }}>
               {imageSearch?.previewUrl ? <img src={imageSearch.previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[#b0891b] dark:text-[#f3d77a]">{sfText("storefront.visualSearch.title")}</div>
-              <h3 className="mt-1 text-sm font-black">{imageTitle}</h3>
-              {imageSearch?.loading ? (
-                <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">{sfText("storefront.visualSearch.searchingClosest")}</p>
-              ) : null}
+              <div className="sfx-kicker" style={{ marginBottom: 0 }}>{sfText("storefront.visualSearch.title")}</div>
+              <h3 className="sfx-h3 mt-1">{imageTitle}</h3>
               {!imageSearch?.loading && imageSearch?.message ? (
-                <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-300">{imageSearch.message}</p>
+                <p className="mt-1 mb-0 text-xs leading-5" style={{ color: "var(--m1h-text-2)" }}>{imageSearch.message}</p>
               ) : null}
               {Number.isFinite(Number(imageSearch?.confidence)) && Number(imageSearch?.confidence || 0) > 0 ? (
-                <div className="mt-2 inline-flex items-center rounded-full border border-amber-300/30 bg-amber-100 px-2.5 py-1 text-[10px] font-black text-amber-700 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-100">
+                <span className="sfx-badge sfx-badge--warning mt-2">
                   {sfText("storefront.visualSearch.confidence")} {Math.round(Number(imageSearch.confidence || 0))}%
-                </div>
+                </span>
               ) : null}
             </div>
           </div>
 
           {imageSearch?.loading ? (
-            <div className="mt-3 flex items-center gap-2 rounded-2xl border border-dashed border-[#d4af37]/25 bg-white/70 px-3 py-3 text-xs font-bold text-stone-600 dark:border-white/10 dark:bg-white/5 dark:text-stone-300">
-              <Loader2 className="h-4 w-4 animate-spin text-[#d4af37]" />
+            <div className="sfx-notice mt-3 items-center">
+              <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--m1h-accent)" }} />
               <span>{sfText("storefront.visualSearch.searchingClosest")}</span>
             </div>
           ) : null}
 
           {!imageSearch?.loading && imageResults.length ? (
             <div className="mt-3 grid gap-1.5">
-              {exactMatches.length ? <div className="px-1 text-[11px] font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">{sfText("storefront.visualSearch.exactMatch")}</div> : null}
+              {exactMatches.length ? <span className="sfx-badge sfx-badge--success justify-self-start">{sfText("storefront.visualSearch.exactMatch")}</span> : null}
               {imageResults.slice(0, 6).map((product, index) => (
                 <SearchResultRow
                   key={`${product.id || product.product_id || index}-${product.match_type || "image"}`}
@@ -6089,18 +6119,18 @@ function SearchQuickSections({
           ) : null}
 
           {!imageSearch?.loading && !imageResults.length ? (
-            <div className="mt-3 grid gap-2 rounded-[1.2rem] border border-dashed border-[#d4af37]/24 bg-white/75 p-3 dark:border-white/10 dark:bg-white/5">
-              <p className="text-sm font-black text-stone-900 dark:text-white">{sfText("storefront.visualSearch.modelUnavailable")}</p>
-              <p className="text-xs leading-5 text-stone-600 dark:text-stone-300">{sfText("storefront.visualSearch.sendPhotoHint")}</p>
+            <div className="sfx-surface sfx-surface--soft mt-3 grid gap-2 p-3">
+              <p className="sfx-h3 m-0">{sfText("storefront.visualSearch.modelUnavailable")}</p>
+              <p className="m-0 text-xs leading-5" style={{ color: "var(--m1h-text-2)" }}>{sfText("storefront.visualSearch.sendPhotoHint")}</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={onShareImageOnWhatsApp} className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/35 bg-emerald-500/10 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-500/15 dark:text-emerald-100">
+                <button type="button" onClick={onShareImageOnWhatsApp} className="sfx-btn sfx-btn--whatsapp sfx-btn--sm sfx-btn--block">
                   {sfText("storefront.visualSearch.sendOnWhatsapp")}
                 </button>
-                <button type="button" onClick={onRequestVisualSearchSupply} className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[#d4af37]/12 px-3 text-xs font-black text-[#8a6700] transition hover:bg-[#d4af37]/18 dark:text-[#f3d77a]">
+                <button type="button" onClick={onRequestVisualSearchSupply} className="sfx-btn sfx-btn--secondary sfx-btn--sm sfx-btn--block">
                   {sfText("storefront.visualSearch.requestModel")}
                 </button>
               </div>
-              <button type="button" onClick={onClearImageSearch} className="inline-flex min-h-9 items-center justify-center rounded-full border border-stone-200 bg-white px-3 text-[11px] font-black text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+              <button type="button" onClick={onClearImageSearch} className="sfx-btn sfx-btn--ghost sfx-btn--sm sfx-btn--block">
                 {sfText("storefront.visualSearch.backToText")}
               </button>
             </div>
@@ -6111,8 +6141,8 @@ function SearchQuickSections({
       {query ? (
         <div>
           <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-bold text-stone-500 dark:text-stone-400">{t("storefront.search.smartResults")}</span>
-            {loading ? <span className="text-[11px] font-bold text-[#d4af37]">{t("storefront.search.searching")}</span> : null}
+            <span className="text-xs font-semibold" style={{ color: "var(--m1h-text-3)" }}>{t("storefront.search.smartResults")}</span>
+            {loading ? <span className="sfx-badge sfx-badge--accent">{t("storefront.search.searching")}</span> : null}
           </div>
           <div className="grid gap-1.5">
               {suggestions.length ? suggestions.map((product, index) => (
@@ -6123,7 +6153,7 @@ function SearchQuickSections({
                   onPickProduct={onPickProduct}
                 />
               )) : (
-                <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-start text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
+                <button type="button" onClick={() => onPickTerm(query)} className="p-4 text-start text-sm font-semibold" style={{ border: "1px dashed var(--m1h-line)", borderRadius: "var(--m1h-r-md)", color: "var(--m1h-text-2)" }}>
                 {t("storefront.search.searchFor")} "{query}"
                 </button>
               )}
@@ -6216,16 +6246,22 @@ function SearchResultRow({ product, active, onPickProduct }) {
     <button
       type="button"
       onClick={() => onPickProduct(product)}
-      className={`sf-search-result-row flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-start text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:text-white dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
+      className={`sf-search-result-row flex items-center gap-3 border p-2.5 text-start transition active:scale-[0.99]${active ? " is-active" : ""}`}
+      style={{
+        borderRadius: "var(--m1h-r-md)",
+        borderColor: active ? "var(--m1h-accent)" : "var(--m1h-line)",
+        background: active ? "var(--m1h-accent-soft)" : "var(--m1h-surface)",
+        color: "var(--m1h-text)",
+      }}
     >
-      <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
+      <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 object-cover" style={{ borderRadius: "var(--m1h-r-sm)", background: "var(--m1h-plate)" }} loading="lazy" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-black text-stone-950 dark:text-white">{product.name}</div>
-        <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
+        <div className="truncate text-sm font-semibold">{product.name}</div>
+        <div className="truncate text-xs" style={{ color: "var(--m1h-text-3)" }}>
           {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "Browse items"}
         </div>
       </div>
-      <div className="rounded-full border border-stone-200/80 bg-white px-3 py-1 text-xs font-black text-stone-950 shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:shadow-none">{money(displaySellingPrice(product))}</div>
+      <span className="sfx-badge" style={{ color: "var(--m1h-text)", fontVariantNumeric: "tabular-nums" }}>{money(displaySellingPrice(product))}</span>
     </button>
   );
 }
@@ -8809,11 +8845,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   if (!cart.length) {
     return (
       <section className="sfc" data-theme={themeMode}>
-        <div className="sfc-empty">
-          <ShoppingBag size={36} aria-hidden="true" style={{ color: "var(--m1h-text-3)" }} />
-          <h1 className="sfc-h2">{sfText("storefront.checkout.emptyCartTitle")}</h1>
-          <p>{sfText("storefront.checkout.emptyCartText")}</p>
-          <Link to="/products" className="sfc-btn-secondary">{t("storefront.common.continueShopping")}</Link>
+        <div className="sfx-wrap sfx-wrap--sm sfx-section">
+          <div className="sfx-empty">
+            <span className="sfx-empty__icon" aria-hidden="true"><ShoppingBag /></span>
+            <h1 className="sfx-empty__title">{sfText("storefront.checkout.emptyCartTitle")}</h1>
+            <p className="sfx-empty__text">{sfText("storefront.checkout.emptyCartText")}</p>
+            <Link to="/products" className="sfx-btn sfx-btn--primary sfx-btn--lg">{t("storefront.common.continueShopping")}</Link>
+          </div>
         </div>
       </section>
     );
@@ -8899,6 +8937,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     <section className="sfc" data-theme={themeMode}>
       <form id="storefront-checkout-form" noValidate onSubmit={submit} className="sfc-grid">
         <div className="sfc-main">
+          <header className="sfx-page-head">
+            <div className="sfx-page-head__text">
+              <h1 className="sfx-title">{t("storefront.checkout.title")}</h1>
+            </div>
+          </header>
           <CheckoutBlock id="sfc-contact" title={onePage("contact")}>
             <div className="sfc-stack">
               <CheckoutInput
@@ -9436,49 +9479,69 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "", whatsapp
     ? withWhatsAppText(whatsappHref, t("storefront.support.orderHelpMessage", { orderNumber: publicNumber }))
     : "";
 
+  // One design with the rest of the shop: sfx-* primitives painted from the
+  // --m1h-* tokens, so the page reads the same in light and dark and follows
+  // Site Studio. The legacy `sf-storefront-card` / `sf-info-box` hooks are gone
+  // on purpose: index.css repaints them with layered !important rules.
+  const successRows = [
+    { key: "number", label: t("storefront.orders.orderNumber"), value: <OrderNumberBadge value={publicNumber} /> },
+    { key: "customer", label: t("storefront.customer.customer"), value: customerName },
+    { key: "total", label: t("storefront.checkout.total"), value: total ? money(total) : t("storefront.success.orderRecorded") },
+    { key: "payment", label: t("storefront.checkout.paymentMethod"), value: paymentLabel },
+    { key: "status", label: t("storefront.orders.orderStatus"), value: successStatus },
+    { key: "delivery", label: t("storefront.orders.expectedDelivery"), value: deliveryEstimateDays(loaded?.delivery_estimate, i18n.language) || t("storefront.orders.expectedDeliveryWindow") },
+    { key: "address", label: t("storefront.checkout.deliveryAddress"), value: address || t("storefront.orders.addressSaved") },
+  ];
+
   return (
-    <section className="sf-order-success-page relative mx-auto max-w-6xl px-4 py-6 md:py-10">
+    <section className="sfx-success-page sfx-wrap sfx-wrap--md sfx-section relative">
       {confetti ? <Confetti /> : null}
-      <div className="mx-auto max-w-3xl text-center">
-        <div className="mx-auto grid h-24 w-24 animate-[success-pop_650ms_ease-out] place-items-center rounded-full bg-emerald-100 text-emerald-700 shadow-[0_20px_45px_rgba(16,185,129,0.18)]">
-          <Check className="h-12 w-12" />
-        </div>
-        <h1 className="mt-6 text-3xl font-black text-white md:text-4xl">{successTitle}</h1>
-        <p className="mt-2 text-lg font-bold text-white/72">{t("storefront.success.thanks")}</p>
-        <p className="mt-1 text-sm font-bold text-white/54">{successSubtitle}</p>
-        <div className="mt-5 inline-flex rounded-full border border-[#d4af37]/20 bg-[linear-gradient(135deg,rgba(212,175,55,0.12),rgba(255,255,255,0.05))] px-4 py-2 text-sm font-black text-[#d4af37]">{message}</div>
-      </div>
-      <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-4">
-          <div className="sf-storefront-card rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] md:p-6">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <InfoBox label={t("storefront.orders.orderNumber")} value={<OrderNumberBadge value={publicNumber} className="border-[#d4af37]/20 bg-[#d4af37]/12 text-[#d4af37]" />} />
-              <InfoBox label={t("storefront.customer.customer")} value={customerName} />
-              <InfoBox label={t("storefront.checkout.total")} value={total ? money(total) : t("storefront.success.orderRecorded")} />
-              <InfoBox label={t("storefront.checkout.paymentMethod")} value={paymentLabel} />
-              <InfoBox label={t("storefront.orders.orderStatus")} value={successStatus} />
-              <InfoBox label={t("storefront.orders.expectedDelivery")} value={deliveryEstimateDays(loaded?.delivery_estimate, i18n.language) || t("storefront.orders.expectedDeliveryWindow")} />
-            </div>
-            <div className="sf-info-box mt-4 rounded-2xl border border-white/10 bg-[#101010] p-4 text-start text-white">
-              <div className="sf-info-label text-xs font-black text-stone-500">{t("storefront.checkout.deliveryAddress")}</div>
-              <div className="sf-info-value mt-1 font-black">{address || t("storefront.orders.addressSaved")}</div>
-            </div>
+      <header className="grid justify-items-center gap-2 text-center">
+        <span
+          className="grid h-20 w-20 animate-[success-pop_650ms_ease-out] place-items-center rounded-full"
+          style={{ background: "var(--sfx-success-soft)", color: "var(--sfx-success)" }}
+        >
+          <Check className="h-10 w-10" strokeWidth={2} aria-hidden="true" />
+        </span>
+        <h1 className="sfx-title mt-3" style={{ textAlign: "center" }}>{successTitle}</h1>
+        <p className="sfx-subtitle" style={{ marginTop: 0 }}>{t("storefront.success.thanks")}</p>
+        <p className="sfx-subtitle" style={{ marginTop: 0 }}>{successSubtitle}</p>
+        <span className="sfx-badge sfx-badge--accent mt-2" style={{ whiteSpace: "normal" }}>{message}</span>
+      </header>
+      <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid min-w-0 content-start gap-4">
+          <div className="sfx-surface">
+            <dl className="sfx-summary">
+              {successRows.map((row) => (
+                <div key={row.key} className="sfx-summary__row">
+                  <dt>{row.label}</dt>
+                  <dd className="m-0 min-w-0 break-words">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
-          <div className="sf-storefront-card rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] md:p-6">
-            <h2 className="sf-section-heading text-xl font-black">{t("storefront.orders.tracking")}</h2>
+          <div className="sfx-surface">
+            <h2 className="sfx-h2">{t("storefront.orders.tracking")}</h2>
             <SuccessTimeline />
           </div>
-          <Suspense fallback={<div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm font-bold text-white/60">{sfText("storefront.orders.itemsLoading")}</div>}>
+          <Suspense fallback={<div className="sfx-surface sfx-muted">{sfText("storefront.orders.itemsLoading")}</div>}>
             <OrderInvoiceCard className="sf-order-invoice-card" order={{ ...brandedOrder, source: "Website" }} items={items} />
           </Suspense>
         </div>
-        <aside className="sf-storefront-card h-max rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] lg:sticky lg:top-24">
-          <div className="grid gap-3">
-            <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-[#101010] px-5 py-4 text-center font-black text-white transition hover:bg-[#d4af37]">{t("storefront.orders.trackOrder")}</Link>
-            <Link to="/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#d4af37] hover:text-[#d4af37]">{t("storefront.common.continueShopping")}</Link>
-            {whatsAppHref ? <a href={whatsAppHref} target="_blank" rel="noopener noreferrer" className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable")}</button>}
+        <aside className="sfx-surface h-max lg:sticky lg:top-24">
+          <div className="grid gap-2">
+            <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="sfx-btn sfx-btn--primary sfx-btn--lg sfx-btn--block">{t("storefront.orders.trackOrder")}</Link>
+            <Link to="/products" className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">{t("storefront.common.continueShopping")}</Link>
+            {whatsAppHref ? (
+              <a href={whatsAppHref} target="_blank" rel="noopener noreferrer" className="sfx-btn sfx-btn--whatsapp sfx-btn--lg sfx-btn--block">
+                <FaWhatsapp aria-hidden="true" />
+                {t("storefront.support.whatsapp")}
+              </a>
+            ) : (
+              <button type="button" disabled className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">{t("storefront.support.whatsappUnavailable")}</button>
+            )}
           </div>
-          <div className="sf-info-box mt-5 rounded-2xl border border-white/10 bg-[#101010] p-4 text-sm font-bold leading-6 text-white/72">{t("storefront.success.reviewNotice")}</div>
+          <p className="sfx-notice mt-4 mb-0">{t("storefront.success.reviewNotice")}</p>
         </aside>
       </div>
       {products.length ? (
@@ -9523,21 +9586,6 @@ const supportHref = (orderNumber = "") => {
   return buildWhatsAppHref(text);
 };
 
-function OrderTimeline({ timeline = [] }) {
-  const steps = timeline.length ? timeline : getStatusLabels().map((label, index) => ({ label, done: index === 0 }));
-  return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-5">
-      {steps.map((step, index) => (
-        <div key={step.key || step.label} className={`sf-order-step rounded-2xl border p-3 ${step.done ? "sf-order-step--done border-emerald-200 bg-emerald-50" : "sf-order-step--pending border-stone-200 bg-stone-50"}`}>
-          <div className={`sf-order-step-icon mb-2 grid h-9 w-9 place-items-center rounded-full ${step.done ? "bg-emerald-600 text-white" : "bg-stone-200 text-stone-500"}`}>
-            {step.done ? <Check className="h-4 w-4" /> : index + 1}
-          </div>
-          <div className="sf-order-step-label text-xs font-black leading-5">{step.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
   const settings = publicStoreSettings || {};
@@ -9641,51 +9689,45 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     { icon: RefreshCcw, label: sfText("storefront.contact.topics.exchange") },
     { icon: PackageCheck, label: sfText("storefront.contact.topics.issue") },
   ];
-  const actionButtonStyles = {
-    phone: "border-none bg-[#10B981] text-white shadow-[0_14px_34px_rgba(16,185,129,0.28)] hover:bg-[#0EA5E9]",
-    instagram: "border-none bg-[linear-gradient(135deg,#F58529,#DD2A7B,#8134AF,#515BD4)] text-white shadow-[0_14px_34px_rgba(221,42,123,0.26)] hover:brightness-110",
-    facebook: "border-none bg-[#1877F2] text-white shadow-[0_14px_34px_rgba(24,119,242,0.28)] hover:bg-[#166fe5]",
-    map: "border-[rgba(212,175,55,0.3)] bg-gradient-to-r from-[#D4AF37] to-[#9c7b22] text-white shadow-[0_14px_34px_rgba(212,175,55,0.24)] hover:from-[#e0bc47] hover:to-[#b9922f]",
-  };
-  const actionIconStyles = {
-    phone: "text-white",
-    instagram: "text-white",
-    facebook: "text-white",
-    map: "text-white",
-  };
+  // The phone call is the one filled CTA; every other channel is a secondary
+  // pill. Brand colours used to fill these (Instagram gradient, Facebook blue,
+  // a gold map button) — one design means one button system.
+  const actionButtonClass = (tone) => (tone === "phone" ? "sfx-btn--primary" : "sfx-btn--secondary");
+  // The icon bubble: a panel-coloured disc with the accent ink, same on every card.
+  const iconBubbleStyle = { background: "var(--sfx-panel)", color: "var(--m1h-accent)", borderRadius: "var(--m1h-r-md)" };
+  const mutedTextStyle = { color: "var(--m1h-text-2)" };
 
   return (
-    <section className="mx-auto w-full max-w-6xl bg-[#050505] px-4 pt-6 pb-[calc(var(--mobile-bottom-nav-height,58px)+env(safe-area-inset-bottom)+1.5rem)] text-white md:px-6 md:py-10 md:pb-10">
-      <div className="mx-auto max-w-2xl">
-        <p className="text-xs font-black uppercase tracking-[0.24em] text-[#D4AF37]/85">M1 Store</p>
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">{sfText("storefront.contact.title")}</h1>
-        <p className="mt-3 text-sm font-medium leading-7 text-slate-400 md:text-base">
-          {sfText("storefront.contact.subtitle")}
-        </p>
-      </div>
+    <section className="sfx-wrap sfx-wrap--sm pb-[calc(var(--mobile-bottom-nav-height,58px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-12">
+      <header className="sfx-page-head">
+        <div className="sfx-page-head__text">
+          <h1 className="sfx-title">{sfText("storefront.contact.title")}</h1>
+          <p className="sfx-subtitle">{sfText("storefront.contact.subtitle")}</p>
+        </div>
+      </header>
 
       {whatsappHref ? (
-        <div className="mx-auto mt-5 max-w-2xl">
+        <div>
           <a
             href={whatsappHref}
             target={whatsappHref.startsWith("http") ? "_blank" : undefined}
             rel={whatsappHref.startsWith("http") ? "noreferrer" : undefined}
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-500 px-4 py-3 text-sm font-black text-white shadow-[0_18px_40px_rgba(16,185,129,0.24)] transition duration-200 hover:bg-emerald-400 active:scale-[0.99]"
+            className="sfx-btn sfx-btn--whatsapp sfx-btn--lg sfx-btn--block gap-2"
           >
-            <MessageCircle className="h-4.5 w-4.5" />
+            <FaWhatsapp className="h-5 w-5" aria-hidden="true" />
             {sfText("storefront.contact.chatOnWhatsapp")}
           </a>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
             {[
               [Clock3, sfText("storefront.contact.perks.fastReply")],
               [Footprints, sfText("storefront.contact.perks.sizeHelp")],
               [PackageSearch, sfText("storefront.contact.perks.trackOrders")],
               [RefreshCcw, sfText("storefront.contact.perks.exchange")],
             ].map(([Icon, label]) => (
-              <div key={label} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-[11px] font-black text-slate-200 shadow-[0_10px_24px_rgba(0,0,0,0.18)]">
-                <Icon className="h-3.5 w-3.5 text-[#D4AF37]" />
-                <span className="leading-none">{label}</span>
-              </div>
+              <span key={label} className="sfx-badge">
+                <Icon className="h-3.5 w-3.5" style={{ color: "var(--m1h-accent)" }} aria-hidden="true" />
+                <span>{label}</span>
+              </span>
             ))}
           </div>
         </div>
@@ -9695,74 +9737,72 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
         {visibleContactRows.map((card) => {
           const Icon = card.icon;
           const hasLink = Boolean(card.href) && Boolean(card.cta);
-          const buttonTone = actionButtonStyles[card.tone] || actionButtonStyles.map;
-          const buttonIconTone = actionIconStyles[card.tone] || actionIconStyles.map;
           const valueText = String(card.value || "").trim();
           return (
-            <article key={card.id} className="rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#101010] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.18)] active:scale-[0.99]">
+            <article key={card.id} className="sfx-surface">
               <div className="flex items-start gap-3">
-                <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border ${card.tone === "map" ? "border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]" : "border-[rgba(212,175,55,0.16)] bg-[rgba(255,255,255,0.04)] text-[#D4AF37]"}`}>
+                <div className="grid h-11 w-11 shrink-0 place-items-center" style={iconBubbleStyle}>
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-black text-white">{card.title}</h2>
+                  <h2 className="sfx-h3">{card.title}</h2>
                   {card.id === "working_hours" ? (
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 grid gap-2">
                       {workingHoursLines.map((line, index) => (
-                        <div key={`${card.id}-${index}`} className="whitespace-pre-line rounded-2xl border border-white/[0.06] bg-white/[0.035] px-3 py-2 text-sm font-semibold leading-6 text-slate-200">
+                        <div key={`${card.id}-${index}`} className="sfx-notice whitespace-pre-line">
                           {localizeHoursLine(line, i18n.language)}
                         </div>
                       ))}
                     </div>
                   ) : card.id === "address" ? (
-                    <p className="mt-1 whitespace-pre-line break-words text-sm font-medium leading-7 text-slate-400">{valueText}</p>
+                    <p className="mt-1 mb-0 whitespace-pre-line break-words text-sm leading-7" style={mutedTextStyle}>{valueText}</p>
                   ) : card.id === "phone" && phoneHref ? (
-                    <a href={phoneHref} className="mt-1 inline-flex break-words text-sm font-medium leading-7 text-slate-400 transition hover:text-white">
+                    <a href={phoneHref} className="mt-1 inline-flex break-words text-sm leading-7" style={mutedTextStyle} dir="ltr">
                       {valueText}
                     </a>
                   ) : (
-                    <p className="mt-1 break-words text-sm font-medium leading-7 text-slate-400">{valueText}</p>
+                    <p className="mt-1 mb-0 break-words text-sm leading-7" style={mutedTextStyle}>{valueText}</p>
                   )}
                 </div>
               </div>
 
-              <div className="mt-4">
-                {hasLink ? (
+              {hasLink ? (
+                <div className="mt-4">
                   <a
                     href={card.href}
                     target={card.href.startsWith("http") ? "_blank" : undefined}
                     rel={card.href.startsWith("http") ? "noreferrer" : undefined}
-                    className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-black transition duration-200 active:scale-[0.98] ${buttonTone}`}
+                    className={`sfx-btn ${actionButtonClass(card.tone)} sfx-btn--block gap-2`}
                   >
-                    <Icon className={`h-4.5 w-4.5 ${buttonIconTone}`} />
+                    <Icon className="h-4 w-4" aria-hidden="true" />
                     {card.cta}
                   </a>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </article>
           );
         })}
       </div>
 
-      <article className="mt-6 rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#101010] p-5 shadow-[0_18px_44px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+      <article className="sfx-surface mt-6">
         <div className="flex items-start gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
-            <Sparkles className="h-6 w-6" />
+          <div className="grid h-11 w-11 shrink-0 place-items-center" style={iconBubbleStyle}>
+            <Sparkles className="h-5 w-5" />
           </div>
-          <div>
-            <h2 className="text-base font-black text-white">{sfText("storefront.contact.howCanWeHelp")}</h2>
-            <p className="mt-1 text-sm font-medium leading-7 text-slate-400">{sfText("storefront.contact.howCanWeHelpText")}</p>
+          <div className="min-w-0">
+            <h2 className="sfx-h3">{sfText("storefront.contact.howCanWeHelp")}</h2>
+            <p className="mt-1 mb-0 text-sm leading-7" style={mutedTextStyle}>{sfText("storefront.contact.howCanWeHelpText")}</p>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           {helpItems.map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.label} className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-white/[0.035] p-4 text-center">
-                <div className="mx-auto grid h-11 w-11 place-items-center rounded-full border border-[rgba(212,175,55,0.14)] bg-[rgba(212,175,55,0.07)] text-[#D4AF37]">
+              <div key={item.label} className="sfx-surface sfx-surface--soft text-center">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-full" style={{ background: "var(--m1h-surface)", color: "var(--m1h-accent)" }}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <div className="mt-3 text-sm font-black text-white">{item.label}</div>
+                <div className="sfx-h3 mt-3" style={{ fontSize: "var(--m1h-t-base)" }}>{item.label}</div>
               </div>
             );
           })}
@@ -9773,229 +9813,49 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
 }
 
 
-function CheckoutProgress({ currentStep = 1, onStepChange }) {
-  const steps = [
-    sfText("storefront.checkout.progress.customer"),
-    sfText("storefront.checkout.progress.address"),
-    sfText("storefront.checkout.progress.payment"),
-    sfText("storefront.checkout.progress.confirmation"),
-  ];
-  const activeIndex = Math.min(3, currentStep);
-  return (
-    <div className="sf-reveal sf-checkout-progress overflow-hidden rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] p-2 shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-2xl">
-      <div className="grid grid-cols-4 gap-1 text-center text-[11px] font-black text-white/48 sm:text-xs">
-        {steps.map((step, index) => (
-          <button
-            key={step}
-            type="button"
-            disabled={index === 3 || index + 1 > currentStep}
-            onClick={() => index < 3 && onStepChange?.(index + 1)}
-            className={`sf-checkout-progress-step flex min-h-10 items-center justify-center rounded-2xl px-1 transition disabled:cursor-default ${index + 1 < activeIndex ? "sf-checkout-progress-step--done border border-[#e5c158]/20 bg-[#d4af37]/18 text-[#ddd6fe]" : index + 1 === activeIndex ? "sf-checkout-progress-step--active border border-[#e5c158]/35 bg-[#d4af37] text-white shadow-[0_10px_24px_rgba(212,175,55,0.24)]" : "sf-checkout-progress-step--pending border border-white/8 bg-white/[0.035] text-white/38"}`}
-          >
-            <span className="truncate">{step}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
 
-function TrustPills({ compact = false }) {
-  const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
-  const items = [
-    [sfText("storefront.checkout.trust.safeData"), <Check className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.fastShipping"), <Truck className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.exchange"), <PackageCheck className="h-4 w-4" />],
-    [sfText("storefront.checkout.trust.whatsapp"), <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#d4af37]"}`} />],
-  ];
-  return (
-    <div className={`sf-checkout-trust-pills grid grid-cols-2 gap-2 text-xs font-black text-white/70 ${compact ? "sm:grid-cols-4" : "sm:grid-cols-2"}`}>
-      {items.map(([label, icon]) => (
-        <span key={label} className="sf-checkout-trust-pill inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.055] px-3 py-2 shadow-[0_10px_28px_rgba(0,0,0,0.18)] backdrop-blur-xl">
-          <span className="sf-checkout-trust-pill-icon text-[#f3d77a]">{icon}</span>
-          <span className="sf-checkout-trust-pill-text truncate">{label}</span>
-        </span>
-      ))}
-    </div>
-  );
-}
 
-function SuccessTimeline({ darkMode: darkModeProp } = {}) {
-  const darkMode = typeof darkModeProp === "boolean"
-    ? darkModeProp
-    : typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
+// The order timeline on the success page: done = success, current = accent,
+// later = muted, all from tokens (the old emerald/amber utilities are remapped
+// globally and the `sf-order-step` hooks carry index.css !important repaints).
+const SUCCESS_TIMELINE_TONES = [
+  { border: "var(--sfx-success)", background: "var(--sfx-success-soft)", dot: "var(--sfx-success)", dotInk: "var(--sfx-success-fg)", ink: "var(--m1h-text)" },
+  { border: "var(--m1h-accent)", background: "var(--m1h-accent-soft)", dot: "var(--m1h-accent)", dotInk: "var(--sfx-on-accent)", ink: "var(--m1h-text)" },
+  { border: "var(--m1h-line)", background: "var(--m1h-surface)", dot: "var(--sfx-panel)", dotInk: "var(--m1h-text-3)", ink: "var(--m1h-text-3)" },
+];
+
+function SuccessTimeline() {
   const steps = getStatusLabels();
   return (
-    <div className="mt-4 grid gap-2 sm:grid-cols-5">
-      {steps.map((step, index) => (
-        <div key={step} className={`sf-order-step sf-reveal rounded-2xl border p-3 ${index === 0 ? "sf-order-step--done border-emerald-200 bg-emerald-50" : index === 1 ? "sf-order-step--active border-amber-200 bg-amber-50" : "sf-order-step--pending border-stone-200 bg-stone-50"} ${darkMode ? "text-slate-900" : ""}`}>
-          <div className={`sf-order-step-icon mb-2 grid h-8 w-8 place-items-center rounded-full ${index === 0 ? "bg-emerald-600 text-white" : index === 1 ? "bg-amber-400 text-white" : "bg-stone-200 text-stone-500"}`}>
-            {index === 0 ? <Check className="h-4 w-4" /> : index === 1 ? "..." : index + 1}
-          </div>
-          <div className={`sf-order-step-label text-xs font-black leading-5 ${darkMode ? "text-slate-900" : ""}`}>{step}</div>
-        </div>
-      ))}
-    </div>
+    <ol className="mt-4 grid list-none gap-2 p-0 sm:grid-cols-5">
+      {steps.map((step, index) => {
+        const tone = SUCCESS_TIMELINE_TONES[Math.min(index, 2)];
+        return (
+          <li
+            key={step}
+            className="p-3"
+            style={{ border: `1px solid ${tone.border}`, borderRadius: "var(--m1h-r-md)", background: tone.background, color: tone.ink }}
+            aria-current={index === 1 ? "step" : undefined}
+          >
+            <span
+              className="mb-2 grid h-8 w-8 place-items-center rounded-full text-xs font-semibold"
+              style={{ background: tone.dot, color: tone.dotInk }}
+              aria-hidden="true"
+            >
+              {index === 0 ? <Check className="h-4 w-4" /> : index === 1 ? "..." : index + 1}
+            </span>
+            <span className="block text-xs font-semibold leading-5">{step}</span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
-function Field({ label, value, onChange, required, error, inputMode, placeholder, inputClassName = "", type = "text", autoComplete = "" }) {
-  const inputStateClassName = error
-    ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]"
-    : "border-white/10 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)]";
-  return (
-    <label className="sf-field sf-checkout-field block">
-      <span className="sf-field-label sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <input type={type} autoComplete={autoComplete || undefined} required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-[1.15rem] border bg-white/[0.045] px-4 text-[15px] font-bold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:bg-white/[0.065] ${inputStateClassName}`} />
-      {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
-    </label>
-  );
-}
 
-function TextField({ label, value, onChange, required, error, compact, placeholder, inputClassName = "" }) {
-  const inputStateClassName = error
-    ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]"
-    : "border-white/10 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)]";
-  return (
-    <label className="sf-checkout-field block md:col-span-2">
-      <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${inputClassName} ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-[1.15rem] border bg-white/[0.045] p-4 text-[15px] font-bold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:bg-white/[0.065] ${inputStateClassName}`} />
-      {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
-    </label>
-  );
-}
 
-function CityAreaField({ governorate, options, value, onChange, manual, onManualChange, required, error, themeMode = "light" }) {
-  const selectOptions = [
-    ...options.map((option) => ({ value: option, label: option })),
-    { value: MANUAL_CITY_AREA_LABEL, label: sfText("storefront.checkout.manualSelection") },
-  ];
-  const darkMode = themeMode === "dark";
-  const selectedOption = manual
-    ? selectOptions[selectOptions.length - 1]
-    : selectOptions.find((option) => option.value === value) || null;
 
-  return (
-    <div className="sf-checkout-field block">
-      <span className={`sf-checkout-field-label mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{sfText("storefront.checkout.cityArea")}</span>
-      <Suspense fallback={<CityAreaNativeSelect themeMode={themeMode} governorate={governorate} options={selectOptions} value={manual ? MANUAL_CITY_AREA_LABEL : value} onChange={onChange} required={required} error={error} />}>
-        <Select
-          instanceId="checkout-city-area"
-          inputId="checkout-city-area"
-          isRtl
-          isSearchable
-          isDisabled={!governorate}
-          options={selectOptions}
-          value={selectedOption}
-          placeholder={
-            governorate
-              ? sfText("storefront.checkout.cityAreaPlaceholder")
-              : sfText("storefront.checkout.chooseGovernorateFirst")
-          }
-          noOptionsMessage={() => sfText("storefront.common.noResults")}
-          onChange={(option) => onChange(option?.value || "")}
-          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
-          styles={{
-            control: (base, state) => ({
-              ...base,
-              minHeight: 56,
-              borderRadius: 16,
-              backgroundColor: darkMode
-                ? state.isFocused
-                  ? "#151515"
-                  : "#101010"
-                : state.isFocused
-                  ? "#151515"
-                  : "#101010",
-              borderColor: error
-                ? "rgba(253,164,175,0.78)"
-                : state.isFocused
-                  ? "#d4af37"
-                  : darkMode
-                    ? "rgba(255,255,255,0.10)"
-                    : "rgba(148,163,184,0.28)",
-              boxShadow: state.isFocused
-                ? "0 0 0 4px rgba(212,175,55,0.16),0 18px 38px rgba(212,175,55,0.16)"
-                : darkMode
-                  ? "0 12px 28px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.04)"
-                  : "0 12px 28px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.9)",
-              direction: "rtl",
-              paddingInline: 4,
-              transition: "all 200ms ease",
-              "&:hover": { borderColor: error ? "#fb7185" : "#e5c158" },
-            }),
-            valueContainer: (base) => ({ ...base, paddingInline: 10 }),
-            input: (base) => ({ ...base, color: "#ffffff", fontSize: 15, fontWeight: 700 }),
-            singleValue: (base) => ({ ...base, color: "#ffffff", fontSize: 15, fontWeight: 700 }),
-            placeholder: (base) => ({ ...base, color: "rgba(255,255,255,0.34)", opacity: 1, fontSize: 15, fontWeight: 700 }),
-            dropdownIndicator: (base) => ({ ...base, color: "rgba(255,255,255,0.58)" }),
-            indicatorSeparator: (base) => ({ ...base, backgroundColor: "rgba(255,255,255,0.10)" }),
-            menu: (base) => ({ ...base, zIndex: 80, borderRadius: 16, overflow: "hidden", direction: "rtl", backgroundColor: "#101010", border: "1px solid rgba(255,255,255,0.10)", boxShadow: "0 24px 60px rgba(0,0,0,0.42)" }),
-            menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-            option: (base, state) => ({
-              ...base,
-              backgroundColor: darkMode
-                ? (state.isSelected ? "#d4af37" : state.isFocused ? "rgba(212,175,55,0.18)" : "#101010")
-                : (state.isSelected ? "#d4af37" : state.isFocused ? "rgba(212,175,55,0.08)" : "#ffffff"),
-              color: "#ffffff",
-              cursor: "pointer",
-              fontSize: 15,
-              fontWeight: 800,
-              padding: "12px 14px",
-              textAlign: "right",
-            }),
-          }}
-        />
-      </Suspense>
-      {manual ? (
-        <input
-          required={required}
-          placeholder={sfText("storefront.checkout.cityAreaManualPlaceholder")}
-          value={value}
-          onChange={(event) => onManualChange(event.target.value)}
-          className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-[1.15rem] border bg-white/[0.045] px-4 text-[15px] font-bold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:bg-white/[0.065] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/10"}`}
-        />
-      ) : null}
-      {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
-    </div>
-  );
-}
 
-function CityAreaNativeSelect({ governorate, options, value, onChange, required, error, themeMode = "light" }) {
-  const darkMode = themeMode === "dark";
-  return (
-    <select
-      required={required}
-      disabled={!governorate}
-      value={value || ""}
-      onChange={(event) => onChange(event.target.value)}
-      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] disabled:opacity-60 ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10 focus:bg-white/[0.065]" : "border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:bg-white"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
-    >
-      <option value="" className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
-        {governorate ? sfText("storefront.checkout.cityAreaPlaceholder") : sfText("storefront.checkout.chooseGovernorateFirst")}
-      </option>
-      {options.map((option) => (
-        <option key={option.value} value={option.value} className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function SelectField({ label, value, onChange, options, labels = {}, required, error, themeMode = "light" }) {
-  const darkMode = themeMode === "dark";
-  return (
-    <label className="block">
-      <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
-      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10 focus:bg-white/[0.065]" : "border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:bg-white"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
-        <option value="" className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>{sfText("storefront.common.choose")}</option>
-        {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>{labels[option] || option}</option>)}
-      </select>
-      {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
-    </label>
-  );
-}
 
 function ProductCardSkeleton() {
   return (
@@ -10022,10 +9882,10 @@ function ProductSkeleton({ count, className = "sfx-product-grid grid grid-cols-2
 
 function StorefrontPageFallback() {
   return (
-    <section className="mx-auto max-w-6xl px-4 py-6">
+    <section className="sfx-wrap sfx-section--tight" aria-busy="true">
       <div className="grid gap-4">
-        <div className="sf-skeleton-shimmer h-28 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)]" />
-        <div className="sf-skeleton-shimmer h-64 rounded-[1.75rem] bg-white/80 shadow-[0_12px_32px_rgba(39,20,75,0.05)] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)]" />
+        <div className="sfx-skel h-28" style={{ borderRadius: "var(--m1h-r-lg)" }} />
+        <div className="sfx-skel h-64" style={{ borderRadius: "var(--m1h-r-lg)" }} />
       </div>
     </section>
   );
@@ -10035,9 +9895,9 @@ function StorefrontPageFallback() {
 function ProductGalleryFallback() {
   return (
     <div className="min-w-0">
-      <div className="mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] animate-pulse rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)]" />
+      <div className="sfx-skel mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] md:h-[clamp(420px,58vh,540px)] md:max-w-none" style={{ borderRadius: "var(--m1h-r-lg)" }} />
       <div className="mt-3 flex gap-2">
-        {[0, 1, 2, 3].map((item) => <div key={item} className="h-12 w-12 animate-pulse rounded-xl bg-white/80 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)] md:h-20 md:w-20 md:rounded-2xl" />)}
+        {[0, 1, 2, 3].map((item) => <div key={item} className="sfx-skel h-12 w-12 md:h-20 md:w-20" style={{ borderRadius: "var(--m1h-r-md)" }} />)}
       </div>
     </div>
   );
@@ -10051,7 +9911,7 @@ function EmptyState({ title, text, actionTo = "/products", actionLabel }) {
       </span>
       <h2 className="sfx-empty__title">{title}</h2>
       <p className="sfx-empty__text">{text}</p>
-      <Link to={actionTo} className="sfx-btn sfx-btn--ink">
+      <Link to={actionTo} className="sfx-btn sfx-btn--primary sfx-btn--lg">
         {actionLabel || sfText("storefront.common.shopNow")}
       </Link>
     </div>
@@ -10452,12 +10312,6 @@ function CartDrawerSuggestions({ cart, isRtl, onNavigate }) {
   );
 }
 
-function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
-  if (dark) {
-    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)]" : "font-black text-white"}`}>{value}</span></div>;
-  }
-  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${strong ? "mt-3 border-t border-stone-200/80 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-stone-200/80 bg-white px-3 py-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]" : "font-black text-stone-800"}`}>{value}</span></div>;
-}
 
 
 
@@ -10509,30 +10363,8 @@ function PaymentBrandLogo({ method, size = "tab", active = false, label, logoUrl
 }
 
 
-function InfoBox({ label, value, darkMode: darkModeProp } = {}) {
-  const darkMode = typeof darkModeProp === "boolean"
-    ? darkModeProp
-    : typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
-  return <div className="sf-info-box sf-checkout-info-box mt-3 rounded-2xl bg-stone-50 p-4"><div className={`sf-info-label text-xs font-bold ${darkMode ? "text-slate-700" : "text-stone-500"}`}>{label}</div><div className={`sf-info-value mt-1 font-black ${darkMode ? "text-slate-900" : ""}`}>{value}</div></div>;
-}
 
-function Panel({ title, children }) {
-  return <div className="sf-panel sf-checkout-panel rounded-[1.75rem] border border-stone-200/80 bg-white/96 p-5 shadow-[0_18px_42px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_22px_54px_rgba(0,0,0,0.26)]"><h2 className="sf-section-heading mb-3 text-xl font-black">{title}</h2><div className="grid gap-2.5">{children}</div></div>;
-}
 
-function SmallProductList({ items, empty = sfText("storefront.common.noResults") }) {
-  const safeItems = Array.isArray(items) ? items : [];
-  if (!safeItems.length) return <p className="sf-muted-empty font-bold text-stone-500">{empty}</p>;
-  return safeItems.slice(0, 6).map((item) => {
-    const product = normalizeWishlistProduct(item);
-    return (
-      <Link key={product.id || product.slug} to={`/product/${product.slug || product.id}`} className="sf-small-product-row sf-storefront-card flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
-        <img src={imageFor(product.image_url)} onError={fallbackProductImage} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" width="48" height="48" />
-        <span className="sf-small-product-name truncate font-black">{product.name || sfText("storefront.products.savedProduct")}</span>
-      </Link>
-    );
-  });
-}
 
 function SmallProductGrid({ items, action, onAddToCart }) {
   const normalizedItems = (Array.isArray(items) ? items : []).map(normalizeWishlistProduct).filter((item) => item.id);
@@ -10553,33 +10385,41 @@ function SmallProductGrid({ items, action, onAddToCart }) {
   };
 
   return (
-    <div className="mt-6 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    // The homepage card look (m1h-card) on tokens. The legacy
+    // `sf-storefront-card` / `sf-small-product-card` hooks are gone: index.css
+    // repaints them with layered !important rules, which is what kept this grid
+    // an always-black block in light mode.
+    <div className="sfx-product-grid mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
       {normalizedItems.map((item) => (
-        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.7rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_22px_60px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.03] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/25 hover:shadow-[0_30px_80px_rgba(0,0,0,0.44)] active:translate-y-[1px] active:scale-[0.996] touch-manipulation ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
+        <div key={item.id} className="m1h-card group flex min-w-0 flex-col">
           {item.unavailable ? (
-            <div className="flex flex-1 flex-col justify-center rounded-[1.25rem] border border-rose-300/15 bg-gradient-to-br from-rose-500/10 to-white/[0.04] p-4 text-center">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-rose-300/20 bg-rose-400/10 text-rose-300 shadow-[0_12px_30px_rgba(244,63,94,0.12)]">
+            <div className="sfx-empty sfx-empty--compact flex-1">
+              <span className="sfx-empty__icon">
                 <Heart className="h-5 w-5" />
               </span>
-              <div className="mt-3 text-base font-black text-white">{sfText("storefront.products.unavailableNow")}</div>
-              <p className="mt-1 text-xs font-bold leading-5 text-white/50">{sfText("storefront.products.openForDetails")}</p>
+              <div className="sfx-empty__title">{sfText("storefront.products.unavailableNow")}</div>
+              <p className="sfx-empty__text">{sfText("storefront.products.openForDetails")}</p>
             </div>
           ) : (
             <Link to={`/product/${item.slug || item.id}`} className="flex min-h-0 flex-1 flex-col">
-              <div className="aspect-[4/5] w-full overflow-hidden rounded-[1.15rem] border border-white/70 bg-gradient-to-br from-stone-50 via-white to-stone-100 p-2.5 shadow-inner shadow-stone-200/70">
-                <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.name || ""} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]" loading="lazy" decoding="async" width="320" height="400" />
+              <div className="m1h-card__plate">
+                <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.name || ""} className="m1h-card__img" loading="lazy" decoding="async" width="320" height="320" />
               </div>
-              <div className="mt-4 line-clamp-2 min-h-12 break-words text-start text-[15px] font-black leading-6 text-white">{item.name || sfText("storefront.products.savedProduct")}</div>
-              <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2 text-start text-sm font-black text-white">
-                {item.price ? <span className="text-[1.05rem] text-[#f3d77a]">{money(item.price)}</span> : <span className="text-sm font-bold text-white/50">{sfText("storefront.products.openForDetails")}</span>}
-                {displayComparePrice(item) > Number(item.price || 0) ? <span className="text-xs font-bold text-white/40 line-through">{money(displayComparePrice(item))}</span> : null}
+              <div className="m1h-card__body">
+                <div className="m1h-card__name break-words text-start">{item.name || sfText("storefront.products.savedProduct")}</div>
+                <div className="m1h-card__price text-start">
+                  {item.price ? <span className={`m1h-card__price-now${displayComparePrice(item) > Number(item.price || 0) ? " m1h-card__price-now--sale" : ""}`}>{money(item.price)}</span> : <span className="text-sm" style={{ color: "var(--m1h-text-3)" }}>{sfText("storefront.products.openForDetails")}</span>}
+                  {displayComparePrice(item) > Number(item.price || 0) ? <span className="m1h-card__price-was">{money(displayComparePrice(item))}</span> : null}
+                </div>
               </div>
             </Link>
           )}
-          <div className="mt-3 grid gap-2">
-            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="sf-wishlist-add-button min-h-12 rounded-full bg-gradient-to-l from-[#d4af37] via-[#e5c158] to-[#111111] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.3)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(212,175,55,0.38)] active:translate-y-[1px] active:scale-[0.99] touch-manipulation">{sfText("storefront.cart.addToCart")}</button> : null}
-            {action ? <button type="button" onClick={() => action(item)} className="sf-wishlist-remove-button min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition duration-200 hover:border-rose-400/70 hover:bg-rose-500 hover:text-white active:translate-y-[1px] active:scale-[0.99] touch-manipulation">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist") : sfText("storefront.common.remove")}</button> : null}
-          </div>
+          {(onAddToCart && !item.unavailable) || action ? (
+            <div className="grid gap-2 p-3 pt-0">
+              {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="sfx-btn sfx-btn--primary sfx-btn--block">{sfText("storefront.cart.addToCart")}</button> : null}
+              {action ? <button type="button" onClick={() => action(item)} className="sfx-btn sfx-btn--ghost sfx-btn--sm sfx-btn--block">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist") : sfText("storefront.common.remove")}</button> : null}
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
@@ -10610,7 +10450,7 @@ function MobileBuyBar({ product, variant, visible, onAddToCart }) {
 }
 
 function Confetti() {
-  return <div className="pointer-events-none absolute inset-0 overflow-hidden">{CONFETTI_PARTICLES.map((particle) => <span key={particle.id} className="absolute h-2 w-2 animate-[confetti_1.8s_ease-out_forwards] rounded-full bg-emerald-500" style={{ right: particle.right, top: "0%", animationDelay: particle.animationDelay }} />)}</div>;
+  return <div className="pointer-events-none absolute inset-0 overflow-hidden">{CONFETTI_PARTICLES.map((particle) => <span key={particle.id} className="absolute h-2 w-2 animate-[confetti_1.8s_ease-out_forwards] rounded-full" style={{ right: particle.right, top: "0%", animationDelay: particle.animationDelay, background: particle.id % 2 ? "var(--m1h-accent)" : "var(--sfx-success)" }} />)}</div>;
 }
 
 const CONFETTI_PARTICLES = Array.from({ length: 28 }, (_, index) => ({
@@ -10809,7 +10649,7 @@ const mergeCartThreeWay = (baseItems = [], localItems = [], remoteItems = []) =>
 
 const OrderNumberBadge = ({ value, className = "" }) => {
   const text = displayPublicOrderNumber(value);
-  return <span className={`inline-flex min-h-9 items-center justify-center rounded-full border px-3 py-1.5 text-sm font-black ${className}`.trim()} dir="ltr">{text}</span>;
+  return <span className={`sfx-badge sfx-badge--accent ${className}`.trim()} style={{ fontSize: "var(--m1h-t-sm)" }} dir="ltr">{text}</span>;
 };
 
 function Storefront() {
@@ -11462,19 +11302,8 @@ function Storefront() {
 
   const components = useMemo(() => ({
     EmptyState,
-    Field,
-    InfoBox,
     OrderNumberBadge,
-    OrderTimeline,
-    Panel,
-    SelectField,
     SmallProductGrid,
-    SmallProductList,
-    SummaryRow,
-    TextField,
-    TrustPills,
-    CheckoutProgress,
-    CityAreaField,
   }), []);
 
   const storefrontPage = useMemo(() => {
@@ -11796,14 +11625,21 @@ class StorefrontErrorBoundary extends Component {
     if (this.state.recovering) return <StorefrontPageFallback />;
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#f7f4ee] px-4 py-10 text-center text-stone-950">
-          <div className="mx-auto max-w-md rounded-[1.5rem] border border-stone-200 bg-white p-6 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
-            <Sparkles className="mx-auto h-8 w-8 text-[#d4af37]" />
-            <h1 className="mt-4 text-2xl font-black">{sfText("storefront.errors.simpleProblem")}</h1>
-            <p className="mt-2 text-sm font-bold leading-6 text-stone-500">{sfText("storefront.errors.cleanedTemporaryData")}</p>
-            <button onClick={() => forceCleanReload()} className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white">{sfText("storefront.common.refreshPage")}</button>
+        // The boundary can render before (or without) the shell body class, so
+        // it carries its own `.sfx-scope`: inside the shell that is inert and
+        // Site Studio still wins; outside it the same tokens and primitives apply.
+        <main className="sfx-scope" data-theme={readJson(STOREFRONT_THEME_KEY, "dark") === "light" ? "light" : "dark"}>
+          <div className="sfx-wrap sfx-wrap--sm sfx-section">
+          <div className="sfx-empty">
+            <span className="sfx-empty__icon">
+              <Sparkles className="h-7 w-7" />
+            </span>
+            <h1 className="sfx-empty__title">{sfText("storefront.errors.simpleProblem")}</h1>
+            <p className="sfx-empty__text">{sfText("storefront.errors.cleanedTemporaryData")}</p>
+            <button type="button" onClick={() => forceCleanReload()} className="sfx-btn sfx-btn--primary sfx-btn--lg">{sfText("storefront.common.refreshPage")}</button>
           </div>
-        </div>
+          </div>
+        </main>
       );
     }
     return this.props.children;

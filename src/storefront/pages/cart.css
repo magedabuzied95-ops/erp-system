@@ -31,13 +31,14 @@ body.storefront-shell .sfk .sfk-summary-title {
   display: block;
 }
 
-body.storefront-shell .sfk-count {
-  margin-inline-start: 10px;
-  color: var(--m1h-text-3) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0;
+/* The page header (sfx-page-head) sits in the checkout frame, whose column already
+   carries the top padding, so only the gap under it stays. */
+body.storefront-shell .sfk .sfk-head {
+  padding-block: 0 var(--m1h-s4);
+}
+
+body.storefront-shell .sfk .sfk-count {
+  margin-block-start: var(--m1h-s1);
 }
 
 body.storefront-shell .sfk-checkout {
@@ -47,9 +48,9 @@ body.storefront-shell .sfk-checkout {
 
 body.storefront-shell .sfk-saved {
   margin-block-start: 12px;
-  color: var(--sfx-success, #1f7a4d) !important;
+  color: var(--sfx-success) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
 }
 
@@ -119,7 +120,7 @@ body.storefront-shell .sfk-line__brand {
   margin: 0;
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 11.5px;
+  font-size: var(--m1h-t-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -131,7 +132,7 @@ body.storefront-shell .sfk-line__name {
   overflow: hidden;
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-base);
   font-weight: 600;
   line-height: 1.35;
   text-decoration: none;
@@ -161,7 +162,7 @@ body.storefront-shell .sfk-line__variant {
 body.storefront-shell .sfk-price__now {
   color: var(--m1h-text) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 14px;
+  font-size: var(--m1h-t-product);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -169,7 +170,7 @@ body.storefront-shell .sfk-price__now {
 body.storefront-shell .sfk-price__was {
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;
-  font-size: 12px;
+  font-size: var(--m1h-t-xs);
   font-weight: 500;
   text-decoration: line-through;
   white-space: nowrap;
@@ -181,7 +182,7 @@ body.storefront-shell .sfk-bundle {
   align-items: center;
   gap: 6px;
   margin: 0;
-  color: var(--sfx-success, #1f7a4d) !important;
+  color: var(--sfx-success) !important;
   -webkit-text-fill-color: currentColor;
   font-size: 12.5px;
   font-weight: 600;
@@ -200,46 +201,16 @@ body.storefront-shell .sfk-bundle {
   margin-block-start: auto;
 }
 
-body.storefront-shell .sfk-stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--m1h-line) !important;
-  border-radius: var(--m1h-r-md);
-  background: var(--sfx-field, var(--m1h-surface)) !important;
-}
-
-body.storefront-shell .sfk-stepper button {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  place-items: center;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: var(--m1h-r-md);
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--m1h-text) !important;
-  cursor: pointer;
-}
-
-body.storefront-shell .sfk-stepper button:hover {
-  color: var(--m1h-accent) !important;
+/* The stepper is the shared sfx-stepper pill; only the icon size and hover are the cart's. */
+@media (hover: hover) {
+  body.storefront-shell .sfk-stepper > button:hover {
+    color: var(--m1h-accent) !important;
+  }
 }
 
 .sfk-stepper svg {
   width: 15px;
   height: 15px;
-}
-
-body.storefront-shell .sfk-stepper__qty {
-  min-width: 26px;
-  color: var(--m1h-text) !important;
-  -webkit-text-fill-color: currentColor;
-  font-size: 14px;
-  font-weight: 600;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 body.storefront-shell .sfk-line__each {
@@ -250,7 +221,7 @@ body.storefront-shell .sfk-line__each {
 }
 
 body.storefront-shell .sfk-remove {
-  margin: 0 0 0 0;
+  margin: 0;
   margin-inline-start: auto;
   padding: 4px 0;
   border: 0;
@@ -259,7 +230,7 @@ body.storefront-shell .sfk-remove {
   color: var(--m1h-text-2) !important;
   -webkit-text-fill-color: currentColor;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--m1h-t-sm);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -267,27 +238,29 @@ body.storefront-shell .sfk-remove {
 }
 
 body.storefront-shell .sfk-remove:hover {
-  color: var(--m1h-sale) !important;
+  color: var(--sfx-danger) !important;
 }
 
-body.storefront-shell .sfk :is(.sfk-remove, .sfk-stepper button, .sfk-line__media, .sfk-line__name, .sfk-checkout):focus-visible {
+body.storefront-shell .sfk :is(.sfk-remove, .sfk-stepper > button, .sfk-line__media, .sfk-line__name, .sfk-continue):focus-visible {
   outline: 2px solid var(--m1h-accent);
   outline-offset: 2px;
 }
 
 /* ------------------------------------------------------------------ empty */
 
-body.storefront-shell .sfk-empty__icon {
-  display: grid;
-  width: 64px;
-  height: 64px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m1h-accent-soft) !important;
-  color: var(--m1h-accent) !important;
-}
-
+/* The empty cart is the site-wide sfx-empty (catalog-skin.css); only the icon glyph size. */
 .sfk-empty__icon svg {
   width: 28px;
   height: 28px;
+}
+
+/* ------------------------------------------------------------ recent rail */
+
+/* The recently-viewed rail is the embedded homepage rail, which drops its own
+   gutter because the PDP column supplies one. On the cart it sits after the
+   page frame, so it takes the page gutter back (otherwise the title touches
+   the screen edge on phones). */
+body.storefront-shell .sfk + .sf-related-rail .m1h-shell {
+  max-width: 1240px;
+  padding-inline: var(--sfx-gutter, var(--m1h-s4));
 }

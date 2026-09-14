@@ -4,120 +4,39 @@
    there is room). Phones: no label column; each row's label runs full width
    above its values, so three products still fit a 375px screen without a
    sideways scroll (which would also break the sticky strip).
+
+   Design contract: the container is `sfx-wrap`, the header `sfx-page-head` with
+   `sfx-title`, buttons `sfx-btn`, chips `sfx-badge`, the empty state
+   `sfx-empty`, loading `sfx-skel`. This file only lays out the comparison grid
+   and paints it from tokens, so light, dark and Site Studio all apply.
    ========================================================================== */
 
 .sfx-cmp {
   --sfx-cmp-label: 176px;
   --sfx-cmp-gap: 12px;
-  width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 20px 16px 48px;
-  color: var(--m1h-text, #1c1917);
+  padding-block-end: var(--m1h-s12);
+  color: var(--m1h-text);
 }
 
-.sfx-cmp-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
+/* ------------------------------------------------------------ controls ---- */
 
-.sfx-cmp-top h1 {
-  margin: 0;
-  font-size: clamp(22px, 3.2vw, 32px);
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-}
-
-.sfx-cmp-top p {
-  margin: 4px 0 0;
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 14px;
-}
-
-.sfx-cmp-top__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-/* ------------------------------------------------------------- buttons ---- */
-
-.sfx-cmp-btn {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: 12px;
-  background: var(--m1h-surface, #fff);
-  color: var(--m1h-text, #1c1917);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 0 14px;
-  text-decoration: none;
-  transition: border-color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease), transform 160ms var(--m1h-ease);
-}
-
-.sfx-cmp-btn:hover {
-  border-color: var(--m1h-text-3, #8b857b);
-}
-
-.sfx-cmp-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.sfx-cmp-btn--ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--m1h-text-2, #5d5952);
-}
-
-.sfx-cmp-btn--primary {
-  width: 100%;
-  min-height: 46px;
-  border-color: var(--m1h-invert-bg, #14120f);
-  background: var(--m1h-invert-bg, #14120f);
-  color: var(--m1h-invert-text, #f8f6f1);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.sfx-cmp-btn--primary:hover {
-  border-color: var(--m1h-invert-bg, #14120f);
-  opacity: 0.92;
-}
-
-.sfx-cmp-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.sfx-cmp-btn:focus-visible,
 .sfx-cmp a:focus-visible,
 .sfx-cmp button:focus-visible,
 .sfx-cmp-switch input:focus-visible + .sfx-cmp-switch__track {
-  outline: 2px solid var(--m1h-accent, #a47a12);
+  outline: 2px solid var(--m1h-accent);
   outline-offset: 2px;
 }
 
 .sfx-cmp-switch {
   position: relative;
   display: inline-flex;
-  min-height: 40px;
+  min-height: var(--sfx-control-h-sm);
   align-items: center;
-  gap: 8px;
+  gap: var(--m1h-s2);
+  color: var(--m1h-text);
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
   padding: 0 6px;
   user-select: none;
 }
@@ -139,8 +58,8 @@
   height: 22px;
   width: 38px;
   flex-shrink: 0;
-  border-radius: 999px;
-  background: var(--m1h-line, #e4e1d9);
+  border-radius: var(--m1h-r-pill);
+  background: var(--sfx-line-strong);
   transition: background-color 180ms var(--m1h-ease);
 }
 
@@ -150,14 +69,14 @@
   inset-inline-start: 3px;
   height: 16px;
   width: 16px;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface);
+  box-shadow: var(--m1h-shadow-soft);
   transition: transform 180ms var(--m1h-ease);
 }
 
 .sfx-cmp-switch input:checked + .sfx-cmp-switch__track {
-  background: var(--m1h-invert-bg, #14120f);
+  background: var(--m1h-invert-bg);
 }
 
 .sfx-cmp-switch input:checked + .sfx-cmp-switch__track span {
@@ -172,15 +91,15 @@
 
 .sfx-cmp-table {
   overflow: hidden;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: var(--m1h-r-xl, 20px);
-  background: var(--m1h-surface, #fff);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-xl);
+  background: var(--m1h-surface);
 }
 
 .sfx-cmp-row {
   display: grid;
   grid-template-columns: var(--sfx-cmp-label) repeat(var(--sfx-cmp-cols, 3), minmax(0, 1fr));
-  border-top: 1px solid var(--m1h-line-soft, #eeece6);
+  border-top: 1px solid var(--m1h-line-soft);
 }
 
 .sfx-cmp-row:first-child {
@@ -192,11 +111,11 @@
   flex-direction: column;
   justify-content: center;
   gap: 2px;
-  background: var(--m1h-bg, #f7f6f3);
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 14px 16px;
+  background: var(--sfx-surface-2);
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
+  padding: 14px var(--m1h-s4);
 }
 
 .sfx-cmp-cell {
@@ -205,17 +124,17 @@
   flex-direction: column;
   justify-content: center;
   gap: 6px;
-  border-inline-start: 1px solid var(--m1h-line-soft, #eeece6);
-  padding: 14px 16px;
+  border-inline-start: 1px solid var(--m1h-line-soft);
+  padding: 14px var(--m1h-s4);
   transition: background-color 200ms var(--m1h-ease);
 }
 
 .sfx-cmp-cell.is-best {
-  background: var(--sfx-success-soft, #e8f4ed);
+  background: var(--sfx-success-soft);
 }
 
 .sfx-cmp-cell--slot {
-  background: repeating-linear-gradient(135deg, transparent 0 10px, var(--m1h-line-soft, #eeece6) 10px 11px);
+  background: repeating-linear-gradient(135deg, transparent 0 10px, var(--m1h-line-soft) 10px 11px);
   opacity: 0.55;
 }
 
@@ -230,14 +149,15 @@
 }
 
 .sfx-cmp-value {
-  font-size: 14px;
-  font-weight: 700;
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .sfx-cmp-muted {
-  color: var(--m1h-text-3, #8b857b);
-  font-size: 12px;
+  color: var(--m1h-text-3);
+  font-size: var(--m1h-t-xs);
 }
 
 /* ---------------------------------------------------------- head cells ---- */
@@ -256,17 +176,17 @@
   height: 30px;
   width: 30px;
   place-items: center;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: 999px;
-  background: var(--m1h-surface, #fff);
-  color: var(--m1h-text-2, #5d5952);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface);
+  color: var(--m1h-text-2);
   cursor: pointer;
   padding: 0;
 }
 
 .sfx-cmp-head__remove:hover {
-  border-color: var(--m1h-sale, #b4231b);
-  color: var(--m1h-sale, #b4231b);
+  border-color: var(--sfx-danger);
+  color: var(--sfx-danger);
 }
 
 .sfx-cmp-head__media {
@@ -274,10 +194,11 @@
   display: block;
   overflow: hidden;
   aspect-ratio: 5 / 6;
-  margin-bottom: 8px;
-  border-radius: var(--m1h-r-lg, 16px);
-  background: var(--m1h-plate, #fff);
-  box-shadow: inset 0 0 0 1px var(--m1h-plate-edge, #eceae4);
+  max-width: 100%;
+  margin-bottom: var(--m1h-s2);
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-plate);
+  box-shadow: inset 0 0 0 1px var(--m1h-plate-edge);
 }
 
 .sfx-cmp-head__media img,
@@ -306,19 +227,18 @@
 }
 
 .sfx-cmp-head__brand {
-  color: var(--m1h-text-3, #8b857b);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--m1h-text-3);
+  font-size: var(--m1h-t-xs);
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .sfx-cmp-head__name {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--m1h-text, #1c1917);
-  font-size: 15px;
-  font-weight: 800;
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-product);
+  font-weight: 600;
   line-height: 1.4;
   text-decoration: none;
   -webkit-box-orient: vertical;
@@ -337,14 +257,18 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border: 1.5px dashed var(--m1h-line, #e4e1d9);
-  border-radius: var(--m1h-r-lg, 16px);
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 13px;
+  border: 1.5px dashed var(--m1h-line);
+  border-radius: var(--m1h-r-lg);
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-sm);
   text-align: center;
   text-decoration: none;
-  padding: 16px;
+  padding: var(--m1h-s4);
   transition: border-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
+}
+
+.sfx-cmp-add strong {
+  font-weight: 600;
 }
 
 .sfx-cmp-add span {
@@ -352,13 +276,14 @@
   height: 48px;
   width: 48px;
   place-items: center;
-  border-radius: 999px;
-  background: var(--m1h-bg, #f7f6f3);
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-accent-soft);
+  color: var(--m1h-accent);
 }
 
 .sfx-cmp-add:hover {
-  border-color: var(--m1h-text-3, #8b857b);
-  color: var(--m1h-text, #1c1917);
+  border-color: var(--m1h-text-3);
+  color: var(--m1h-text);
 }
 
 /* ---------------------------------------------------------- value kinds ---- */
@@ -371,50 +296,35 @@
 }
 
 .sfx-cmp-price__now {
-  font-size: 18px;
-  font-weight: 800;
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-price);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .sfx-cmp-price__now.is-sale {
-  color: var(--m1h-sale, #b4231b);
+  color: var(--m1h-sale);
 }
 
 .sfx-cmp-price__was {
-  color: var(--m1h-text-3, #8b857b);
-  font-size: 13px;
+  color: var(--m1h-text-3);
+  font-size: var(--m1h-t-sm);
   text-decoration: line-through;
 }
 
-.sfx-cmp-flag {
-  display: inline-flex;
+/* Flags and chips are `sfx-badge` (--success / --accent); these only let a
+   long label wrap inside a narrow phone column instead of spilling out. */
+.sfx-cmp .sfx-badge.sfx-cmp-flag,
+.sfx-cmp .sfx-badge.sfx-cmp-chip {
   width: fit-content;
-  align-items: center;
-  gap: 4px;
-  border-radius: 999px;
-  background: var(--sfx-success, #1f7a4d);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 3px 8px;
+  max-width: 100%;
+  white-space: normal;
 }
 
 .sfx-cmp-saving {
-  color: var(--sfx-success, #1f7a4d);
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.sfx-cmp-chip {
-  display: inline-flex;
-  width: fit-content;
-  max-width: 100%;
-  border-radius: 999px;
-  background: var(--m1h-accent-soft, #fbf4e2);
-  color: var(--m1h-accent, #a47a12);
-  font-size: 12px;
-  font-weight: 800;
-  padding: 5px 10px;
+  color: var(--sfx-success);
+  font-size: var(--m1h-t-base);
+  font-weight: 700;
 }
 
 .sfx-cmp-colors,
@@ -423,7 +333,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--m1h-s2);
 }
 
 .sfx-cmp-buy {
@@ -444,9 +354,9 @@
   width: 40px;
   place-items: center;
   overflow: hidden;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: 10px;
-  background: var(--m1h-plate, #fff);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate);
   cursor: pointer;
   padding: 2px;
   transition: border-color 160ms var(--m1h-ease), box-shadow 160ms var(--m1h-ease);
@@ -455,44 +365,44 @@
 .sfx-cmp-color img {
   height: 100%;
   width: 100%;
-  border-radius: 8px;
+  border-radius: var(--m1h-r-sm);
   object-fit: contain;
 }
 
 .sfx-cmp-color.is-active {
-  border-color: var(--m1h-text, #1c1917);
-  box-shadow: 0 0 0 1px var(--m1h-text, #1c1917);
+  border-color: var(--m1h-text);
+  box-shadow: 0 0 0 1px var(--m1h-text);
 }
 
 .sfx-cmp-size {
   min-width: 42px;
-  min-height: 36px;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: 10px;
-  background: var(--m1h-surface, #fff);
-  color: var(--m1h-text, #1c1917);
+  min-height: var(--sfx-control-h-xs);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  padding: 0 8px;
+  padding: 0 10px;
   transition: border-color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease), color 160ms var(--m1h-ease);
 }
 
 .sfx-cmp-size:hover:not(:disabled) {
-  border-color: var(--m1h-text-3, #8b857b);
+  border-color: var(--m1h-text-3);
 }
 
 .sfx-cmp-size.is-active {
-  border-color: var(--m1h-invert-bg, #14120f);
-  background: var(--m1h-invert-bg, #14120f);
-  color: var(--m1h-invert-text, #f8f6f1);
+  border-color: var(--m1h-invert-bg);
+  background: var(--m1h-invert-bg);
+  color: var(--m1h-invert-text);
 }
 
 .sfx-cmp-size:disabled {
   cursor: not-allowed;
-  color: var(--m1h-text-3, #8b857b);
+  color: var(--m1h-text-3);
   opacity: 0.55;
   text-decoration: line-through;
 }
@@ -507,11 +417,15 @@
   width: fit-content;
   align-items: center;
   gap: 4px;
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.sfx-cmp-link:hover {
+  color: var(--m1h-text);
 }
 
 .sfx-cmp-link--center {
@@ -523,36 +437,36 @@
   width: fit-content;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
 }
 
 .sfx-cmp-stock::before {
   content: "";
   height: 8px;
   width: 8px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: currentColor;
 }
 
 .sfx-cmp-stock.is-in {
-  color: var(--sfx-success, #1f7a4d);
+  color: var(--sfx-success);
 }
 
 .sfx-cmp-stock.is-low {
-  color: #b45309;
+  color: var(--sfx-warning);
 }
 
 .sfx-cmp-stock.is-out {
-  color: var(--m1h-sale, #b4231b);
+  color: var(--sfx-danger);
 }
 
 .sfx-cmp-description {
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 13px;
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-sm);
   line-height: 1.7;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 5;
@@ -569,38 +483,23 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 13px;
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-sm);
   text-align: center;
 }
 
+/* Loading bars ride the shared `sfx-skel` shimmer; these only size them. */
 .sfx-cmp-skeleton {
   display: block;
   height: 14px;
   width: 70%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--m1h-line-soft, #eeece6) 25%, var(--m1h-bg, #f7f6f3) 50%, var(--m1h-line-soft, #eeece6) 75%);
-  background-size: 200% 100%;
-  animation: sfxCmpShimmer 1.2s linear infinite;
 }
 
 .sfx-cmp-skeleton--media {
   height: auto;
   width: 100%;
   aspect-ratio: 5 / 6;
-  border-radius: var(--m1h-r-lg, 16px);
-}
-
-@keyframes sfxCmpShimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sfx-cmp-skeleton {
-    animation: none;
-  }
+  border-radius: var(--m1h-r-lg);
 }
 
 /* -------------------------------------------------------- sticky strip ---- */
@@ -610,8 +509,9 @@
   top: 0;
   inset-inline: 0;
   z-index: 55;
-  border-bottom: 1px solid var(--m1h-line, #e4e1d9);
-  background: color-mix(in srgb, var(--m1h-surface, #fff) 94%, transparent);
+  border-bottom: 1px solid var(--m1h-line);
+  background: color-mix(in srgb, var(--m1h-surface) 94%, transparent);
+  box-shadow: var(--m1h-shadow-soft);
   backdrop-filter: blur(12px);
   opacity: 0;
   pointer-events: none;
@@ -625,11 +525,14 @@
   transform: translateY(0);
 }
 
+/* Same width and gutter as the page's sfx-wrap, so the strip's columns sit
+   exactly over the table's. */
 .sfx-cmp-row--sticky {
-  max-width: 1180px;
+  max-width: var(--sfx-container);
   margin: 0 auto;
   border-top: 0;
-  padding: 0 16px;
+  padding-inline: var(--sfx-gutter);
+  box-sizing: border-box;
 }
 
 .sfx-cmp-row--sticky .sfx-cmp-row__label {
@@ -638,7 +541,7 @@
 
 .sfx-cmp-row--sticky .sfx-cmp-cell {
   border-inline-start: 0;
-  padding: 8px 16px;
+  padding: var(--m1h-s2) var(--m1h-s4);
 }
 
 .sfx-cmp-row--sticky .sfx-cmp-cell--slot {
@@ -649,15 +552,16 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--m1h-s2);
 }
 
 .sfx-cmp-mini img {
   height: 40px;
   width: 40px;
   flex-shrink: 0;
-  border-radius: 8px;
-  background: var(--m1h-plate, #fff);
+  border-radius: var(--m1h-r-sm);
+  background: var(--m1h-plate);
+  box-shadow: inset 0 0 0 1px var(--m1h-plate-edge);
   object-fit: contain;
 }
 
@@ -669,61 +573,26 @@
 
 .sfx-cmp-mini__name {
   overflow: hidden;
-  font-size: 12px;
-  font-weight: 800;
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .sfx-cmp-mini__price {
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--m1h-text-2);
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --------------------------------------------------------------- empty ---- */
 
+/* The card itself is the shared `sfx-empty`; this only centres it. */
 .sfx-cmp-empty {
-  display: flex;
   max-width: 460px;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  margin: 48px auto;
-  border: 1px solid var(--m1h-line, #e4e1d9);
-  border-radius: var(--m1h-r-xl, 20px);
-  background: var(--m1h-surface, #fff);
-  padding: 36px 24px;
-  text-align: center;
-}
-
-.sfx-cmp-empty__icon {
-  display: grid;
-  height: 64px;
-  width: 64px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--m1h-bg, #f7f6f3);
-  color: var(--m1h-text, #1c1917);
-}
-
-.sfx-cmp-empty h1 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-}
-
-.sfx-cmp-empty p {
-  margin: 0;
-  color: var(--m1h-text-2, #5d5952);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.sfx-cmp-empty .sfx-cmp-btn--primary {
-  width: auto;
-  margin-top: 8px;
-  padding: 0 24px;
+  margin: var(--m1h-s12) auto;
 }
 
 /* -------------------------------------------------------------- phones ---- */
@@ -731,24 +600,28 @@
 @media (max-width: 767px) {
   .sfx-cmp {
     --sfx-cmp-gap: 8px;
-    padding: 14px 10px 32px;
+    padding-block-end: var(--m1h-s8);
   }
 
-  .sfx-cmp-top {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 14px;
-  }
-
-  .sfx-cmp-top__actions {
+  /* The text block takes the whole first line; the actions share the second. */
+  .sfx-cmp .sfx-page-head__actions.sfx-cmp-top__actions {
     width: 100%;
+    flex-wrap: nowrap;
     justify-content: space-between;
     gap: 4px;
   }
 
-  .sfx-cmp-top__actions .sfx-cmp-btn {
-    padding: 0 10px;
+  .sfx-cmp-top__actions .sfx-btn.sfx-cmp-btn {
+    padding-inline: 10px;
+  }
+
+  .sfx-cmp-top__actions .sfx-cmp-btn--ghost span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
 
   .sfx-cmp-row {
@@ -757,9 +630,9 @@
 
   .sfx-cmp-row__label {
     grid-column: 1 / -1;
-    border-bottom: 1px solid var(--m1h-line-soft, #eeece6);
-    font-size: 12px;
-    padding: 8px 12px;
+    border-bottom: 1px solid var(--m1h-line-soft);
+    font-size: var(--m1h-t-xs);
+    padding: var(--m1h-s2) var(--m1h-s3);
   }
 
   .sfx-cmp-row--heads .sfx-cmp-row__label,
@@ -785,11 +658,11 @@
   }
 
   .sfx-cmp-head__name {
-    font-size: 13px;
+    font-size: var(--m1h-t-sm);
   }
 
   .sfx-cmp-price__now {
-    font-size: 15px;
+    font-size: var(--m1h-t-product);
   }
 
   .sfx-cmp-color {
@@ -800,38 +673,26 @@
   .sfx-cmp-size {
     min-width: 36px;
     min-height: 34px;
-    font-size: 12px;
+    font-size: var(--m1h-t-xs);
     padding: 0 6px;
   }
 
   .sfx-cmp-description {
-    font-size: 12px;
+    font-size: var(--m1h-t-xs);
     -webkit-line-clamp: 6;
   }
 
-  .sfx-cmp-btn--primary {
-    min-height: 42px;
-    font-size: 12px;
+  /* Three columns share 343px: the add-to-bag pill drops its icon and tightens. */
+  .sfx-cmp .sfx-btn.sfx-cmp-btn--primary {
+    min-height: var(--sfx-control-h-sm);
+    font-size: var(--m1h-t-xs);
     gap: 4px;
-    padding: 0 6px;
+    padding-inline: 6px;
     white-space: nowrap;
   }
 
-  .sfx-cmp-btn--primary svg {
+  .sfx-cmp .sfx-btn.sfx-cmp-btn--primary svg {
     display: none;
-  }
-
-  .sfx-cmp-top__actions {
-    flex-wrap: nowrap;
-  }
-
-  .sfx-cmp-top__actions .sfx-cmp-btn--ghost span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
   }
 
   .sfx-cmp-head__media .m1h-badge {
@@ -842,10 +703,6 @@
   .sfx-cmp-link {
     font-size: 11px;
     white-space: nowrap;
-  }
-
-  .sfx-cmp-row--sticky {
-    padding: 0 10px;
   }
 
   .sfx-cmp-row--sticky .sfx-cmp-cell {

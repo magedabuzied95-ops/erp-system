@@ -111,10 +111,10 @@ export function CompareTray({ hidden = false }) {
           <span>{canCompare ? t("storefront.compare.itemsCount", { count: items.length, max: COMPARE_MAX_ITEMS }) : t("storefront.compare.pickOneMore")}</span>
         </div>
         <div className="sfx-cmp-tray__actions">
-          <button type="button" className="sfx-cmp-tray__clear" onClick={clearCompareItems}>
+          <button type="button" className="sfx-btn sfx-btn--ghost sfx-btn--sm sfx-cmp-tray__clear" onClick={clearCompareItems}>
             {t("storefront.compare.clear")}
           </button>
-          <button type="button" className="sfx-cmp-tray__go" disabled={!canCompare} onClick={() => navigate(comparePagePath(items))}>
+          <button type="button" className="sfx-btn sfx-btn--primary sfx-cmp-tray__go" disabled={!canCompare} onClick={() => navigate(comparePagePath(items))}>
             <GitCompareArrows size={16} aria-hidden="true" />
             <span>{t("storefront.compare.compareNow")}</span>
           </button>

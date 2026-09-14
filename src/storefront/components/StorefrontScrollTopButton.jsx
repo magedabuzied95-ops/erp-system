@@ -7,8 +7,10 @@ import { ChevronUp, Loader2 } from "lucide-react";
 // page has scrolled past 300px, then sliding up into place over 500ms.
 //
 // The one thing not copied from there is the colour: that site paints the pill in
-// its own teal, while this one takes the store's accent from Site Studio, so a
-// palette change in the studio moves the button with the rest of the homepage.
+// its own teal, while this one paints from the storefront's `--m1h-accent` token
+// (declared on body.storefront-shell, where this is portalled), so a Site Studio
+// palette change moves the button with the rest of the site. The `accent` prop is
+// only the fallback for that token and the input to the icon-contrast choice.
 const SHOW_AFTER_PX = 300;
 const FALLBACK_ACCENT = "#a47a12";
 
@@ -21,7 +23,9 @@ const LIFTED_BOTTOM = "calc(40px + env(safe-area-inset-bottom, 0px))";
 // Icons are drawn in whichever of black/white the accent can actually carry, so
 // an owner who picks a pale colour in Site Studio does not end up with white
 // glyphs on cream. Anything this cannot parse (a named colour, a gradient) keeps
-// the white the reference site uses.
+// the light ink the reference site uses. Both inks are contract tokens.
+const LIGHT_ICON = "var(--sfx-media-ink)";
+const DARK_ICON = "var(--sfx-on-accent)";
 const readableIconColor = (accent) => {
   const value = String(accent || "").trim();
   let r;
@@ -35,7 +39,7 @@ const readableIconColor = (accent) => {
     b = parseInt(digits.slice(4, 6), 16);
   } else {
     const rgb = value.match(/^rgba?\(\s*([0-9.]+)[\s,]+([0-9.]+)[\s,]+([0-9.]+)/i);
-    if (!rgb) return "#ffffff";
+    if (!rgb) return LIGHT_ICON;
     [, r, g, b] = rgb.map(Number);
   }
   const channel = (c) => {
@@ -44,7 +48,7 @@ const readableIconColor = (accent) => {
   };
   const luminance = 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
   // Contrast against white vs against near-black, whichever is higher.
-  return (1.05 / (luminance + 0.05)) >= ((luminance + 0.05) / 0.05) ? "#ffffff" : "#14120f";
+  return (1.05 / (luminance + 0.05)) >= ((luminance + 0.05) / 0.05) ? LIGHT_ICON : DARK_ICON;
 };
 
 export default function StorefrontScrollTopButton({ isRtl = true, accent = FALLBACK_ACCENT }) {
@@ -103,12 +107,13 @@ export default function StorefrontScrollTopButton({ isRtl = true, accent = FALLB
         height: "60px",
         padding: 0,
         border: "none",
-        borderRadius: "20px",
-        background,
+        borderRadius: "var(--m1h-r-pill)",
+        background: `var(--m1h-accent, ${background})`,
+        color: iconColor,
         // Darkening on hover rather than a second stored colour: it works for any
         // format Site Studio accepts, including rgb() and hsl().
         filter: lifted ? "brightness(0.9)" : "none",
-        boxShadow: "-3px 3px 7px 0 rgba(0,0,0,0.075)",
+        boxShadow: "var(--m1h-shadow-soft)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -121,8 +126,8 @@ export default function StorefrontScrollTopButton({ isRtl = true, accent = FALLB
         transition: "500ms",
       }}
     >
-      <ChevronUp size={16} color={iconColor} style={{ marginTop: "5px", marginBottom: "10px" }} aria-hidden="true" />
-      <Loader2 size={16} color={iconColor} aria-hidden="true" />
+      <ChevronUp size={16} color="currentColor" style={{ marginTop: "5px", marginBottom: "10px" }} aria-hidden="true" />
+      <Loader2 size={16} color="currentColor" aria-hidden="true" />
     </button>,
     document.body
   );

@@ -40,7 +40,8 @@ import "./account.css";
 
 /*
  * The account page (/account) in the homepage look: every colour is a `--m1h-*` token
- * (site-skin.css) and class names are `sfa-*`, clear of the legacy `sf-account-*` hooks that
+ * (site-skin.css) and the shared `sfx-*` primitives (site-skin.css, catalog-skin.css) do the look;
+ * `sfa-*` classes only lay the page out, clear of the legacy `sf-account-*` hooks that
  * index.css and storefront-light.css still paint gold-on-black with !important.
  */
 
@@ -141,8 +142,8 @@ function AccountField({ label, value, onChange, type = "text", inputMode, autoCo
   const [revealed, setRevealed] = useState(false);
   const isPassword = type === "password";
   return (
-    <div className="sfa-field">
-      <label htmlFor={id} className="sfa-field__label">{label}</label>
+    <div className="sfx-form-row sfa-field">
+      <label htmlFor={id} className="sfx-label">{label}</label>
       <div className="sfa-field__control">
         <input
           id={id}
@@ -152,7 +153,7 @@ function AccountField({ label, value, onChange, type = "text", inputMode, autoCo
           inputMode={inputMode}
           autoComplete={autoComplete}
           dir={ltr ? "ltr" : undefined}
-          className={`sfa-input${isPassword ? " sfa-input--with-toggle" : ""}`}
+          className={`sfx-input${isPassword ? " sfa-input--with-toggle" : ""}`}
         />
         {isPassword ? (
           <button
@@ -166,7 +167,7 @@ function AccountField({ label, value, onChange, type = "text", inputMode, autoCo
           </button>
         ) : null}
       </div>
-      {hint ? <p className="sfa-field__hint">{hint}</p> : null}
+      {hint ? <p className="sfx-help">{hint}</p> : null}
     </div>
   );
 }
@@ -194,9 +195,9 @@ function BrandMark({ brandName = "", brandLogoUrl = "", imageFor = (value) => va
   return <span className="sfa-guest__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>;
 }
 
-function SubmitButton({ onClick, disabled, busy, busyLabel, children, variant = "ink" }) {
+function SubmitButton({ onClick, disabled, busy, busyLabel, children, variant = "primary" }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className={`sfa-btn sfa-btn--${variant} sfa-btn--block`}>
+    <button type="button" onClick={onClick} disabled={disabled} className={`sfx-btn sfx-btn--${variant} sfx-btn--lg sfx-btn--block`}>
       {busy ? (
         <>
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -235,7 +236,7 @@ function AnimatedPoints({ value }) {
 
 function MembershipCard({ loyalty, loading }) {
   if (loading && !loyalty) {
-    return <div id="sfa-membership" className="sfa-member sfa-member--loading" aria-busy="true" />;
+    return <div id="sfa-membership" className="sfx-invert sfa-member sfa-member--loading" aria-busy="true" />;
   }
   const points = Number(loyalty?.points ?? loyalty?.available_points ?? 0);
   const tier = loyalty?.tier || "Bronze";
@@ -244,7 +245,7 @@ function MembershipCard({ loyalty, loading }) {
   const progress = Math.max(0, Math.min(100, Number(loyalty?.progress || 0)));
 
   return (
-    <section id="sfa-membership" className="sfa-member">
+    <section id="sfa-membership" className="sfx-invert sfa-member">
       <div className="sfa-member__top">
         <div className="sfa-member__title">
           <Gem className="h-4 w-4" aria-hidden="true" />
@@ -286,7 +287,7 @@ function OrderDetails({ data, helpers }) {
   if (data.loading) {
     return (
       <div className="sfa-order__details" aria-busy="true">
-        <div className="sfa-skeleton" style={{ height: 120 }} />
+        <div className="sfx-skel sfa-skeleton" style={{ height: 120 }} />
       </div>
     );
   }
@@ -300,7 +301,7 @@ function OrderDetails({ data, helpers }) {
   return (
     <div className="sfa-order__details">
       {derailed ? (
-        <div className="sfa-derailed">
+        <div className="sfx-notice sfx-notice--danger">
           <PackageX className="h-5 w-5 shrink-0" aria-hidden="true" />
           <p>{sfText("storefront.tracking.derailedText", "لو عندك أي استفسار كلّمنا على واتساب وهنساعدك.")}</p>
         </div>
@@ -353,7 +354,7 @@ function OrderDetails({ data, helpers }) {
           ))}
         </ul>
       ) : (
-        <p className="sfa-muted">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>
+        <p className="sfx-muted">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>
       )}
 
       <a href={supportHref(displayOrderNumber(order))} className="sfa-link" target="_blank" rel="noreferrer">
@@ -387,19 +388,19 @@ function OrderRow({ order, phone, open, details, onToggle, onReorder, helpers })
           <div className="sfa-order__number" dir="ltr">{publicNumber}</div>
           <div className="sfa-order__date">{formatDate(order.created_at)}</div>
         </div>
-        <span className={`sfa-pill${tone ? ` sfa-pill--${tone}` : ""}`}>{statusCopy(order.status)}</span>
+        <span className={`sfx-badge sfx-badge--${tone === "good" ? "success" : tone === "bad" ? "danger" : "accent"}`}>{statusCopy(order.status)}</span>
       </div>
       <div className="sfa-order__foot">
         <div className="sfa-order__total">{money(order.total_amount || order.total || order.total_price)}</div>
         <div className="sfa-order__actions">
-          <button type="button" onClick={() => onToggle(order)} className="sfa-btn sfa-btn--quiet sfa-btn--sm" aria-expanded={open}>
+          <button type="button" onClick={() => onToggle(order)} className="sfx-btn sfx-btn--ghost sfx-btn--sm" aria-expanded={open}>
             {open ? sfText("storefront.account.hideDetails", "إخفاء التفاصيل") : sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}
             <ChevronDown className={`h-4 w-4 sfa-chevron${open ? " is-open" : ""}`} aria-hidden="true" />
           </button>
-          <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="sfa-btn sfa-btn--outline sfa-btn--sm">
+          <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="sfx-btn sfx-btn--secondary sfx-btn--sm">
             {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
           </Link>
-          <button type="button" onClick={reorder} disabled={reordering} className="sfa-btn sfa-btn--ink sfa-btn--sm">
+          <button type="button" onClick={reorder} disabled={reordering} className="sfx-btn sfx-btn--primary sfx-btn--sm">
             {reordering ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />}
             {sfText("storefront.orders.reorder", "إعادة الطلب")}
           </button>
@@ -415,9 +416,9 @@ function SectionHead({ Icon, title, subtitle, action = null, count = null }) {
     <div className="sfa-card__head">
       <span className="sfa-card__icon" aria-hidden="true"><Icon className="h-[18px] w-[18px]" /></span>
       <div className="min-w-0 flex-1">
-        <h2 className="sfa-card__title">
+        <h2 className="sfx-h2 sfa-card__title">
           {title}
-          {count !== null ? <span className="sfa-card__count" dir="ltr">{count}</span> : null}
+          {count !== null ? <span className="sfx-badge" dir="ltr">{count}</span> : null}
         </h2>
         {subtitle ? <p className="sfa-card__subtitle">{subtitle}</p> : null}
       </div>
@@ -987,20 +988,20 @@ function StorefrontAccountPageContent({
   if (!hasCustomerToken) {
     return (
       <section className="sfa sfa--guest">
-        <div className="sfa-guest">
+        <div className="sfx-wrap sfa-guest">
           <header className="sfa-guest__head">
             <BrandMark brandName={helpers.brandName} brandLogoUrl={helpers.brandLogoUrl} imageFor={helpers.imageFor} />
-            <h1 className="sfa-title">{showResetView ? sfText("storefront.auth.recoverAccount") : sfText("storefront.auth.welcomeTitle")}</h1>
-            <p className="sfa-muted">{showResetView ? sfText("storefront.auth.resetIntro") : sfText("storefront.auth.welcomeIntro")}</p>
+            <h1 className="sfx-title">{showResetView ? sfText("storefront.auth.recoverAccount") : sfText("storefront.auth.welcomeTitle")}</h1>
+            <p className="sfx-subtitle">{showResetView ? sfText("storefront.auth.resetIntro") : sfText("storefront.auth.welcomeIntro")}</p>
           </header>
 
-          <div className="sfa-card sfa-auth">
+          <div className="sfx-surface sfa-card sfa-auth">
             {!showForgotView && !showResetView ? (
-              <div className="sfa-tabs" role="tablist">
-                <button type="button" role="tab" aria-selected={activePrimaryTab === "login"} onClick={() => setAuthMode("login")} className={`sfa-tab${activePrimaryTab === "login" ? " is-active" : ""}`}>
+              <div className="sfx-tabs sfx-tabs--block" role="tablist">
+                <button type="button" role="tab" aria-selected={activePrimaryTab === "login"} onClick={() => setAuthMode("login")} className={`sfx-tab${activePrimaryTab === "login" ? " is-active" : ""}`}>
                   {sfText("storefront.auth.signIn")}
                 </button>
-                <button type="button" role="tab" aria-selected={activePrimaryTab === "register"} onClick={() => setAuthMode("register")} className={`sfa-tab${activePrimaryTab === "register" ? " is-active" : ""}`}>
+                <button type="button" role="tab" aria-selected={activePrimaryTab === "register"} onClick={() => setAuthMode("register")} className={`sfx-tab${activePrimaryTab === "register" ? " is-active" : ""}`}>
                   {sfText("storefront.auth.createAccount")}
                 </button>
               </div>
@@ -1021,7 +1022,7 @@ function StorefrontAccountPageContent({
                   <>
                     <div className="sfa-divider"><span>{sfText("storefront.auth.or")}</span></div>
                     {!otpPanelOpen ? (
-                      <SubmitButton onClick={() => setOtpPanelOpen(true)} variant="outline">
+                      <SubmitButton onClick={() => setOtpPanelOpen(true)} variant="secondary">
                         <MessageCircle className="h-4 w-4" aria-hidden="true" />
                         {sfText("storefront.auth.phoneLoginButton")}
                       </SubmitButton>
@@ -1030,7 +1031,7 @@ function StorefrontAccountPageContent({
                         <div className="sfa-otp__head">
                           <div className="min-w-0">
                             <p className="sfa-otp__title">{sfText("storefront.auth.phoneLoginTitle")}</p>
-                            <p className="sfa-muted">{sfText("storefront.auth.phoneLoginHint")}</p>
+                            <p className="sfx-muted">{sfText("storefront.auth.phoneLoginHint")}</p>
                           </div>
                           <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="sfa-text-btn">
                             {sfText("storefront.common.close")}
@@ -1084,8 +1085,8 @@ function StorefrontAccountPageContent({
             {authMode === "forgot" ? (
               <div className="sfa-form">
                 <div>
-                  <h2 className="sfa-card__title">{sfText("storefront.auth.recoverPassword")}</h2>
-                  <p className="sfa-muted">{sfText("storefront.auth.recoverHint")}</p>
+                  <h2 className="sfx-h2">{sfText("storefront.auth.recoverPassword")}</h2>
+                  <p className="sfx-muted">{sfText("storefront.auth.recoverHint")}</p>
                 </div>
                 <AccountField label={sfText("storefront.auth.email")} value={authEmail} onChange={setAuthEmail} type="email" inputMode="email" autoComplete="email" ltr />
                 <SubmitButton onClick={requestPasswordReset} disabled={authSubmitting} busy={authSubmitting} busyLabel={sfText("storefront.auth.sending")}>
@@ -1097,7 +1098,7 @@ function StorefrontAccountPageContent({
 
             {authMode === "reset" ? (
               <div className="sfa-form">
-                {!hasResetToken ? <div className="sfa-alert">{sfText("storefront.auth.resetLinkIncomplete")}</div> : null}
+                {!hasResetToken ? <div className="sfx-notice sfx-notice--accent">{sfText("storefront.auth.resetLinkIncomplete")}</div> : null}
                 <AccountField label={sfText("storefront.auth.newPassword")} value={resetPassword} onChange={setResetPassword} type="password" autoComplete="new-password" ltr />
                 <AccountField label={sfText("storefront.auth.confirmNewPassword")} value={resetPasswordConfirm} onChange={setResetPasswordConfirm} type="password" autoComplete="new-password" ltr />
                 <SubmitButton onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} busy={authSubmitting} busyLabel={sfText("storefront.auth.updating")}>
@@ -1137,24 +1138,24 @@ function StorefrontAccountPageContent({
 
   return (
     <section className="sfa">
-      <div className="sfa-wrap">
+      <div className="sfx-wrap sfa-wrap">
         <header className="sfa-head">
           <div className="sfa-head__who">
             <span className="sfa-avatar" aria-hidden="true">
               {initialOf(customerName) || <UserRound className="h-6 w-6" />}
             </span>
             <div className="min-w-0">
-              <p className="sfa-muted">{sfText("storefront.account.welcomeBack", "أهلًا بيك")}</p>
-              <h1 className="sfa-title sfa-title--name">{customerName || sfText("storefront.account.title", "حسابي")}</h1>
+              <p className="sfx-muted">{sfText("storefront.account.welcomeBack", "أهلًا بيك")}</p>
+              <h1 className="sfx-title sfa-title--name">{customerName || sfText("storefront.account.title", "حسابي")}</h1>
               {customerPhone ? <p className="sfa-head__phone" dir="ltr">{customerPhone}</p> : null}
             </div>
           </div>
           <div className="sfa-head__actions">
-            <button type="button" onClick={() => load()} disabled={loading} className="sfa-btn sfa-btn--outline">
+            <button type="button" onClick={() => load()} disabled={loading} className="sfx-btn sfx-btn--secondary">
               <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
               {sfText("storefront.account.refreshData")}
             </button>
-            <button type="button" onClick={clearCustomerIdentity} className="sfa-btn sfa-btn--quiet sfa-btn--danger">
+            <button type="button" onClick={clearCustomerIdentity} className="sfx-btn sfx-btn--ghost sfa-signout">
               <LogOut className="h-4 w-4" aria-hidden="true" />
               {sfText("storefront.account.signOut")}
             </button>
@@ -1180,11 +1181,11 @@ function StorefrontAccountPageContent({
 
         <div className="sfa-grid">
           <div className="sfa-main">
-            <section id="sfa-orders" className="sfa-card">
+            <section id="sfa-orders" className="sfx-surface sfa-card">
               <SectionHead Icon={ShoppingBag} title={sfText("storefront.account.myOrders", "طلباتي")} subtitle={sfText("storefront.account.ordersHint")} count={orders.length || null} />
               {!account && loading ? (
                 <div className="sfa-skeleton-list" aria-busy="true">
-                  {[0, 1, 2].map((index) => <div key={index} className="sfa-skeleton" />)}
+                  {[0, 1, 2].map((index) => <div key={index} className="sfx-skel sfa-skeleton" />)}
                 </div>
               ) : orders.length ? (
                 <>
@@ -1207,7 +1208,7 @@ function StorefrontAccountPageContent({
                     })}
                   </ul>
                   {orders.length > ORDERS_PREVIEW_COUNT ? (
-                    <button type="button" onClick={() => setShowAllOrders((current) => !current)} className="sfa-btn sfa-btn--outline sfa-btn--block sfa-more">
+                    <button type="button" onClick={() => setShowAllOrders((current) => !current)} className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block sfa-more">
                       {showAllOrders
                         ? sfText("storefront.account.showFewerOrders", "عرض أقل")
                         : sfText("storefront.account.showAllOrders", "عرض كل الطلبات ({{count}})", { count: orders.length })}
@@ -1215,11 +1216,11 @@ function StorefrontAccountPageContent({
                   ) : null}
                 </>
               ) : (
-                <div className="sfa-empty">
-                  <span className="sfa-empty__icon" aria-hidden="true"><ShoppingBag className="h-6 w-6" /></span>
-                  <h3 className="sfa-empty__title">{sfText("storefront.account.noOrders", "لا توجد طلبات بعد")}</h3>
-                  <p className="sfa-muted">{sfText("storefront.account.noOrdersText")}</p>
-                  <Link to={ROOT_PATHS.products || "/products"} className="sfa-btn sfa-btn--ink">
+                <div className="sfx-empty sfx-empty--compact sfa-card-empty">
+                  <span className="sfx-empty__icon" aria-hidden="true"><ShoppingBag className="h-6 w-6" /></span>
+                  <h3 className="sfx-empty__title">{sfText("storefront.account.noOrders", "لا توجد طلبات بعد")}</h3>
+                  <p className="sfx-empty__text">{sfText("storefront.account.noOrdersText")}</p>
+                  <Link to={ROOT_PATHS.products || "/products"} className="sfx-btn sfx-btn--primary sfx-btn--lg">
                     {sfText("storefront.common.shopNow")}
                     <ChevronLeft className="h-4 w-4 ltr:rotate-180" aria-hidden="true" />
                   </Link>
@@ -1227,14 +1228,14 @@ function StorefrontAccountPageContent({
               )}
             </section>
 
-            <section className="sfa-card">
+            <section className="sfx-surface sfa-card">
               <SectionHead
                 Icon={Heart}
                 title={sfText("storefront.header.wishlist", "المفضلة")}
                 subtitle={sfText("storefront.account.wishlistSubtitle", "كل اللي عجبك في مكان واحد")}
                 count={wishlistItems.length || null}
                 action={wishlistItems.length ? (
-                  <Link to={ROOT_PATHS.wishlist || "/wishlist"} className="sfa-btn sfa-btn--outline sfa-btn--sm">
+                  <Link to={ROOT_PATHS.wishlist || "/wishlist"} className="sfx-btn sfx-btn--secondary sfx-btn--sm">
                     {sfText("storefront.common.viewAll", "عرض الكل")}
                   </Link>
                 ) : null}
@@ -1253,7 +1254,7 @@ function StorefrontAccountPageContent({
                   ))}
                 </ul>
               ) : (
-                <p className="sfa-muted sfa-inline-empty">{sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")}</p>
+                <p className="sfx-muted sfa-inline-empty">{sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")}</p>
               )}
             </section>
           </div>
@@ -1261,30 +1262,30 @@ function StorefrontAccountPageContent({
           <aside className="sfa-side">
             <MembershipCard loyalty={account?.loyalty} loading={loading} />
 
-            <section className="sfa-card">
+            <section className="sfx-surface sfa-card">
               <SectionHead Icon={Ruler} title={sfText("storefront.account.sizesTitle", "مقاساتي")} subtitle={sfText("storefront.account.sizesSubtitle", "بنرشّحلك المقاس المناسب أسرع")} />
               <div className="sfa-sizes">
                 {SIZE_FIELDS.map(({ key, label }) => (
-                  <label key={key} className="sfa-size">
-                    <span className="sfa-size__label">{label()}</span>
+                  <label key={key} className="sfx-form-row">
+                    <span className="sfx-label">{label()}</span>
                     <input
                       value={preferredSizes[key]}
                       onChange={(event) => updatePreferredSize(key, event.target.value)}
                       inputMode="text"
                       maxLength={12}
                       dir="ltr"
-                      className="sfa-input sfa-input--sm"
+                      className="sfx-input sfx-input--sm sfa-size-input"
                       placeholder="—"
                     />
                   </label>
                 ))}
               </div>
-              <SubmitButton onClick={savePreferredSizes} disabled={savingPreferences} busy={savingPreferences} busyLabel={sfText("storefront.account.savingSizes", "بنحفظ...")} variant="outline">
+              <SubmitButton onClick={savePreferredSizes} disabled={savingPreferences} busy={savingPreferences} busyLabel={sfText("storefront.account.savingSizes", "بنحفظ...")} variant="secondary">
                 {sfText("storefront.account.saveSizes", "حفظ المقاسات")}
               </SubmitButton>
             </section>
 
-            <section id="sfa-addresses" className="sfa-card">
+            <section id="sfa-addresses" className="sfx-surface sfa-card">
               <SectionHead Icon={MapPin} title={sfText("storefront.account.myAddresses", "عناويني")} subtitle={sfText("storefront.account.savedAddressesSubtitle")} />
               {addresses.length ? (
                 <ul className="sfa-addresses">
@@ -1296,18 +1297,18 @@ function StorefrontAccountPageContent({
                   ))}
                 </ul>
               ) : (
-                <p className="sfa-muted sfa-inline-empty">{sfText("storefront.account.addressesEmpty", "ستظهر هنا العناوين المستخدمة في الطلبات")}</p>
+                <p className="sfx-muted sfa-inline-empty">{sfText("storefront.account.addressesEmpty", "ستظهر هنا العناوين المستخدمة في الطلبات")}</p>
               )}
             </section>
 
-            <section className="sfa-card sfa-help">
+            <section className="sfx-surface sfa-card sfa-help">
               <SectionHead Icon={PackageSearch} title={sfText("storefront.account.helpTitle", "محتاج مساعدة؟")} subtitle={sfText("storefront.account.helpText", "تابع أي طلب أو كلّمنا على واتساب")} />
               <div className="sfa-help__actions">
-                <Link to={ROOT_PATHS.track || "/track"} className="sfa-btn sfa-btn--outline sfa-btn--block">
+                <Link to={ROOT_PATHS.track || "/track"} className="sfx-btn sfx-btn--secondary sfx-btn--lg sfx-btn--block">
                   <Truck className="h-4 w-4" aria-hidden="true" />
                   {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
                 </Link>
-                <a href={helpers.supportHref ? helpers.supportHref("") : "#"} target="_blank" rel="noreferrer" className="sfa-btn sfa-btn--whatsapp sfa-btn--block">
+                <a href={helpers.supportHref ? helpers.supportHref("") : "#"} target="_blank" rel="noreferrer" className="sfx-btn sfx-btn--whatsapp sfx-btn--lg sfx-btn--block">
                   <MessageCircle className="h-4 w-4" aria-hidden="true" />
                   {sfText("storefront.support.whatsapp", "واتساب")}
                 </a>
@@ -1348,12 +1349,12 @@ class StorefrontAccountPageBoundary extends Component {
     if (this.state.hasError) {
       return (
         <section className="sfa sfa--guest">
-          <div className="sfa-guest">
-            <div className="sfa-card sfa-empty">
-              <span className="sfa-empty__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>
-              <h1 className="sfa-empty__title">{sfText("storefront.account.errorTitle")}</h1>
-              <p className="sfa-muted">{sfText("storefront.account.errorText")}</p>
-              <button type="button" onClick={() => window.location.reload()} className="sfa-btn sfa-btn--ink">
+          <div className="sfx-wrap sfa-guest">
+            <div className="sfx-empty">
+              <span className="sfx-empty__icon" aria-hidden="true"><UserRound className="h-6 w-6" /></span>
+              <h1 className="sfx-empty__title">{sfText("storefront.account.errorTitle")}</h1>
+              <p className="sfx-empty__text">{sfText("storefront.account.errorText")}</p>
+              <button type="button" onClick={() => window.location.reload()} className="sfx-btn sfx-btn--primary sfx-btn--lg">
                 {sfText("storefront.common.refreshPage")}
               </button>
             </div>

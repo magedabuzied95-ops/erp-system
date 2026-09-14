@@ -617,6 +617,16 @@ const HOME_TOKENS = {
   invertText: ["--m1h-invert-text"],
 };
 
+// The storefront-wide extras (src/storefront/site-skin.css) that have a palette
+// field of their own. `--sfx-panel`, the status inks and the scrims stay CSS
+// constants: the studio has no swatch for them and inventing one per token
+// would multiply the owner's decisions.
+const PAGE_EXTRA_TOKENS = {
+  surfaceSoft: ["--sfx-surface-2"],
+  borderStrong: ["--sfx-line-strong"],
+  accentStrong: ["--sfx-accent-strong"],
+};
+
 const declarations = (map, palette, indent = "  ") =>
   Object.entries(map)
     .flatMap(([field, tokens]) => tokens.map((token) => `${indent}${token}: ${palette[field]};`))
@@ -732,6 +742,7 @@ export const siteDesignStylesheet = (input, stacks = {}) => {
     `  --m1h-r-md: ${radius.md};`,
     `  --m1h-r-lg: ${radius.lg};`,
     `  --m1h-r-xl: ${radius.xl};`,
+    `  --m1h-r-pill: ${radius.pill};`,
   ];
 
   const hero = [
@@ -766,6 +777,7 @@ export const siteDesignStylesheet = (input, stacks = {}) => {
       ...declarations(SHARED_TOKENS, light),
       ...declarations(LIGHT_TOKENS, light),
       ...declarations(HOME_TOKENS, light),
+      ...declarations(PAGE_EXTRA_TOKENS, light),
       `  --m1h-line-soft: ${light.border};`,
       ...band("light"),
     ]),
@@ -773,6 +785,7 @@ export const siteDesignStylesheet = (input, stacks = {}) => {
       ...declarations(SHARED_TOKENS, dark),
       ...declarations(DARK_TOKENS, dark),
       ...declarations(HOME_TOKENS, dark),
+      ...declarations(PAGE_EXTRA_TOKENS, dark),
       `  --m1h-line-soft: ${dark.border};`,
       ...band("dark"),
     ]),
@@ -812,6 +825,7 @@ export const siteDesignPreviewVariables = (input, mode = "light") => {
   };
   add(SHARED_TOKENS);
   add(HOME_TOKENS);
+  add(PAGE_EXTRA_TOKENS);
   variables["--m1h-line-soft"] = palette.border;
   variables["--m1h-plate"] = palette.surface;
   variables["--sf-purple"] = palette.accent;
@@ -820,6 +834,7 @@ export const siteDesignPreviewVariables = (input, mode = "light") => {
   variables["--m1h-r-md"] = radius.md;
   variables["--m1h-r-lg"] = radius.lg;
   variables["--m1h-r-xl"] = radius.xl;
+  variables["--m1h-r-pill"] = radius.pill;
   variables["--sf-hero-text"] = design.hero.textColor;
   variables["--sf-hero-scrim-image"] = heroScrimImage(design.hero.scrimColor, design.hero.scrimOpacity);
   variables["--sf-hero-scrim-opacity"] = heroScrimOpacity(design.hero.scrimColor, design.hero.scrimOpacity);

@@ -179,9 +179,9 @@ function ProductCardSkeleton() {
     <div className="m1h-card" aria-hidden="true">
       <div className="m1h-skel" style={{ aspectRatio: "1 / 1" }} />
       <div className="m1h-card__body">
-        <div className="m1h-skel" style={{ height: 10, width: "40%", borderRadius: 999 }} />
-        <div className="m1h-skel" style={{ height: 13, width: "84%", marginTop: 8, borderRadius: 999 }} />
-        <div className="m1h-skel" style={{ height: 15, width: "46%", marginTop: 10, borderRadius: 999 }} />
+        <div className="m1h-skel" style={{ height: 10, width: "40%", borderRadius: "var(--m1h-r-pill)" }} />
+        <div className="m1h-skel" style={{ height: 13, width: "84%", marginTop: 8, borderRadius: "var(--m1h-r-pill)" }} />
+        <div className="m1h-skel" style={{ height: 15, width: "46%", marginTop: 10, borderRadius: "var(--m1h-r-pill)" }} />
       </div>
     </div>
   );

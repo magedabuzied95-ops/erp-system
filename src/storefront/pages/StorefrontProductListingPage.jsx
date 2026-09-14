@@ -1207,7 +1207,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   }, [catalogProducts.length, gender, category, brand, productType, grade, color, size, selectedSizes, inStock, saleView, lastSizes, q, hasActiveCatalogFilters, orderedFilteredProducts, offerStoryQuery]);
 
   return (
-    <section className="sf-product-listing-page sfx-listing mx-auto max-w-7xl px-4 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-4 md:px-8 md:py-8">
+    <section className="sf-product-listing-page sfx-listing sfx-wrap pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-4 md:py-8">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <p className="sf-catalog-eyebrow sfx-eyebrow">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
@@ -1577,7 +1577,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
               value={safeMin}
               onChange={(event) => handleMinChange(event.target.value)}
               {...commitProps}
-              className="absolute inset-0 z-20 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#d4af37] [&::-webkit-slider-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#d4af37] [&::-moz-range-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)]"
+              className="absolute inset-0 z-20 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2"
               aria-label={t("storefront.filters.minPrice", "أقل")}
             />
             <input
@@ -1588,19 +1588,19 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
               value={safeMax}
               onChange={(event) => handleMaxChange(event.target.value)}
               {...commitProps}
-              className="absolute inset-0 z-30 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-[#d4af37] [&::-webkit-slider-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-[#d4af37] [&::-moz-range-thumb]:shadow-[0_8px_20px_rgba(212,175,55,0.35)]"
+              className="absolute inset-0 z-30 h-10 w-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2"
               aria-label={t("storefront.filters.maxPrice", "أعلى")}
             />
           </div>
         </div>
         <div className="sfx-range__values">
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
-            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.minPrice", "أقل سعر")}</span>
-            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMin)}</span>
+          <div>
+            <span>{t("storefront.filters.minPrice", "أقل سعر")}</span>
+            <span>{money(safeMin)}</span>
           </div>
-          <div className="rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 dark:border-white/10 dark:bg-white/5">
-            <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-stone-400 dark:text-stone-500">{t("storefront.filters.maxPrice", "أعلى سعر")}</span>
-            <span className="mt-0.5 block text-sm font-black text-stone-950 dark:text-white">{money(safeMax)}</span>
+          <div>
+            <span>{t("storefront.filters.maxPrice", "أعلى سعر")}</span>
+            <span>{money(safeMax)}</span>
           </div>
         </div>
         <p className="sfx-muted sfx-muted--sm">

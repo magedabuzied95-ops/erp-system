@@ -6,14 +6,33 @@
    lifts the same vocabulary to the storefront body so the checkout, listing,
    product and account pages paint from the numbers the homepage paints from.
 
-   The values mirror home.css exactly; Site Studio re-points them at runtime
-   (shared/siteDesign.js emits the same tokens on these two selectors), so an
-   owner colour change reaches the whole site, not the homepage alone.
+   Site Studio re-points the palette at runtime (shared/siteDesign.js emits the
+   same tokens on these two selectors), so an owner colour change reaches the
+   whole site, not the homepage alone. The palette values below are the Studio
+   defaults (what a live store actually paints), so a page renders the same with
+   or without the generated sheet.
 
-   Deliberately unlayered, like home.css.
+   Part 2 of this file is the shared primitive set (`sfx-*`) every page builds
+   from. The contract that goes with it lives in the design-system notes; the
+   short version: tokens only, light AND dark, logical properties, 375px.
+
+   Theme switch: `body.storefront-shell.storefront-dark` (Storefront.jsx toggles
+   it). NOT `html[data-theme]` — that attribute belongs to the ERP theme.
+
+   Pages rendered OUTSIDE the shell (legal pages, /confirm opened directly,
+   /addr) have no `storefront-shell` body class. They can wrap their root in
+   `.sfx-scope` (+ `data-theme="dark"` for dark) to get the same tokens and
+   primitives. Inside the shell `.sfx-scope` is inert so Site Studio still wins.
+
+   Deliberately unlayered, like home.css: unlayered rules beat every Tailwind
+   utility (those live in @layer utilities), which is also why a Tailwind
+   `hidden` / `lg:hidden` cannot hide an element whose sfx class sets `display`.
    ========================================================================== */
 
-body.storefront-shell {
+/* ------------------------------------------------------------------ tokens */
+
+body.storefront-shell,
+body:not(.storefront-shell) .sfx-scope {
   --m1h-s1: 4px;
   --m1h-s2: 8px;
   --m1h-s3: 12px;
@@ -28,19 +47,42 @@ body.storefront-shell {
   --m1h-r-md: 12px;
   --m1h-r-lg: 16px;
   --m1h-r-xl: 20px;
+  --m1h-r-pill: 999px;
   --m1h-ease: cubic-bezier(0.32, 0.72, 0, 1);
 
-  --m1h-bg: #f7f6f3;
+  /* Type scale — the homepage's, lifted to every page. */
+  --m1h-t-xs: 12px;
+  --m1h-t-sm: 13px;
+  --m1h-t-base: 14px;
+  --m1h-t-product: 15px;
+  --m1h-t-price: 17px;
+  --m1h-t-section: 21px;
+  --m1h-t-hero: 30px;
+  --sfx-t-title: 26px;
+  --sfx-t-h2: 19px;
+  --sfx-t-h3: 15px;
+
+  /* Layout */
+  --sfx-container: 1240px;
+  --sfx-container-md: 960px;
+  --sfx-container-sm: 640px;
+  --sfx-gutter: 16px;
+  --sfx-section-gap: 28px;
+  --sfx-control-h: 48px;
+  --sfx-control-h-sm: 40px;
+  --sfx-control-h-xs: 36px;
+
+  --m1h-bg: #f3f3f1;
   --m1h-surface: #ffffff;
   --m1h-plate: #ffffff;
-  --m1h-plate-edge: #eceae4;
-  --m1h-line: #e4e1d9;
-  --m1h-line-soft: #eeece6;
-  --m1h-text: #1c1917;
+  --m1h-plate-edge: #c9c5bc;
+  --m1h-line: #dedbd3;
+  --m1h-line-soft: #dedbd3;
+  --m1h-text: #25231f;
   --m1h-text-2: #5d5952;
-  --m1h-text-3: #8b857b;
+  --m1h-text-3: #716e67;
   --m1h-accent: #a47a12;
-  --m1h-accent-soft: #fbf4e2;
+  --m1h-accent-soft: #fff7df;
   --m1h-sale: #b4231b;
   --m1h-sale-fg: #ffffff;
   --m1h-invert-bg: #14120f;
@@ -49,23 +91,59 @@ body.storefront-shell {
   --m1h-shadow-soft: 0 1px 2px rgba(28, 25, 23, 0.05);
   --m1h-shadow-float: 0 10px 28px rgba(28, 25, 23, 0.1);
 
-  /* Checkout-only derived tokens: a panel one step off the page, and the
-     success / danger inks the forms need. */
+  /* Derived tokens: a panel one step off the page, the second surface, and
+     the status inks the forms need. */
   --sfx-panel: #efede8;
+  --sfx-surface-2: #f7f7f5;
+  --sfx-line-strong: #c9c5bc;
   --sfx-field: #ffffff;
+  /* Control outline. The hairline is 1.35:1 against a white card, so a white
+     field on a white card had no visible edge; half-way between text and
+     surface is ~3:1 (WCAG 1.4.11) and follows Site Studio. Cards keep the line. */
+  --sfx-field-line: color-mix(in srgb, var(--m1h-text) 50%, var(--m1h-surface));
+  --sfx-accent-strong: #d0a632;
+  /* Gold as INK for small text. #a47a12 is 3.5:1 on the page ground, below the
+     4.5:1 small text needs; mixing in the text colour lands ~#806216 (5.1:1).
+     Derived from the accent so a Site Studio accent edit still moves it. Keep
+     --m1h-accent for fills, borders, icons and focus rings. */
+  --sfx-accent-ink: color-mix(in srgb, var(--m1h-accent) 72%, var(--m1h-text));
+  --sfx-on-accent: #14120f;
   --sfx-danger: #b4231b;
+  --sfx-danger-soft: #fbeceb;
   --sfx-success: #1f7a4d;
   --sfx-success-soft: #e8f4ed;
+  --sfx-success-fg: #ffffff;
+  --sfx-warning: #8a5a06;
+  --sfx-warning-soft: #fdf3e2;
   --sfx-focus: rgba(164, 122, 18, 0.22);
+  --sfx-scrim: rgba(20, 18, 15, 0.5);
+  --sfx-shadow-sheet: 0 -12px 40px rgba(28, 25, 23, 0.16);
+  --sfx-media-ink: #ffffff;
+  --sfx-media-scrim: rgba(20, 18, 15, 0.72);
+  /* Brand exception: WhatsApp keeps its green; white on #25d366 is 1.98:1, so
+     the ink is dark. Same in both themes. */
+  --sfx-whatsapp: #25d366;
+  --sfx-whatsapp-ink: #0b2e17;
 }
 
-body.storefront-shell.storefront-dark {
+@media (min-width: 768px) {
+  body.storefront-shell,
+  body:not(.storefront-shell) .sfx-scope {
+    --sfx-t-title: 32px;
+    --sfx-t-h2: 21px;
+    --sfx-gutter: 32px;
+    --sfx-section-gap: 48px;
+  }
+}
+
+body.storefront-shell.storefront-dark,
+body:not(.storefront-shell) .sfx-scope[data-theme="dark"] {
   --m1h-bg: #070707;
-  --m1h-surface: #0f0f0f;
+  --m1h-surface: #101010;
   --m1h-plate: #ffffff;
-  --m1h-plate-edge: transparent;
-  --m1h-line: rgba(255, 255, 255, 0.09);
-  --m1h-line-soft: rgba(255, 255, 255, 0.06);
+  --m1h-plate-edge: rgba(255, 255, 255, 0.18);
+  --m1h-line: rgba(255, 255, 255, 0.1);
+  --m1h-line-soft: rgba(255, 255, 255, 0.1);
   --m1h-text: #efeee9;
   --m1h-text-2: #b9b6ae;
   --m1h-text-3: #8d8981;
@@ -79,10 +157,749 @@ body.storefront-shell.storefront-dark {
   --m1h-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
   --m1h-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.45);
 
-  --sfx-panel: #0f0f0f;
+  /* One step ABOVE the card (#101010) and the second surface (#151515), so a
+     panel sitting on a card still reads as a panel in dark mode. */
+  --sfx-panel: #181818;
+  --sfx-surface-2: #151515;
+  --sfx-line-strong: rgba(255, 255, 255, 0.18);
   --sfx-field: #121212;
+  --sfx-field-line: var(--sfx-line-strong);
+  --sfx-accent-strong: #e5c469;
+  /* The dark accent already clears 4.5:1 on the dark grounds. */
+  --sfx-accent-ink: var(--m1h-accent);
+  --sfx-on-accent: #14120f;
   --sfx-danger: #f0776e;
+  --sfx-danger-soft: rgba(240, 119, 110, 0.12);
   --sfx-success: #6fcf97;
   --sfx-success-soft: rgba(111, 207, 151, 0.1);
+  --sfx-success-fg: #0b1f14;
+  --sfx-warning: #e8b25a;
+  --sfx-warning-soft: rgba(232, 178, 90, 0.12);
   --sfx-focus: rgba(208, 166, 50, 0.28);
+  --sfx-scrim: rgba(0, 0, 0, 0.62);
+  --sfx-shadow-sheet: 0 -12px 40px rgba(0, 0, 0, 0.55);
+  --sfx-media-ink: #ffffff;
+  --sfx-media-scrim: rgba(0, 0, 0, 0.72);
+}
+
+/* An out-of-shell page has no body ground or font of its own to inherit. */
+body:not(.storefront-shell) .sfx-scope {
+  min-height: 100dvh;
+  background: var(--m1h-bg);
+  color: var(--m1h-text);
+  /* `only`: a bare `light` is not an opt-out from force-dark phones. */
+  color-scheme: only light;
+}
+
+body:not(.storefront-shell) .sfx-scope[data-theme="dark"] {
+  color-scheme: only dark;
+}
+
+/* ============================================================================
+   PRIMITIVES
+   Every selector is `:is(body.storefront-shell, .sfx-scope) .sfx-…` —
+   specificity (0,2,1), the same as catalog-skin.css, and enough to beat the
+   unlayered `html[data-theme] .text-white` remap (0,2,1 earlier in the cascade).
+   Colour declarations carry !important for the same reason catalog-skin's do:
+   legacy `.storefront-shell` rules in index.css paint text with !important.
+   Already defined in catalog-skin.css (reuse, do not redefine): .sfx-btn,
+   .sfx-btn--ink, .sfx-btn--outline, .sfx-chip, .sfx-chip.is-active,
+   .sfx-select(+__control/__icon), .sfx-empty(+__icon/__title/__text),
+   .sfx-sheet(+__head/__body/__foot), .sfx-link-btn, .sfx-icon-btn, .sfx-skel,
+   .sfx-muted, .sfx-page (PAGINATION button — not a container).
+   ========================================================================== */
+
+/* ---------------------------------------------------------------- layout */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-wrap {
+  width: 100%;
+  max-width: var(--sfx-container);
+  margin-inline: auto;
+  padding-inline: var(--sfx-gutter);
+  box-sizing: border-box;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-wrap--md {
+  max-width: var(--sfx-container-md);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-wrap--sm {
+  max-width: var(--sfx-container-sm);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-section {
+  padding-block: var(--sfx-section-gap);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-section--tight {
+  padding-block: var(--m1h-s6);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-stack {
+  display: grid;
+  gap: var(--m1h-s4);
+}
+
+/* ------------------------------------------------------------ page header */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--m1h-s3) var(--m1h-s4);
+  padding-block: var(--m1h-s6) var(--m1h-s5);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-page-head__text {
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-page-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--m1h-s2);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-title {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--sfx-t-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-align: start;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-subtitle {
+  max-width: 48rem;
+  margin: var(--m1h-s2) 0 0;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-base);
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+/* Only when it says something the title does not (owner decree). */
+:is(body.storefront-shell, .sfx-scope) .sfx-kicker {
+  display: block;
+  margin: 0 0 var(--m1h-s2);
+  color: var(--sfx-accent-ink) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-h2 {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--sfx-t-h2);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-h3 {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--sfx-t-h3);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------- surfaces */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-surface {
+  padding: var(--m1h-s4);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface) !important;
+  box-shadow: none;
+  color: var(--m1h-text);
+}
+
+@media (min-width: 768px) {
+  :is(body.storefront-shell, .sfx-scope) .sfx-surface {
+    padding: var(--m1h-s5);
+  }
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-surface--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-surface--soft {
+  border-color: transparent !important;
+  background: var(--sfx-panel) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-surface--float {
+  box-shadow: var(--m1h-shadow-float);
+}
+
+/* A deliberately always-inverted band (member card, promo strip). Rescues
+   `text-white` from the html[data-theme] remap inside it. */
+:is(body.storefront-shell, .sfx-scope) .sfx-invert {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-invert .text-white {
+  color: var(--m1h-invert-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-invert .sfx-muted-invert {
+  color: var(--m1h-invert-text-2) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-divider {
+  height: 1px;
+  margin-block: var(--m1h-s4);
+  border: 0;
+  background: var(--m1h-line);
+}
+
+/* ---------------------------------------------------------------- buttons
+   Base shape is `.sfx-btn` (catalog-skin.css: 44px pill, 14/600). Modifiers
+   below; the page CTA is `sfx-btn sfx-btn--primary sfx-btn--lg`. */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn.sfx-btn--lg {
+  min-height: var(--sfx-control-h);
+  padding-inline: var(--m1h-s6);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn.sfx-btn--sm {
+  min-height: var(--sfx-control-h-xs);
+  padding-inline: 14px;
+  font-size: var(--m1h-t-sm);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn.sfx-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn:disabled,
+:is(body.storefront-shell, .sfx-scope) .sfx-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--primary {
+  border-color: transparent !important;
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+  -webkit-text-fill-color: currentColor;
+  transition: background-color 180ms var(--m1h-ease), color 180ms var(--m1h-ease), transform 160ms var(--m1h-ease);
+}
+
+@media (hover: hover) {
+  :is(body.storefront-shell, .sfx-scope) .sfx-btn--primary:hover:not(:disabled) {
+    background: var(--m1h-accent) !important;
+    color: var(--sfx-on-accent) !important;
+  }
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--secondary {
+  border-color: var(--m1h-line) !important;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--secondary:hover:not(:disabled) {
+  border-color: var(--m1h-text) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--ghost {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--ghost:hover:not(:disabled) {
+  background: var(--sfx-panel) !important;
+  color: var(--m1h-text) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--danger {
+  border-color: var(--sfx-danger) !important;
+  background: transparent !important;
+  color: var(--sfx-danger) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--danger:hover:not(:disabled) {
+  background: var(--sfx-danger-soft) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--whatsapp {
+  border-color: transparent !important;
+  background: var(--sfx-whatsapp) !important;
+  color: var(--sfx-whatsapp-ink) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-btn--whatsapp:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* Quantity stepper: − value + in one pill. */
+:is(body.storefront-shell, .sfx-scope) .sfx-stepper {
+  display: inline-flex;
+  min-height: var(--sfx-control-h-xs);
+  align-items: center;
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-stepper > button {
+  display: grid;
+  width: var(--sfx-control-h-xs);
+  height: var(--sfx-control-h-xs);
+  place-items: center;
+  padding: 0;
+  border: 0 !important;
+  border-radius: var(--m1h-r-pill);
+  background: transparent !important;
+  color: inherit !important;
+  cursor: pointer;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-stepper > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-stepper__value {
+  min-width: 28px;
+  font-size: var(--m1h-t-base);
+  font-weight: 600;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------- forms */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-form-row {
+  display: grid;
+  gap: 6px;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-label {
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-help {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-xs);
+  line-height: 1.5;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-error {
+  color: var(--sfx-danger) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-xs);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* 16px text: iOS zooms the page into any field smaller than that. */
+:is(body.storefront-shell, .sfx-scope) .sfx-input {
+  display: block;
+  width: 100%;
+  min-height: var(--sfx-control-h);
+  box-sizing: border-box;
+  padding-block: 10px;
+  padding-inline: 14px;
+  border: 1px solid var(--sfx-field-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--sfx-field) !important;
+  box-shadow: none !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: start;
+  outline: none;
+  transition: border-color 160ms var(--m1h-ease), box-shadow 160ms var(--m1h-ease);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-input::placeholder {
+  color: var(--m1h-text-3) !important;
+  -webkit-text-fill-color: currentColor;
+  opacity: 1;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-input:focus,
+:is(body.storefront-shell, .sfx-scope) .sfx-input:focus-visible {
+  border-color: var(--m1h-accent) !important;
+  box-shadow: 0 0 0 3px var(--sfx-focus) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-input[aria-invalid="true"],
+:is(body.storefront-shell, .sfx-scope) .sfx-input.is-invalid {
+  border-color: var(--sfx-danger) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:is(body.storefront-shell, .sfx-scope) textarea.sfx-input,
+:is(body.storefront-shell, .sfx-scope) .sfx-input--textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-input--sm {
+  min-height: var(--sfx-control-h-sm);
+  padding-block: 6px;
+}
+
+/* A pill search box (header search, FAQ search). */
+:is(body.storefront-shell, .sfx-scope) .sfx-input--pill {
+  border-radius: var(--m1h-r-pill);
+  padding-inline: 18px;
+}
+
+/* `.sfx-select` (catalog-skin) at form height. */
+:is(body.storefront-shell, .sfx-scope) .sfx-select.sfx-select--lg {
+  min-height: var(--sfx-control-h);
+  background: var(--sfx-field);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-select.sfx-select--lg .sfx-select__control {
+  min-height: calc(var(--sfx-control-h) - 2px);
+  font-size: 16px;
+}
+
+/* ------------------------------------------------------------- tabs, badges */
+
+/* Segmented control — the homepage `.m1h-frow__tabs`: one track, active = invert. */
+:is(body.storefront-shell, .sfx-scope) .sfx-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 2px;
+  padding: 3px;
+  overflow-x: auto;
+  border-radius: var(--m1h-r-pill);
+  background: var(--m1h-surface) !important;
+  box-shadow: inset 0 0 0 1px var(--m1h-line);
+  scrollbar-width: none;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-tabs--block {
+  display: flex;
+  width: 100%;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-tabs--block > .sfx-tab {
+  flex: 1 1 0;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-tab {
+  display: inline-flex;
+  min-height: 34px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-inline: 16px;
+  border: 0 !important;
+  border-radius: var(--m1h-r-pill);
+  background: transparent !important;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-size: var(--m1h-t-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 180ms var(--m1h-ease), color 180ms var(--m1h-ease);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-tab:hover {
+  color: var(--m1h-text) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-tab.is-active,
+:is(body.storefront-shell, .sfx-scope) .sfx-tab[aria-selected="true"] {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-tab:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--m1h-r-pill);
+  background: var(--sfx-panel) !important;
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge--accent {
+  background: var(--m1h-accent-soft) !important;
+  color: var(--sfx-accent-ink) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge--sale {
+  background: var(--m1h-sale) !important;
+  color: var(--m1h-sale-fg) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge--success {
+  background: var(--sfx-success-soft) !important;
+  color: var(--sfx-success) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge--danger {
+  background: var(--sfx-danger-soft) !important;
+  color: var(--sfx-danger) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge--warning {
+  background: var(--sfx-warning-soft) !important;
+  color: var(--sfx-warning) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-badge--ink {
+  background: var(--m1h-invert-bg) !important;
+  color: var(--m1h-invert-text) !important;
+}
+
+/* ------------------------------------------------------------ notices */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--m1h-s3);
+  padding: var(--m1h-s3) var(--m1h-s4);
+  border-radius: var(--m1h-r-md);
+  background: var(--sfx-panel) !important;
+  color: var(--m1h-text) !important;
+  font-size: var(--m1h-t-sm);
+  line-height: 1.6;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-notice--accent {
+  background: var(--m1h-accent-soft) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-notice--success {
+  background: var(--sfx-success-soft) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-notice--danger {
+  background: var(--sfx-danger-soft) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-notice--success > svg {
+  color: var(--sfx-success);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-notice--danger > svg {
+  color: var(--sfx-danger);
+}
+
+/* ------------------------------------------------------------ empty state
+   `.sfx-empty` lives in catalog-skin.css; this is its compact size for a panel
+   inside a page (account tabs, cart side, compare slot). */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-empty.sfx-empty--compact {
+  padding: var(--m1h-s6) var(--m1h-s4);
+  border-radius: var(--m1h-r-lg);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-empty.sfx-empty--compact .sfx-empty__title {
+  font-size: var(--m1h-t-price);
+}
+
+/* ------------------------------------------------------------- summary rows */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-summary {
+  display: grid;
+  gap: var(--m1h-s2);
+  margin: 0;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-summary__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
+  color: var(--m1h-text-2) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-base);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-summary__row > :last-child {
+  color: var(--m1h-text) !important;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-summary__row--discount > :last-child {
+  color: var(--sfx-success) !important;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-summary__row--total {
+  margin-top: var(--m1h-s1);
+  padding-top: var(--m1h-s3);
+  border-top: 1px solid var(--m1h-line);
+  color: var(--m1h-text) !important;
+  font-size: var(--m1h-t-price);
+  font-weight: 700;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-summary__row--total > :last-child {
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------- tables */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-lg);
+  background: var(--m1h-surface);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--m1h-text);
+  font-size: var(--m1h-t-base);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-table :is(th, td) {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--m1h-line);
+  text-align: start;
+  vertical-align: middle;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-table th {
+  background: var(--sfx-surface-2);
+  color: var(--m1h-text-3) !important;
+  font-size: var(--m1h-t-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* ------------------------------------------------------- overlay / drawers */
+
+:is(body.storefront-shell, .sfx-scope) .sfx-overlay {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: var(--sfx-scrim);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  box-shadow: var(--sfx-shadow-sheet);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer--bottom {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 92dvh;
+  border-radius: var(--m1h-r-xl) var(--m1h-r-xl) 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer--end {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: min(420px, 92vw);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
+  padding: var(--m1h-s4);
+  border-bottom: 1px solid var(--m1h-line);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer__title {
+  margin: 0;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font-size: var(--m1h-t-price);
+  font-weight: 700;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer__body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--m1h-s4);
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-drawer__foot {
+  display: grid;
+  flex: none;
+  gap: var(--m1h-s2);
+  padding: var(--m1h-s3) var(--m1h-s4) calc(var(--m1h-s3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--m1h-line);
+  background: var(--m1h-surface);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(body.storefront-shell, .sfx-scope) :is(.sfx-btn, .sfx-tab, .sfx-input) {
+    transition: none;
+  }
 }

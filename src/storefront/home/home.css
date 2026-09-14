@@ -32,6 +32,7 @@
   --m1h-r-md: 12px;
   --m1h-r-lg: 16px;
   --m1h-r-xl: 20px;
+  --m1h-r-pill: 999px;
 
   /* ---- type scale ----------------------------------------------------- */
   --m1h-t-xs: 12px;
@@ -43,19 +44,19 @@
   --m1h-t-hero: 30px;
 
   /* ---- light palette --------------------------------------------------- */
-  --m1h-bg: #f7f6f3;
+  --m1h-bg: #f3f3f1;
   --m1h-surface: #ffffff;
   /* Pure white, not a tinted neutral: catalogue photos are cut out on white, and
      any other value paints a visible second rectangle inside the tile. */
   --m1h-plate: #ffffff;
-  --m1h-plate-edge: #eceae4;
-  --m1h-line: #e4e1d9;
-  --m1h-line-soft: #eeece6;
-  --m1h-text: #1c1917;
+  --m1h-plate-edge: #c9c5bc;
+  --m1h-line: #dedbd3;
+  --m1h-line-soft: #dedbd3;
+  --m1h-text: #25231f;
   --m1h-text-2: #5d5952;
-  --m1h-text-3: #8b857b;
+  --m1h-text-3: #716e67;
   --m1h-accent: #a47a12;
-  --m1h-accent-soft: #fbf4e2;
+  --m1h-accent-soft: #fff7df;
   --m1h-sale: #b4231b;
   --m1h-sale-fg: #ffffff;
   --m1h-invert-bg: #14120f;
@@ -64,15 +65,23 @@
   --m1h-shadow-soft: 0 1px 2px rgba(28, 25, 23, 0.05);
   --m1h-shadow-float: 0 10px 28px rgba(28, 25, 23, 0.1);
   --m1h-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Theme constants from src/storefront/site-skin.css, repeated so the Site
+     Studio preview (which mounts this sheet outside the storefront body) still
+     resolves them. Same values; the studio has no swatch for any of them. */
+  --sfx-on-accent: #14120f;
+  --sfx-media-ink: #ffffff;
+  --sfx-media-scrim: rgba(20, 18, 15, 0.72);
+  /* Re-derived here so it follows the accent this block (or Studio) sets. */
+  --sfx-accent-ink: color-mix(in srgb, var(--m1h-accent) 72%, var(--m1h-text));
 }
 
 .m1h[data-theme="dark"] {
   --m1h-bg: #070707;
-  --m1h-surface: #0f0f0f;
+  --m1h-surface: #101010;
   --m1h-plate: #ffffff; /* the plate stays white in dark mode too: the shoe is the subject */
-  --m1h-plate-edge: transparent; /* white on black needs no help holding its edge */
-  --m1h-line: rgba(255, 255, 255, 0.09);
-  --m1h-line-soft: rgba(255, 255, 255, 0.06);
+  --m1h-plate-edge: rgba(255, 255, 255, 0.18);
+  --m1h-line: rgba(255, 255, 255, 0.1);
+  --m1h-line-soft: rgba(255, 255, 255, 0.1);
   --m1h-text: #efeee9;
   --m1h-text-2: #b9b6ae;
   --m1h-text-3: #8d8981;
@@ -85,6 +94,8 @@
   --m1h-invert-text-2: rgba(20, 18, 15, 0.62);
   --m1h-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
   --m1h-shadow-float: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --sfx-media-scrim: rgba(0, 0, 0, 0.72);
+  --sfx-accent-ink: var(--m1h-accent);
 }
 
 .m1h {
@@ -172,7 +183,7 @@
 }
 
 .m1h-sec__link:hover {
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
 }
 
 /* Rail paging — pointer devices only. A touch screen already has the gesture,
@@ -194,7 +205,7 @@
   width: 34px;
   place-items: center;
   border: 1px solid var(--m1h-line);
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: transparent;
   color: var(--m1h-text-2);
   cursor: pointer;
@@ -398,7 +409,7 @@
 }
 
 .m1h-card__price-now--sale {
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
 }
 
 .m1h-card__price-was {
@@ -473,6 +484,7 @@
 .m1h-card--minimal .m1h-fav {
   background: var(--m1h-surface);
   box-shadow: 0 0 0 1px var(--m1h-line);
+  color: var(--m1h-text-2);
 }
 
 /* ---- overlay: name and price on the image ----------------------------- */
@@ -511,12 +523,13 @@
 .m1h-card--overlay .m1h-card__name,
 .m1h-card--overlay .m1h-card__price-now,
 .m1h-card--overlay .m1h-card__price-was {
-  color: #ffffff;
+  color: var(--sfx-media-ink);
 }
 
 .m1h-card--overlay .m1h-card__brand,
 .m1h-card--overlay .m1h-card__price-was {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--sfx-media-ink);
+  opacity: 0.72;
 }
 
 .m1h-card--overlay .m1h-card__price-now--sale {
@@ -546,7 +559,7 @@
   inset-inline-start: var(--m1h-s2);
   top: var(--m1h-s2);
   z-index: 2;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   padding: 3px 8px;
   font-size: 11px;
   font-weight: 700;
@@ -560,8 +573,8 @@
 }
 
 .m1h-badge--last {
-  background: rgba(20, 18, 15, 0.82);
-  color: #fff;
+  background: var(--sfx-media-scrim);
+  color: var(--sfx-media-ink);
 }
 
 .m1h-fav {
@@ -574,7 +587,7 @@
   width: 30px;
   place-items: center;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: rgba(255, 255, 255, 0.82);
   color: #57534e;
   cursor: pointer;
@@ -582,9 +595,12 @@
   transition: transform 160ms var(--m1h-ease), color 160ms var(--m1h-ease), background-color 160ms var(--m1h-ease);
 }
 
+/* The heart sits on the photo plate, which is white in both themes, so its
+   hover ink is the constant dark one -- `--m1h-text` turned it white-on-white
+   in dark mode. */
 .m1h-fav:hover {
-  background: #fff;
-  color: var(--m1h-text);
+  background: var(--m1h-plate);
+  color: var(--sfx-on-accent);
 }
 
 .m1h-fav:active {
@@ -688,7 +704,7 @@
   font-size: var(--m1h-t-product);
   font-weight: 600;
   line-height: 1.25;
-  color: #fff;
+  color: var(--sfx-media-ink);
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.4);
 }
 
@@ -838,7 +854,7 @@
   font-size: var(--m1h-t-product);
   font-weight: 600;
   line-height: 1.35;
-  color: #ffffff;
+  color: var(--sfx-media-ink);
 }
 
 .m1h-hero__caption-prices {
@@ -851,14 +867,15 @@
 .m1h-hero__caption-was {
   font-size: var(--m1h-t-sm);
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--sfx-media-ink);
+  opacity: 0.72;
   text-decoration: line-through;
 }
 
 .m1h-hero__caption-price {
   font-size: var(--m1h-t-price);
   font-weight: 700;
-  color: #ffffff;
+  color: var(--sfx-media-ink);
 }
 
 /* Slide indicator: thin bars, no counter, no dots the thumb wants to press. */
@@ -871,7 +888,7 @@
 .m1h-hero__bar {
   height: 2px;
   width: 26px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   border: 0;
   padding: 0;
   background: var(--m1h-line);
@@ -893,7 +910,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--m1h-s2);
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   padding-inline: var(--m1h-s6);
   font-size: var(--m1h-t-base);
   font-weight: 600;
@@ -913,7 +930,7 @@
 
 .m1h-btn--primary:hover {
   background: var(--m1h-accent);
-  color: #14120f;
+  color: var(--sfx-on-accent);
 }
 
 .m1h-btn--ghost {
@@ -923,17 +940,20 @@
 
 .m1h-btn--ghost:hover {
   border-color: var(--m1h-accent);
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
 }
 
+/* Sits on the editorial band (`--m1h-invert-bg`), which is dark in light mode
+   and light in dark mode, so the button takes the page surface: a literal white
+   one disappeared into the light band in dark mode. */
 .m1h-btn--onDark {
-  background: #fff;
-  color: #14120f;
+  background: var(--m1h-surface);
+  color: var(--m1h-text);
 }
 
 .m1h-btn--onDark:hover {
   background: var(--m1h-accent);
-  color: #14120f;
+  color: var(--sfx-on-accent);
 }
 
 /* ---------------------------------------------------------------------------
@@ -992,7 +1012,7 @@
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
 }
 
 .m1h-editorial__title {
@@ -1007,6 +1027,12 @@
   .m1h-editorial__title {
     font-size: 36px;
   }
+}
+
+/* Gold on the light inverted band of dark mode is about 2:1; the muted invert
+   ink reads there. */
+.m1h[data-theme="dark"] .m1h-editorial__eyebrow {
+  color: var(--m1h-invert-text-2);
 }
 
 .m1h-editorial__text {
@@ -1144,7 +1170,7 @@
 
 .m1h[data-theme="dark"] .sf-footer {
   border-color: var(--m1h-line);
-  background: #0b0b0b;
+  background: var(--sf-footer-bg, var(--m1h-bg));
   color: var(--m1h-text);
 }
 
@@ -1168,7 +1194,7 @@
 
 .m1h[data-theme="dark"] .sf-footer .sf-footer__social {
   border-color: var(--m1h-line);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--sfx-surface-2, var(--m1h-surface));
   color: var(--m1h-text);
 }
 
@@ -1179,7 +1205,7 @@
 
 .m1h[data-theme="dark"] .sf-footer .sf-footer__bar {
   border-top: 1px solid var(--m1h-line);
-  background: #070707;
+  background: var(--sf-footer-bar-bg, var(--m1h-bg));
   color: var(--m1h-text-3);
 }
 
@@ -1295,7 +1321,7 @@
   flex: 0 0 auto;
   gap: 2px;
   padding: 3px;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-surface);
   box-shadow: inset 0 0 0 1px var(--m1h-line);
 }
@@ -1303,7 +1329,7 @@
 .m1h-frow__tab {
   padding: 7px 16px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: transparent;
   color: var(--m1h-text-2);
   font-size: var(--m1h-t-sm);
@@ -1366,7 +1392,7 @@
   margin-top: var(--m1h-s5);
   min-height: 48px;
   padding-inline: var(--m1h-s5);
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   box-shadow: inset 0 0 0 1px var(--m1h-line);
   color: var(--m1h-text);
   font-size: var(--m1h-t-sm);
@@ -1379,7 +1405,7 @@
 
 .m1h-frow__all:hover {
   box-shadow: inset 0 0 0 1px var(--m1h-accent);
-  color: var(--m1h-accent);
+  color: var(--sfx-accent-ink);
 }
 
 /* ---- a filtered row placed on another page ----------------------------- */
@@ -1446,7 +1472,7 @@
   /* Room for the chevron on the end side, in both directions. */
   padding-inline: 16px 34px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--m1h-r-pill);
   background: var(--m1h-surface);
   box-shadow: inset 0 0 0 1px var(--m1h-line);
   color: var(--m1h-text);
