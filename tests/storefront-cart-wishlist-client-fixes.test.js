@@ -80,7 +80,11 @@ test("the error boundary never clears storage for a chunk-load failure", () => {
   const didCatch = between("componentDidCatch(error) {", "render() {");
   const chunkGuard = didCatch.indexOf("if (isChunkLoadError(error)) {");
   assert.ok(chunkGuard > -1, "chunk-load errors return early");
-  assert.match(didCatch.slice(chunkGuard), /^if \(isChunkLoadError\(error\)\) \{\s*recoverFromChunkLoadError\(error\);\s*return;\s*\}/);
+  // The branch waits on the recovery result (offline card), then returns before any cleanup.
+  const branch = didCatch.slice(chunkGuard).match(/^if \(isChunkLoadError\(error\)\) \{[\s\S]*?\n {6}return;\s*\}/);
+  assert.ok(branch, "the chunk branch returns");
+  assert.match(branch[0], /recoverFromChunkLoadError\(error\)/);
+  assert.doesNotMatch(branch[0], /cleanupStorefrontStorage/);
   assert.ok(chunkGuard < didCatch.indexOf("cleanupStorefrontStorage("), "the guard comes before any cleanup");
 });
 
