@@ -354,7 +354,8 @@ test("the relay ignores events from localhost, previews and requests without a p
 
   const client = read("../src/storefront/lib/metaPixelEvents.js");
   const track = between(client, "const track = ", "export const trackMetaViewContent");
-  assert.ok(track.indexOf("if (!trackable) return eventPayload;") < track.indexOf("void sendCapi("), "the browser relay is host-gated like the Pixel");
+  const gate = track.indexOf("if (!trackable) return eventPayload;");
+  assert.ok(gate > 0 && gate < track.indexOf("void sendCapi("), "the browser relay is host-gated like the Pixel");
   assert.doesNotMatch(read("../src/storefront/lib/ga4Events.js"), /localhost|127\.0\.0\.1/);
 });
 
@@ -407,6 +408,22 @@ test("a relayed Purchase is sent only for a real order, with the order's own val
 
   assert.equal(await loadVerifiedRelayPurchaseEvent({ tenantId: 1, eventId: "m1_purchase_order_812 OR 1=1" }), null);
   assert.equal(handlers.length, 3, "the relay runs its own rate limit first");
+});
+
+test("a relayed Purchase for a cancelled order or a till-raised order is not sent", async () => {
+  const orderClient = (order) => ({
+    query: async (sql) => {
+      if (sql.includes("FROM orders")) return { rows: [order] };
+      if (sql.includes("FROM order_items")) return { rows: [{ id: 1, product_id: 22, variant_id: 31, quantity: 1, price: 500, sku: "SKU-1" }] };
+      return { rows: [] };
+    },
+  });
+  const base = { id: 900, tenant_id: 1, source: "website", status: "pending_confirmation", total_amount: 500 };
+  const eventId = "m1_purchase_order_900";
+  assert.equal((await loadVerifiedRelayPurchaseEvent({ tenantId: 1, eventId, client: orderClient(base) }))?.value, 500);
+  assert.equal(await loadVerifiedRelayPurchaseEvent({ tenantId: 1, eventId, client: orderClient({ ...base, status: "cancelled" }) }), null);
+  assert.equal(await loadVerifiedRelayPurchaseEvent({ tenantId: 1, eventId, client: orderClient({ ...base, origin_surface: "pos" }) }), null);
+  assert.equal(await loadVerifiedRelayPurchaseEvent({ tenantId: 1, eventId, client: orderClient({ ...base, source: "pos" }) }), null);
 });
 
 // ---------------------------------------------------------------- #86 request-path DDL
