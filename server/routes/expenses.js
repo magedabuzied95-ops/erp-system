@@ -1062,7 +1062,7 @@ const postExpenseAccounting = async (client, expense, req) => {
   const amount = numeric(expense.amount);
   const isAdvance = isEmployeeAdvanceType(expense.expense_type || expense.category);
   if (String(expense.payment_method || "").toLowerCase() === "cash") {
-    await recordCashDrawerEvent(client, {
+    const drawerEvent = await recordCashDrawerEvent(client, {
       tenantId,
       branchId: expense.branch_id || req.user?.branch_id || null,
       createdBy: req.user?.id || null,
@@ -1071,6 +1071,13 @@ const postExpenseAccounting = async (client, expense, req) => {
       sourceId: expense.id,
       amount,
     });
+    // The drawer event lowered the payer's open shift's expected cash; the shift
+    // report counts expenses by expenses.shift_id, so tie the row to the same
+    // shift or the report and expected_cash disagree by this amount.
+    if (drawerEvent?.shift_id && !expense.shift_id) {
+      await client.query(`UPDATE expenses SET shift_id = $1 WHERE id = $2`, [drawerEvent.shift_id, expense.id]);
+      expense.shift_id = drawerEvent.shift_id;
+    }
   }
   await recordFinancialAccountActivity(client, {
     tenantId,

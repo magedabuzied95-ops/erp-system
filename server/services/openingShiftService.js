@@ -96,6 +96,17 @@ const datePartsInZone = (date = new Date(), timeZone = getAttendanceTimeZone()) 
   return { year: part("year"), month: part("month"), day: part("day") };
 };
 
+// A shift that closes after midnight still belongs to the evening before, so
+// the opener it picks is for the coming morning — the same calendar day.
+export const OPENING_SAME_DAY_CUTOFF_HOUR = 5;
+
+const hourInZone = (date = new Date(), timeZone = getAttendanceTimeZone()) => {
+  const value = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", hourCycle: "h23" })
+    .formatToParts(date)
+    .find((item) => item.type === "hour")?.value;
+  return Number(value || 0) % 24;
+};
+
 const formatDate = ({ year, month, day }) =>
   `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
@@ -109,7 +120,7 @@ const addDaysToParts = ({ year, month, day }, days = 0) => {
 };
 
 export const getDefaultOpeningWorkDate = (date = new Date(), timeZone = getAttendanceTimeZone()) =>
-  formatDate(addDaysToParts(datePartsInZone(date, timeZone), 1));
+  formatDate(addDaysToParts(datePartsInZone(date, timeZone), hourInZone(date, timeZone) < OPENING_SAME_DAY_CUTOFF_HOUR ? 0 : 1));
 
 export const getHrAttendanceSettings = async (clientOrPool, tenantId) => {
   await ensureAttendanceSchema(clientOrPool);

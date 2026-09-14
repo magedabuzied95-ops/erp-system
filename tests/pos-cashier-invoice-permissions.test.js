@@ -40,3 +40,18 @@ test("existing cashier database roles receive invoice permissions and pass hard-
   assert.match(permissionMiddlewareSource, /p\.module = 'orders'[\s\S]*?p\.action IN \('edit', 'delete'\)/);
   assert.match(ordersControllerSource, /"owner", "cashier", "pos cashier", "pos_cashier"/);
 });
+
+test("the cashier invoice grant runs once so an owner's revoke survives a restart", () => {
+  const grant = permissionMiddlewareSource.match(
+    /INSERT INTO role_permissions[\s\S]*?p\.module = 'orders'\s*AND p\.action IN \('edit', 'delete'\)[\s\S]*?`\s*\);/
+  );
+  assert.ok(grant, "cashier orders grant not found");
+  assert.match(
+    grant[0],
+    /NOT EXISTS \(\s*SELECT 1\s*FROM system_settings s\s*WHERE s\.key = 'permissions\.cashier_orders_edit_delete_granted'\s*\)/
+  );
+  assert.match(
+    permissionMiddlewareSource,
+    /INSERT INTO system_settings \(key, value, category\)\s*VALUES \('permissions\.cashier_orders_edit_delete_granted', 'true'::jsonb, 'permissions'\)\s*ON CONFLICT \(key\) DO NOTHING/
+  );
+});
