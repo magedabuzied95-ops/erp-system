@@ -311,7 +311,9 @@ export const recordInventoryMovement = async (clientOrPool, data = {}) => {
     const tenantClause = variantColumns.has("tenant_id")
       ? "AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)"
       : "";
-    const activeClause = variantColumns.has("is_active") && variantColumns.has("deleted_at")
+    // includeArchived: a restock (invoice edit restore, return) lands on the row by
+    // id even when the colour/size was archived after the sale.
+    const activeClause = data.includeArchived !== true && variantColumns.has("is_active") && variantColumns.has("deleted_at")
       ? "AND is_active IS DISTINCT FROM FALSE AND deleted_at IS NULL"
       : "";
     const updateTimestamp = variantColumns.has("updated_at") ? ", updated_at = NOW()" : "";

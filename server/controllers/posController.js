@@ -913,6 +913,12 @@ const userHasPermission = async (client, userId, aliases = []) => {
 export const canOverridePosSeller = (client, userId) =>
   userHasPermission(client, userId, ["pos:override_seller", "pos.override_seller", "orders:edit", "orders.edit"]);
 
+// Above the store's discount limits: admin / owner / manager roles (isAdminLike) or a
+// role granted pos.discount_override. Deliberately NOT orders:edit — every cashier
+// role holds that one.
+export const canOverridePosDiscount = (client, userId) =>
+  userId ? userHasPermission(client, userId, ["pos:discount_override", "pos.discount_override"]) : Promise.resolve(false);
+
 const listPosSellerCandidates = async ({ tenantId = null, branchId = null } = {}) => {
   const result = await db.query(
     `
