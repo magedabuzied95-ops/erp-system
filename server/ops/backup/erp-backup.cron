@@ -1,0 +1,3 @@
+# Nightly off-host backup, then a monthly restore test on the 2nd (after the 1st's monthly set).
+0 3 * * *  root /opt/erp/bin/erp-backup.sh >/dev/null 2>&1
+0 5 2 * *  root /opt/erp/bin/erp-restore-test.sh >/dev/null 2>&1
