@@ -2528,6 +2528,12 @@ const bootstrapServer = ({ skipStartupSyncs = false } = {}) =>
         .then((module) => module.logWhatsappCapabilityState())
         .catch((error) => console.warn("[whatsapp-capabilities] state log failed", { message: error?.message || String(error) }));
       runStartupDiagnostics();
+      // Purchase schema verified once on the pool now, so receive/reverse transactions skip their
+      // in-transaction ALTER TABLEs (which locked products/product_variants until COMMIT).
+      void import("./routes/purchases.js")
+        .then((module) => module.warmPurchaseSchema())
+        .then(() => console.log("[purchases] schema verified"))
+        .catch((error) => console.warn("[purchases] schema warm-up failed; the first purchase request retries", { message: error?.message || String(error) }));
       // The product/category SEO pages cache the storefront shell; fetch it now so the first
       // crawler after a deploy is not the one waiting on a cold round trip to Vercel.
       void Promise.all([

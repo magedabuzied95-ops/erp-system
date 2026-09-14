@@ -223,7 +223,16 @@ const requiredNoDefaultColumns = (columnInfo, ignored = new Set()) =>
     .map(([columnName]) => columnName)
     .filter((columnName) => !ignored.has(columnName));
 
+// Set once ensurePurchaseSchemaReady has run this DDL on the pool (auto-commit, so it cannot be
+// rolled back with a request). After that every in-transaction caller below (receive, reverse,
+// delete, reorder draft) returns at once. Before, each of them ran ~12 ALTER TABLEs inside its
+// own transaction: ALTER takes ACCESS EXCLUSIVE on products and product_variants even when every
+// column exists, and holds it until COMMIT, so receiving one invoice froze POS and storefront
+// reads for the whole transaction.
+let purchaseCreateSchemaVerified = false;
+
 const ensurePurchaseCreateSchema = async (client) => {
+  if (purchaseCreateSchemaVerified) return;
   await client.query(`
     ALTER TABLE IF EXISTS suppliers
       ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
@@ -5098,6 +5107,7 @@ const ensurePurchaseSchemaReady = () => {
       await ensurePurchaseCreateSchema(pool);
       await ensureSmartReorderSchema(pool);
       await ensurePurchaseCreateIndexes(pool);
+      purchaseCreateSchemaVerified = true;
     })().catch((err) => {
       purchaseSchemaReadyPromise = null; // allow a retry on the next request
       throw err;
@@ -5105,6 +5115,10 @@ const ensurePurchaseSchemaReady = () => {
   }
   return purchaseSchemaReadyPromise;
 };
+
+// Called right after listen(), so the verified flag is set before the first receive/reverse
+// transaction instead of after the first purchases list or create.
+export const warmPurchaseSchema = () => ensurePurchaseSchemaReady();
 
 router.post(
   "/",

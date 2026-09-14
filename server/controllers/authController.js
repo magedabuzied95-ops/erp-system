@@ -6,7 +6,12 @@ import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staf
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
 
+// Boot runs this before listen(); login used to run it again on EVERY sign-in, and each run is two
+// ALTER TABLE users, which lock the table every authenticated request reads.
+let usersLoginSchemaVerified = false;
+
 export const ensureUsersLoginSchema = async () => {
+  if (usersLoginSchemaVerified) return;
   const before = await db.query(
     `
     SELECT column_name, data_type, is_nullable
@@ -35,6 +40,7 @@ export const ensureUsersLoginSchema = async () => {
     exists: after.rows.length > 0,
     definition: after.rows[0] || null,
   });
+  usersLoginSchemaVerified = true;
 };
 
 let usersColumnNamesPromise = null;

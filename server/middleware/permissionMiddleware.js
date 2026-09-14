@@ -566,6 +566,26 @@ const ensureMarketingPermissions = async () => {
   );
 };
 
+// Once per process, retried after a failure. Unwrapped, every permit("loyalty"|"attendance"|
+// "marketing"|"branches") request ran ALTER TABLE permissions (ACCESS EXCLUSIVE on the table
+// every permission check reads) plus the seed inserts; the POS checkout hits the loyalty one.
+const oncePerProcess = (ensure) => {
+  let ready = null;
+  return () => {
+    if (!ready) {
+      ready = ensure().catch((error) => {
+        ready = null;
+        throw error;
+      });
+    }
+    return ready;
+  };
+};
+const ensureBranchesPermissionsOnce = oncePerProcess(ensureBranchesPermissions);
+const ensureAttendancePermissionsOnce = oncePerProcess(ensureAttendancePermissions);
+const ensureLoyaltyPermissionsOnce = oncePerProcess(ensureLoyaltyPermissions);
+const ensureMarketingPermissionsOnce = oncePerProcess(ensureMarketingPermissions);
+
 /* ======================================================
    PERMISSION MIDDLEWARE
 ====================================================== */
@@ -620,19 +640,19 @@ const permit = (
       await ensureCorePermissions();
 
       if (normalizedModuleName === "branches") {
-        await ensureBranchesPermissions();
+        await ensureBranchesPermissionsOnce();
       }
 
       if (normalizedModuleName === "attendance") {
-        await ensureAttendancePermissions();
+        await ensureAttendancePermissionsOnce();
       }
 
       if (normalizedModuleName === "loyalty") {
-        await ensureLoyaltyPermissions();
+        await ensureLoyaltyPermissionsOnce();
       }
 
       if (normalizedModuleName === "marketing") {
-        await ensureMarketingPermissions();
+        await ensureMarketingPermissionsOnce();
       }
 
       /* =========================
