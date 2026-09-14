@@ -2,7 +2,7 @@ import { buildProductSeo, STOREFRONT_ORIGIN } from "../../src/shared/lib/product
 
 const API_ORIGIN = String(process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/, "");
 
-const absoluteSeoImageUrl = (value = "") => {
+export const absoluteSeoImageUrl = (value = "") => {
   const source = String(value || "").trim();
   if (!source || source.startsWith("data:") || source.startsWith("blob:")) return "";
   if (/^https?:\/\//i.test(source)) return source.replace(/^http:\/\//i, "https://");
@@ -163,6 +163,54 @@ export const loadProductSeoData = async (
   return { status: product ? 200 : status, product };
 };
 
+/*
+  getProduct deliberately skips the shipping/return policies and the 1200x630 share card: the
+  interactive page must not wait on them. This page is where they belong -- without them every
+  Offer lacked shippingDetails and hasMerchantReturnPolicy and og:image fell back to the raw
+  photo. Each piece has its own short cap and failure is not fatal: the page renders without
+  that piece rather than falling back to the bare shell. A card still being drawn when the cap
+  passes keeps going and is on disk for the next request.
+*/
+export const SEO_EXTRAS_TIMEOUT_MS = 2 * 1000;
+
+const defaultLoadMerchantPolicies = async ({ productPrice }) =>
+  (await import("./storefrontMerchantPolicyService.js")).loadStorefrontMerchantPolicyData({ productPrice });
+
+const defaultLoadOgImage = async ({ product }) => {
+  const { generateProductOgImage } = await import("./productOgImageService.js");
+  // No request here: the card is an /uploads file, served by the API origin.
+  const apiHost = new URL(API_ORIGIN).host;
+  const req = { protocol: "https", get: (name) => (String(name || "").toLowerCase() === "host" ? apiHost : "") };
+  return generateProductOgImage({ product, req });
+};
+
+export const loadProductSeoExtras = async (
+  product = {},
+  {
+    productPrice = 0,
+    loadMerchantPolicies = defaultLoadMerchantPolicies,
+    loadOgImage = defaultLoadOgImage,
+    timeoutMs = SEO_EXTRAS_TIMEOUT_MS,
+  } = {}
+) => {
+  const [policies, ogImage] = await Promise.allSettled([
+    withSeoDataTimeout(Promise.resolve().then(() => loadMerchantPolicies({ product, productPrice })), timeoutMs, "merchant_policies"),
+    withSeoDataTimeout(Promise.resolve().then(() => loadOgImage({ product })), timeoutMs, "og_image"),
+  ]);
+  const extras = {};
+  if (policies.status === "fulfilled" && policies.value) extras.merchant_policies = policies.value;
+  if (ogImage.status === "fulfilled" && ogImage.value?.url) extras.og_image_url = ogImage.value.url;
+  [policies, ogImage].forEach((result) => {
+    if (result.status === "rejected") {
+      console.warn("[storefront-seo] product extras unavailable", {
+        product_id: product?.id,
+        error: result.reason?.message || String(result.reason),
+      });
+    }
+  });
+  return extras;
+};
+
 export const loadStorefrontHtmlShell = async (fetchImpl = fetch) => {
   const response = await fetchImpl(`${STOREFRONT_ORIGIN}/index.html?seo-shell=${Date.now()}`, {
     cache: "no-store",
@@ -292,6 +340,7 @@ export const markHtmlNoindex = (html = "") =>
 export const createStorefrontProductSeoPageHandler = ({
   loadProduct = loadProductSeoData,
   loadShell = cachedStorefrontHtmlShell,
+  loadExtras = loadProductSeoExtras,
 } = {}) => async (req, res, next) => {
   try {
     const identifier = String(req.params.identifier || "").trim();
@@ -314,9 +363,13 @@ export const createStorefrontProductSeoPageHandler = ({
     // The ad feeds link each colourway with ?color=; the schema must quote that colour's offer.
     const color = String(req.query?.color || "").trim().slice(0, 120);
     const variant = String(req.query?.variant || "").trim().slice(0, 40);
+    // The shipping rates depend on the price (free-shipping threshold), so the policies are
+    // priced with the very offer this page quotes.
+    const productPrice = Number(buildProductSeo(product, { color, variant }).productJsonLd?.offers?.price || 0);
+    const extras = await loadExtras(product, { productPrice }).catch(() => ({}));
     const html = injectProductSeoIntoHtml(
       await loadShell(),
-      makeProductSeoImagesAbsolute(buildProductSeo(product, { color, variant }))
+      makeProductSeoImagesAbsolute(buildProductSeo({ ...product, ...extras }, { color, variant }))
     );
     return sendSeoHtml(res, html, { cacheable: true });
   } catch (error) {

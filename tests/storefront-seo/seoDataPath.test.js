@@ -105,6 +105,7 @@ test("a rendered product page is shared-cacheable for a short while", async () =
   const handler = createStorefrontProductSeoPageHandler({
     loadProduct: async () => ({ status: 200, product }),
     loadShell: async () => SHELL,
+    loadExtras: async () => ({}),
   });
   const res = fakeRes();
   await handler({ params: { identifier: "air-7" }, query: {} }, res, (error) => { throw error; });

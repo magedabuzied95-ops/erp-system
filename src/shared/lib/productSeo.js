@@ -140,10 +140,14 @@ export const buildProductSeo = (product = {}, { color = "", variant = "" } = {})
   // for product snippets, so keep the schema price aligned with the initial
   // price displayed on this product page. A named colour's own price wins over the
   // product-wide one: that is the price its page shows and the ad quoted.
+  // Without a colour the page opens on the first in-stock size in the order the API
+  // returns them (StorefrontProductDetailPage), so the offer quotes that size too.
+  // product.final_price is the CHEAPEST in-stock size, which on a product priced by
+  // colourway (Air Force 1 at 900-1,850) is not the price the canonical page shows.
   const offers = {
     "@type": "Offer",
     ...offerBase,
-    price: Number((colorVariants ? prices[0] || fallbackPrice : fallbackPrice || prices[0]) || 0).toFixed(2),
+    price: Number((prices[0] || fallbackPrice) || 0).toFixed(2),
   };
   const merchantPolicies = product.merchant_policies || product.merchantPolicies || {};
   const shippingDetails = Array.isArray(merchantPolicies.shippingDetails) ? merchantPolicies.shippingDetails : [];

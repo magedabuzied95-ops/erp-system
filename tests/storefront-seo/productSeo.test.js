@@ -169,7 +169,9 @@ test("a colour that is out of stock is reported out of stock, not the product's 
 test("no colour, or a colour the product does not have, keeps the product-wide offer", () => {
   for (const color of ["", "Purple"]) {
     const seo = buildProductSeo(multiPriceProduct, { color });
-    assert.equal(seo.productJsonLd.offers.price, "400.00");
+    // The page opens on the only in-stock size (Mint 40 at 650), so the offer quotes it rather
+    // than the product row's 400 (audit g5 #59).
+    assert.equal(seo.productJsonLd.offers.price, "650.00");
     assert.equal(seo.productJsonLd.offers.url, "https://m1store-egy.com/product/nike-air-force-1-sneakers");
     assert.equal(seo.productJsonLd.color, "Mint, Pink");
   }
@@ -180,6 +182,7 @@ test("the page handler passes ?color= through to the schema", async () => {
   const handler = createStorefrontProductSeoPageHandler({
     loadProduct: async () => ({ status: 200, product: multiPriceProduct }),
     loadShell: async () => "<html><head><title>x</title></head><body></body></html>",
+    loadExtras: async () => ({}),
   });
   let sent = "";
   const res = { set() { return this; }, status() { return this; }, send(body) { sent = body; return this; } };
