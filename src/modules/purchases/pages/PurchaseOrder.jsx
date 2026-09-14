@@ -2322,7 +2322,7 @@ function PurchaseOrder() {
           onClick={handleToggleFullscreen}
           aria-label={isArabic ? "الخروج من ملء الشاشة" : "Exit fullscreen"}
           title={isArabic ? "الخروج من ملء الشاشة" : "Exit fullscreen"}
-          className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/90 text-zinc-200 shadow-lg backdrop-blur hover:bg-white/10"
+          className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text-muted shadow-lg backdrop-blur hover:bg-surface-hover"
         >
           <Minimize2 className="h-4 w-4" />
         </button>
@@ -2337,7 +2337,7 @@ function PurchaseOrder() {
             aria-label={isArabic ? "ملء الشاشة" : "Fullscreen"}
             aria-pressed={isFullscreen}
             title={isArabic ? "ملء الشاشة" : "Fullscreen"}
-            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.05] text-zinc-200 shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-white/20 hover:bg-white/[0.09] hover:text-white"
+            className="inline-flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted shadow-[0_0_18px_rgba(0,0,0,0.18)] transition hover:border-border-strong hover:bg-surface-hover hover:text-text"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </button>
@@ -2347,11 +2347,11 @@ function PurchaseOrder() {
               Cancel edit
             </button>
           ) : null}
-          <button type="button" onClick={() => setProductModalOpen(true)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => setProductModalOpen(true)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-1.5 text-xs font-semibold text-text transition hover:bg-surface-hover">
             <PackagePlus className="h-4 w-4" />
             {t("purchases.create.newProduct")}
           </button>
-          <Link to="/purchases" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10">
+          <Link to="/purchases" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-1.5 text-xs font-semibold text-text transition hover:bg-surface-hover">
             {t("purchases.create.backToDashboard")}
           </Link>
         </div>
@@ -2381,7 +2381,7 @@ function PurchaseOrder() {
               </div>
             ) : null}
           </div>
-          <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white transition hover:bg-white/10">
+          <button type="button" onClick={() => navigate(`/purchases/${editPurchase.id || editPurchaseId}`)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-black text-text transition hover:bg-surface-hover">
             <X className="h-4 w-4" />
             Cancel edit
           </button>
@@ -2410,14 +2410,14 @@ function PurchaseOrder() {
         onClose={() => setFiltersOpen(false)}
       />
 
-      <div className="sticky top-0 z-20 rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-2xl shadow-black/20 backdrop-blur">
+      <div className="sticky top-0 z-20 rounded-2xl border border-border bg-surface p-3 shadow-2xl shadow-black/20 backdrop-blur">
         <div className="grid items-end gap-3 md:grid-cols-2 xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]">
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
             <Select label={t("purchases.filters.supplier")} value={supplierId} onChange={setSupplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code ? `${supplier.supplier_code} - ` : ""}${supplier.name}` }))} emptyLabel={t("purchases.create.createSupplierFirst")} />
             <button
               type="button"
               onClick={() => setSupplierModalOpen(true)}
-              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-xs font-black text-text transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
               title={isArabic ? "إضافة مورد" : "Add supplier"}
             >
               <Plus className="h-4 w-4" />
@@ -2434,13 +2434,13 @@ function PurchaseOrder() {
             placeholder={isArabic ? "اختر الفرع" : "Select branch"}
           />
           <div ref={searchPanelWrapRef} className="relative min-w-0">
-            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-zinc-400">
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-text-muted">
               <Barcode className="h-3.5 w-3.5" />
               {t("purchases.create.searchBarcode")}
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <div className="relative min-w-0">
-                <Search className="pointer-events-none absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+                <Search className="pointer-events-none absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2 text-text-muted" />
                 <input
                   ref={searchRef}
                   value={search}
@@ -2448,14 +2448,14 @@ function PurchaseOrder() {
                   onKeyDown={handleBarcodeSubmit}
                   onFocus={() => setProductPickerOpen(true)}
                   placeholder={t("purchases.create.searchProductPlaceholder")}
-                  className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                  className="h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface-soft py-2 pe-4 ps-12 text-base font-semibold text-text outline-none transition placeholder:text-text-muted hover:border-border-strong focus:border-emerald-400/60 focus:bg-surface focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => setFiltersOpen((open) => !open)}
                 aria-expanded={filtersOpen}
-                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ filtersOpen ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+                className={`inline-flex h-[var(--control-height-lg)] shrink-0 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-xs font-black transition ${ filtersOpen ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-border bg-surface-soft text-text-muted hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
               >
                 <SlidersHorizontal className="h-4 w-4" />
                 {isArabic ? "الفلاتر" : "Filters"}
@@ -2520,7 +2520,7 @@ function PurchaseOrder() {
 
         <div
           ref={productPanelRef}
-          className={`order-1 min-w-0 space-y-3 transition-all duration-300 ease-out xl:order-2 ${ productPanelExpanded ? "fixed inset-3 z-50 flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/98 p-3 shadow-2xl shadow-black/60 sm:inset-5" : "" }`}
+          className={`order-1 min-w-0 space-y-3 transition-all duration-300 ease-out xl:order-2 ${ productPanelExpanded ? "fixed inset-3 z-50 flex flex-col overflow-hidden rounded-3xl border border-border bg-surface p-3 shadow-2xl shadow-black/60 sm:inset-5" : "" }`}
         >
           {productPanelExpanded ? (
             <button
@@ -2529,7 +2529,7 @@ function PurchaseOrder() {
                 setProductPanelExpanded(false);
                 setProductPickerOpen(false);
               }}
-              className="fixed right-6 top-6 z-[60] inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/40 transition hover:bg-white/10 sm:right-8 sm:top-8"
+              className="fixed right-6 top-6 z-[60] inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text shadow-2xl shadow-black/40 transition hover:bg-surface-hover sm:right-8 sm:top-8"
               aria-label={t("purchases.create.panelCollapse")}
               title={t("purchases.create.panelCollapse")}
             >
@@ -2537,21 +2537,21 @@ function PurchaseOrder() {
             </button>
           ) : null}
 
-          <section className={`min-w-0 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2 shadow-xl shadow-black/10 backdrop-blur transition-all duration-300 ${productPanelExpanded ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+          <section className={`min-w-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft p-2 shadow-xl shadow-black/10 backdrop-blur transition-all duration-300 ${productPanelExpanded ? "flex min-h-0 flex-1 flex-col" : ""}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.productCards")}</div>
-                <h3 className="m1-section-title mt-0.5 text-white">{t("purchases.create.variantProcurementGrid")}</h3>
+                <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{t("purchases.create.productCards")}</div>
+                <h3 className="m1-section-title mt-0.5 text-text">{t("purchases.create.variantProcurementGrid")}</h3>
               </div>
               <div className="flex items-center gap-2">
-                <div className="text-xs text-zinc-400">{t("purchases.create.variantsCount", { count: filteredProducts.length })}</div>
+                <div className="text-xs text-text-muted">{t("purchases.create.variantsCount", { count: filteredProducts.length })}</div>
                 <button
                   type="button"
                   onClick={() => {
                     setProductPanelExpanded((next) => !next);
                     setProductPickerOpen(false);
                   }}
-                  className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
+                  className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-text"
                   aria-label={t(productPanelExpanded ? "purchases.create.panelCollapse" : "purchases.create.panelExpand")}
                   title={t(productPanelExpanded ? "purchases.create.panelCollapse" : "purchases.create.panelExpand")}
                 >
@@ -2564,7 +2564,7 @@ function PurchaseOrder() {
                       setProductPanelExpanded(false);
                       setProductPickerOpen(false);
                     }}
-                    className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-white"
+                    className="inline-flex h-[var(--control-height-md)] w-9 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:border-rose-300/30 hover:bg-rose-400/10 hover:text-text"
                     aria-label={t("purchases.create.panelClose")}
                     title={t("purchases.create.panelClose")}
                   >
@@ -2576,16 +2576,16 @@ function PurchaseOrder() {
             {productsLoading ? (
               <CardSkeleton />
             ) : groupedCards.length === 0 ? (
-              <div className="mt-3 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-center">
-                <PackagePlus className="mx-auto h-12 w-12 text-zinc-500" />
-                <h3 className="m1-section-title mt-4 text-white">
+              <div className="mt-3 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-8 text-center">
+                <PackagePlus className="mx-auto h-12 w-12 text-text-muted" />
+                <h3 className="m1-section-title mt-4 text-text">
                   {search.trim()
                     ? t("purchases.create.noMatchingProducts")
                     : isArabic
                       ? "لا توجد منتجات بكميات مبدئية تنتظر فاتورة مشتريات"
                       : "No products with initial quantities are waiting for a purchase invoice"}
                 </h3>
-                <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-zinc-400">
+                <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-text-muted">
                   {search.trim()
                     ? (isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size.")
                     : (isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product that already has a purchase invoice.")}
@@ -2599,13 +2599,13 @@ function PurchaseOrder() {
             ) : (
               <div className={`mt-3 ${productPanelExpanded ? "min-h-0 flex-1 overflow-y-auto pr-1" : ""}`}>
                 {purchaseQtySelection.length ? (
-                  <div className="sticky top-0 z-20 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/30 bg-zinc-950/95 p-3 shadow-xl backdrop-blur">
-                    <div className="flex items-center gap-2 text-sm font-black text-white">
+                  <div className="sticky top-0 z-20 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/30 bg-surface p-3 shadow-xl backdrop-blur">
+                    <div className="flex items-center gap-2 text-sm font-black text-text">
                       <span className="grid h-8 min-w-8 place-items-center rounded-full bg-amber-400 px-2 text-black">{purchaseQtySelection.length}</span>
                       <span>{purchaseQtyLabels.selectedCount}</span>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" onClick={() => setPurchaseQtySelection([])} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                      <button type="button" onClick={() => setPurchaseQtySelection([])} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-bold text-text-muted hover:bg-surface-hover">
                         {purchaseQtyLabels.clear}
                       </button>
                       <button type="button" onClick={openPurchaseQtyPreview} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-amber-400 px-4 py-2 text-xs font-black text-black hover:bg-amber-300">
@@ -2654,13 +2654,13 @@ function PurchaseOrder() {
       {productModalOpen ? <QuickProductModal form={productForm} setForm={setProductForm} saving={productSaving} error={productError} onClose={() => setProductModalOpen(false)} onSubmit={createInlineProduct} /> : null}
       {confirmReceivedEditSave ? (
         <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4 backdrop-blur">
-          <div className="w-full max-w-md rounded-3xl border border-amber-400/20 bg-zinc-950 p-5 shadow-2xl">
-            <h3 className="m1-section-title text-white">{t("purchases.details.confirmReceivedEdit")}</h3>
+          <div className="w-full max-w-md rounded-3xl border border-amber-400/20 bg-surface p-5 shadow-2xl">
+            <h3 className="m1-section-title text-text">{t("purchases.details.confirmReceivedEdit")}</h3>
             <p className="mt-3 text-sm font-semibold leading-6 text-amber-100">
               {t("purchases.details.receivedSaveWarning")}
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setConfirmReceivedEditSave(false)} disabled={posting} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{t("common.cancel")}</button>
+              <button type="button" onClick={() => setConfirmReceivedEditSave(false)} disabled={posting} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-2 text-sm font-bold text-text disabled:opacity-50">{t("common.cancel")}</button>
               <button type="button" onClick={() => postPurchase("received", { confirmReceivedEdit: true })} disabled={posting} className="rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-black disabled:opacity-60">{posting ? t("purchases.details.savingAdjustments") : t("purchases.details.saveAdjustments")}</button>
             </div>
           </div>
@@ -2688,22 +2688,22 @@ function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onC
   const articleCode = firstText(group.article_code, ...variants.map((variant) => variant.article_code));
 
   return (
-    <div className={`group overflow-hidden rounded-[var(--radius-card)] border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : matchedLabel ? "border-emerald-300/60 ring-2 ring-emerald-400/10" : "border-white/10 hover:border-emerald-400/30"}`}>
+    <div className={`group overflow-hidden rounded-[var(--radius-card)] border bg-surface-soft transition hover:bg-surface-hover ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : matchedLabel ? "border-emerald-300/60 ring-2 ring-emerald-400/10" : "border-border hover:border-emerald-400/30"}`}>
       <button type="button" onClick={onClick} className="block w-full text-left">
-        <div className="aspect-[5/3] bg-zinc-900">
+        <div className="aspect-[5/3] bg-surface-soft">
           <ProductImage src={group.image_url || first.image_url} name={group.product_name} className="h-full w-full object-cover" />
         </div>
         <div className="p-2.5">
-          <div className="line-clamp-1 text-sm font-black text-white">{group.product_name}</div>
+          <div className="line-clamp-1 text-sm font-black text-text">{group.product_name}</div>
           {matchedLabel ? <div className="mt-1 truncate rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-black text-emerald-100">{t("purchases.create.matchedTo", { label: matchedLabel })}</div> : null}
           {articleCode ? <div className="mt-1 truncate text-[10px] font-bold text-amber-200">{t("purchases.create.articleCode", { code: articleCode })}</div> : null}
-          <div className="mt-1 text-xs text-zinc-500">{first.sku || first.barcode ? `SKU ${first.sku || first.barcode}` : t("purchases.create.variantsCount", { count: variants.length })}</div>
+          <div className="mt-1 text-xs text-text-muted">{first.sku || first.barcode ? `SKU ${first.sku || first.barcode}` : t("purchases.create.variantsCount", { count: variants.length })}</div>
         </div>
       </button>
-      <div className="grid grid-cols-1 border-t border-white/10 sm:grid-cols-3">
-        <button type="button" onClick={onSizeRun} className="px-2 py-1.5 text-[11px] font-black text-emerald-300 hover:bg-white/5">{t("purchases.create.sizeRun")}</button>
-        <button type="button" onClick={onColorRun} className="border-t border-white/10 px-2 py-1.5 text-[11px] font-black text-primary hover:bg-white/5 sm:border-l sm:border-t-0">{t("purchases.create.colorRun")}</button>
-        <button type="button" aria-pressed={purchaseQtySelected} onClick={onUsePurchaseQty} className={`inline-flex items-center justify-center gap-1.5 border-t border-white/10 px-2 py-1.5 text-[11px] font-black sm:border-l sm:border-t-0 ${purchaseQtySelected ? "bg-amber-400 text-black" : "text-amber-200 hover:bg-amber-400/10"}`}>
+      <div className="grid grid-cols-1 border-t border-border sm:grid-cols-3">
+        <button type="button" onClick={onSizeRun} className="px-2 py-1.5 text-[11px] font-black text-emerald-300 hover:bg-surface-hover">{t("purchases.create.sizeRun")}</button>
+        <button type="button" onClick={onColorRun} className="border-t border-border px-2 py-1.5 text-[11px] font-black text-primary hover:bg-surface-hover sm:border-l sm:border-t-0">{t("purchases.create.colorRun")}</button>
+        <button type="button" aria-pressed={purchaseQtySelected} onClick={onUsePurchaseQty} className={`inline-flex items-center justify-center gap-1.5 border-t border-border px-2 py-1.5 text-[11px] font-black sm:border-l sm:border-t-0 ${purchaseQtySelected ? "bg-amber-400 text-black" : "text-amber-200 hover:bg-amber-400/10"}`}>
           <ClipboardCheck className="h-3.5 w-3.5" />
           {purchaseQtyLabel}
         </button>
@@ -2719,7 +2719,7 @@ function ProductImage({ src, name, className = "h-12 w-12 rounded-xl object-cove
     setFailed(false);
   }, [imageUrl]);
   if (imageUrl && !failed) return <img src={imageUrl} alt="" className={className} loading="lazy" onError={() => setFailed(true)} />;
-  return <div className={`${className} flex items-center justify-center bg-white/5 text-lg font-black text-zinc-500`}>{String(name || "?").slice(0, 1).toUpperCase()}</div>;
+  return <div className={`${className} flex items-center justify-center bg-surface-soft text-lg font-black text-text-muted`}>{String(name || "?").slice(0, 1).toUpperCase()}</div>;
 }
 
 function ColorIdentity({ color, variant, productName, sizes = 0, compact = false }) {
@@ -2728,7 +2728,7 @@ function ColorIdentity({ color, variant, productName, sizes = 0, compact = false
   const showSwatch = isHexColor(swatch);
   const imageSrc = firstText(variant?.variant_image_url, variant?.color_image, variant?.color_image_url, variant?.image_url);
   return (
-    <div className={`rounded-2xl border border-white/10 bg-black/20 ${compact ? "p-2" : "p-3"}`}>
+    <div className={`rounded-2xl border border-border bg-surface-soft ${compact ? "p-2" : "p-3"}`}>
       <div className={`grid items-center gap-3 ${compact ? "grid-cols-[2.5rem_minmax(0,1fr)]" : "grid-cols-[4.5rem_minmax(0,1fr)]"}`}>
         <ProductImage
           src={imageSrc}
@@ -2737,10 +2737,10 @@ function ColorIdentity({ color, variant, productName, sizes = 0, compact = false
         />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            {showSwatch ? <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-white/30" style={{ backgroundColor: swatch }} /> : null}
-            <div className="truncate text-sm font-black text-white">{color || t("purchases.create.defaultVariant")}</div>
+            {showSwatch ? <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-border-strong" style={{ backgroundColor: swatch }} /> : null}
+            <div className="truncate text-sm font-black text-text">{color || t("purchases.create.defaultVariant")}</div>
           </div>
-          <div className="mt-1 truncate text-xs text-zinc-500">{productName || t("purchases.create.variantColor")}</div>
+          <div className="mt-1 truncate text-xs text-text-muted">{productName || t("purchases.create.variantColor")}</div>
           {sizes ? <div className="mt-1 text-[11px] font-semibold text-emerald-300">{t("purchases.create.sizesCount", { count: sizes })}</div> : null}
         </div>
       </div>
@@ -2808,35 +2808,35 @@ function ColorImageDropdown({ label = "", value, onChange, options = [], product
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label || t("purchases.create.color")}</div>
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label || t("purchases.create.color")}</div>
       <button
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
         onClick={() => setOpen((next) => !next)}
         onKeyDown={handleButtonKey}
-        className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-left outline-none transition hover:border-emerald-400/40 focus:border-emerald-400/60"
+        className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-control)] border border-border bg-surface-soft p-2 text-left outline-none transition hover:border-emerald-400/40 focus:border-emerald-400/60"
       >
         {selectedOption ? (
           <div className="min-w-0 flex-1">
             <ColorIdentity color={selectedOption.color} variant={selectedOption.variant} productName={productName} sizes={selectedOption.count} compact />
           </div>
         ) : (
-          <span className="px-2 py-3 text-sm font-semibold text-zinc-500">{t("purchases.create.noColors")}</span>
+          <span className="px-2 py-3 text-sm font-semibold text-text-muted">{t("purchases.create.noColors")}</span>
         )}
-        <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-text-muted transition ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
-          <div className="border-b border-white/10 p-2">
+        <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-black/60">
+          <div className="border-b border-border p-2">
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleListKey}
               placeholder={t("purchases.create.searchColor")}
-              className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
+              className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm text-text outline-none placeholder:text-text-muted focus:border-emerald-400/50"
             />
           </div>
           <div role="listbox" tabIndex={-1} onKeyDown={handleListKey} className="m1-dropdown-menu max-h-72 overflow-y-auto p-2">
@@ -2859,7 +2859,7 @@ function ColorImageDropdown({ label = "", value, onChange, options = [], product
                 );
               })
             ) : (
-              <div className="px-3 py-4 text-sm font-semibold text-zinc-500">{t("purchases.create.noMatchingColors")}</div>
+              <div className="px-3 py-4 text-sm font-semibold text-text-muted">{t("purchases.create.noMatchingColors")}</div>
             )}
           </div>
         </div>
@@ -2874,16 +2874,16 @@ function Badge({ tone = "zinc", label }) {
     emerald: "bg-emerald-400 text-black",
     cyan: "bg-primary text-black",
     rose: "bg-rose-400 text-black",
-    zinc: "bg-white/10 text-white",
+    zinc: "bg-surface-hover text-text",
   };
   return <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${classes[tone]}`}>{label}</span>;
 }
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/20 p-2">
-      <div className="text-[10px] uppercase text-zinc-500">{label}</div>
-      <div className="mt-1 truncate font-bold text-white">{value}</div>
+    <div className="rounded-xl border border-border bg-surface-soft p-2">
+      <div className="text-[10px] uppercase text-text-muted">{label}</div>
+      <div className="mt-1 truncate font-bold text-text">{value}</div>
     </div>
   );
 }
@@ -2948,19 +2948,19 @@ function PurchaseCart({
       };
 
   return (
-    <aside className={`${compact ? "flex max-h-[82vh] flex-col" : "flex max-h-none flex-col xl:sticky xl:top-[4.5rem] xl:h-[calc(100vh-5rem)]"} min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-zinc-950/90 shadow-2xl shadow-black/20`}>
-      <div className="flex shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-l from-white/[0.05] to-transparent px-4 py-3">
+    <aside className={`${compact ? "flex max-h-[82vh] flex-col" : "flex max-h-none flex-col xl:sticky xl:top-[4.5rem] xl:h-[calc(100vh-5rem)]"} min-w-0 overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl shadow-black/20`}>
+      <div className="flex shrink-0 items-center justify-between border-b border-border bg-gradient-to-l from-surface-soft to-transparent px-4 py-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.purchaseCart")}</div>
-          <h3 className="m1-section-title mt-0.5 text-white">{formatCurrency(total)}</h3>
-          {activeSupplier ? <div className="mt-1 text-xs text-zinc-500">{activeSupplier.name}</div> : null}
+          <div className="text-[11px] uppercase tracking-[0.18em] text-text-muted">{t("purchases.create.purchaseCart")}</div>
+          <h3 className="m1-section-title mt-0.5 text-text">{formatCurrency(total)}</h3>
+          {activeSupplier ? <div className="mt-1 text-xs text-text-muted">{activeSupplier.name}</div> : null}
         </div>
         <div className="flex items-center gap-2">
-          {onClose ? <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white"><X className="h-4 w-4" /></button> : null}
+          {onClose ? <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-2 text-text"><X className="h-4 w-4" /></button> : null}
         </div>
       </div>
 
-      <div className="shrink-0 border-b border-white/10 px-3 py-2.5">
+      <div className="shrink-0 border-b border-border px-3 py-2.5">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <button
             type="button"
@@ -2990,14 +2990,14 @@ function PurchaseCart({
             {t("purchases.create.bulkSalePrice")}
           </button>
         </div>
-        <p className="mt-1.5 text-[11px] leading-4 text-zinc-500">
+        <p className="mt-1.5 text-[11px] leading-4 text-text-muted">
           {t("purchases.create.bulkChangesHelper")}
         </p>
       </div>
 
-      <div className="min-h-[15rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/20 p-2.5 [scrollbar-gutter:stable] xl:min-h-[6rem] xl:max-h-none xl:flex-1">
+      <div className="min-h-[15rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-border bg-surface-soft p-2.5 [scrollbar-gutter:stable] xl:min-h-[6rem] xl:max-h-none xl:flex-1">
         {items.length === 0 ? (
-          <div className="rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
+          <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-6 text-center text-sm text-text-muted">
             {t("purchases.create.emptyCartHelper")}
           </div>
         ) : (
@@ -3007,37 +3007,37 @@ function PurchaseCart({
         )}
       </div>
 
-      <div className="shrink-0 bg-zinc-950/98 p-3 backdrop-blur">
+      <div className="shrink-0 bg-surface p-3 backdrop-blur">
         <div className="max-h-[34vh] overflow-y-auto overscroll-contain pb-1 [scrollbar-gutter:stable] xl:max-h-[58vh]">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Summary label={t("purchases.details.subtotal")} value={formatCurrency(subtotal)} />
           <Summary label={t("purchases.create.expenses")} value={formatCurrency(expenses)} />
-          <label className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.orderDiscount")}</div>
-            <input type="number" min="0" value={discount} onChange={(event) => onDiscount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
+          <label className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-2.5">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{t("purchases.create.orderDiscount")}</div>
+            <input type="number" min="0" value={discount} onChange={(event) => onDiscount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-text outline-none" />
           </label>
         </div>
         <div className="mt-2 flex items-center justify-between rounded-2xl bg-emerald-500 px-5 py-4 text-black shadow-lg shadow-emerald-950/20">
           <span className="text-sm font-black">{labels.grandTotal}</span>
           <span className="text-2xl font-black">{formatCurrency(total)}</span>
         </div>
-        <div className="mt-2 overflow-hidden rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04]">
+        <div className="mt-2 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface-soft">
           <button
             type="button"
             onClick={() => setPaymentDetailsOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start transition hover:bg-white/[0.04]"
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-start transition hover:bg-surface-hover"
             aria-expanded={paymentDetailsOpen}
           >
             <div>
               <div className="text-sm font-black text-emerald-200">{isArabic ? "طريقة الدفع والحساب" : "Payment method & account"}</div>
-              <div className="mt-0.5 text-xs font-semibold text-zinc-400">
+              <div className="mt-0.5 text-xs font-semibold text-text-muted">
                 {paymentStatusOptions.find((option) => String(option.value) === String(supplierPaymentStatus))?.label || labels.unpaid}
               </div>
             </div>
-            {paymentDetailsOpen ? <ChevronUp className="h-4 w-4 text-zinc-400" /> : <ChevronDown className="h-4 w-4 text-zinc-400" />}
+            {paymentDetailsOpen ? <ChevronUp className="h-4 w-4 text-text-muted" /> : <ChevronDown className="h-4 w-4 text-text-muted" />}
           </button>
           {paymentDetailsOpen ? (
-          <div className="grid gap-2 border-t border-white/10 p-3">
+          <div className="grid gap-2 border-t border-border p-3">
             <Select
               label={labels.supplierPayment}
               value={supplierPaymentStatus}
@@ -3064,9 +3064,9 @@ function PurchaseCart({
                   emptyLabel={isArabic ? "اختر الحساب" : "Choose an account"}
                 />
                 {supplierPaymentStatus === "partial" ? (
-                  <label className="block rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{labels.paidAmount}</div>
-                    <input type="number" min="0" max={total} value={supplierPaidAmount} onChange={(event) => onSupplierPaidAmount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-white outline-none" />
+                  <label className="block rounded-[var(--radius-card)] border border-border bg-surface-soft p-2.5">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{labels.paidAmount}</div>
+                    <input type="number" min="0" max={total} value={supplierPaidAmount} onChange={(event) => onSupplierPaidAmount(money(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-semibold text-text outline-none" />
                   </label>
                 ) : null}
               </>
@@ -3105,7 +3105,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
   const saleBelowCost = salePrice > 0 && salePrice < purchasePrice;
   const saleAboveSelling = salePrice > sellingPrice;
   const lineTotal = money(item.quantity) * purchasePrice;
-  const numberInputClass = "h-6 w-full bg-transparent text-right text-sm font-semibold text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+  const numberInputClass = "h-6 w-full bg-transparent text-right text-sm font-semibold text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
   const labels = {
     quantity: "الكمية",
     purchasePrice: "سعر الشراء",
@@ -3121,26 +3121,26 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
   };
 
   return (
-    <div className="relative rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 shadow-lg shadow-black/10 transition hover:border-white/20 hover:bg-white/[0.065]">
-      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
+    <div className="relative rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-lg shadow-black/10 transition hover:border-border-strong hover:bg-surface-hover">
+      <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-[var(--control-height-sm)] w-7 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
 
       <div className="flex min-w-0 items-center gap-3 pe-8">
         <ProductImage src={item.image_url} name={item.product_name} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-black leading-6 text-white">{item.product_name}</div>
-          <div className="truncate text-[11px] font-semibold leading-4 text-zinc-500">
+          <div className="truncate text-sm font-black leading-6 text-text">{item.product_name}</div>
+          <div className="truncate text-[11px] font-semibold leading-4 text-text-muted">
             {item.barcode || item.sku || "بدون SKU"} • {item.color || "افتراضي"} / {item.size || "مقاس واحد"}
           </div>
         </div>
       </div>
 
       <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(7rem,0.95fr)_8rem_minmax(6rem,1fr)_minmax(6rem,1fr)_minmax(6rem,1fr)_auto]">
-        <label className="min-w-0 rounded-xl border border-white/10 bg-zinc-950/45 px-2.5 py-1.5">
-          <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.variant}</div>
+        <label className="min-w-0 rounded-xl border border-border bg-surface px-2.5 py-1.5">
+          <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-text-muted">{labels.variant}</div>
           {variants.length > 1 ? (
-            <select value={item.variant_id || ""} onChange={(event) => onChangeVariant(item.line_id, event.target.value)} className="h-5 w-full bg-transparent text-[11px] font-semibold text-zinc-200 outline-none focus:text-white">
+            <select value={item.variant_id || ""} onChange={(event) => onChangeVariant(item.line_id, event.target.value)} className="h-5 w-full bg-transparent text-[11px] font-semibold text-text-muted outline-none focus:text-text">
               {variants.map((variant) => (
                 <option key={variant.line_id} value={variant.variant_id || ""}>
                   {variant.color || "افتراضي"} / {variant.size || "مقاس واحد"}
@@ -3148,18 +3148,18 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
               ))}
             </select>
           ) : (
-            <div className="h-5 truncate text-[11px] font-semibold leading-5 text-zinc-400">
+            <div className="h-5 truncate text-[11px] font-semibold leading-5 text-text-muted">
               {item.color || "افتراضي"} / {item.size || "مقاس واحد"}
             </div>
           )}
         </label>
 
-        <label className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-2.5 py-1.5">
-          <div className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.quantity}</div>
+        <label className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-2.5 py-1.5">
+          <div className="text-[8px] font-black uppercase tracking-[0.1em] text-text-muted">{labels.quantity}</div>
           <div className="flex h-5 items-center">
-            <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 hover:bg-white/5 hover:text-white"><Minus className="h-3 w-3" /></button>
-            <input type="number" min="1" value={item.quantity} onChange={(event) => onUpdate(item.line_id, { quantity: Math.max(1, money(event.target.value)) })} className="h-5 min-w-0 flex-1 bg-transparent text-center text-sm font-black text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" dir="ltr" />
-            <button type="button" onClick={() => onQty(item.line_id, 1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-zinc-300 hover:bg-white/5 hover:text-white"><Plus className="h-3 w-3" /></button>
+            <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-hover hover:text-text"><Minus className="h-3 w-3" /></button>
+            <input type="number" min="1" value={item.quantity} onChange={(event) => onUpdate(item.line_id, { quantity: Math.max(1, money(event.target.value)) })} className="h-5 min-w-0 flex-1 bg-transparent text-center text-sm font-black text-text outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" dir="ltr" />
+            <button type="button" onClick={() => onQty(item.line_id, 1)} className="flex h-5 w-7 items-center justify-center rounded-[var(--radius-control)] text-text-muted hover:bg-surface-hover hover:text-text"><Plus className="h-3 w-3" /></button>
           </div>
         </label>
 
@@ -3168,14 +3168,14 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
           <input type="number" min="0" step="0.01" value={item.cost_price} onChange={(event) => onUpdate(item.line_id, { cost_price: money(event.target.value) })} className={`${numberInputClass} font-black`} dir="ltr" />
         </label>
 
-        <label className="rounded-xl border border-white/10 bg-zinc-950/45 px-2.5 py-1.5">
-          <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.sellingPrice}</div>
-          <input type="number" min="0" step="0.01" value={sellingPrice} onChange={(event) => onUpdate(item.line_id, { selling_price: money(event.target.value), price: money(event.target.value) })} className={`${numberInputClass} text-zinc-200`} dir="ltr" />
+        <label className="rounded-xl border border-border bg-surface px-2.5 py-1.5">
+          <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-text-muted">{labels.sellingPrice}</div>
+          <input type="number" min="0" step="0.01" value={sellingPrice} onChange={(event) => onUpdate(item.line_id, { selling_price: money(event.target.value), price: money(event.target.value) })} className={`${numberInputClass} text-text-muted`} dir="ltr" />
         </label>
 
-        <label className={`rounded-xl border px-2.5 py-1.5 ${saleBelowCost || saleAboveSelling ? "border-amber-400/35 bg-amber-500/10" : "border-white/10 bg-zinc-950/35"}`} title={labels.saleOptional}>
-          <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.salePrice}</div>
-          <input type="number" min="0" step="0.01" value={salePrice || ""} onChange={(event) => onUpdate(item.line_id, { sale_price: Math.max(0, money(event.target.value)) })} placeholder="0.00" className={`${numberInputClass} text-zinc-200 placeholder:text-zinc-700`} dir="ltr" />
+        <label className={`rounded-xl border px-2.5 py-1.5 ${saleBelowCost || saleAboveSelling ? "border-amber-400/35 bg-amber-500/10" : "border-border bg-surface"}`} title={labels.saleOptional}>
+          <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-text-muted">{labels.salePrice}</div>
+          <input type="number" min="0" step="0.01" value={salePrice || ""} onChange={(event) => onUpdate(item.line_id, { sale_price: Math.max(0, money(event.target.value)) })} placeholder="0.00" className={`${numberInputClass} text-text-muted placeholder:text-text-muted`} dir="ltr" />
         </label>
 
         <div className="col-span-2 flex min-h-[2.625rem] items-end justify-end sm:col-span-1 sm:justify-start">
@@ -3187,7 +3187,7 @@ const CartLine = memo(function CartLine({ item, variants, showCostError = false,
 
       {(saleBelowCost || saleAboveSelling || showCostError || item.last_purchase_cost || item.last_purchase_date) ? (
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[10px] font-semibold">
-          <div className="min-w-0 truncate text-zinc-600">
+          <div className="min-w-0 truncate text-text-muted">
             {labels.lastPurchase}: {formatCurrency(item.last_purchase_cost || item.cost_price || 0)} {item.last_purchase_date ? `| ${String(item.last_purchase_date).slice(0, 10)}` : ""}
           </div>
           <div className="flex flex-wrap justify-end gap-x-2 gap-y-0.5">
@@ -3207,38 +3207,38 @@ function ProductSearchPanel({ search, products, results, loading, onAdd }) {
   const rows = groupByProduct(Array.isArray(results) ? results : []).slice(0, 12);
 
   return (
-    <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/40">
-      <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold text-zinc-400">
+    <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-black/40">
+      <div className="border-b border-border px-4 py-3 text-xs font-semibold text-text-muted">
         {loading ? t("purchases.create.loadingProducts") : hasSearch ? t("purchases.create.matchingProducts") : t("purchases.create.startTypingProducts")}
       </div>
       {loading ? (
-        <div className="px-4 py-5 text-sm text-zinc-400">{t("purchases.create.loadingProducts")}</div>
+        <div className="px-4 py-5 text-sm text-text-muted">{t("purchases.create.loadingProducts")}</div>
       ) : !hasProducts ? (
         <div className="px-4 py-5">
-          <div className="text-sm font-semibold text-white">{t("purchases.create.noProductsFound")}</div>
+          <div className="text-sm font-semibold text-text">{t("purchases.create.noProductsFound")}</div>
           <Link to="/products/create" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black">
             <Plus className="h-4 w-4" /> {t("purchases.create.addProduct")}
           </Link>
         </div>
       ) : rows.length === 0 ? (
-        <div className="px-4 py-5 text-sm text-zinc-400">{t("purchases.create.noMatchingProducts")}</div>
+        <div className="px-4 py-5 text-sm text-text-muted">{t("purchases.create.noMatchingProducts")}</div>
       ) : (
         <div className="max-h-96 overflow-y-auto p-2">
           {rows.map((product) => {
             const first = toArray(product.variants)[0] || {};
             return (
-            <button key={String(product.product_id)} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onAdd(product)} className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-control)] px-3 py-3 text-left transition hover:bg-white/10 focus:bg-white/10 focus:outline-none">
+            <button key={String(product.product_id)} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onAdd(product)} className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-control)] px-3 py-3 text-left transition hover:bg-surface-hover focus:bg-surface-hover focus:outline-none">
               <ProductImage src={product.image_url || first.image_url} name={product.product_name} />
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-white">{product.product_name}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
+                <div className="truncate text-sm font-semibold text-text">{product.product_name}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
                   <span>SKU {first.sku || t("purchases.supplierDetails.notAvailable")}</span>
                   {product.matched_article ? <span>{t("purchases.create.articleCode", { code: product.matched_article })}</span> : null}
                   <span>{t("purchases.create.variantsCount", { count: toArray(product.variants).length })}</span>
                 </div>
               </div>
               <div className="text-right text-xs">
-                <div className="font-semibold text-zinc-200">{t("purchases.create.stockWithValue", { stock: toArray(product.variants).reduce((sum, item) => sum + money(item.stock), 0) })}</div>
+                <div className="font-semibold text-text-muted">{t("purchases.create.stockWithValue", { stock: toArray(product.variants).reduce((sum, item) => sum + money(item.stock), 0) })}</div>
                 <div className="mt-1 text-emerald-300">{formatCurrency(first.cost_price || 0)}</div>
               </div>
             </button>
@@ -3256,11 +3256,11 @@ function VariantSelector({ group, onAdd, onClose }) {
     <Modal title={group.product_name} eyebrow={t("purchases.create.selectVariant")} onClose={onClose}>
       <div className="grid gap-2 sm:grid-cols-2">
         {toArray(group.variants).map((variant) => (
-          <button key={variant.line_id} type="button" onClick={() => { onAdd(variant); onClose(); }} className="flex items-center gap-3 rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-3 text-left hover:bg-white/10">
+          <button key={variant.line_id} type="button" onClick={() => { onAdd(variant); onClose(); }} className="flex items-center gap-3 rounded-[var(--radius-control)] border border-border bg-surface-soft p-3 text-left hover:bg-surface-hover">
             <ProductImage src={variant.image_url} name={variant.product_name} />
             <div className="min-w-0">
-              <div className="font-black text-white">{variant.color || t("purchases.create.defaultVariant")} / {variant.size || t("purchases.create.oneSize")}</div>
-              <div className="text-xs text-zinc-500">{variant.sku || t("purchases.supplierDetails.notAvailable")} | {t("purchases.create.stockWithValue", { stock: variant.stock })}</div>
+              <div className="font-black text-text">{variant.color || t("purchases.create.defaultVariant")} / {variant.size || t("purchases.create.oneSize")}</div>
+              <div className="text-xs text-text-muted">{variant.sku || t("purchases.supplierDetails.notAvailable")} | {t("purchases.create.stockWithValue", { stock: variant.stock })}</div>
               <div className="text-xs text-emerald-300">{formatCurrency(variant.cost_price)}</div>
             </div>
           </button>
@@ -3340,19 +3340,19 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
       </label>
     </div>
   );
-  const priceInputClass = "h-9 w-24 rounded-xl border border-white/10 bg-zinc-950 px-2 text-center font-black text-white outline-none focus:border-emerald-400/50";
+  const priceInputClass = "h-9 w-24 rounded-xl border border-border bg-surface px-2 text-center font-black text-text outline-none focus:border-emerald-400/50";
 
   return (
     <Modal eyebrow={labels.eyebrow} title={labels.title} onClose={onClose}>
       <div className="space-y-4" dir={isArabic ? "rtl" : "ltr"}>
         <div className="rounded-3xl border border-amber-400/25 bg-amber-400/10 p-4">
-          <div className="text-sm font-black text-white">{data?.group?.product_name || "Product"}</div>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">{labels.description}</p>
+          <div className="text-sm font-black text-text">{data?.group?.product_name || "Product"}</div>
+          <p className="mt-2 text-sm leading-6 text-text-muted">{labels.description}</p>
         </div>
 
-        <div className="max-h-80 overflow-auto rounded-2xl border border-white/10 bg-black/20">
+        <div className="max-h-80 overflow-auto rounded-2xl border border-border bg-surface-soft">
           <table className="min-w-full text-start text-xs">
-            <thead className="sticky top-0 bg-zinc-950 text-zinc-500">
+            <thead className="sticky top-0 bg-surface text-text-muted">
               <tr>
                 <th className="px-3 py-2 font-black uppercase">{labels.variant}</th>
                 <th className="px-3 py-2 font-black uppercase">{labels.current}</th>
@@ -3365,15 +3365,15 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
             </thead>
             <tbody className="divide-y divide-white/10">
               {rows.map((row) => (
-                <tr key={String(row.line_id)} className="text-zinc-300">
-                  <td className="px-3 py-2 font-semibold text-white">
+                <tr key={String(row.line_id)} className="text-text-muted">
+                  <td className="px-3 py-2 font-semibold text-text">
                     <div className="flex min-w-32 items-center gap-2">
-                      <ProductImage src={row.variant?.variant_image_url || row.variant?.color_image_url || row.variant?.image_url} name={`${row.color} ${row.size}`} className="h-10 w-10 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white object-contain" />
+                      <ProductImage src={row.variant?.variant_image_url || row.variant?.color_image_url || row.variant?.image_url} name={`${row.color} ${row.size}`} className="h-10 w-10 shrink-0 rounded-[var(--radius-card)] border border-border bg-white object-contain" />
                       <span className="whitespace-nowrap">{row.color} / {row.size}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2" dir="ltr">{row.currentQty}</td>
-                  <td className={`px-3 py-2 font-black ${row.savedQty === null ? "text-zinc-500" : "text-amber-100"}`} dir="ltr">
+                  <td className={`px-3 py-2 font-black ${row.savedQty === null ? "text-text-muted" : "text-amber-100"}`} dir="ltr">
                     {row.savedQty === null ? labels.notSaved : row.savedQty}
                   </td>
                   <td className="px-3 py-2 font-black text-emerald-200" dir="ltr">{row.newQty}</td>
@@ -3395,7 +3395,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
         {!canApply ? <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">{labels.noChanges}</div> : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover">
             {labels.cancel}
           </button>
           <button type="button" onClick={() => onApply(rows)} disabled={!canApply} className="rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
@@ -3470,7 +3470,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
       step="0.01"
       value={product[field]}
       onChange={(event) => updateProductPrice(product.key, field, event.target.value)}
-      className="h-[var(--control-height-lg)] w-28 rounded-[var(--radius-control)] border border-white/10 bg-zinc-950 px-3 text-center font-black text-white outline-none transition focus:border-emerald-400/60"
+      className="h-[var(--control-height-lg)] w-28 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-center font-black text-text outline-none transition focus:border-emerald-400/60"
       aria-label={`${label} - ${product.group?.product_name || "Product"}`}
     />
   );
@@ -3480,12 +3480,12 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
       <div className="space-y-4" dir={isArabic ? "rtl" : "ltr"}>
         <div className="rounded-3xl border border-amber-400/25 bg-amber-400/10 p-4">
           <div className="text-sm font-black text-amber-100">{products.length} {labels.selected}</div>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">{labels.description}</p>
+          <p className="mt-2 text-sm leading-6 text-text-muted">{labels.description}</p>
         </div>
 
-        <div className="max-h-[52vh] overflow-auto rounded-2xl border border-white/10 bg-black/20">
+        <div className="max-h-[52vh] overflow-auto rounded-2xl border border-border bg-surface-soft">
           <table className="min-w-full text-start text-xs">
-            <thead className="sticky top-0 z-10 bg-zinc-950 text-zinc-500">
+            <thead className="sticky top-0 z-10 bg-surface text-text-muted">
               <tr>
                 <th className="px-3 py-3 font-black uppercase">{labels.product}</th>
                 <th className="px-3 py-3 font-black uppercase">{labels.coverage}</th>
@@ -3498,13 +3498,13 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
               {products.map((product) => {
                 const firstVariant = product.rows[0]?.variant || {};
                 return (
-                  <tr key={String(product.key)} className="text-zinc-300">
-                    <td className="px-3 py-3 font-semibold text-white">
+                  <tr key={String(product.key)} className="text-text-muted">
+                    <td className="px-3 py-3 font-semibold text-text">
                       <div className="flex min-w-48 items-center gap-3">
                         <ProductImage
                           src={product.group?.image_url || firstVariant.variant_image_url || firstVariant.color_image_url || firstVariant.image_url}
                           name={product.group?.product_name}
-                          className="h-12 w-12 shrink-0 rounded-[var(--radius-card)] border border-white/10 bg-white object-contain"
+                          className="h-12 w-12 shrink-0 rounded-[var(--radius-card)] border border-border bg-white object-contain"
                         />
                         <div className="min-w-0">
                           <div className="max-w-52 truncate text-sm font-black">{product.group?.product_name || "Product"}</div>
@@ -3519,7 +3519,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-zinc-400">
+                    <td className="px-3 py-3 text-text-muted">
                       <div className="max-w-64 leading-5">{productCoverage(product)}</div>
                     </td>
                     <td className="px-3 py-3" dir="ltr">{priceInput(product, "purchasePrice", labels.purchasePrice)}</td>
@@ -3535,7 +3535,7 @@ function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
         {!canApply ? <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">{labels.noChanges}</div> : null}
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover">
             {labels.cancel}
           </button>
           <button type="button" onClick={() => onApply(products)} disabled={!canApply} className="rounded-[var(--radius-control)] bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
@@ -3687,8 +3687,8 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
     <Modal eyebrow={t("purchases.create.bulkPricing")} title={t("purchases.create.modelPricing.title")} onClose={onClose}>
       <div className="flex max-h-[82vh] flex-col gap-4">
         <div className="rounded-3xl border border-primary/25 bg-primary/10 p-4">
-          <div className="text-sm font-black text-white">{t("purchases.create.modelPricing.lead")}</div>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">
+          <div className="text-sm font-black text-text">{t("purchases.create.modelPricing.lead")}</div>
+          <p className="mt-2 text-sm leading-6 text-text-muted">
             {t("purchases.create.modelPricing.note")}
           </p>
         </div>
@@ -3698,22 +3698,22 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
             {rows.map((row) => {
               const key = String(row.product_id || row.product_name || "");
               return (
-                <div key={key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
+                <div key={key} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                   <div className="grid gap-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1.35fr)]">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-black text-white">{row.product_name}</div>
-                      <div className="mt-2 grid gap-1.5 text-xs font-semibold text-zinc-400 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">{t("purchases.create.colors")}</div>
-                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.colors, "افتراضي")}</div>
+                      <div className="truncate text-sm font-black text-text">{row.product_name}</div>
+                      <div className="mt-2 grid gap-1.5 text-xs font-semibold text-text-muted sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                        <div className="rounded-xl border border-border bg-surface-soft px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">{t("purchases.create.colors")}</div>
+                          <div className="mt-1 truncate text-text-muted">{summarizeValues(row.colors, "افتراضي")}</div>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">{t("purchases.create.sizes")}</div>
-                          <div className="mt-1 truncate text-zinc-200">{summarizeValues(row.sizes, "مقاس واحد")}</div>
+                        <div className="rounded-xl border border-border bg-surface-soft px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">{t("purchases.create.sizes")}</div>
+                          <div className="mt-1 truncate text-text-muted">{summarizeValues(row.sizes, "مقاس واحد")}</div>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-600">{t("purchases.create.modelPricing.options")}</div>
-                          <div className="mt-1 text-zinc-200">{row.variants_count}</div>
+                        <div className="rounded-xl border border-border bg-surface-soft px-3 py-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-text-muted">{t("purchases.create.modelPricing.options")}</div>
+                          <div className="mt-1 text-text-muted">{row.variants_count}</div>
                         </div>
                       </div>
                     </div>
@@ -3730,10 +3730,10 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
           </div>
         </div>
 
-        <div className="shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-3">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-zinc-400">
-            <span>{t("purchases.create.modelPricing.productsCount")} <b className="text-white">{productCount}</b></span>
-            <span>{t("purchases.create.modelPricing.optionsCount")} <b className="text-white">{variantsCount}</b></span>
+        <div className="shrink-0 rounded-2xl border border-border bg-surface p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-text-muted">
+            <span>{t("purchases.create.modelPricing.productsCount")} <b className="text-text">{productCount}</b></span>
+            <span>{t("purchases.create.modelPricing.optionsCount")} <b className="text-text">{variantsCount}</b></span>
             <span>{t("purchases.create.modelPricing.doneCount")} <b className="text-emerald-200">{completedCount}</b> / {productCount}</span>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -3743,7 +3743,7 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
             <button type="button" onClick={saveAndClose} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black transition hover:bg-primary">
               {t("purchases.create.modelPricing.saveAndClose")}
             </button>
-            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+            <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover">
               {t("purchases.create.modelPricing.closeWithoutSaving")}
             </button>
           </div>
@@ -3756,8 +3756,8 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
 function ModelPriceField({ label, value, required = false, onChange }) {
   const { t } = useTranslation();
   return (
-    <label className="rounded-xl border border-white/10 bg-zinc-950/45 px-3 py-2">
-      <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-zinc-500">
+    <label className="rounded-xl border border-border bg-surface px-3 py-2">
+      <div className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">
         {label}{required ? <span className="text-rose-300"> *</span> : null}
       </div>
       <input
@@ -3767,7 +3767,7 @@ function ModelPriceField({ label, value, required = false, onChange }) {
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={required ? "0.00" : t("purchases.create.optional")}
-        className="mt-1 h-[var(--control-height-md)] w-full bg-transparent text-sm font-black text-white outline-none placeholder:text-zinc-700 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="mt-1 h-[var(--control-height-md)] w-full bg-transparent text-sm font-black text-text outline-none placeholder:text-text-muted [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         dir="ltr"
       />
     </label>
@@ -3841,14 +3841,14 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
     >
       <form onSubmit={submit} className="space-y-4">
         <div className={`rounded-3xl border p-4 ${tone}`}>
-          <div className="text-sm font-black text-white">
+          <div className="text-sm font-black text-text">
             {isPurchase
               ? t("purchases.create.bulkPurchasePriceSummary")
               : isSale
                 ? t("purchases.create.bulkSalePriceSummary")
                 : t("purchases.create.bulkSellingPriceSummary")}
           </div>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">
+          <p className="mt-2 text-sm leading-6 text-text-muted">
             {isPurchase
               ? t("purchases.create.bulkPurchasePriceHelper")
               : isSale
@@ -3903,7 +3903,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
         ) : null}
 
         <label className="block">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+          <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">
             {t(isSale && method === "percent" ? "purchases.create.discountPercentLabel" : isSale && method === "amount" ? "purchases.create.discountAmountLabel" : "purchases.create.priceLabel")}
           </div>
           <input
@@ -3918,21 +3918,21 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
               setError("");
             }}
             placeholder="0.00"
-            className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-lg font-black text-white outline-none placeholder:text-zinc-600 focus:border-emerald-400/50"
+            className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-lg font-black text-text outline-none placeholder:text-text-muted focus:border-emerald-400/50"
           />
           {error ? <div className="mt-2 text-sm font-semibold text-rose-200">{error}</div> : null}
         </label>
 
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-3">
+        <div className="rounded-3xl border border-border bg-surface-soft p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("purchases.create.preview")}</div>
-            <div className="text-xs font-semibold text-zinc-400">{t("purchases.create.variantsCount", { count: affectedItems.length })}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-text-muted">{t("purchases.create.preview")}</div>
+            <div className="text-xs font-semibold text-text-muted">{t("purchases.create.variantsCount", { count: affectedItems.length })}</div>
           </div>
           {belowCostCount ? <div className="mt-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100">{t("purchases.create.saleBelowCost", { count: belowCostCount })}</div> : null}
           {aboveSellingCount ? <div className="mt-2 rounded-xl border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100">{t("purchases.create.saleAboveSelling", { count: aboveSellingCount })}</div> : null}
-          <div className="mt-3 max-h-72 overflow-auto rounded-2xl border border-white/10">
+          <div className="mt-3 max-h-72 overflow-auto rounded-2xl border border-border">
             <table className="min-w-full text-left text-xs">
-              <thead className="sticky top-0 bg-zinc-950 text-zinc-500">
+              <thead className="sticky top-0 bg-surface text-text-muted">
                 <tr>
                   <th className="px-3 py-2 font-black uppercase">{t("purchases.create.productModel")}</th>
                   <th className="px-3 py-2 font-black uppercase">{t("purchases.create.affectedVariants")}</th>
@@ -3943,14 +3943,14 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
               </thead>
               <tbody className="divide-y divide-white/10">
                 {previewRows.map((row) => (
-                  <tr key={String(row.group.product_id)} className="text-zinc-300">
-                    <td className="max-w-56 px-3 py-2 font-semibold text-white">{row.group.product_name}</td>
+                  <tr key={String(row.group.product_id)} className="text-text-muted">
+                    <td className="max-w-56 px-3 py-2 font-semibold text-text">{row.group.product_name}</td>
                     <td className="px-3 py-2">{row.affectedVariants}</td>
                     <td className="px-3 py-2">{row.oldPriceRange}</td>
                     <td className="px-3 py-2 font-black text-amber-100">{row.newPriceRange}</td>
                     <td className="px-3 py-2">
                       <div className="max-w-64 truncate">{t("purchases.create.sizesWithValue", { value: row.sizes.join(", ") || t("purchases.create.oneSize") })}</div>
-                      <div className="mt-1 max-w-64 truncate text-zinc-500">{t("purchases.create.colorsWithValue", { value: row.colors.join(", ") || t("purchases.create.defaultVariant") })}</div>
+                      <div className="mt-1 max-w-64 truncate text-text-muted">{t("purchases.create.colorsWithValue", { value: row.colors.join(", ") || t("purchases.create.defaultVariant") })}</div>
                     </td>
                   </tr>
                 ))}
@@ -3960,7 +3960,7 @@ function BulkPriceModal({ mode, items = [], onClose, onApply }) {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text transition hover:bg-surface-hover">
             {t("common.cancel")}
           </button>
           <button type="submit" className={`rounded-[var(--radius-control)] px-4 py-3 text-sm font-black text-black transition ${isPurchase ? "bg-primary hover:bg-primary" : isSale ? "bg-amber-400 hover:bg-amber-300" : "bg-primary hover:bg-primary"}`}>
@@ -4051,13 +4051,13 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
         />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => setAll(1)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.fillAllOne")}</button>
-        <button type="button" onClick={() => setAll(2)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.fillAllTwo")}</button>
-        <button type="button" onClick={() => setAll(0)} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">{t("purchases.create.clearAll")}</button>
+        <button type="button" onClick={() => setAll(1)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-black text-text">{t("purchases.create.fillAllOne")}</button>
+        <button type="button" onClick={() => setAll(2)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-black text-text">{t("purchases.create.fillAllTwo")}</button>
+        <button type="button" onClick={() => setAll(0)} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-xs font-black text-text">{t("purchases.create.clearAll")}</button>
         {mode === "carton" ? (
           <label className="ml-auto flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-200">
             {t("purchases.create.cartonQty")}
-            <input type="number" min="1" value={cartonQty} onChange={(event) => setCartonQty(Math.max(1, money(event.target.value)))} className="w-16 bg-transparent text-white outline-none" />
+            <input type="number" min="1" value={cartonQty} onChange={(event) => setCartonQty(Math.max(1, money(event.target.value)))} className="w-16 bg-transparent text-text outline-none" />
           </label>
         ) : null}
       </div>
@@ -4066,7 +4066,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
           const expanded = expandedColors.has(section.key);
           const sectionVariant = section.variants.find((variant) => variant.image_url) || section.variants[0] || {};
           return (
-            <div key={section.key} className="rounded-[var(--radius-card)] border border-white/10 bg-white/5">
+            <div key={section.key} className="rounded-[var(--radius-card)] border border-border bg-surface-soft">
               <button type="button" onClick={() => setExpandedColors((prev) => {
                 const next = new Set(prev);
                 if (next.has(section.key)) next.delete(section.key);
@@ -4075,7 +4075,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
               })} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
                 {mode === "size" ? (
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-black text-white">{section.color || t("purchases.create.defaultVariant")}</div>
+                    <div className="truncate text-sm font-black text-text">{section.color || t("purchases.create.defaultVariant")}</div>
                     <div className="mt-1 text-xs font-semibold text-emerald-300">
                       {t("purchases.create.sizesCount", { count: section.variants.length })}
                     </div>
@@ -4085,25 +4085,25 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
                     <ColorIdentity color={section.color} variant={sectionVariant} productName={selected?.product_name} sizes={section.variants.length} compact />
                   </div>
                 )}
-                {expanded ? <ChevronUp className="h-4 w-4 text-zinc-400" /> : <ChevronDown className="h-4 w-4 text-zinc-400" />}
+                {expanded ? <ChevronUp className="h-4 w-4 text-text-muted" /> : <ChevronDown className="h-4 w-4 text-text-muted" />}
               </button>
               {expanded ? (
                 <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4">
                   {section.variants.map((variant) => (
-                    <label key={variant.line_id} className="rounded-xl border border-white/10 bg-zinc-950/70 p-3 transition hover:border-white/20">
+                    <label key={variant.line_id} className="rounded-xl border border-border bg-surface p-3 transition hover:border-border-strong">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate text-base font-black text-white">{variant.size || t("purchases.create.oneSize")}</div>
-                          <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("purchases.create.size")}</div>
+                          <div className="truncate text-base font-black text-text">{variant.size || t("purchases.create.oneSize")}</div>
+                          <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted">{t("purchases.create.size")}</div>
                         </div>
-                        <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-bold text-zinc-300">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-1 text-[11px] font-bold text-text-muted">
                           {t("purchases.create.stockWithValue", { stock: variant.stock })}
                         </div>
                       </div>
-                      <div className="mt-3 flex items-center rounded-lg bg-white/5">
-                        <button type="button" onClick={() => setQtyMap((prev) => ({ ...prev, [variant.line_id]: Math.max(0, money(prev[variant.line_id]) - 1) }))} className="p-2 text-white"><Minus className="h-3 w-3" /></button>
-                        <input value={mode === "carton" ? cartonQty : qtyMap[variant.line_id] || ""} disabled={mode === "carton"} onChange={(event) => setQtyMap((prev) => ({ ...prev, [variant.line_id]: money(event.target.value) }))} className="w-full bg-transparent text-center text-sm font-black text-white outline-none disabled:text-emerald-300" />
-                        <button type="button" onClick={() => setQtyMap((prev) => ({ ...prev, [variant.line_id]: money(prev[variant.line_id]) + 1 }))} disabled={mode === "carton"} className="p-2 text-white disabled:opacity-30"><Plus className="h-3 w-3" /></button>
+                      <div className="mt-3 flex items-center rounded-lg bg-surface-soft">
+                        <button type="button" onClick={() => setQtyMap((prev) => ({ ...prev, [variant.line_id]: Math.max(0, money(prev[variant.line_id]) - 1) }))} className="p-2 text-text"><Minus className="h-3 w-3" /></button>
+                        <input value={mode === "carton" ? cartonQty : qtyMap[variant.line_id] || ""} disabled={mode === "carton"} onChange={(event) => setQtyMap((prev) => ({ ...prev, [variant.line_id]: money(event.target.value) }))} className="w-full bg-transparent text-center text-sm font-black text-text outline-none disabled:text-emerald-300" />
+                        <button type="button" onClick={() => setQtyMap((prev) => ({ ...prev, [variant.line_id]: money(prev[variant.line_id]) + 1 }))} disabled={mode === "carton"} className="p-2 text-text disabled:opacity-30"><Plus className="h-3 w-3" /></button>
                       </div>
                     </label>
                   ))}
@@ -4125,13 +4125,13 @@ function Modal({ eyebrow, title, children, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center">
       <button type="button" className="absolute inset-0 cursor-default" onClick={onClose} aria-label={t("purchases.suppliersDashboard.close")} />
-      <div className="relative w-full max-w-4xl rounded-t-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black sm:rounded-3xl">
+      <div className="relative w-full max-w-4xl rounded-t-3xl border border-border bg-surface p-5 shadow-2xl shadow-black sm:rounded-3xl">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{eyebrow}</div>
-            <h3 className="m1-section-title mt-1 text-white">{title}</h3>
+            <h3 className="m1-section-title mt-1 text-text">{title}</h3>
           </div>
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft p-2 text-text">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -4146,14 +4146,14 @@ function Select({ label, value, onChange, options, emptyLabel, placeholder = "" 
   const fallbackEmptyLabel = emptyLabel || t("purchases.create.noOptions");
   return (
     <label className="block">
-      <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
       <ThemedSelect
         value={value}
         onChange={onChange}
         ariaLabel={label}
         placeholder={placeholder || (options.length === 0 ? fallbackEmptyLabel : "")}
         options={options.map((option) => ({ value: option.value, label: option.label }))}
-        triggerClassName="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-sm capitalize text-white outline-none"
+        triggerClassName="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm capitalize text-text outline-none"
       />
     </label>
   );
@@ -4162,17 +4162,17 @@ function Select({ label, value, onChange, options, emptyLabel, placeholder = "" 
 function Field({ label, value, onChange, type = "text", placeholder }) {
   return (
     <label className="block">
-      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <input type={type} value={value} onChange={(event) => onChange(type === "number" ? money(event.target.value) : event.target.value)} placeholder={placeholder} className="w-full rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500" />
+      <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <input type={type} value={value} onChange={(event) => onChange(type === "number" ? money(event.target.value) : event.target.value)} placeholder={placeholder} className="w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm text-text outline-none placeholder:text-text-muted" />
     </label>
   );
 }
 
 function Summary({ label, value }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-2.5">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-white">{value}</div>
+    <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-2.5">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-text-muted">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-text">{value}</div>
     </div>
   );
 }
@@ -4180,7 +4180,7 @@ function Summary({ label, value }) {
 function CardSkeleton() {
   return (
     <div className="mt-4 grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-80 animate-pulse rounded-[var(--radius-card)] border border-white/10 bg-white/5" />)}
+      {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-80 animate-pulse rounded-[var(--radius-card)] border border-border bg-surface-soft" />)}
     </div>
   );
 }
@@ -4201,7 +4201,7 @@ function QuickSupplierModal({ form, setForm, saving, error, onClose, onSubmit })
           <Field label={t("purchases.supplierDetails.openingBalance")} type="number" value={form.opening_balance} onChange={(value) => setField("opening_balance", money(value))} />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text">{t("common.cancel")}</button>
           <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.details.saving") : t("purchases.create.createAndSelect")}</button>
         </div>
       </form>
@@ -4229,7 +4229,7 @@ function QuickProductModal({ form, setForm, saving, error, onClose, onSubmit }) 
           <Field label={t("purchases.create.imageUrl")} value={form.image_url} onChange={(value) => setField("image_url", value)} />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">{t("common.cancel")}</button>
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 py-3 text-sm font-semibold text-text">{t("common.cancel")}</button>
           <button type="submit" disabled={saving} className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-black disabled:opacity-40">{saving ? t("purchases.create.creating") : t("purchases.create.createAndAdd")}</button>
         </div>
       </form>
