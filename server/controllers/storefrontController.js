@@ -68,6 +68,7 @@ import { createPaymentIntention, isPaymobOnlineReady, paymobOnlineConfig } from 
 import { ensurePaymentTransactionsSchema } from "../services/paymobPosService.js";
 import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
 import { sendStorefrontPurchaseEvent } from "../services/metaConversionsApiService.js";
+import { attachMetaContentIds, ensureMetaDuplicateSkuKeys, metaContentIdFor } from "../services/metaCatalogContentIdService.js";
 
 export const DEFAULT_TENANT_ID = 1;
 const LOW_STOCK_LIMIT = 2;
@@ -2951,6 +2952,12 @@ const slimVariantForList = (variant = {}) => ({
   // to carry it or the client falls back to matching colours by name again.
   color_group_key: variant.color_group_key || variant.colorGroupKey || "",
   sku: variant.sku || "",
+  // The id the Meta catalogue lists this size under, so a card's add-to-cart matches it.
+  meta_content_id: variant.meta_content_id || metaContentIdFor({
+    productId: variant.product_id,
+    variantId: variant.id || variant.variant_id,
+    sku: variant.sku,
+  }),
   barcode: variant.barcode || "",
   image_url: variant.image_url || variant.primary_image_url || variant.variant_image_url || "",
   // Colour cards scope the swap to their own colour, so the second photo has to
@@ -3704,6 +3711,9 @@ const buildStorefrontProductSection = async ({ req, tenantId, normalizedQuery, r
     }
   }
   const rawProductCount = products.length;
+  // Read before the cards are slimmed: each size carries the Meta catalogue id (see
+  // metaCatalogContentIdService). Cached, and it never throws.
+  await perf.step("meta_content_ids", () => ensureMetaDuplicateSkuKeys());
   const imagedProducts = await perf.step("hydrate_images", () => hydrateProductsWithImages(products, { compact: true }));
   const hydratedProducts = await perf.step("scrub_classifications", () => scrubInactiveClassifications(imagedProducts));
   const expandedProducts = perf.sync("color_expansion", () => (groupingMode === "none" ? hydratedProducts : expandProductsToColorCards(hydratedProducts)));
@@ -5016,8 +5026,13 @@ export const getProduct = async (req, res) => {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
     console.log("[storefront] product matched", { identifier, matched_product_id: productRow.id });
-    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    const [product] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(productRow, pricingSettings)]));
+    const [pricingSettings, duplicateSkuKeys] = await Promise.all([
+      loadStorefrontPricingSettings(tenantId),
+      ensureMetaDuplicateSkuKeys(),
+    ]);
+    const [hydratedProduct] = await scrubInactiveClassifications(await hydrateProductsWithImages([normalizeProduct(productRow, pricingSettings)]));
+    // Each size names the id the Meta catalogue lists it under (ViewContent, AddToCart).
+    const product = hydratedProduct ? attachMetaContentIds(hydratedProduct, duplicateSkuKeys) : hydratedProduct;
     const firstVariant = Array.isArray(product?.variants) ? product.variants[0] : null;
     console.log("[storefront-price-debug]", {
       identifier,
@@ -5811,6 +5826,9 @@ export const createWebsiteOrder = async (req, res) => {
         product_name: variant.product_name,
         variant_name: [variant.color, variant.size].filter(Boolean).join(" / "),
         sku: variant.sku || "",
+        // Not stored: the browser's and the server's Purchase events read it (inside the
+        // transaction, so only the already-loaded set is used -- no extra query under lock).
+        meta_content_id: metaContentIdFor({ productId: variant.product_id, variantId: variant.id, sku: variant.sku }),
         barcode: variant.barcode || "",
         color: variant.color || "",
         size: variant.size || "",

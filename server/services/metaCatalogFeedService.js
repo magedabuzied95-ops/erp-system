@@ -7,6 +7,7 @@ import { metaCatalogImageUrl, warmMetaCatalogImageRenditions } from "./metaImage
 import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCustomerPrice.js";
 import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "./adFeedPurchaseLinesSql.js";
+import { metaCatalogItemId } from "../../shared/metaPurchaseEvent.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -129,6 +130,8 @@ const queryMetaCatalogRows = async () => {
     -- view by SKU (metaCatalogContentId), so a SKU the feed swaps for product-variant is a view
     -- Meta cannot match. Counting archived colours, deleted sizes and hidden products here sent
     -- 21 live sizes as 391-6818 while the pixel said ADS-LOC-8-WHT-41. Same filter as below.
+    -- The storefront's meta_content_id reads the same count (META_PUBLISHED_SKU_COUNTS_SQL in
+    -- metaCatalogContentIdService.js); a test holds the two identical.
     variant_sku_counts AS (
       SELECT LOWER(TRIM(v.sku)) AS sku_key, COUNT(*) AS sku_count
       FROM product_variants v
@@ -344,7 +347,8 @@ export const buildMetaCatalogItem = (
   const productId = text(row.product_id);
   const variantId = text(row.variant_id);
   const sku = text(row.variant_sku);
-  const id = sku && Number(row.sku_count || 0) === 1 ? sku : `${productId}-${variantId}`;
+  // One rule with the pixel's meta_content_id (shared/metaPurchaseEvent.js).
+  const id = metaCatalogItemId({ productId, variantId, sku, skuUnique: Number(row.sku_count || 0) === 1 });
   const brand = text(row.brand_name || "M1 Store");
   const color = text(row.color);
   const size = text(row.size);

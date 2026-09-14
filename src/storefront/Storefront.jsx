@@ -10554,6 +10554,8 @@ const normalizeCartLine = (product = {}, variant = {}, quantity = 1, bundleId = 
     variant_id: variant.id || "",
     // Keep the exact catalog identifier with the order/cart line for Meta matching.
     sku: variant.sku || variant.SKU || variant.variant_sku || product.sku || "",
+    // The feed's id for this size (SKU, or product-variant when the SKU is shared).
+    ...(variant.meta_content_id ? { meta_content_id: variant.meta_content_id } : {}),
     name: cleanDisplayText(mirrorProductTitle(product, variant) || product.name || product.title || ""),
     brand: product.brand?.name || product.brand_name || product.brand || variant.brand_name || "",
     category: product.category?.name || product.category_name || product.product_type || "",

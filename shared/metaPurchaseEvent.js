@@ -26,8 +26,24 @@ export const metaPurchaseEventId = (order = {}) => `m1_purchase_order_${metaOrde
 export const isMetaPurchaseEligible = (order = {}) =>
   !["cancelled", "canceled", "failed", "payment_failed"].includes(text(order.status || order.payment_status).toLowerCase());
 
-/* SKU first — it is what the Meta catalogue is keyed by. */
+/*
+ * The id the Meta catalogue feed publishes one size under: its SKU while no other
+ * published size shares it, otherwise product-variant (two items cannot share an id).
+ * The feed and the storefront's meta_content_id both come from here.
+ */
+export const metaCatalogItemId = ({ productId = "", variantId = "", sku = "", skuUnique = false } = {}) => {
+  const cleanSku = text(sku);
+  return cleanSku && skuUnique ? cleanSku : `${text(productId)}-${text(variantId)}`;
+};
+
+/*
+ * The server stamps `meta_content_id` (the feed's own id) on storefront sizes, cart
+ * lines and order lines; it wins. Without it the SKU is the best guess -- right for
+ * every size whose SKU is unique.
+ */
 export const metaCatalogContentId = (product = {}, variant = {}) => {
+  const feedId = text(variant.meta_content_id || product.meta_content_id);
+  if (feedId) return feedId;
   const sku = text(variant.sku || variant.SKU || variant.variant_sku || product.sku || product.variant_sku);
   if (sku) return sku;
   const productId = text(product.product_id || product.productId || product.id);

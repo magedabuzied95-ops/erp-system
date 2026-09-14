@@ -224,6 +224,8 @@ server/scripts/timestamptz-fingerprint.json
 !server/services/socialCommentPollMemo.js
 # "Pairs well with" bundle pairings + order bundle discounts.
 !server/services/productBundleService.js
+# Meta catalogue id per size for the pixel and Purchase events (matches the feed's id rule).
+!server/services/metaCatalogContentIdService.js
 
 # Meta profile backfill state/lock files (server/scripts/backfillMetaCustomerProfiles.js) — local runs only
 server/data/backfill/
