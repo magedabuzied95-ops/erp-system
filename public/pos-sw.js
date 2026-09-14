@@ -91,6 +91,50 @@ const isUsableAssetResponse = (url, response) => {
   return true;
 };
 
+// The navigation response that may replace the offline shell: a successful,
+// same-origin, non-redirected HTML document. Anything else (an error page, a
+// captive portal's redirect, an opaque answer) is served but never stored.
+const isCacheableShellResponse = (response) => {
+  if (!response || !response.ok || response.redirected) return false;
+  if (response.type && response.type !== "basic" && response.type !== "default") return false;
+  if (response.url) {
+    try {
+      if (new URL(response.url).origin !== self.location.origin) return false;
+    } catch {
+      return false;
+    }
+  }
+  return isHtmlResponse(response);
+};
+
+// ---------------------------------------------------------------------------
+// RUNTIME CACHE BOUND
+// Every build ships new hashed chunk names and the runtime cache is only
+// evicted by a manual VERSION bump, so a till that stays on one worker across
+// many deploys kept every generation's chunks forever. Oldest-first trim: Cache
+// keys come back in insertion order, and a re-fetched asset is re-inserted.
+// ---------------------------------------------------------------------------
+const RUNTIME_CACHE_MAX_ENTRIES = 300;
+
+const trimCache = async (cache, maxEntries) => {
+  try {
+    const keys = await cache.keys();
+    const excess = keys.length - maxEntries;
+    for (let index = 0; index < excess; index += 1) {
+      await cache.delete(keys[index]);
+    }
+  } catch {
+    // Trimming is housekeeping; a failure must not break the response.
+  }
+};
+
+const putRuntimeAsset = async (request, response) => {
+  const cache = await caches.open(RUNTIME_CACHE);
+  await cache.delete(request).catch(() => false);
+  await cache.put(request, response);
+  await trimCache(cache, RUNTIME_CACHE_MAX_ENTRIES);
+};
+
 const cacheShellUrl = async (cache, requestUrl) => {
   try {
     const response = await fetch(requestUrl, { cache: "no-store" });
@@ -162,9 +206,21 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate" && url.pathname.startsWith("/pos")) {
     event.respondWith(
       fetch(request, { cache: "no-store" })
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(SHELL_CACHE).then((cache) => cache.put("/pos", copy)).catch(() => null);
+        .then(async (response) => {
+          // Only a real shell may become the offline shell. The old handler
+          // stored whatever came back, so one 502 page from a bad deploy was
+          // what the till booted into for the whole next outage.
+          if (isCacheableShellResponse(response)) {
+            const copy = response.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put("/pos", copy)).catch(() => null);
+            return response;
+          }
+          log("POS_SW_NAVIGATE_NOT_CACHEABLE", { status: response?.status });
+          // A server error is no better than no server: prefer the last good shell.
+          if (!response || response.status >= 500) {
+            const cachedShell = await caches.match("/pos");
+            if (cachedShell) return cachedShell;
+          }
           return response;
         })
         .catch(async () => {
@@ -199,7 +255,7 @@ self.addEventListener("fetch", (event) => {
       // (the old contract) are both refused, so neither can poison the cache.
       if (isUsableAssetResponse(request.url, response)) {
         const copy = response.clone();
-        caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy)).catch(() => null);
+        putRuntimeAsset(request, copy).catch(() => null);
         return response;
       }
 

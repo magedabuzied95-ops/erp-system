@@ -5,9 +5,15 @@ import { AlertTriangle, CheckCircle2, CloudOff, Image as ImageIcon, Loader2, Pri
 
 import { formatCurrency } from "../lib/posUtils";
 import {
+  OFFLINE_DISCARD_CONFIRMATION_WORDS,
   OFFLINE_ORDER_STATUS,
   OPEN_OFFLINE_ORDER_STATUSES,
+  canDiscardOfflineQueueItems,
+  isOfflineDiscardConfirmation,
+  isOfflineRecordOwnedByAnotherUser,
   listOfflineOrders,
+  readCurrentPosUser,
+  subscribeToOfflineLoginRequired,
   subscribeToOfflineOrderChanges,
 } from "../lib/posOfflineOrders";
 import { listOfflineCustomers } from "../lib/posOfflineCustomers";
@@ -54,6 +60,8 @@ export default function PosOfflineQueueModal({
   imageCache = null,
   imageWarming = false,
   onWarmImages,
+  loginRequired = false,
+  onLogin,
 }) {
   const { t } = useTranslation();
   const label = useCallback(
@@ -71,6 +79,29 @@ export default function PosOfflineQueueModal({
   const [loading, setLoading] = useState(false);
   const [busyLocalId, setBusyLocalId] = useState("");
   const [confirmDiscardId, setConfirmDiscardId] = useState("");
+  const [confirmText, setConfirmText] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [loginEvent, setLoginEvent] = useState(false);
+  // Read when the panel opens: a different cashier logging in closes and reopens it.
+  const currentUser = useMemo(() => (open ? readCurrentPosUser() : null), [open]);
+  const canDiscard = useMemo(() => canDiscardOfflineQueueItems(currentUser), [currentUser]);
+  const needsLogin = Boolean(loginRequired || loginEvent);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    return subscribeToOfflineLoginRequired(() => setLoginEvent(true));
+  }, [open]);
+
+  const openDiscardConfirm = useCallback((localId) => {
+    setConfirmDiscardId(localId);
+    setConfirmText("");
+    setActionError("");
+  }, []);
+
+  const closeDiscardConfirm = useCallback(() => {
+    setConfirmDiscardId("");
+    setConfirmText("");
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -111,12 +142,86 @@ export default function PosOfflineQueueModal({
 
   const runRowAction = useCallback(async (localId, action) => {
     setBusyLocalId(localId);
+    setActionError("");
     try {
       await action?.();
+    } catch (error) {
+      setActionError(
+        error?.code === "OFFLINE_DISCARD_FORBIDDEN"
+          ? label("discard.forbidden", "المسح النهائي للمدير بس.")
+          : String(error?.message || error || "")
+      );
     } finally {
       setBusyLocalId("");
     }
-  }, []);
+  }, [label]);
+
+  // One control for invoices and expenses. A queued record is money already
+  // taken, so deleting it is a manager's decision, typed out, and logged locally
+  // by the delete itself (posOfflineOrders.recordDiscardedOfflineItem).
+  const renderDiscardControl = (record, onDiscard, size = "h-8") => {
+    const busy = busyLocalId === record.local_id;
+    if (!canDiscard) {
+      return (
+        <button
+          type="button"
+          disabled
+          aria-label={label("discard.managerOnly", "المسح النهائي للمدير بس")}
+          title={label("discard.managerOnly", "المسح النهائي للمدير بس")}
+          className={`grid ${size} w-8 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] opacity-50`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+    if (confirmDiscardId !== record.local_id) {
+      return (
+        <button
+          type="button"
+          onClick={() => openDiscardConfirm(record.local_id)}
+          aria-label={label("actions.discard", "Discard")}
+          title={label("actions.discard", "Discard")}
+          className={`grid ${size} w-8 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-rose-400/50 hover:text-rose-300`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      );
+    }
+    const confirmed = isOfflineDiscardConfirmation(confirmText);
+    return (
+      <div className="flex flex-wrap items-center gap-1">
+        <input
+          type="text"
+          value={confirmText}
+          onChange={(event) => setConfirmText(event.target.value)}
+          placeholder={OFFLINE_DISCARD_CONFIRMATION_WORDS[0]}
+          aria-label={label("discard.typeToConfirm", "اكتب «حذف» للتأكيد")}
+          title={label("discard.typeToConfirm", "اكتب «حذف» للتأكيد")}
+          className={`${size} w-20 rounded-lg border border-rose-400/50 bg-[var(--surface-soft)] px-2 text-[11px] font-black`}
+        />
+        <button
+          type="button"
+          disabled={busy || !confirmed}
+          onClick={() =>
+            runRowAction(record.local_id, async () => {
+              await onDiscard?.(record);
+              closeDiscardConfirm();
+            })
+          }
+          className={`${size} rounded-lg border border-rose-400/50 bg-rose-500/15 px-2 text-[11px] font-black text-rose-200 disabled:opacity-60`}
+        >
+          {label("actions.confirmDiscard", "Delete for good")}
+        </button>
+        <button
+          type="button"
+          onClick={closeDiscardConfirm}
+          className={`${size} rounded-lg border border-[var(--border)] px-2 text-[11px] font-black`}
+        >
+          {label("actions.cancel", "Cancel")}
+        </button>
+      </div>
+    );
+  };
 
   if (!open) return null;
   if (typeof document === "undefined") return null;
@@ -144,6 +249,8 @@ export default function PosOfflineQueueModal({
         return label("reason.rejected", "The server refused this invoice. A manager needs to look at it.");
       case "server_unavailable":
         return label("reason.serverUnavailable", "The server is not answering yet.");
+      case "login_required":
+        return label("reason.loginRequired", "الدخول انتهى. سجل دخول تاني والفاتورة هتترفع لوحدها.");
       default:
         return "";
     }
@@ -224,6 +331,32 @@ export default function PosOfflineQueueModal({
           </div>
         </div>
 
+        {needsLogin ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-400/40 bg-amber-400/10 px-4 py-2 text-[11px] font-black text-amber-200"
+          >
+            <span className="min-w-0">
+              {label("loginRequired", "لازم تسجل دخول تاني عشان الفواتير المحفوظة تترفع. محدش فيها اتمسح.")}
+            </span>
+            {onLogin ? (
+              <button
+                type="button"
+                onClick={() => onLogin?.()}
+                className="h-8 rounded-lg border border-amber-400/50 px-2.5 text-[11px] font-black"
+              >
+                {label("actions.login", "تسجيل الدخول")}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div role="alert" className="border-b border-rose-400/40 bg-rose-400/10 px-4 py-2 text-[11px] font-black text-rose-200">
+            {actionError}
+          </div>
+        ) : null}
+
         {customers.length > 0 ? (
           <div className="border-b border-[var(--border)] px-4 py-2 text-[11px] text-[var(--muted)]">
             {label("customersPending", "Customers saved on this device, waiting to sync: {{count}}").replace(
@@ -268,7 +401,9 @@ export default function PosOfflineQueueModal({
               {label("expenses.title", "Expenses waiting to sync")}
             </div>
             <ul className="flex flex-col gap-1.5">
-              {expenses.map((expense) => (
+              {expenses.map((expense) => {
+                const foreign = isOfflineRecordOwnedByAnotherUser(expense, currentUser);
+                return (
                 <li
                   key={expense.local_id}
                   className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5"
@@ -289,31 +424,30 @@ export default function PosOfflineQueueModal({
                     <div className="truncate text-[10px] text-[var(--muted)]">
                       {[formatWhen(expense.created_at), expense.payment_method, expense.notes].filter(Boolean).join("  ·  ")}
                     </div>
+                    {foreign ? (
+                      <div className="text-[10px] font-black text-amber-300">
+                        {label("foreignOwner", "بتاعة كاشير تاني — لازم يسجل دخول ويرفعها")}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-[12px] font-black">{formatCurrency(Number(expense.amount || 0))}</span>
                     <button
                       type="button"
-                      disabled={busyLocalId === expense.local_id}
+                      disabled={busyLocalId === expense.local_id || foreign}
                       onClick={() => runRowAction(expense.local_id, () => onRetryExpense?.(expense))}
                       className="inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--border)] px-2 text-[10px] font-black transition hover:border-[var(--primary)] disabled:opacity-60"
                     >
                       <RefreshCw className="h-3 w-3" />
                       {label("actions.retry", "Retry")}
                     </button>
-                    {String(expense.status || "") === OFFLINE_ORDER_STATUS.NEEDS_REVIEW ? (
-                      <button
-                        type="button"
-                        aria-label={label("actions.discard", "Discard")}
-                        onClick={() => runRowAction(expense.local_id, () => onDiscardExpense?.(expense))}
-                        className="grid h-7 w-7 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-rose-400/50 hover:text-rose-300"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    ) : null}
+                    {String(expense.status || "") === OFFLINE_ORDER_STATUS.NEEDS_REVIEW
+                      ? renderDiscardControl(expense, onDiscardExpense, "h-7")
+                      : null}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           </div>
         ) : null}
@@ -338,6 +472,7 @@ export default function PosOfflineQueueModal({
                 const isOpen = OPEN_OFFLINE_ORDER_STATUSES.includes(status);
                 const busy = busyLocalId === order.local_id;
                 const reason = reasonLabel(order);
+                const foreign = isOpen && isOfflineRecordOwnedByAnotherUser(order, currentUser);
                 return (
                   <li
                     key={order.local_id}
@@ -387,7 +522,8 @@ export default function PosOfflineQueueModal({
                         {isOpen ? (
                           <button
                             type="button"
-                            disabled={busy}
+                            disabled={busy || foreign}
+                            title={foreign ? label("foreignOwner", "بتاعة كاشير تاني — لازم يسجل دخول ويرفعها") : ""}
                             onClick={() => runRowAction(order.local_id, () => onRetryOrder?.(order))}
                             className="inline-flex h-8 items-center gap-1 rounded-lg border border-[var(--border)] px-2 text-[11px] font-black transition hover:border-[var(--primary)] disabled:opacity-60"
                           >
@@ -395,44 +531,22 @@ export default function PosOfflineQueueModal({
                             {label("actions.retry", "Retry")}
                           </button>
                         ) : null}
-                        {status === OFFLINE_ORDER_STATUS.NEEDS_REVIEW ? (
-                          confirmDiscardId === order.local_id ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() =>
-                                  runRowAction(order.local_id, async () => {
-                                    await onDiscardOrder?.(order);
-                                    setConfirmDiscardId("");
-                                  })
-                                }
-                                className="h-8 rounded-lg border border-rose-400/50 bg-rose-500/15 px-2 text-[11px] font-black text-rose-200 disabled:opacity-60"
-                              >
-                                {label("actions.confirmDiscard", "Delete for good")}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDiscardId("")}
-                                className="h-8 rounded-lg border border-[var(--border)] px-2 text-[11px] font-black"
-                              >
-                                {label("actions.cancel", "Cancel")}
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDiscardId(order.local_id)}
-                              aria-label={label("actions.discard", "Discard")}
-                              title={label("actions.discard", "Discard")}
-                              className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition hover:border-rose-400/50 hover:text-rose-300"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          )
-                        ) : null}
+                        {status === OFFLINE_ORDER_STATUS.NEEDS_REVIEW
+                          ? renderDiscardControl(order, onDiscardOrder)
+                          : null}
                       </div>
                     </div>
+                    {foreign ? (
+                      <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-2 py-1.5 text-[11px] font-black text-amber-200">
+                        {label("foreignOwner", "بتاعة كاشير تاني — لازم يسجل دخول ويرفعها")}
+                        {order.cashier?.name ? ` (${order.cashier.name})` : ""}
+                      </div>
+                    ) : null}
+                    {status === OFFLINE_ORDER_STATUS.NEEDS_REVIEW && !canDiscard ? (
+                      <div className="mt-1 text-[10px] text-[var(--muted)]">
+                        {label("discard.managerOnlyHint", "المسح النهائي للمدير بس، لأن فلوس الفاتورة دي اتقبضت فعلاً.")}
+                      </div>
+                    ) : null}
                     {reason || order.error ? (
                       <div
                         className={`mt-2 flex items-start gap-1.5 rounded-xl border px-2 py-1.5 text-[11px] ${

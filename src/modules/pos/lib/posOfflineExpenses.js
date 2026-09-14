@@ -3,7 +3,18 @@
 // drawer at that moment, so like an invoice this is a completed fact waiting to
 // be recorded, not a request waiting to succeed. It shares the invoice queue's
 // status model and error classification so both drain under one contract.
-import { OFFLINE_ORDER_STATUS, classifyOfflineSyncError } from "./posOfflineOrders.js";
+import {
+  OFFLINE_ORDER_STATUS,
+  canDiscardOfflineQueueItems,
+  classifyOfflineSyncError,
+  emitOfflineLoginRequired,
+  isAuthParkedOfflineRecord,
+  isOfflineRecordOwnedByAnotherUser,
+  readCurrentPosUser,
+  recordDiscardedOfflineItem,
+  requestPersistentOfflineStorage,
+  resolveOfflineRecordOwner,
+} from "./posOfflineOrders.js";
 
 const POS_OFFLINE_EXPENSES_DB_NAME = "erp-pos-offline-expenses";
 const POS_OFFLINE_EXPENSES_DB_STORE = "expenses";
@@ -95,7 +106,21 @@ const putRecord = async (record) => {
   return record;
 };
 
-export const deleteOfflineExpense = async (localId) => {
+/** Same rule as a queued invoice: an unsynced expense is real cash, so a manager deletes it and it is logged. */
+export const deleteOfflineExpense = async (localId, { actor = readCurrentPosUser() } = {}) => {
+  const current = await getRecord(localId);
+  if (current && String(current.status || "") !== OFFLINE_ORDER_STATUS.SYNCED) {
+    if (!canDiscardOfflineQueueItems(actor)) {
+      const error = new Error("Only a manager can delete a queued expense");
+      error.code = "OFFLINE_DISCARD_FORBIDDEN";
+      throw error;
+    }
+    recordDiscardedOfflineItem("expense", current, actor);
+  }
+  return removeOfflineExpenseRecord(localId);
+};
+
+const removeOfflineExpenseRecord = async (localId) => {
   await withDb(
     (db) =>
       new Promise((resolve, reject) => {
@@ -114,6 +139,7 @@ export const buildOfflineExpenseRecord = (payload = {}) => {
     local_id: normalizeText(payload.local_id) || `offline-expense-${idempotencyKey}`,
     idempotency_key: idempotencyKey,
     created_at: normalizeText(payload.created_at) || nowIso(),
+    ...resolveOfflineRecordOwner(payload),
     status: normalizeText(payload.status) || OFFLINE_ORDER_STATUS.PENDING,
     category: normalizeText(payload.category),
     amount: Number(payload.amount || 0) || 0,
@@ -138,6 +164,7 @@ export const buildOfflineExpenseRecord = (payload = {}) => {
 
 export const saveOfflineExpense = async (payload = {}) => {
   if (!isBrowser()) return null;
+  void requestPersistentOfflineStorage();
   return putRecord(buildOfflineExpenseRecord(payload));
 };
 
@@ -175,6 +202,7 @@ export const markOfflineExpenseFailed = async (localId, error) => {
     status: classification.status,
     error: String(error?.responseBody?.message || error?.message || error || "sync failed").slice(0, 180),
     error_reason: classification.reason,
+    error_status: Number(error?.status || error?.response?.status || 0) || null,
     last_attempt_at: nowIso(),
     attempts: Number(current.attempts || 0) + 1,
   });
@@ -194,7 +222,7 @@ export const pruneSyncedOfflineExpenses = async ({ keepMs = 7 * 24 * 60 * 60 * 1
     if (String(record.status || "") !== OFFLINE_ORDER_STATUS.SYNCED) continue;
     const syncedAt = Date.parse(record.synced_at || "") || 0;
     if (syncedAt && syncedAt > cutoff) continue;
-    await deleteOfflineExpense(record.local_id);
+    await removeOfflineExpenseRecord(record.local_id);
     removed += 1;
   }
   return removed;
@@ -222,23 +250,57 @@ const sendOfflineExpenseToServer = async (record) => {
   );
 };
 
+/** Expenses an expired login parked under the old rule go back to pending. */
+export const migrateAuthParkedOfflineExpenses = async () => {
+  if (!isBrowser()) return 0;
+  const records = await getAllRecords();
+  let migrated = 0;
+  for (const record of records) {
+    if (!isAuthParkedOfflineRecord(record)) continue;
+    await putRecord({
+      ...record,
+      status: OFFLINE_ORDER_STATUS.PENDING,
+      error_reason: "login_required",
+      auth_requeued_at: nowIso(),
+    });
+    migrated += 1;
+  }
+  return migrated;
+};
+
 const runPendingOfflineExpenseSync = async (sendExpense) => {
+  await migrateAuthParkedOfflineExpenses().catch(() => 0);
   const records = await listOfflineExpenses();
   const retryable = records.filter((record) => RETRYABLE_STATUSES.includes(String(record.status || "")));
-  const result = { total: retryable.length, synced: [], failed: [] };
+  const currentUser = readCurrentPosUser();
+  const result = { total: retryable.length, synced: [], failed: [], foreign: [], login_required: false, stopped_reason: "" };
 
   for (const record of retryable) {
+    if (isOfflineRecordOwnedByAnotherUser(record, currentUser)) {
+      result.foreign.push(record.local_id);
+      continue;
+    }
     try {
       const response = await sendExpense(record);
       const payload = response?.data ?? response;
       await markOfflineExpenseSynced(record.local_id, payload?.expense || payload || {});
       result.synced.push(record.local_id);
     } catch (error) {
+      const classification = classifyOfflineSyncError(error);
       await markOfflineExpenseFailed(record.local_id, error);
       result.failed.push({
         local_id: record.local_id,
         error: String(error?.message || error || "sync failed").slice(0, 180),
+        reason: classification.reason,
       });
+      if (classification.stopPass) {
+        result.stopped_reason = classification.reason;
+        if (classification.reason === "login_required") {
+          result.login_required = true;
+          emitOfflineLoginRequired({ source: "expenses" });
+        }
+        break;
+      }
     }
   }
 

@@ -304,7 +304,7 @@ const sendOfflineCustomerToServer = async (record) => {
 
 const runPendingOfflineCustomerSync = async (sendCustomer, { tenantId } = {}) => {
   const pending = await listPendingOfflineCustomers({ tenantId });
-  const result = { total: pending.length, synced: [], failed: [], idMap: {} };
+  const result = { total: pending.length, synced: [], failed: [], idMap: {}, login_required: false };
 
   for (const record of pending) {
     try {
@@ -321,6 +321,13 @@ const runPendingOfflineCustomerSync = async (sendCustomer, { tenantId } = {}) =>
         local_id: record.local_id,
         error: String(error?.message || error || "sync failed").slice(0, 180),
       });
+      // An expired login refuses every remaining record the same way; stop and
+      // let the pass report it instead of burning an attempt on each.
+      const status = Number(error?.status || error?.response?.status || 0);
+      if (status === 401 || status === 403) {
+        result.login_required = true;
+        break;
+      }
     }
   }
 
