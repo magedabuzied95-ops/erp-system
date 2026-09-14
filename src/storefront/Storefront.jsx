@@ -91,7 +91,6 @@ import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCust
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
 import { productToSocialMeta } from "../shared/lib/socialMeta";
-import { normalizeMerchantReturnPolicy } from "../shared/lib/merchantPolicies";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
@@ -1880,6 +1879,8 @@ const LazyStorefrontTrackOrderPage = lazy(() => importWithChunkRetry(() => impor
 const LazyStorefrontAccountPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAccountPage.jsx")).then((module) => ({ default: module.StorefrontAccountPage })));
 const LazyStorefrontWishlistPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontWishlistPage")));
 const LazyStorefrontComparePage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontComparePage.jsx")).then((module) => ({ default: module.StorefrontComparePage })));
+const LazyStorefrontFaqPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.FaqPage })));
+const LazyStorefrontReturnsPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.ReturnsPolicyPage })));
 const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
 const LazyOrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
 
@@ -3633,6 +3634,8 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     // Both legal pages must be reachable from the storefront without an account:
     // platform reviewers follow them from the site, not only from a portal field.
     { label: isRtl ? "سياسة الخصوصية" : "Privacy policy", to: "/privacy" },
+    { label: isRtl ? "سياسة الاستبدال والاسترجاع" : "Returns & exchanges", to: "/returns" },
+    { label: isRtl ? "الأسئلة الشائعة" : "FAQ", to: "/faq" },
   ];
   const categoryLinks = [
     { label: isRtl ? "سنيكرز رجالي" : "Men's sneakers", to: "/men" },
@@ -9476,19 +9479,6 @@ function OrderTimeline({ timeline = [] }) {
   );
 }
 
-function FaqPage() {
-  const items = [
-    [sfText("storefront.faq.deliveryTime.question"), sfText("storefront.faq.deliveryTime.answer")],
-    [sfText("storefront.faq.paymentMethods.question"), sfText("storefront.faq.paymentMethods.answer")],
-    [sfText("storefront.faq.exchangeReturns.question"), sfText("storefront.faq.exchangeReturns.answer")],
-    [sfText("storefront.faq.sizeHelp.question"), sfText("storefront.faq.sizeHelp.answer")],
-    [sfText("storefront.faq.trackOrder.question"), sfText("storefront.faq.trackOrder.answer")],
-    [sfText("storefront.faq.shippingProviders.question"), sfText("storefront.faq.shippingProviders.answer")],
-  ];
-  return <StaticPage title={sfText("storefront.faq.title")} items={items} />;
-}
-
-
 function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
   const settings = publicStoreSettings || {};
   const storefrontSettings = settings.storefront && typeof settings.storefront === "object" ? settings.storefront : {};
@@ -9722,141 +9712,6 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   );
 }
 
-
-function ReturnsPolicy({ publicStoreSettings = {} }) {
-  let sections = [
-    {
-      title: sfText("storefront.returns.policy.title"),
-      items: [
-        sfText("storefront.returns.policy.intro"),
-        sfText("storefront.returns.policy.cond1"),
-        sfText("storefront.returns.policy.cond2"),
-        sfText("storefront.returns.policy.cond3"),
-        sfText("storefront.returns.policy.cond4"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.excludedTitle"),
-      items: [
-        sfText("storefront.returns.policy.excluded1"),
-        sfText("storefront.returns.policy.excluded2"),
-        sfText("storefront.returns.policy.excluded3"),
-        sfText("storefront.returns.policy.excluded4"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.onlineTitle"),
-      items: [
-        sfText("storefront.returns.policy.onlineText"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.customerChangeTitle"),
-      items: [
-        sfText("storefront.returns.policy.customerChange1"),
-        sfText("storefront.returns.policy.customerChange2"),
-        sfText("storefront.returns.policy.customerChange3"),
-        sfText("storefront.returns.policy.customerChange4"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.storeErrorTitle"),
-      items: [
-        sfText("storefront.returns.policy.storeError1"),
-        sfText("storefront.returns.policy.storeError2"),
-        sfText("storefront.returns.policy.storeError3"),
-        sfText("storefront.returns.policy.storeError4"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.inspectionTitle"),
-      items: [
-        sfText("storefront.returns.policy.inspection1"),
-        sfText("storefront.returns.policy.inspection2"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.refundTitle"),
-      items: [
-        sfText("storefront.returns.policy.refund1"),
-        sfText("storefront.returns.policy.refund2"),
-      ],
-    },
-    {
-      title: sfText("storefront.returns.policy.notesTitle"),
-      items: [
-        sfText("storefront.returns.policy.note1"),
-        sfText("storefront.returns.policy.note2"),
-        sfText("storefront.returns.policy.note3"),
-      ],
-    },
-  ];
-  const configuredPolicy = normalizeMerchantReturnPolicy(publicStoreSettings);
-  if (configuredPolicy) {
-    const conditions = configuredPolicy.conditions && typeof configuredPolicy.conditions === "object"
-      ? configuredPolicy.conditions
-      : {};
-    sections = [
-      {
-        title: sfText("storefront.returns.policy.durationTitle"),
-        items: [sfText("storefront.returns.policy.durationText", undefined, { days: configuredPolicy.days })],
-      },
-      {
-        title: sfText("storefront.returns.policy.acceptanceTitle"),
-        items: [conditions.unused_original_condition, conditions.invoice_required].filter(Boolean),
-      },
-      {
-        title: sfText("storefront.returns.policy.shippingCostTitle"),
-        items: [conditions.customer_choice_shipping, conditions.defect_shipping].filter(Boolean),
-      },
-    ].filter((section) => section.items.length);
-  }
-  return (
-    <section className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="rounded-3xl border border-stone-200 bg-white p-5 shadow-[0_18px_54px_rgba(15,23,42,0.08)] sm:p-6 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.96),rgba(7,11,22,0.88))]">
-        <div className="max-w-3xl">
-          <h1 className="text-2xl font-black tracking-tight text-stone-950 sm:text-3xl dark:text-white">{sfText("storefront.returns.title")}</h1>
-          <p className="mt-3 text-sm leading-7 text-stone-600 sm:text-base dark:text-slate-300">
-            {sfText("storefront.returns.policy.footer")}
-          </p>
-        </div>
-        <div className="mt-6 grid gap-4">
-          {sections.map((section) => (
-            <section key={section.title} className="rounded-2xl border border-stone-200/80 bg-stone-50/70 p-4 sm:p-5 dark:border-white/10 dark:bg-white/[0.03]">
-              <h2 className="text-base font-black text-stone-950 sm:text-lg dark:text-white">{section.title}</h2>
-              <ul className="mt-3 space-y-2 text-sm leading-7 text-stone-700 sm:text-[15px] dark:text-slate-300">
-                {section.items.map((item) => (
-                  <li key={item} className="flex gap-3">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function StaticPage({ title, items }) {
-  return (
-    <section className="mx-auto max-w-4xl px-4 py-6">
-      <div className="rounded-[1.75rem] border border-stone-200/80 bg-white/96 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_22px_56px_rgba(0,0,0,0.28)]">
-        <h1 className="text-3xl font-black">{title}</h1>
-        <div className="mt-5 grid gap-3">
-        {items.map(([question, answer]) => (
-          <div key={question} className="rounded-[1.35rem] border border-stone-200/80 bg-stone-50/82 p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none">
-            <h2 className="font-black">{question}</h2>
-            <p className="mt-2 font-bold leading-7 text-stone-600">{answer}</p>
-          </div>
-        ))}
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function CheckoutProgress({ currentStep = 1, onStepChange }) {
   const steps = [
@@ -11679,14 +11534,14 @@ function Storefront() {
       return <LazyStorefrontRecentPage recent={recent} helpers={helpers} components={components} />;
     }
 
-    if (currentStorefrontPath === ROOT_PATHS.faq) return <FaqPage />;
+    if (currentStorefrontPath === ROOT_PATHS.faq) return <LazyStorefrontFaqPage publicStoreSettings={publicStoreSettings} whatsappHref={quickActionLinks.whatsappHref} />;
 
     if (currentStorefrontPath === ROOT_PATHS.contact) {
       return <PremiumContactPage publicStoreSettings={publicStoreSettings} quickActionLinks={quickActionLinks} />;
     }
 
     if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <SizeGuideRoute />;
-    if (currentStorefrontPath === ROOT_PATHS.returns) return <ReturnsPolicy publicStoreSettings={publicStoreSettings} />;
+    if (currentStorefrontPath === ROOT_PATHS.returns) return <LazyStorefrontReturnsPage publicStoreSettings={publicStoreSettings} whatsappHref={quickActionLinks.whatsappHref} />;
 
     return (
       <PremiumHomePage
