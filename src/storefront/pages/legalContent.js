@@ -704,6 +704,33 @@ export const legalMetaFor = (pageKey, language) => {
   return { accent: meta.accent, ...(meta[language] || meta.ar) };
 };
 
+/*
+ * Head links for one legal page. Google only honours hreflang between URLs that are
+ * their own canonical: when ?lang=ar and ?lang=en both named the bare /privacy as
+ * canonical, the language pair was thrown away and the bare URL (English, for an
+ * en-US crawler) was the only one indexed. Each language URL is now self-canonical,
+ * and the bare URL -- the one registered with third parties -- is the x-default.
+ * `requestedLanguage` is the ?lang= value, empty on the bare URL.
+ */
+const LEGAL_ORIGIN = "https://m1store-egy.com";
+const LEGAL_PATHS = { privacy: "/privacy", terms: "/terms", "data-deletion": "/data-deletion" };
+export const legalHeadLinks = (pageKey, requestedLanguage = "") => {
+  const path = LEGAL_PATHS[pageKey];
+  if (!path) return null;
+  const bare = `${LEGAL_ORIGIN}${path}`;
+  const lang = ["ar", "en"].includes(String(requestedLanguage || "").toLowerCase())
+    ? String(requestedLanguage).toLowerCase()
+    : "";
+  return {
+    canonical: lang ? `${bare}?lang=${lang}` : bare,
+    alternates: [
+      { hreflang: "ar", href: `${bare}?lang=ar` },
+      { hreflang: "en", href: `${bare}?lang=en` },
+      { hreflang: "x-default", href: bare },
+    ],
+  };
+};
+
 export const legalSectionsFor = (pageKey, language) =>
   (legalSections[pageKey] || []).map((section) => ({
     icon: section.icon,

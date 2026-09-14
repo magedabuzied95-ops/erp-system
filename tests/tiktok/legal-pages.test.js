@@ -12,6 +12,7 @@ import test from "node:test";
 import {
   LEGAL_PAGE_KEYS,
   SUPPORT_EMAIL,
+  legalHeadLinks,
   legalMetaFor,
   legalSectionsFor,
 } from "../../src/storefront/pages/legalContent.js";
@@ -359,15 +360,20 @@ test("language is switchable in place without changing the route", () => {
   assert.match(pagesSource, /params\.set\("lang", next\)/);
   assert.match(pagesSource, /replace: true/);
   // The canonical public paths must stay exactly as registered with third parties.
-  assert.match(pagesSource, /privacy: "\/privacy", terms: "\/terms"/);
+  assert.equal(legalHeadLinks("privacy").canonical, "https://m1store-egy.com/privacy");
+  assert.equal(legalHeadLinks("terms").canonical, "https://m1store-egy.com/terms");
+  assert.equal(legalHeadLinks("data-deletion").canonical, "https://m1store-egy.com/data-deletion");
 });
 
 test("SEO metadata is set: description, canonical, robots, and hreflang alternates", () => {
   assert.match(pagesSource, /meta\[name="description"\]/);
   assert.match(pagesSource, /rel="canonical"/);
   assert.match(pagesSource, /content: "index, follow"/);
-  assert.match(pagesSource, /hreflang="ar"/);
-  assert.match(pagesSource, /hreflang="en"/);
+  assert.match(pagesSource, /legalHeadLinks\(pageKey, requestedLanguage\)/);
+  assert.deepEqual(
+    legalHeadLinks("privacy").alternates.map((link) => link.hreflang),
+    ["ar", "en", "x-default"]
+  );
 });
 
 test("a missing language falls back to Arabic instead of rendering nothing", () => {

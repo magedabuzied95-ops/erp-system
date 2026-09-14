@@ -19,14 +19,13 @@ import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../th
 import {
   LEGAL_LAST_UPDATED,
   SUPPORT_EMAIL,
+  legalHeadLinks,
   legalMetaFor,
   legalSectionsFor,
   legalUiStrings,
 } from "./legalContent";
 import PolicyLayout, { PolicyHelp, PolicyList, PolicyTabs } from "./policy/PolicyLayout";
 
-const CANONICAL_ORIGIN = "https://m1store-egy.com";
-const canonicalPath = { privacy: "/privacy", terms: "/terms", "data-deletion": "/data-deletion" };
 
 // These pages render outside the storefront shell, so they read the shop's stored theme
 // themselves (same key and JSON encoding as Storefront.jsx; the shop defaults to dark).
@@ -43,7 +42,7 @@ const readStorefrontTheme = () => {
 
 // Legal pages must stay indexable and must advertise both language variants, so a
 // crawler (and a reviewer following a link) reaches the right one.
-const applyHeadTags = ({ pageKey, language, title, description }) => {
+const applyHeadTags = ({ pageKey, language, requestedLanguage, title, description }) => {
   if (typeof document === "undefined") return;
   document.title = title;
 
@@ -58,19 +57,18 @@ const applyHeadTags = ({ pageKey, language, title, description }) => {
   };
 
   upsert('meta[name="description"]', "meta", { name: "description", content: description });
-  // The canonical stays language-neutral: one public URL per policy, exactly the
-  // URLs already registered with third parties.
-  upsert('link[rel="canonical"]', "link", { rel: "canonical", href: `${CANONICAL_ORIGIN}${canonicalPath[pageKey]}` });
+  // ?lang=ar and ?lang=en are each their own canonical so the hreflang pair holds;
+  // the bare URL (the one registered with third parties) is the x-default. See
+  // legalHeadLinks.
+  const links = legalHeadLinks(pageKey, requestedLanguage);
+  upsert('link[rel="canonical"]', "link", { rel: "canonical", href: links.canonical });
   upsert('meta[name="robots"]', "meta", { name: "robots", content: "index, follow" });
-  upsert('link[rel="alternate"][hreflang="ar"]', "link", {
-    rel: "alternate", hreflang: "ar", href: `${CANONICAL_ORIGIN}${canonicalPath[pageKey]}?lang=ar`,
-  });
-  upsert('link[rel="alternate"][hreflang="en"]', "link", {
-    rel: "alternate", hreflang: "en", href: `${CANONICAL_ORIGIN}${canonicalPath[pageKey]}?lang=en`,
+  links.alternates.forEach(({ hreflang, href }) => {
+    upsert(`link[rel="alternate"][hreflang="${hreflang}"]`, "link", { rel: "alternate", hreflang, href });
   });
   upsert('meta[property="og:title"]', "meta", { property: "og:title", content: title });
   upsert('meta[property="og:description"]', "meta", { property: "og:description", content: description });
-  upsert('meta[property="og:url"]', "meta", { property: "og:url", content: `${CANONICAL_ORIGIN}${canonicalPath[pageKey]}` });
+  upsert('meta[property="og:url"]', "meta", { property: "og:url", content: links.canonical });
   document.documentElement.setAttribute("lang", language);
 };
 
@@ -109,12 +107,12 @@ function LegalShell({ pageKey }) {
     if (typeof document === "undefined") return undefined;
     const previousTitle = document.title;
     const previousLang = document.documentElement.getAttribute("lang");
-    applyHeadTags({ pageKey, language, title: meta.title, description: meta.description });
+    applyHeadTags({ pageKey, language, requestedLanguage, title: meta.title, description: meta.description });
     return () => {
       document.title = previousTitle;
       if (previousLang) document.documentElement.setAttribute("lang", previousLang);
     };
-  }, [pageKey, language, meta.title, meta.description]);
+  }, [pageKey, language, requestedLanguage, meta.title, meta.description]);
 
   const toggleLanguage = useCallback(() => {
     const next = language === "ar" ? "en" : "ar";
