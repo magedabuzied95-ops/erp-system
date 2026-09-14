@@ -37,6 +37,7 @@ import {
   normalizeFilterKey,
 } from "../Storefront";
 import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
+import { resolveProductImageUrl } from "../../shared/lib/imageUrls";
 import { localizeBrandLabel, localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import { useDialogFocus } from "../lib/useDialogFocus";
 import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
@@ -46,7 +47,9 @@ import { Baby, Briefcase, ChevronDown, ChevronLeft, ChevronRight, DollarSign, Ge
 import {
   buildCategoryBreadcrumb,
   buildCategoryItemList,
-  categoryCanonical,
+  categoryProductImage,
+  categorySeoHeadCopy,
+  listingSeoHead,
   productHasLargeAvailableSize,
   seoCategoryByPath,
   seoPinnedFilterUrl,
@@ -853,9 +856,16 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
 
   useEffect(() => {
     if (!seoCategory || typeof document === "undefined") return undefined;
-    const hasNonPageFilters = Array.from(params.keys()).some((key) => key !== "page");
-    const canonical = categoryCanonical(seoCategory, hasNonPageFilters ? 1 : page);
-    document.title = seoCategory.title;
+    // Arabic head copy whatever the reader's language: see categorySeoHeadCopy.
+    const headCopy = categorySeoHeadCopy(seoCategory);
+    // Only a loaded total can say a page is past the end (the server redirects those).
+    const { canonical, robots } = listingSeoHead({
+      path: seoCategory.path,
+      params,
+      page,
+      totalPages: backendTotal ? totalPages : 0,
+    });
+    document.title = headCopy.title;
     const setMeta = (selector, attributes, content) => {
       let node = document.head.querySelector(selector);
       if (!node) {
@@ -866,24 +876,24 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       if (attributes.rel) node.setAttribute("href", content);
       else node.setAttribute("content", content);
     };
-    setMeta('meta[name="description"]', { name: "description" }, seoCategory.description);
+    setMeta('meta[name="description"]', { name: "description" }, headCopy.description);
     setMeta('link[rel="canonical"]', { rel: "canonical" }, canonical);
-    setMeta('meta[name="robots"]', { name: "robots" }, hasNonPageFilters ? "noindex,follow" : "index,follow");
-    setMeta('meta[property="og:title"]', { property: "og:title" }, seoCategory.title);
-    setMeta('meta[property="og:description"]', { property: "og:description" }, seoCategory.description);
+    setMeta('meta[name="robots"]', { name: "robots" }, robots);
+    setMeta('meta[property="og:title"]', { property: "og:title" }, headCopy.title);
+    setMeta('meta[property="og:description"]', { property: "og:description" }, headCopy.description);
     setMeta('meta[property="og:url"]', { property: "og:url" }, canonical);
     setMeta('meta[property="og:type"]', { property: "og:type" }, "website");
     setMeta('meta[name="twitter:card"]', { name: "twitter:card" }, "summary_large_image");
-    setMeta('meta[name="twitter:title"]', { name: "twitter:title" }, seoCategory.title);
-    setMeta('meta[name="twitter:description"]', { name: "twitter:description" }, seoCategory.description);
-    const socialImage = orderedFilteredProducts[0]?.cover_image || orderedFilteredProducts[0]?.coverImage || orderedFilteredProducts[0]?.image || orderedFilteredProducts[0]?.images?.[0]?.url || "";
+    setMeta('meta[name="twitter:title"]', { name: "twitter:title" }, headCopy.title);
+    setMeta('meta[name="twitter:description"]', { name: "twitter:description" }, headCopy.description);
+    const socialImage = resolveProductImageUrl(categoryProductImage(orderedFilteredProducts[0]));
     if (socialImage) {
       setMeta('meta[property="og:image"]', { property: "og:image" }, socialImage);
       setMeta('meta[name="twitter:image"]', { name: "twitter:image" }, socialImage);
     }
     const schemas = [
-      ["breadcrumb", buildCategoryBreadcrumb(seoCategory, t("storefront.nav.home", "الرئيسية"))],
-      ["item-list", buildCategoryItemList(seoCategory, orderedFilteredProducts, page, pageSize)],
+      ["breadcrumb", buildCategoryBreadcrumb(headCopy)],
+      ["item-list", buildCategoryItemList(headCopy, orderedFilteredProducts, page, pageSize)],
     ];
     schemas.forEach(([key, value]) => {
       let script = document.head.querySelector(`script[data-m1-category-seo="${key}"]`);
@@ -896,18 +906,24 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       script.textContent = JSON.stringify(value).replace(/</g, "\\u003c");
     });
     return () => document.head.querySelectorAll("script[data-m1-category-seo]").forEach((node) => node.remove());
-  }, [orderedFilteredProducts, page, pageSize, params, seoCategory]);
+  }, [backendTotal, orderedFilteredProducts, page, pageSize, params, seoCategory, totalPages]);
+  // /products and /sale follow the section rule: every facet, sort, page size or search
+  // is noindex and canonicalises to the bare listing, so /products?brand=Nike&sort=price_asc
+  // is no longer its own indexable page with no canonical.
   useEffect(() => {
-    if (seoCategory || typeof document === "undefined") return;
+    if (seoCategory || typeof document === "undefined") return undefined;
+    const head = listingSeoHead({ path: filterBasePath, params, page, totalPages: backendTotal ? totalPages : 0 });
     const robots = document.head.querySelector('meta[name="robots"]') || document.head.appendChild(document.createElement("meta"));
     robots.setAttribute("name", "robots");
-    robots.setAttribute("content", q ? "noindex,follow" : "index,follow");
-    if (q) {
-      const canonical = document.head.querySelector('link[rel="canonical"]') || document.head.appendChild(document.createElement("link"));
-      canonical.setAttribute("rel", "canonical");
-      canonical.setAttribute("href", "https://m1store-egy.com/products");
-    }
-  }, [q, seoCategory]);
+    robots.setAttribute("content", head.robots);
+    const canonical = document.head.querySelector('link[rel="canonical"]') || document.head.appendChild(document.createElement("link"));
+    canonical.setAttribute("rel", "canonical");
+    canonical.setAttribute("href", head.canonical);
+    // The next page sets its own; a leftover /products canonical must not follow the shopper out.
+    return () => {
+      if (canonical.getAttribute("href") === head.canonical) canonical.remove();
+    };
+  }, [backendTotal, filterBasePath, page, params, seoCategory, totalPages]);
   const filteredProductsForGender = useMemo(
     () => (hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFilters, ["gender"]) : catalogProducts),
     [catalogFilters, catalogProducts, hasActiveCatalogFilters]

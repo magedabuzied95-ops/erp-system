@@ -191,6 +191,75 @@ export const seoPinnedFilterUrl = (definition, field, value, search = "") => {
 export const categoryCanonical =(definition, page = 1) =>
   `${STOREFRONT_ORIGIN}${definition.path}${Number(page) > 1 ? `?page=${Number(page)}` : ""}`;
 
+/*
+ * The head tags a crawler indexes speak Arabic whatever language the visitor's app
+ * is in. The server renders the Arabic copy (the crawler never runs the language
+ * code), and a render that swapped it for the `en` block handed Googlebot -- which
+ * has no stored language and an en-US browser -- "Original men's shoes" in place of
+ * "أحذية رجالي أصلية". The visible h1 and intro still follow the reader.
+ */
+export const categorySeoHeadCopy = (definition) =>
+  (definition && seoCategoryByKey(definition.key)) || definition;
+
+/*
+ * canonical + robots for any product listing: a section (/men) or the open
+ * listings (/products, /sale). Only ?page= describes a distinct indexable page;
+ * every other parameter (a facet, a sort, a page size, a search) is a view of the
+ * same listing, so it is noindex and canonicalises to the bare path. A page past
+ * the last one is the API's copy of the last page, never a page of its own.
+ */
+export const listingSeoHead = ({ path = "/products", params = [], page = 1, totalPages = 0 } = {}) => {
+  const keys = Array.from(params instanceof URLSearchParams ? params.keys() : Object.keys(params || {}));
+  const hasNonPageParams = keys.some((key) => key !== "page");
+  const safePage = Math.max(1, Number.parseInt(String(page), 10) || 1);
+  const pastLastPage = Number(totalPages) > 0 && safePage > Number(totalPages);
+  const indexable = !hasNonPageParams && !pastLastPage;
+  const canonicalPage = indexable ? safePage : 1;
+  return {
+    canonical: `${STOREFRONT_ORIGIN}${path}${canonicalPage > 1 ? `?page=${canonicalPage}` : ""}`,
+    robots: indexable ? "index,follow" : "noindex,follow",
+    indexable,
+    pastLastPage,
+  };
+};
+
+const seoMediaUrl = (entry) => {
+  if (typeof entry === "string") return entry.trim();
+  if (!entry || typeof entry !== "object") return "";
+  return String(entry.url || entry.image_url || entry.src || "").trim();
+};
+
+// The listing's lean projection carries image_url / product_image_url / gallery_images;
+// the old cover_image / image / images[] fields are never on a card, so og:image and the
+// crawlable <img> were always empty. The result may be a relative /uploads path: the
+// caller makes it absolute against the API origin (relative /uploads on the shop origin
+// answers the app's HTML).
+export const categoryProductImage = (product = {}) =>
+  [
+    product?.image_url,
+    product?.product_image_url,
+    Array.isArray(product?.gallery_images) ? product.gallery_images[0] : "",
+    product?.cover_image,
+    product?.coverImage,
+    product?.image,
+    Array.isArray(product?.images) ? product.images[0] : "",
+  ].map(seoMediaUrl).find(Boolean) || "";
+
+// The listing returns one card per colour, all sharing the product's slug. A list of
+// products names each product once: four colours were four identical ListItems,
+// links and headings.
+export const uniqueCategoryProducts = (products = []) => {
+  const seen = new Set();
+  return (Array.isArray(products) ? products : []).filter((product) => {
+    if (!product) return false;
+    const key = String(product.parent_product_id || product.id || product.slug || product.canonical_slug || "");
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export const productHasLargeAvailableSize = (product = {}, range = {}) =>
   (Array.isArray(product.variants) ? product.variants : []).some((variant) => {
     const size = Number(variant.size ?? variant.size_value);
@@ -207,15 +276,18 @@ export const buildCategoryBreadcrumb = (definition, homeLabel = "الرئيسي�
   ],
 });
 
-export const buildCategoryItemList = (definition, products = [], page = 1, pageSize = 24) => ({
-  "@context": "https://schema.org",
-  "@type": "ItemList",
-  name: definition.h1,
-  numberOfItems: products.length,
-  itemListElement: products.map((product, index) => ({
-    "@type": "ListItem",
-    position: (Math.max(1, Number(page)) - 1) * pageSize + index + 1,
-    url: `${STOREFRONT_ORIGIN}/product/${encodeURIComponent(product.slug || product.canonical_slug || product.id)}`,
-    name: String(product.name || product.title || "").trim(),
-  })),
-});
+export const buildCategoryItemList = (definition, cards = [], page = 1, pageSize = 24) => {
+  const products = uniqueCategoryProducts(cards);
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: definition.h1,
+    numberOfItems: products.length,
+    itemListElement: products.map((product, index) => ({
+      "@type": "ListItem",
+      position: (Math.max(1, Number(page)) - 1) * pageSize + index + 1,
+      url: `${STOREFRONT_ORIGIN}/product/${encodeURIComponent(product.slug || product.canonical_slug || product.id)}`,
+      name: String(product.name || product.title || "").trim(),
+    })),
+  };
+};

@@ -3,11 +3,15 @@ import {
   buildCategoryBreadcrumb,
   buildCategoryItemList,
   categoryCanonical,
+  categoryProductImage,
   productHasLargeAvailableSize,
   seoCategoryByKey,
+  uniqueCategoryProducts,
 } from "../../src/shared/lib/categorySeo.js";
 import {
   SEO_DATA_TIMEOUT_MS,
+  SEO_PAGE_NO_STORE,
+  absoluteSeoImageUrl,
   callStorefrontJsonController,
   createCachedShellLoader,
   sendSeoHtml,
@@ -27,7 +31,7 @@ const escapeHtml = (value = "") => String(value ?? "")
 const safeJson = (value) => JSON.stringify(value).replace(/</g, "\\u003c");
 const positivePage = (value) => Math.max(1, Number.parseInt(String(value || "1"), 10) || 1);
 const productIdentifier = (product = {}) => product.slug || product.canonical_slug || product.id;
-const productImage = (product = {}) => product.cover_image || product.coverImage || product.image || product.images?.[0]?.url || "";
+const productImage = (product = {}) => absoluteSeoImageUrl(categoryProductImage(product));
 
 export const buildCategorySeoPayload = (definition, products = [], { page = 1, total = products.length, indexable = true } = {}) => {
   const canonical = categoryCanonical(definition, indexable ? page : 1);
@@ -45,7 +49,7 @@ export const buildCategorySeoPayload = (definition, products = [], { page = 1, t
   };
 };
 
-const renderProducts = (products = []) => products.map((product) => {
+const renderProducts = (products = []) => uniqueCategoryProducts(products).map((product) => {
   const identifier = productIdentifier(product);
   if (!identifier) return "";
   const href = `/product/${encodeURIComponent(identifier)}`;
@@ -155,7 +159,9 @@ export const loadCategoryProducts = async (
   if (definition.largeSizes) {
     products = products.filter((product) => productHasLargeAvailableSize(product, definition.largeSizes));
   }
-  return { products, total };
+  // Without a total from the API the page count is a guess, and a guess must not redirect.
+  const totalKnown = payload?.total != null || payload?.total_count != null;
+  return { products, total, totalKnown };
 };
 
 const cachedCategoryHtmlShell = createCachedShellLoader(loadStorefrontCategoryHtmlShell);
@@ -183,6 +189,20 @@ export const createStorefrontCategorySeoPageHandler = ({
     // Shoppers still get the app, which loads the listing itself; the fallback is never cached.
     if (!loaded) return sendSeoHtml(res, await loadShell());
     const { products, total } = loaded;
+    // Past the last page the listing API answers with the last page's products, so /men?page=50
+    // rendered as a 200, indexable, self-canonical copy of it -- one per number anyone typed.
+    // Send it to the real last page. Not a 301: the page may exist once the catalogue grows.
+    const totalPages = Math.max(1, Math.ceil(Number(total || 0) / PAGE_SIZE));
+    if (loaded.totalKnown !== false && page > totalPages) {
+      const query = new URLSearchParams();
+      Object.entries(req.query || {}).forEach(([key, value]) => {
+        if (key !== "page") query.set(key, String(Array.isArray(value) ? value[0] : value));
+      });
+      if (totalPages > 1) query.set("page", String(totalPages));
+      const search = query.toString();
+      res.set("Cache-Control", SEO_PAGE_NO_STORE);
+      return res.redirect(302, `${definition.path}${search ? `?${search}` : ""}`);
+    }
     const html = injectCategorySeoIntoHtml(await loadShell(), definition, products, { page, total, indexable });
     return sendSeoHtml(res, html, { cacheable: true });
   } catch (error) {
