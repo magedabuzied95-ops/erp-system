@@ -100,6 +100,8 @@ import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChun
 import { openSizeGuide } from "./lib/sizeGuideStore";
 import { SizeGuideHost } from "./components/SizeGuideSheet";
 import { animateFlyToCart } from "./lib/flyToCart";
+import { CART_REPRICE_ENDPOINT, applyCartReprice, cartRepriceKey, cartRepriceVariantIds, isStaleCartCheckoutError } from "./lib/cartReprice";
+import CartRepriceNotice from "./components/CartRepriceNotice";
 import { releaseBootLoader } from "./lib/bootLoader";
 import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
 import { localizeColorName, localizeHoursLine, localizeSizeLabel } from "./lib/displayCopy";
@@ -7522,7 +7524,7 @@ function RecentProductsSection({ currentId, recent = [], ...props }) {
 
 const PENDING_COUPON_STORAGE_KEY = "sf_pending_coupon";
 
-function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
+function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, repriceCart, cartRepriceNotice, dismissCartRepriceNotice }) {
   const [checkoutSearchParams] = useSearchParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -7581,6 +7583,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const [latestAddressApplied, setLatestAddressApplied] = useState(false);
   const [latestAddressRestore, setLatestAddressRestore] = useState({ token: 0, candidate: null, status: "idle", stage: "idle" });
   const [shippingQuote, setShippingQuote] = useState(normalizeShippingQuote());
+  // Bumped to re-quote shipping when the server says the fee moved but the subtotal did not.
+  const [shippingRequoteToken, setShippingRequoteToken] = useState(0);
   const [shippingLocations, setShippingLocations] = useState(() => normalizeCheckoutLocations());
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
@@ -7877,7 +7881,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     return () => {
       cancelled = true;
     };
-  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal]);
+  }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal, shippingRequoteToken]);
 
   useEffect(() => {
     const phone = form.primary_phone.replace(/\D/g, "");
@@ -8816,6 +8820,16 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           responseData: error?.responseBody || null,
         });
       }
+      if (isStaleCartCheckoutError(error) && typeof repriceCart === "function") {
+        // The cart was priced (or shipping quoted) from numbers the server no longer charges. Toasting the
+        // refusal left the shopper resubmitting the same stale total forever; instead bring the lines to
+        // today's prices, quote shipping again for that subtotal, and let them review and place it again.
+        await repriceCart({ checkoutRetry: true });
+        setShippingRequoteToken((token) => token + 1);
+        toast.error(sfText("storefront.cart.repriceCheckoutRetry"));
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
       const backendMessage = error?.responseBody?.message || error?.message;
       const couponReason = error?.responseBody?.details?.coupon?.reason || error?.responseBody?.coupon?.reason || backendMessage;
       const field = String(error?.responseBody?.field || "").toLowerCase();
@@ -8942,6 +8956,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
               <h1 className="sfx-title">{t("storefront.checkout.title")}</h1>
             </div>
           </header>
+          <CartRepriceNotice notice={cartRepriceNotice} money={money} onDismiss={dismissCartRepriceNotice} />
           <CheckoutBlock id="sfc-contact" title={onePage("contact")}>
             <div className="sfc-stack">
               <CheckoutInput
@@ -10892,6 +10907,33 @@ function Storefront() {
     setCart((prev) => prev.filter((item) => item.lineId !== lineId));
   }, []);
 
+  // A cart line keeps the price it was added at; checkout charges today's. Ask the server what the lines
+  // cost now (the same pricing checkout uses) and fold it in, telling the shopper what moved. A failed
+  // request changes nothing — checkout still re-prices on the server and refuses a stale total.
+  const [cartRepriceNotice, setCartRepriceNotice] = useState(null);
+  const dismissCartRepriceNotice = useCallback(() => setCartRepriceNotice(null), []);
+  const repriceCart = useCallback(async ({ checkoutRetry = false } = {}) => {
+    const variantIds = cartRepriceVariantIds(cartRef.current);
+    if (!variantIds.length) return null;
+    try {
+      const data = await api.post(CART_REPRICE_ENDPOINT, { variant_ids: variantIds });
+      const variants = Array.isArray(data?.variants) ? data.variants : [];
+      const result = applyCartReprice(cartRef.current, variants, displayCartItemPrice);
+      // Applied to the latest cart, not the snapshot above, so a quantity changed mid-request survives.
+      setCart((prev) => applyCartReprice(prev, variants, displayCartItemPrice).cart);
+      if (result.changed.length || result.unavailable.length || checkoutRetry) {
+        setCartRepriceNotice({ changed: result.changed, unavailable: result.unavailable, checkoutRetry });
+      } else {
+        // Nothing wrong any more (say the unavailable line was removed): drop those warnings, but keep
+        // telling a shopper who moved from the cart page to checkout which prices changed.
+        setCartRepriceNotice((prev) => (prev?.changed?.length ? { changed: prev.changed, unavailable: [], checkoutRetry: false } : null));
+      }
+      return result;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const onAddToCart = useCallback((product, variant, quantity = 1, options = {}) => {
     if (!product || !variant) return;
     const sourceEl = options && typeof options === "object" ? options.sourceEl : null;
@@ -11289,6 +11331,16 @@ function Storefront() {
   const isOfferStoryPage = isStorefrontOfferPath(location.pathname || "");
   const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage || isOfferStoryPage;
   const currentStorefrontPath = resolveStorefrontPathname(location.pathname || "");
+  const cartVariantsKey = cartRepriceKey(cart);
+
+  // Re-price when the cart page or checkout opens, and again whenever the set of variants changes while
+  // there (an add, or another device's lines merged in). The price update itself never changes the key.
+  // Declared after the cartRef sync above, so the request reads the cart this render committed.
+  useEffect(() => {
+    const onCartOrCheckout = currentStorefrontPath === ROOT_PATHS.cart || currentStorefrontPath === ROOT_PATHS.checkout;
+    if (!onCartOrCheckout || !cartVariantsKey) return;
+    repriceCart();
+  }, [currentStorefrontPath, cartVariantsKey, repriceCart]);
 
   useEffect(() => {
     if (!isOfferStoryPage || typeof document === "undefined") return undefined;
@@ -11351,6 +11403,8 @@ function Storefront() {
           onAddToCart={onAddToCart}
           saleModeEnabled={storefrontSalePricesEnabled}
           themeMode={themeMode}
+          cartRepriceNotice={cartRepriceNotice}
+          dismissCartRepriceNotice={dismissCartRepriceNotice}
         />
       );
     }
@@ -11363,6 +11417,9 @@ function Storefront() {
           profile={profile}
           setProfile={setProfile}
           themeMode={themeMode}
+          repriceCart={repriceCart}
+          cartRepriceNotice={cartRepriceNotice}
+          dismissCartRepriceNotice={dismissCartRepriceNotice}
         />
       );
     }
@@ -11442,9 +11499,12 @@ function Storefront() {
     );
   }, [
     cart,
+    cartRepriceNotice,
     clearCart,
     components,
     currentStorefrontPath,
+    dismissCartRepriceNotice,
+    repriceCart,
     helpers,
     onAddToCart,
     profile,

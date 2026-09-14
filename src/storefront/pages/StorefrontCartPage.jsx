@@ -14,6 +14,7 @@ import {
   usePublicBundleConfig,
 } from "../Storefront";
 import { CheckoutTotals } from "../components/StorefrontCheckoutSummary";
+import CartRepriceNotice from "../components/CartRepriceNotice";
 import { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import { trackGa4ViewCart } from "../lib/ga4Events";
 import { ROOT_PATHS } from "../lib/paths";
@@ -108,6 +109,8 @@ export default function StorefrontCartPage({
   onAddToCart,
   saleModeEnabled,
   themeMode = "light",
+  cartRepriceNotice = null,
+  dismissCartRepriceNotice,
 }) {
   const lines = useMemo(() => (Array.isArray(cart) ? cart : []), [cart]);
   const bundleConfig = usePublicBundleConfig();
@@ -191,6 +194,8 @@ export default function StorefrontCartPage({
                 <Link to={productsPath} className="sfx-link-btn sfk-continue">{sfText("storefront.common.continueShopping", "متابعة التسوق")}</Link>
               </div>
             </header>
+            {/* Prices re-checked against the catalogue when this page opened (lib/cartReprice.js). */}
+            <CartRepriceNotice notice={cartRepriceNotice} money={money} onDismiss={dismissCartRepriceNotice} />
             <section className="sfk-section" aria-labelledby="sfk-cart-title">
               <ul className="sfk-lines">
                 {lines.map((item) => (

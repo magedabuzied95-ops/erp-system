@@ -667,7 +667,15 @@
     "summaryHint": "The final total and shipping are shown clearly before you place the order.",
     "totalsEyebrow": "Cart totals",
     "discount": "Discount",
-    "shippingAtCheckout": "Calculated at checkout"
+    "shippingAtCheckout": "Calculated at checkout",
+    "repriceChangedTitle": "Some prices in your cart have changed",
+    "repriceChangedLine": "{{name}}: {{from}} → {{to}}",
+    "repriceReview": "The totals now show today's prices. Review them before you continue.",
+    "repriceUnavailable": "{{name}} is no longer available. Remove it to continue.",
+    "repriceOutOfStock": "{{name}} is out of stock. Remove it to continue.",
+    "repriceLowStock": "Only {{stock}} left of {{name}}. Lower the quantity to continue.",
+    "repriceCheckoutRetry": "Your cart was updated to today's prices and shipping. Review the total, then place the order again.",
+    "repriceDismiss": "Dismiss"
   },
   "success": {
     "awaitingVerificationSubtitle": "We will review the transfer proof, then start preparing the order.",

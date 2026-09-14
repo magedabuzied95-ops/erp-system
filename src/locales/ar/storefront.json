@@ -425,7 +425,15 @@
     "summaryHint": "الإجمالي النهائي والشحن يظهران لك بوضوح قبل إنهاء الطلب.",
     "totalsEyebrow": "إجمالي السلة",
     "discount": "الخصم",
-    "shippingAtCheckout": "بيتحسب في صفحة الدفع"
+    "shippingAtCheckout": "بيتحسب في صفحة الدفع",
+    "repriceChangedTitle": "أسعار بعض المنتجات في السلة اتغيرت",
+    "repriceChangedLine": "{{name}}: كان {{from}} وبقى {{to}}",
+    "repriceReview": "الإجمالي دلوقتي بأسعار النهارده. راجعه قبل ما تكمل.",
+    "repriceUnavailable": "{{name}} مبقاش متاح. شيله من السلة علشان تكمل.",
+    "repriceOutOfStock": "{{name}} خلص من المخزن. شيله من السلة علشان تكمل.",
+    "repriceLowStock": "فاضل {{stock}} بس من {{name}}. قلل الكمية علشان تكمل.",
+    "repriceCheckoutRetry": "حدثنا السلة بأسعار النهارده والشحن. راجع الإجمالي وبعدين أكد الطلب تاني.",
+    "repriceDismiss": "إخفاء"
   },
   "checkout": {
     "actions": {

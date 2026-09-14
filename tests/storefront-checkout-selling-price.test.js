@@ -74,7 +74,15 @@ test("checkout selects the canonical price columns it has to resolve through", a
 
 test("checkout prices through the catalog projection and the canonical resolver, never the raw columns", async () => {
   const source = await controllerSource();
-  const checkout = source.slice(source.indexOf("export const createWebsiteOrder"));
+  // Checkout's pricing lives in priceStorefrontVariantRows (shared with the cart re-price); checkout must call it.
+  assert.ok(
+    source.slice(source.indexOf("export const createWebsiteOrder")).includes("await priceStorefrontVariantRows("),
+    "checkout must price through the shared helper"
+  );
+  const checkout = source.slice(
+    source.indexOf("export const priceStorefrontVariantRows"),
+    source.indexOf("export const STOREFRONT_CART_REPRICE_MAX_VARIANTS")
+  );
   assert.ok(
     checkout.includes("const price = shelfPriceByVariantId.get(String(variant.id)) || resolvedPrice.activePrice"),
     "the shelf price the customer saw must win"
@@ -99,6 +107,9 @@ test("the checkout transaction prices on its own client, not a second pooled con
     source.includes("pricingSettings = STOREFRONT_PRICING_DEFAULTS, executor = db)"),
     "queryProductsByIds must accept the caller's executor"
   );
-  const call = source.slice(source.indexOf("const shelfPricedProducts = await queryProductsByIds("));
-  assert.ok(call.slice(0, 260).includes("client"), "checkout must pass its transaction client, or it can starve the pool");
+  const helper = source.slice(source.indexOf("const shelfPricedProducts = await queryProductsByIds("));
+  assert.ok(helper.slice(0, 260).includes("executor"), "the shared pricing helper must query on the caller's executor");
+  const checkout = source.slice(source.indexOf("export const createWebsiteOrder"));
+  const call = checkout.slice(checkout.indexOf("await priceStorefrontVariantRows("));
+  assert.ok(call.slice(0, 260).includes("executor: client"), "checkout must pass its transaction client, or it can starve the pool");
 });

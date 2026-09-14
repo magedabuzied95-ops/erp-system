@@ -5451,6 +5451,155 @@ export const checkCheckoutWhatsappNumber = async (req, res) => {
   return res.json({ success: true, exists: result.exists, reason: result.reason });
 };
 
+// The variant rows a cart is priced from. Checkout locks them (FOR UPDATE) inside its transaction;
+// the cart re-price reads the same rows without a lock. One SELECT for both, so a line the re-price
+// calls sellable is exactly a line checkout will find.
+const storefrontCartVariantSql = ({ productColumns, variantColumns, idClause, forUpdate = false }) => {
+  // The canonical price tiers (manual override, purchase-invoice price) are optional columns; fall back to
+  // NULL rather than break checkout on a database that predates them.
+  const productPricingColumnSql = (column) => (productColumns.has(column) ? `p.${column}` : "NULL");
+  const variantTenantClause = variantColumns.has("tenant_id")
+    ? "AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)"
+    : "";
+  const productTenantClause = productColumns.has("tenant_id")
+    ? "AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)"
+    : "";
+  return `
+        SELECT
+          pv.*,
+          p.name AS product_name,
+          COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
+          COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pv.photo_url, ''), NULLIF(pv.thumbnail_url, ''), '') AS variant_image,
+          p.category_id AS product_category_id,
+          p.brand_id AS product_brand_id,
+          p.cost_price AS product_cost_price,
+          COALESCE(NULLIF(p.regular_price, 0), p.price, 0) AS product_regular_price,
+          COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS product_selling_price,
+          ${productPricingColumnSql("manual_price_override_active")} AS product_manual_price_override_active,
+          ${productPricingColumnSql("manual_selling_price")} AS product_manual_selling_price,
+          ${productPricingColumnSql("purchase_selling_price")} AS product_purchase_selling_price,
+          p.sale_price AS product_sale_price,
+          p.sale_price_enabled AS product_sale_price_enabled,
+          p.sale_start_at AS product_sale_start_at,
+          p.sale_end_at AS product_sale_end_at,
+          -- Curated-offer membership decides the charged price here exactly as it does on the product card;
+          -- without it checkout would bill the normal price for a product the storefront advertised on sale.
+          COALESCE(p.is_offer_story, FALSE) AS product_is_offer_story
+        FROM product_variants pv
+        JOIN products p ON p.id = pv.product_id
+        WHERE ${idClause}
+          AND pv.is_active IS DISTINCT FROM FALSE
+          AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
+          AND pv.deleted_at IS NULL
+          ${variantTenantClause}
+          ${productTenantClause}
+        ${forUpdate ? "FOR UPDATE" : ""}
+        `;
+};
+
+// The one price a storefront cart line is charged, for rows read by storefrontCartVariantSql. Checkout
+// charges it and the cart re-price shows it, so the two cannot drift apart.
+//
+// Price the cart through the same catalog projection the product cards render from, so what the customer
+// is charged cannot disagree with what the shelf advertised. The variant SELECT reads only the
+// legacy price columns, but for a large part of the catalogue the sole normal price is a manual override
+// or a purchase-invoice price (see resolveCurrentSellingPrice) — those carts resolved to 0 and were
+// rejected as "no valid selling price". `executor` is the caller's client, so checkout's transaction keeps
+// one connection. The per-row resolution below is the fallback for a product the projection cannot see.
+export const priceStorefrontVariantRows = async (variantRows = [], { tenantId, pricingSettings, executor = db } = {}) => {
+  const shelfPricedProducts = await queryProductsByIds(
+    tenantId,
+    [...new Set(variantRows.map((variant) => Number(variant.product_id)).filter(Boolean))],
+    pricingSettings,
+    executor
+  );
+  const shelfPriceByVariantId = new Map();
+  const shelfCompareByVariantId = new Map();
+  for (const shelfProduct of shelfPricedProducts) {
+    for (const shelfVariant of shelfProduct.variants || []) {
+      const shelfPrice = roundMoney(shelfVariant.final_price || shelfVariant.price || shelfVariant.selling_price);
+      if (shelfPrice > 0) shelfPriceByVariantId.set(String(shelfVariant.id), shelfPrice);
+      shelfCompareByVariantId.set(String(shelfVariant.id), roundMoney(shelfVariant.compare_at_price));
+    }
+  }
+
+  const priceByVariantId = new Map();
+  for (const variant of variantRows) {
+    const originalPrice = roundMoney(variant.product_regular_price);
+    // The canonical normal-price ladder: manual override, then the purchase-invoice price, then the legacy
+    // columns — variant before product. Reading only selling_price/price here is what produced the 400.
+    const sellingPrice = roundMoney(
+      resolveCurrentSellingPrice({
+        product: {
+          manual_price_override_active: variant.product_manual_price_override_active,
+          manual_selling_price: variant.product_manual_selling_price,
+          purchase_selling_price: variant.product_purchase_selling_price,
+          selling_price: variant.product_selling_price,
+        },
+        variant,
+      }).value
+    );
+    const resolvedPrice = resolveStorefrontActivePrice({
+      originalPrice,
+      sellingPrice,
+      salePrice: variant.sale_price || variant.product_sale_price,
+      pricingSettings,
+      forcedOffer: isForcedOfferSale({ is_offer_story: variant.product_is_offer_story }) || isForcedOfferSale(variant),
+    });
+    const price = shelfPriceByVariantId.get(String(variant.id)) || resolvedPrice.activePrice;
+    // The strikethrough comes from wherever the price did, so a shelf price never sits over a fallback's compare.
+    const compareAtPrice = shelfPriceByVariantId.has(String(variant.id))
+      ? shelfCompareByVariantId.get(String(variant.id)) || 0
+      : resolvedPrice.compareAtPrice;
+    priceByVariantId.set(String(variant.id), { price, compareAtPrice: compareAtPrice > price ? compareAtPrice : 0 });
+  }
+  return { shelfPricedProducts, priceByVariantId };
+};
+
+// A cart may carry at most this many distinct variants into one re-price; the rest are not answered.
+export const STOREFRONT_CART_REPRICE_MAX_VARIANTS = 60;
+
+// What a saved cart's lines cost now. A cart stores the price from the moment each item was added, but
+// checkout charges today's catalogue price and refuses a transfer whose amount disagrees — so after an
+// offer ended the shopper was stuck on an error they could not fix. The cart page and checkout call this
+// on open and re-price their lines. Public: variant ids in, prices and stock out, nothing about anyone.
+export const repriceStorefrontCartVariants = async ({ tenantId, variantIds = [], pricingSettings = null, executor = db } = {}) => {
+  const ids = [...new Set((Array.isArray(variantIds) ? variantIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isSafeInteger(id) && id > 0))]
+    .slice(0, STOREFRONT_CART_REPRICE_MAX_VARIANTS);
+  if (!ids.length) return [];
+  const productColumns = await tableColumns(executor, "products");
+  const variantColumns = await tableColumns(executor, "product_variants");
+  const variantResult = await executor.query(
+    storefrontCartVariantSql({ productColumns, variantColumns, idClause: "pv.id = ANY($1::bigint[])" }),
+    [ids, tenantId]
+  );
+  const rowsById = new Map(variantResult.rows.map((row) => [String(row.id), row]));
+  const { priceByVariantId } = await priceStorefrontVariantRows(variantResult.rows, {
+    tenantId,
+    pricingSettings: pricingSettings || (await loadStorefrontPricingSettings(tenantId)),
+    executor,
+  });
+  return ids.map((id) => {
+    const row = rowsById.get(String(id));
+    // Hidden, archived, deleted or another tenant's: checkout would refuse it as "unavailable".
+    if (!row) return { variant_id: id, product_id: null, price: 0, compare_at_price: 0, stock: 0, available: false, reason: "unavailable" };
+    const { price, compareAtPrice } = priceByVariantId.get(String(id)) || { price: 0, compareAtPrice: 0 };
+    const stock = Math.max(0, Number(row.stock || 0));
+    const reason = price <= 0 ? "no_price" : stock <= 0 ? "out_of_stock" : null;
+    return {
+      variant_id: id,
+      product_id: Number(row.product_id) || null,
+      price,
+      compare_at_price: compareAtPrice,
+      stock,
+      available: !reason,
+      reason,
+    };
+  });
+};
+
 export const createWebsiteOrder = async (req, res) => {
   const client = await db.connect();
   let checkoutStep = "start";
@@ -5593,9 +5742,6 @@ export const createWebsiteOrder = async (req, res) => {
     const customer = await resolveCustomer(client, tenantId, checkout, checkoutColumns.customers, runCheckoutQuery);
     markCheckoutStep("upsert customer:done", { table: "customers", customerId: customer?.id });
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    // The canonical price tiers (manual override, purchase-invoice price) are optional columns; fall back to
-    // NULL rather than break checkout on a database that predates them.
-    const productPricingColumnSql = (column) => (checkoutColumns.products.has(column) ? `p.${column}` : "NULL");
     let subtotal = 0;
     const normalizedItems = [];
     const lockedItems = [];
@@ -5604,46 +5750,15 @@ export const createWebsiteOrder = async (req, res) => {
       const variantId = Number(item.variant_id || item.variantId || 0);
       const quantity = Math.max(1, Number(item.quantity || 1));
       if (!variantId) throw checkoutValidationError("Select an available size and color", "items.variant_id", { item });
-      const variantTenantClause = checkoutColumns.variants.has("tenant_id")
-        ? "AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)"
-        : "";
-      const productTenantClause = checkoutColumns.products.has("tenant_id")
-        ? "AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint OR p.tenant_id IS NULL)"
-        : "";
       markCheckoutStep("decrement stock:lock variant", { table: "product_variants", variantId, quantity, variantTenantScoped: checkoutColumns.variants.has("tenant_id") });
       const variantResult = await runCheckoutQuery(
         client,
-        `
-        SELECT
-          pv.*,
-          p.name AS product_name,
-          COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image,
-          COALESCE(NULLIF(pv.image_url, ''), NULLIF(pv.image, ''), NULLIF(pv.photo_url, ''), NULLIF(pv.thumbnail_url, ''), '') AS variant_image,
-          p.category_id AS product_category_id,
-          p.brand_id AS product_brand_id,
-          p.cost_price AS product_cost_price,
-          COALESCE(NULLIF(p.regular_price, 0), p.price, 0) AS product_regular_price,
-          COALESCE(NULLIF(p.selling_price, 0), p.price, 0) AS product_selling_price,
-          ${productPricingColumnSql("manual_price_override_active")} AS product_manual_price_override_active,
-          ${productPricingColumnSql("manual_selling_price")} AS product_manual_selling_price,
-          ${productPricingColumnSql("purchase_selling_price")} AS product_purchase_selling_price,
-          p.sale_price AS product_sale_price,
-          p.sale_price_enabled AS product_sale_price_enabled,
-          p.sale_start_at AS product_sale_start_at,
-          p.sale_end_at AS product_sale_end_at,
-          -- Curated-offer membership decides the charged price here exactly as it does on the product card;
-          -- without it checkout would bill the normal price for a product the storefront advertised on sale.
-          COALESCE(p.is_offer_story, FALSE) AS product_is_offer_story
-        FROM product_variants pv
-        JOIN products p ON p.id = pv.product_id
-        WHERE pv.id = $1
-          AND pv.is_active IS DISTINCT FROM FALSE
-          AND COALESCE(pv.is_storefront_visible, TRUE) = TRUE
-          AND pv.deleted_at IS NULL
-          ${variantTenantClause}
-          ${productTenantClause}
-        FOR UPDATE
-        `,
+        storefrontCartVariantSql({
+          productColumns: checkoutColumns.products,
+          variantColumns: checkoutColumns.variants,
+          idClause: "pv.id = $1",
+          forUpdate: true,
+        }),
         [variantId, tenantId],
         { table: "product_variants", operation: "select variant for update" }
       );
@@ -5661,49 +5776,15 @@ export const createWebsiteOrder = async (req, res) => {
       markCheckoutStep("decrement stock:lock variant:done", { table: "product_variants", variantId, productId: variant.product_id, stockBefore: variant.stock });
     }
 
-    // Price the cart through the same catalog projection the product cards render from, so what the customer
-    // is charged cannot disagree with what the shelf advertised. The locking SELECT above reads only the
-    // legacy price columns, but for a large part of the catalogue the sole normal price is a manual override
-    // or a purchase-invoice price (see resolveCurrentSellingPrice) — those carts resolved to 0 and were
-    // rejected as "no valid selling price". Runs on the checkout client so the transaction keeps one
-    // connection. The per-row resolution below is the fallback for a product the projection cannot see.
-    const shelfPricedProducts = await queryProductsByIds(
-      tenantId,
-      [...new Set(lockedItems.map(({ variant }) => Number(variant.product_id)).filter(Boolean))],
-      pricingSettings,
-      client
+    // Priced by the same path the cart re-price shows the shopper (priceStorefrontVariantRows), on the
+    // checkout client so the transaction keeps one connection.
+    const { shelfPricedProducts, priceByVariantId } = await priceStorefrontVariantRows(
+      lockedItems.map(({ variant }) => variant),
+      { tenantId, pricingSettings, executor: client }
     );
-    const shelfPriceByVariantId = new Map();
-    for (const shelfProduct of shelfPricedProducts) {
-      for (const shelfVariant of shelfProduct.variants || []) {
-        const shelfPrice = roundMoney(shelfVariant.final_price || shelfVariant.price || shelfVariant.selling_price);
-        if (shelfPrice > 0) shelfPriceByVariantId.set(String(shelfVariant.id), shelfPrice);
-      }
-    }
 
     for (const { variant, quantity, bundleId } of lockedItems) {
-      const originalPrice = roundMoney(variant.product_regular_price);
-      // The canonical normal-price ladder: manual override, then the purchase-invoice price, then the legacy
-      // columns — variant before product. Reading only selling_price/price here is what produced the 400.
-      const sellingPrice = roundMoney(
-        resolveCurrentSellingPrice({
-          product: {
-            manual_price_override_active: variant.product_manual_price_override_active,
-            manual_selling_price: variant.product_manual_selling_price,
-            purchase_selling_price: variant.product_purchase_selling_price,
-            selling_price: variant.product_selling_price,
-          },
-          variant,
-        }).value
-      );
-      const resolvedPrice = resolveStorefrontActivePrice({
-        originalPrice,
-        sellingPrice,
-        salePrice: variant.sale_price || variant.product_sale_price,
-        pricingSettings,
-        forcedOffer: isForcedOfferSale({ is_offer_story: variant.product_is_offer_story }) || isForcedOfferSale(variant),
-      });
-      const price = shelfPriceByVariantId.get(String(variant.id)) || resolvedPrice.activePrice;
+      const { price } = priceByVariantId.get(String(variant.id)) || { price: 0 };
       if (price <= 0) {
         throw checkoutValidationError("This product does not have a valid selling price", "items.price", {
           product_id: variant.product_id,

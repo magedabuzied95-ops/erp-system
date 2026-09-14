@@ -24,6 +24,8 @@ import {
   listProducts,
   listProductFacets,
   resolveProductLink,
+  repriceStorefrontCartVariants,
+  STOREFRONT_CART_REPRICE_MAX_VARIANTS,
   listShippingProviders,
   buildStorefrontHomeFromProducts,
   isHomeMirrorProduct,
@@ -628,6 +630,21 @@ router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:id/pair", getProductPair);
 router.get("/products/:identifier", getProduct);
 router.get("/shipping/quote", getShippingQuote);
+// Today's price and stock for the variants in a saved cart, priced by the same helper checkout charges
+// with. Public and PII-free: variant ids in (at most STOREFRONT_CART_REPRICE_MAX_VARIANTS), numbers out.
+router.post("/cart/reprice", async (req, res) => {
+  try {
+    const raw = req.body?.variant_ids ?? req.body?.variantIds;
+    const variants = await repriceStorefrontCartVariants({
+      tenantId: publicTenantId(req),
+      variantIds: Array.isArray(raw) ? raw : [],
+    });
+    return res.json({ success: true, variants, max_variants: STOREFRONT_CART_REPRICE_MAX_VARIANTS });
+  } catch (error) {
+    console.error("[storefront] cart reprice", { requestId: req.id, message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "Failed to re-price the cart" });
+  }
+});
 router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) => {
   const eventName = toText(req.body?.event_name);
   if (!["ViewContent", "AddToCart", "InitiateCheckout", "Purchase"].includes(eventName)) {
