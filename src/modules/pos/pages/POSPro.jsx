@@ -126,7 +126,8 @@ import PosOfflineQueueModal from "../components/PosOfflineQueueModal";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
-import { printThermalReceipt, warmThermalReceiptPrinter } from "../lib/thermalReceiptPrint.jsx";
+import { printThermalReceipt, warmThermalReceiptPrinter, PRINT_RENDERER_UNAVAILABLE } from "../lib/thermalReceiptPrint.jsx";
+import { resolveReceiptRenderTotals } from "../lib/receiptRenderTotals.js";
 import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
 import i18nInstance from "../../../i18n/i18n";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
@@ -291,13 +292,70 @@ const POS_STATUS_BAR_STYLE = "black-translucent";
 const POS_TOUCH_ICON_HREF = "/icons/pos-180.png";
 const POS_GLOBAL_BARCODE_MIN_LENGTH = 6;
 const POS_GLOBAL_BARCODE_MAX_DURATION_MS = 500;
+// A search-box submission that reads like a scanner code: one unbroken token of
+// the scanner's minimum length carrying at least one digit. A typed product name
+// ("nike air") is left in the box when it finds nothing; a dead code is not.
+const looksLikeScannedCode = (value) => {
+  const text = String(value || "").trim();
+  return text.length >= POS_GLOBAL_BARCODE_MIN_LENGTH && !/\s/.test(text) && /\d/.test(text);
+};
 const POS_CHECKOUT_DEBUG = Boolean(
   import.meta.env?.DEV ||
   String(import.meta.env?.VITE_POS_CHECKOUT_DEBUG || "").trim().toLowerCase() === "true" ||
   String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
 );
+// Trace logging for the till. A production build is silent: several of these
+// traces carried the seller record, the typed phone and the customer's name
+// into the console of a shared counter machine. Errors stay on console.error.
+const posDebugLog = POS_CHECKOUT_DEBUG ? (...args) => console.log(...args) : () => {};
+const posDebugInfo = POS_CHECKOUT_DEBUG ? (...args) => console.info(...args) : () => {};
 const POS_OFFLINE_DEBUG = String(import.meta.env?.VITE_POS_OFFLINE_DEBUG || "").trim().toLowerCase() === "true";
 const tt = (key, options) => i18nInstance.t(key, options);
+
+// The hour on the shop's wall clock, whatever the till's own timezone says.
+const cairoHourNow = (date = new Date()) => {
+  try {
+    const hour = Number(
+      new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Cairo", hour: "2-digit", hourCycle: "h23" }).format(date)
+    );
+    return Number.isFinite(hour) ? hour % 24 : date.getHours();
+  } catch {
+    return date.getHours();
+  }
+};
+
+// Last receipt settings the server returned, per tenant. Storage can be absent or
+// throw (private mode, blocked site data), so every access is guarded and a miss
+// simply falls back to the safe defaults.
+const POS_RECEIPT_SETTINGS_CACHE_KEY = "erp.pos.receipt-settings.v1";
+const readCachedReceiptRuntimeSettings = (tenantKey = "") => {
+  try {
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(POS_RECEIPT_SETTINGS_CACHE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (!cached || typeof cached !== "object" || !cached.settings) return null;
+    if (String(cached.tenantKey || "") !== String(tenantKey || "")) return null;
+    return {
+      printReceiptAutomatically: Boolean(cached.settings.printReceiptAutomatically),
+      receiptTemplate: cached.settings.receiptTemplate || "compact",
+      store: cached.settings.store || null,
+    };
+  } catch {
+    return null;
+  }
+};
+const writeCachedReceiptRuntimeSettings = (settings, tenantKey = "") => {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      POS_RECEIPT_SETTINGS_CACHE_KEY,
+      JSON.stringify({ tenantKey: String(tenantKey || ""), savedAt: Date.now(), settings })
+    );
+  } catch {
+    // A full or blocked storage only costs the next cold start its cached copy.
+  }
+};
 
 const quickExpenseDefaults = { category: "delivery", employee_id: "", amount: "", payment_method: "cash", notes: "" };
 const QUICK_EXPENSE_CATEGORY_KEYS = {
@@ -973,9 +1031,9 @@ const normalizeCheckoutInvoiceData = (response = {}, createdOrder = {}) => {
   }
 
   if (import.meta.env.DEV && !invoiceUrl) {
-    console.log("[checkout response]", response);
-    console.log("[normalized invoice url]", invoiceUrl);
-    console.log("[normalized public token]", publicToken);
+    posDebugLog("[checkout response]", response);
+    posDebugLog("[normalized invoice url]", invoiceUrl);
+    posDebugLog("[normalized public token]", publicToken);
   }
 
   return {
@@ -1458,7 +1516,7 @@ const cacheAllPosCustomers = async ({ firstResponse, tenantId, branchId, signal 
       await savePosCustomerSnapshot(rows, { tenantId, merge: true });
       cachedCount += rows.length;
     }
-    console.info("POS_CUSTOMER_CACHE_COMPLETE", {
+    posDebugInfo("POS_CUSTOMER_CACHE_COMPLETE", {
       customer_count: Math.min(cachedCount, pagination.total || cachedCount),
       total: pagination.total,
       pages: pagination.totalPages,
@@ -1794,7 +1852,7 @@ function POSPro() {
     });
 
     if (!validation.valid) {
-      console.info("POS_SHIFT_CACHE_REJECTED", {
+      posDebugInfo("POS_SHIFT_CACHE_REJECTED", {
         reason: validation.reason,
         shift_id: cachedShiftState.shift_id ?? cachedShiftState.shift?.id ?? null,
         branch_id: cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? null,
@@ -1804,7 +1862,7 @@ function POSPro() {
       return null;
     }
 
-    console.info("POS_SHIFT_CACHE_LOAD", {
+    posDebugInfo("POS_SHIFT_CACHE_LOAD", {
       source: "initial",
       shift_id: cachedShiftState.shift_id ?? cachedShiftState.shift?.id ?? null,
       branch_id: cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? null,
@@ -1889,11 +1947,14 @@ function POSPro() {
   });
   const [lastOrder, setLastOrder] = useState(null);
   const [lastShareContext, setLastShareContext] = useState(null);
-  const [receiptRuntimeSettings, setReceiptRuntimeSettings] = useState({
-    printReceiptAutomatically: false,
-    receiptTemplate: "compact",
-    store: null,
-  });
+  const receiptSettingsTenantKey = String(customerCacheTenantId || "");
+  const [receiptRuntimeSettings, setReceiptRuntimeSettings] = useState(() => (
+    readCachedReceiptRuntimeSettings(receiptSettingsTenantKey) || {
+      printReceiptAutomatically: false,
+      receiptTemplate: "compact",
+      store: null,
+    }
+  ));
   const [checkoutSuccessOpen, setCheckoutSuccessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [marketingAttribution, setMarketingAttribution] = useState(() => readMarketingAttributionState());
@@ -1964,6 +2025,9 @@ function POSPro() {
   const previousTotalRef = useRef(0);
   const lastBarcodeSubmitRef = useRef({ value: "", timer: null });
   const globalBarcodeBufferRef = useRef({ value: "", startedAt: 0, lastAt: 0 });
+  // The scanner listener is registered once and calls the CURRENT submit handler
+  // through this ref (see the keydown effect below).
+  const handleBarcodeSubmitRef = useRef(null);
   const posSearchMatchLogRef = useRef({ query: "", keys: new Set() });
   const customerSearchRequestSeqRef = useRef(0);
   const customerAutoCreatePromptedPhoneRef = useRef("");
@@ -1972,7 +2036,15 @@ function POSPro() {
   const activePosShiftRef = useRef(null);
   const posShiftBranchRef = useRef(null);
   const posShiftSourceRef = useRef("server");
-  const paymobPollingRef = useRef({ timer: null, cancelled: false });
+  const paymobPollingRef = useRef({ timer: null, cancelled: false, session: null });
+  // One entry per terminal transaction id: whether it has been turned into an
+  // order, the single in-flight checkout both the poll and the manual confirm
+  // share, and the ONE idempotency key the server sees for it.
+  const paymobTerminalFinalizeRef = useRef(new Map());
+  const checkoutLockRef = useRef(false);
+  // Counts receipts being printed (and a short tail after each), so the
+  // service-worker update never reloads the page under the printer.
+  const printInFlightRef = useRef(0);
   const posOfflineSchedulerRef = useRef(null);
   // Held in a ref because the sync scheduler effect runs far above the callback
   // in this file; capturing it directly would put a later const in the effect's
@@ -2054,23 +2126,69 @@ function POSPro() {
     writeCachedActivePosShift({ shift, branch, currentUser });
   }, [currentUser]);
 
+  // Receipt settings used to load exactly once. One failed request (a slow
+  // morning connection, a deploy blip) left automatic printing OFF for the whole
+  // tab without a word -- the cashier saw "printing stopped after the order". The
+  // last good copy now seeds the state, and a failure keeps retrying (2 s, 5 s,
+  // 15 s, then every minute, and at once when the connection comes back) until
+  // one succeeds.
   useEffect(() => {
     let cancelled = false;
-    api.get("/pos/receipt-settings", { timeoutMs: 10000 })
-      .then((response) => {
-        if (cancelled) return;
-        setReceiptRuntimeSettings({
-          printReceiptAutomatically: Boolean(response?.settings?.printReceiptAutomatically),
-          receiptTemplate: response?.settings?.receiptTemplate || "compact",
-          store: response?.store || null,
+    let settled = false;
+    let attempt = 0;
+    let retryTimer = null;
+    let inFlight = false;
+    const retryDelaysMs = [2000, 5000, 15000];
+
+    const load = () => {
+      if (cancelled || settled || inFlight) return;
+      window.clearTimeout(retryTimer);
+      inFlight = true;
+      api.get("/pos/receipt-settings", { timeoutMs: 10000 })
+        .then((response) => {
+          if (cancelled) return;
+          settled = true;
+          const nextSettings = {
+            printReceiptAutomatically: Boolean(response?.settings?.printReceiptAutomatically),
+            receiptTemplate: response?.settings?.receiptTemplate || "compact",
+            store: response?.store || null,
+          };
+          setReceiptRuntimeSettings(nextSettings);
+          writeCachedReceiptRuntimeSettings(nextSettings, receiptSettingsTenantKey);
+        })
+        .catch((settingsError) => {
+          if (cancelled) return;
+          console.warn("[pos] receipt settings unavailable; keeping the last known settings", settingsError?.message || settingsError);
+          const delayMs = retryDelaysMs[attempt] ?? 60000;
+          attempt += 1;
+          retryTimer = window.setTimeout(load, delayMs);
+        })
+        .finally(() => {
+          inFlight = false;
         });
-      })
-      .catch((settingsError) => {
-        console.warn("[pos] receipt settings unavailable; using safe defaults", settingsError?.message || settingsError);
-      });
+    };
+
+    load();
+    window.addEventListener("online", load);
     return () => {
       cancelled = true;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", load);
     };
+  }, [receiptSettingsTenantKey]);
+
+  // The receipt renderer is its own chunk. Warmed only when Recent Operations
+  // opened, the first automatic print of the day paid for the download while
+  // the customer waited -- and failed outright if the network blinked. It is
+  // fetched as soon as the till is idle now.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(() => warmThermalReceiptPrinter(), { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(() => warmThermalReceiptPrinter(), 1200);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -2258,6 +2376,8 @@ function POSPro() {
       if (cancelled || reloading) return;
       if (window.sessionStorage.getItem(reloadMarker) === "1") return;
       if (saleInProgressRef.current) return;
+      // A receipt still printing (or just sent) is the tail of a sale too.
+      if (printInFlightRef.current > 0) return;
       reloading = true;
       pendingSwUpdateRef.current = false;
       window.sessionStorage.setItem(reloadMarker, "1");
@@ -2316,10 +2436,12 @@ function POSPro() {
 
   // Keep the sale-in-progress signal current for the service-worker update path.
   // "In progress" is anything the operator would have to re-enter after a reload:
-  // a non-empty cart, or a chosen customer (which is never persisted).
+  // a non-empty cart, or a chosen customer (which is never persisted). A sale
+  // clears both the moment it is saved, so the success screen being open counts
+  // too -- the 15-second update timer used to reload right under it.
   useEffect(() => {
-    saleInProgressRef.current = Boolean(cart?.length) || Boolean(selectedCustomerId);
-  }, [cart, selectedCustomerId]);
+    saleInProgressRef.current = Boolean(cart?.length) || Boolean(selectedCustomerId) || Boolean(checkoutSuccessOpen);
+  }, [cart, selectedCustomerId, checkoutSuccessOpen]);
 
   useEffect(() => {
     writePosCart(cart);
@@ -2510,7 +2632,7 @@ function POSPro() {
   useEffect(() => {
     if (!customerCreateOpen) return undefined;
 
-    console.log("[pos-customer-modal-render]", {
+    posDebugLog("[pos-customer-modal-render]", {
       ...getPosCustomerModalRuntime(),
       portalTarget: getActiveFullscreenElement() ? "fullscreenElement" : "body",
     });
@@ -2575,7 +2697,7 @@ function POSPro() {
       const responseSettings = putResponse?.settings && typeof putResponse.settings === "object" ? putResponse.settings : null;
       const savedRawSaleMode = responseSettings?.sale_mode_enabled ?? putResponse?.sale_mode_enabled;
       const parsedSavedSaleMode = parseSaleModeEnabled(savedRawSaleMode, Boolean(nextSaleModeEnabled));
-      console.log("POS_SALE_MODE_AFTER_SAVE", {
+      posDebugLog("POS_SALE_MODE_AFTER_SAVE", {
         response_sale_mode_enabled: savedRawSaleMode,
         parsed_sale_mode_enabled: parsedSavedSaleMode,
       });
@@ -2591,7 +2713,7 @@ function POSPro() {
       setProducts(repricedCatalog);
       setCart((current) => {
         if (editingOrder?.id) {
-          console.log("[cart-reset-blocked-edit-mode]", {
+          posDebugLog("[cart-reset-blocked-edit-mode]", {
             order_id: editingOrder.id,
             cart_count: current.length,
             reason: "skip sale mode catalog reconciliation while editing invoice",
@@ -2666,7 +2788,7 @@ function POSPro() {
         if (active && hasCachedCatalog) {
           setProducts(cachedCatalogSnapshot.products);
           setLoading(false);
-          console.info("POS_CATALOG_STALE_WHILE_REVALIDATE", {
+          posDebugInfo("POS_CATALOG_STALE_WHILE_REVALIDATE", {
             cached_at: cachedCatalogSnapshot.cached_at || "",
             product_count: cachedCatalogSnapshot.products.length,
             cached_version: cachedCatalogVersion,
@@ -2729,7 +2851,7 @@ function POSPro() {
         if (catalogUnchanged) {
           // Nothing sellable changed since the cached snapshot — reuse it, skip the
           // full catalog download. sale-mode is unchanged too (it is part of the version).
-          console.info("POS_CATALOG_VERSION_MATCH_SKIP_DOWNLOAD", {
+          posDebugInfo("POS_CATALOG_VERSION_MATCH_SKIP_DOWNLOAD", {
             version: freshCatalogVersion,
             product_count: cachedCatalogSnapshot.products.length,
           });
@@ -3052,7 +3174,7 @@ function POSPro() {
       return;
     }
     if (editingOrder?.id) {
-      console.log("[cart-reset-blocked-edit-mode]", {
+      posDebugLog("[cart-reset-blocked-edit-mode]", {
         order_id: editingOrder.id,
         cart_count: cart.length,
         reason: "skip catalog reconciliation while editing invoice",
@@ -3116,7 +3238,7 @@ function POSPro() {
     const invoicesCount = Number(customer.invoices_count ?? customer.orders_count ?? customer.total_orders ?? 0);
     const loyaltyPoints = Number(loyaltyProfile?.available_points ?? loyaltyProfile?.points ?? customer.loyalty_points ?? 0);
     if (import.meta.env.DEV || (loyaltyPoints > 0 && invoicesCount === 0)) {
-      console.log("[pos-customer-summary]", {
+      posDebugLog("[pos-customer-summary]", {
         customer_id: customer.id || customer.customer_id,
         wallet_balance: Number(loyaltyProfile?.wallet_balance ?? customer.wallet_balance ?? customer.balance ?? 0),
         loyalty_points: loyaltyPoints,
@@ -3171,7 +3293,7 @@ function POSPro() {
             resolvedPosBranchId,
           });
           if (!validation.valid) {
-            console.info("POS_SHIFT_CACHE_REJECTED", {
+            posDebugInfo("POS_SHIFT_CACHE_REJECTED", {
               reason: validation.reason,
               shift_id: cachedShiftState.shift_id ?? cachedShiftState.shift?.id ?? null,
               branch_id: cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? null,
@@ -3246,7 +3368,7 @@ function POSPro() {
     const branchId = activeShiftBranchId || selectedBranchId || "";
     if (posShiftLoading) {
       if (import.meta.env.DEV) {
-        console.log("[pos-sellers-load:wait-branch]", {
+        posDebugLog("[pos-sellers-load:wait-branch]", {
           reason: "active shift still loading",
           active_shift_branch_id: activeShiftBranchId || null,
           selected_branch_id: selectedBranchId || null,
@@ -3257,7 +3379,7 @@ function POSPro() {
     }
     if (!branchId) {
       if (import.meta.env.DEV) {
-        console.log("[pos-sellers-load:skip]", {
+        posDebugLog("[pos-sellers-load:skip]", {
           reason: "branch_id unresolved",
           active_shift_branch_id: activeShiftBranchId || null,
           selected_branch_id: selectedBranchId || null,
@@ -3271,7 +3393,7 @@ function POSPro() {
     if (silent && salesEmployees.length === 0) setSellersLoading(true);
     setSellerLoadError("");
     if (import.meta.env.DEV) {
-      console.log("[pos-sellers-load:request]", {
+      posDebugLog("[pos-sellers-load:request]", {
         branch_id: branchId,
         source: activeShiftBranchId ? "active_shift" : "selected_branch",
         active_shift_id: activePosShift?.id || null,
@@ -3299,7 +3421,7 @@ function POSPro() {
           fixed_commission_mode: response?.settings?.fixed_commission_mode || "fixed_per_item",
         });
         if (import.meta.env.DEV) {
-          console.log("[pos-sellers-load]", {
+          posDebugLog("[pos-sellers-load]", {
             branch_id: branchId,
             active_shift_branch_id: activeShiftBranchId || null,
             selected_branch_id: selectedBranchId || null,
@@ -3424,11 +3546,10 @@ function POSPro() {
     const customerId = customerPhoneAutoSelectMatch.id || customerPhoneAutoSelectMatch.customer_id;
     if (!customerId || String(customerId) === String(selectedCustomerId || "")) return;
     const normalizedInputPhone = getPosPhoneExactVariants(customerSearch)[0] || normalizePhone(customerSearch).replace(/\D/g, "");
-    console.log("[pos-customer-auto-select-by-phone]", {
-      input: customerSearch,
-      normalized_phone: normalizedInputPhone,
+    // No phone and no name in the trace: ids only.
+    posDebugLog("[pos-customer-auto-select-by-phone]", {
+      phone_digits: normalizedInputPhone.length,
       customer_id: customerId,
-      customer_name: customerPhoneAutoSelectMatch.name || "",
     });
     handleSelectCustomer(customerPhoneAutoSelectMatch);
   }, [customerPhoneAutoSelectMatch, customerSearch, handleSelectCustomer, selectedCustomerId]);
@@ -4097,7 +4218,7 @@ function POSPro() {
       const key = [normalizedQuery, productId, matchType].join(":");
       if (seen.has(key)) return;
       seen.add(key);
-      console.info("POS_SEARCH_VARIANT_ARTICLE_MATCH", {
+      posDebugInfo("POS_SEARCH_VARIANT_ARTICLE_MATCH", {
         query,
         product_id: product?.product_id || product?.id || null,
         matched_variant_id: product?.matched_variant_id || product?.matchedVariantId || null,
@@ -4596,7 +4717,7 @@ function POSPro() {
     ),
   });
 
-  const handleBarcodeSubmit = async (inputValue = search) => {
+  const handleBarcodeSubmit = async (inputValue = search, options = {}) => {
     const rawValue = String(inputValue || "").trim();
     const normalized = rawValue.toLowerCase();
     if (!normalized) return;
@@ -4668,15 +4789,29 @@ function POSPro() {
         title: t("pos.toasts.productQrNotFound"),
         message: rawValue,
       });
+      // A failed scan used to stay in the search box: the scanner's next code was
+      // typed after it and the box's Enter submitted both glued together
+      // ("OLDNEW"), which can never match. The persisted copy is cleared too, so a
+      // reload does not bring the dead code back.
+      if (options?.source === "scanner" || looksLikeScannedCode(rawValue)) {
+        setSearch("");
+        try {
+          const persistedState = readPosPersistedState();
+          if (persistedState && persistedState.search) writePosPersistedState({ ...persistedState, search: "" });
+        } catch {
+          // Storage is a convenience here; the cleared box is what matters.
+        }
+      }
     }
   };
+  handleBarcodeSubmitRef.current = handleBarcodeSubmit;
 
   const handleCameraScannerResult = async (decodedValue) => {
     const scannedValue = String(decodedValue || "").trim();
     if (!scannedValue) return;
     setCameraScannerOpen(false);
     setSearch(scannedValue);
-    await handleBarcodeSubmit(scannedValue);
+    await handleBarcodeSubmit(scannedValue, { source: "scanner" });
     window.setTimeout(() => searchRef.current?.focus(), 0);
   };
 
@@ -4709,7 +4844,7 @@ function POSPro() {
       const isScanCandidate =
         normalizedValue.length >= POS_GLOBAL_BARCODE_MIN_LENGTH && durationMs < POS_GLOBAL_BARCODE_MAX_DURATION_MS;
       if (!isScanCandidate) {
-        console.info("POS_GLOBAL_BARCODE_SCAN_IGNORED", {
+        posDebugInfo("POS_GLOBAL_BARCODE_SCAN_IGNORED", {
           reason: "not_scanner_speed",
           code: normalizedValue,
           length: normalizedValue.length,
@@ -4719,13 +4854,13 @@ function POSPro() {
         return;
       }
       event?.preventDefault?.();
-      console.info("POS_GLOBAL_BARCODE_SCAN_RECEIVED", {
+      posDebugInfo("POS_GLOBAL_BARCODE_SCAN_RECEIVED", {
         code: normalizedValue,
         length: normalizedValue.length,
         duration_ms: durationMs,
         trigger_key: event?.key || "",
       });
-      handleBarcodeSubmit(normalizedValue).catch((error) => {
+      Promise.resolve(handleBarcodeSubmitRef.current?.(normalizedValue, { source: "scanner" })).catch((error) => {
         console.error("POS_GLOBAL_BARCODE_SCAN_FAILED", {
           code: normalizedValue,
           message: error?.message || String(error || "Unknown error"),
@@ -4737,7 +4872,7 @@ function POSPro() {
       if (event.defaultPrevented || event.isComposing) return;
       if (isEditableKeyTarget(event.target)) {
         if (globalBarcodeBufferRef.current.value) {
-          console.info("POS_GLOBAL_BARCODE_SCAN_IGNORED", {
+          posDebugInfo("POS_GLOBAL_BARCODE_SCAN_IGNORED", {
             reason: "editable_target",
             code: globalBarcodeBufferRef.current.value,
             trigger_key: event.key || "",
@@ -4781,12 +4916,17 @@ function POSPro() {
       };
     };
 
+    // Mounted once. It used to depend on handleBarcodeSubmit, which is a new
+    // function every render, so any render landing mid-scan tore the listener
+    // down and its cleanup wiped the characters already scanned -- the code
+    // arrived cut off. The latest handler is reached through a ref instead, and
+    // the buffer is only reset on a real unmount.
     window.addEventListener("keydown", onGlobalBarcodeKeyDown);
     return () => {
       window.removeEventListener("keydown", onGlobalBarcodeKeyDown);
       resetGlobalBarcodeBuffer();
     };
-  }, [handleBarcodeSubmit]);
+  }, []);
 
   const addVariantToCart = useCallback((product, variant, options = {}) => {
     const requestedQuantity = Math.max(1, Math.trunc(Number(options.quantity || 1) || 1));
@@ -4821,7 +4961,7 @@ function POSPro() {
       return;
     }
 
-    console.info("[display-refill-trace:pos-cart-item]", {
+    posDebugInfo("[display-refill-trace:pos-cart-item]", {
       product_id: productId || null,
       variant_id: variantId || null,
       size: resolvedSize || null,
@@ -4950,7 +5090,7 @@ function POSPro() {
         : null);
     const initialColorKey = matchedColorVariant ? getVariantColorKey(matchedColorVariant) : "";
     const initialSize = selectionMatch.matchedVariant?.size || "";
-    console.info("[pos-open-product-modal]", {
+    posDebugInfo("[pos-open-product-modal]", {
       search_match_type: product?.search_match_type || product?.searchMatchType || "",
       product_id: product?.product_id || product?.id || null,
       variants_length: variants.length,
@@ -5419,13 +5559,13 @@ function POSPro() {
       editTimings[label] = Math.round(performance.now() - startedAt);
     };
     try {
-      if (POS_CHECKOUT_DEBUG) console.log("[pos-edit-ui] click start", { order_id: orderId, source: "route" });
+      posDebugLog("[pos-edit-ui] click start", { order_id: orderId, source: "route" });
       const fetchStartedAt = performance.now();
       const response = await api.get(`/orders/${orderId}/pos-edit`, { timeoutMs: 8000 });
       markEditTiming("fetch_invoice_details_ms", fetchStartedAt);
       const loadedOrder = response.order || { id: orderId };
       const loadedItems = extractOrderItemsFromResponse(response, loadedOrder);
-      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-load]", {
+      posDebugLog("[invoice-edit-load]", {
         order_id: orderId,
         invoice_number: loadedOrder.invoice_number || "",
         items_count: loadedItems.length,
@@ -5435,7 +5575,7 @@ function POSPro() {
       const mapStartedAt = performance.now();
       const mappedCart = loadedItems.map(mapOrderItemToCartItem).filter((item) => item.quantity > 0);
       markEditTiming("map_order_to_cart_ms", mapStartedAt);
-      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-cart-map]", {
+      posDebugLog("[invoice-edit-cart-map]", {
         order_id: orderId,
         mapped_cart_count: mappedCart.length,
         source: "route",
@@ -5531,7 +5671,7 @@ function POSPro() {
       setRecentOperationsOpen(false);
       markEditTiming("open_edit_mode_ms", openStartedAt);
       if (POS_CHECKOUT_DEBUG) {
-        console.log("[pos-edit-ui] total", {
+        posDebugLog("[pos-edit-ui] total", {
           order_id: orderId,
           source: "route",
           ...editTimings,
@@ -5554,13 +5694,13 @@ function POSPro() {
       editTimings[label] = Math.round(performance.now() - startedAt);
     };
     try {
-      if (POS_CHECKOUT_DEBUG) console.log("[pos-edit-ui] click start", { order_id: order.id, source: "recent-orders" });
+      posDebugLog("[pos-edit-ui] click start", { order_id: order.id, source: "recent-orders" });
       const fetchStartedAt = performance.now();
       const response = await loadPosEditOrder(order.id);
       markEditTiming("fetch_invoice_details_ms", fetchStartedAt);
       const loadedOrder = response.order || order;
       const loadedItems = extractOrderItemsFromResponse(response, order);
-      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-load]", {
+      posDebugLog("[invoice-edit-load]", {
         order_id: order.id,
         invoice_number: loadedOrder.invoice_number || order.invoice_number || "",
         items_count: loadedItems.length,
@@ -5569,7 +5709,7 @@ function POSPro() {
       const mapStartedAt = performance.now();
       const mappedCart = loadedItems.map(mapOrderItemToCartItem).filter((item) => item.quantity > 0);
       markEditTiming("map_order_to_cart_ms", mapStartedAt);
-      if (POS_CHECKOUT_DEBUG) console.log("[invoice-edit-cart-map]", {
+      posDebugLog("[invoice-edit-cart-map]", {
         order_id: order.id,
         mapped_cart_count: mappedCart.length,
         map_order_to_cart_ms: editTimings.map_order_to_cart_ms,
@@ -5646,7 +5786,7 @@ function POSPro() {
       setRecentOperationsOpen(false);
       markEditTiming("open_edit_mode_ms", openStartedAt);
       if (POS_CHECKOUT_DEBUG) {
-        console.log("[pos-edit-ui] total", {
+        posDebugLog("[pos-edit-ui] total", {
           order_id: order.id,
           source: "recent-orders",
           ...editTimings,
@@ -5705,25 +5845,18 @@ function POSPro() {
     toast.success(`تم إنشاء استبدال للفاتورة ${order?.invoice_number || order?.id || ""}. أضف المنتج البديل إلى السلة ثم بيع جديد بقيمة مرتجع ${formatCurrency(returnTotal, "ar")}`);
   };
 
-  const lookupExchangeOrder = async (query) => {
+  // The cart's "return credit" button no longer applies an invoice's total as
+  // credit on its own (the server refuses credit no return created). It opens the
+  // invoice in Recent Operations -- the same way a scanned invoice barcode does --
+  // where the exchange return is made and handleExchangeStarted sets the credit.
+  const handleOpenExchangeReturn = (query) => {
     const text = String(query || "").trim();
-    if (!text) return null;
-    if (/^\d+$/.test(text)) {
-      try {
-        const result = await api.get(`/orders/${text}`);
-        return result?.order || result?.data?.order || result;
-      } catch {
-        // Try invoice-number search below.
-      }
-    }
-    const result = await api.get("/orders", { params: { limit: 500 } });
-    const orders = Array.isArray(result?.orders) ? result.orders : Array.isArray(result?.data) ? result.data : [];
-    const lowerText = text.toLowerCase();
-    return orders.find((order) =>
-      [order.id, order.invoice_number, order.public_order_number, order.display_order_number]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase() === lowerText)
-    ) || null;
+    if (!text) return;
+    const numericInvoiceBarcodeMatch = text.match(/^9919(\d{12})$/);
+    const invoiceNumberToOpen = numericInvoiceBarcodeMatch ? String(Number(numericInvoiceBarcodeMatch[1] || 0)) : text;
+    setScannedInvoiceNumber(invoiceNumberToOpen);
+    setRecentOperationsOpenedAt(performance.now());
+    setRecentOperationsOpen(true);
   };
 
   const clearEditMode = () => {
@@ -5966,7 +6099,7 @@ function POSPro() {
       setPosShiftSource("server");
       setPosShiftNetworkUnavailable(false);
       cacheActiveShiftSnapshot(promoted, nextBranch);
-      console.info("[pos] promoted an offline shift to a server shift", {
+      posDebugInfo("[pos] promoted an offline shift to a server shift", {
         offline_shift_id: current.id,
         shift_id: promoted.id,
       });
@@ -6200,7 +6333,9 @@ function POSPro() {
     setActualDrawerAmount(String(expectedCash));
     setShiftCloseNotes("");
     setShiftVarianceReason("");
-    setNextOpeningWorkDate(shiftDateKey(todayInAppTimezone(), 1));
+    // A shift closed after midnight (before 05:00 Cairo) is the night of the day
+    // that is already "today": its next opener works later the same calendar day.
+    setNextOpeningWorkDate(shiftDateKey(todayInAppTimezone(), cairoHourNow() < 5 ? 0 : 1));
     setNextOpeningEmployeeId("");
     setNextOpeningException(false);
     setNextOpeningExceptionReason("");
@@ -6229,9 +6364,17 @@ function POSPro() {
       return;
     }
 
+    // An empty counted-cash field used to be sent as 0, booking the whole
+    // expected drawer as a shortage. The cashier has to type what they counted;
+    // a typed 0 is a real count and goes through.
+    if (String(closingCash ?? "").trim() === "" || !Number.isFinite(Number(closingCash))) {
+      toast.error(t("pos.toasts.closingCashRequired"));
+      return;
+    }
+
     try {
       setShiftCloseSubmitting(true);
-      const actualDrawer = closingCash === "" ? 0 : Number(closingCash);
+      const actualDrawer = Number(closingCash);
       const response = await api.post(`/pos/shifts/${activePosShift.id}/close`, {
         closing_cash: actualDrawer,
         closing_notes: shiftCloseNotes,
@@ -6395,7 +6538,39 @@ function POSPro() {
     }
   };
 
-  const handleCheckout = async (options = {}) => {
+  // The post-sale catalog refresh is a large download and re-render. Started at
+  // the same moment as the automatic print it competed with rendering the
+  // receipt, so it now waits for the print to resolve -- or 1.5 s, whichever
+  // comes first -- and a failure is only logged: the sale is already saved.
+  const scheduleCatalogRefreshAfterPrint = (printPromise = null) => {
+    const startRefresh = () => {
+      Promise.resolve()
+        .then(() => refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }))
+        .then(() => {
+          catalogFallbackActiveRef.current = false;
+        })
+        .catch((refreshError) => {
+          console.error("[pos] background catalog refresh failed", refreshError?.message || refreshError);
+        });
+    };
+    if (!printPromise) {
+      startRefresh();
+      return;
+    }
+    let started = false;
+    const startOnce = () => {
+      if (started) return;
+      started = true;
+      startRefresh();
+    };
+    const fallbackTimer = window.setTimeout(startOnce, 1500);
+    Promise.resolve(printPromise).catch(() => null).finally(() => {
+      window.clearTimeout(fallbackTimer);
+      startOnce();
+    });
+  };
+
+  const runCheckout = async (options = {}) => {
     const paymobTerminalCheckout = options?.paymobTerminal === true;
     const paymobTerminalConfirmed = options?.paymobTerminalConfirmed === true;
     const creditSaleCheckout = options?.creditSale === true;
@@ -6410,7 +6585,7 @@ function POSPro() {
     const resolvedEditPaymentMethod = editActive
       ? (editRefundOrCreditDue > 0 ? editRefundMethod : creditSaleCheckout ? "credit_sale" : paymentMode)
       : paymentMode;
-    console.log("[pos-checkout:clicked]", {
+    posDebugLog("[pos-checkout:clicked]", {
       checkoutLoading,
       cart_count: cart.length,
       editing_order_id: editingOrder?.id || null,
@@ -6568,7 +6743,7 @@ function POSPro() {
 
     let offlineCheckoutSnapshot = null;
     try {
-      console.log("[pos-checkout:frontend-submit]", {
+      posDebugLog("[pos-checkout:frontend-submit]", {
         checkout_branch_id: checkoutBranchId,
         cart_count: cart.length,
         payment_method: resolvedEditPaymentMethod,
@@ -6578,7 +6753,7 @@ function POSPro() {
       let apiStartedAt = checkoutStartedAt;
       setCheckoutLoading(true);
       if (editingOrder?.id) {
-        console.log("[cart-reset-blocked-edit-mode]", {
+        posDebugLog("[cart-reset-blocked-edit-mode]", {
           order_id: editingOrder.id,
           cart_count: cart.length,
           reason: "skip checkout stock reconciliation while saving invoice edit",
@@ -6610,12 +6785,10 @@ function POSPro() {
       const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || (retainingOriginalSeller ? editingSellerId : null) || null;
       const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name
         || (retainingOriginalSeller ? editingOrder.salesperson_name || editingOrder.seller_name || "" : "");
-      console.log("[pos][seller-debug] selected seller before checkout", {
+      posDebugLog("[pos][seller-debug] selected seller before checkout", {
         selectedSalespersonId,
-        selectedSeller,
         resolvedSellerUserId,
         resolvedSalesEmployeeId,
-        resolvedSellerName,
       });
       const terminalManualCashAmount = paymentMode === "split" ? Number(cashAmount || 0) : 0;
       const terminalManualWalletAmount = paymentMode === "split" ? Number(walletAmount || 0) : 0;
@@ -6734,8 +6907,13 @@ function POSPro() {
       const additionalPaymentBreakdown = editingOrder?.id
         ? paymentBreakdown.filter((item) => item.method !== "exchange_credit")
         : [];
-      const idempotencyKey = createOfflineOrderIdempotencyKey();
-      console.log("[pos-checkout:edit-settlement-payload]", {
+      // A Paymob terminal sale arrives with the key minted once for its terminal
+      // transaction, so a poll and a manual confirm that both finalize it are the
+      // same request to the server, not two orders.
+      const idempotencyKey = typeof options?.idempotencyKey === "string" && options.idempotencyKey
+        ? options.idempotencyKey
+        : createOfflineOrderIdempotencyKey();
+      posDebugLog("[pos-checkout:edit-settlement-payload]", {
         editing_order_id: editingOrder?.id || null,
         edit_settlement_type: editSettlementType,
         edit_settlement_method: editActive ? resolvedEditPaymentMethod : null,
@@ -6949,7 +7127,7 @@ function POSPro() {
         };
       }
 
-      console.log("[pos-checkout:payload-built]", {
+      posDebugLog("[pos-checkout:payload-built]", {
         editing_order_id: editingOrder?.id || null,
         payment_method: payload.payment_method,
         edit_settlement_type: payload.edit_settlement_type,
@@ -6957,7 +7135,7 @@ function POSPro() {
         edit_refund_method: payload.edit_refund_method,
         additional_payment_breakdown_count: Array.isArray(payload.additional_payment_breakdown) ? payload.additional_payment_breakdown.length : 0,
       });
-      console.log("[pos:discount-checkout-payload]", {
+      posDebugLog("[pos:discount-checkout-payload]", {
         subtotal: payload.subtotal,
         item_discount_amount: cartTotals.itemDiscountTotal,
         invoice_discount_type: payload.invoice_discount_type,
@@ -6973,7 +7151,7 @@ function POSPro() {
         payment_breakdown_total: paymentBreakdown.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
       });
 
-      console.info("[display-refill-trace:checkout-payload]", {
+      posDebugInfo("[display-refill-trace:checkout-payload]", {
         items: payload.items.slice(0, 10).map((item) => ({
           product_id: item.product_id || null,
           variant_id: item.variant_id || null,
@@ -6987,7 +7165,7 @@ function POSPro() {
       });
 
       if (import.meta.env.DEV) {
-        console.log("[pos] final checkout payload", {
+        posDebugLog("[pos] final checkout payload", {
           ...payload,
           customer_phone: payload.customer_phone ? "[redacted]" : "",
         });
@@ -7001,7 +7179,7 @@ function POSPro() {
         // The warmed copy is now stale — re-opening this invoice for edit must refetch.
         invalidatePosEditOrder(editingOrder.id);
         const updatedOrder = response.order || {};
-        setLastOrder({
+        const editedReceiptOrder = {
           ...editingOrder,
           ...updatedOrder,
           items: response.items || payload.items,
@@ -7030,7 +7208,8 @@ function POSPro() {
             finalTotal: cartTotals.total,
             refundOrCreditDue: editRefundOrCreditDue,
           },
-        });
+        };
+        setLastOrder(editedReceiptOrder);
         setLastShareContext({
           ...editingOrder,
           ...updatedOrder,
@@ -7062,6 +7241,13 @@ function POSPro() {
         });
         setCheckoutSuccessOpen(true);
         toast.success(t("pos.toasts.invoiceEditSaved"));
+        // An edited invoice is a new paper for the customer: with automatic
+        // printing on it prints exactly like a new sale does.
+        const editPrintPromise = receiptRuntimeSettings.printReceiptAutomatically
+          ? handlePrint(editedReceiptOrder, { silent: true }).catch((automaticPrintError) => {
+              console.error("[pos] automatic edited receipt print failed", automaticPrintError);
+            })
+          : null;
         setProducts((current) => applySoldItemsToCatalog(current, []));
         setCart([]);
         clearPosPersistedState();
@@ -7080,8 +7266,11 @@ function POSPro() {
         handleRemoveCoupon();
         handleClearSelectedCustomer();
         clearEditMode();
-        await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings });
-        catalogFallbackActiveRef.current = false;
+        // The edit is SAVED at this point. A catalog refresh that fails on the
+        // network used to throw into this try and report "checkout failed" for an
+        // invoice that had been updated -- so it is best-effort, and it waits for
+        // the receipt to render first.
+        scheduleCatalogRefreshAfterPrint(editPrintPromise);
         emitFeedback("payment_success", {
           title: t("pos.toasts.invoiceUpdated"),
           message: updatedOrder.invoice_number || editingOrder.invoice_number || "",
@@ -7191,16 +7380,16 @@ function POSPro() {
       normalizedOrder.publicToken = normalizedOrder.public_token;
       setLastOrder(normalizedOrder);
       setLastShareContext(normalizedOrder);
-      if (receiptRuntimeSettings.printReceiptAutomatically && (!paymobTerminalCheckout || paymobTerminalConfirmed)) {
-        void handlePrint(normalizedOrder, { silent: true }).catch((automaticPrintError) => {
-          console.error("[pos] automatic receipt print failed", automaticPrintError);
-        });
-      }
+      const autoPrintPromise = receiptRuntimeSettings.printReceiptAutomatically && (!paymobTerminalCheckout || paymobTerminalConfirmed)
+        ? handlePrint(normalizedOrder, { silent: true }).catch((automaticPrintError) => {
+            console.error("[pos] automatic receipt print failed", automaticPrintError);
+          })
+        : null;
       const modalRenderStartedAt = performance.now();
       if (!paymobTerminalCheckout || paymobTerminalConfirmed) setCheckoutSuccessOpen(true);
       requestAnimationFrame(() => {
         if (POS_CHECKOUT_DEBUG) {
-          console.log("[pos-checkout-ui-timing]", {
+          posDebugLog("[pos-checkout-ui-timing]", {
             items_count: cart.length,
             click_to_api_response_ms: Math.round(apiResponseAt - checkoutStartedAt),
             api_request_ms: Math.round(apiResponseAt - apiStartedAt),
@@ -7209,7 +7398,7 @@ function POSPro() {
           });
         }
       });
-      if (POS_CHECKOUT_DEBUG) console.log("[saved normalized order]", normalizedOrder);
+      posDebugLog("[saved normalized order]", normalizedOrder);
       setInvoiceNumber(nextInvoice);
       handleRemoveCoupon();
       if (!paymobTerminalCheckout || paymobTerminalConfirmed) {
@@ -7276,11 +7465,7 @@ function POSPro() {
       setLoyaltyRedeemPoints(0);
       handleClearSelectedCustomer();
       handleCloseInvoiceTab(activeInvoiceTabId, { completed: true });
-      refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }).then(() => {
-        catalogFallbackActiveRef.current = false;
-      }).catch((refreshError) => {
-        if (POS_CHECKOUT_DEBUG) console.warn("[pos] background catalog refresh failed", refreshError?.message || refreshError);
-      });
+      scheduleCatalogRefreshAfterPrint(autoPrintPromise);
       return normalizedOrder;
     } catch (err) {
       console.error("[pos-checkout:frontend-error]", {
@@ -7404,6 +7589,15 @@ function POSPro() {
         } catch (refreshError) {
           console.error("[pos] failed to refresh catalog after stock error:", refreshError);
         }
+      } else if (err?.response?.data?.code === "EXCHANGE_CREDIT_NOT_AVAILABLE" || err?.responseBody?.code === "EXCHANGE_CREDIT_NOT_AVAILABLE") {
+        // The server only honours exchange credit that a real return on the
+        // original invoice created. Its message tells the cashier where to do that
+        // return, so it is shown as-is rather than folded into "checkout failed".
+        const payload = err?.response?.data || err?.responseBody || {};
+        toast.error(
+          safeArabicText(payload.message, t("pos.toasts.exchangeCreditNotAvailable")),
+          { duration: 8000 }
+        );
       } else if (err?.response?.data?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE" || err?.responseBody?.code === "INSUFFICIENT_CUSTOMER_WALLET_BALANCE") {
         const payload = err?.response?.data || err?.responseBody || {};
         toast.error(
@@ -7418,27 +7612,33 @@ function POSPro() {
     return null;
   };
 
+  // checkoutLoading is state, so it only flips on the next render -- and the
+  // checkout used to set it after `await ensureServerPosShift()`, leaving a
+  // window in which a double click (or the Paymob poll racing a manual confirm)
+  // posted the same cart twice. The ref is taken synchronously before anything
+  // else runs and released only when the attempt is over; the state still
+  // drives the spinner.
+  const handleCheckout = async (options = {}) => {
+    if (checkoutLockRef.current) return null;
+    checkoutLockRef.current = true;
+    try {
+      return await runCheckout(options);
+    } finally {
+      checkoutLockRef.current = false;
+    }
+  };
+
   const getReceiptRenderContext = (source = lastOrder || lastShareContext || {}) => {
     const order = source || {};
     const orderPayment = order.payment || {};
-    const orderTotals = order.totals || {};
     const renderedCart = Array.isArray(order.cart) && order.cart.length
       ? order.cart
       : Array.isArray(order.items)
         ? order.items
         : cart;
-    const renderedTotals = {
-      ...cartTotals,
-      ...orderTotals,
-      subtotal: Number(order.subtotal ?? orderTotals.subtotal ?? cartTotals.subtotal ?? 0),
-      itemDiscountTotal: Number(order.item_discount_total ?? orderTotals.itemDiscountTotal ?? cartTotals.itemDiscountTotal ?? 0),
-      invoiceDiscount: Number(order.discount_amount ?? order.invoice_discount ?? orderTotals.invoiceDiscount ?? orderTotals.discount ?? cartTotals.invoiceDiscount ?? 0),
-      couponDiscount: Number(order.coupon_discount ?? orderTotals.couponDiscount ?? cartTotals.couponDiscount ?? 0),
-      loyaltyDiscount: Number(order.loyalty_discount ?? orderTotals.loyaltyDiscount ?? cartTotals.loyaltyDiscount ?? 0),
-      serviceFee: Number(order.service_fee ?? orderTotals.serviceFee ?? orderTotals.service ?? cartTotals.serviceFee ?? 0),
-      taxAmount: Number(order.tax_amount ?? order.vat_amount ?? orderTotals.taxAmount ?? orderTotals.tax ?? cartTotals.taxAmount ?? 0),
-      total: Number(order.total ?? orderTotals.total ?? cartTotals.total ?? 0),
-    };
+    // Never the server's combined `discount_amount` on the invoice line -- see
+    // resolveReceiptRenderTotals.
+    const renderedTotals = resolveReceiptRenderTotals(order, cartTotals);
     const renderedPaymentSummary = {
       ...paymentSummary,
       paymentBreakdown: parsePaymentBreakdownRows(
@@ -7512,14 +7712,68 @@ function POSPro() {
     const receiptContext = getReceiptRenderContext(safeSource || undefined);
     if (!receiptContext.invoiceNumber) return null;
     const startedAt = performance.now();
+    const reprintSource = safeSource || lastOrder || lastShareContext || null;
+    // Busy for the service-worker update from the first line of the print until
+    // three seconds after it resolves: a reload inside that window killed the
+    // print frame and read as "the printer disconnected after the order".
+    printInFlightRef.current += 1;
     try {
       const result = await printThermalReceipt(receiptContext, { silent: Boolean(options?.silent) });
       logPagePerf("pos.receipt-print", startedAt, { transport: result?.transport || "unknown" });
+      if (options?.silent) {
+        // A silent print gives the cashier nothing to look at, so a short, quiet
+        // confirmation says the receipt went out and offers a reprint.
+        toast(
+          (toastRef) => (
+            <span className="flex items-center gap-3 text-sm font-bold">
+              <span>{t("pos.toasts.printSent")}</span>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-black underline underline-offset-2 opacity-80 hover:opacity-100"
+                onClick={() => {
+                  toast.dismiss(toastRef.id);
+                  void handlePrint(reprintSource).catch(() => {});
+                }}
+              >
+                {t("pos.toasts.printAgain")}
+              </button>
+            </span>
+          ),
+          { id: `pos-print-sent-${receiptContext.invoiceNumber}`, duration: 3500 }
+        );
+      }
       return result;
     } catch (printError) {
       if (printError?.message === "POPUP_BLOCKED") toast.error(t("pos.toasts.popupBlocked"));
+      else if (printError?.code === PRINT_RENDERER_UNAVAILABLE || printError?.message === PRINT_RENDERER_UNAVAILABLE) {
+        // The receipt renderer is a separate chunk. When it still cannot load after
+        // the retries the cashier needs a way to try again without hunting for
+        // the invoice in Recent Operations.
+        toast.error(
+          (toastRef) => (
+            <span className="flex items-center gap-3 text-sm font-bold">
+              <span>{t("pos.toasts.printFailed", "تعذر تجهيز الفاتورة للطباعة")}</span>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-black underline underline-offset-2"
+                onClick={() => {
+                  toast.dismiss(toastRef.id);
+                  void handlePrint(reprintSource).catch(() => {});
+                }}
+              >
+                {t("pos.toasts.printAgain")}
+              </button>
+            </span>
+          ),
+          { id: `pos-print-failed-${receiptContext.invoiceNumber}`, duration: 10000 }
+        );
+      }
       else toast.error(t("pos.toasts.printFailed", "تعذر تجهيز الفاتورة للطباعة"));
       throw printError;
+    } finally {
+      window.setTimeout(() => {
+        printInFlightRef.current = Math.max(0, printInFlightRef.current - 1);
+      }, 3000);
     }
   };
 
@@ -7631,10 +7885,10 @@ function POSPro() {
   };
 
   const handleShareWhatsApp = () => {
-    console.log("[share whatsapp clicked]");
-    console.log("[share whatsapp lastOrder]", lastOrder);
-    console.log("[lastOrder state]", lastOrder);
-    console.log("[checkout state]", {
+    posDebugLog("[share whatsapp clicked]");
+    posDebugLog("[share whatsapp lastOrder]", lastOrder);
+    posDebugLog("[lastOrder state]", lastOrder);
+    posDebugLog("[checkout state]", {
       invoiceNumber,
       selectedCustomerId,
       paymentMode,
@@ -7642,10 +7896,10 @@ function POSPro() {
       total: cartTotals.total,
       paymentStatus: paymentSummary.paymentStatus,
     });
-    console.log("public_invoice_url", lastOrder?.public_invoice_url);
-    console.log("public_invoice_short_url", lastOrder?.public_invoice_short_url);
-    console.log("invoice_public_url", lastOrder?.invoice_public_url);
-    console.log("public_token", lastOrder?.public_token);
+    posDebugLog("public_invoice_url", lastOrder?.public_invoice_url);
+    posDebugLog("public_invoice_short_url", lastOrder?.public_invoice_short_url);
+    posDebugLog("invoice_public_url", lastOrder?.invoice_public_url);
+    posDebugLog("public_token", lastOrder?.public_token);
 
     const currentTenant = getCurrentTenant() || {};
     const storeName = currentTenant.companyName || currentTenant.company_name || currentTenant.name || "YOUR STORE";
@@ -7684,8 +7938,8 @@ function POSPro() {
       companyName: storeName,
     });
 
-    console.log("[final whatsapp message]", message);
-    console.log("[final whatsapp url]", url);
+    posDebugLog("[final whatsapp message]", message);
+    posDebugLog("[final whatsapp url]", url);
 
     window.open(url, "_blank", "noopener,noreferrer");
   };
@@ -7760,8 +8014,54 @@ function POSPro() {
     setLastShareContext(nextOrder);
   };
 
+  const getPaymobTerminalFinalizeEntry = (transactionId) => {
+    const key = String(transactionId || "");
+    const registry = paymobTerminalFinalizeRef.current;
+    if (!registry.has(key)) {
+      registry.set(key, { finalized: false, promise: null, idempotencyKey: createOfflineOrderIdempotencyKey() });
+    }
+    return registry.get(key);
+  };
+
+  const isPaymobTerminalFinalized = (transactionId) =>
+    Boolean(transactionId && paymobTerminalFinalizeRef.current.get(String(transactionId))?.finalized);
+
+  const markPaymobTerminalFinalized = (transactionId) => {
+    if (transactionId) getPaymobTerminalFinalizeEntry(transactionId).finalized = true;
+  };
+
+  // Turns a paid terminal transaction into its order exactly once. The poll and
+  // the manual confirm can both get here -- a poll already in flight when the
+  // cashier presses confirm used to create a second order with a fresh key.
+  // Now the second caller joins the first caller's checkout (`joined: true`),
+  // the server sees one idempotency key per terminal transaction, and the
+  // checkout runs through the ref so it uses the CURRENT cart and customer, not
+  // the ones captured when polling started up to 90 seconds earlier.
+  const finalizePaymobTerminalOrder = ({ transactionId, amount }) => {
+    const entry = getPaymobTerminalFinalizeEntry(transactionId);
+    if (entry.promise) return entry.promise.then((order) => ({ order, joined: true }));
+    entry.promise = Promise.resolve(
+      checkoutActionRef.current?.({
+        paymobTerminalConfirmed: true,
+        terminalAmount: amount,
+        paymobTerminalTransactionId: transactionId,
+        idempotencyKey: entry.idempotencyKey,
+      })
+    ).then((order) => {
+      if (order) entry.finalized = true;
+      // A failed attempt may be retried -- with the SAME key.
+      else entry.promise = null;
+      return order || null;
+    }, (error) => {
+      entry.promise = null;
+      throw error;
+    });
+    return entry.promise.then((order) => ({ order, joined: false }));
+  };
+
   const stopPaymobPolling = () => {
     paymobPollingRef.current.cancelled = true;
+    paymobPollingRef.current.session = null;
     if (paymobPollingRef.current.timer) {
       window.clearTimeout(paymobPollingRef.current.timer);
       paymobPollingRef.current.timer = null;
@@ -7782,21 +8082,33 @@ function POSPro() {
       return;
     }
     stopPaymobPolling();
+    if (isPaymobTerminalFinalized(transactionId)) return;
     paymobPollingRef.current.cancelled = false;
+    // A stop followed by a new start must still silence the OLD loop's request
+    // that is in flight, so every loop owns a session token.
+    const pollSession = {};
+    paymobPollingRef.current.session = pollSession;
     const startedAt = Date.now();
     const timeoutMs = 90000;
     const intervalMs = 3000;
     if (import.meta.env.DEV) {
-      console.info("[paymob-pos-poll-start]", { transactionId, amount, currency, terminalId });
+      posDebugInfo("[paymob-pos-poll-start]", { transactionId, amount, currency, terminalId });
     }
 
+    // Checked after EVERY await, not only before the request: a response that
+    // lands after the cashier confirmed manually must not finalize again.
+    const pollAbandoned = () =>
+      paymobPollingRef.current.cancelled ||
+      paymobPollingRef.current.session !== pollSession ||
+      isPaymobTerminalFinalized(transactionId);
+
     const poll = async () => {
-      if (paymobPollingRef.current.cancelled) return;
+      if (pollAbandoned()) return;
       if (Date.now() - startedAt > timeoutMs) {
         if (import.meta.env.DEV) {
           console.warn("[paymob-pos-poll-result]", { transactionId, status: "timeout" });
         }
-        console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+        posDebugInfo("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
           transaction_id: transactionId,
           order_id: sourceOrder?.order_id || sourceOrder?.orderId || sourceOrder?.id || null,
           status: "timeout",
@@ -7816,9 +8128,10 @@ function POSPro() {
           timeoutMs: 20000,
           suppressErrorStatuses: [501, 502, 503],
         });
+        if (pollAbandoned()) return;
         const status = String(response?.status || response?.transaction?.status || "sent").toLowerCase();
         if (import.meta.env.DEV) {
-          console.info("[paymob-pos-poll-result]", {
+          posDebugInfo("[paymob-pos-poll-result]", {
             transactionId,
             status,
             localStatus: response?.local_status || response?.transaction?.status || "",
@@ -7830,20 +8143,20 @@ function POSPro() {
           setPaymobTerminalLoading(false);
           let confirmedOrder = response.order || sourceOrder || null;
           if (response?.transaction?.order_id) {
+            markPaymobTerminalFinalized(transactionId);
             applyPaymobConfirmedOrder(sourceOrder, response.order, response.transaction);
           } else {
-            console.info("PAYMOB_TERMINAL_PAYMENT_SUCCESS_CREATE_ORDER", {
+            posDebugInfo("PAYMOB_TERMINAL_PAYMENT_SUCCESS_CREATE_ORDER", {
               transaction_id: response?.transaction?.id || transactionId,
               amount,
               currency,
               terminal_id: response?.transaction?.terminal_id || terminalId,
             });
             setPaymobTerminalLoading(false);
-            confirmedOrder = await handleCheckout({
-              paymobTerminalConfirmed: true,
-              terminalAmount: amount,
-              paymobTerminalTransactionId: response?.transaction?.id || transactionId,
-            });
+            const finalized = await finalizePaymobTerminalOrder({ transactionId, amount });
+            // The manual confirm got there first and owns the success screen.
+            if (finalized.joined) return;
+            confirmedOrder = finalized.order;
             if (!confirmedOrder) {
               setPaymobTerminalState((current) => ({
                 ...(current || {}),
@@ -7879,7 +8192,7 @@ function POSPro() {
         }
         if (status === "failed" || status === "cancelled") {
           stopPaymobPolling();
-          console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+          posDebugInfo("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
             transaction_id: response?.transaction?.id || transactionId,
             order_id: response?.transaction?.order_id || sourceOrder?.order_id || sourceOrder?.orderId || sourceOrder?.id || null,
             status,
@@ -7910,7 +8223,7 @@ function POSPro() {
         }
       }
 
-      if (!paymobPollingRef.current.cancelled) {
+      if (!pollAbandoned()) {
         paymobPollingRef.current.timer = window.setTimeout(poll, intervalMs);
       }
     };
@@ -7946,13 +8259,13 @@ function POSPro() {
       const confirmedAmount = Number(paymobTerminalState?.amount || 0) || (Number(response?.transaction?.confirmed_amount_cents || response?.transaction?.amount_cents || 0) / 100);
       let confirmedOrder = response?.order || paymobTerminalState?.order || null;
       if (transaction?.order_id) {
+        markPaymobTerminalFinalized(transactionId);
         applyPaymobConfirmedOrder(paymobTerminalState?.order || lastOrder || lastShareContext, confirmedOrder, transaction);
       } else {
-        confirmedOrder = await handleCheckout({
-          paymobTerminalConfirmed: true,
-          terminalAmount: confirmedAmount,
-          paymobTerminalTransactionId: transaction?.id || transactionId,
-        });
+        // Shares the poll's checkout if one is already running for this
+        // transaction, so a confirm pressed mid-poll can never add a second order.
+        const finalized = await finalizePaymobTerminalOrder({ transactionId, amount: confirmedAmount });
+        confirmedOrder = finalized.order;
         if (!confirmedOrder) {
           throw new Error("Failed to create order after terminal payment success.");
         }
@@ -8057,13 +8370,13 @@ function POSPro() {
     });
     try {
       if (String(paymobTerminalState?.status || "").toLowerCase() === "failed" || String(paymobTerminalState?.status || "").toLowerCase() === "cancelled" || String(paymobTerminalState?.status || "").toLowerCase() === "timeout") {
-        console.info("PAYMOB_TERMINAL_PAYMENT_RETRY", {
+        posDebugInfo("PAYMOB_TERMINAL_PAYMENT_RETRY", {
           transaction_id: paymobTerminalState?.transaction?.id || null,
           order_id: paymobTerminalState?.transaction?.order_id || null,
           amount: initialAmount,
         });
       }
-      console.info("PAYMOB_TERMINAL_PAYMENT_STARTED", {
+      posDebugInfo("PAYMOB_TERMINAL_PAYMENT_STARTED", {
         order_id: existingOrderId || null,
         branch_id: checkoutBranchId,
         amount: initialAmount,
@@ -8092,7 +8405,7 @@ function POSPro() {
       });
     } catch (err) {
       const message = getErrorMessage(err, "Failed to send Paymob terminal payment");
-      console.info("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
+      posDebugInfo("PAYMOB_TERMINAL_PAYMENT_FAILED_KEEP_CART", {
         transaction_id: err?.response?.data?.transaction?.id || null,
         order_id: existingOrderId || null,
         message,
@@ -8292,7 +8605,7 @@ function POSPro() {
     const searchText = String(customerSearch || "").trim();
     const explicitPhone = String(initialValues?.phone || initialValues?.mobile || "").trim();
     const normalizedPhone = normalizeReceiptPhone(explicitPhone || searchText);
-    console.log("[pos-customer-modal-open]", {
+    posDebugLog("[pos-customer-modal-open]", {
       ...getPosCustomerModalRuntime(),
       hasSearchText: Boolean(searchText),
       hasInitialPhone: Boolean(explicitPhone),
@@ -8688,7 +9001,7 @@ function POSPro() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     paymentAreaRenderCountRef.current += 1;
-    console.log("[pos-render] PaymentArea", {
+    posDebugLog("[pos-render] PaymentArea", {
       render: paymentAreaRenderCountRef.current,
       cart_count: cart.length,
       payment_mode: String(paymentMode || ""),
@@ -9343,8 +9656,7 @@ function POSPro() {
             paymentDueAmount={amountDueNow}
             editPaymentSummary={editPaymentSummary}
             isEditingOrder={Boolean(editingOrder?.id)}
-            onLookupExchangeOrder={lookupExchangeOrder}
-            onApplyExchangeCredit={setExchangeState}
+            onOpenExchangeReturn={handleOpenExchangeReturn}
             onClearExchangeCredit={handleClearExchangeCredit}
             paymentAccountStatus={paymentAccountStatus}
             paymentAccountLoading={paymentAccountLoading}
@@ -9495,8 +9807,7 @@ function POSPro() {
             paymentDueAmount={amountDueNow}
             editPaymentSummary={editPaymentSummary}
             isEditingOrder={Boolean(editingOrder?.id)}
-            onLookupExchangeOrder={lookupExchangeOrder}
-            onApplyExchangeCredit={setExchangeState}
+            onOpenExchangeReturn={handleOpenExchangeReturn}
             onClearExchangeCredit={handleClearExchangeCredit}
             paymentAccountStatus={paymentAccountStatus}
             paymentAccountLoading={paymentAccountLoading}
@@ -10166,7 +10477,7 @@ function ShiftGate({
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    console.log("[pos-shift-gate]", {
+    posDebugLog("[pos-shift-gate]", {
       branch_id: resolvedBranchId || null,
       user: currentUser?.id || currentUser?.email || currentUser?.name || null,
       loading: {

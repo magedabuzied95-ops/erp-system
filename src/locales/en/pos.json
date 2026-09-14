@@ -287,6 +287,8 @@
     }
   },
   "cart": {
+    "exchangeNeedsReturnHint": "Exchange credit comes from a real return on the original invoice. Open the invoice in Recent Operations and do the exchange return; the credit is then applied to the cart automatically.",
+    "openInvoiceForExchangeReturn": "Open invoice to do the return",
     "createOrder": "Create order",
     "clearPaymentAmount": "Clear payment amount",
     "invoiceTab": "Invoice {{index}}",
@@ -473,6 +475,10 @@
     "checkoutFailedWithMessage": "Checkout failed: {{message}}",
     "popupBlocked": "Popup blocked",
     "printFailed": "Unable to prepare the invoice for printing",
+    "printSent": "Receipt sent to the printer",
+    "printAgain": "Print again",
+    "closingCashRequired": "Enter the cash you actually counted in the drawer before closing the shift.",
+    "exchangeCreditNotAvailable": "There is no exchange return on the original invoice. Do the return from Recent Operations first.",
     "savedOfflineInvoice": "Saved offline invoice. It will sync automatically when the connection returns.",
     "savedOfflineCustomer": "Customer saved on this device. It will sync when the connection returns.",
     "closeShiftBlockedByQueue": "{{count}} invoices have not synced yet. Sync them before closing the shift.",
