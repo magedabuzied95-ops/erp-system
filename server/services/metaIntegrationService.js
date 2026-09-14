@@ -12810,6 +12810,23 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
     [repairKey]
   );
 
+  // The marker decides alone. The scan below matches the bare letters ط and ظ,
+  // which ordinary Arabic is full of, so the candidate count is never zero on a
+  // real database. Waiting for zero meant every boot COUNTed and then loaded
+  // every message containing those letters, before listen(), under the 15s
+  // statement_timeout: boot got slower with each message and would crash-loop
+  // once the tables grew. To repair again after new corruption, bump the key.
+  if (markerResult.rows.length) {
+    const result = {
+      repaired_rows_count: 0,
+      skipped: true,
+      reason: "already_completed",
+      tables: [],
+    };
+    console.log("[corrupted-arabic-repair]", result);
+    return result;
+  }
+
   const repairSpecs = [
     { table: "ai_support_sessions", columns: ["ai_insight", "summary", "last_message", "customer_name", "assigned_user_name"] },
     { table: "notifications", columns: ["title", "message", "action_label"] },
@@ -12831,29 +12848,12 @@ export const repairCorruptedArabicText = async (clientOrPool = db) => {
     if (!existingColumns.length) continue;
     const { clause, params } = corruptedArabicWhereClause(existingColumns);
     if (!clause) continue;
-    const candidateResult = await clientOrPool.query(
-      `SELECT COUNT(*)::int AS count FROM ${quoteIdentifier(spec.table)} WHERE ${clause}`,
-      params
-    );
     preparedSpecs.push({
       table: spec.table,
       columns: existingColumns,
       clause,
       params,
-      candidateCount: Number(candidateResult.rows[0]?.count || 0),
     });
-  }
-
-  const totalCandidates = preparedSpecs.reduce((sum, spec) => sum + spec.candidateCount, 0);
-  if (markerResult.rows.length && totalCandidates === 0) {
-    const result = {
-      repaired_rows_count: 0,
-      skipped: true,
-      reason: "already_completed",
-      tables: [],
-    };
-    console.log("[corrupted-arabic-repair]", result);
-    return result;
   }
 
   const repaired = {

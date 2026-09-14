@@ -20,5 +20,7 @@ test("the identity-key backfill fills only missing keys and skips keys already h
 
 test("no whole-table identity-key UPDATE is left in the schema ensure", () => {
   assert.doesNotMatch(service, /SET message_identity_key = CASE/);
-  assert.equal((service.match(/await backfillMessageIdentityKeys\(clientOrPool\);/g) || []).length, 2);
+  // Once, after the provider-id fill it depends on. A second, earlier copy re-scanned the whole
+  // table on every boot for nothing (2026-09-14 growth audit).
+  assert.equal((service.match(/await backfillMessageIdentityKeys\(clientOrPool\);/g) || []).length, 1);
 });

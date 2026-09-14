@@ -1133,8 +1133,6 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
               AND existing.external_conversation_id = c.external_conversation_id
           )
       `).catch((error) => logSqlError("channel_repair_channel_conversations_by_prefix", error));
-      await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
-      await backfillMessageIdentityKeys(clientOrPool);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS ai_inbound_ai_reply_locks (
           id BIGSERIAL PRIMARY KEY,
@@ -1201,9 +1199,10 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`UPDATE ai_support_messages SET insert_source = COALESCE(insert_source, CASE WHEN channel = 'whatsapp' AND NULLIF(provider_message_id, '') IS NOT NULL THEN 'whatsapp_unknown_legacy' WHEN channel = 'facebook_messenger' THEN 'meta_messenger_legacy' WHEN channel = 'instagram' THEN 'instagram_dm_legacy' ELSE 'legacy_unknown' END) WHERE insert_source IS NULL`);
       await clientOrPool.query(`
         UPDATE ai_support_messages
-        SET provider_message_id = COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''))
+        SET provider_message_id = external_message_id
         WHERE channel IN ('facebook_messenger', 'instagram')
-          AND COALESCE(NULLIF(provider_message_id, ''), NULLIF(external_message_id, '')) IS NOT NULL
+          AND COALESCE(provider_message_id, '') = ''
+          AND COALESCE(external_message_id, '') <> ''
       `);
       await clientOrPool.query(`UPDATE ai_support_messages SET client_request_id = COALESCE(NULLIF(client_request_id, ''), NULLIF(external_reply_id, '')) WHERE COALESCE(NULLIF(client_request_id, ''), '') = '' AND COALESCE(NULLIF(external_reply_id, ''), '') <> ''`);
       await backfillMessageIdentityKeys(clientOrPool);
