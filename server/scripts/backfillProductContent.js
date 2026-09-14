@@ -148,7 +148,7 @@ const loadProducts = async () => {
     where.push(`(
       COALESCE(TRIM(p.meta_title), '') = ''
       OR LOWER(TRIM(p.meta_title)) = LOWER(TRIM(p.name))
-      OR p.meta_title ~* '(_|unbranded|\mlocal\M)'
+      OR p.meta_title ~* '(_|unbranded|\\mlocal\\M)'
       OR COALESCE(TRIM(p.seo_keywords), '') = ''
       OR COALESCE(TRIM(p.seo_description), '') = ''
       OR TRIM(p.seo_description) IN (TRIM(COALESCE(p.description, '')), TRIM(COALESCE(p.description_ar, '')), TRIM(COALESCE(p.description_en, '')))
@@ -359,7 +359,7 @@ const main = async () => {
       };
       next.description = next.description_en || next.description_ar;
       if (isStaleSeo(row)) {
-        const seo = buildSeoFallback({ ...context, product_name: cleanModelName(context.product_name) });
+        const seo = buildSeoFallback({ ...context, product_name: cleanModelName(context.product_name), type_hint: context.product_name });
         next.meta_title = distinctTitle(text(seo.meta_title), context);
         next.seo_description = text(seo.meta_description);
         next.seo_keywords = (seo.keywords || []).map(text).filter(Boolean).join(", ");

@@ -1293,7 +1293,7 @@ const SEO_TYPE_AR = [
 ];
 
 const seoTypeAr = (context = {}) => {
-  const source = [context.product_type, context.category, context.product_name].map(cleanText).join(" ").toLowerCase();
+  const source = [context.product_type, context.category, context.product_name, context.type_hint].map(cleanText).join(" ").toLowerCase();
   const hit = SEO_TYPE_AR.find(([pattern]) => pattern.test(source));
   if (hit) return hit[1];
   const arabic = [context.product_type, context.category].map(cleanText).find((value) => /[؀-ۿ]/.test(value));
@@ -1301,7 +1301,7 @@ const seoTypeAr = (context = {}) => {
 };
 
 const seoTypeEn = (context = {}) => {
-  const source = [context.product_type, context.category, context.product_name].map(cleanText).join(" ").toLowerCase();
+  const source = [context.product_type, context.category, context.product_name, context.type_hint].map(cleanText).join(" ").toLowerCase();
   if (/crocs/.test(source)) return "crocs";
   if (/backpack|school bag/.test(source)) return "backpack";
   if (/bag/.test(source)) return "bag";
@@ -1389,6 +1389,8 @@ const compactSeoContext = (input = {}) => {
     // One listing covers every colourway: the search title names the model, not
     // the colours baked into the catalogue name.
     product_name: cleanModelName(current.product_name || current.name || input.product_name || input.name),
+    // The cleaned name loses "Boots" / "Bag"; the product type is still read from the original.
+    type_hint: cleanText(current.product_name || current.name || input.product_name || input.name),
     brand: realBrand(current.brand || current.brand_name || input.brand),
     manufacturer: cleanText(current.manufacturer || input.manufacturer),
     category: cleanText(current.category || input.category),
