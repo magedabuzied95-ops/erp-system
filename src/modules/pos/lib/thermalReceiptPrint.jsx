@@ -1,14 +1,51 @@
 import { ReceiptPreview } from "../components/CartSidebar";
+import { importWithChunkRetry } from "../../../shared/utils/chunkLoadRecovery";
 
 const activePrintJobs = new Map();
 let receiptRendererPromise = null;
 
+export const PRINT_RENDERER_UNAVAILABLE = "PRINT_RENDERER_UNAVAILABLE";
+const RENDERER_RETRY_DELAY_MS = 1500;
+const IMAGE_LOAD_WAIT_MS = 1200;
+const PRINT_LOG_LIMIT = 50;
+
+/*
+ * Support telemetry for "the printer sometimes does nothing after an order".
+ * No console output and no server call: every phase of every print is kept in a
+ * small in-memory ring buffer that support can read from the till's devtools as
+ * `window.__posPrintLog`.
+ */
+const printLog = [];
+const recordPrintPhase = (phase, details = {}) => {
+  try {
+    printLog.push({ phase: `pos.print.${phase}`, at: new Date().toISOString(), ...details });
+    if (printLog.length > PRINT_LOG_LIMIT) printLog.splice(0, printLog.length - PRINT_LOG_LIMIT);
+    if (typeof window !== "undefined") window.__posPrintLog = printLog;
+  } catch {
+    // Telemetry must never break a print.
+  }
+};
+
+const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
+const elapsedMs = (startedAt) => Math.round(nowMs() - startedAt);
+
+// react-dom/server is a lazily loaded chunk. A CDN-cached 404 is retried past by
+// importWithChunkRetry (recover:false -- never reload the page under a sale), and
+// a plain network blink gets one more attempt 1.5 s later before the print is
+// reported failed with a code the till can offer a reprint for.
+const loadReceiptRenderer = () => importWithChunkRetry(() => import("react-dom/server"), { recover: false });
+
 const getReceiptRenderer = () => {
   if (!receiptRendererPromise) {
-    receiptRendererPromise = import("react-dom/server").catch((error) => {
-      receiptRendererPromise = null;
-      throw error;
-    });
+    receiptRendererPromise = loadReceiptRenderer()
+      .catch(() => new Promise((resolve) => setTimeout(resolve, RENDERER_RETRY_DELAY_MS)).then(loadReceiptRenderer))
+      .catch((error) => {
+        receiptRendererPromise = null;
+        const unavailable = new Error(PRINT_RENDERER_UNAVAILABLE);
+        unavailable.code = PRINT_RENDERER_UNAVAILABLE;
+        unavailable.cause = error;
+        throw unavailable;
+      });
   }
   return receiptRendererPromise;
 };
@@ -25,6 +62,8 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+// Each image gets a short, bounded wait: a slow product photo must not hold the
+// receipt back long enough for the cashier to think the printer dropped out.
 const waitForImages = async (documentRef) => {
   const images = Array.from(documentRef?.images || []);
   if (!images.length) return;
@@ -35,7 +74,7 @@ const waitForImages = async (documentRef) => {
           const finish = () => resolve();
           image.addEventListener("load", finish, { once: true });
           image.addEventListener("error", finish, { once: true });
-          window.setTimeout(finish, 2500);
+          window.setTimeout(finish, IMAGE_LOAD_WAIT_MS);
         });
       }
       if (typeof image.decode === "function" && image.naturalWidth > 0) {
@@ -70,8 +109,13 @@ export const buildThermalPrintDocument = ({ receiptHtml, title = "Sales Receipt"
 </html>`;
 
 const renderReceiptDocument = async (receiptProps) => {
+  const invoice = String(receiptProps?.invoiceNumber || "");
+  const importStartedAt = nowMs();
   const { renderToStaticMarkup } = await getReceiptRenderer();
+  recordPrintPhase("import_ms", { invoice, ms: elapsedMs(importStartedAt) });
+  const renderStartedAt = nowMs();
   const receiptHtml = renderToStaticMarkup(<ReceiptPreview {...receiptProps} compact />);
+  recordPrintPhase("render_ms", { invoice, ms: elapsedMs(renderStartedAt) });
   const invoiceNumber = receiptProps?.invoiceNumber || "Sales Receipt";
   return buildThermalPrintDocument({
     receiptHtml,
@@ -120,7 +164,9 @@ const printInFrame = async (html, transport) => {
     frameDocument.open();
     frameDocument.write(html);
     frameDocument.close();
+    const imagesStartedAt = nowMs();
     await waitForImages(frameDocument);
+    recordPrintPhase("images_ms", { transport, ms: elapsedMs(imagesStartedAt), images: frameDocument?.images?.length || 0 });
     frame.contentWindow.focus();
     frame.contentWindow.print();
     return { transport };
@@ -144,10 +190,19 @@ export const printThermalReceipt = async (receiptProps, { silent = false } = {})
   const jobKey = `${silent ? "silent" : "preview"}:${invoiceNumber}`;
   if (activePrintJobs.has(jobKey)) return activePrintJobs.get(jobKey);
   const job = (async () => {
-    const html = await renderReceiptDocument(receiptProps);
-    if (!silent) return printInFrame(html, "browser-preview");
-    if (await invokeNativeSilentPrinter(html, receiptProps)) return { transport: "native-silent" };
-    return printInFrame(html, "browser-kiosk");
+    recordPrintPhase("start", { invoice: invoiceNumber, silent });
+    try {
+      const html = await renderReceiptDocument(receiptProps);
+      let result;
+      if (!silent) result = await printInFrame(html, "browser-preview");
+      else if (await invokeNativeSilentPrinter(html, receiptProps)) result = { transport: "native-silent" };
+      else result = await printInFrame(html, "browser-kiosk");
+      recordPrintPhase("done", { invoice: invoiceNumber, transport: result?.transport || "" });
+      return result;
+    } catch (error) {
+      recordPrintPhase("error", { invoice: invoiceNumber, code: error?.code || "", message: String(error?.message || error || "") });
+      throw error;
+    }
   })();
 
   activePrintJobs.set(jobKey, job);

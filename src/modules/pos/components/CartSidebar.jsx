@@ -374,8 +374,7 @@ function CartSidebar({
   paymentDueAmount,
   editPaymentSummary = null,
   isEditingOrder = false,
-  onLookupExchangeOrder,
-  onApplyExchangeCredit,
+  onOpenExchangeReturn,
   onClearExchangeCredit,
   paymentAccountStatus,
   paymentAccountLoading = false,
@@ -1217,12 +1216,10 @@ function CartSidebar({
     ) : null}
     {exchangeOpen ? (
       <ExchangeCreditModal
-        currentTotal={newOrderTotal}
         onClose={() => setExchangeOpen(false)}
-        onLookup={onLookupExchangeOrder}
-        onApply={(payload) => {
-          onApplyExchangeCredit?.(payload);
+        onOpenInvoiceReturn={(invoiceNumber) => {
           setExchangeOpen(false);
+          onOpenExchangeReturn?.(invoiceNumber);
         }}
       />
     ) : null}
@@ -2774,34 +2771,19 @@ function paymentMethodDisplayLabel(value = "") {
   return method ? method.replaceAll("_", " ").toUpperCase() : posLabel("payment.pay", "Pay");
 }
 
-function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {
+// This modal used to look an invoice up and apply its WHOLE total as exchange
+// credit without any return being made -- free goods, and wallet credit for the
+// difference. The server now refuses credit that no return created
+// (EXCHANGE_CREDIT_NOT_AVAILABLE), so the modal only routes the cashier to the
+// place the exchange really happens: the invoice in Recent Operations, whose
+// exchange return sets the credit from the refund the server recorded.
+function ExchangeCreditModal({ onClose, onOpenInvoiceReturn }) {
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [order, setOrder] = useState(null);
-  const [error, setError] = useState("");
-  const credit = Math.max(0, Number(order?.total_amount ?? order?.total ?? order?.total_price ?? 0));
-  const amountDue = Math.max(0, Number(currentTotal || 0) - credit);
-  const remainingCredit = Math.max(0, credit - Number(currentTotal || 0));
 
-  const lookup = async () => {
+  const openInvoice = () => {
     const text = query.trim();
     if (!text) return;
-    try {
-      setLoading(true);
-      setError("");
-      const found = onLookup ? await onLookup(text) : null;
-      if (!found) {
-        setOrder(null);
-        setError(posLabel("cart.invoiceNotFound", "Invoice not found or not eligible."));
-        return;
-      }
-      setOrder(found);
-    } catch (err) {
-      setOrder(null);
-      setError(err?.message || posLabel("cart.invoiceLookupFailed", "Unable to load invoice."));
-    } finally {
-      setLoading(false);
-    }
+    onOpenInvoiceReturn?.(text);
   };
 
   return (
@@ -2821,51 +2803,24 @@ function ExchangeCreditModal({ currentTotal, onClose, onLookup, onApply }) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") lookup();
+              if (event.key === "Enter") openInvoice();
             }}
             autoFocus
             placeholder="INV-123"
             className="h-[var(--control-height-lg)] min-w-0 flex-1 rounded-2xl border border-white/10 bg-black/40 px-3 text-sm font-black text-white outline-none focus:border-amber-300/50"
           />
-          <button type="button" onClick={lookup} disabled={loading} className="h-[var(--control-height-lg)] rounded-2xl bg-amber-300 px-4 text-sm font-black text-black disabled:opacity-50">
-            {loading ? posLabel("actions.loading", "Loading") : posLabel("actions.lookup", "Lookup")}
-          </button>
         </div>
-        {error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-100">{error}</div> : null}
-        {order ? (
-          <div className="mt-4">
-            <ExchangeSummaryCard
-              oldCredit={credit}
-              newTotal={currentTotal}
-              amountDue={amountDue}
-              remainingCredit={remainingCredit}
-              invoiceNumber={order.invoice_number || order.public_order_number || order.id}
-            />
-            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{posLabel("cart.eligibleReturnedItems", "Eligible returned items")}</div>
-              <div className="mt-2 max-h-36 space-y-1 overflow-auto">
-                {(order.items || []).map((item) => (
-                  <div key={item.id || item.product_name} className="flex justify-between gap-3 rounded-lg bg-black/20 px-2 py-1.5 text-xs">
-                    <span className="truncate text-zinc-200">{item.product_name || item.name}</span>
-                    <span className="shrink-0 font-black text-white">{Number(item.quantity || 0).toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onApply?.({
-                active: true,
-                originalOrderId: order.id,
-                invoiceNumber: order.invoice_number || order.public_order_number || String(order.id),
-                creditAmount: credit,
-              })}
-              className="mt-4 h-[var(--control-height-lg)] w-full rounded-2xl bg-emerald-500 text-sm font-black text-black"
-            >
-              {posLabel("cart.applyExchangeCredit", "Apply exchange credit")}
-            </button>
-          </div>
-        ) : null}
+        <p className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs font-bold leading-6 text-amber-50">
+          {posLabel("cart.exchangeNeedsReturnHint", "Exchange credit comes from a real return on the original invoice. Open the invoice in Recent Operations and do the exchange return; the credit is then applied to the cart automatically.")}
+        </p>
+        <button
+          type="button"
+          onClick={openInvoice}
+          disabled={!query.trim()}
+          className="mt-4 h-[var(--control-height-lg)] w-full rounded-2xl bg-amber-300 text-sm font-black text-black disabled:opacity-50"
+        >
+          {posLabel("cart.openInvoiceForExchangeReturn", "Open invoice to do the return")}
+        </button>
       </section>
     </div>
   );
