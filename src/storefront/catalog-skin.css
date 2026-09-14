@@ -594,6 +594,13 @@ body.storefront-shell .sfx-facet__title {
   cursor: pointer;
 }
 
+/* The control above strips its own outline and shadow (they outrank the global
+   :focus-visible ring), so the box around it shows focus instead, like .sfx-input. */
+:is(body.storefront-shell, .sfx-scope) .sfx-select:focus-within {
+  border-color: var(--m1h-accent);
+  box-shadow: 0 0 0 3px var(--sfx-focus);
+}
+
 :is(body.storefront-shell, .sfx-scope) .sfx-select__control option {
   background: var(--m1h-surface) !important;
   color: var(--m1h-text) !important;

@@ -4,6 +4,13 @@ import { ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import ProductImageZoom from "./ProductImageZoom";
 
+// The thumbnail's only child is a decorative photo, so the button carries the name
+// (ProductImageZoom names its own thumbnails the same way).
+const thumbnailLabel = (title, index, total) =>
+  [String(title || "").trim(), sfText("storefront.products.thumbnailLabel", "Photo {{current}} of {{total}}", { current: index + 1, total })]
+    .filter(Boolean)
+    .join(" — ");
+
 export default function StorefrontProductGallery({
   mainImage,
   displayTitle,
@@ -97,6 +104,8 @@ export default function StorefrontProductGallery({
                   data-gallery-index={imageIndex}
                   onClick={() => onSelectImage?.(item, imageIndex)}
                   className={`sf-product-thumb shrink-0 snap-start${active ? " is-active" : ""}`}
+                  aria-label={thumbnailLabel(displayTitle, imageIndex, galleryItems.length)}
+                  aria-current={active ? "true" : undefined}
                 >
                   <img src={imageFor(image)} {...getStorefrontResponsiveImageProps(imageFor(image), "thumbnail")} onError={fallbackProductImage} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
                 </button>

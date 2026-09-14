@@ -312,6 +312,7 @@
     "quickView": "نظرة سريعة",
     "viewFullDetails": "شوف كل تفاصيل المنتج",
     "imageCount": "{{current}} من {{total}}",
+    "thumbnailLabel": "صورة {{current}} من {{total}}",
     "zoomHint": "قرّب بصباعين أو دوس مرتين للتكبير",
     "onlySelectedAdded": "سيتم إضافة اللون والمقاس المختارين فقط إلى السلة.",
     "chooseColorFirst": "اختار اللون أولًا",

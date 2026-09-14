@@ -92,7 +92,15 @@ export function CheckoutNativeSelect({ label, value, onChange, options = [], nam
   const id = useId();
   return (
     <div className={`sfc-field${error ? " sfc-field--error" : ""}`} data-field={name}>
-      <select id={id} name={name} className="sfc-input sfc-native-select" value={value} onChange={(event) => onChange(event.target.value)}>
+      <select
+        id={id}
+        name={name}
+        className="sfc-input sfc-native-select"
+        value={value}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -103,7 +111,11 @@ export function CheckoutNativeSelect({ label, value, onChange, options = [], nam
         {label}
       </label>
       <ChevronDown className="sfc-field__icon" size={16} aria-hidden="true" />
-      {error ? <span className="sfc-error">{error}</span> : null}
+      {error ? (
+        <span id={`${id}-error`} className="sfc-error" role="alert">
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -145,6 +157,7 @@ export const CheckoutLocationSelect = memo(function CheckoutLocationSelect({
   const [query, setQuery] = useState("");
   const containerRef = useRef(null);
   const searchRef = useRef(null);
+  const triggerRef = useRef(null);
   const narrow = useIsNarrowViewport();
   const selected = useMemo(() => options.find((option) => String(option.id) === String(value)) || null, [options, value]);
   const deferredQuery = useDeferredValue(query);
@@ -176,12 +189,20 @@ export const CheckoutLocationSelect = memo(function CheckoutLocationSelect({
     };
   }, [narrow, open]);
 
-  useDismissableLayer({ enabled: open && !narrow, refs: [containerRef], onDismiss: () => setOpen(false) });
+  // Closing unmounts the focused search box or option, which drops focus on <body>
+  // and sends the next Tab to the top of the page. Keyboard-driven closes hand it
+  // back to the trigger; a pointer press elsewhere keeps wherever the shopper went.
+  const close = (refocus = true) => {
+    setOpen(false);
+    if (refocus) window.requestAnimationFrame(() => triggerRef.current?.focus({ preventScroll: true }));
+  };
+
+  useDismissableLayer({ enabled: open && !narrow, refs: [containerRef], onDismiss: (event) => close(event?.type === "keydown") });
 
   const choose = (option) => {
     if (!option || disabled) return;
     onChange(option.id);
-    setOpen(false);
+    close();
   };
 
   const list = loading ? (
@@ -228,6 +249,7 @@ export const CheckoutLocationSelect = memo(function CheckoutLocationSelect({
   return (
     <div ref={containerRef} className={`sfc-field${error ? " sfc-field--error" : ""}`} data-field={name}>
       <button
+        ref={triggerRef}
         type="button"
         className={`sfc-select${hasValue ? "" : " is-empty"}`}
         onClick={() => !disabled && setOpen((current) => !current)}
@@ -248,11 +270,21 @@ export const CheckoutLocationSelect = memo(function CheckoutLocationSelect({
       ) : null}
       {open && narrow && typeof document !== "undefined"
         ? createPortal(
-            <div className="sfc-sheet-backdrop" role="presentation" onClick={() => setOpen(false)}>
-              <section className="sfc-sheet" role="dialog" aria-modal="true" aria-label={label} onClick={(event) => event.stopPropagation()} dir={document.documentElement.dir || undefined}>
+            <div className="sfc-sheet-backdrop" role="presentation" onClick={() => close()}>
+              <section
+                className="sfc-sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label={label}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") close();
+                }}
+                dir={document.documentElement.dir || undefined}
+              >
                 <div className="sfc-sheet__head">
                   <span className="sfx-drawer__title">{label}</span>
-                  <button type="button" className="sfc-icon-btn" onClick={() => setOpen(false)} aria-label={closeLabel}>
+                  <button type="button" className="sfc-icon-btn" onClick={() => close()} aria-label={closeLabel}>
                     <X size={16} />
                   </button>
                 </div>

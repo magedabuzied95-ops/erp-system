@@ -307,7 +307,8 @@ export default function ProductImageZoom({ open, items = [], index = 0, title = 
                 type="button"
                 data-zoom-index={thumbIndex}
                 className={`sfz__thumb${thumbIndex === current ? " is-active" : ""}`}
-                aria-current={thumbIndex === current}
+                aria-current={thumbIndex === current ? "true" : undefined}
+                aria-label={[String(title || "").trim(), sfText("storefront.products.thumbnailLabel", "Photo {{current}} of {{total}}", { current: thumbIndex + 1, total })].filter(Boolean).join(" — ")}
                 onClick={() => show(thumbIndex)}
               >
                 <img src={imageFor(thumb?.image || thumb)} alt="" loading="lazy" decoding="async" onError={fallbackProductImage} />
