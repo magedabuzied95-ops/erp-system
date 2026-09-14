@@ -160,12 +160,13 @@
   }
 
   /* `clip` keeps the same guard against horizontal overflow but does not create a
-     scroll container, so these two reserve nothing. Safari below 16 drops `clip`
-     and keeps the `hidden` above it - still correct, because the gutter that made
-     the space is no longer declared here. */
+     scroll container, so these two reserve nothing. There is deliberately no
+     `hidden` fallback: an engine without `clip` (Safari below 16) would turn body
+     and #root into scroll containers that never scroll, and the sticky storefront
+     header would stick to them and scroll away with the page. Those engines leave
+     both visible and rely on the `hidden` on `html` above. */
   body,
   #root {
-    overflow-x: hidden;
     overflow-x: clip;
   }
 
@@ -200,8 +201,8 @@
     margin: 0;
     width: 100%;
     max-width: 100%;
-    /* The gutter and the scroll container both belong to `html` alone - see above. */
-    overflow-x: hidden;
+    /* The gutter and the scroll container both belong to `html` alone - see above.
+       No `hidden` fallback here either, or the header stops sticking on old Safari. */
     overflow-x: clip;
     overflow-anchor: none;
     color: var(--text);
