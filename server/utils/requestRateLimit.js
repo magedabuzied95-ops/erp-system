@@ -1,13 +1,35 @@
+import net from "node:net";
 import { resolveTrustedClientIp } from "./trustedClientIp.js";
 
 // In-process sliding-window counters for the public endpoints that have no login in front of
 // them. One backend instance serves the shop, so a Map is enough; a restart forgets the counts,
 // which only ever errs toward letting a customer back in.
 
-// The caller's address as the proxy chain vouches for it. Behind nginx or Cloudflare `req.ip` is
-// the proxy for every shopper unless TRUST_PROXY_HOPS / TRUST_CLOUDFLARE_PROXY is set, and then
-// the whole shop would share one bucket.
-export const rateLimitClientKey = (req = {}) => resolveTrustedClientIp(req) || "unknown";
+const enabledFlag = (value = "") => ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
+const proxyTrustConfigured = () =>
+  enabledFlag(process.env.TRUST_CLOUDFLARE_PROXY) || Number(process.env.TRUST_PROXY_HOPS || 0) > 0;
+
+// Loopback, private, link-local and CGNAT ranges: an address from these is a proxy or container
+// hop in front of the shop, never a shopper.
+const isInternalAddress = (ip = "") => {
+  if (!net.isIP(ip)) return true;
+  if (net.isIPv6(ip)) return ip === "::1" || /^f[cd]/i.test(ip) || /^fe80:/i.test(ip);
+  const [a, b] = ip.split(".").map(Number);
+  return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+    || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127) || a === 0;
+};
+
+// The caller's address as the proxy chain vouches for it, or "" when it cannot be told apart from
+// the proxy. Behind nginx or Cloudflare without TRUST_PROXY_HOPS / TRUST_CLOUDFLARE_PROXY every
+// shopper arrives from the same internal hop; counting that address would put the whole shop in
+// one bucket and a handful of orders would lock every customer out. An empty key is skipped by the
+// limiters, so per-IP ceilings stand aside there while per-phone and per-email ceilings still hold.
+export const rateLimitClientKey = (req = {}) => {
+  const ip = resolveTrustedClientIp(req);
+  if (!ip) return "";
+  if (!proxyTrustConfigured() && isInternalAddress(ip)) return "";
+  return ip;
+};
 
 export const createSlidingWindowCounter = ({ windowMs = 60_000, max = 10, now = Date.now, buckets = new Map() } = {}) => {
   let lastSweepAt = now();

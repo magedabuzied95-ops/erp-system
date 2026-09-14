@@ -137,6 +137,35 @@ test("rate limits key on the proxy-verified client address", (t) => {
   const limiter = between(coupons, "const validateRateLimit", "};");
   assert.match(limiter, /const key = rateLimitClientKey\(req\);/);
   assert.doesNotMatch(limiter, /req\.ip/);
+  assert.match(limiter, /if \(!key\) return next\(\);/);
+});
+
+test("with no proxy trust configured, a proxy hop is never counted as the shopper", (t) => {
+  const previous = { cf: process.env.TRUST_CLOUDFLARE_PROXY, hops: process.env.TRUST_PROXY_HOPS };
+  t.after(() => {
+    for (const [name, value] of [["TRUST_CLOUDFLARE_PROXY", previous.cf], ["TRUST_PROXY_HOPS", previous.hops]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+  delete process.env.TRUST_CLOUDFLARE_PROXY;
+  delete process.env.TRUST_PROXY_HOPS;
+  // Every shopper behind nginx/docker arrives from the same internal hop: no key, so no shared bucket.
+  for (const hop of ["10.0.0.5", "172.18.0.3", "192.168.1.9", "127.0.0.1", "::1", "100.64.0.2"]) {
+    assert.equal(rateLimitClientKey({ ip: hop, headers: {} }), "", `${hop} must not be a rate-limit key`);
+  }
+  // A shopper reaching the server directly is still counted.
+  assert.equal(rateLimitClientKey({ ip: "198.51.100.9", headers: {} }), "198.51.100.9");
+  // Once trust is configured the verified address is used again.
+  process.env.TRUST_PROXY_HOPS = "1";
+  assert.equal(rateLimitClientKey({ ip: "10.0.0.5", headers: {} }), "10.0.0.5");
+
+  const route = read("../server/routes/storefront.js");
+  assert.match(route, /return client \? `\$\{publicTenantId\(req\)\}:\$\{client\}` : "";/);
+  // Mobile carriers share addresses: the per-IP order ceiling sits well above the per-phone one.
+  assert.match(route, /const placedOrdersByIp = createSlidingWindowCounter\(\{ windowMs: 60 \* MINUTE_MS, max: 20 \}\);/);
+  assert.match(route, /const placedOrdersByPhone = createSlidingWindowCounter\(\{ windowMs: 60 \* MINUTE_MS, max: 5 \}\);/);
+  assert.match(route, /checkoutPlacedOrderIpRateLimit, checkoutPlacedOrderPhoneRateLimit, createWebsiteOrder\)/);
 });
 
 // ---------------------------------------------------------------- #44 token revocation
@@ -207,10 +236,10 @@ test("login, register, reset request and reset are each capped per client", asyn
   const ip = freshIp();
   const login = routeHandlers(storefrontRouter, "post", "/auth/login");
   let last = null;
-  for (let index = 0; index < 31; index += 1) {
+  for (let index = 0; index < 61; index += 1) {
     last = await runChain(login.slice(0, 1), { ip, headers: {}, body: { email: `user${index}@example.com` } });
   }
-  assert.equal(last.res.statusCode, 429, "the 31st login from one address in 15 minutes is refused");
+  assert.equal(last.res.statusCode, 429, "the 61st login from one address in 15 minutes is refused");
 
   const resetRequest = routeHandlers(storefrontRouter, "post", "/auth/request-reset");
   const limiters = resetRequest.slice(0, -1);
@@ -230,12 +259,12 @@ test("login, register, reset request and reset are each capped per client", asyn
 
 test("checkout stops a client or a phone that keeps placing orders, not one that retries a form error", async () => {
   const handlers = routeHandlers(storefrontRouter, "post", "/checkout");
-  assert.equal(handlers.length, 4, "request limit, upload, placed-order limit, controller");
-  const [requestLimit, , placedLimit] = handlers;
+  assert.equal(handlers.length, 5, "request limit, upload, per-IP and per-phone placed-order limits, controller");
+  const [requestLimit, , placedIpLimit, placedPhoneLimit] = handlers;
   const ip = freshIp();
   const phone = "01099887766";
   const place = (status, requestIp = ip, requestPhone = phone) =>
-    runChain([requestLimit, placedLimit, (_req, res) => res.status(status).json({ success: status < 300 })], {
+    runChain([requestLimit, placedIpLimit, placedPhoneLimit, (_req, res) => res.status(status).json({ success: status < 300 })], {
       ip: requestIp,
       headers: {},
       body: { checkout: JSON.stringify({ primary_phone: requestPhone }) },
@@ -248,6 +277,14 @@ test("checkout stops a client or a phone that keeps placing orders, not one that
   }
   assert.equal((await place(201, freshIp())).res.statusCode, 429, "the same phone from a new address is refused after 5 orders");
   assert.equal((await place(201, freshIp(), "01011112222")).res.statusCode, 201);
+
+  // One shared carrier address: 20 different phones get through, the 21st order is refused.
+  const shared = freshIp();
+  for (let index = 0; index < 20; index += 1) {
+    const orderPhone = `0101${String(3000000 + index).padStart(7, "0")}`;
+    assert.equal((await place(201, shared, orderPhone)).res.statusCode, 201, `order ${index + 1} behind one address`);
+  }
+  assert.equal((await place(201, shared, "01019999999")).res.statusCode, 429, "the 21st order from one address in an hour is refused");
 });
 
 // ---------------------------------------------------------------- #93 account projection

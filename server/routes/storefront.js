@@ -155,14 +155,18 @@ const customerSessionRateLimit = createStorefrontCustomerSessionRateLimit({ tena
 // also counted per email, on failures only, so a guesser spreading over many addresses still hits
 // the per-IP cap and one aimed at a single account stops after a handful of wrong passwords.
 const MINUTE_MS = 60_000;
-const clientKeyWithTenant = (req) => `${publicTenantId(req)}:${rateLimitClientKey(req)}`;
+// "" when the shopper's address is unknown (see rateLimitClientKey): that limiter then stands aside.
+const clientKeyWithTenant = (req) => {
+  const client = rateLimitClientKey(req);
+  return client ? `${publicTenantId(req)}:${client}` : "";
+};
 const emailKeyWithTenant = (req) => {
   const email = toText(req.body?.email).toLowerCase();
   return email ? `${publicTenantId(req)}:${email}` : "";
 };
-const loginRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
+const loginRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 60, keysOf: (req) => [clientKeyWithTenant(req)] });
 const loginFailuresByEmail = createSlidingWindowCounter({ windowMs: 15 * MINUTE_MS, max: 5 });
-const registerRateLimit = createRequestRateLimit({ windowMs: 60 * MINUTE_MS, max: 10, keysOf: (req) => [clientKeyWithTenant(req)] });
+const registerRateLimit = createRequestRateLimit({ windowMs: 60 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
 // Every reset request mails the address and replaces the pending link, so the address itself is
 // capped too: looping it can neither flood an inbox nor keep killing the owner's real link.
 const passwordResetRequestRateLimit = createRequestRateLimit({
@@ -170,14 +174,16 @@ const passwordResetRequestRateLimit = createRequestRateLimit({
   max: 3,
   keysOf: (req) => [emailKeyWithTenant(req) && `reset-email:${emailKeyWithTenant(req)}`],
 });
-const passwordResetRequestIpRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 5, keysOf: (req) => [clientKeyWithTenant(req)] });
-const passwordResetRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 10, keysOf: (req) => [clientKeyWithTenant(req)] });
+const passwordResetRequestIpRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 20, keysOf: (req) => [clientKeyWithTenant(req)] });
+const passwordResetRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
 
 // Checkout creates an order and takes the stock at once, with no login. Every request counts
 // against a loose per-IP ceiling; placed orders count again per IP and per phone, so a customer
-// who fixes a form error and resubmits is never the one who gets stopped.
-const checkoutRequestRateLimit = createRequestRateLimit({ windowMs: 10 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
-const placedOrdersByKey = createSlidingWindowCounter({ windowMs: 60 * MINUTE_MS, max: 5 });
+// who fixes a form error and resubmits is never the one who gets stopped. Mobile carriers put many
+// shoppers behind one address, so the per-IP ceilings are several times the per-phone one.
+const checkoutRequestRateLimit = createRequestRateLimit({ windowMs: 10 * MINUTE_MS, max: 120, keysOf: (req) => [clientKeyWithTenant(req)] });
+const placedOrdersByIp = createSlidingWindowCounter({ windowMs: 60 * MINUTE_MS, max: 20 });
+const placedOrdersByPhone = createSlidingWindowCounter({ windowMs: 60 * MINUTE_MS, max: 5 });
 const checkoutPhoneKey = (req) => {
   let checkout = req.body?.checkout;
   if (typeof checkout === "string") {
@@ -191,9 +197,13 @@ const checkoutPhoneKey = (req) => {
   const phone = canonicalPhoneKey(source.primary_phone || source.customer_phone || source.phone || "");
   return phone ? `${publicTenantId(req)}:phone:${phone}` : "";
 };
-const checkoutPlacedOrderRateLimit = createSuccessRateLimit({
-  counter: placedOrdersByKey,
-  keysOf: (req) => [`${clientKeyWithTenant(req)}:orders`, checkoutPhoneKey(req)],
+const checkoutPlacedOrderIpRateLimit = createSuccessRateLimit({
+  counter: placedOrdersByIp,
+  keysOf: (req) => [clientKeyWithTenant(req) && `${clientKeyWithTenant(req)}:orders`],
+});
+const checkoutPlacedOrderPhoneRateLimit = createSuccessRateLimit({
+  counter: placedOrdersByPhone,
+  keysOf: (req) => [checkoutPhoneKey(req)],
 });
 
 // Browsing fires a ViewContent per product, so the relay's ceiling is generous; it exists to stop
@@ -769,7 +779,7 @@ router.post("/meta/events", metaRelayRateLimit, storefrontCustomerTransitionAuth
   }
 });
 router.get("/checkout/whatsapp-check", checkCheckoutWhatsappNumber);
-router.post("/checkout", checkoutRequestRateLimit, checkoutUpload, checkoutPlacedOrderRateLimit, createWebsiteOrder);
+router.post("/checkout", checkoutRequestRateLimit, checkoutUpload, checkoutPlacedOrderIpRateLimit, checkoutPlacedOrderPhoneRateLimit, createWebsiteOrder);
 // Both are addressed by the order's unguessable public token. The confirmation
 // page polls the first after Paymob redirects back, and calls the second when
 // the customer closed the hosted page and wants to pay again.

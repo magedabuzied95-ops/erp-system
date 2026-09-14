@@ -43,6 +43,8 @@ const validateHits = new Map();
 const validateRateLimit = (req, res, next) => {
   const now = Date.now();
   const key = rateLimitClientKey(req);
+  // No shopper address to count (the proxy hides it): one shared bucket would refuse every shopper.
+  if (!key) return next();
   const entry = validateHits.get(key);
   if (!entry || now - entry.start >= VALIDATE_WINDOW_MS) {
     validateHits.set(key, { start: now, count: 1 });
