@@ -63,7 +63,7 @@ import {
   buildTemporaryInvoiceNumber,
 } from "../utils/invoiceNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
-import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
+import { isOrderClosedForPayment, normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
 import { createPaymentIntention, isPaymobOnlineReady, paymobOnlineConfig } from "../services/paymobOnlineService.js";
 import { ensurePaymentTransactionsSchema } from "../services/paymobPosService.js";
 import { enqueueOrderCreatedEmails } from "../services/transactionalEmail/orderEmailService.js";
@@ -5238,11 +5238,12 @@ const startPaymobCheckoutSession = async ({ order, tenantId, items = [], checkou
   const client = await db.connect();
   try {
     await ensurePaymentTransactionsSchema(client);
-    await client.query(
+    const inserted = await client.query(
       `
       INSERT INTO payment_transactions
         (tenant_id, order_id, provider, provider_order_id, amount_cents, currency, status, request_payload, response_payload)
       VALUES ($1, $2, 'paymob', NULLIF($3, ''), $4, $5, 'sent', $6::jsonb, $7::jsonb)
+      RETURNING id
       `,
       [
         tenantId,
@@ -5254,6 +5255,26 @@ const startPaymobCheckoutSession = async ({ order, tenantId, items = [], checkou
         JSON.stringify({ intention_id: intention.intentionId, special_reference: intention.specialReference }),
       ]
     );
+    // Older website sessions for this order are marked replaced so staff can tell which link is
+    // current. Paymob cannot be told to close them, so a payment on one still confirms normally,
+    // and applyConfirmedPaymentToOrder refuses to book it twice if the new one was paid as well.
+    const newTransactionId = inserted.rows[0]?.id || null;
+    if (newTransactionId) {
+      await client.query(
+        `
+        UPDATE payment_transactions
+        SET status = 'superseded',
+            error_message = 'Replaced by a newer checkout session',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE order_id = $1
+          AND provider = 'paymob'
+          AND status = 'sent'
+          AND id <> $2
+          AND COALESCE(request_payload->>'channel', '') = 'storefront'
+        `,
+        [order.id, newTransactionId]
+      );
+    }
   } finally {
     client.release();
   }
@@ -5321,6 +5342,16 @@ export const restartStorefrontPaymentSession = async (req, res) => {
   try {
     const order = await loadOrderByPublicToken(req.params?.token);
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
+    // Cancelling already put the stock back and released the coupon. A fresh session here let the
+    // shopper pay anyway, and the confirmation then revived the order with nothing reserved for it.
+    if (isOrderClosedForPayment(order.status) || isOrderClosedForPayment(order.payment_status)) {
+      return res.status(409).json({
+        success: false,
+        code: "ORDER_NOT_PAYABLE",
+        message: "This order was cancelled and can no longer be paid",
+        payment: publicPaymentView(order),
+      });
+    }
     if (String(order.payment_status || "").toLowerCase() === "paid") {
       return res.status(409).json({ success: false, message: "Order is already paid", payment: publicPaymentView(order) });
     }

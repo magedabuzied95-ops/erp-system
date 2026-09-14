@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { isOrderClosedForPayment } from "../../shared/orderStatus.js";
 
 const DEFAULT_PAYMOB_BASE_URL = "https://accept.paymob.com/api";
 const DEFAULT_PAYMOB_AUTH_BASE_URL = "https://accept.paymobsolutions.com/api";
@@ -286,6 +287,40 @@ export const normalizeSignedPaymobWebhookPayload = (body = {}) => {
     signedWebhook: true,
     payload: body,
   };
+};
+
+// How much of a confirmed Paymob payment its order may take. Paymob has already taken the money by
+// the time this runs, so the answer is never "refuse": the transaction stays successful and a
+// `reason` tells the caller to flag it for staff instead of booking it.
+//   order_closed        the order was cancelled/voided/returned: stock and coupon were already given
+//                       back, so it must not become confirmed (or Paid) again.
+//   order_already_paid  a second live checkout session was paid too; adding it would put twice the
+//                       total into paid_amount and card revenue.
+//   overpayment         part fits, the rest is beyond the total.
+// `capAtTotal` is on for website orders only. A till sale's paid_amount is written by the POS flow
+// itself and its terminal amounts are cashier-chosen, so the POS keeps adding what was confirmed.
+export const planConfirmedPaymobOrderPayment = ({
+  orderStatus = "",
+  paidAmount = 0,
+  orderTotal = 0,
+  confirmedAmount = 0,
+  capAtTotal = false,
+} = {}) => {
+  const toCents = (value) => Math.max(0, Math.round(Number(value || 0) * 100));
+  const confirmedCents = toCents(confirmedAmount);
+  if (isOrderClosedForPayment(orderStatus)) {
+    return { applyAmount: 0, excessAmount: confirmedCents / 100, reason: confirmedCents > 0 ? "order_closed" : null };
+  }
+  const totalCents = toCents(orderTotal);
+  if (!capAtTotal || totalCents <= 0) {
+    return { applyAmount: confirmedCents / 100, excessAmount: 0, reason: null };
+  }
+  const roomCents = Math.max(0, totalCents - toCents(paidAmount));
+  const applyCents = Math.min(confirmedCents, roomCents);
+  const excessCents = confirmedCents - applyCents;
+  let reason = null;
+  if (excessCents > 0) reason = applyCents > 0 ? "overpayment" : "order_already_paid";
+  return { applyAmount: applyCents / 100, excessAmount: excessCents / 100, reason };
 };
 
 const extractTerminalTransactionReference = (payload = {}) => {

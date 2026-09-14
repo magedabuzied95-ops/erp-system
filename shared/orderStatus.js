@@ -143,6 +143,19 @@ export const normalizeShippingLifecycleStatus = (value, fallback = "pending") =>
   return SHIPPING_STATUS_ALIASES[fallbackKey] || "pending";
 };
 
+// An order in one of these states has already given its stock back and released its coupon, so
+// no payment may reopen it. "void" is a POS word the lifecycle normalizer does not know (it would
+// fall back to "pending"), which is why the raw value is checked as well.
+const PAYMENT_CLOSED_LIFECYCLE_STATUSES = new Set(["cancelled", "cancelled_by_customer", "returned"]);
+const PAYMENT_CLOSED_RAW_STATUSES = new Set(["void", "voided"]);
+
+export const isOrderClosedForPayment = (value) => {
+  const key = normalizeKey(value);
+  if (!key) return false;
+  if (PAYMENT_CLOSED_RAW_STATUSES.has(key)) return true;
+  return PAYMENT_CLOSED_LIFECYCLE_STATUSES.has(normalizeOrderLifecycleStatus(key));
+};
+
 export const isOrderLifecycleStatus = (value) =>
   ORDER_LIFECYCLE_STATUSES.includes(normalizeKey(value));
 

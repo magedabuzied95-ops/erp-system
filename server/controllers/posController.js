@@ -18,9 +18,11 @@ import {
   normalizePaymobPaymentPayload,
   normalizeSignedPaymobWebhookPayload,
   normalizePaymobError,
+  planConfirmedPaymobOrderPayment,
   verifyPaymobHmac,
 } from "../services/paymobPosService.js";
 import { detectPaymobInstrument } from "../services/paymobOnlineService.js";
+import { createSystemNotification } from "../services/notificationsService.js";
 import {
   ensureSalesCommissionSchema,
   getSalesSettings,
@@ -401,6 +403,7 @@ const findPaymobTransaction = async (client, normalized, explicitTransactionId =
   const localOrderId = (signedWebhook ? null : numberOrNull(normalized.invoiceOrOrderId)) || paymobMerchantOrderLocalId(normalized.merchantOrderId);
   const params = [];
   const where = ["provider = 'paymob'"];
+  const exactMatches = [];
   if (explicitTransactionId) {
     params.push(explicitTransactionId);
     where.push(`id = $${params.length}`);
@@ -409,10 +412,12 @@ const findPaymobTransaction = async (client, normalized, explicitTransactionId =
     if (normalized.transactionReference) {
       params.push(normalized.transactionReference);
       clauses.push(`transaction_reference = $${params.length}`);
+      exactMatches.push(clauses[clauses.length - 1]);
     }
     if (normalized.providerOrderId) {
       params.push(normalized.providerOrderId);
       clauses.push(`provider_order_id = $${params.length}`);
+      exactMatches.push(clauses[clauses.length - 1]);
     }
     if (localOrderId) {
       params.push(localOrderId);
@@ -421,6 +426,12 @@ const findPaymobTransaction = async (client, normalized, explicitTransactionId =
     if (!clauses.length) return null;
     where.push(`(${clauses.join(" OR ")})`);
   }
+  // An order can hold several checkout sessions (the shopper restarted payment). A payment on an
+  // older one still matches the newer session's row through order_id, and that row would then fail
+  // the signed-id check below and 404 the webhook, so the row the provider ids name comes first.
+  const exactMatchOrder = exactMatches.length
+    ? `CASE WHEN ${exactMatches.map((clause) => `COALESCE(${clause}, FALSE)`).join(" OR ")} THEN 0 ELSE 1 END,`
+    : "";
   if (tenantId) {
     params.push(tenantId);
     where.push(`tenant_id = $${params.length}`);
@@ -431,6 +442,7 @@ const findPaymobTransaction = async (client, normalized, explicitTransactionId =
     FROM payment_transactions
     WHERE ${where.join(" AND ")}
     ORDER BY
+      ${exactMatchOrder}
       CASE WHEN status IN ('pending', 'sent') THEN 0 ELSE 1 END,
       updated_at DESC,
       id DESC
@@ -556,6 +568,8 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
       orderId: transaction.order_id,
       confirmedCents,
       payload: normalized.payload || {},
+      transactionId: transaction.id,
+      source: normalized.signedWebhook ? "paymob_webhook" : "paymob_status_check",
     });
   } else if (transaction.order_id) {
     const orderResult = await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1", [transaction.order_id]);
@@ -588,18 +602,113 @@ const applyPaymobConfirmation = async (client, normalized, options = {}) => {
   return result;
 };
 
+const paymobReviewMessages = {
+  order_closed: "Paymob payment arrived for a cancelled/voided/returned order; it was not booked to the order",
+  order_already_paid: "Paymob payment arrived for an order that was already fully paid; it was not booked to the order",
+  overpayment: "Paymob payment was larger than what the order still owed; only the remainder was booked",
+};
+
+// Money Paymob took that the order could not (fully) take. The transaction stays a success, because
+// the customer was charged, and three things make sure a person sees it: a reason on the
+// transaction row, a critical manager notification, and a warning in the log. The notification is
+// written through the same client inside a savepoint so it commits or rolls back with the payment,
+// and a failure there never undoes the confirmation itself.
+const flagPaymobPaymentForReview = async (client, { transactionId = null, order = null, plan, confirmedAmount, source = "paymob" } = {}) => {
+  const message = paymobReviewMessages[plan.reason] || "Paymob payment needs review";
+  const review = {
+    reason: plan.reason,
+    confirmed_amount: confirmedAmount,
+    applied_amount: plan.applyAmount,
+    unbooked_amount: plan.excessAmount,
+    order_status: order?.status || null,
+    order_payment_status: order?.payment_status || null,
+    order_paid_amount: Number(order?.paid_amount || 0),
+    source,
+    flagged_at: new Date().toISOString(),
+  };
+  console.warn("[paymob-payment-needs-review]", {
+    transaction_id: transactionId,
+    order_id: order?.id || null,
+    ...review,
+  });
+  if (transactionId) {
+    await client.query(
+      `
+      UPDATE payment_transactions
+      SET error_message = $2::text,
+          response_payload = COALESCE(response_payload, '{}'::jsonb) || jsonb_build_object('staff_review', $3::jsonb),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      `,
+      [transactionId, message, JSON.stringify(review)]
+    );
+  }
+
+  const orderLabel = order?.public_order_number || order?.invoice_number || order?.id || "";
+  const reasonText = plan.reason === "order_closed"
+    ? "الطلب ملغي أو مرتجع"
+    : plan.reason === "order_already_paid"
+      ? "الطلب مدفوع بالكامل بالفعل"
+      : "المبلغ أكبر من المتبقي على الطلب";
+  try {
+    await client.query("SAVEPOINT paymob_review_notification");
+    await createSystemNotification("paymob_payment_needs_review", {
+      clientOrPool: client,
+      tenant_id: order?.tenant_id || null,
+      role_key: "manager",
+      category: "payments",
+      priority: "critical",
+      title: "دفع أونلاين يحتاج مراجعة",
+      message: `تم خصم ${plan.excessAmount} ج.م من العميل عبر Paymob على الطلب ${orderLabel} ولم تُسجل على الطلب: ${reasonText}. راجع استرداد المبلغ.`,
+      action_url: order?.id ? `/orders/${order.id}` : null,
+      action_label: "فتح الطلب",
+      entity_type: "payment_transaction",
+      entity_id: transactionId ? String(transactionId) : `order-${order?.id || ""}`,
+      metadata: { order_id: order?.id || null, transaction_id: transactionId, ...review },
+    });
+    await client.query("RELEASE SAVEPOINT paymob_review_notification");
+  } catch (notificationError) {
+    try {
+      await client.query("ROLLBACK TO SAVEPOINT paymob_review_notification");
+    } catch {
+      // No savepoint to return to; the flag on the transaction row still stands.
+    }
+    console.error("[paymob-payment-needs-review] notification failed", notificationError?.message || notificationError);
+  }
+};
+
 // Adds a confirmed Paymob amount to its order. Shared by the webhook/status
 // confirmation and the manual terminal approval so both write the same shape.
-const applyConfirmedPaymentToOrder = async (client, { orderId, confirmedCents, payload = {} } = {}) => {
+const applyConfirmedPaymentToOrder = async (client, { orderId, confirmedCents, payload = {}, transactionId = null, source = "paymob" } = {}) => {
+  // Locked so two confirmations for the same order (two checkout sessions paid close together)
+  // run one after the other and the second one sees what the first booked.
+  const current = (await client.query("SELECT * FROM orders WHERE id = $1 LIMIT 1 FOR UPDATE", [orderId])).rows[0] || null;
   // A storefront order uses the website fulfilment vocabulary, not the POS one.
   // The generic branch below writes status = 'Paid'/'Partial', which is correct
   // for a POS sale but would put a website order outside ORDER_LIFECYCLE_STATUSES.
-  const orderChannel = String(
-    (await client.query("SELECT COALESCE(channel, source, '') AS channel FROM orders WHERE id = $1 LIMIT 1", [orderId]))
-      .rows[0]?.channel || ""
-  ).toLowerCase();
+  const orderChannel = String(current?.channel ?? current?.source ?? "").toLowerCase();
   const isStorefrontOrder = ["storefront", "website"].includes(orderChannel);
-  const confirmedAmount = money(confirmedCents / 100);
+  const plan = planConfirmedPaymobOrderPayment({
+    orderStatus: current?.status,
+    paidAmount: current?.paid_amount,
+    orderTotal: Number(current?.total_amount) || Number(current?.total) || Number(current?.total_price) || 0,
+    confirmedAmount: confirmedCents / 100,
+    capAtTotal: isStorefrontOrder,
+  });
+  const confirmedAmount = money(plan.applyAmount);
+
+  if (current && plan.reason) {
+    await flagPaymobPaymentForReview(client, {
+      transactionId,
+      order: current,
+      plan,
+      confirmedAmount: money(confirmedCents / 100),
+      source,
+    });
+  }
+  if (!current) return null;
+  // Nothing may be booked: a closed order stays closed and a paid one keeps its paid_amount.
+  if (plan.reason && !(confirmedAmount > 0)) return current;
 
   let order = null;
   if (isStorefrontOrder) {
@@ -800,6 +909,8 @@ const manualConfirmPaymobTransaction = async (
       orderId: transaction.order_id,
       confirmedCents,
       payload: transaction.response_payload || {},
+      transactionId: transaction.id,
+      source: "manual_terminal_approval",
     });
   }
 
@@ -836,6 +947,13 @@ const manualConfirmPaymobTransaction = async (
   });
   emitPaymobPaymentRealtime(result);
   return result;
+};
+
+// Exposed for tests only: they drive the confirmation with a scripted database client.
+export const paymobConfirmationInternals = {
+  applyPaymobConfirmation,
+  applyConfirmedPaymentToOrder,
+  manualConfirmPaymobTransaction,
 };
 
 const normalizeRole = (value = "") => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
