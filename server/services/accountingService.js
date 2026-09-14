@@ -1100,7 +1100,12 @@ export const recordCashDrawerEvent = async (clientOrPool, data = {}) => {
   const direction = cashDrawerEventDirection(eventType);
   if (!direction) throw new Error(`Unsupported cash drawer event type: ${eventType}`);
 
-  const shift = data.shiftId || data.shift_id
+  // The shift row is LOCKED before the event lands. closeCashDrawerShift takes the same
+  // lock, so a close either commits first — and this re-reads the row as closed — or waits
+  // for this event. Read without the lock, an event could be inserted on a shift whose
+  // close committed in between, and the `status = 'open'` UPDATE below then moved
+  // expected_cash by nothing: the cash was in the drawer but not in the close figure.
+  const lockOpenShift = async (id) => (id
     ? (await dbClient.query(
         `
         SELECT *
@@ -1109,10 +1114,21 @@ export const recordCashDrawerEvent = async (clientOrPool, data = {}) => {
           AND tenant_id = $2
           AND status = 'open'
         LIMIT 1
+        FOR UPDATE
         `,
-        [data.shiftId || data.shift_id, tenantId]
-      )).rows[0]
-    : await getCurrentCashDrawerShift(dbClient, { tenantId, userId: createdBy, branchId });
+        [id, tenantId]
+      )).rows[0] || null
+    : null);
+  const requestedShiftId = numericFilter(data.shiftId ?? data.shift_id);
+  let shift = requestedShiftId ? await lockOpenShift(requestedShiftId) : null;
+  if (!shift) {
+    // The named shift is closed (or none was named): the cash moves through the drawer the
+    // acting cashier has open right now, never through a shift that has already been counted.
+    const current = await getCurrentCashDrawerShift(dbClient, { tenantId, userId: createdBy, branchId });
+    if (current?.id && Number(current.id) !== Number(requestedShiftId)) {
+      shift = await lockOpenShift(current.id);
+    }
+  }
 
   if (!shift) {
     if (data.requireOpenShift || data.require_open_shift) {
@@ -2465,13 +2481,40 @@ export const reverseMoneyTransactionsForReference = async (clientOrPool, data = 
     params
   );
 
+  // Money that already went back for this reference through another document (a return's
+  // refund) must not be reversed a second time. Each offset first reduces the reversal on
+  // the account it left from; whatever cannot be matched to an account reduces what is
+  // left, oldest payment first.
+  const offsetByAccount = new Map();
+  for (const offset of Array.isArray(data.offsets) ? data.offsets : []) {
+    const offsetAmount = roundMoney(offset?.amount || 0);
+    if (!(offsetAmount > 0)) continue;
+    const key = String(offset?.accountId ?? offset?.account_id ?? "");
+    offsetByAccount.set(key, roundMoney((offsetByAccount.get(key) || 0) + offsetAmount));
+  }
+  const plan = originals.rows.map((original) => {
+    const key = String(original.account_id ?? "");
+    const available = offsetByAccount.get(key) || 0;
+    const take = Math.min(available, Number(original.amount || 0));
+    if (take > 0) offsetByAccount.set(key, roundMoney(available - take));
+    return { original, amount: roundMoney(Number(original.amount || 0) - take) };
+  });
+  let unmatchedOffset = roundMoney([...offsetByAccount.values()].reduce((sum, value) => sum + value, 0));
+  for (const entry of plan) {
+    if (!(unmatchedOffset > 0)) break;
+    const take = Math.min(unmatchedOffset, entry.amount);
+    entry.amount = roundMoney(entry.amount - take);
+    unmatchedOffset = roundMoney(unmatchedOffset - take);
+  }
+
   const reversals = [];
-  for (const original of originals.rows) {
+  for (const { original, amount: reversalAmount } of plan) {
+    if (!(reversalAmount > 0)) continue;
     const reversal = await postMoneyTransaction(dbClient, {
       tenantId,
       accountId: original.account_id,
       direction: original.direction === "in" ? "out" : "in",
-      amount: original.amount,
+      amount: reversalAmount,
       transactionType: original.transaction_type,
       referenceType: reversalReferenceType,
       referenceId: reversalReferenceId,
@@ -2485,6 +2528,7 @@ export const reverseMoneyTransactionsForReference = async (clientOrPool, data = 
         reversal_reason: data.reason || notes || "",
         reversed_reference_type: referenceType,
         reversed_reference_id: referenceId,
+        original_amount: roundMoney(original.amount || 0),
       },
       idempotent: false,
     });

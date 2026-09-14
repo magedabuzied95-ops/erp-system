@@ -1071,6 +1071,33 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       `,
       [shiftId, tenantId]
     );
+  // The cash that went INTO this drawer through its invoices, for the expected-cash figure
+  // only. It must agree with cash_drawer_shifts.expected_cash, which the close books against.
+  // A cancelled invoice still counts here when its cash left through an `order_cancel`
+  // refund_cash event (subtracted below, wherever it landed), or when it was cancelled after
+  // this shift closed with no drawer open to hand the cash back from — the closed drawer
+  // was counted with that cash in it. A legacy cancel with neither stays out, as before.
+  const drawerSalesCashResult = await client.query(
+      `
+      SELECT COALESCE(SUM(o.cash_amount), 0)::numeric AS cash
+      FROM orders o
+      LEFT JOIN cash_drawer_shifts ds ON ds.id = o.shift_id
+      WHERE o.shift_id = $1
+        AND ($2::bigint IS NULL OR o.tenant_id = $2::bigint)
+        AND COALESCE(o.is_personal_transaction, FALSE) = FALSE
+        AND (
+          LOWER(COALESCE(o.status, '')) NOT IN ('cancelled', 'canceled', 'void')
+          OR EXISTS (
+            SELECT 1 FROM cash_drawer_shift_events ce
+            WHERE ce.tenant_id = o.tenant_id
+              AND LOWER(COALESCE(ce.source_type, '')) = 'order_cancel'
+              AND ce.source_id = o.id
+          )
+          OR (ds.closed_at IS NOT NULL AND o.cancelled_at IS NOT NULL AND o.cancelled_at > ds.closed_at)
+        )
+      `,
+      [shiftId, tenantId]
+    ).catch(() => null);
   const paymentResult = await client.query(
       `
       SELECT COALESCE(NULLIF(payment_method, ''), 'unknown') AS payment_method,
@@ -1305,9 +1332,20 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
   const returns = returnsResult.rows[0] || {};
   const posExpenses = expensesResult.rows[0] || {};
   const cashReturnTableTotal = money(returns.cash_return_total);
+  const isCancelCashEvent = (event) =>
+    String(event.event_type || "").toLowerCase() === "refund_cash" &&
+    String(event.source_type || "").toLowerCase() === "order_cancel";
+  // Return refunds only: they are compared against the returns table below. The cash handed
+  // back for a cancelled or deleted invoice has no returns row, so it is its own line.
   const cashRefundEventTotal = money(
-    events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "refund_cash" ? Number(event.amount || 0) : 0), 0)
+    events.reduce((sum, event) => sum + (String(event.event_type || "").toLowerCase() === "refund_cash" && !isCancelCashEvent(event) ? Number(event.amount || 0) : 0), 0)
   );
+  const cancelledCashEventTotal = money(
+    events.reduce((sum, event) => sum + (isCancelCashEvent(event) ? Number(event.amount || 0) : 0), 0)
+  );
+  const drawerSalesCash = drawerSalesCashResult?.rows?.[0]
+    ? Number(drawerSalesCashResult.rows[0].cash || 0)
+    : Number(sales.cash || 0);
   const editCashInEventTotal = money(
     events.reduce((sum, event) => {
       const isEditCashIn =
@@ -1325,11 +1363,12 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
   );
   const netCashExpected = money(
     Number(shift.opening_cash || 0) +
-    Number(sales.cash || 0) +
+    drawerSalesCash +
     cashInEventTotal -
     Number(posExpenses.pos_expenses_cash || 0) -
     Number(posExpenses.employee_advances_cash || 0) -
     cashReturnTotal -
+    cancelledCashEventTotal -
     cashOutEventTotal
   );
   return {
@@ -1373,7 +1412,8 @@ export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
       employee_advances: money(posExpenses.employee_advances),
       employee_advances_cash: money(posExpenses.employee_advances_cash),
       employee_advance_count: Number(posExpenses.employee_advance_count || 0),
-      total_cash_out: money(Number(posExpenses.pos_expenses_cash || 0) + Number(posExpenses.employee_advances_cash || 0) + cashReturnTotal + cashOutEventTotal),
+      cancelled_cash_refunds: cancelledCashEventTotal,
+      total_cash_out: money(Number(posExpenses.pos_expenses_cash || 0) + Number(posExpenses.employee_advances_cash || 0) + cashReturnTotal + cancelledCashEventTotal + cashOutEventTotal),
       cash_in_events: cashInEventTotal,
       cash_out_events: cashOutEventTotal,
       net_cash_expected: netCashExpected,
