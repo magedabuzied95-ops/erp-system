@@ -58,7 +58,7 @@ import {
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
 import { hasStorefrontCustomerToken, readOtpVerifiedStorefrontPhone, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { createIntent as createRestockIntent, listIntents as listRestockIntents, cancelIntent as cancelRestockIntent } from "../services/restockIntentService.js";
-import { listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
+import { listPriceAlertFollowIds, listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
 import { canonicalPhoneKey, normalizePhone } from "../utils/phoneSearch.js";
 import {
   isAllowedMetaRelayOrigin,
@@ -855,7 +855,9 @@ router.get("/restock-intents", ...storefrontCustomerAuthRequired, async (req, re
   try {
     const tenantId = publicTenantId(req);
     const rows = await listRestockIntents(tenantId, { phone: req.storefrontCustomer?.phone, limit: 100 });
-    const active = rows.filter((i) => ["waiting", "recovery_created", "customer_notified"].includes(i.status));
+    // Only requests a future restock will act on. A notified (or already followed-up) row is spent:
+    // listing it showed the product page's check mark, so the shopper could not ask again.
+    const active = rows.filter((i) => i.status === "waiting");
     res.json({ success: true, intents: active.map((i) => ({ id: i.id, product_id: i.product_id, variant_id: i.variant_id, size: i.size, color: i.color, status: i.status, product_name: i.product_name, created_at: i.created_at })) });
   } catch (e) { res.status(500).json({ success: false, message: e?.message || "Failed" }); }
 });
@@ -869,9 +871,15 @@ router.delete("/restock-intents/:id", ...storefrontCustomerAuthRequired, async (
 // background tick (storefrontPriceDropAlertService) decides when it has dropped and tells them.
 router.get("/price-alerts", ...storefrontCustomerAuthRequired, async (req, res) => {
   try {
-    const alerts = await listPriceAlertsForCustomer({ tenantId: publicTenantId(req), phone: req.storefrontCustomer?.phone });
+    const tenantId = publicTenantId(req);
+    const phone = req.storefrontCustomer?.phone;
+    const [alerts, followingProductIds] = await Promise.all([
+      listPriceAlertsForCustomer({ tenantId, phone }),
+      listPriceAlertFollowIds({ tenantId, phone }),
+    ]);
     res.set("Cache-Control", "private, no-store");
-    res.json({ success: true, alerts });
+    // following_product_ids is every follow, uncapped: the product page bell reads it.
+    res.json({ success: true, alerts, following_product_ids: followingProductIds });
   } catch (e) { res.status(e?.status || 500).json({ success: false, message: e?.message || "Failed to load price alerts" }); }
 });
 router.post("/price-alerts", ...storefrontCustomerAuthRequired, async (req, res) => {

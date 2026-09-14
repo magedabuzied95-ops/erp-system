@@ -219,8 +219,19 @@ export const setPriceAlertFollow = async ({ tenantId, customerId = null, phone, 
   return { following: true, product_id: id, followed_price: row.followed_price === null ? null : Number(row.followed_price) };
 };
 
+/*
+ * The detailed list prices every product it returns, so it stays bounded. It used to stop at 60
+ * (max 100) while the wishlist follows every hearted product with no cap: past that a live follow
+ * fell off the list, the product page bell offered "follow" for a product already followed and
+ * could never unfollow it, and the wishlist panel missed its drops. The cap now covers any
+ * realistic wishlist, and listPriceAlertFollowIds answers "is this followed?" with no cap at all.
+ */
+export const PRICE_ALERT_LIST_LIMIT = 200;
+export const PRICE_ALERT_LIST_MAX = 500;
+export const PRICE_ALERT_FOLLOW_IDS_MAX = 5000;
+
 /* The customer's follows with today's price beside the price they followed at. */
-export const listPriceAlertsForCustomer = async ({ tenantId, phone, limit = 60 }) => {
+export const listPriceAlertsForCustomer = async ({ tenantId, phone, limit = PRICE_ALERT_LIST_LIMIT }) => {
   await ensurePriceDropAlertSchema();
   const tenant = Number(tenantId) || 1;
   const result = await db.query(
@@ -231,7 +242,7 @@ export const listPriceAlertsForCustomer = async ({ tenantId, phone, limit = 60 }
     ORDER BY COALESCE(last_notified_at, created_at) DESC
     LIMIT $3
     `,
-    [tenant, normalizePhone(text(phone)), Math.min(100, Math.max(1, Number(limit) || 60))]
+    [tenant, normalizePhone(text(phone)), Math.min(PRICE_ALERT_LIST_MAX, Math.max(1, Number(limit) || PRICE_ALERT_LIST_LIMIT))]
   );
   if (!result.rows.length) return [];
   const snapshots = await loadSnapshots(tenant, result.rows.map((row) => row.product_id));
@@ -250,6 +261,24 @@ export const listPriceAlertsForCustomer = async ({ tenantId, phone, limit = 60 }
       product: product ? { id: product.id, slug: product.slug, name: product.name, image_url: product.image_url, in_stock: product.in_stock } : null,
     };
   });
+};
+
+/* Every product this customer follows, ids only: no pricing, so no practical cap. */
+export const listPriceAlertFollowIds = async ({ tenantId, phone }) => {
+  await ensurePriceDropAlertSchema();
+  const cleanPhone = normalizePhone(text(phone));
+  if (!cleanPhone) return [];
+  const result = await db.query(
+    `
+    SELECT product_id
+    FROM storefront_price_alerts
+    WHERE tenant_id = $1 AND phone = $2 AND (via_button OR via_wishlist)
+    ORDER BY product_id
+    LIMIT $3
+    `,
+    [Number(tenantId) || 1, cleanPhone, PRICE_ALERT_FOLLOW_IDS_MAX]
+  );
+  return result.rows.map((row) => Number(row.product_id)).filter((id) => id > 0);
 };
 
 /* ---------------------------------------------------------------- the background tick */

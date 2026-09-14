@@ -103,12 +103,26 @@ export const createIntent = async ({ tenantId, customerId = null, phone = null, 
   const avail = await readAvailability({ tenantId, productId, variantId });
   if (avail.available > 0) return { available_now: true, intent: null };
 
-  // Reuse an existing active intent instead of creating a duplicate.
+  // Reuse an existing active intent instead of creating a duplicate -- but only one that can still
+  // fire. Restock matching reads 'waiting' rows alone, and a notified row never sends again, so
+  // reusing a 'customer_notified' / 'recovery_created' row answered "we'll tell you" to a request
+  // that nothing would ever act on (told once, didn't buy, sold out again, asked again: silence).
+  // Such a row is closed as superseded, which takes it out of the unique active set, and a fresh
+  // waiting intent is created below.
   const existing = await db.query(
     `SELECT * FROM restock_intents WHERE tenant_id = $1 AND COALESCE(phone,'') = $2 AND product_id = $3 AND COALESCE(variant_id,0) = $4 AND status IN ('waiting','recovery_created','customer_notified') LIMIT 1`,
     [tenantId, normPhone || "", productId, variantId || 0]
   );
-  if (existing.rows[0]) return { reused: true, intent: existing.rows[0] };
+  const current = existing.rows[0];
+  if (current && current.status === "waiting") return { reused: true, intent: current };
+  if (current) {
+    await db.query(
+      `UPDATE restock_intents SET status = 'expired', updated_at = NOW(),
+         metadata = COALESCE(metadata,'{}'::jsonb) || jsonb_build_object('closed_reason', 'superseded_by_new_request', 'closed_from_status', status)
+       WHERE tenant_id = $1 AND id = $2 AND status IN ('recovery_created','customer_notified')`,
+      [tenantId, current.id]
+    );
+  }
 
   try {
     const ins = await db.query(

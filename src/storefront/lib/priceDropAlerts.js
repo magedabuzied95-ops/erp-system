@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getPublicSettingsResponse } from "../../shared/api/publicSettings";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "./storefrontCustomerAuth";
-import { readPriceDropEnabled } from "./priceDropAlertsModel.js";
+import { isPriceAlertFollowed, readPriceDropEnabled } from "./priceDropAlertsModel.js";
 
 export { droppedPriceAlerts, readPriceDropEnabled } from "./priceDropAlertsModel.js";
 
@@ -23,6 +23,7 @@ export const announcePriceAlertsChanged = () => {
 export const usePriceDropAlerts = () => {
   const [enabled, setEnabled] = useState(false);
   const [alerts, setAlerts] = useState([]);
+  const [followingIds, setFollowingIds] = useState(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -37,12 +38,14 @@ export const usePriceDropAlerts = () => {
     const { token } = readStorefrontCustomerAuth();
     if (!token) {
       setAlerts([]);
+      setFollowingIds(null);
       setLoaded(true);
       return;
     }
     try {
       const res = await storefrontCustomerRequest("/storefront/price-alerts", { method: "GET" });
       setAlerts(Array.isArray(res?.alerts) ? res.alerts : []);
+      setFollowingIds(Array.isArray(res?.following_product_ids) ? res.following_product_ids : null);
     } catch {
       // A failed read leaves the last known follows; the button still works.
     } finally {
@@ -62,8 +65,8 @@ export const usePriceDropAlerts = () => {
   }, [enabled, refresh]);
 
   const isFollowing = useCallback(
-    (productId) => alerts.some((alert) => String(alert.product_id) === String(productId)),
-    [alerts]
+    (productId) => isPriceAlertFollowed({ alerts, followingIds }, productId),
+    [alerts, followingIds]
   );
 
   /* Resolves to "following" | "stopped" | "login". Throws on any other failure. */
