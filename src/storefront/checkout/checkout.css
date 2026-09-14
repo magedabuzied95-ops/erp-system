@@ -743,6 +743,40 @@ div.sfc-choice__head {
   cursor: pointer;
 }
 
+/* The brand art ships with wide transparent padding: crop it so the mark fills a flat plate
+   that sits inside the tile (no floating white box, no drop shadow). The plate stays white in
+   both themes because the InstaPay purple and Vodafone red need a light ground. */
+.sfc-method__logo {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  margin-block: -2px;
+  margin-inline-start: -4px;
+  border: 1px solid var(--m1h-line);
+  border-radius: calc(var(--m1h-r-md) - 4px);
+  background: #ffffff;
+}
+
+.sfc-method__logo picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sfc-method__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.2);
+}
+
+.sfc-method.is-active .sfc-method__logo {
+  border-color: var(--m1h-accent);
+}
+
 .sfc-method.is-active {
   border-color: var(--m1h-accent);
   background: var(--m1h-accent-soft);

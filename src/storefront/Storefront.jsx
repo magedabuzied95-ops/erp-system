@@ -10342,9 +10342,9 @@ function PaymentBrandLogo({ method, size = "tab", active = false, label, logoUrl
   const fallbackLabel = label || (method === "vodafone_cash" ? "Vodafone Cash" : method === "instapay" ? "InstaPay" : "Payment");
   const isCopy = size === "copy";
   const containerClass = isCopy
-    ? "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white shadow-[0_14px_30px_rgba(0,0,0,0.20)] sm:h-14 sm:w-14"
+    ? "sfc-method__logo"
     : `grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white shadow-[0_12px_30px_rgba(0,0,0,0.20)] transition duration-300 ${active ? "scale-105" : "opacity-80 group-hover:opacity-100"}`;
-  const imageClass = isCopy ? "h-7 w-7 object-contain sm:h-8 sm:w-8" : "h-8 w-8 object-contain";
+  const imageClass = isCopy ? "sfc-method__logo-img" : "h-8 w-8 object-contain";
 
   return (
     <span className={containerClass}>
