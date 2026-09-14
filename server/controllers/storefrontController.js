@@ -5992,9 +5992,14 @@ export const createWebsiteOrder = async (req, res) => {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Upload a valid transfer proof image", "shipping_payment_screenshot", { mimetype: shippingPaymentFile.mimetype, size: shippingPaymentFile.size });
     }
-    const paidAmount = paymentMethod === "cod" || isGatewayCheckout ? 0 : total;
+    // Nothing is paid yet for any method. A manual transfer is only a screenshot the shopper says
+    // matches the total (checked above); storing it as paid let a parcel leave with no cash to
+    // collect and reports count money nobody verified. It waits as awaiting_verification until a
+    // person approves the proof or the wallet SMS matches — applyTransferPaymentConfirmation then
+    // moves the total into paid_amount.
+    const paidAmount = 0;
     const remainingAmount = Math.max(0, total - paidAmount);
-    const paymentStatus = paymentMethod === "cod" || isGatewayCheckout ? "unpaid" : remainingAmount > 0 ? "partially_paid" : "paid";
+    const paymentStatus = paymentMethod === "cod" || isGatewayCheckout ? "unpaid" : "awaiting_verification";
     // "pending_payment" is an established alias that normalizes to "pending",
     // so it stays readable everywhere while keeping the raw value distinct from
     // a COD order that is merely waiting on a human to confirm it.
@@ -6360,6 +6365,9 @@ export const createWebsiteOrder = async (req, res) => {
       order: withPaymentProofAliases(order),
       items: normalizedItems,
       track_token: token,
+      // Quoted on the Cairo clock at the moment the order was placed, so the success page does not
+      // repeat a day the checkout page quoted before the cut-off or midnight passed.
+      delivery_estimate: shippingQuote.delivery_estimate || null,
       ...(isGatewayCheckout
         ? { payment: paymentSession ? { ...paymentSession, status: "ready" } : { status: "failed", message: paymentSessionError } }
         : {}),

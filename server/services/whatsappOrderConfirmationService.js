@@ -23,6 +23,7 @@ import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
 import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount, orderConfirmationTranscriptButtons } from "../utils/orderConfirmationMessage.js";
 import { summariseItems } from "./whatsappTemplates.js";
+import { releaseCouponForOrder } from "./couponsService.js";
 
 /*
  * The shop's master switch for one automatic message (see shared/whatsappAutomationDefaults.js).
@@ -387,6 +388,24 @@ const remainingAmount = (order = {}) => {
   return Math.max(0, total - paid);
 };
 
+// A website transfer is stored unpaid until someone approves its proof, so paid/remaining would tell
+// the customer they owe the whole total at the door. While the proof waits, name the transfer instead.
+const transferAwaitingReview = (order = {}) =>
+  text(order.transfer_proof_status).toLowerCase() === "pending"
+  && !isCodPayment(order)
+  && number(order.paid_amount ?? order.amount_paid ?? order.total_paid) <= 0;
+
+const paymentReviewAmountLines = (order = {}) => {
+  const total = money(order.total_amount ?? order.total_price ?? order.total);
+  if (transferAwaitingReview(order)) {
+    return `الإجمالي: ${total} جنيه
+المبلغ المحول (قيد المراجعة): ${total} جنيه`;
+  }
+  return `الإجمالي: ${total} جنيه
+المدفوع: ${money(order.paid_amount ?? order.amount_paid ?? order.total_paid)} جنيه
+المتبقي عند الاستلام: ${money(remainingAmount(order))} جنيه`;
+};
+
 const buildPaymentReviewMessage = (order = {}, items = []) => `أهلاً يا ${firstName(order.customer_name)}
 
 استلمنا طلبك من M1 Store ✅
@@ -397,9 +416,7 @@ ${productSummary(items)}
 
 تم استلام إثبات التحويل/تأكيد الشحن، وطلبك الآن قيد المراجعة.
 
-الإجمالي: ${money(order.total_amount ?? order.total_price ?? order.total)} جنيه
-المدفوع: ${money(order.paid_amount ?? order.amount_paid ?? order.total_paid)} جنيه
-المتبقي عند الاستلام: ${money(remainingAmount(order))} جنيه
+${paymentReviewAmountLines(order)}
 
 هنراجع الطلب ونأكد معاك قبل الشحن.`;
 
@@ -1795,6 +1812,9 @@ async function applyConfirmationAction({
         action: normalizedAction,
       });
       updated = result.rows[0] || current;
+      // The staff cancel gives the coupon back in the same transaction; a customer cancelling from
+      // the link or WhatsApp must too, or their single-use code stays burned for the replacement order.
+      await releaseCouponForOrder({ client, orderId: current.id, reason: "cancelled_by_customer" });
       updated = await appendOrderTimelineEvent(client, {
         orderId: updated.id,
         action: ORDER_CONFIRMATION_ACTION_META.cancel.action,

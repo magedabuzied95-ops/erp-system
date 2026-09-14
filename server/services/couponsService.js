@@ -8,6 +8,7 @@ import db from "../database/db.js";
 import { getSetting } from "./settingsService.js";
 import { getSiteSettings } from "./siteSettingsService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
@@ -17,6 +18,10 @@ const VALID_DISCOUNT_TYPES = new Set(["percentage", "fixed", "free_shipping"]);
 const VALID_STACK_POLICIES = new Set(["all", "none", "with_loyalty", "with_invoice_discount"]);
 const VALID_CHANNELS = new Set(["offline", "website", "pos", "all"]);
 const VALID_SOURCES = new Set(["pos", "website", "manual"]);
+// Statuses of an order that never went ahead. A customer cancelling from the confirmation link or
+// WhatsApp writes cancelled_by_customer; counting that as a prior order locked them out of every
+// first-order coupon for an order they never received.
+const NOT_A_PLACED_ORDER_SQL = "'cancelled', 'canceled', 'cancelled_by_customer', 'void'";
 
 let couponsSchemaReady = null;
 export const ensureCouponsSchema = async (clientOrPool = db) => {
@@ -508,8 +513,17 @@ const normalizeItems = (items) =>
     .filter((item) => item.quantity > 0);
 
 /**
+ * The normal (not-on-sale) price of a line: the canonical ladder — manual override, purchase-invoice
+ * price, legacy columns, variant before product. A hand-rolled COALESCE over the product's legacy
+ * columns read 0 for products priced only by purchase invoice (so a sale never counted as one) and a
+ * stale selling_price above an active override (so a normally priced line counted as on sale).
+ */
+export const couponLineNormalPrice = ({ product = null, variant = null } = {}) =>
+  Number(resolveCurrentSellingPrice({ product: product || {}, variant: variant || {} }).value || 0);
+
+/**
  * Which lines does this campaign's scope cover? Returns { eligible, ineligible, eligibleSum, rawSum }.
- * "On sale" = the paid line price is below the product's list selling price (channel independent).
+ * "On sale" = the paid line price is below the line's normal selling price (channel independent).
  */
 const resolveScopedItems = async ({ client, scope, items }) => {
   const rawSum = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -517,15 +531,26 @@ const resolveScopedItems = async ({ client, scope, items }) => {
     return { eligible: items, ineligible: [], eligibleSum: rawSum, rawSum };
   }
   const productIds = [...new Set(items.map((item) => item.product_id).filter(Boolean))];
+  const variantIds = [...new Set(items.map((item) => item.variant_id).filter(Boolean))];
   const lookup = new Map();
+  const variantLookup = new Map();
   if (productIds.length) {
+    // Whole rows as JSON: the override and purchase-price columns are optional on older databases,
+    // and naming a missing column would fail the coupon instead of falling back to the legacy price.
     const result = await client.query(
-      `SELECT id, category_id, brand_id,
-              COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0), 0)::numeric AS list_price
-       FROM products WHERE id = ANY($1::bigint[])`,
+      `SELECT id, category_id, brand_id, to_jsonb(p) AS pricing
+       FROM products p WHERE id = ANY($1::bigint[])`,
       [productIds]
     );
     for (const row of result.rows) lookup.set(Number(row.id), row);
+  }
+  if (scope.exclude_on_sale && variantIds.length) {
+    const result = await client.query(
+      `SELECT id, product_id, to_jsonb(pv) AS pricing
+       FROM product_variants pv WHERE id = ANY($1::bigint[])`,
+      [variantIds]
+    );
+    for (const row of result.rows) variantLookup.set(Number(row.id), row);
   }
   const productSet = new Set(scope.product_ids);
   const categorySet = new Set(scope.category_ids);
@@ -542,7 +567,10 @@ const resolveScopedItems = async ({ client, scope, items }) => {
         || (product && brandSet.has(Number(product.brand_id)));
     }
     if (ok && scope.exclude_on_sale && product) {
-      const listPrice = Number(product.list_price || 0);
+      const variantRow = item.variant_id ? variantLookup.get(Number(item.variant_id)) : null;
+      // A variant row from another product is not this line's price.
+      const variant = variantRow && Number(variantRow.product_id) === Number(item.product_id) ? variantRow.pricing : null;
+      const listPrice = couponLineNormalPrice({ product: product.pricing, variant });
       if (listPrice > 0 && item.price < listPrice - 0.009) ok = false;
     }
     (ok ? eligible : ineligible).push(item);
@@ -713,7 +741,7 @@ export const validateCoupon = async ({
     // this look-up finds the very order being placed and refuses every first-order coupon.
     const prior = await client.query(
       `SELECT 1 FROM orders
-       WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')
+       WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN (${NOT_A_PLACED_ORDER_SQL})
          AND ($2::bigint IS NULL OR id IS DISTINCT FROM $2::bigint)
        LIMIT 1`,
       [customerId, safeExcludeOrderId || safeCurrentOrderId]
@@ -1293,7 +1321,7 @@ export const issueFirstOrderCoupons = async ({ tenantId = null, customerId, orde
   // "First order" = this one is the only non-cancelled order the customer has.
   const orderCount = await db.query(
     `SELECT COUNT(*)::int AS n FROM orders
-     WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'void')`,
+     WHERE customer_id = $1 AND LOWER(COALESCE(status, '')) NOT IN (${NOT_A_PLACED_ORDER_SQL})`,
     [safeCustomerId]
   );
   if (Number(orderCount.rows[0]?.n || 0) > 1) return { issued: [], reason: "not_first_order" };

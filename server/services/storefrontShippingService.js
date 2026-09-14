@@ -182,8 +182,19 @@ export const loadShippingZones = async () => {
   };
 };
 
-export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0, now = new Date() } = {}) => {
-  const { defaultPrice, defaultProvider, zones, codAllowed, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
+// The canonical governorate names (the alias targets above). Only two names that are BOTH in this
+// set can be told apart for sure; any other spelling (a courier's own city list, a typo) is not
+// evidence of a different governorate. New Damietta is a city inside Damietta, not a governorate.
+const KNOWN_GOVERNORATE_KEYS = new Set([...aliases.values()].filter((key) => key !== "new damietta"));
+
+/**
+ * Which configured zone prices this address. The ids come from the shopper's browser, so an id
+ * match is only trusted when the zone lies in the governorate the order is shipped to: otherwise
+ * anyone could send the cheapest (or free, or proof-free) zone's id with a far-away address, and
+ * the fee check at checkout would compare the forged quote with itself. A conflicting id is
+ * ignored and the zone is found from the address text instead.
+ */
+export const matchShippingZone = (zones = [], { governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "" } = {}) => {
   const ids = {
     governorate_id: text(governorate_id),
     city_id: text(city_id),
@@ -196,17 +207,21 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     city: shippingKey(city),
     area: shippingKey(area),
   };
-  const orderSubtotal = number(subtotal || order_total, 0);
 
   const zoneCity = (zone) => shippingKey(zone.city);
   const zoneArea = (zone) => shippingKey(zone.area);
   const zoneDistrict = (zone) => shippingKey(zone.district || zone.area);
   const zoneZone = (zone) => shippingKey(zone.zone || zone.area);
-  const matchesZoneId = (zone) => ids.zone_id && zone.zone_id && zone.zone_id === ids.zone_id;
-  const matchesDistrictId = (zone) => ids.district_id && zone.district_id && zone.district_id === ids.district_id;
-  const matchesAreaId = (zone) => ids.area_id && zone.area_id && zone.area_id === ids.area_id;
-  const matchesCityId = (zone) => ids.city_id && zone.city_id && zone.city_id === ids.city_id;
-  const matchesGovernorateId = (zone) => ids.governorate_id && zone.governorate_id && zone.governorate_id === ids.governorate_id;
+  const idFitsAddress = (zone) => {
+    const zoneGovernorate = shippingKey(zone.governorate);
+    if (!target.governorate || !zoneGovernorate || zoneGovernorate === target.governorate) return true;
+    return !(KNOWN_GOVERNORATE_KEYS.has(zoneGovernorate) && KNOWN_GOVERNORATE_KEYS.has(target.governorate));
+  };
+  const matchesZoneId = (zone) => ids.zone_id && zone.zone_id && zone.zone_id === ids.zone_id && idFitsAddress(zone);
+  const matchesDistrictId = (zone) => ids.district_id && zone.district_id && zone.district_id === ids.district_id && idFitsAddress(zone);
+  const matchesAreaId = (zone) => ids.area_id && zone.area_id && zone.area_id === ids.area_id && idFitsAddress(zone);
+  const matchesCityId = (zone) => ids.city_id && zone.city_id && zone.city_id === ids.city_id && idFitsAddress(zone);
+  const matchesGovernorateId = (zone) => ids.governorate_id && zone.governorate_id && zone.governorate_id === ids.governorate_id && idFitsAddress(zone);
   const matchesGovernorate = (zone) => shippingKey(zone.governorate) === target.governorate;
   const matchesCity = (zone) => matchesGovernorate(zone) && zoneCity(zone) && zoneCity(zone) === target.city;
   const matchesArea = (zone) =>
@@ -224,6 +239,16 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     zones.find(matchesArea) ||
     zones.find((zone) => matchesCity(zone) && !zoneArea(zone)) ||
     zones.find((zone) => matchesGovernorate(zone) && !zoneCity(zone) && !zoneArea(zone));
+  return match || null;
+};
+
+export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0, now = new Date() } = {}) => {
+  const { defaultPrice, defaultProvider, zones, codAllowed, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
+  const orderSubtotal = number(subtotal || order_total, 0);
+  const match = matchShippingZone(zones, { governorate, city, area, governorate_id, city_id, area_id, district_id, zone_id, location_id });
+  const zoneZone = (zone) => shippingKey(zone.zone || zone.area);
+  const zoneDistrict = (zone) => shippingKey(zone.district || zone.area);
+  const zoneCity = (zone) => shippingKey(zone.city);
   const freeShippingThreshold = match ? number(match.free_shipping_threshold, 0) : storeFreeShippingThreshold;
   const matchedPrice = match ? number(match.price, defaultPrice) : defaultPrice;
   const price = freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold ? 0 : matchedPrice;
