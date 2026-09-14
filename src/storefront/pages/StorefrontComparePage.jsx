@@ -38,6 +38,7 @@ import {
 } from "../lib/compareStore";
 import { ROOT_PATHS, productPath } from "../lib/paths";
 import { openSizeGuide } from "../lib/sizeGuideStore";
+import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import "./compare.css";
 
 const LOW_STOCK_THRESHOLD = 3;
@@ -509,7 +510,7 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
                     );
                   })}
                 </div>
-                {data.colorGroup?.colorName ? <span className="sfx-cmp-muted">{data.colorGroup.colorName}</span> : null}
+                {data.colorGroup?.colorName ? <span className="sfx-cmp-muted">{localizeColorName(data.colorGroup.colorName, i18n.language)}</span> : null}
               </div>
             )))}
             {addSlot("colors-slot")}
@@ -532,7 +533,7 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
                         onClick={() => chooseSize(item, option.variant)}
                         aria-pressed={Boolean(active)}
                       >
-                        {option.label}
+                        {localizeSizeLabel(option.label, i18n.language)}
                       </button>
                     );
                   })}

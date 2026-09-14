@@ -1,3 +1,5 @@
+import { localizeSizeLabel } from "./displayCopy.js";
+
 const SCHOOL_BAG_TYPES = new Set(["school-bag", "school_bag"]);
 
 export const isSchoolBagProduct = (product = {}) =>
@@ -12,7 +14,8 @@ export const schoolBagSizeInches = (value = "") => {
 
 export const formatSchoolBagCardSize = (value = "", language = "ar") => {
   const inches = schoolBagSizeInches(value);
-  if (!inches) return String(value || "");
+  // Any other stored size still reads in the shopper's language ("مقاس واحد" → "One size").
+  if (!inches) return localizeSizeLabel(value, language);
   return String(language || "ar").toLowerCase().startsWith("ar")
     ? `${inches} بوصة`
     : `${inches} inch`;

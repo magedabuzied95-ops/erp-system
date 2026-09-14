@@ -41,6 +41,7 @@ import { shouldShowRestockCta, restockVariantKey, restockSuccessCopy, RESTOCK_CO
 import { usePriceDropAlerts } from "../lib/priceDropAlerts";
 import { isInWishlist } from "../lib/wishlistIdentity";
 import { openSizeGuide } from "../lib/sizeGuideStore";
+import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/lib/crocsSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
@@ -866,7 +867,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                     </span>
                   </div>
                 </div>
-                {selected.colorName ? <span className="sfx-pdp-option__value">{selected.colorName}</span> : null}
+                {selected.colorName ? <span className="sfx-pdp-option__value">{localizeColorName(selected.colorName, i18n.language)}</span> : null}
               </div>
               <div className="relative">
                 <div ref={colorStripRef} className="sf-scroll sfx-pdp-colors">
@@ -959,7 +960,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                     className={`sfx-pdp-size${active ? " is-active" : hasStock ? "" : " is-unavailable"}`}
                   >
                     {!hasStock ? <span className="sfx-pdp-size__slash" aria-hidden="true" /> : null}
-                    <span className="sfx-pdp-size__label">{displaySize || sfText("storefront.products.oneSize", "One size")}</span>
+                    <span className="sfx-pdp-size__label">{displaySize ? localizeSizeLabel(displaySize, i18n.language) : sfText("storefront.products.oneSize", "One size")}</span>
                     {collision && originalSize !== displaySize ? <span className="sfx-pdp-size__alt">{originalSize}</span> : null}
                   </button>
                 );

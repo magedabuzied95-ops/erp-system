@@ -37,6 +37,7 @@ import {
   normalizeFilterKey,
 } from "../Storefront";
 import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
+import { localizeBrandLabel, localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
@@ -965,7 +966,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [category, facets, filteredProductsForCategory]
   );
   const brandOptions = useMemo(
-    () => (facets ? facetOptionsFromEntries(facets.brands, brand) : buildFacetOptions(filteredProductsForBrand, productFacetBrandValues, brand)),
+    () => withLocalizedLabels(facets ? facetOptionsFromEntries(facets.brands, brand) : buildFacetOptions(filteredProductsForBrand, productFacetBrandValues, brand), localizeBrandLabel),
     [brand, facets, filteredProductsForBrand]
   );
   const gradeOptions = useMemo(() => {
@@ -1028,7 +1029,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     ]);
   }, [catalogFilters, catalogProducts, classificationOptions.productType, facets, productType]);
   const colorOptions = useMemo(
-    () => (facets ? facetOptionsFromEntries(facets.colors, color) : buildFacetOptions(filteredProductsForColor, productFacetColorValues, color)),
+    () => withLocalizedLabels(facets ? facetOptionsFromEntries(facets.colors, color) : buildFacetOptions(filteredProductsForColor, productFacetColorValues, color), localizeColorName),
     [color, facets, filteredProductsForColor]
   );
   const availableSizes = useMemo(
@@ -1468,8 +1469,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   );
 }
 
+// Brand and colour facets carry the stored value; label_ar / label_en are what classificationLabel shows.
+const withLocalizedLabels = (options, localize) => options.map((option) => {
+  const raw = String(option.label || option.value || "");
+  return { ...option, label_ar: localize(raw, "ar"), label_en: localize(raw, "en") };
+});
+
 function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const selectedSet = new Set((Array.isArray(selectedSizes) ? selectedSizes : []).map(normalizeFilterKey).filter(Boolean));
   return (
     <section className="sfx-facet">
@@ -1493,7 +1500,7 @@ function CatalogSizeFilter({ sizes = [], selectedSizes = [], onToggle, onClear }
               aria-pressed={active}
               className={`sfx-chip${active ? " is-active" : ""}`}
             >
-              {item.size}
+              {localizeSizeLabel(item.size, i18n.language)}
               {Number(item.productCount || 0) ? <span className="sfx-chip__count">{item.productCount}</span> : null}
             </button>
           );
@@ -1693,10 +1700,10 @@ function CatalogAppliedFilterChips({
   if (category) chips.push({ key: "category", label: category, field: "category" });
   if (productType) chips.push({ key: "type", label: getProductTypeLabel(productType, lang), field: "type" });
   if (grade) chips.push({ key: "grade", label: grade, field: "grade" });
-  if (brand) chips.push({ key: "brand", label: brand, field: "brand" });
-  if (color) chips.push({ key: "color", label: color, field: "color" });
+  if (brand) chips.push({ key: "brand", label: localizeBrandLabel(brand, lang), field: "brand", value: brand });
+  if (color) chips.push({ key: "color", label: localizeColorName(color, lang), field: "color", value: color });
   (Array.isArray(selectedSizes) ? selectedSizes : []).forEach((size) => {
-    if (size) chips.push({ key: `size:${size}`, label: size, field: "size", value: size });
+    if (size) chips.push({ key: `size:${size}`, label: localizeSizeLabel(size, lang), field: "size", value: size });
   });
   if (minPrice || maxPrice) chips.push({ key: "price", label: `${normalizeFilterText(minPrice) || "0"} - ${normalizeFilterText(maxPrice) || "∞"} ${lang === "en" ? "EGP" : "جنيه"}`, field: "price" });
   if (normalizeCatalogSortValue(selectedSort) !== "newest") chips.push({ key: "sort", label: sortLabelForValue(selectedSort, t), field: "sort" });

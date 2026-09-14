@@ -257,7 +257,19 @@ export function ReturnsPolicyPage({ publicStoreSettings = {}, whatsappHref = "" 
 
   // A policy the owner configured in settings replaces the default wording.
   if (configuredPolicy) {
-    const conditions = configuredPolicy.conditions && typeof configuredPolicy.conditions === "object" ? configuredPolicy.conditions : {};
+    const stored = configuredPolicy.conditions && typeof configuredPolicy.conditions === "object" ? configuredPolicy.conditions : {};
+    // The owner writes these once, in Arabic. An English reader gets the same clause from the
+    // locale file (the key names what the clause says); the Arabic reader keeps the owner's words.
+    const english = String(i18n.language || "").startsWith("en");
+    const translated = {
+      unused_original_condition: sfText("storefront.returns.policy.conditions.unusedOriginal"),
+      invoice_required: sfText("storefront.returns.policy.conditions.invoiceRequired"),
+      customer_choice_shipping: sfText("storefront.returns.policy.conditions.customerChoiceShipping"),
+      defect_shipping: sfText("storefront.returns.policy.conditions.defectShipping"),
+    };
+    const conditions = Object.fromEntries(
+      Object.entries(stored).map(([key, value]) => [key, value && english && translated[key] ? translated[key] : value])
+    );
     sections = [
       {
         id: "returns-duration",

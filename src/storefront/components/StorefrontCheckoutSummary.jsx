@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, ShoppingBag } from "lucide-react";
 import { sfText } from "../lib/sfText";
 import FreeShippingProgress from "./FreeShippingProgress";
 import { deliveryEstimateText } from "./DeliveryEstimate";
+import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 
 const normalizeSummaryText = (value = "") => String(value ?? "").trim();
 const firstSummaryValue = (...values) => {
@@ -130,7 +131,7 @@ export default function StorefrontCheckoutSummary({
             const quantity = cartItemQuantity(item);
             const unitPrice = cartItemUnitPrice(item);
             const comparePrice = displayCartItemComparePrice(item);
-            const variant = [cartItemColor(item), cartItemSize(item)].filter(Boolean).join(" / ");
+            const variant = [localizeColorName(cartItemColor(item), i18n.language), localizeSizeLabel(cartItemSize(item), i18n.language)].filter(Boolean).join(" / ");
             const imageUrl = cartItemImageUrl(item);
             return (
               <article key={item.lineId} className="sfc-line">

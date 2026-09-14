@@ -407,10 +407,14 @@
         // recovering from, so the operator always gets something to look at and
         // -- if it strands -- something to press.
         var overlay = null;
+        // The app's i18n has not booted yet, so the overlay reads the stored choice itself.
+        var overlayEnglish = (function () {
+          try { return String(localStorage.getItem("app_language") || "").indexOf("en") === 0; } catch (error) { return false; }
+        })();
         function paintOverlay(message, actionLabel, onAction) {
           if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
           overlay = document.createElement("div");
-          overlay.setAttribute("dir", "rtl");
+          overlay.setAttribute("dir", overlayEnglish ? "ltr" : "rtl");
           overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:flex;"
             + "flex-direction:column;align-items:center;justify-content:center;gap:16px;"
             + "padding:24px;text-align:center;font:500 16px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif;"
@@ -469,7 +473,7 @@
             if (!force) return;
           }
           recovering = true;
-          paintOverlay("جارٍ تحديث نسخة النظام…", null, null);
+          paintOverlay(overlayEnglish ? "Updating to the latest version…" : "جارٍ تحديث نسخة النظام…", null, null);
 
           var settled = false;
           function finish() {
@@ -535,8 +539,8 @@
             // a second attempt or storage is unavailable. Both used to leave a
             // silent blank page with no way out but a manual hard reload.
             paintOverlay(
-              "النظام مقدرش يفتح النسخة الحالية. اضغط تحديث لتحميل آخر نسخة.",
-              "تحديث الآن",
+              overlayEnglish ? "This version could not open. Tap refresh to load the latest one." : "النظام مقدرش يفتح النسخة الحالية. اضغط تحديث لتحميل آخر نسخة.",
+              overlayEnglish ? "Refresh now" : "تحديث الآن",
               function () {
                 try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
                 recover(true);
@@ -671,6 +675,13 @@
       (function () {
         var el = document.getElementById("m1-boot-loader");
         var root = document.documentElement;
+        // The spoken status follows the language the shopper picked, not the markup's default.
+        try {
+          if (String(localStorage.getItem("app_language") || "").indexOf("en") === 0) {
+            var sr = el && el.querySelector(".m1bl-sr");
+            if (sr) sr.textContent = "Loading…";
+          }
+        } catch (e) {}
         var start = Date.now();
         var done = false;
         function remove() {

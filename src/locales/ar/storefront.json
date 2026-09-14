@@ -14,7 +14,8 @@
     "refreshPage": "تحديث الصفحة",
     "previous": "السابق",
     "next": "التالي",
-    "slideN": "شريحة {{n}}"
+    "slideN": "شريحة {{n}}",
+    "retry": "جرّب تاني"
   },
   "toasts": {
     "unsupportedImageType": "نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP.",
@@ -325,7 +326,12 @@
     "productCount_two": "{{count}} منتج",
     "productCount_few": "{{count}} منتج",
     "productCount_many": "{{count}} منتج",
-    "productCount_other": "{{count}} منتج"
+    "productCount_other": "{{count}} منتج",
+    "loadFailedTitle": "مقدرناش نفتح المنتج ده",
+    "loadFailedText": "جرّب تاني بعد شوية، ولو المشكلة فضلت ارجع لصفحة المنتجات وافتحه من هناك.",
+    "backToProducts": "ارجع للمنتجات",
+    "discountPercent": "-{{percent}}%",
+    "unavailableNow": "المنتج مش متاح دلوقتي"
   },
   "filters": {
     "gender": "الجنس",
@@ -694,7 +700,8 @@
     "provider": "شركة الشحن",
     "trackingNumber": "رقم التتبع",
     "status": "حالة الشحن",
-    "bosta": "بوسطة"
+    "bosta": "بوسطة",
+    "inStoreDelivery": "توصيل المتجر"
   },
   "errors": {
     "simpleProblem": "حدثت مشكلة بسيطة",
@@ -722,7 +729,24 @@
     "shipping_confirmation": "تأكيد الشحن",
     "shipping_paid": "تم دفع الشحن",
     "cod": "الدفع عند الاستلام",
-    "manual": "توصيل يدوي"
+    "manual": "توصيل يدوي",
+    "completed": "مكتمل",
+    "returned": "مرتجع",
+    "partially_returned": "مرتجع جزئيًا",
+    "exchanged": "تم الاستبدال",
+    "refunded": "تم رد المبلغ",
+    "partially_refunded": "تم رد جزء من المبلغ",
+    "ready": "جاهز للشحن",
+    "ready_to_ship": "جاهز للشحن",
+    "pending_payment": "في انتظار الدفع",
+    "failed": "لم يكتمل",
+    "failed_delivery": "التوصيل ما تمّش",
+    "on_hold": "معلّق",
+    "rejected": "مرفوض",
+    "expired": "منتهي",
+    "cancelled_by_customer": "ألغاه العميل",
+    "picked_up": "استلمته شركة الشحن",
+    "received": "تم الاستلام"
   },
   "invoice": {
     "unavailable": "غير متاح",
@@ -759,7 +783,9 @@
     "paymentMethodRequired": "اختر طريقة الدفع",
     "codUnavailable": "الدفع عند الاستلام غير متاح لهذا العميل",
     "transferProofRequired": "ارفع صورة إثبات التحويل لتأكيد الطلب",
-    "invalidEmailOptional": "يرجى إدخال بريد إلكتروني صحيح أو ترك الحقل فارغًا."
+    "invalidEmailOptional": "يرجى إدخال بريد إلكتروني صحيح أو ترك الحقل فارغًا.",
+    "streetAddressRequired": "اكتب اسم الشارع",
+    "buildingNumberRequired": "اكتب رقم العمارة أو المبنى"
   },
   "tracking": {
     "eyebrow": "طلبك في الطريق",
@@ -1008,7 +1034,13 @@
       "shippingCostTitle": "تكلفة الشحن",
       "title": "الاستبدال والاسترجاع",
       "footer": "يوضح هذا القسم شروط الاستبدال والاسترجاع المعتمدة داخل المتجر، بما يضمن وضوح الإجراءات وحفظ حقوق العميل والمتجر.",
-      "durationText": "يمكن طلب الاستبدال أو الاسترجاع خلال {{days}} يومًا من تاريخ الاستلام."
+      "durationText": "يمكن طلب الاستبدال أو الاسترجاع خلال {{days}} يومًا من تاريخ الاستلام.",
+      "conditions": {
+        "unusedOriginal": "المنتج غير مستخدم وبحالته الأصلية ومع العبوة والملحقات.",
+        "invoiceRequired": "يجب تقديم الفاتورة أو رقم الطلب.",
+        "customerChoiceShipping": "عند خطأ المقاس أو تغيير اللون أو الموديل من العميل يتحمل العميل تكلفة الشحن ذهابًا وإيابًا.",
+        "defectShipping": "عند وجود عيب مؤكد أو خطأ من المتجر يتحمل المتجر تكلفة الشحن بالكامل."
+      }
     },
     "helpTitle": "عايز تبدّل أو ترجّع؟",
     "helpText": "ابعتلنا رقم الطلب والسبب على واتساب وهنرتّب معاك الباقي.",
@@ -1151,7 +1183,8 @@
     "removeFromWishlist": "شيل من المفضلة",
     "noMatches": "مفيش منتجات في المفضلة بالفلتر ده",
     "showAll": "عرض الكل",
-    "priceDropped": "نزل سعرها"
+    "priceDropped": "نزل سعرها",
+    "toggleWishlist": "إضافة أو إزالة من المفضلة"
   },
   "footer": {
     "tagline": "تجربة تسوق بسيطة وسريعة متصلة بالمخزون الحقيقي.",
@@ -1456,5 +1489,8 @@
     "helpTitle": "لسه عندك سؤال؟",
     "helpText": "فريقنا بيرد على واتساب ويساعدك في أي حاجة تخص طلبك.",
     "whatsapp": "كلّمنا على واتساب"
+  },
+  "share": {
+    "shareProduct": "شارك المنتج"
   }
 }

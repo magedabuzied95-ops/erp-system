@@ -101,7 +101,8 @@ import { openSizeGuide } from "./lib/sizeGuideStore";
 import { SizeGuideHost } from "./components/SizeGuideSheet";
 import { animateFlyToCart } from "./lib/flyToCart";
 import { releaseBootLoader } from "./lib/bootLoader";
-import { formatSchoolBagCardSize } from "./lib/schoolBagSize";
+import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
+import { localizeColorName, localizeHoursLine, localizeSizeLabel } from "./lib/displayCopy";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import { attachSiteDesign, detachSiteDesign, refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
 import {
@@ -5082,7 +5083,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   // wa.me link with no recipient behind it.
   const headerWhatsAppHref = hasWhatsAppRecipient(quickActionLinks.whatsappHref) ? quickActionLinks.whatsappHref : "";
   const utilityItems = [
-    ...(headerWhatsAppHref ? [{ label: "WhatsApp", to: headerWhatsAppHref, icon: <MessageCircle className="h-3.5 w-3.5" />, external: true }] : []),
+    ...(headerWhatsAppHref ? [{ label: t("storefront.support.whatsapp", "WhatsApp"), to: headerWhatsAppHref, icon: <MessageCircle className="h-3.5 w-3.5" />, external: true }] : []),
     { label: t("storefront.header.trackOrder"), to: "/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.wishlist"), to: "/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.account"), to: "/account", icon: <User className="h-3.5 w-3.5" /> },
@@ -6634,7 +6635,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); setSizeTapped(true); }}
                 className={`sfx-size${selected ? " is-active" : ""}`}
               >
-                {formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language)}
+                {/* A bare "20" is inches only on a school bag; on a kids' shoe it is the EU size. */}
+                {isSchoolBagProduct(product) ? formatSchoolBagCardSize(size, i18n.resolvedLanguage || i18n.language) : localizeSizeLabel(size, i18n.resolvedLanguage || i18n.language)}
               </button>
             );
           })}
@@ -6882,7 +6884,7 @@ function ProductCardVariantSheet({
             <div className="sfq__option">
               <div className="sfq__option-head">
                 <span className="sfq__option-title">{t("storefront.products.color", "اللون")}</span>
-                {activeGroup ? <span className="sfq__option-value">{activeGroup.colorName || activeGroup.color}</span> : null}
+                {activeGroup ? <span className="sfq__option-value">{localizeColorName(activeGroup.colorName || activeGroup.color, i18n.language)}</span> : null}
               </div>
               {nudge.target === "color" && !activeGroup ? (
                 <p key={nudge.tick} role="alert" className="sfq__nudge">{sfText("storefront.products.chooseColorFirst", "اختار اللون أولًا")}</p>
@@ -6940,7 +6942,7 @@ function ProductCardVariantSheet({
                         aria-pressed={active}
                         className={`sfq-size${active ? " is-active" : hasStock ? "" : " is-unavailable"}`}
                       >
-                        <span>{size || t("storefront.products.oneSize", "مقاس واحد")}</span>
+                        <span>{size ? localizeSizeLabel(size, i18n.language) : t("storefront.products.oneSize", "مقاس واحد")}</span>
                         {collision && originalSize !== size ? <span className="sfq-size__alt">{originalSize}</span> : null}
                       </button>
                     );
@@ -9650,7 +9652,7 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
                     <div className="mt-2 space-y-2">
                       {workingHoursLines.map((line, index) => (
                         <div key={`${card.id}-${index}`} className="whitespace-pre-line rounded-2xl border border-white/[0.06] bg-white/[0.035] px-3 py-2 text-sm font-semibold leading-6 text-slate-200">
-                          {line}
+                          {localizeHoursLine(line, i18n.language)}
                         </div>
                       ))}
                     </div>
@@ -10165,7 +10167,7 @@ function CartDrawerLine({ item, bundleShare = 0, bundlePercent = 0, updateCart, 
   const compare = displayCartItemComparePrice(item);
   const hasDiscount = compare > price;
   const href = item.slug || item.product_id ? productUrl({ id: item.product_id, slug: item.slug, selected_variant_id: item.variant_id }) : "";
-  const variantText = [item.color, item.display_size || item.size].filter(Boolean).join(" · ");
+  const variantText = [localizeColorName(item.color, i18n.language), localizeSizeLabel(item.display_size || item.size, i18n.language)].filter(Boolean).join(" · ");
   const showBrand = Boolean(item.brand) && !String(item.name || "").toLowerCase().includes(String(item.brand).toLowerCase());
   const image = (
     <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" loading="lazy" decoding="async" width="96" height="96" />

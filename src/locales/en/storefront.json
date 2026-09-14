@@ -292,7 +292,8 @@
     "refreshPage": "Refresh page",
     "previous": "Previous",
     "next": "Next",
-    "slideN": "Slide {{n}}"
+    "slideN": "Slide {{n}}",
+    "retry": "Try again"
   },
   "header": {
     "tagline": "Premium Shoes",
@@ -564,7 +565,12 @@
     "productCount_two": "{{count}} products",
     "productCount_few": "{{count}} products",
     "productCount_many": "{{count}} products",
-    "productCount_other": "{{count}} products"
+    "productCount_other": "{{count}} products",
+    "loadFailedTitle": "We could not load this product",
+    "loadFailedText": "Please try again. If it keeps happening, go back to the products and open it from there.",
+    "backToProducts": "Back to products",
+    "discountPercent": "-{{percent}}%",
+    "unavailableNow": "This product is not available right now"
   },
   "filters": {
     "gender": "Gender",
@@ -689,14 +695,32 @@
     "shipping_confirmation": "Shipping confirmation",
     "shipping_paid": "Shipping paid",
     "cod": "Cash on delivery",
-    "manual": "Manual delivery"
+    "manual": "Manual delivery",
+    "completed": "Completed",
+    "returned": "Returned",
+    "partially_returned": "Partially returned",
+    "exchanged": "Exchanged",
+    "refunded": "Refunded",
+    "partially_refunded": "Partially refunded",
+    "ready": "Ready to ship",
+    "ready_to_ship": "Ready to ship",
+    "pending_payment": "Awaiting payment",
+    "failed": "Not completed",
+    "failed_delivery": "Delivery failed",
+    "on_hold": "On hold",
+    "rejected": "Rejected",
+    "expired": "Expired",
+    "cancelled_by_customer": "Cancelled by customer",
+    "picked_up": "Picked up by the courier",
+    "received": "Received"
   },
   "shipping": {
     "manual": "Manual delivery",
     "provider": "Shipping provider",
     "trackingNumber": "Tracking number",
     "status": "Shipping status",
-    "bosta": "Bosta"
+    "bosta": "Bosta",
+    "inStoreDelivery": "Store delivery"
   },
   "support": {
     "generalHelpMessage": "Hello, I need help with a website order",
@@ -738,7 +762,9 @@
     "paymentMethodRequired": "Choose a payment method",
     "codUnavailable": "Cash on delivery is not available for this customer",
     "transferProofRequired": "Upload the transfer proof image to confirm the order",
-    "invalidEmailOptional": "Enter a valid email address or leave the field empty."
+    "invalidEmailOptional": "Enter a valid email address or leave the field empty.",
+    "streetAddressRequired": "Enter the street name",
+    "buildingNumberRequired": "Enter the building number"
   },
   "tracking": {
     "eyebrow": "Your order is on the way",
@@ -1008,7 +1034,13 @@
       "shippingCostTitle": "Shipping cost",
       "title": "Exchanges and returns",
       "footer": "This section sets out the store's approved exchange and return conditions, so the process is clear and both the customer's and the store's rights are protected.",
-      "durationText": "Exchanges or returns can be requested within {{days}} days of delivery."
+      "durationText": "Exchanges or returns can be requested within {{days}} days of delivery.",
+      "conditions": {
+        "unusedOriginal": "The product is unused, in its original condition, with its box and accessories.",
+        "invoiceRequired": "The invoice or order number must be provided.",
+        "customerChoiceShipping": "If the customer chose the wrong size or wants a different colour or model, the customer pays shipping both ways.",
+        "defectShipping": "If there is a confirmed defect or a mistake by the store, the store pays all shipping."
+      }
     },
     "helpTitle": "Want to exchange or return?",
     "helpText": "Send us your order number and the reason on WhatsApp and we will arrange the rest.",
@@ -1151,7 +1183,8 @@
     "removeFromWishlist": "Remove from wishlist",
     "noMatches": "No wishlist products match this filter",
     "showAll": "Show all",
-    "priceDropped": "Price dropped"
+    "priceDropped": "Price dropped",
+    "toggleWishlist": "Add to or remove from wishlist"
   },
   "footer": {
     "tagline": "A simple and fast shopping experience connected to real inventory.",
@@ -1456,5 +1489,8 @@
     "helpTitle": "Still have a question?",
     "helpText": "Our team answers on WhatsApp and can help with anything about your order.",
     "whatsapp": "Message us on WhatsApp"
+  },
+  "share": {
+    "shareProduct": "Share product"
   }
 }

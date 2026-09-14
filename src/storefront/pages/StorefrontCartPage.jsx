@@ -18,6 +18,8 @@ import { CheckoutTotals } from "../components/StorefrontCheckoutSummary";
 import { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import { trackGa4ViewCart } from "../lib/ga4Events";
 import { ROOT_PATHS } from "../lib/paths";
+import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
+import i18n from "../../i18n/i18n";
 import "./cart.css";
 
 /*
@@ -34,7 +36,7 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
   const hasDiscount = compare > price;
   const quantity = Math.max(1, Number(item.quantity) || 1);
   const href = item.slug || item.product_id ? productUrl({ id: item.product_id, slug: item.slug, selected_variant_id: item.variant_id }) : "";
-  const variantText = [item.color, item.display_size || item.size].filter(Boolean).join(" / ");
+  const variantText = [localizeColorName(item.color, i18n.language), localizeSizeLabel(item.display_size || item.size, i18n.language)].filter(Boolean).join(" / ");
   const showBrand = Boolean(item.brand) && !String(item.name || "").toLowerCase().includes(String(item.brand).toLowerCase());
   const image = <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" loading="lazy" decoding="async" width="96" height="96" />;
 
