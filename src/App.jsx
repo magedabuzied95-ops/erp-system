@@ -698,6 +698,9 @@ function App() {
           <Route path="/settings" element={<PublicHostErpRedirect />} />
           <Route path="/settings/*" element={<PublicHostErpRedirect />} />
           <Route path="/products/*" element={<PublicHostErpRedirect />} />
+          {/* Any other path on the shop host - a mistyped or outdated link - used to match
+              nothing and render a blank white page. Storefront shows its not-found page. */}
+          <Route path="*" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
         </>
       ) : null}
 

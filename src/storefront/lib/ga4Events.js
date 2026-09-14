@@ -12,7 +12,10 @@ export const GA4_MEASUREMENT_ID = String(
 ).trim();
 const SCRIPT_ID = "m1-ga4-google-tag";
 const PURCHASE_STORAGE_PREFIX = "m1.ga4.purchase.";
-const pageViews = new Set();
+// The last page_view sent, not every path seen: the guard exists for rerenders and effect
+// replays of the same navigation. A per-session set also swallowed every real return visit
+// (Home, product, back to Home) and undercounted page views and path funnels.
+let lastPageViewPath = "";
 const onceEvents = new Set();
 
 const isPublicStorefrontHost = () => {
@@ -61,8 +64,8 @@ const sendOnce = (eventName, key, payload) => {
 
 export const trackGa4PageView = ({ path = "", title = "", location = "" } = {}) => {
   const pagePath = String(path || (typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : "")).trim();
-  if (!pagePath || pageViews.has(pagePath)) return null;
-  pageViews.add(pagePath);
+  if (!pagePath || pagePath === lastPageViewPath) return null;
+  lastPageViewPath = pagePath;
   return send("page_view", {
     page_path: pagePath,
     page_title: title || (typeof document !== "undefined" ? document.title : ""),
@@ -136,6 +139,6 @@ export const trackGa4Purchase = ({ order = {}, items = [], checkout = {}, value 
 };
 
 export const __resetGa4GuardsForTests = () => {
-  pageViews.clear();
+  lastPageViewPath = "";
   onceEvents.clear();
 };

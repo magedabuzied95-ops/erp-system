@@ -740,7 +740,13 @@
     "tryAgainOrWhatsapp": "جرب مرة أخرى أو تواصل معنا على واتساب",
     "cleanedTemporaryData": "نضفنا بيانات التصفح المؤقتة. جرب تحديث الصفحة.",
     "operationFailed": "تعذر تطبيق العملية",
-    "categoryOptionsFailed": "تعذر تحميل خيارات الفئة"
+    "categoryOptionsFailed": "تعذر تحميل خيارات الفئة",
+    "offlineTitle": "مفيش اتصال بالإنترنت",
+    "offlineText": "الصفحة دي محتاجة إنترنت عشان تفتح، وهتتحمل لوحدها أول ما النت يرجع.",
+    "notFoundTitle": "الصفحة دي مش موجودة",
+    "notFoundText": "ممكن يكون اللينك قديم أو فيه غلطة. ابدأ من الرئيسية أو اتفرج على المنتجات.",
+    "backHome": "الرجوع للرئيسية",
+    "browseProducts": "تصفح المنتجات"
   },
   "status": {
     "awaiting_verification": "بانتظار مراجعة الدفع",

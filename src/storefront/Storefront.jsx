@@ -74,6 +74,7 @@ import {
   Upload,
   User,
   Users,
+  WifiOff,
   X,
 } from "lucide-react";
 import { api } from "../shared/api/api";
@@ -97,7 +98,7 @@ import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } 
 import { pickAutomaticPair } from "./lib/pairPicker.js";
 import { hasStorefrontHomeContent, keepHomeFilterRowWhenEmpty, nextHomeFilterRowAudience, persistedStorefrontHomeData } from "./lib/listingHomeState.js";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
-import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
+import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryBlockedOffline, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { openSizeGuide } from "./lib/sizeGuideStore";
 import { SizeGuideHost } from "./components/SizeGuideSheet";
 import { animateFlyToCart } from "./lib/flyToCart";
@@ -163,7 +164,7 @@ import {
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import { getDisplayPricing, parseSaleModeEnabled as importedParseSaleModeEnabled } from "../shared/lib/storefrontPricing";
-import { isInWishlist, toggleWishlistEntries, wishlistColourOf, wishlistIdOf, wishlistKeyOf } from "./lib/wishlistIdentity";
+import { isInWishlist, reconcileWishlistWithServer, toggleWishlistEntries, wishlistColourOf, wishlistIdOf, wishlistKeyOf } from "./lib/wishlistIdentity";
 import {
   isMetaPurchaseEligible,
   trackMetaAddToCart,
@@ -1870,6 +1871,7 @@ const LazyStorefrontFaqPage = lazy(() => importWithChunkRetry(() => import("./pa
 const LazyStorefrontReturnsPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontHelpPages.jsx")).then((module) => ({ default: module.ReturnsPolicyPage })));
 const LazyStorefrontRecentPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontAsyncPages")).then((module) => ({ default: module.RecentPageRoute })));
 const LazyOrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
+const LazyStorefrontNotFoundPage = lazy(() => importWithChunkRetry(() => import("./pages/StorefrontNotFoundPage.jsx")));
 
 const CART_KEY = "storefront.cart";
 const WISHLIST_KEY = "storefront.wishlist";
@@ -8804,26 +8806,32 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         // The server's estimate is quoted when the order is placed; the page's may predate the cut-off.
         delivery_estimate: data.delivery_estimate || shippingQuote.delivery_estimate || null,
       };
-      trackMetaPurchase({
-        order: data.order,
-        items: data.items || pricedCart,
-        value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
-        customer: {
-          ...profile,
-          full_name: form.full_name,
-          phone: cleanPhone,
-          email: form.email,
-          city: form.city || form.city_area || form.area || form.district,
-          state: form.governorate,
-          customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
-        },
-      });
-      trackGa4Purchase({
-        order: data.order,
-        items: data.items || pricedCart,
-        checkout: successPayload.checkout,
-        value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
-      });
+      // The order is committed from here on: a tracking error must never reach the catch below,
+      // which reads as a failed checkout and invites a second, duplicate order.
+      try {
+        trackMetaPurchase({
+          order: data.order,
+          items: data.items || pricedCart,
+          value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
+          customer: {
+            ...profile,
+            full_name: form.full_name,
+            phone: cleanPhone,
+            email: form.email,
+            city: form.city || form.city_area || form.area || form.district,
+            state: form.governorate,
+            customer_id: data.order?.customer_id || profile?.customer_id || profile?.id || "",
+          },
+        });
+        trackGa4Purchase({
+          order: data.order,
+          items: data.items || pricedCart,
+          checkout: successPayload.checkout,
+          value: data.order?.total_amount ?? data.order?.total ?? orderTotal,
+        });
+      } catch (trackingError) {
+        if (import.meta.env.DEV) console.warn("[storefront-checkout] purchase tracking failed", trackingError);
+      }
       const publicNumber = displayPublicOrderNumber(data.order);
       const receiptPayload = compactStorefrontReceipt(successPayload, {
         id: data.order?.id,
@@ -10723,6 +10731,24 @@ const writeCartSyncMarker = (phone = "", version = null, cart = []) => {
  */
 const WISHLIST_OWNER_KEY = "storefront.wishlist.owner";
 
+/*
+ * The models this browser last knew the server's wishlist to hold, per phone -- the wishlist's
+ * counterpart of the cart's base. Without it a model removed on another device was re-saved (and
+ * its price-drop follow reopened) from every browser still holding a local copy.
+ */
+const WISHLIST_SYNC_KEY = "storefront.wishlist.sync";
+
+const readWishlistSyncBase = (phone = "") => {
+  const marker = readStorefrontStorage(WISHLIST_SYNC_KEY, null);
+  if (!marker || !phone || String(marker.phone || "") !== String(phone) || !Array.isArray(marker.ids)) return null;
+  return marker.ids.map((id) => String(id));
+};
+
+const writeWishlistSyncBase = (phone = "", ids = []) => {
+  if (!phone) return;
+  writeStorefrontStorage(WISHLIST_SYNC_KEY, { phone: String(phone), ids: [...new Set(ids.map((id) => String(id || "")).filter(Boolean))] });
+};
+
 const cartLinesEqual = (left = [], right = []) => {
   const a = normalizeCartCollection(left);
   const b = normalizeCartCollection(right);
@@ -10788,6 +10814,7 @@ function Storefront() {
   // The cart array last taken from another tab's save; see the storage listener below.
   const cartFromOtherTabRef = useRef(null);
   const wishlistRef = useRef(wishlist);
+  const wishlistSyncedPhoneRef = useRef("");
   const previousDocumentThemeRef = useRef(null);
   const [cartSyncReady, setCartSyncReady] = useState(false);
 
@@ -10854,6 +10881,12 @@ function Storefront() {
   useEffect(() => {
     writeStorefrontStorage(WISHLIST_KEY, wishlist);
     wishlistRef.current = wishlist;
+    // Signed in and synced, every heart here goes straight to the server, so the base follows
+    // the list: a model hearted here after the sync is not later read as removed elsewhere.
+    const syncedPhone = wishlistSyncedPhoneRef.current;
+    if (syncedPhone && String(readStorefrontCustomerAuth().phone || "") === syncedPhone) {
+      writeWishlistSyncBase(syncedPhone, wishlist.map((item) => wishlistIdOf(item)));
+    }
   }, [wishlist]);
 
   // Declared before the sign-in sync below on purpose: both run in the same commit, and the
@@ -11173,7 +11206,6 @@ function Storefront() {
         const cartPhone = readStorefrontCustomerAuth().phone;
         const backendCartVersion = Number.isFinite(Number(backendCartData?.version)) ? Number(backendCartData.version) : null;
         const cartMarker = readCartSyncMarker(cartPhone);
-        const backendWishlistIds = new Set(backendWishlist.map((item) => String(item.id)));
         const backendRecentIds = new Set(backendRecent.map((item) => String(item.id)));
         const guestWishlist = normalizeWishlistCollection(wishlistRef.current);
         const guestRecent = (Array.isArray(recent) ? recent : []).map(normalizeStorefrontItem).filter((item) => item.id);
@@ -11183,11 +11215,14 @@ function Storefront() {
         const mergedCart = mergeCartThreeWay(cartMarker.base, cartRef.current, backendCart);
         writeCartSyncMarker(cartPhone, backendCartVersion, backendCart);
         // The server keeps the model only; the colours the shopper hearted live in this browser,
-        // so a server row stands in only for a model this browser has no colour of.
-        const mergedWishlist = normalizeWishlistCollection([
-          ...guestWishlist,
-          ...backendWishlist.filter((item) => !guestWishlist.some((entry) => entry.id === item.id)),
-        ]);
+        // so a server row stands in only for a model this browser has no colour of. A model gone
+        // from the server that this browser had already synced was removed elsewhere: dropped.
+        const wishlistSync = reconcileWishlistWithServer({
+          local: guestWishlist,
+          remote: backendWishlist,
+          baseIds: readWishlistSyncBase(cartPhone),
+        });
+        const mergedWishlist = normalizeWishlistCollection(wishlistSync.merged);
         const mergedRecent = [...backendRecent, ...guestRecent].reduce((acc, item) => {
           const id = String(item.id || "");
           if (!id || acc.some((entry) => String(entry.id) === id)) return acc;
@@ -11209,13 +11244,12 @@ function Storefront() {
         if (cartPhone) writeStorefrontStorage(WISHLIST_OWNER_KEY, cartPhone);
         setRecent(mergedRecent);
 
-        const missingWishlistItems = guestWishlist.filter((item) => !backendWishlistIds.has(String(item.id)));
         const missingRecentItems = guestRecent.filter((item) => !backendRecentIds.has(String(item.id)));
-        await Promise.allSettled([
-          ...missingWishlistItems.map((item) =>
+        const settled = await Promise.allSettled([
+          ...wishlistSync.toAdd.map((productId) =>
             storefrontCustomerRequest("/storefront/wishlist", {
               method: "POST",
-              body: { product_id: item.id },
+              body: { product_id: productId },
             })
           ),
           ...missingRecentItems.map((item) =>
@@ -11225,6 +11259,12 @@ function Storefront() {
             })
           ),
         ]);
+        // The base is what the server now holds: its rows plus the adds that landed. An add that
+        // failed stays out, so the next sync sends it again instead of reading it as a removal.
+        // Keyed by phone, so it is right to write even if this run was cancelled meanwhile.
+        const landed = wishlistSync.toAdd.filter((_id, index) => settled[index]?.status === "fulfilled");
+        writeWishlistSyncBase(cartPhone, [...backendWishlist.map((item) => wishlistIdOf(item)), ...landed]);
+        if (!cancelled) wishlistSyncedPhoneRef.current = cartPhone;
       } catch (error) {
         const status = Number(error?.status || error?.response?.status || 0);
         if (status === 401 || status === 403) {
@@ -11626,6 +11666,12 @@ function Storefront() {
     if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <SizeGuideRoute />;
     if (currentStorefrontPath === ROOT_PATHS.returns) return <LazyStorefrontReturnsPage publicStoreSettings={publicStoreSettings} whatsappHref={quickActionLinks.whatsappHref} />;
 
+    // Only the home path is the homepage; any other path the shop does not know is a
+    // not-found page, not a silent homepage (App's storefront catch-all lands here).
+    if (!isStorefrontHomePath(currentStorefrontPath)) {
+      return <LazyStorefrontNotFoundPage whatsappHref={quickActionLinks.whatsappHref} />;
+    }
+
     return (
       <PremiumHomePage
         wishlist={wishlist}
@@ -11796,7 +11842,20 @@ const playSuccess = () => playSoftClick();
 class StorefrontErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, recovering: false };
+    this.state = { hasError: false, recovering: false, offline: false };
+    this.unmounted = false;
+    this.handleOnline = () => {
+      if (this.state.offline) window.location.reload();
+    };
+  }
+
+  componentDidMount() {
+    window.addEventListener("online", this.handleOnline);
+  }
+
+  componentWillUnmount() {
+    this.unmounted = true;
+    window.removeEventListener("online", this.handleOnline);
   }
 
   static getDerivedStateFromError(error) {
@@ -11817,7 +11876,16 @@ class StorefrontErrorBoundary extends Component {
     // A chunk that failed to load after a deploy is fixed by the reload alone; nothing
     // stored in this browser caused it, so nothing stored is cleared.
     if (isChunkLoadError(error)) {
-      recoverFromChunkLoadError(error);
+      // No reload happens when the origin cannot be reached (or one was already used),
+      // and the skeleton above would then stay forever. Leave it for the no-connection
+      // card, or the error card, whichever applies.
+      Promise.resolve(recoverFromChunkLoadError(error))
+        .catch(() => false)
+        .then((reloading) => {
+          // A reload started elsewhere (the lazy import's own retry) is still on its way.
+          if (reloading || this.unmounted || isChunkRecoveryInFlight()) return;
+          this.setState({ recovering: false, offline: isChunkRecoveryBlockedOffline() });
+        });
       return;
     }
     cleanupStorefrontStorage();
@@ -11826,6 +11894,24 @@ class StorefrontErrorBoundary extends Component {
 
   render() {
     if (this.state.recovering) return <StorefrontPageFallback />;
+    if (this.state.offline) {
+      // The page's code never reached the device. Nothing was purged; the `online`
+      // listener reloads on its own when the connection returns, the button sooner.
+      return (
+        <main className="sfx-scope" data-theme={readJson(STOREFRONT_THEME_KEY, "dark") === "light" ? "light" : "dark"}>
+          <div className="sfx-wrap sfx-wrap--sm sfx-section">
+          <div className="sfx-empty" role="alert">
+            <span className="sfx-empty__icon">
+              <WifiOff className="h-7 w-7" />
+            </span>
+            <h1 className="sfx-empty__title">{sfText("storefront.errors.offlineTitle")}</h1>
+            <p className="sfx-empty__text">{sfText("storefront.errors.offlineText")}</p>
+            <button type="button" onClick={() => window.location.reload()} className="sfx-btn sfx-btn--primary sfx-btn--lg">{sfText("storefront.common.retry")}</button>
+          </div>
+          </div>
+        </main>
+      );
+    }
     if (this.state.hasError) {
       return (
         // The boundary can render before (or without) the shell body class, so

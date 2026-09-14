@@ -768,7 +768,13 @@
     "tryAgainOrWhatsapp": "Try again or contact us on WhatsApp",
     "cleanedTemporaryData": "We cleaned temporary browsing data. Try refreshing the page.",
     "operationFailed": "The operation could not be applied",
-    "categoryOptionsFailed": "We could not load the category options"
+    "categoryOptionsFailed": "We could not load the category options",
+    "offlineTitle": "No internet connection",
+    "offlineText": "This page needs a connection to open. It reloads on its own as soon as you are back online.",
+    "notFoundTitle": "This page does not exist",
+    "notFoundText": "The link may be old or mistyped. Start again from the home page or browse the products.",
+    "backHome": "Back to home",
+    "browseProducts": "Browse products"
   },
   "form": {
     "fullName": "Full name",

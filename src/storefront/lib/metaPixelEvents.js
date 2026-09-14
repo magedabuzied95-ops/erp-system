@@ -25,6 +25,37 @@ export {
 
 const PURCHASE_STORAGE_PREFIX = "m1.meta.purchase.";
 
+// With site data blocked, merely reading `window.sessionStorage` throws (optional chaining does
+// not help). This runs right after the order is created, so a throw here once surfaced as a
+// failed checkout and invited a second, duplicate order. The in-memory set is the fallback dedupe.
+const trackedPurchases = new Set();
+
+const purchaseStorage = () => {
+  try {
+    return typeof window !== "undefined" ? window.sessionStorage || null : null;
+  } catch {
+    return null;
+  }
+};
+
+const hasTrackedPurchase = (storageKey) => {
+  if (trackedPurchases.has(storageKey)) return true;
+  try {
+    return Boolean(purchaseStorage()?.getItem(storageKey));
+  } catch {
+    return false;
+  }
+};
+
+const rememberTrackedPurchase = (storageKey) => {
+  trackedPurchases.add(storageKey);
+  try {
+    purchaseStorage()?.setItem(storageKey, "1");
+  } catch {
+    // Blocked or full storage: the in-memory set still stops a repeat in this tab.
+  }
+};
+
 const text = (value = "") => String(value ?? "").trim();
 
 const eventId = (eventName = "") =>
@@ -118,7 +149,7 @@ export const trackMetaPurchase = ({ items = [], value = 0, customer = {}, order 
   const orderId = text(order.id || order.order_id || order.invoice_number || order.order_number);
   if (!orderId) return null;
   const storageKey = `${PURCHASE_STORAGE_PREFIX}${orderId}`;
-  if (typeof window !== "undefined" && window.sessionStorage?.getItem(storageKey)) return null;
+  if (hasTrackedPurchase(storageKey)) return null;
   const contents = (Array.isArray(items) ? items : []).map(metaLineContent).filter(Boolean);
   const purchaseValue = metaPurchaseValue({ value, items });
   if (purchaseValue <= 0) return null;
@@ -130,6 +161,6 @@ export const trackMetaPurchase = ({ items = [], value = 0, customer = {}, order 
     eventId: purchaseEventId(order),
     customer: { ...customer, external_id: customer.customer_id || customer.id || order.customer_id },
   });
-  if (payload && typeof window !== "undefined") window.sessionStorage?.setItem(storageKey, "1");
+  if (payload) rememberTrackedPurchase(storageKey);
   return payload;
 };

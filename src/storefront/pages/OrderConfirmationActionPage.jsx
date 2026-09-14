@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../shared/api/api";
+import { releaseBootLoader } from "../lib/bootLoader";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
 // The /c/:code route renders outside the storefront shell (App.jsx), where
 // Storefront.jsx and its stylesheets never load — so the page brings the site's
@@ -307,6 +308,13 @@ class OrderConfirmationActionPageErrorBoundary extends Component {
 }
 
 export function OrderConfirmationActionPage() {
+  // /c/:code is a storefront boot path, so index.html paints the full-screen cart loader,
+  // but App routes it here without Storefront, which is what normally releases it. The page
+  // has its own loading state, so hand over on mount instead of after the 9s ceiling.
+  useEffect(() => {
+    releaseBootLoader();
+  }, []);
+
   return (
     <OrderConfirmationActionPageErrorBoundary>
       <OrderConfirmationActionPageInner />

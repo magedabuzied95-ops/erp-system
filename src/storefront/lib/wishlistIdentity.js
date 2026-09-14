@@ -47,6 +47,30 @@ export const toggleWishlistEntries = (entries, product, entry) => {
 };
 
 /**
+ * A signed-in browser's list against the server's, by model. `baseIds` are the models this browser
+ * last knew the server to hold for this phone (null: it never synced, so every entry here is a
+ * guest heart to add). A model here but not on the server was removed on another device when the
+ * base has it -- dropped here, never re-created -- and hearted here since when it does not. The old
+ * merge could not tell the two apart, so a removal came back from every stale device.
+ * Returns the merged entries and the model ids to POST.
+ */
+export const reconcileWishlistWithServer = ({ local = [], remote = [], baseIds = null } = {}) => {
+  const localList = Array.isArray(local) ? local : [];
+  const remoteList = Array.isArray(remote) ? remote : [];
+  const remoteIds = new Set(remoteList.map(wishlistIdOf).filter(Boolean));
+  const base = Array.isArray(baseIds) ? new Set(baseIds.map((id) => String(id))) : null;
+  const kept = localList.filter((entry) => {
+    const id = wishlistIdOf(entry);
+    return remoteIds.has(id) || !base || !base.has(id);
+  });
+  const keptIds = new Set(kept.map(wishlistIdOf));
+  return {
+    merged: [...kept, ...remoteList.filter((entry) => !keptIds.has(wishlistIdOf(entry)))],
+    toAdd: [...keptIds].filter((id) => id && !remoteIds.has(id)),
+  };
+};
+
+/**
  * Removing several entries with a toggle each: a colour-less entry matches every colour of its
  * model, and a toggle on an entry already gone would add it back, so only the entries still matched
  * by what is left get their toggle.

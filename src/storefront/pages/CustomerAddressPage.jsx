@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { api } from "../../shared/api/api";
+import { releaseBootLoader } from "../lib/bootLoader";
 import i18n, { normalizeLanguage } from "../../i18n/i18n";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
 // /addr/:code renders outside the storefront shell (App.jsx), where Storefront.jsx and its
@@ -98,6 +99,12 @@ class CustomerAddressPageErrorBoundary extends Component {
 }
 
 export function CustomerAddressPage() {
+  // Rendered by App without Storefront, so nothing else releases the boot loader if one was
+  // painted; idempotent and a no-op when it was not.
+  useEffect(() => {
+    releaseBootLoader();
+  }, []);
+
   return (
     <CustomerAddressPageErrorBoundary>
       <CustomerAddressPageInner />
