@@ -191,6 +191,15 @@ body:not(.storefront-shell) .sfx-scope {
   color-scheme: only light;
 }
 
+/* index.html opts storefront pages into viewport-fit=cover, which also lets a notched
+   iPhone in landscape draw the page under the notch. The ground may run there; the
+   content steps inside the safe area. Both insets are 0 everywhere else. */
+body.storefront-shell,
+body:not(.storefront-shell) .sfx-scope {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 body:not(.storefront-shell) .sfx-scope[data-theme="dark"] {
   color-scheme: only dark;
 }

@@ -619,7 +619,19 @@
           var storefrontHost = host === "m1store-egy.com" || host === "www.m1store-egy.com"
             || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app");
           var storefrontPath = /^\/$|^\/(products|product|cart|checkout|account|track|wishlist|recently-viewed|sale|offers|contact|size-guide|returns|faq|brands|search|men|women|kids|bags|crocs|slippers|shop|c)(\/|$)|^\/(success|confirm)\//.test(path);
-          if (storefrontHost && storefrontPath) document.documentElement.setAttribute("data-m1-boot-loader", "");
+          if (storefrontHost && storefrontPath) {
+            document.documentElement.setAttribute("data-m1-boot-loader", "");
+            // WebKit reports env(safe-area-inset-*) only under viewport-fit=cover, and the
+            // storefront's header, sheets, drawer and buy bar pad with those insets - from the
+            // home screen (black-translucent status bar) they sat under the clock and on the
+            // home indicator. Storefront pages only: the ERP, POS and portals share this file and
+            // keep the plain viewport; site-skin.css pads the shell for the landscape notch.
+            var viewport = document.querySelector('meta[name="viewport"]');
+            var viewportContent = viewport ? String(viewport.getAttribute("content") || "") : "";
+            if (viewport && viewportContent.indexOf("viewport-fit") === -1) {
+              viewport.setAttribute("content", viewportContent + ", viewport-fit=cover");
+            }
+          }
         } catch (error) {
           // No loader is always a safe answer.
         }
