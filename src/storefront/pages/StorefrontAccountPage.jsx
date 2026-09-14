@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
 import { sfText } from "../lib/sfText";
+import { orderDueOnDelivery } from "../lib/checkoutGuards";
 import { api } from "../../shared/api/api";
 import {
   Check,
@@ -304,7 +305,7 @@ function OrderDetails({ data, helpers }) {
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
   const derailed = orderTone(order) === "bad";
   const currentIndex = timeline.reduce((last, step, index) => (step.done ? index : last), 0);
-  const remaining = Number(order.remaining_amount || 0);
+  const remaining = orderDueOnDelivery(order);
 
   return (
     <div className="sfa-order__details">

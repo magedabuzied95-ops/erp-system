@@ -5,6 +5,7 @@ import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/st
 import i18n from "../../i18n/i18n";
 import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import { trackingStageKey } from "../lib/serverCopy";
+import { orderDueOnDelivery } from "../lib/checkoutGuards";
 import {
   Check,
   Copy,
@@ -63,7 +64,7 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
   const bosta = isBostaOrder(order);
   const total = Number(order.total_amount || order.total || order.total_price || 0);
   const shippingFee = Number(order.shipping_fee || order.delivery_fee || 0);
-  const remaining = Number(order.remaining_amount || 0);
+  const remaining = orderDueOnDelivery(order);
   const address = [order.governorate, order.city_area, order.customer_address, order.landmark].filter(Boolean).join(" - ");
 
   const copyTracking = async () => {

@@ -31,7 +31,7 @@ test("submit prices paid_amount and remaining_amount from the validation it send
 });
 
 test("a transfer whose amount changed on re-validation stops and names the new amount", () => {
-  const submit = between("const submit = async (event) => {", "const cleanPhone = form.primary_phone");
+  const submit = between("const submit = async (event) => {", "const cleanPhone = ");
   const guard = submit.slice(submit.indexOf("if (isShippingConfirmation && Math.abs(orderTotal - total)"));
   assert.ok(guard.length > 0, "the transfer guard exists");
   assert.match(guard, /sfText\("storefront\.checkout\.couponTotalChanged", "", \{ amount: money\(orderTotal\) \}\)/);

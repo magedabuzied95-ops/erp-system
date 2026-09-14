@@ -52,7 +52,10 @@ export function CheckoutTotals({ subtotal, discount, bundleDiscount = 0, freeShi
   const shippingText = governorate
     ? shippingQuote.loading
       ? t("common.loading", "جاري التحميل...")
-      : money(deliveryFee)
+      // A failed quote has no fee; showing the 0 it leaves behind would read as free shipping.
+      : shippingQuote.failed
+        ? t("storefront.checkout.shippingQuoteUnavailable")
+        : money(deliveryFee)
     : t("storefront.checkout.onePage.shippingPending", "يُحسب بعد اختيار المحافظة");
   return (
     <div className="sfc-totals">

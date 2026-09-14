@@ -209,6 +209,10 @@
     "apartmentNumberPlaceholder": "Apartment number",
     "completePurchase": "Complete purchase",
     "codUnavailable": "Cash on delivery is not available right now.",
+    "codUnavailableChooseAnother": "Cash on delivery is not available right now. Choose another payment method in the payment section.",
+    "shippingQuoteFailed": "We couldn't calculate shipping for your address. Trying again — check the shipping fee, then place your order.",
+    "shippingQuoteRetry": "Try again",
+    "shippingQuoteUnavailable": "Shipping couldn't be calculated",
     "lineTotal": "Total",
     "quantity": "Quantity",
     "online": {

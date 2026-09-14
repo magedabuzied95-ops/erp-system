@@ -105,6 +105,7 @@ import CartRepriceNotice from "./components/CartRepriceNotice";
 import { canIncreaseCartLine, cartFromStorageEvent, cartLineComparePrice, cartLineIssue, setCartLineQuantity } from "./lib/cartLine";
 import { productShareParamEntries } from "./lib/pdpSelection";
 import { applyProductImageFallback } from "./lib/productImageFallback";
+import { couponAutoApplyStep, deliveryQuoteRefreshDelayMs, fallbackPaymentMode, isEgyptMobile, normalizeEgyptMobile, shippingQuoteSettled } from "./lib/checkoutGuards";
 import { releaseBootLoader } from "./lib/bootLoader";
 import { useDialogFocus } from "./lib/useDialogFocus";
 import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
@@ -7613,6 +7614,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   // The proof upload is validated on submit (with a message pointing at it), so it
   // does not grey the button out: a disabled button explains nothing.
   const submitDisabled = submitting || couponLoading || shippingQuote.loading;
+  const shippingQuoted = shippingQuoteSettled({ governorate: form.governorate, quote: shippingQuote });
   const checkoutActionLabel = isOnlineGatewayPayment
     ? t("storefront.checkout.onePage.payNow")
     : t("storefront.checkout.onePage.completeOrder");
@@ -7671,7 +7673,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   // InitiateCheckout on. It fires once the customer has identified themselves (a
   // name and a valid phone), which is when the event can carry matching data;
   // submit() sends it too if the customer got there without that happening first.
-  const initiateCheckoutReady = Boolean(form.full_name.trim()) && /^01[0125][0-9]{8}$/.test(form.primary_phone.replace(/\D/g, ""));
+  const initiateCheckoutReady = Boolean(form.full_name.trim()) && isEgyptMobile(form.primary_phone);
   const sendMetaInitiateCheckout = () => {
     if (metaCheckoutSentRef.current || !pricedCart.length) return;
     const payload = trackMetaInitiateCheckout({
@@ -7854,16 +7856,29 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         }
       })
       .catch(() => {
-        if (!cancelled) setShippingQuote((prev) => ({ ...prev, loading: false }));
+        // Keeping the previous quote showed the last governorate's fee (or a "free" 0) for this
+        // address, and submitting it only met the server's 409. Mark it failed so the shipping line
+        // offers a retry and submit asks for a fresh quote first.
+        if (!cancelled) setShippingQuote({ ...normalizeShippingQuote(), failed: true });
       });
     return () => {
       cancelled = true;
     };
   }, [form.governorate, form.city_area, form.governorate_id, form.city_id, form.area_id, form.city, form.area, form.district_id, form.zone_id, subtotal, shippingRequoteToken]);
 
+  // The delivery day is quoted on the Cairo clock; after the cut-off or midnight it names the wrong
+  // day. Quote again when it goes stale, as the product page's countdown does.
   useEffect(() => {
-    const phone = form.primary_phone.replace(/\D/g, "");
-    if (!/^01[0125][0-9]{8}$/.test(phone)) {
+    if (!form.governorate || shippingQuote.loading) return undefined;
+    const delay = deliveryQuoteRefreshDelayMs(shippingQuote.delivery_estimate);
+    if (delay === null) return undefined;
+    const timer = window.setTimeout(() => setShippingRequoteToken((token) => token + 1), delay);
+    return () => window.clearTimeout(timer);
+  }, [form.governorate, shippingQuote.loading, shippingQuote.delivery_estimate]);
+
+  useEffect(() => {
+    const phone = normalizeEgyptMobile(form.primary_phone);
+    if (!isEgyptMobile(phone)) {
       setWhatsappCheck({ phone: "", exists: null, checking: false });
       return undefined;
     }
@@ -7898,6 +7913,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
     if (key === "coupon") {
       setCouponValidation(null);
       couponValidationKeyRef.current = "";
+      // A code the shopper types is theirs to apply; the QR auto-apply stops following the field.
+      autoApplyCouponRef.current = false;
     }
   };
 
@@ -7953,6 +7970,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   // still empty when the QR is scanned), prefill the field, and validate it once there is a cart.
   const urlCoupon = String(checkoutSearchParams.get("coupon") || "").trim().toUpperCase();
   const autoApplyCouponRef = useRef(false);
+  const autoApplyCouponKeyRef = useRef("");
   useEffect(() => {
     if (!urlCoupon) return;
     try { window.sessionStorage.setItem(PENDING_COUPON_STORAGE_KEY, urlCoupon); } catch { /* storage unavailable */ }
@@ -7968,15 +7986,30 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
     setForm((prev) => ({ ...prev, coupon: pending }));
   }, [urlCoupon, form.coupon]);
   useEffect(() => {
-    if (!autoApplyCouponRef.current || !form.coupon || subtotal <= 0 || couponLoading) return;
-    autoApplyCouponRef.current = false;
-    applyCoupon().then((result) => {
+    // Waits for the governorate's quote: a free-shipping code checked while the fee is still 0 is
+    // refused, and any code applied before the fee arrives is dropped when it does. Stays armed
+    // until it applies, trying each cart/fee state once.
+    const step = couponAutoApplyStep({
+      armed: autoApplyCouponRef.current,
+      code: form.coupon,
+      subtotal,
+      couponLoading,
+      quoted: shippingQuoted,
+      deliveryFee,
+      lastKey: autoApplyCouponKeyRef.current,
+    });
+    if (!step.run) return;
+    // Only the first refusal is said out loud; a retry after the cart or fee changed stays quiet.
+    const silent = Boolean(autoApplyCouponKeyRef.current);
+    autoApplyCouponKeyRef.current = step.key;
+    applyCoupon({ silent }).then((result) => {
       if (result?.valid) {
+        autoApplyCouponRef.current = false;
         try { window.sessionStorage.removeItem(PENDING_COUPON_STORAGE_KEY); } catch { /* ignore */ }
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.coupon, subtotal, couponLoading]);
+  }, [form.coupon, subtotal, couponLoading, shippingQuoted, deliveryFee]);
 
   const setGovernorate = (value, options = {}) => {
     if (options.markDirty !== false) {
@@ -8139,8 +8172,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   };
 
   useEffect(() => {
-    const cleanPhone = form.primary_phone.replace(/\D/g, "");
-    const validPhone = /^01[0125][0-9]{8}$/.test(cleanPhone);
+    const cleanPhone = normalizeEgyptMobile(form.primary_phone);
+    const validPhone = isEgyptMobile(cleanPhone);
     const email = String(profile.email || profile.customer_email || "").trim().toLowerCase();
     if (!validPhone && !email) return undefined;
 
@@ -8380,7 +8413,20 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
 
   useEffect(() => {
     const normalizedPaymentMethod = normalizeCheckoutPaymentMethod(form.payment_method);
-    if (normalizedPaymentMethod === "cod") {
+    if (normalizedPaymentMethod === "cod" && !codAvailable) {
+      // Cash on delivery is the pre-selected default. With the store's COD switched off, leaving it
+      // selected only ended in a refused submit — move the shopper to a method that is accepted.
+      const nextMode = fallbackPaymentMode({ paymentMode: "cod", codAvailable, onlineAvailable: onlinePaymentAvailable });
+      if (nextMode === "online") {
+        setPaymentMode("online");
+        setForm((current) => ({ ...current, payment_method: "card" }));
+      } else {
+        setPaymentMode("electronic");
+        setShowElectronicPaymentMethods(true);
+        // Already kept on an enabled transfer method by the effect above.
+        setForm((current) => ({ ...current, payment_method: shippingTransferMethod || "instapay" }));
+      }
+    } else if (normalizedPaymentMethod === "cod") {
       if (paymentMode !== "cod") setPaymentMode("cod");
       if (showElectronicPaymentMethods) setShowElectronicPaymentMethods(false);
     } else if (normalizedPaymentMethod === "card") {
@@ -8398,7 +8444,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       setPaymentMode("electronic");
     }
     return undefined;
-  }, [codAvailable, form.payment_method, onlinePaymentAvailable, paymentMode, setForm, showElectronicPaymentMethods]);
+  }, [codAvailable, form.payment_method, onlinePaymentAvailable, paymentMode, setForm, shippingTransferMethod, showElectronicPaymentMethods]);
 
   useEffect(() => {
     if (!shippingProofRequired) {
@@ -8463,7 +8509,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       : step === 2
         ? ["governorate", "city_area", "detailed_address", "street_address", "building_number"]
         : ["payment_method", "shipping_payment_screenshot"];
-    const phone = form.primary_phone.replace(/\s/g, "");
+    // Folded to 01XXXXXXXXX first: autofill writes "+20 …", people type dashes, an Arabic keyboard types Arabic-Indic digits.
+    const phone = normalizeEgyptMobile(form.primary_phone);
     const composedAddress = [
       form.street_address || form.detailed_address,
       form.building_number ? `Building ${form.building_number}` : "",
@@ -8474,11 +8521,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
 
     if (step === 1) {
       if (!form.full_name.trim()) next.full_name = sfText("storefront.validation.fullNameRequired");
-      if (!phone) next.primary_phone = sfText("storefront.validation.phoneRequired");
-      else if (!/^01[0125][0-9]{8}$/.test(phone)) next.primary_phone = sfText("storefront.validation.invalidEgyptPhone");
+      if (!form.primary_phone.trim()) next.primary_phone = sfText("storefront.validation.phoneRequired");
+      else if (!isEgyptMobile(phone)) next.primary_phone = sfText("storefront.validation.invalidEgyptPhone");
       else if (whatsappCheck.exists === false && whatsappCheck.phone === phone) next.primary_phone = sfText("storefront.validation.notOnWhatsapp");
-      const secondPhone = String(form.secondary_phone || "").replace(/\s/g, "");
-      if (secondPhone && !/^01[0125][0-9]{8}$/.test(secondPhone)) next.secondary_phone = sfText("storefront.validation.invalidSecondaryPhone");
+      const secondPhone = String(form.secondary_phone || "").trim();
+      if (secondPhone && !isEgyptMobile(secondPhone)) next.secondary_phone = sfText("storefront.validation.invalidSecondaryPhone");
       if (form.email.trim() && !isValidSurveyEmail(form.email)) {
         next.email = sfText("storefront.validation.invalidEmailOptional");
       }
@@ -8585,6 +8632,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       setSubmitting(false);
       return;
     }
+    if (form.governorate && shippingQuote.failed) {
+      // No fee was quoted for this address, so the total on screen is not one the server will take.
+      // Ask again and let the shopper see the fee before placing the order.
+      setShippingRequoteToken((token) => token + 1);
+      toast.error(sfText("storefront.checkout.shippingQuoteFailed"));
+      document.getElementById("sfc-shipping")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
     setSubmitting(true);
     // The wizard reported these as the customer passed each step; on one page
     // both moments collapse into the submit, in the order GA4 and Meta expect.
@@ -8623,7 +8678,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         setSubmitting(false);
         return;
       }
-      const cleanPhone = form.primary_phone.replace(/\s/g, "");
+      const cleanPhone = normalizeEgyptMobile(form.primary_phone);
       const paymentMethod = paymentMode === "cod"
         ? "cod"
         : isOnlineGatewayPayment
@@ -8664,6 +8719,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         payment_method: paymentMethod,
         payment_type: paymentMethod,
         primary_phone: cleanPhone,
+        secondary_phone: form.secondary_phone.trim() ? normalizeEgyptMobile(form.secondary_phone) : "",
         delivery_fee: deliveryFee,
         shipping_fee: deliveryFee,
         shipping_cost: deliveryFee,
@@ -8732,7 +8788,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         },
         checkout: { ...checkoutPayload, shipping_payment_method: shippingPaymentMethod, coupon_code: couponCodeToSend, coupon_discount_amount: couponDiscountToSend },
         customer_reviews: data.customer_reviews || null,
-        delivery_estimate: shippingQuote.delivery_estimate || null,
+        // The server's estimate is quoted when the order is placed; the page's may predate the cut-off.
+        delivery_estimate: data.delivery_estimate || shippingQuote.delivery_estimate || null,
       };
       trackMetaPurchase({
         order: data.order,
@@ -8831,13 +8888,21 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       const backendMessage = error?.responseBody?.message || error?.message;
       const couponReason = error?.responseBody?.details?.coupon?.reason || error?.responseBody?.coupon?.reason || backendMessage;
       const field = String(error?.responseBody?.field || "").toLowerCase();
+      if (Number(error?.status || error?.response?.status || 0) === 403 && field === "payment_method" && String(error?.responseBody?.details?.payment_method || "").toLowerCase() === "cod") {
+        // The store switched cash on delivery off after this page quoted it. Hide it (the payment
+        // effect moves the shopper to an accepted method) and point at the payment section.
+        setShippingQuote((prev) => ({ ...prev, cod_allowed: false }));
+        toast.error(sfText("storefront.checkout.codUnavailableChooseAnother"));
+        document.getElementById("sfc-payment")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
       const reason = String(error?.responseBody?.details?.reason || "");
       if (reason === "not_on_whatsapp" || reason === "invalid_secondary_phone") {
         // The submit's own check disagreed with (or ran before) the live field check: say it on
         // the field and take the customer there, in their language.
         const message = sfText(reason === "not_on_whatsapp" ? "storefront.validation.notOnWhatsapp" : "storefront.validation.invalidSecondaryPhone");
         if (reason === "not_on_whatsapp") {
-          const phone = form.primary_phone.replace(/\D/g, "");
+          const phone = normalizeEgyptMobile(form.primary_phone);
           whatsappAnswersRef.current.set(phone, false);
           setWhatsappCheck({ phone, exists: false, checking: false });
         }
@@ -8969,7 +9034,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
                 autoComplete="tel"
                 maxLength={16}
                 required
-                error={errors.primary_phone || (whatsappCheck.exists === false && whatsappCheck.phone === form.primary_phone.replace(/\D/g, "") ? sfText("storefront.validation.notOnWhatsapp") : "")}
+                error={errors.primary_phone || (whatsappCheck.exists === false && whatsappCheck.phone === normalizeEgyptMobile(form.primary_phone) ? sfText("storefront.validation.notOnWhatsapp") : "")}
                 hint={whatsappCheck.checking
                   ? onePage("phoneCheckingWhatsapp")
                   : whatsappCheck.exists === true ? `✓ ${onePage("phoneOnWhatsapp")}` : onePage("phoneHint")}
@@ -9206,9 +9271,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
                     <span className="sfc-choice__meta">
                       {shippingQuote.loading
                         ? <Loader2 size={16} className="animate-spin" aria-label={t("common.loading")} />
-                        : couponFreeShipping || deliveryFee <= 0
-                          ? sfText("storefront.checkout.freeShipping")
-                          : money(deliveryFee)}
+                        : shippingQuote.failed
+                          ? (
+                            <button type="button" className="sfc-link" onClick={() => setShippingRequoteToken((token) => token + 1)}>
+                              {sfText("storefront.checkout.shippingQuoteRetry")}
+                            </button>
+                          )
+                          : couponFreeShipping || deliveryFee <= 0
+                            ? sfText("storefront.checkout.freeShipping")
+                            : money(deliveryFee)}
                     </span>
                   )}
                 />
@@ -9238,9 +9309,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
                   {applePayAvailable ? <p>{sfText("storefront.checkout.online.applePayNote")}</p> : null}
                 </CheckoutChoice>
               ) : null}
-              <CheckoutChoice active={paymentMode === "cod"} onSelect={selectCodPayment} title={sfText("storefront.checkout.payment.cod.title")}>
-                <p>{sfText("storefront.checkout.payment.cod.text")}</p>
-              </CheckoutChoice>
+              {codAvailable ? (
+                <CheckoutChoice active={paymentMode === "cod"} onSelect={selectCodPayment} title={sfText("storefront.checkout.payment.cod.title")}>
+                  <p>{sfText("storefront.checkout.payment.cod.text")}</p>
+                </CheckoutChoice>
+              ) : null}
               <CheckoutChoice
                 active={paymentMode === "electronic"}
                 onSelect={selectTransferPayment}

@@ -620,6 +620,10 @@
     "finalShippingAtCheckout": "يُحتسب الشحن النهائي عند الدفع",
     "completePurchase": "إتمام الشراء",
     "codUnavailable": "الدفع عند الاستلام غير متاح حالياً.",
+    "codUnavailableChooseAnother": "الدفع عند الاستلام مش متاح دلوقتي. اختار طريقة دفع تانية من قسم الدفع.",
+    "shippingQuoteFailed": "معرفناش نحسب الشحن لعنوانك. بنحاول تاني، راجع مصاريف الشحن وبعدين أكمل الطلب.",
+    "shippingQuoteRetry": "إعادة المحاولة",
+    "shippingQuoteUnavailable": "تعذّر حساب الشحن",
     "lineTotal": "الإجمالي",
     "quantity": "الكمية",
     "online": {
