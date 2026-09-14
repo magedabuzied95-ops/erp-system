@@ -2325,7 +2325,7 @@ const resolveOrderLinesStockBatch = async (client, { tenantId, items = [] } = {}
 
   if (lineInputs.some((line) => line.requiresLegacyLookup)) {
     const fallback = new Map();
-    for (const line of lineInputs) {
+    for (const line of sortLinesForRowLocks(lineInputs)) {
       fallback.set(String(line.index), await resolveOrderLineStock(client, { tenantId, item: line.item }));
     }
     assertResolvedStockCoversLines(items, fallback);
@@ -2437,9 +2437,26 @@ const resolveOrderLinesStockBatch = async (client, { tenantId, items = [] } = {}
   return stockByLineKey;
 };
 
+// Rows are locked one line at a time on the fallback paths. Two tills taking
+// the same rows in different orders would deadlock, so lines always lock in
+// ascending variant/product id order.
+const sortLinesForRowLocks = (lines = []) =>
+  [...lines].sort((left, right) => {
+    const key = (line) => {
+      const item = line.item || {};
+      const variantId = Number(item.variant_id ?? item.variantId);
+      if (Number.isFinite(variantId) && variantId > 0) return [0, variantId];
+      const productId = Number(item.product_id ?? item.productId);
+      return [1, Number.isFinite(productId) ? productId : Number.MAX_SAFE_INTEGER];
+    };
+    const [leftGroup, leftId] = key(left);
+    const [rightGroup, rightId] = key(right);
+    return leftGroup - rightGroup || leftId - rightId || left.index - right.index;
+  });
+
 const resolveOrderLinesStockBatchLegacy = async (client, { tenantId, items = [] } = {}) => {
   const stockByLineKey = new Map();
-  for (const [index, item] of items.entries()) {
+  for (const { index, item } of sortLinesForRowLocks(items.map((item, index) => ({ index, item })))) {
     stockByLineKey.set(String(index), await resolveOrderLineStock(client, { tenantId, item }));
   }
   assertResolvedStockCoversLines(items, stockByLineKey);

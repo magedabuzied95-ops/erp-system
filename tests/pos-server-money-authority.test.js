@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const source = readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
+// A Windows checkout with autocrlf hands the file over with \r\n; the markers below use \n.
+const source = readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 const sliceBetween = (start, end) => {
   const from = source.indexOf(start);
