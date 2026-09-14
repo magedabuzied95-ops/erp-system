@@ -516,6 +516,14 @@
   box-shadow: var(--sfx-shadow-sheet);
 }
 
+/* No dvh (iOS < 15.4, Chrome < 108): the sheet would grow past the top of the
+   screen. Behind @supports because the minifier folds a plain vh fallback away. */
+@supports not (height: 1dvh) {
+  .sfc-sheet {
+    max-height: 80vh;
+  }
+}
+
 /* The sfx-drawer__title look: 17px / 700, no uppercase. */
 .sfc-sheet__head {
   display: flex;

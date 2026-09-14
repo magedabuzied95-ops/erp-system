@@ -857,6 +857,13 @@ body:not(.storefront-shell) .sfx-scope[data-theme="dark"] {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* No dvh (iOS < 15.4, Chrome < 108) - see the quick view sheet. */
+@supports not (height: 1dvh) {
+  :is(body.storefront-shell, .sfx-scope) .sfx-drawer--bottom {
+    max-height: 92vh;
+  }
+}
+
 :is(body.storefront-shell, .sfx-scope) .sfx-drawer--end {
   position: fixed;
   inset-block: 0;

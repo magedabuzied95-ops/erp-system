@@ -762,6 +762,15 @@ body.storefront-shell .sfx-sheet {
   box-shadow: var(--sfx-shadow-sheet) !important;
 }
 
+/* No dvh (iOS < 15.4, Chrome < 108): without a height the sheet grows to its
+   content and the body never scrolls. A plain vh line in front of the dvh one
+   would be folded away by the minifier, so it lives behind @supports. */
+@supports not (height: 1dvh) {
+  body.storefront-shell .sfx-sheet {
+    max-height: 92vh;
+  }
+}
+
 body.storefront-shell .sfx-sheet__handle {
   width: 40px;
   height: 5px;

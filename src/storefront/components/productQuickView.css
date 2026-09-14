@@ -48,6 +48,19 @@ body.storefront-shell .sfq__panel {
   animation: sfq-rise 260ms var(--m1h-ease);
 }
 
+/* An engine without dvh (iOS < 15.4, Chrome < 108) drops the heights above, and
+   the sheet grows past the top of the screen with its close button. A plain vh
+   line in front would not survive: the minifier folds it into the dvh one. */
+@supports not (height: 1dvh) {
+  body.storefront-shell .sfq__panel {
+    max-height: 92vh;
+  }
+
+  body.storefront-shell .sfq__media {
+    height: min(40vh, 22rem);
+  }
+}
+
 @keyframes sfq-fade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -444,6 +457,12 @@ body.storefront-shell .sfq__details:hover {
     overflow: hidden;
     border-radius: var(--m1h-r-xl);
     animation-name: sfq-pop;
+  }
+
+  @supports not (height: 1dvh) {
+    body.storefront-shell .sfq__panel {
+      max-height: min(90vh, 44rem);
+    }
   }
 
   .sfq__grab {

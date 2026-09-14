@@ -66,6 +66,14 @@ body.storefront-shell .sfg__panel {
   transform: translateY(0);
 }
 
+/* No dvh (iOS < 15.4, Chrome < 108): the sheet would grow past the top of the
+   screen. Behind @supports because the minifier folds a plain vh fallback away. */
+@supports not (height: 1dvh) {
+  body.storefront-shell .sfg__panel {
+    max-height: 92vh;
+  }
+}
+
 @media (min-width: 768px) {
   .sfg {
     align-items: center;
