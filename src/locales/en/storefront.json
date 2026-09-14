@@ -922,7 +922,7 @@
       },
       "returnWindow": {
         "q": "Can I exchange or return a product?",
-        "a": "Yes, within {{days}} days of delivery, as long as the product is in its original condition with its box and the invoice or order number."
+        "a": "Yes, within {{days}} days of delivery, as long as the product is in its original condition with its box and the invoice or order number. Bags cannot be exchanged or returned."
       },
       "returnShipping": {
         "q": "Who pays for exchange shipping?",
@@ -955,6 +955,10 @@
       "signIn": {
         "q": "How do I sign in?",
         "a": "With your email and password, or with your mobile number and a code sent to you on WhatsApp."
+      },
+      "bagsReturns": {
+        "q": "Can I exchange or return a bag?",
+        "a": "No, bags cannot be exchanged or returned. Check the model and colour before you order, and message us on WhatsApp if you are unsure."
       }
     }
   },
@@ -1016,7 +1020,9 @@
       "changeTitle": "Changed your mind?",
       "changeText": "You cover shipping both ways",
       "inspectionTitle": "We inspect the product",
-      "inspectionText": "before approving the exchange or return"
+      "inspectionText": "before approving the exchange or return",
+      "bagsTitle": "Bags are final sale",
+      "bagsText": "They cannot be exchanged or returned, so check your choice first"
     }
   },
   "reviews": {

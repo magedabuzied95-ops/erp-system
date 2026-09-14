@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { BadgeCheck, CalendarDays, Plus, RefreshCcw, Search, Truck } from "lucide-react";
+import { BadgeCheck, CalendarDays, Plus, RefreshCcw, Search, ShoppingBag, Truck } from "lucide-react";
 import { sfText } from "../lib/sfText";
 import { normalizeMerchantReturnPolicy } from "../../shared/lib/merchantPolicies";
 import { ROOT_PATHS } from "../lib/paths";
@@ -71,6 +71,7 @@ const FAQ_GROUPS = [
     title: () => sfText("storefront.faq.groups.returns", "الاستبدال والاسترجاع"),
     items: [
       { id: "return-window", q: () => sfText("storefront.faq.items.returnWindow.q"), a: (days) => sfText("storefront.faq.items.returnWindow.a", undefined, { days }), link: { to: "/returns", label: () => sfText("storefront.faq.readReturnsPolicy", "اقرأ سياسة الاستبدال") } },
+      { id: "bags-returns", q: () => sfText("storefront.faq.items.bagsReturns.q"), a: () => sfText("storefront.faq.items.bagsReturns.a") },
       { id: "return-shipping", q: () => sfText("storefront.faq.items.returnShipping.q"), a: () => sfText("storefront.faq.items.returnShipping.a") },
       { id: "start-exchange", q: () => sfText("storefront.faq.items.startExchange.q"), a: () => sfText("storefront.faq.items.startExchange.a") },
       { id: "refund", q: () => sfText("storefront.faq.items.refund.q"), a: () => sfText("storefront.faq.items.refund.a") },
@@ -205,6 +206,7 @@ export function ReturnsPolicyPage({ publicStoreSettings = {}, whatsappHref = "" 
       id: "returns-excluded",
       title: sfText("storefront.returns.policy.excludedTitle"),
       items: [
+        sfText("storefront.returns.noBags"),
         sfText("storefront.returns.policy.excluded1"),
         sfText("storefront.returns.policy.excluded2"),
         sfText("storefront.returns.policy.excluded3"),
@@ -268,6 +270,11 @@ export function ReturnsPolicyPage({ publicStoreSettings = {}, whatsappHref = "" 
         items: [conditions.unused_original_condition, conditions.invoice_required].filter(Boolean),
       },
       {
+        id: "returns-excluded",
+        title: sfText("storefront.returns.policy.excludedTitle"),
+        items: [sfText("storefront.returns.noBags")],
+      },
+      {
         id: "returns-shipping",
         title: sfText("storefront.returns.policy.shippingCostTitle"),
         items: [conditions.customer_choice_shipping, conditions.defect_shipping].filter(Boolean),
@@ -281,6 +288,7 @@ export function ReturnsPolicyPage({ publicStoreSettings = {}, whatsappHref = "" 
       { key: "store", Icon: Truck, title: sfText("storefront.returns.facts.storeErrorTitle", "الغلط مننا؟ الشحن علينا"), text: sfText("storefront.returns.facts.storeErrorText", "مقاس أو منتج مختلف أو عيب صناعة") },
       { key: "change", Icon: RefreshCcw, title: sfText("storefront.returns.facts.changeTitle", "غيّرت رأيك؟"), text: sfText("storefront.returns.facts.changeText", "بتتحمل مصاريف الشحن رايح جاي") },
     ]),
+    { key: "bags", Icon: ShoppingBag, title: sfText("storefront.returns.facts.bagsTitle", "الشنط مش بتتبدل"), text: sfText("storefront.returns.facts.bagsText", "ولا بترجع، فاتأكد من اختيارك قبل الطلب") },
     { key: "inspection", Icon: BadgeCheck, title: sfText("storefront.returns.facts.inspectionTitle", "بنفحص المنتج"), text: sfText("storefront.returns.facts.inspectionText", "قبل الموافقة على الاستبدال أو الاسترجاع") },
   ];
 
