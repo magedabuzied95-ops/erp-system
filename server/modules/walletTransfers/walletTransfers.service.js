@@ -111,7 +111,13 @@ const findCandidateOrders = async (client, transfer) => {
       AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'payment_rejected', 'returned')
       AND created_at >= $2::timestamptz - INTERVAL '${MATCH_WINDOW_BEFORE}'
       AND created_at <= $2::timestamptz + INTERVAL '${MATCH_WINDOW_AFTER}'
-      AND ABS(COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - $3::numeric) < 0.01
+      -- A shipping-fee advance order (restricted closing system) waits on the fee, not the total.
+      AND ABS(
+        COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0)
+        - CASE WHEN COALESCE(cod_amount, 0) < COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0)
+               THEN COALESCE(cod_amount, 0) ELSE 0 END
+        - $3::numeric
+      ) < 0.01
       AND NOT EXISTS (SELECT 1 FROM wallet_transfers wt WHERE wt.order_id = orders.id AND wt.status = 'matched')
     ORDER BY created_at DESC
     LIMIT 20

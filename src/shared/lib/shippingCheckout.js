@@ -67,6 +67,9 @@ export const normalizeShippingQuote = (quote = {}) => ({
   loading: false,
   price: Number.isFinite(Number(quote.price ?? quote.shipping_price)) ? Number(quote.price ?? quote.shipping_price) : 0,
   cod_allowed: quote.cod_allowed !== false,
+  // "shipping_fee" once the restricted closing system is on; absent on an older backend.
+  advance: quote.cod_policy?.advance === "shipping_fee" ? "shipping_fee" : "order_total",
+  store_cod_allowed: quote.cod_policy?.store_cod_allowed !== false,
   requires_shipping_proof: quote.requires_shipping_proof !== false,
   estimated_delivery_text: String(quote.estimated_delivery_text || ""),
   delivery_estimate: quote.delivery_estimate && typeof quote.delivery_estimate === "object" ? quote.delivery_estimate : null,

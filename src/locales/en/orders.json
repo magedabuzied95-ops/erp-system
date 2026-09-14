@@ -1020,6 +1020,7 @@
       "BOSTA_ADDRESS_INCOMPLETE": "The address is missing its city, zone or district — complete it on the Orders page",
       "BOSTA_ADDRESS_TOO_SHORT": "The address is too short — complete it on the Orders page",
       "BOSTA_ZERO_COLLECTION": "The amount to collect is zero — check the payment on the Orders page",
+      "SHIPPING_FEE_NOT_PAID": "This governorate pays the shipping fee in advance — confirm the shipping payment before creating the shipment",
       "BOSTA_NO_PRINTABLE_LABEL": "There is no airway bill to print yet",
       "BOSTA_AWB_EMPTY": "Bosta did not return the airway bill — try again shortly",
       "ONLINE_ORDERS_ACTIONS_DISABLED": "You are not allowed to do this",

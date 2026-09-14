@@ -26,15 +26,19 @@ test("submit prices paid_amount and remaining_amount from the validation it send
   assert.match(submit, /const orderTotal = Math\.max\(0, subtotal - \(couponDiscountToSend \+ bundleDiscount\) \+ deliveryFee\)/);
   assert.match(submit, /paid_amount: paidAmount/);
   assert.match(submit, /remaining_amount: Math\.max\(0, orderTotal - paidAmount\)/);
-  assert.match(submit, /const paidAmount = [^;]*orderTotal;/);
+  // The transfer is the whole order, or only the shipping fee under the restricted
+  // closing system — both priced from the validation being sent.
+  assert.match(submit, /const transferAmountToSend = shippingFeeAdvance \? \(couponFreeShippingToSend \? 0 : Math\.min\(deliveryFee, orderTotal\)\) : orderTotal;/);
+  assert.match(submit, /const paidAmount = [^;]*transferAmountToSend;/);
   assert.doesNotMatch(submit, /const paidAmount = [^;]*amountDueNow/, "the render-time amount must not be sent");
 });
 
 test("a transfer whose amount changed on re-validation stops and names the new amount", () => {
   const submit = between("const submit = async (event) => {", "const cleanPhone = ");
-  const guard = submit.slice(submit.indexOf("if (isShippingConfirmation && Math.abs(orderTotal - total)"));
-  assert.ok(guard.length > 0, "the transfer guard exists");
-  assert.match(guard, /sfText\("storefront\.checkout\.couponTotalChanged", "", \{ amount: money\(orderTotal\) \}\)/);
+  const index = submit.indexOf("if (isShippingConfirmation && Math.abs(transferAmountToSend - amountDueNow)");
+  assert.ok(index > -1, "the transfer guard exists");
+  const guard = submit.slice(index);
+  assert.match(guard, /sfText\("storefront\.checkout\.couponTotalChanged", "", \{ amount: money\(transferAmountToSend\) \}\)/);
   assert.match(guard, /setSubmitting\(false\);\s*return;/);
 });
 

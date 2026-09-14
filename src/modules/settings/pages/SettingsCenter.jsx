@@ -243,7 +243,7 @@ const sectionMap = {
     ["Shipping Providers", ["orders.shipping_provider", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package"]],
   ],
   payments: [
-    ["Cash on Delivery", ["orders.allow_cod"]],
+    ["Cash on Delivery", ["orders.allow_cod", "orders.cod_policy_mode", "orders.cod_governorates"]],
     ["Instapay", ["payments.instapay_enabled", "payments.instapay_handle"]],
     ["Vodafone Cash", ["payments.vodafone_cash_enabled", "payments.vodafone_cash_number"]],
     ["Paymob", ["payments.paymob_enabled"]],
@@ -252,7 +252,7 @@ const sectionMap = {
   ],
   orders: [
     ["Order numbering", ["orders.order_number_prefix", "orders.invoice_number_prefix"]],
-    ["Checkout", ["orders.default_website_order_status", "orders.default_pos_order_status", "orders.auto_confirm_website_orders", "orders.allow_cod", "orders.allow_store_pickup"]],
+    ["Checkout", ["orders.default_website_order_status", "orders.default_pos_order_status", "orders.auto_confirm_website_orders", "orders.allow_cod", "orders.cod_policy_mode", "orders.cod_governorates", "orders.allow_store_pickup"]],
     ["Stock reservation", ["orders.reserve_stock_on_website_order", "orders.reserve_stock_expiry_minutes", "orders.cancel_unpaid_after_minutes"]],
   ],
   pos: [

@@ -1,6 +1,8 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
+import { loadCodPolicySettings } from "../../services/storefrontShippingService.js";
+import { resolveCodPolicy, resolveGovernorateId } from "../../../shared/codPolicy.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
@@ -19,6 +21,7 @@ const BOSTA_NOT_CONFIGURED_MESSAGE = "لم يتم إنشاء أي شحنة عل�
 const BOSTA_DISABLED_MESSAGE = "تكامل بوسطة معطّل في إعدادات الشحن. فعّله أولاً قبل إنشاء الشحنات.";
 const BOSTA_NO_LABEL_MESSAGE = "مفيش شحنة على بوسطة للطلبات المختارة، فمافيش ملصق يتطبع. أنشئ الشحنة الأول ثم اطبع الملصق.";
 const BOSTA_ZERO_COLLECTION_MESSAGE = "الطلب لسه عليه مبلغ متبقّي، لكن طريقة الدفع مسجّلة كمدفوعة مسبقاً — فالشحنة هتروح لبوسطة بتحصيل صفر. صحّح بيانات الدفع أو اكتب مبلغ التحصيل في تبويب التكاليف قبل إنشاء الشحنة.";
+const SHIPPING_FEE_NOT_PAID_MESSAGE = "نظام تقفيل الأوردر المقفول شغّال: المحافظة دي مش من محافظات الدفع عند الاستلام، فلازم رسوم الشحن تتدفع ويتأكد التحويل قبل إنشاء الشحنة. أكّد دفع الشحن من صفحة الأوردر الأول.";
 const BOSTA_SHIPMENT_EXISTS_MESSAGE = "الطلب ده عنده شحنة قايمة على بوسطة بالفعل. إنشاء شحنة تانية مش بيعدّل القديمة — بوسطة بتطلّع طرد جديد مستقل، والمندوب يبقى معاه اتنين. لو عايز تعيد إنشاءها، ألغِ الشحنة الحالية الأول.";
 
 // Turning the integration off has to actually stop new deliveries, otherwise the
@@ -816,6 +819,36 @@ export const resolveBostaCollection = ({ order = {}, override } = {}) => {
   return { amount: 0, owed, source: "prepaid_method", blocked: true, reason: "unpaid_order_marked_prepaid" };
 };
 
+// The restricted closing system, enforced where the parcel leaves so it holds for
+// every channel: the storefront, the till, the inbox and the AI drafts. Outside the
+// COD governorates the shipping fee has to be paid, and a transfer still waiting on
+// review is not paid yet.
+export const resolveShippingFeeGate = ({ order = {}, city = null, policy } = {}) => {
+  const shippingFee = Number(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? 0) || 0;
+  const paid = Number(order.paid_amount ?? 0) || 0;
+  const cod = resolveCodPolicy({
+    policy,
+    // The Bosta city is where the parcel actually goes; the typed governorate is next.
+    governorate: [city?.name_en, city?.name_ar, order.governorate].find((name) => resolveGovernorateId(name)) || order.governorate || "",
+    governorateId: order.governorate_id,
+    shippingFee,
+    orderTotal: Number(order.total_amount ?? order.total_price ?? order.total ?? 0),
+  });
+  if (cod.cod_allowed) return { blocked: false, shipping_fee: shippingFee };
+  const proofStatus = normalizeKey(order.transfer_proof_status);
+  const verified = !proofStatus || proofStatus === "approved";
+  const blocked = paid + 0.009 < cod.advance_amount || !verified;
+  return { blocked, shipping_fee: cod.advance_amount, paid_amount: paid, transfer_proof_status: proofStatus || null };
+};
+
+const shippingFeeNotPaidError = (gate = {}) => {
+  const error = new Error(`${SHIPPING_FEE_NOT_PAID_MESSAGE} (${gate.shipping_fee} ج.م)`);
+  error.status = 409;
+  error.code = "SHIPPING_FEE_NOT_PAID";
+  error.payload = { shipping_fee: gate.shipping_fee, paid_amount: gate.paid_amount, transfer_proof_status: gate.transfer_proof_status };
+  return error;
+};
+
 const bostaZeroCollectionError = (collection = {}) => {
   const error = new Error(BOSTA_ZERO_COLLECTION_MESSAGE);
   error.status = 409;
@@ -943,6 +976,12 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       error.status = 400;
       error.code = "BOSTA_ADDRESS_TOO_SHORT";
       throw error;
+    }
+
+    const shippingFeeGate = resolveShippingFeeGate({ order, city, policy: await loadCodPolicySettings() });
+    if (shippingFeeGate.blocked) {
+      console.error("[bosta] refusing to ship before the shipping fee is paid (restricted closing system)", { orderId: order.id, governorate: order.governorate, ...shippingFeeGate });
+      throw shippingFeeNotPaidError(shippingFeeGate);
     }
 
     const collection = resolveBostaCollection({ order, override: options.codAmount });

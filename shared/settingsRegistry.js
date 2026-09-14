@@ -1,5 +1,6 @@
 import { ORDER_LIFECYCLE_STATUSES, ORDER_STATUS_LABELS } from "./orderStatus.js";
 import { defaultEgyptShippingLocations } from "./egyptShippingLocations.js";
+import { DEFAULT_COD_GOVERNORATES, governorateOptions } from "./codPolicy.js";
 import { BARCODE_PRINT_DEFAULTS, DISPLAY_REFILL_BARCODE_DEFAULTS } from "./barcodePrintSettings.js";
 import { THERMAL_ARTWORK_DEFAULTS } from "./thermalArtworkSettings.js";
 import { SHIPMENT_NOTIFICATION_DEFAULTS } from "./shipmentNotificationTemplates.js";
@@ -136,6 +137,8 @@ const definitions = [
   ["orders.auto_confirm_website_orders", "orders", "boolean", false, "Auto-confirm website orders", "تأكيد طلبات الموقع تلقائيا", "Move new website orders directly to confirmed.", "نقل طلبات الموقع الجديدة إلى مؤكد تلقائيا."],
   ["orders.require_admin_approval_before_fulfillment", "orders", "boolean", true, "Require approval before fulfillment", "موافقة قبل التجهيز", "Prevents fulfillment before admin approval.", "يمنع التجهيز قبل موافقة الإدارة."],
   ["orders.allow_cod", "payments", "boolean", true, "Allow COD", "السماح بالدفع عند الاستلام", "Enable cash on delivery for website orders.", "تفعيل الدفع عند الاستلام لطلبات الموقع.", { isPublic: true }],
+  ["orders.cod_policy_mode", "payments", "select", "open", "Order closing system", "نظام تقفيل الأوردر", "Open: every governorate may pay on delivery. Restricted: only the governorates below may; everyone else transfers the shipping fee before shipping and pays the rest on delivery.", "مفتوح: كل المحافظات تقدر تدفع عند الاستلام. مقفول: المحافظات المختارة بس هي اللي تدفع عند الاستلام، وأي محافظة تانية لازم تحوّل رسوم الشحن قبل الشحن والباقي عند الاستلام.", { options: [option("open", "Open — cash on delivery everywhere", "مفتوح — الدفع عند الاستلام لكل المحافظات"), option("restricted", "Restricted — shipping fee in advance outside the listed governorates", "مقفول — رسوم الشحن مقدّم خارج المحافظات المختارة")], isPublic: true, usedBy: ["Checkout", "Orders"] }],
+  ["orders.cod_governorates", "payments", "multiselect", DEFAULT_COD_GOVERNORATES, "Cash on delivery governorates", "محافظات الدفع عند الاستلام", "Used only by the restricted system: these governorates keep cash on delivery.", "بتشتغل في النظام المقفول بس: المحافظات دي يفضل فيها الدفع عند الاستلام.", { options: governorateOptions.map((item) => option(item.value, item.en, item.ar)), isPublic: true, usedBy: ["Checkout", "Orders"] }],
   ["payments.instapay_enabled", "payments", "boolean", true, "Instapay enabled", "تفعيل إنستاباي", "Allow customers to pay shipping or order deposits through Instapay.", "السماح للعملاء بدفع الشحن أو مقدم الطلب عبر إنستاباي.", { isPublic: true, placeholder: true }],
   ["payments.instapay_handle", "payments", "text", "", "Instapay handle", "حساب إنستاباي", "Customer-facing Instapay handle.", "حساب إنستاباي الظاهر للعملاء.", { isPublic: true }],
   ["payments.vodafone_cash_enabled", "payments", "boolean", true, "Vodafone Cash enabled", "تفعيل فودافون كاش", "Allow Vodafone Cash transfers.", "السماح بتحويلات فودافون كاش.", { isPublic: true, placeholder: true }],

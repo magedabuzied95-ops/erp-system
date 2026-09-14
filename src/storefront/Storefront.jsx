@@ -94,6 +94,7 @@ import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct
 import { productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
+import { governorateOptions, normalizeCodPolicy } from "../../shared/codPolicy.js";
 import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
 import { pickAutomaticPair } from "./lib/pairPicker.js";
 import { hasStorefrontHomeContent, keepHomeFilterRowWhenEmpty, nextHomeFilterRowAudience, persistedStorefrontHomeData } from "./lib/listingHomeState.js";
@@ -7615,7 +7616,12 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
     : form.governorate && shippingQuote.match_level
       ? shippingQuote.free_shipping_threshold
       : storeFreeShippingThreshold;
-  const codAvailable = shippingQuote.cod_allowed !== false;
+  // The restricted closing system: outside the COD governorates the customer transfers
+  // the shipping fee now and pays the rest on delivery. A waived fee leaves nothing to
+  // prepay, so cash on delivery comes back — the server resolves it the same way.
+  const shippingFeeAdvance = shippingQuote.advance === "shipping_fee";
+  const shippingAdvanceAmount = couponFreeShipping ? 0 : Math.min(deliveryFee, total);
+  const codAvailable = shippingQuote.cod_allowed !== false || (shippingFeeAdvance && shippingAdvanceAmount <= 0 && shippingQuote.store_cod_allowed);
   const normalizedFormPaymentMethod = paymentMode === "cod"
     ? "cod"
     : paymentMode === "online"
@@ -7624,7 +7630,16 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   const isOnlineGatewayPayment = paymentMode === "online";
   const isShippingConfirmation = paymentMode === "electronic";
   const shippingProofRequired = isShippingConfirmation;
-  const amountDueNow = normalizedFormPaymentMethod === "cod" ? 0 : total;
+  const amountDueNow = normalizedFormPaymentMethod === "cod" ? 0 : shippingFeeAdvance ? shippingAdvanceAmount : total;
+  const codGovernorateNames = useMemo(() => {
+    const { governorates } = normalizeCodPolicy({ governorates: publicStoreSettings?.["orders.cod_governorates"] });
+    const isArabic = String(checkoutLanguage || "").startsWith("ar");
+    return governorates
+      .map((id) => governorateOptions.find((option) => option.value === id))
+      .filter(Boolean)
+      .map((option) => (isArabic ? option.ar : option.en))
+      .join(isArabic ? " و" : ", ");
+  }, [publicStoreSettings, checkoutLanguage]);
   const couponCode = String(form.coupon || "").trim().toUpperCase();
   // The proof upload is validated on submit (with a message pointing at it), so it
   // does not grey the button out: a disabled button explains nothing.
@@ -8688,8 +8703,17 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       // A transfer was made for the amount on screen. If the fresh discount changed it, sending
       // now would be rejected (paid must equal total) after the customer already paid the old
       // figure — stop here so they see the new amount, which is now rendered, and transfer that.
-      if (isShippingConfirmation && Math.abs(orderTotal - total) >= 0.01) {
-        toast.error(sfText("storefront.checkout.couponTotalChanged", "", { amount: money(orderTotal) }));
+      // Under the restricted system only the shipping fee is transferred, and the
+      // re-validated coupon can change that figure too (a free-shipping code waives it).
+      const couponFreeShippingToSend = Boolean(activeCouponValidation?.valid && activeCouponValidation?.free_shipping);
+      const transferAmountToSend = shippingFeeAdvance ? (couponFreeShippingToSend ? 0 : Math.min(deliveryFee, orderTotal)) : orderTotal;
+      if (shippingFeeAdvance && paymentMode === "cod" && !codAvailable && transferAmountToSend > 0) {
+        toast.error(sfText("storefront.checkout.codUnavailableForGovernorate"));
+        setSubmitting(false);
+        return;
+      }
+      if (isShippingConfirmation && Math.abs(transferAmountToSend - amountDueNow) >= 0.01) {
+        toast.error(sfText("storefront.checkout.couponTotalChanged", "", { amount: money(transferAmountToSend) }));
         setSubmitting(false);
         return;
       }
@@ -8702,7 +8726,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       const shippingPaymentMethod = paymentMode === "cod" || isOnlineGatewayPayment ? "" : paymentMethod;
       // A gateway order carries no money yet — the webhook is what records the
       // payment, so claiming an amount here would be rejected by the server.
-      const paidAmount = isOnlineGatewayPayment || normalizedFormPaymentMethod === "cod" ? 0 : orderTotal;
+      const paidAmount = isOnlineGatewayPayment || normalizedFormPaymentMethod === "cod" ? 0 : transferAmountToSend;
       const selectedShippingProvider = bostaMode && form.shipping_city_id ? "bosta" : (shippingQuote.provider_id || shippingQuote.provider || "in_store_delivery");
       const shippingProviderAddress = {
         country: "EG",
@@ -9334,6 +9358,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
                 <CheckoutChoice active={paymentMode === "cod"} onSelect={selectCodPayment} title={sfText("storefront.checkout.payment.cod.title")}>
                   <p>{sfText("storefront.checkout.payment.cod.text")}</p>
                 </CheckoutChoice>
+              ) : shippingFeeAdvance ? (
+                <p className="sfc-pane">
+                  {sfText("storefront.checkout.codOnlyForGovernorates", "", { governorates: codGovernorateNames })}
+                </p>
               ) : null}
               <CheckoutChoice
                 active={paymentMode === "electronic"}

@@ -48,7 +48,8 @@ import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResol
 // ONE definition of "this product is a curated offer", shared with POS and the AI resolver.
 import { isForcedOfferSale } from "../../src/shared/lib/effectiveCustomerPrice.js";
 import { crocsSizeAliases } from "../../src/shared/lib/crocsSizes.js";
-import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
+import { loadCodPolicySettings, resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
+import { resolveCodPolicy } from "../../shared/codPolicy.js";
 import {
   createStorefrontCustomerReviewData,
   isValidCustomerReviewEmail,
@@ -6003,10 +6004,30 @@ export const createWebsiteOrder = async (req, res) => {
         shipping_quote: shippingQuote,
       });
     }
+    // The closing system (orders.cod_policy_mode). Resolved again here with the fee
+    // actually charged: a free-shipping coupon leaves nothing to prepay.
+    const codPolicy = resolveCodPolicy({
+      policy: await loadCodPolicySettings(),
+      governorate: checkout.governorate,
+      governorateId: checkout.governorate_id || shippingQuote.governorate_id,
+      shippingFee: couponValidation?.free_shipping ? 0 : deliveryFee,
+      orderTotal: total,
+    });
+    // The till takes the order as COD on the customer's behalf; for it the rule is
+    // enforced where the parcel leaves (the shipment gate), not at the counter.
+    if (paymentMethod === "cod" && !codPolicy.cod_allowed && !posOnlineOrder) {
+      await client.query("ROLLBACK");
+      return checkoutValidationResponse(403, "Cash on delivery is not available for this governorate. Transfer the shipping fee to confirm the order.", "payment_method", {
+        payment_method: paymentMethod,
+        governorate: checkout.governorate,
+        advance_amount: codPolicy.advance_amount,
+      });
+    }
+    const transferAmount = codPolicy.advance === "shipping_fee" ? codPolicy.advance_amount : total;
     const requestedPaidAmount = toNumber(checkout.paid_amount, 0);
     // A gateway order is not paid yet at this point — the money only exists
     // once Paymob's webhook lands, so it starts at zero like a COD order.
-    const expectedPaidAmount = paymentMethod === "cod" || isGatewayCheckout ? 0 : total;
+    const expectedPaidAmount = paymentMethod === "cod" || isGatewayCheckout ? 0 : transferAmount;
     if (roundMoney(requestedPaidAmount) !== roundMoney(expectedPaidAmount)) {
       await client.query("ROLLBACK");
       return checkoutValidationResponse(400, "Paid amount must equal the order total for electronic payments", "paid_amount", {
@@ -6037,7 +6058,7 @@ export const createWebsiteOrder = async (req, res) => {
     // matches the total (checked above); storing it as paid let a parcel leave with no cash to
     // collect and reports count money nobody verified. It waits as awaiting_verification until a
     // person approves the proof or the wallet SMS matches — applyTransferPaymentConfirmation then
-    // moves the total into paid_amount.
+    // moves the transferred amount into paid_amount.
     const paidAmount = 0;
     const remainingAmount = Math.max(0, total - paidAmount);
     const paymentStatus = paymentMethod === "cod" || isGatewayCheckout ? "unpaid" : "awaiting_verification";
@@ -6052,7 +6073,9 @@ export const createWebsiteOrder = async (req, res) => {
           ? "confirmed"
           : orderSettings.defaultWebsiteStatus;
     const transferProofStatus = paymentMethod === "cod" || isGatewayCheckout ? null : "pending";
-    const codAmount = paymentMethod === "cod" ? total : 0;
+    // A shipping-fee transfer (restricted closing system) leaves the goods for the courier to
+    // collect. cod_amount is also how the approval and the wallet SMS tell it from a full transfer.
+    const codAmount = paymentMethod === "cod" ? total : isGatewayCheckout ? 0 : Math.max(0, roundMoney(total - transferAmount));
     const token = publicToken();
     const invoiceNumber = buildTemporaryInvoiceNumber();
     const shippingAddressLine = [

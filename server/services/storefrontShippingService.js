@@ -1,6 +1,7 @@
 import { getSetting } from "./settingsService.js";
 import { normalizeShippingProviderKey } from "./shippingProviders/index.js";
 import { resolveQuoteDeliveryEstimate } from "./storefrontDeliveryEstimateService.js";
+import { resolveCodPolicy } from "../../shared/codPolicy.js";
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -130,14 +131,23 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
   active: bool(zone.active, true),
 });
 
+export const loadCodPolicySettings = async () => {
+  const [mode, governorates] = await Promise.all([
+    getSetting("orders.cod_policy_mode", "open"),
+    getSetting("orders.cod_governorates", null),
+  ]);
+  return { mode, governorates: Array.isArray(governorates) ? governorates : undefined };
+};
+
 export const loadShippingZones = async () => {
-  const [defaultPrice, zones, defaultProvider, locations, codAllowed, storeFreeShippingThreshold] = await Promise.all([
+  const [defaultPrice, zones, defaultProvider, locations, codAllowed, storeFreeShippingThreshold, codPolicy] = await Promise.all([
     getSetting("storefront.default_shipping_price", 60),
     getSetting("storefront.shipping_zones", []),
     getSetting("orders.shipping_provider", "in_store_delivery"),
     getSetting("storefront.shipping_locations", []),
     getSetting("orders.allow_cod", true),
     getSetting("storefront.free_shipping_threshold", 0),
+    loadCodPolicySettings(),
   ]);
   // The store-wide threshold fills every zone that has none of its own, so the quote,
   // the order, the merchant feed and the AI all see one effective number per zone.
@@ -178,6 +188,7 @@ export const loadShippingZones = async () => {
     freeShippingThreshold,
     defaultProvider: normalizeShippingProviderKey(defaultProvider),
     codAllowed: bool(codAllowed, true),
+    codPolicy,
     zones: (Array.isArray(zones) ? zones : []).map(enrichZone).filter((zone) => zone.governorate && zone.active),
   };
 };
@@ -243,7 +254,7 @@ export const matchShippingZone = (zones = [], { governorate = "", city = "", are
 };
 
 export const resolveStorefrontShippingQuote = async ({ governorate = "", city = "", area = "", governorate_id = "", city_id = "", area_id = "", district_id = "", zone_id = "", location_id = "", subtotal = 0, order_total = 0, now = new Date() } = {}) => {
-  const { defaultPrice, defaultProvider, zones, codAllowed, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
+  const { defaultPrice, defaultProvider, zones, codAllowed, codPolicy, freeShippingThreshold: storeFreeShippingThreshold } = await loadShippingZones();
   const orderSubtotal = number(subtotal || order_total, 0);
   const match = matchShippingZone(zones, { governorate, city, area, governorate_id, city_id, area_id, district_id, zone_id, location_id });
   const zoneZone = (zone) => shippingKey(zone.zone || zone.area);
@@ -253,6 +264,15 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
   const matchedPrice = match ? number(match.price, defaultPrice) : defaultPrice;
   const price = freeShippingThreshold > 0 && orderSubtotal >= freeShippingThreshold ? 0 : matchedPrice;
   const deliveryEstimate = await resolveQuoteDeliveryEstimate({ zone: match || null, zones, now });
+  // What the page shows first. Checkout re-resolves with the fee it actually
+  // charges, since a free-shipping coupon can still waive it.
+  const cod = resolveCodPolicy({
+    policy: codPolicy,
+    governorate,
+    governorateId: match?.governorate_id || governorate_id,
+    shippingFee: price,
+    orderTotal: orderSubtotal + price,
+  });
 
   return {
     price,
@@ -260,7 +280,8 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     // Store-wide switch, not per-zone: zones lost their own toggle when checkout
     // started accepting COD from every address. Carrying the global flag here is what
     // stops the storefront offering COD all the way to submit and then 403-ing.
-    cod_allowed: codAllowed,
+    cod_allowed: codAllowed && cod.cod_allowed,
+    cod_policy: { mode: cod.mode, advance: cod.advance, advance_amount: cod.advance_amount, store_cod_allowed: codAllowed },
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
     delivery_estimate: deliveryEstimate,

@@ -9,11 +9,17 @@ export const applyTransferPaymentConfirmation = async (client, { order, tenantId
   const totalAmount = Number(order.total_amount ?? order.total ?? order.total_price ?? 0);
   const shippingAmount = Number(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? 0);
   const existingPaidAmount = Number(order.paid_amount || 0);
+  const codAmount = Number(order.cod_amount || 0);
   const isCodShippingOnlyTransfer = ["cod", "cash_on_delivery", "cash on delivery"].includes(paymentMethod) && shippingAmount > 0 && totalAmount > shippingAmount;
+  // The restricted closing system: the customer transferred the shipping fee and
+  // the courier collects the goods (cod_amount). Approving it is not a full payment.
+  const isShippingAdvanceTransfer = !isCodShippingOnlyTransfer && codAmount > 0 && codAmount < totalAmount;
   const nextPaidAmount = isCodShippingOnlyTransfer
     ? Math.min(totalAmount, Math.max(existingPaidAmount, shippingAmount))
-    : Math.max(totalAmount, existingPaidAmount);
-  const nextPaymentStatus = isCodShippingOnlyTransfer && nextPaidAmount < totalAmount ? "partially_paid" : "paid";
+    : isShippingAdvanceTransfer
+      ? Math.min(totalAmount, Math.max(existingPaidAmount, totalAmount - codAmount))
+      : Math.max(totalAmount, existingPaidAmount);
+  const nextPaymentStatus = nextPaidAmount < totalAmount ? "partially_paid" : "paid";
 
   const result = await client.query(
     `
@@ -23,6 +29,9 @@ export const applyTransferPaymentConfirmation = async (client, { order, tenantId
         status = 'confirmed',
         paid_amount = $5,
         remaining_amount = GREATEST(COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - $5::numeric, 0),
+        -- A stored cod_amount wins at Bosta, so it has to follow the payment down:
+        -- a COD order that paid its shipping would otherwise collect the fee twice.
+        cod_amount = GREATEST(COALESCE(NULLIF(total_amount, 0), NULLIF(total, 0), total_price, 0) - $5::numeric, 0),
         shipping_payment_verified_at = NOW(),
         shipping_payment_verified_by = $2,
         updated_at = NOW()
