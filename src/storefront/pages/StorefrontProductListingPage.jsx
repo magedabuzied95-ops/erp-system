@@ -38,6 +38,7 @@ import {
 } from "../Storefront";
 import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
 import { resolveProductImageUrl } from "../../shared/lib/imageUrls";
+import { listingPageOutOfRange } from "../lib/listingHomeState.js";
 import { localizeBrandLabel, localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import { useDialogFocus } from "../lib/useDialogFocus";
 import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
@@ -119,7 +120,10 @@ const normalizeStorefrontProductTypeValue = (value = "") => {
   if (["shoe", "shoes", "أحذية", "حذاء"].includes(normalized)) return "shoes";
   if (["running", "run", "رياضي", "جري"].includes(normalized)) return "running";
   if (["casual shoe", "casual shoes", "casual", "كاجوال", "كاجوال شوز"].includes(normalized)) return "casualshoes";
-  return normalizeFilterKey(value).replace(/[\s_-]+/g, "");
+  if (["winter", "winter collection", "winter_collection", "wintercollection"].includes(normalized)) return "winter_collection";
+  // The underscore stays: it is part of the stored value ("winter_collection"),
+  // and stripping it sent a type the API could not match to anything.
+  return normalizeFilterKey(value).replace(/[\s-]+/g, "_");
 };
 const storefrontProductTypeQueryValue = (value = "") => {
   return normalizeStorefrontProductTypeValue(value);
@@ -593,6 +597,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [isCrocsListing, selectedSizes]
   );
   const bagType = normalizeFilterKey(params.get("bag_type") || "");
+  // Carried by the Women's bags "view all" link ("bags, not school bags"). The
+  // listing used to drop it and opened the school bags the row had left out.
+  const excludeBagType = normalizeFilterKey(params.get("exclude_bag_type") || "");
   const selectedType = productType || "";
   const grade = params.get("grade") || "";
   const minPrice = params.get("min_price") || "";
@@ -635,6 +642,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       size: backendSizes,
       color: color || "",
       bag_type: bagType || "",
+      exclude_bag_type: excludeBagType || "",
       min_price: minPrice || "",
       max_price: maxPrice || "",
       last_sizes: lastSizes ? 1 : "",
@@ -645,7 +653,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       limit: pageSize,
       offset: (page - 1) * pageSize,
     }),
-    [backendSearchTerm, backendSizes, bagType, brand, category, color, gender, grade, inStock, lastSizes, maxPrice, minPrice, page, pageSize, productType, quality, saleView, sort, seoCategory?.largeSizes]
+    [backendSearchTerm, backendSizes, bagType, brand, category, color, excludeBagType, gender, grade, inStock, lastSizes, maxPrice, minPrice, page, pageSize, productType, quality, saleView, sort, seoCategory?.largeSizes]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error, total: backendTotal, requestUrl: productsRequestUrl, loadedUrl: productsLoadedUrl } = useProducts(productsApiParams);
@@ -658,11 +666,12 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       q: backendSearchTerm,
       gender: gender || "",
       product_type: productType || "",
+      exclude_bag_type: excludeBagType || "",
       offer_story: saleView ? 1 : "",
       large_sizes: seoCategory?.largeSizes ? 1 : "",
       inStock: seoCategory?.apiFilters?.inStock ? 1 : "",
     }),
-    [backendSearchTerm, gender, productType, saleView, seoCategory?.apiFilters?.inStock, seoCategory?.largeSizes]
+    [backendSearchTerm, excludeBagType, gender, productType, saleView, seoCategory?.apiFilters?.inStock, seoCategory?.largeSizes]
   );
   const { facets } = useStorefrontProductFacets(facetScope);
   const filterBasePath = seoCategory?.path || (sale ? "/sale" : "/products");
@@ -840,6 +849,22 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     return `${listingPagePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
 
+  // A ?page= past the end (the catalogue shrank, or an old shared link) has no
+  // cards of its own. Judged only once the answer on screen is the one for this
+  // exact URL, then replaced by the last real page rather than shown as an empty
+  // "no products match" page or indexed as a duplicate.
+  const pageOutOfRange = listingPageOutOfRange({
+    page,
+    pageSize,
+    total: backendTotal,
+    settled: !loading && productsApiParams === backendFilterState && productsLoadedUrl === productsRequestUrl,
+    error,
+  });
+  const lastRealPageUrl = pageOutOfRange ? pageUrl(totalPages) : "";
+  useEffect(() => {
+    if (lastRealPageUrl) navigate(lastRealPageUrl, { replace: true });
+  }, [lastRealPageUrl, navigate]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
@@ -856,6 +881,8 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
 
   useEffect(() => {
     if (!seoCategory || typeof document === "undefined") return undefined;
+    // An out-of-range page is about to be replaced; it is never its own canonical.
+    if (pageOutOfRange) return undefined;
     // Arabic head copy whatever the reader's language: see categorySeoHeadCopy.
     const headCopy = categorySeoHeadCopy(seoCategory);
     // Only a loaded total can say a page is past the end (the server redirects those).
@@ -906,12 +933,13 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       script.textContent = JSON.stringify(value).replace(/</g, "\\u003c");
     });
     return () => document.head.querySelectorAll("script[data-m1-category-seo]").forEach((node) => node.remove());
-  }, [backendTotal, orderedFilteredProducts, page, pageSize, params, seoCategory, totalPages]);
+  }, [backendTotal, orderedFilteredProducts, page, pageOutOfRange, pageSize, params, seoCategory, totalPages]);
   // /products and /sale follow the section rule: every facet, sort, page size or search
   // is noindex and canonicalises to the bare listing, so /products?brand=Nike&sort=price_asc
   // is no longer its own indexable page with no canonical.
   useEffect(() => {
     if (seoCategory || typeof document === "undefined") return undefined;
+    if (pageOutOfRange) return undefined;
     const head = listingSeoHead({ path: filterBasePath, params, page, totalPages: backendTotal ? totalPages : 0 });
     const robots = document.head.querySelector('meta[name="robots"]') || document.head.appendChild(document.createElement("meta"));
     robots.setAttribute("name", "robots");
@@ -923,7 +951,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     return () => {
       if (canonical.getAttribute("href") === head.canonical) canonical.remove();
     };
-  }, [backendTotal, filterBasePath, page, params, seoCategory, totalPages]);
+  }, [backendTotal, filterBasePath, page, pageOutOfRange, params, seoCategory, totalPages]);
   const filteredProductsForGender = useMemo(
     () => (hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFilters, ["gender"]) : catalogProducts),
     [catalogFilters, catalogProducts, hasActiveCatalogFilters]
@@ -1147,7 +1175,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   };
   const clearClassificationFiltersUrl = () => {
     const next = new URLSearchParams(params);
-    ["q", "brand", "gender", "category", "product_type", "type", "style", "grade", "quality", "color", "size", "sizes", "min_price", "max_price", "inStock", "sale", "offer_story", "offerStory", "lastSizes", "last_sizes", "sort"].forEach((field) => next.delete(field));
+    ["q", "brand", "gender", "category", "product_type", "type", "style", "grade", "quality", "color", "size", "sizes", "min_price", "max_price", "inStock", "sale", "offer_story", "offerStory", "lastSizes", "last_sizes", "sort", "exclude_bag_type"].forEach((field) => next.delete(field));
     return `${filterBasePath}${next.toString() ? `?${next.toString()}` : ""}`;
   };
   // On a Crocs listing every size in the URL is folded to its EU label first,
@@ -1175,6 +1203,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       return;
     }
     setSearchParam((next) => {
+      // The exclusion came with the link that opened the page; a type or bag
+      // type the shopper picks is a new question and must not inherit it unseen.
+      if (field === "type" || field === "productType" || field === "bag_type") next.delete("exclude_bag_type");
       if (field === "type" || field === "productType") {
         next.delete("product_type");
         next.delete("category");
@@ -1208,7 +1239,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       else next.delete("max_price");
     }, { replace: true });
   };
-  const showEmptyResults = !loading && !orderedFilteredProducts.length;
+  // A failed request is the error state alone: "no products match your filters"
+  // under it told a shopper on an unfiltered page that the store was empty.
+  const showEmptyResults = !loading && !error && !pageOutOfRange && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
   useEffect(() => {
     if (!import.meta.env.DEV || !(saleView || offerStoryQuery)) return;
@@ -1263,7 +1296,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="sf-catalog-count sfx-muted">
-            {totalProducts
+            {totalProducts && !pageOutOfRange
               ? t("storefront.products.showingRange", "عرض {{from}}-{{to}} من {{count}} نتيجة", { from: firstResultIndex, to: lastResultIndex, count: totalProducts })
               : t("storefront.products.productCount", "{{count}} منتج", { count: totalProducts })}
           </div>

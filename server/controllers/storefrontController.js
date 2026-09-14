@@ -26,7 +26,7 @@ import { generateAiProductData } from "../services/aiProductDataService.js";
 import { understandProductImageForSearch } from "../services/openaiSupportService.js";
 import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
-import { buildCacheKey, getOrSetCache, getOrSetCacheSWR, invalidateCachePattern, onCacheInvalidatePattern } from "../services/cacheService.js";
+import { buildCacheKey, getOrSetCache, getOrSetCacheSWR, markCachePatternStale, onCacheInvalidatePattern } from "../services/cacheService.js";
 import { createPerfTrace } from "../utils/storefrontPerf.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
@@ -559,17 +559,30 @@ const scrubInactiveClassifications = async (products = []) => {
 // widen it back to everything.
 const NO_ACTIVE_CLASSIFICATION_MATCH = "__no_active_classification_match__";
 
+// The option a filter value names. An exact token wins; failing that the
+// separators are ignored, because a link or an older bundle may send
+// "wintercollection" for "winter_collection" - and matching nothing there
+// emptied the whole Winter Collection listing and every facet group with it.
+const classificationOptionTokens = (item = {}) =>
+  [item.value, item.label_ar, item.label_en, item.name_ar, item.name_en, item.english_name]
+    .map(normalizeClassificationToken)
+    .filter(Boolean);
+const compactClassificationToken = (token = "") => String(token || "").replace(/_+/g, "");
+export const findClassificationFilterOption = (options = [], value = "") => {
+  const rawToken = normalizeClassificationToken(value);
+  if (!rawToken) return null;
+  const list = Array.isArray(options) ? options : [];
+  const exact = list.find((item) => classificationOptionTokens(item).includes(rawToken));
+  if (exact) return exact;
+  const compact = compactClassificationToken(rawToken);
+  return list.find((item) => classificationOptionTokens(item).map(compactClassificationToken).includes(compact)) || null;
+};
+
 const getActiveClassificationFilterAliases = async (groupKey, value) => {
   const raw = toText(value);
   if (!raw) return [];
   const group = await fetchProductClassificationGroupByKey(groupKey);
-  const rawToken = normalizeClassificationToken(raw);
-  const option = (group?.options || []).find((item) =>
-    [item.value, item.label_ar, item.label_en, item.name_ar, item.name_en, item.english_name]
-      .map(normalizeClassificationToken)
-      .filter(Boolean)
-      .includes(rawToken)
-  );
+  const option = findClassificationFilterOption(group?.options, raw);
   if (!option) return [NO_ACTIVE_CLASSIFICATION_MATCH];
   return [option.value, option.label_ar, option.label_en, option.name_ar, option.name_en, option.english_name]
     .map((item) => toText(item).toLowerCase())
@@ -639,7 +652,7 @@ const sortedQueryString = (query = {}) => {
 // to land on whoever happened to arrive first after an expiry.
 //
 // STALE is deliberately far longer than FRESH. It is not a correctness budget --
-// a product save calls invalidateStorefrontTenantCache and drops the entry
+// a product save calls invalidateCachePattern and drops the entry
 // outright -- it is how long a quiet catalogue may coast on its last good answer
 // instead of making a visitor pay to rebuild it.
 const STOREFRONT_CACHE_FRESH_SECONDS = Math.max(5, Number(process.env.STOREFRONT_CACHE_FRESH_SECONDS || 120));
@@ -654,9 +667,13 @@ const storefrontCacheWindows = () => ({
 
 const storefrontCacheKey = (tenantId, scope, query = {}) =>
   buildCacheKey("storefront", `tenant:${tenantId || "public"}`, scope, sortedQueryString(query));
-const invalidateStorefrontTenantCache = (tenantId) => {
-  return invalidateCachePattern(buildCacheKey("storefront", `tenant:${tenantId || "public"}`, "*")).catch((error) => {
-    console.warn("[cache] storefront invalidation skipped", error?.message || error);
+// An order changes stock, but not enough to make the next shopper on every
+// section wait for a cold build: each entry answers once more while it rebuilds
+// behind the response, so the ordered sizes drop out a request later. Product
+// saves still drop their entries outright (invalidateCachePattern).
+const markStorefrontTenantCacheStale = (tenantId) => {
+  return markCachePatternStale(buildCacheKey("storefront", `tenant:${tenantId || "public"}`, "*")).catch((error) => {
+    console.warn("[cache] storefront stale-marking skipped", error?.message || error);
   });
 };
 
@@ -3571,6 +3588,9 @@ let storefrontSectionGeneration = 0;
 export const clearStorefrontSectionCache = () => {
   storefrontSectionGeneration += 1;
   storefrontSectionCache.clear();
+  // A build still running started before the save. A request arriving after it
+  // must start its own instead of joining that one and getting the old cards.
+  storefrontSectionInflight.clear();
 };
 // Every path that drops the storefront entries (product saves, purge, live stock)
 // goes through invalidateCachePattern; the sections follow them.
@@ -3784,10 +3804,21 @@ const loadStorefrontProductSection = async (context) => {
       return section;
     })
     .finally(() => {
-      storefrontSectionInflight.delete(cacheKey);
+      // Only its own entry: after an invalidation the key may hold a newer build.
+      if (storefrontSectionInflight.get(cacheKey) === build) storefrontSectionInflight.delete(cacheKey);
     });
   storefrontSectionInflight.set(cacheKey, build);
   return build;
+};
+
+// A page past the end comes back empty with the real total. It used to be
+// quietly swapped for the last page's cards while still reporting the page that
+// was asked for, so /men?page=40 showed page 2 again under "937-30 of 30" and
+// an SEO section called that duplicate indexable.
+export const cutStorefrontProductsPage = (cards = [], offset = 0, limit = 24) => {
+  const list = Array.isArray(cards) ? cards : [];
+  const products = list.slice(offset, offset + limit);
+  return { products, outOfRange: !products.length && offset > 0 && offset >= list.length };
 };
 
 export const listProducts = async (req, res) => {
@@ -3812,11 +3843,7 @@ export const listProducts = async (req, res) => {
     const payload = await getOrSetCacheSWR(storefrontCacheKey(tenantId, "products", { section: sectionKey, offset, limit }), storefrontCacheWindows(), async () => {
       const section = await perf.step("section", () => loadStorefrontProductSection({ req, tenantId, normalizedQuery, randomSeed, sectionKey, perf }));
       const cards = section.cards;
-      let pagedProducts = perf.sync("pagination", () => cards.slice(offset, offset + limit));
-      if (!pagedProducts.length && cards.length) {
-        const fallbackOffset = Math.min(offset, Math.max(0, cards.length - limit));
-        pagedProducts = cards.slice(fallbackOffset, fallbackOffset + limit);
-      }
+      const { products: pagedProducts, outOfRange } = perf.sync("pagination", () => cutStorefrontProductsPage(cards, offset, limit));
       const total = cards.length;
       const hasMore = offset + pagedProducts.length < total;
       return {
@@ -3835,6 +3862,7 @@ export const listProducts = async (req, res) => {
         scope: section.scope,
         grouping_mode: section.groupingMode,
         random_seed: section.randomSeed || undefined,
+        out_of_range: outOfRange || undefined,
       };
     }, cacheDiag);
     if (ERP_PERF_DEBUG) console.log("[erp-perf] storefront.products", { total_ms: Date.now() - startedAt, rows: payload.products?.length || 0, limit: payload.limit });
@@ -3880,6 +3908,9 @@ const storefrontFacetScopeQuery = (query = {}) => {
     audienceSearch: normalized.audienceSearch,
     gender: normalized.gender,
     productType: normalized.productType,
+    // Pinned by a link, like the product type: the Women's bags row opens
+    // "bags, not school bags", and the counts must describe that listing.
+    excludeBagType: sortedTextList(normalized.excludeBagType),
     offerStory: normalized.offerStory,
     saleOnly: normalized.saleOnly,
     largeSizes: normalized.largeSizes,
@@ -3892,6 +3923,7 @@ const storefrontFacetCacheQuery = (scope = {}) => ({
   audience_search: scope.audienceSearch || "",
   gender: scope.gender || "",
   product_type: scope.productType || "",
+  exclude_bag_type: sortedTextList(scope.excludeBagType),
   offer_story: scope.offerStory ? 1 : 0,
   sale: scope.saleOnly ? 1 : 0,
   large_sizes: scope.largeSizes ? 1 : 0,
@@ -4009,14 +4041,18 @@ const buildStorefrontFacetPayload = async (tenantId, scope) => {
   const genderAliases = await getClassificationFilterAliases("gender", scope.gender);
   const gender = normalizeProductAudiences(genderAliases, scope.gender || scope.audienceSearch);
   const effectiveInStock = resolveEffectiveStorefrontInStock({ inStock: scope.inStock, offerStory: scope.offerStory, size: "" });
+  // The same alias resolution the listing uses, so a type spelt without its
+  // underscore counts the cards the listing then shows instead of zero.
+  const productType = await getActiveClassificationFilterAliases("product_type", scope.productType);
   const filters = {
     brand: "",
     gender,
-    productType: scope.productType,
+    productType,
     grade: [],
     quality: [],
     sizes: [],
     bagType: [],
+    excludeBagType: scope.excludeBagType || [],
     size: "",
     inStock: effectiveInStock,
     offerStory: scope.offerStory,
@@ -4994,6 +5030,11 @@ export const resolveProductLink = async (req, res) => {
     if (!link.resolve_success) {
       return res.status(404).json({ success: false, resolvable: false, product, link, message: "Product link cannot resolve" });
     }
+    // The same short private window as getProduct: a card hovered twice, or the
+    // product page opened right after, reuses this answer instead of re-running
+    // the lookups, the catalogue row and image hydration.
+    res.set("Cache-Control", "private, max-age=15");
+    res.set("Vary", "X-Tenant-Id");
     return res.json({ success: true, resolvable: true, product, link });
   } catch (error) {
     console.error("[storefront] product resolve", error);
@@ -6223,7 +6264,7 @@ export const createWebsiteOrder = async (req, res) => {
       });
     }
     await client.query("COMMIT");
-    invalidateStorefrontTenantCache(tenantId);
+    markStorefrontTenantCacheStale(tenantId);
     // The customer may have sent the money before checking out: its SMS is already waiting.
     if (paymentMethod === "vodafone_cash") void rematchWalletTransfersForOrder({ tenantId, orderId: order?.id });
     sendManagerInvoiceCreatedPush({

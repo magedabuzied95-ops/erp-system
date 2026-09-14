@@ -445,7 +445,8 @@
     "productOfWeekEmpty": "The featured product will appear here once stock updates.",
     "featuredDescription": "This week's featured pick comes with clearer photos, visible sizes, and a faster shopping experience.",
     "brandsEyebrow": "Brands",
-    "lastSizes": "Last sizes"
+    "lastSizes": "Last sizes",
+    "filterRowEmpty": "Nothing here right now. Try another choice."
   },
   "visualSearch": {
     "similarProducts": "Similar products",

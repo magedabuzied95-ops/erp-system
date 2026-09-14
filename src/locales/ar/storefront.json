@@ -188,7 +188,8 @@
     "productOfWeekEmpty": "المنتج المميز سيظهر هنا أول ما المخزون يتحدث.",
     "featuredDescription": "اختيار الأسبوع المميز يأتي بصور أوضح، مقاسات ظاهرة، وتجربة شراء أسرع.",
     "brandsEyebrow": "البراندات",
-    "lastSizes": "آخر المقاسات"
+    "lastSizes": "آخر المقاسات",
+    "filterRowEmpty": "مفيش منتجات هنا دلوقتي. جرّب اختيار تاني."
   },
   "visualSearch": {
     "similarProducts": "المنتجات المشابهة",

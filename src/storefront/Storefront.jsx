@@ -95,6 +95,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { buildBundleId, computeBundleDiscount, normalizeBundleDiscountPercent } from "../../shared/bundleDiscount.js";
 import { pickAutomaticPair } from "./lib/pairPicker.js";
+import { hasStorefrontHomeContent, keepHomeFilterRowWhenEmpty, nextHomeFilterRowAudience, persistedStorefrontHomeData } from "./lib/listingHomeState.js";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChunkLoadError, isChunkRecoveryInFlight, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { openSizeGuide } from "./lib/sizeGuideStore";
@@ -898,7 +899,11 @@ const useStorefrontHome = () => {
       })
       .catch((error) => {
         if (!cancelled && requestId === requestSequenceRef.current && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, mirrorProducts: [], collections: [] });
+          // A failed refresh of a hero already painted from cache keeps that hero:
+          // blanking it turned one bad request into a worse homepage.
+          setState((current) => (hasStorefrontHomeContent(current)
+            ? { ...current, loading: false }
+            : { loading: false, error: error?.message || "Failed to load storefront home", hero: null, mirrorProducts: [], collections: [] }));
         }
       });
     return () => {
@@ -2112,8 +2117,7 @@ const prefetchStorefrontProductDetails = (identifier) => {
 const readPersistedStorefrontHome = () => {
   if (typeof window === "undefined") return null;
   try {
-    const cached = JSON.parse(window.localStorage.getItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY) || "null");
-    return cached?.data || null;
+    return persistedStorefrontHomeData(JSON.parse(window.localStorage.getItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY) || "null"));
   } catch {
     return null;
   }
@@ -3068,7 +3072,12 @@ const HOME_FILTER_ROW_TTL_MS = 5 * 60 * 1000;
 const useHomeFilterRow = (rowId, cardCtx) => {
   const row = HOME_FILTER_ROW_MAP[rowId];
   const [gender, setGender] = useState(() => row?.genders?.[0] || "");
-  const [state, setState] = useState({ loading: true, products: [] });
+  // Whether the visitor chose the audience. Only the row's own opening choice
+  // moves on by itself when it comes back empty.
+  const [picked, setPicked] = useState(false);
+  // `gender` records which audience the products answer, so a switch is never
+  // judged on the previous audience's result.
+  const [state, setState] = useState({ loading: true, products: [], gender: "" });
 
   useEffect(() => {
     if (!row) return undefined;
@@ -3076,19 +3085,19 @@ const useHomeFilterRow = (rowId, cardCtx) => {
     const url = `/storefront/products?${homeFilterRowQuery(rowId, gender, { limit: 8 })}`;
     const cached = getCachedStorefrontGetData(url, { ttlMs: HOME_FILTER_ROW_TTL_MS });
     if (cached) {
-      setState({ loading: false, products: Array.isArray(cached.products) ? cached.products : [] });
+      setState({ loading: false, products: Array.isArray(cached.products) ? cached.products : [], gender });
       return undefined;
     }
-    setState((current) => ({ loading: true, products: current.products }));
+    setState((current) => ({ loading: true, products: current.products, gender }));
     cachedStorefrontGet(url, { ttlMs: HOME_FILTER_ROW_TTL_MS })
       .then((data) => {
         if (cancelled) return;
-        setState({ loading: false, products: Array.isArray(data?.products) ? data.products : [] });
+        setState({ loading: false, products: Array.isArray(data?.products) ? data.products : [], gender });
       })
       .catch(() => {
-        // A failed row disappears rather than showing an error under a heading —
-        // the rest of the homepage is unaffected by one collection being down.
-        if (!cancelled) setState({ loading: false, products: [] });
+        // A failed row shows no error under its heading; the rest of the homepage
+        // is unaffected by one collection being down.
+        if (!cancelled) setState({ loading: false, products: [], gender });
       });
     return () => {
       cancelled = true;
@@ -3100,7 +3109,17 @@ const useHomeFilterRow = (rowId, cardCtx) => {
     [cardCtx, state.products]
   );
 
-  return { gender, setGender, cards, loading: state.loading, row };
+  useEffect(() => {
+    const next = nextHomeFilterRowAudience({ genders: row?.genders || [], gender, answeredGender: state.gender, loading: state.loading, cardCount: cards.length, picked });
+    if (next) setGender(next);
+  }, [cards.length, gender, picked, row, state.gender, state.loading]);
+
+  const chooseGender = useCallback((next) => {
+    setPicked(true);
+    setGender(next);
+  }, []);
+
+  return { gender, setGender: chooseGender, picked, cards, loading: state.loading || state.gender !== gender, row };
 };
 
 // One row per component instance, because each row owns a hook (its selected
@@ -3108,7 +3127,7 @@ const useHomeFilterRow = (rowId, cardCtx) => {
 // would be calling hooks in a loop.
 function HomeFilterRowSection({ rowId, cardCtx, lang = "ar", wishlist = [], toggleWishlist, onImageError }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const { gender, setGender, cards, loading, row } = useHomeFilterRow(rowId, cardCtx);
+  const { gender, setGender, picked, cards, loading, row } = useHomeFilterRow(rowId, cardCtx);
 
   const isFavorite = useCallback(
     (product) => isInWishlist(wishlist, product),
@@ -3130,6 +3149,10 @@ function HomeFilterRowSection({ rowId, cardCtx, lang = "ar", wishlist = [], togg
       activeGender={gender}
       genderLabel={genderLabel}
       onGenderChange={setGender}
+      // An audience with nothing right now (or a request that failed) keeps the
+      // header and its switch, so the visitor can go back to one that has cards.
+      keepWhenEmpty={keepHomeFilterRowWhenEmpty({ genders: row.genders, gender, picked })}
+      emptyLabel={sfText("storefront.home.filterRowEmpty")}
       cards={cards}
       loading={loading}
       viewAllHref={homeFilterRowHref(rowId, gender)}
@@ -6475,20 +6498,10 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setSelectedVariantId(next?.id || "");
     setSizeTapped(false);
   }, []);
-  useEffect(() => {
-    const node = cardRef.current;
-    if (!node || !productIdentifier || typeof window === "undefined" || !("IntersectionObserver" in window)) return undefined;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry?.isIntersecting) return;
-        requestDetailPrefetch();
-        observer.disconnect();
-      },
-      { threshold: 0.35, rootMargin: "120px 0px" }
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [productIdentifier, requestDetailPrefetch]);
+  // The full product details are fetched on intent only (a pointer over the card,
+  // a finger on it). Fetching them as each card scrolled into view sent a dozen
+  // heavy, uncached lookups with every listing - phones included, which never
+  // show the hover photo those details exist for.
   const brandLabel = productCardBrandLabel(product);
   const brandFilterUrl = useMemo(() => productCardBrandFilterUrl(product), [product]);
   // The homepage card, extended: same plate, badge, heart, brand/name/price type

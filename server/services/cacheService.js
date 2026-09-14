@@ -113,9 +113,10 @@ export const getOrSetCache = async (key, ttlSeconds, loader, diagnostics) => {
     return cached;
   }
   if (diagnostics) diagnostics.cache = "miss";
+  const startSeq = invalidationSeq;
   const value = await loader();
   const writeStart = diagnostics ? process.hrtime.bigint() : null;
-  await setCache(key, value, ttlSeconds);
+  await setCacheUnlessInvalidated(key, value, ttlSeconds, startSeq);
   if (diagnostics) {
     diagnostics.cache_write_ms = Number((Number(process.hrtime.bigint() - writeStart) / 1e6).toFixed(1));
   }
@@ -154,6 +155,59 @@ const inFlightBuilds = new Map();
 const isSwrEnvelope = (value) =>
   Boolean(value) && typeof value === "object" && value[SWR_ENVELOPE] === 1 && "v" in value;
 
+const patternToRegex = (pattern) =>
+  new RegExp(`^${String(pattern).replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+
+// WHY BUILDS CHECK FOR INVALIDATIONS
+//
+// A cold storefront build takes seconds. When a product was saved during one,
+// the invalidation deleted the key first and the build then wrote the pre-save
+// answer back as fresh - the hidden card stayed on the listing for the whole
+// fresh window and the save looked like it did nothing. Every invalidation now
+// takes a number; a build remembers the number it started under and does not
+// write if a matching invalidation came after it.
+//
+// One entry per distinct pattern, so the log stays as small as the set of
+// patterns the app uses. Should it ever overflow, the evicted numbers are kept
+// as a floor and any build older than that simply skips its write.
+const INVALIDATION_LOG_MAX = 500;
+const invalidationLog = new Map();
+let invalidationSeq = 0;
+let evictedInvalidationSeq = 0;
+
+const recordInvalidation = (pattern) => {
+  invalidationSeq += 1;
+  invalidationLog.delete(pattern);
+  invalidationLog.set(pattern, { regex: patternToRegex(pattern), seq: invalidationSeq });
+  while (invalidationLog.size > INVALIDATION_LOG_MAX) {
+    const [oldestPattern, oldest] = invalidationLog.entries().next().value;
+    evictedInvalidationSeq = Math.max(evictedInvalidationSeq, oldest.seq);
+    invalidationLog.delete(oldestPattern);
+  }
+  // A running build for a matching key is joined by nobody from here on: the
+  // next caller starts a build that sees the change.
+  const regex = invalidationLog.get(pattern).regex;
+  for (const key of inFlightBuilds.keys()) {
+    if (regex.test(key)) inFlightBuilds.delete(key);
+  }
+};
+
+const invalidatedSince = (key, startSeq) => {
+  if (startSeq === invalidationSeq) return false;
+  if (evictedInvalidationSeq > startSeq) return true;
+  for (const entry of invalidationLog.values()) {
+    if (entry.seq > startSeq && entry.regex.test(key)) return true;
+  }
+  return false;
+};
+
+// Writes what a build produced unless the key was invalidated after the build
+// began. The value is still returned to the request that waited for it.
+const setCacheUnlessInvalidated = async (key, value, ttlSeconds, startSeq) => {
+  if (invalidatedSince(key, startSeq)) return value;
+  return setCache(key, value, ttlSeconds);
+};
+
 // One rebuild per key at a time. Later callers join the running promise instead
 // of starting a second identical query.
 const singleFlight = (key, loader) => {
@@ -162,7 +216,8 @@ const singleFlight = (key, loader) => {
   const promise = Promise.resolve()
     .then(loader)
     .finally(() => {
-      inFlightBuilds.delete(key);
+      // An invalidation may already have replaced this entry with a newer build.
+      if (inFlightBuilds.get(key) === promise) inFlightBuilds.delete(key);
     });
   inFlightBuilds.set(key, promise);
   return promise;
@@ -195,9 +250,10 @@ export const getOrSetCacheSWR = async (key, windows, loader, diagnostics) => {
   }
 
   const build = async () => {
+    const startSeq = invalidationSeq;
     const value = await loader();
     const writeStart = diagnostics ? process.hrtime.bigint() : null;
-    await setCache(key, { [SWR_ENVELOPE]: 1, v: value, f: now() + freshSeconds * 1000 }, staleSeconds);
+    await setCacheUnlessInvalidated(key, { [SWR_ENVELOPE]: 1, v: value, f: now() + freshSeconds * 1000 }, staleSeconds, startSeq);
     if (diagnostics) {
       diagnostics.cache_write_ms = Number((Number(process.hrtime.bigint() - writeStart) / 1e6).toFixed(1));
     }
@@ -233,14 +289,16 @@ export const primeCacheSWR = async (key, windows, loader) => {
   const staleSeconds = Math.max(freshSeconds, Number(windows?.staleSeconds) || freshSeconds);
   if (CACHE_DISABLED || !key) return null;
   return singleFlight(key, async () => {
+    const startSeq = invalidationSeq;
     const value = await loader();
-    await setCache(key, { [SWR_ENVELOPE]: 1, v: value, f: now() + freshSeconds * 1000 }, staleSeconds);
+    await setCacheUnlessInvalidated(key, { [SWR_ENVELOPE]: 1, v: value, f: now() + freshSeconds * 1000 }, staleSeconds, startSeq);
     return value;
   });
 };
 
 export const invalidateCache = async (key) => {
   if (!key) return;
+  recordInvalidation(String(key));
   const redis = await getRedisClient();
   if (redis) {
     await redis.del(key).catch(() => {});
@@ -257,8 +315,7 @@ export const onCacheInvalidatePattern = (listener) => {
   return () => invalidationListeners.delete(listener);
 };
 
-export const invalidateCachePattern = async (pattern) => {
-  if (!pattern) return;
+const notifyInvalidationListeners = (pattern) => {
   for (const listener of invalidationListeners) {
     try {
       listener(String(pattern));
@@ -266,6 +323,14 @@ export const invalidateCachePattern = async (pattern) => {
       console.warn("[cache] invalidation listener failed", error?.message || error);
     }
   }
+};
+
+export const invalidateCachePattern = async (pattern) => {
+  if (!pattern) return;
+  // Recorded before anything awaits, so a build that finishes during the Redis
+  // scan below already knows its answer is from before this change.
+  recordInvalidation(String(pattern));
+  notifyInvalidationListeners(pattern);
   const redis = await getRedisClient();
   if (redis) {
     const stream = redis.scanIterator({ MATCH: pattern, COUNT: 100 });
@@ -274,9 +339,49 @@ export const invalidateCachePattern = async (pattern) => {
     if (keys.length) await redis.del(keys).catch(() => {});
   }
 
-  const regex = new RegExp(`^${String(pattern).replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`);
+  const regex = patternToRegex(pattern);
   for (const key of memoryCache.keys()) {
     if (regex.test(key)) memoryCache.delete(key);
+  }
+};
+
+// The gentle form of invalidateCachePattern, for changes that must show soon but
+// do not justify making the next visitor wait. Every stale-while-revalidate
+// entry keeps its last answer and is marked past its fresh window, so the next
+// request is answered at once and rebuilds it behind the response. A plain
+// entry has no fresh window to expire and is dropped as before. Builds already
+// running are barred from writing, and process-local caches still clear.
+//
+// Checkout uses it: dropping every listing and facet entry on each order put a
+// 4-6s cold build in front of whoever opened each section next.
+export const markCachePatternStale = async (pattern) => {
+  if (!pattern) return;
+  recordInvalidation(String(pattern));
+  notifyInvalidationListeners(pattern);
+  const expire = (value) => (isSwrEnvelope(value) ? { ...value, f: 0 } : null);
+  const expireRaw = (raw) => {
+    try {
+      return raw ? expire(JSON.parse(raw)) : null;
+    } catch {
+      return null;
+    }
+  };
+  const redis = await getRedisClient();
+  if (redis) {
+    const stream = redis.scanIterator({ MATCH: pattern, COUNT: 100 });
+    for await (const key of stream) {
+      const stale = expireRaw(await redis.get(key).catch(() => null));
+      if (stale) await redis.set(key, JSON.stringify(stale), { KEEPTTL: true }).catch(() => {});
+      else await redis.del(key).catch(() => {});
+    }
+  }
+
+  const regex = patternToRegex(pattern);
+  for (const [key, entry] of memoryCache.entries()) {
+    if (!regex.test(key)) continue;
+    const stale = expire(entry.value);
+    if (stale) memoryCache.set(key, { ...entry, value: stale });
+    else memoryCache.delete(key);
   }
 };
 
