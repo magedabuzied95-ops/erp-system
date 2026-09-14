@@ -218,7 +218,9 @@ test("#90 the listing replaces an out-of-range page and never indexes it", () =>
   assert.equal(listingPageOutOfRange({ page: 3, pageSize: 24, total: 0, settled: true }), false);
   assert.match(listing, /settled: !loading && productsApiParams === backendFilterState && productsLoadedUrl === productsRequestUrl,/);
   assert.match(listing, /if \(lastRealPageUrl\) navigate\(lastRealPageUrl, \{ replace: true \}\);/);
-  assert.match(listing, /if \(pageOutOfRange\) return undefined;\s*const canonical = categoryCanonical/);
+  // Both head effects (section pages and /products, /sale) stand aside before writing a canonical.
+  assert.match(listing, /if \(pageOutOfRange\) return undefined;\s*(?:\/\/[^\n]*\n\s*)*const headCopy = categorySeoHeadCopy/);
+  assert.match(listing, /if \(seoCategory \|\| typeof document === "undefined"\) return undefined;\s*if \(pageOutOfRange\) return undefined;/);
 });
 
 // #91 ------------------------------------------------------------------------
