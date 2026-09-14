@@ -38,6 +38,7 @@ import {
 } from "../Storefront";
 import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
 import { localizeBrandLabel, localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
+import { useDialogFocus } from "../lib/useDialogFocus";
 import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
@@ -1957,18 +1958,22 @@ function CatalogFiltersDrawer({
   const activeFilterCount = [selectedGender, selectedType, selectedBagType, selectedGrade, selectedBrand, selectedColor, minPrice, maxPrice, saleView, lastSizes, inStock]
     .filter(Boolean).length + (Array.isArray(selectedSizes) ? selectedSizes.length : 0) + (normalizeCatalogSortValue(selectedSort) !== "newest" ? 1 : 0);
   useBodyScrollLock(open);
+  // Focus into the sheet, Tab kept inside, Escape closes, focus back on the Filters button.
+  const sheetRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  useDialogFocus(open, sheetRef, { onClose, initialFocusRef: closeButtonRef });
   if (!open || typeof document === "undefined") return null;
   return createPortal(
     <div className="sf-catalog-filter-drawer fixed inset-0 z-[170] lg:hidden" dir={String(lang || "").toLowerCase().startsWith("ar") ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" className="sfx-sheet__backdrop" onClick={onClose} aria-label={t("common.close", "إغلاق")} />
-      <div className="sfx-sheet">
+      <div ref={sheetRef} className="sfx-sheet">
         <div className="sfx-sheet__handle" />
         <div className="sfx-sheet__head">
           <div className="sfx-sheet__title">
             <h2>{title}</h2>
             {activeFilterCount ? <span className="sfx-btn__count">{activeFilterCount}</span> : null}
           </div>
-          <button type="button" onClick={onClose} className="sfx-icon-btn" aria-label={t("common.close", "إغلاق")}>
+          <button ref={closeButtonRef} type="button" onClick={onClose} className="sfx-icon-btn" aria-label={t("common.close", "إغلاق")}>
             <X className="h-4 w-4" />
           </button>
         </div>

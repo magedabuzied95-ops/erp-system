@@ -103,6 +103,7 @@ import { animateFlyToCart } from "./lib/flyToCart";
 import { CART_REPRICE_ENDPOINT, applyCartReprice, cartRepriceKey, cartRepriceVariantIds, isStaleCartCheckoutError } from "./lib/cartReprice";
 import CartRepriceNotice from "./components/CartRepriceNotice";
 import { releaseBootLoader } from "./lib/bootLoader";
+import { useDialogFocus } from "./lib/useDialogFocus";
 import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
 import { localizeColorName, localizeHoursLine, localizeSizeLabel } from "./lib/displayCopy";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
@@ -5168,6 +5169,9 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     setMobileMenuOpen(false);
     setMobileSearchOpen(false);
   }, [setMobileMenuOpen, setMobileSearchOpen]);
+  const mobileMenuPanelRef = useRef(null);
+  const mobileMenuCloseRef = useRef(null);
+  useDialogFocus(menuOpen, mobileMenuPanelRef, { onClose: closeMobileMenu, initialFocusRef: mobileMenuCloseRef });
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     let frameId = 0;
@@ -5543,6 +5547,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                 className="sf-topbar-button"
                 onClick={() => setMobileMenuOpen((value) => !value)}
                 aria-label={t("storefront.header.menu")}
+                aria-expanded={menuOpen}
                 type="button"
               >
                 {menuOpen ? <X strokeWidth={1.25} /> : <Menu strokeWidth={1.25} />}
@@ -5613,6 +5618,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               className="sf-header-action sf-header-menu-button grid h-12 w-12 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
               onClick={() => setMobileMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu")}
+              aria-expanded={menuOpen}
               type="button"
             >
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -5766,7 +5772,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               inside the drawer — drop it and the lists below turn into black
               blocks on a white panel. `sf-menu-panel` only restyles the panel's
               own chrome. */}
-          <aside data-theme={effectiveTheme} className={`sf-mobile-menu-drawer sf-menu-panel fixed inset-y-0 z-[161] flex h-full w-[min(20rem,80vw)] flex-col overflow-hidden ${mobileMenuSideClass}`}>
+          <aside ref={mobileMenuPanelRef} data-theme={effectiveTheme} className={`sf-mobile-menu-drawer sf-menu-panel fixed inset-y-0 z-[161] flex h-full w-[min(20rem,80vw)] flex-col overflow-hidden ${mobileMenuSideClass}`}>
             {/* Language and theme sit ABOVE the account row, where the owner
                 asked for them. Close keeps the far side to itself. */}
             <div className="sf-menu-toolbar">
@@ -5791,6 +5797,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                 </button>
               </div>
               <button
+                ref={mobileMenuCloseRef}
                 type="button"
                 onClick={closeMobileMenu}
                 className="sf-menu-chip sf-menu-chip--icon"
@@ -10012,14 +10019,10 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
   useEffect(() => {
     if (open && cart.length) trackGa4ViewCart(cart);
   }, [cart, open]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, open]);
+  // aria-modal promises the page behind is inert: focus moves in, Tab stays in, Escape closes.
+  const panelRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  useDialogFocus(open, panelRef, { onClose, initialFocusRef: closeButtonRef });
   if (!mounted) return null;
 
   const itemCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
@@ -10040,13 +10043,13 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
       dir={isRtl ? "rtl" : "ltr"}
     >
       <button type="button" className="sf-bag__scrim" onClick={onClose} aria-label={sfText("storefront.common.close")} tabIndex={-1} />
-      <aside className="sf-bag__panel" role="dialog" aria-modal="true" aria-labelledby="sf-bag-title">
+      <aside ref={panelRef} className="sf-bag__panel" role="dialog" aria-modal="true" aria-labelledby="sf-bag-title">
         <header className="sf-bag__head">
           <h2 id="sf-bag-title" className="sf-bag__title">
             {sfText("storefront.cartDrawer.title")}
             {itemCount ? <span className="sf-bag__count">{itemCount}</span> : null}
           </h2>
-          <button type="button" className="sf-bag__close" onClick={onClose} aria-label={sfText("storefront.common.close")}>
+          <button ref={closeButtonRef} type="button" className="sf-bag__close" onClick={onClose} aria-label={sfText("storefront.common.close")}>
             <X strokeWidth={1.6} />
           </button>
         </header>
