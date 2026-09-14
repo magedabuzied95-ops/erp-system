@@ -484,6 +484,8 @@
     "closeShiftBlockedByQueue": "فيه {{count}} فاتورة لسه ماتزامنتش. زامنها قبل قفل الوردية.",
     "offlineSyncDone": "تمت مزامنة {{count}} فاتورة",
     "offlineSyncStillPending": "لسه مفيش اتصال بالسيرفر",
+    "offlineSyncBusy": "جاري الرفع…",
+    "offlineLoginRequired": "لازم تسجل دخول تاني عشان الفواتير تترفع",
     "offlineInvoiceDiscarded": "تم حذف الفاتورة من الطابور",
     "offlineReceiptUnavailable": "مفيش إيصال محفوظ للفاتورة دي",
     "savedOfflineExpense": "تم حفظ المصروف على الجهاز. هيتزامن أول ما الاتصال يرجع.",

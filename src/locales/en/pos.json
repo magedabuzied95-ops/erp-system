@@ -484,6 +484,8 @@
     "closeShiftBlockedByQueue": "{{count}} invoices have not synced yet. Sync them before closing the shift.",
     "offlineSyncDone": "{{count}} invoices synced",
     "offlineSyncStillPending": "Still no connection to the server",
+    "offlineSyncBusy": "Syncing…",
+    "offlineLoginRequired": "Sign in again so the saved invoices can sync",
     "offlineInvoiceDiscarded": "Invoice removed from the queue",
     "offlineReceiptUnavailable": "No stored receipt for this invoice",
     "savedOfflineExpense": "Expense saved on this device. It will sync when the connection returns.",

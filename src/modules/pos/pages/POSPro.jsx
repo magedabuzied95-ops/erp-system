@@ -120,7 +120,7 @@ import {
   requeueOfflineExpense,
   saveOfflineExpense,
 } from "../lib/posOfflineExpenses";
-import { countOpenOfflineWork, createOfflineSyncScheduler } from "../lib/posOfflineSync";
+import { countOpenOfflineWork, createOfflineSyncScheduler, warmOfflinePosScreens } from "../lib/posOfflineSync";
 import { API_BASE_URL } from "../../../shared/constants/app.js";
 import PosOfflineQueueModal from "../components/PosOfflineQueueModal";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
@@ -144,6 +144,7 @@ import {
   getPosCatalogSnapshot,
   preloadPosCatalogThumbnails,
   savePosCatalogSnapshot,
+  applyOfflineSaleToCachedCatalog,
 } from "../lib/posCatalogCache";
 import {
   getPosCustomerPagination,
@@ -1931,6 +1932,14 @@ function POSPro() {
   const [posBackendOnline, setPosBackendOnline] = useState(
     typeof navigator === "undefined" ? true : navigator.onLine !== false
   );
+  // A 401/403 during replay stops the queue without parking it; the cashier
+  // just needs to sign in again for the saved invoices to go up.
+  const [offlineLoginRequired, setOfflineLoginRequired] = useState(false);
+  // Fetch the lazy restock/online-order screens while the line is up, so the
+  // service worker holds them if the cashier opens one offline later.
+  useEffect(() => {
+    if (posBackendOnline) void warmOfflinePosScreens();
+  }, [posBackendOnline]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   // Holds the colour GROUP key (see getVariantColorKey), not the colour name — a
   // product can carry several groups sharing one name.
@@ -2223,6 +2232,7 @@ function POSPro() {
       onResult: ({ work, result }) => {
         applyWork(work);
         if (!active) return;
+        if (result && result.status !== "busy") setOfflineLoginRequired(Boolean(result.loginRequired));
         // The probe, not the outcome of the sends, is what the pill reflects:
         // a pass can legitimately sync nothing (an empty queue) and a pass can
         // fail per-record for reasons that are not connectivity.
@@ -6169,7 +6179,12 @@ function POSPro() {
       // any heuristic, and the per-record errors say plainly what happened. The
       // probe still decides the connection label.
       const result = await posOfflineSchedulerRef.current?.syncNow?.();
+      if (result?.status === "busy") {
+        toast(t("pos.toasts.offlineSyncBusy", "جاري الرفع…"));
+        return result;
+      }
       const work = await refreshOfflineWorkCounts();
+      if (result) setOfflineLoginRequired(Boolean(result.loginRequired));
       if (result && result.reachable) {
         setPosBackendOnline(true);
         await ensureServerPosShift();
@@ -6181,6 +6196,8 @@ function POSPro() {
         toast.success(
           t("pos.toasts.offlineSyncDone", "{{count}} invoices synced", { count: syncedCount })
         );
+      } else if (result?.loginRequired) {
+        toast.error(t("pos.toasts.offlineLoginRequired", "لازم تسجل دخول تاني عشان الفواتير تترفع"));
       } else if (work && work.total > 0) {
         toast.error(t("pos.toasts.offlineSyncStillPending", "Still no connection to the server"));
       }
@@ -6213,7 +6230,12 @@ function POSPro() {
   const handleDiscardOfflineExpense = useCallback(
     async (expense) => {
       if (!expense?.local_id) return;
-      await deleteOfflineExpense(expense.local_id);
+      try {
+        await deleteOfflineExpense(expense.local_id);
+      } catch (error) {
+        if (error?.code === "OFFLINE_DISCARD_FORBIDDEN") toast.error(error.message);
+        throw error;
+      }
       await refreshOfflineWorkCounts();
       toast.success(t("pos.toasts.offlineExpenseDiscarded", "Expense removed from the queue"));
     },
@@ -6223,7 +6245,12 @@ function POSPro() {
   const handleDiscardOfflineOrder = useCallback(
     async (order) => {
       if (!order?.local_id) return;
-      await deleteOfflineOrder(order.local_id);
+      try {
+        await deleteOfflineOrder(order.local_id);
+      } catch (error) {
+        if (error?.code === "OFFLINE_DISCARD_FORBIDDEN") toast.error(error.message);
+        throw error;
+      }
       await refreshOfflineWorkCounts();
       toast.success(t("pos.toasts.offlineInvoiceDiscarded", "Invoice removed from the queue"));
     },
@@ -7524,6 +7551,9 @@ function POSPro() {
           }
           setPosBackendOnline(false);
           setProducts((current) => applySoldItemsToCatalog(current, offlineCheckoutSnapshot.cartItems));
+          // The saved catalog copy loses the units too, or a reload offline
+          // offers the pair that just left the shop.
+          void applyOfflineSaleToCachedCatalog(offlineCheckoutSnapshot.cartItems);
           writePosSaleStats(offlineCheckoutSnapshot.cartItems);
           setCart([]);
           clearPosPersistedState();
@@ -10240,6 +10270,7 @@ function POSPro() {
             onPrintOrder={handleReprintOfflineOrder}
             onRetryExpense={handleRetryOfflineExpense}
             onDiscardExpense={handleDiscardOfflineExpense}
+            loginRequired={offlineLoginRequired}
             imageCache={offlineImageCache}
             imageWarming={offlineImageWarming}
             onWarmImages={handleWarmOfflineImages}
