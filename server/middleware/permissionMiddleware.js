@@ -52,6 +52,8 @@ const CORE_PERMISSIONS = [
   ["expenses.advances", "deduct"],
   ["pos.expenses", "create"],
   ["pos.expenses", "view_shift_total"],
+  // Discount above pos.max_discount_percent (or with pos.allow_discount off).
+  ["pos", "discount_override"],
   ["money_accounts", "view"],
   ["money_accounts", "manage"],
   ["money_transactions", "view"],

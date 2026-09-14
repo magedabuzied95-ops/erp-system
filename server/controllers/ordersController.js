@@ -37,7 +37,15 @@ import {
 } from "../utils/invoiceNumber.js";
 import { attachPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildBulkOrderItemInsertQuery, buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
-import { canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
+import { canOverridePosDiscount, canOverridePosSeller, ensurePosUserShiftSchema, resolvePosBranch } from "./posController.js";
+import {
+  buildPosDiscountLimitMessage,
+  describeTerminalTransactionLinkRejection,
+  evaluatePosDiscountLimit,
+  PAYMOB_TERMINAL_SUCCESS_STATUSES,
+  readPosDiscountLimitSettings,
+  resolveEditedOrderStatus,
+} from "../utils/posCheckoutGuards.js";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../shared/orderStatus.js";
 import { deriveStoredPaymentMethod, getCollectedPaymentAllocations } from "../../shared/paymentMethods.js";
 import {
@@ -2105,10 +2113,16 @@ const adjustProductStock = async (client, data = {}) => {
   return { ...product, stock: quantityAfter };
 };
 
-const resolveOrderLineStock = async (client, { tenantId, item }) => {
+// Every row this returns is locked FOR UPDATE: callers check `stock` against it and
+// then write, and an unlocked read let two tills sell the same last unit.
+// `allowArchived` is for lines being put BACK (an edit restoring its old lines, a
+// return restocking): an archived colour/size must still resolve by id + tenant, or
+// such an invoice could never be edited or returned. A new sale line never passes it.
+const resolveOrderLineStock = async (client, { tenantId, item, allowArchived = false }) => {
   const productId = item.product_id || item.productId ? Number(item.product_id || item.productId) : null;
   const variantId = isRealId(item.variant_id ?? item.variantId) ? Number(item.variant_id ?? item.variantId) : null;
   const variationMode = normalizeVariationMode(item.variation_mode || item.variationMode);
+  const activeVariantClause = allowArchived ? "" : "AND pv.is_active IS DISTINCT FROM FALSE AND pv.deleted_at IS NULL";
 
   if (variantId) {
     const variantResult = await client.query(
@@ -2121,9 +2135,9 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       WHERE pv.id = $1
-        AND pv.is_active IS DISTINCT FROM FALSE
-        AND pv.deleted_at IS NULL
+        ${activeVariantClause}
         AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
+      FOR UPDATE OF pv
       `,
       [variantId, tenantId]
     );
@@ -2151,6 +2165,7 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
       costPrice: Number(variant.cost_price || 0),
       stock: Number(variant.stock || 0),
       record: variant,
+      allowArchived,
     };
   }
 
@@ -2170,8 +2185,7 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
       FROM product_variants pv
       JOIN products p ON p.id = pv.product_id
       WHERE pv.product_id = $1
-        AND pv.is_active IS DISTINCT FROM FALSE
-        AND pv.deleted_at IS NULL
+        ${activeVariantClause}
         AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
         AND ($3::text = '' OR pv.sku = $3::text)
         AND ($4::text = '' OR pv.barcode = $4::text)
@@ -2182,6 +2196,7 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
         CASE WHEN $4::text <> '' AND pv.barcode = $4::text THEN 0 ELSE 1 END,
         pv.id ASC
       LIMIT 1
+      FOR UPDATE OF pv
       `,
       [productId, tenantId, sku, barcode, color, size]
     );
@@ -2196,6 +2211,7 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
         costPrice: Number(matchedVariant.cost_price || 0),
         stock: Number(matchedVariant.stock || 0),
         record: matchedVariant,
+        allowArchived,
       };
     }
   }
@@ -2206,6 +2222,7 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
     FROM products
     WHERE id = $1
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    FOR UPDATE
     `,
     [productId, tenantId]
   );
@@ -2236,11 +2253,11 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
     FROM product_variants pv
     JOIN products p ON p.id = pv.product_id
     WHERE pv.product_id = $1
-      AND pv.is_active IS DISTINCT FROM FALSE
-      AND pv.deleted_at IS NULL
+      ${activeVariantClause}
       AND ($2::bigint IS NULL OR pv.tenant_id = $2::bigint OR pv.tenant_id IS NULL)
     ORDER BY pv.id ASC
     LIMIT 1
+    FOR UPDATE OF pv
     `,
     [product.id, tenantId]
   );
@@ -2255,6 +2272,7 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
       costPrice: Number(defaultVariant.cost_price || 0),
       stock: Number(defaultVariant.stock || 0),
       record: defaultVariant,
+      allowArchived,
     };
   }
 
@@ -2267,6 +2285,29 @@ const resolveOrderLineStock = async (client, { tenantId, item }) => {
     stock: Number(product.stock || 0),
     record: product,
   };
+};
+
+// The fallback resolvers used to hand back unchecked stock, so a cart with one
+// line lacking a variant_id could sell past zero. Same aggregate rule and the same
+// "Not enough stock" text as the fast path: the offline replay's
+// OFFLINE_REPLAY_STOCK_CONFLICT routing matches on that text.
+const assertResolvedStockCoversLines = (items = [], stockByLineKey = new Map()) => {
+  const requiredByStockKey = new Map();
+  const stockByKey = new Map();
+  items.forEach((item, index) => {
+    const stockLine = stockByLineKey.get(String(index));
+    if (!stockLine) return;
+    const stockKey = `${stockLine.type}:${stockLine.variantId || stockLine.productId}`;
+    requiredByStockKey.set(stockKey, (requiredByStockKey.get(stockKey) || 0) + Number(item.quantity || 0));
+    if (!stockByKey.has(stockKey)) stockByKey.set(stockKey, Number(stockLine.stock || 0));
+  });
+  for (const [stockKey, requiredQuantity] of requiredByStockKey.entries()) {
+    if (Number(stockByKey.get(stockKey) || 0) < requiredQuantity) {
+      const error = new Error(`Not enough stock for ${stockKey}`);
+      error.status = 400;
+      throw error;
+    }
+  }
 };
 
 const resolveOrderLinesStockBatch = async (client, { tenantId, items = [] } = {}) => {
@@ -2287,6 +2328,7 @@ const resolveOrderLinesStockBatch = async (client, { tenantId, items = [] } = {}
     for (const line of lineInputs) {
       fallback.set(String(line.index), await resolveOrderLineStock(client, { tenantId, item: line.item }));
     }
+    assertResolvedStockCoversLines(items, fallback);
     return fallback;
   }
 
@@ -2400,6 +2442,7 @@ const resolveOrderLinesStockBatchLegacy = async (client, { tenantId, items = [] 
   for (const [index, item] of items.entries()) {
     stockByLineKey.set(String(index), await resolveOrderLineStock(client, { tenantId, item }));
   }
+  assertResolvedStockCoversLines(items, stockByLineKey);
   return stockByLineKey;
 };
 
@@ -2536,38 +2579,55 @@ const bulkApplyInventoryChanges = async (client, {
   const variantMovements = movements.filter((line) => line.type === "variant");
   const productMovements = movements.filter((line) => line.type === "product");
 
+  // Relative writes: the row takes the sold quantity off whatever it holds now,
+  // never an absolute figure computed from an earlier read. The ledger records the
+  // stock the UPDATE actually left.
+  const applyReturnedStock = (lines, rows) => {
+    const stockById = new Map(rows.map((row) => [Number(row.id), Number(row.stock || 0)]));
+    for (const line of lines) {
+      const id = Number(line.type === "variant" ? line.variantId : line.productId);
+      if (!stockById.has(id)) continue;
+      line.quantityAfter = stockById.get(id);
+      line.quantityBefore = line.quantityAfter + Math.abs(Number(line.quantity || 0));
+    }
+  };
+
   if (variantMovements.length) {
-    await client.query(
+    const variantUpdate = await client.query(
       `
       UPDATE product_variants AS pv
-      SET stock = data.quantity_after,
+      SET stock = COALESCE(pv.stock, 0) - data.quantity,
           updated_at = NOW()
       FROM (
         SELECT * FROM UNNEST($1::bigint[], $2::numeric[])
-          AS t(id, quantity_after)
+          AS t(id, quantity)
       ) AS data
       WHERE pv.id = data.id
         AND ($3::bigint IS NULL OR pv.tenant_id = $3::bigint OR pv.tenant_id IS NULL)
+      RETURNING pv.id, pv.stock
       `,
-      [variantMovements.map((line) => Number(line.variantId)), variantMovements.map((line) => Number(line.quantityAfter)), numericTenantId]
+      [variantMovements.map((line) => Number(line.variantId)), variantMovements.map((line) => Math.abs(Number(line.quantity || 0))), numericTenantId]
     );
+    applyReturnedStock(variantMovements, variantUpdate?.rows || []);
   }
 
   if (productMovements.length) {
-    await client.query(
+    const productUpdate = await client.query(
       `
       UPDATE products AS p
-      SET stock = data.quantity_after,
+      SET stock = COALESCE(p.stock, 0) - data.quantity,
           updated_at = NOW()
       FROM (
         SELECT * FROM UNNEST($1::bigint[], $2::numeric[])
-          AS t(id, quantity_after)
+          AS t(id, quantity)
       ) AS data
       WHERE p.id = data.id
         AND ($3::bigint IS NULL OR p.tenant_id = $3::bigint)
+      RETURNING p.id, p.stock
       `,
-      [productMovements.map((line) => Number(line.productId)), productMovements.map((line) => Number(line.quantityAfter)), numericTenantId]
+      [productMovements.map((line) => Number(line.productId)), productMovements.map((line) => Math.abs(Number(line.quantity || 0))), numericTenantId]
     );
+    applyReturnedStock(productMovements, productUpdate?.rows || []);
   }
 
   for (const line of movements) {
@@ -3362,6 +3422,31 @@ export const createOrder = async (req, res) => {
       return sum + Math.min(lineDiscount, lineGross);
     }, 0));
     const itemDiscountAmount = Math.min(requestedItemDiscountAmount, lineDiscountTotal);
+    // Store discount limits (pos.allow_discount / pos.max_discount_percent) on the
+    // manual discount only: item + invoice, after the caps above. Coupon, loyalty and
+    // offer prices are not manual discounts. Managers bypass. An offline replay is
+    // never refused for it — the goods already left — it is logged instead.
+    // pos.manager_approval_discount_percent is not enforced: it needs an approval
+    // step at the till that does not exist yet.
+    const discountLimitCheck = evaluatePosDiscountLimit({
+      grossSubtotal: computedSubtotal,
+      manualDiscount: itemDiscountAmount + normalizedInvoiceDiscountAmount,
+      ...(await readPosDiscountLimitSettings(getSetting)),
+    });
+    if (discountLimitCheck.exceeded && !(await canOverridePosDiscount(client, req.user?.id || null))) {
+      if (offline_origin) {
+        console.warn("[orders:discount-limit-offline-accepted]", { tenant_id: tenantId, user_id: req.user?.id || null, ...discountLimitCheck });
+      } else {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(403).json({
+          success: false,
+          code: "POS_DISCOUNT_LIMIT",
+          message: buildPosDiscountLimitMessage(discountLimitCheck),
+          discount: discountLimitCheck,
+        });
+      }
+    }
     // Loyalty money is points x the active rule's redeem value, never more.
     const requestedLoyaltyPoints = Math.max(0, Math.floor(Number(loyalty_points_redeemed || 0) || 0));
     const requestedLoyaltyDiscount = Math.max(0, Number(loyalty_discount_amount || 0) || 0);
@@ -3544,6 +3629,59 @@ export const createOrder = async (req, res) => {
       : normalizedSalePaymentMethod === "mixed" || normalizedSalePaymentMethod === "split"
         ? requestedCustomerWalletAmount
         : 0;
+    // A terminal payment can only be claimed by the sale it paid for: same tenant, a
+    // confirmed success, not already attached to another invoice, and for the card
+    // amount this sale records. The link used to be a bare UPDATE by id, so any
+    // transaction id — failed, foreign, or already used — "paid" a new invoice.
+    const linkedTerminalTransactionId = payment_transaction_id || paymob_terminal_transaction_id || null;
+    if (linkedTerminalTransactionId) {
+      const terminalTransactionCheck = await client.query(
+        `
+        SELECT *
+        FROM payment_transactions
+        WHERE id = $1
+          AND provider = 'paymob'
+        FOR UPDATE
+        `,
+        [linkedTerminalTransactionId]
+      );
+      const terminalTransaction = terminalTransactionCheck.rows[0] || null;
+      const breakdownCardAmount = submittedPaymentBreakdown
+        .filter((payment) => normalizeMoneyPaymentMethod(payment.method || payment.payment_method) === "card")
+        .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const saleCardAmount = Number(card_amount || 0) > 0
+        ? Number(card_amount)
+        : breakdownCardAmount > 0
+          ? breakdownCardAmount
+          : normalizedSalePaymentMethod === "card" ? Number(receivedAmount || 0) : 0;
+      const terminalRejection = describeTerminalTransactionLinkRejection(terminalTransaction, {
+        tenantId,
+        saleCardAmount,
+      });
+      if (terminalRejection) {
+        console.warn("[orders:paymob-link-rejected]", {
+          tenant_id: tenantId,
+          transaction_id: linkedTerminalTransactionId,
+          reason: terminalRejection,
+          transaction_status: terminalTransaction?.status || null,
+          transaction_order_id: terminalTransaction?.order_id || null,
+          sale_card_amount: saleCardAmount,
+        });
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(400).json({
+          success: false,
+          code: "PAYMOB_TRANSACTION_NOT_LINKABLE",
+          reason: terminalRejection,
+          message: terminalRejection === "amount_mismatch"
+            ? "مبلغ عملية الماكينة لا يطابق مبلغ الكارت في الفاتورة"
+            : terminalRejection === "already_linked"
+              ? "عملية الدفع بالماكينة مربوطة بفاتورة أخرى بالفعل"
+              : "عملية الدفع بالماكينة غير صالحة أو لم تكتمل بنجاح",
+        });
+      }
+    }
+
     const publicToken = generatePublicToken();
     const detectedAttribution = detectMarketingAttribution(req);
     const resolvedMarketingSource = marketing_source || detectedAttribution.marketing_source || null;
@@ -3785,8 +3923,9 @@ export const createOrder = async (req, res) => {
       if (offlineStamp.rows[0]) order = { ...order, ...offlineStamp.rows[0] };
     }
 
-    const linkedTerminalTransactionId = payment_transaction_id || paymob_terminal_transaction_id || null;
     if (linkedTerminalTransactionId) {
+      // Row locked and validated above; the WHERE repeats the guards so this write
+      // can never attach a transaction the check would have refused.
       const terminalTransactionResult = await client.query(
         `
         UPDATE payment_transactions
@@ -3794,10 +3933,22 @@ export const createOrder = async (req, res) => {
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
           AND provider = 'paymob'
+          AND tenant_id = $3::bigint
+          AND (order_id IS NULL OR order_id = $2)
+          AND LOWER(COALESCE(status, '')) = ANY($4::text[])
         RETURNING *
         `,
-        [linkedTerminalTransactionId, order.id]
+        [linkedTerminalTransactionId, order.id, tenantId, [...PAYMOB_TERMINAL_SUCCESS_STATUSES]]
       );
+      if (terminalTransactionResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        return res.status(400).json({
+          success: false,
+          code: "PAYMOB_TRANSACTION_NOT_LINKABLE",
+          message: "عملية الدفع بالماكينة غير صالحة أو لم تكتمل بنجاح",
+        });
+      }
       if (terminalTransactionResult.rowCount > 0) {
         console.info("PAYMOB_TERMINAL_PAYMENT_SUCCESS_CREATE_ORDER", {
           transaction_id: linkedTerminalTransactionId,
@@ -4128,6 +4279,9 @@ export const createOrder = async (req, res) => {
 
     const loyaltyMustBlockCheckout = customerWalletRedemptionAmount > 0 || Number(loyalty_points_redeemed || 0) > 0;
     if (loyaltyMustBlockCheckout) {
+      // The failure below is turned into a result, not rethrown; a savepoint keeps a
+      // failed statement from poisoning the rest of the sale transaction.
+      await client.query("SAVEPOINT pos_checkout_loyalty");
       try {
         loyaltyResult = await timedCheckout(checkoutTiming, "loyalty_ms", () => processOrderLoyalty(client, {
           tenantId,
@@ -4143,7 +4297,9 @@ export const createOrder = async (req, res) => {
           fullWalletRedemptionOnly: Boolean(full_wallet_redemption_only),
           userId: req.user?.id || null,
         }));
+        await client.query("RELEASE SAVEPOINT pos_checkout_loyalty");
       } catch (loyaltyError) {
+        await client.query("ROLLBACK TO SAVEPOINT pos_checkout_loyalty");
         console.error("[pos] loyalty processing failed", {
           order_id: order.id,
           message: loyaltyError?.message,
@@ -4213,6 +4369,10 @@ export const createOrder = async (req, res) => {
     }
 
     if (Number(loyaltyResult?.walletRedeemedAmount || 0) > 0) {
+      // Best-effort journal, but inside the sale transaction: a failed statement
+      // aborts the whole transaction, and COMMIT would then silently roll the sale
+      // back while the till shows success. The savepoint confines the failure.
+      await client.query("SAVEPOINT pos_wallet_liability_entry");
       try {
         await postWalletLiabilityEntry(client, {
           tenantId,
@@ -4225,7 +4385,9 @@ export const createOrder = async (req, res) => {
           branchId: resolvedBranchId,
           notes: `Order #${order.invoice_number || order.id}`,
         });
+        await client.query("RELEASE SAVEPOINT pos_wallet_liability_entry");
       } catch (walletAccountingError) {
+        await client.query("ROLLBACK TO SAVEPOINT pos_wallet_liability_entry");
         console.error("[orders] wallet payment accounting fallback", walletAccountingError.message);
       }
     }
@@ -5715,6 +5877,8 @@ const loadOrderWithItems = async (clientOrPool, { tenantId, orderId }) => {
   };
 };
 
+// `stockLine` comes from resolveOrderLineStock, which locks the row, so the check
+// below reads the stock the write will actually start from.
 const applyStockDelta = async (client, { tenantId, order, stockLine, delta, movementType, reason, userId }) => {
   if (!stockLine || Number(delta || 0) === 0) return;
   if (Number(stockLine.stock || 0) + Number(delta || 0) < 0) {
@@ -5738,6 +5902,9 @@ const applyStockDelta = async (client, { tenantId, order, stockLine, delta, move
       branchId: order.branch_id || null,
       warehouseId: order.warehouse_id || null,
       customerId: order.customer_id || null,
+      // Putting units back onto an archived colour/size is allowed; taking them off
+      // one only when the resolver allowed it (an edit keeping a line it already sold).
+      includeArchived: Number(delta) > 0 || stockLine.allowArchived === true,
     });
     return;
   }
@@ -6368,7 +6535,7 @@ const restoreOrderInventory = async (client, { tenantId, order, items, movementT
   for (const item of items.map(normalizeOperationItem)) {
     const quantity = Number(item.quantity || 0);
     if (quantity <= 0) continue;
-    const stockLine = await resolveOrderLineStock(client, { tenantId, item });
+    const stockLine = await resolveOrderLineStock(client, { tenantId, item, allowArchived: true });
     const adjustment = await applyStockDelta(client, {
       tenantId,
       order,
@@ -6439,7 +6606,7 @@ export const editOrder = async (req, res) => {
       const safePatch = {
         customer_name: Object.prototype.hasOwnProperty.call(req.body, "customer_name") ? String(req.body.customer_name || "").trim() || "Walk-in Customer" : loaded.order.customer_name,
         customer_phone: Object.prototype.hasOwnProperty.call(req.body, "customer_phone") ? String(req.body.customer_phone || "").trim() : loaded.order.customer_phone,
-        status: Object.prototype.hasOwnProperty.call(req.body, "status") ? String(req.body.status || "").trim() || loaded.order.status : loaded.order.status,
+        status: Object.prototype.hasOwnProperty.call(req.body, "status") ? resolveEditedOrderStatus(req.body.status) || loaded.order.status : loaded.order.status,
         payment_status: Object.prototype.hasOwnProperty.call(req.body, "payment_status") ? String(req.body.payment_status || "").trim() || loaded.order.payment_status : loaded.order.payment_status,
         source: Object.prototype.hasOwnProperty.call(req.body, "source") ? String(req.body.source || "").trim() || loaded.order.source || loaded.order.channel : loaded.order.source,
         channel: Object.prototype.hasOwnProperty.call(req.body, "channel") ? String(req.body.channel || "").trim() || loaded.order.channel || loaded.order.source : loaded.order.channel,
@@ -6609,10 +6776,30 @@ export const editOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "لا يمكن حفظ فاتورة بدون منتجات" });
     }
 
+    // A line that was already on the invoice may keep its archived colour/size (up
+    // to the quantity it was sold at) — otherwise an invoice holding one could never
+    // be edited at all. Anything beyond that is a new sale and needs an active variant.
+    const oldQuantityByVariantId = new Map();
+    for (const item of oldItems) {
+      const variantKey = isRealId(item.variant_id) ? String(Number(item.variant_id)) : "";
+      if (variantKey) oldQuantityByVariantId.set(variantKey, (oldQuantityByVariantId.get(variantKey) || 0) + Number(item.quantity || 0));
+    }
+    const newQuantityByVariantId = new Map();
+    for (const item of newItems) {
+      const variantKey = isRealId(item.variant_id) ? String(Number(item.variant_id)) : "";
+      if (variantKey) newQuantityByVariantId.set(variantKey, (newQuantityByVariantId.get(variantKey) || 0) + Number(item.quantity || 0));
+    }
+    const editLineMayUseArchivedVariant = (item) => {
+      const variantKey = isRealId(item.variant_id) ? String(Number(item.variant_id)) : "";
+      return Boolean(variantKey)
+        && oldQuantityByVariantId.has(variantKey)
+        && (newQuantityByVariantId.get(variantKey) || 0) <= oldQuantityByVariantId.get(variantKey);
+    };
+
     for (const item of oldItems) {
       const quantity = Number(item.quantity || 0);
       if (quantity <= 0) continue;
-      const stockLine = await resolveOrderLineStock(client, { tenantId, item });
+      const stockLine = await resolveOrderLineStock(client, { tenantId, item, allowArchived: true });
       await applyStockDelta(client, {
         tenantId,
         order: loaded.order,
@@ -6627,7 +6814,7 @@ export const editOrder = async (req, res) => {
     for (const item of newItems) {
       const quantity = Number(item.quantity || 0);
       if (quantity <= 0) continue;
-      const stockLine = await resolveOrderLineStock(client, { tenantId, item });
+      const stockLine = await resolveOrderLineStock(client, { tenantId, item, allowArchived: editLineMayUseArchivedVariant(item) });
       await applyStockDelta(client, {
         tenantId,
         order: loaded.order,
@@ -6663,6 +6850,26 @@ export const editOrder = async (req, res) => {
     }, 0);
     const requestedEditDiscount = Math.max(0, Number(req.body.discount_amount ?? editLineDiscountTotal) || 0);
     const discountValue = normalizeInvoiceMoney(Math.min(requestedEditDiscount, editLineDiscountTotal + invoiceDiscountAmount));
+    // Same store discount limits as the sale. An edit may keep the manual discount
+    // share the invoice already carried (a manager may have granted it at the till),
+    // so only raising it past the limit is refused.
+    const loadedSubtotal = Number(loaded.order.subtotal || 0);
+    const loadedManualDiscount = Math.max(0, Number(loaded.order.discount_amount || 0) - Number(loaded.order.coupon_discount_amount || 0));
+    const editDiscountLimitCheck = evaluatePosDiscountLimit({
+      grossSubtotal: subtotalValue,
+      manualDiscount: discountValue,
+      previousPercent: loadedSubtotal > 0 && loadedManualDiscount > 0.009 ? (loadedManualDiscount / loadedSubtotal) * 100 : null,
+      ...(await readPosDiscountLimitSettings(getSetting)),
+    });
+    if (editDiscountLimitCheck.exceeded && !(await canOverridePosDiscount(client, req.user?.id || null))) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({
+        success: false,
+        code: "POS_DISCOUNT_LIMIT",
+        message: buildPosDiscountLimitMessage(editDiscountLimitCheck),
+        discount: editDiscountLimitCheck,
+      });
+    }
     const serviceValue = Number(req.body.service_fee ?? loaded.order.service_fee ?? 0);
     const taxValue = Number(req.body.tax_amount ?? 0);
 
@@ -6874,7 +7081,7 @@ export const editOrder = async (req, res) => {
     await client.query(`DELETE FROM order_items WHERE order_id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)`, [loaded.order.id, tenantId]);
     const orderItemAvailableColumns = await getTableColumnSet(client, "order_items");
     for (const item of newItems) {
-      const stockLine = await resolveOrderLineStock(client, { tenantId, item });
+      const stockLine = await resolveOrderLineStock(client, { tenantId, item, allowArchived: editLineMayUseArchivedVariant(item) });
       const query = buildOrderItemInsertQuery({
         ...item,
         tenant_id: tenantId,
@@ -6963,7 +7170,7 @@ export const editOrder = async (req, res) => {
         paidValue,
         storedEditPaymentMethod || null,
         req.body.payment_status || null,
-        req.body.status || null,
+        resolveEditedOrderStatus(req.body.status, { treatPendingAsPayment: true }),
         resolvedCustomerId,
         resolvedCustomerName,
         resolvedCustomerPhone,
@@ -8143,7 +8350,7 @@ export const returnOrder = async (req, res) => {
       await client.query(`UPDATE order_items SET returned_quantity = COALESCE(returned_quantity, 0) + $1 WHERE id = $2`, [quantity, original.id]);
 
       if (shouldRestock) {
-        const stockLine = await resolveOrderLineStock(client, { tenantId, item: original });
+        const stockLine = await resolveOrderLineStock(client, { tenantId, item: original, allowArchived: true });
         returnCogsTotal += Number(stockLine.costPrice || 0) * Number(quantity || 0);
         await applyStockDelta(client, {
           tenantId,
@@ -8800,7 +9007,7 @@ export const createReturn = async (req, res) => {
       await client.query(`UPDATE order_items SET returned_quantity = COALESCE(returned_quantity, 0) + $1 WHERE id = $2`, [quantity, originalItem.id]);
 
       if (shouldRestock) {
-        const stockLine = await resolveOrderLineStock(client, { tenantId, item: originalItem });
+        const stockLine = await resolveOrderLineStock(client, { tenantId, item: originalItem, allowArchived: true });
         returnCogsTotal += Number(stockLine.costPrice || 0) * Number(quantity || 0);
         await applyStockDelta(client, {
           tenantId,
