@@ -525,6 +525,23 @@
           if (isAssetScript(event && event.target)) recover(false);
         }, true);
 
+        function paintStranded() {
+          if (recovering) return; // a recovery already owns the screen
+          paintOverlay(
+            overlayEnglish ? "This version could not open. Tap refresh to load the latest one." : "النظام مقدرش يفتح النسخة الحالية. اضغط تحديث لتحميل آخر نسخة.",
+            overlayEnglish ? "Refresh now" : "تحديث الآن",
+            function () {
+              try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
+              recover(true);
+            }
+          );
+        }
+
+        // main.jsx calls this the moment it knows App.jsx failed and no reload is
+        // coming (the guard was already used, or the origin is unreachable), so
+        // the refresh screen appears at once instead of 12 seconds of blank.
+        window.__m1ShowBootFailure = paintStranded;
+
         // Release the guard once the app has clearly booted, so a genuine future
         // stale-build event is still recoverable in this same tab.
         window.addEventListener("load", function () {
@@ -534,18 +551,10 @@
               try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
               return;
             }
-            if (recovering) return; // a recovery already owns the screen
             // Nothing mounted and nothing is recovering: either the guard blocked
             // a second attempt or storage is unavailable. Both used to leave a
             // silent blank page with no way out but a manual hard reload.
-            paintOverlay(
-              overlayEnglish ? "This version could not open. Tap refresh to load the latest one." : "النظام مقدرش يفتح النسخة الحالية. اضغط تحديث لتحميل آخر نسخة.",
-              overlayEnglish ? "Refresh now" : "تحديث الآن",
-              function () {
-                try { sessionStorage.removeItem(GUARD_KEY); } catch (error) { /* ignore */ }
-                recover(true);
-              }
-            );
+            paintStranded();
           }, 12000);
         });
 

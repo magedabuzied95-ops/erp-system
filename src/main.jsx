@@ -138,7 +138,28 @@ if (isEmployeeAppRoute) {
     );
   });
 } else {
-  import("./App.jsx")
+  // A dead page with no way out is the one outcome not allowed here. index.html owns
+  // the refresh screen (its copy is bilingual and it already reads the stored
+  // language before i18n exists); the bare fallback below only covers a document
+  // that somehow lacks that script.
+  const showBootFailure = () => {
+    if (typeof window !== "undefined" && typeof window.__m1ShowBootFailure === "function") {
+      window.__m1ShowBootFailure();
+      return;
+    }
+    root.render(
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <button type="button" onClick={() => window.location.reload()} style={{ padding: "10px 24px", borderRadius: 12, font: "inherit" }}>
+          Reload
+        </button>
+      </div>
+    );
+  };
+
+  // App.jsx is a chunk like any other, so it gets the same retry past a CDN-cached 404
+  // before anything reloads. recover:false because the recovery runs below, where its
+  // answer decides whether a reload is coming or the refresh screen has to show.
+  importWithChunkRetry(() => import("./App.jsx"), { recover: false })
     .then(({ default: App }) => {
       root.render(
         <ThemeProvider>
@@ -162,6 +183,11 @@ if (isEmployeeAppRoute) {
       );
     })
     .catch((error) => {
-      recoverFromChunkLoadError(error);
+      // False means no reload is on its way: the guard was already spent, the origin
+      // is unreachable, or this was not a chunk error at all. Each used to leave a
+      // blank page.
+      recoverFromChunkLoadError(error).then((reloading) => {
+        if (!reloading) showBootFailure();
+      }, showBootFailure);
     });
 }

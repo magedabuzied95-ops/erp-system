@@ -48,6 +48,7 @@ import {
   categoryCanonical,
   productHasLargeAvailableSize,
   seoCategoryByPath,
+  seoPinnedFilterUrl,
   localizeSeoCategory,
 } from "../../shared/lib/categorySeo.js";
 
@@ -1096,7 +1097,19 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     next.delete("page");
     setParams(next, { replace });
   };
+  // On a section page (/men, /crocs) the path pins gender or type and wins over the
+  // query, so a change to that field has to open another path to show anything.
+  // Null everywhere else, including /products, which keeps writing the query.
+  const pinnedFilterUrl = (field, value) => {
+    if (!seoCategory) return null;
+    const normalizedValue = field === "gender"
+      ? normalizeStorefrontAudienceValue(value) || normalizeFilterText(value)
+      : storefrontProductTypeQueryValue(normalizeStorefrontProductTypeValue(value));
+    return seoPinnedFilterUrl(seoCategory, field, normalizedValue, params.toString());
+  };
   const buildFilterUrl = (field, value) => {
+    const pinnedUrl = pinnedFilterUrl(field, value);
+    if (pinnedUrl) return pinnedUrl;
     const next = new URLSearchParams(params);
     next.delete("page");
     if (field === "type" || field === "productType") {
@@ -1139,6 +1152,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     });
   };
   const setSingleFilterValue = (field, value) => {
+    const pinnedUrl = pinnedFilterUrl(field, value);
+    if (pinnedUrl) {
+      navigate(pinnedUrl);
+      return;
+    }
     setSearchParam((next) => {
       if (field === "type" || field === "productType") {
         next.delete("product_type");
@@ -1246,6 +1264,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
 
       <CatalogQuickChips
         params={params}
+        pinnedFilters={seoCategory?.apiFilters}
         lang={lang}
         items={catalogQuickCategoryItems}
         buildUrl={buildFilterUrl}
@@ -1269,6 +1288,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
         lang={lang}
         onClearAll={() => navigate(clearClassificationFiltersUrl())}
       onRemove={(field, value) => {
+        const pinnedUrl = field === "gender" || field === "type" ? pinnedFilterUrl(field, "") : null;
+        if (pinnedUrl) {
+          navigate(pinnedUrl);
+          return;
+        }
         setSearchParam((next) => {
           if (field === "q") {
             next.delete("q");
@@ -1647,11 +1671,15 @@ function CatalogSortControl({ value = "newest", options = [], onChange, compact 
   );
 }
 
-function CatalogQuickChips({ params, items = [], buildUrl, lang = "ar" }) {
+// Active means "what the grid is filtered by": a section's pinned value outranks the
+// query exactly as it does for the request, so /men?gender=women lights Men, not Women.
+function CatalogQuickChips({ params, pinnedFilters = null, items = [], buildUrl, lang = "ar" }) {
   return (
     <div className="sf-scroll sfx-chiprow hidden md:flex">
       {items.map((item) => {
-        const activeValue = item.field === "gender" ? normalizeStorefrontAudienceValue(params.get("gender")) : normalizeStorefrontProductTypeValue(params.get("type") || params.get("product_type"));
+        const activeValue = item.field === "gender"
+          ? normalizeStorefrontAudienceValue(pinnedFilters?.gender || params.get("gender"))
+          : normalizeStorefrontProductTypeValue(pinnedFilters?.product_type || params.get("type") || params.get("product_type"));
         const isActive =
           item.field === "gender"
             ? normalizeStorefrontAudienceValue(activeValue) === normalizeStorefrontAudienceValue(item.value)

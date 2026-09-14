@@ -233,11 +233,14 @@ const RegisterCompany = lazy(() => import("./modules/saas/pages/RegisterCompany"
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const PublicProduct = lazy(() => import("./pages/PublicProduct"));
 const SmartProductQrRedirect = lazy(() => import("./pages/SmartProductQrRedirect"));
-const PrivacyPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.PrivacyPage })));
-const TermsPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.TermsPage })));
-const DataDeletionPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.DataDeletionPage })));
-const OrderConfirmationActionPage = lazy(() => import("./storefront/pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
-const CustomerAddressPage = lazy(() => import("./storefront/pages/CustomerAddressPage.jsx").then((module) => ({ default: module.CustomerAddressPage })));
+// Customer-facing pages opened from a link (a WhatsApp confirmation, an address
+// request, a store policy) retry past a CDN-cached 404 like the storefront's own
+// pages: the customer lands cold, often minutes after a deploy.
+const PrivacyPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/LegalPages")).then((module) => ({ default: module.PrivacyPage })));
+const TermsPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/LegalPages")).then((module) => ({ default: module.TermsPage })));
+const DataDeletionPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/LegalPages")).then((module) => ({ default: module.DataDeletionPage })));
+const OrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
+const CustomerAddressPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/CustomerAddressPage.jsx")).then((module) => ({ default: module.CustomerAddressPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
 
@@ -278,7 +281,10 @@ const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
 const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
 const AiSettings = lazy(() => import("./modules/aiSupport/pages/AiSettings"));
 const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAnalytics"));
-const Storefront = lazy(() => import("./storefront/Storefront"));
+// The whole shop sits behind this one chunk, so a CDN edge still holding a 404 for
+// it (vercel.json caches /assets/* as immutable, 404s included) blanked every
+// storefront page. The retry's query string goes past that entry to the origin.
+const Storefront = lazy(() => importWithChunkRetry(() => import("./storefront/Storefront")));
 // MainLayout is the ERP shell (sidebar, realtime socket, RBAC, notifications).
 // It only renders on the ERP host, so load it lazily to keep its heavy graph
 // (socket.io-client, rbac store, notifications) out of the customer storefront's

@@ -135,7 +135,60 @@ export const localizeSeoCategory = (definition, language = "ar") => {
 export const seoCategoryByKey = (key = "") =>
   SEO_CATEGORY_DEFINITIONS.find((item) => item.key === String(key || "")) || null;
 
-export const categoryCanonical = (definition, page = 1) =>
+/*
+ * A section page pins some filters in its path: /men IS gender=men, /crocs IS
+ * product_type=crocs. The listing reads the pinned value ahead of the URL, so
+ * writing ?gender=women onto /men changed nothing but the chip -- the grid stayed
+ * men. Changing or removing a pinned field therefore has to leave the path: to the
+ * section that pins the new value when there is one, otherwise to /products with
+ * the new value in the query. Each entry names the pin in apiFilters, the query
+ * parameter the listing reads it from, and every alias that must go with it.
+ */
+const SEO_PINNED_URL_FIELDS = {
+  gender: { pin: "gender", param: "gender", aliases: ["gender"] },
+  type: { pin: "product_type", param: "type", aliases: ["type", "product_type", "category"] },
+};
+
+const seoSectionPinning = (pin, value) =>
+  SEO_CATEGORY_DEFINITIONS.find((item) => {
+    const keys = Object.keys(item.apiFilters || {});
+    return keys.length === 1 && keys[0] === pin && String(item.apiFilters[pin]) === value;
+  }) || null;
+
+/**
+ * The URL a gender/type change should open on a section page, or null when the
+ * section does not pin that field (the caller then writes the query as usual).
+ * `value` is expected already normalized ("women", "bags"); "" or "all" removes it.
+ * `search` is the current query string; page is dropped like any filter change.
+ */
+export const seoPinnedFilterUrl = (definition, field, value, search = "") => {
+  const spec = SEO_PINNED_URL_FIELDS[field === "productType" ? "type" : field];
+  if (!spec || !definition?.apiFilters?.[spec.pin]) return null;
+
+  const rawValue = String(value ?? "").trim().toLowerCase();
+  const nextValue = rawValue === "all" ? "" : rawValue;
+  const next = new URLSearchParams(search);
+  next.delete("page");
+  spec.aliases.forEach((key) => next.delete(key));
+
+  const target = nextValue ? seoSectionPinning(spec.pin, nextValue) : null;
+  if (!target && nextValue) next.set(spec.param, nextValue);
+
+  // Whatever else this section pinned still applies -- but it lived in the path,
+  // so it has to move into the query or it is silently dropped on the way out.
+  Object.values(SEO_PINNED_URL_FIELDS).forEach((other) => {
+    if (other === spec) return;
+    const pinned = definition.apiFilters[other.pin];
+    if (!pinned || target?.apiFilters?.[other.pin]) return;
+    next.delete(other.pin);
+    next.set(other.param, String(pinned));
+  });
+
+  const query = next.toString();
+  return `${target ? target.path : "/products"}${query ? `?${query}` : ""}`;
+};
+
+export const categoryCanonical =(definition, page = 1) =>
   `${STOREFRONT_ORIGIN}${definition.path}${Number(page) > 1 ? `?page=${Number(page)}` : ""}`;
 
 export const productHasLargeAvailableSize = (product = {}, range = {}) =>
