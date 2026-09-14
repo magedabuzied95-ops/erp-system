@@ -110,7 +110,9 @@ const matchingColorEntries = (product = {}, group = {}, { groupKeys = new Set(),
   });
 };
 
-export const buildProductColorGroups = ({ product = {}, variants = [], colorKey, colorName, variantHasStock }) => {
+// keepColorKey: a sold-out colour that stays in the list anyway — the one a ?color= link opened on,
+// so the page shows that colour's own photos and (sold-out) sizes instead of another colour's.
+export const buildProductColorGroups = ({ product = {}, variants = [], colorKey, colorName, variantHasStock, keepColorKey = "" }) => {
   const groups = new Map();
   const safeVariants = (Array.isArray(variants) ? variants : []).filter((variant) => variant && typeof variant === "object");
   safeVariants.forEach((variant) => {
@@ -129,7 +131,7 @@ export const buildProductColorGroups = ({ product = {}, variants = [], colorKey,
   }, new Map());
 
   return [...groups.values()]
-    .filter((group) => group.variants.some((variant) => variantHasStock(variant)))
+    .filter((group) => group.variants.some((variant) => variantHasStock(variant)) || Boolean(keepColorKey && group.key === keepColorKey))
     .map((group) => {
       const primaryVariant = group.variants.find((variant) => variantHasStock(variant)) || group.variants[0];
       const nameIsAmbiguous = (nameCounts.get(normalized(group.colorName)) || 0) > 1;

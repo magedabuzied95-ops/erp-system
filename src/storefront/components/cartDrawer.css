@@ -356,6 +356,17 @@
   background: var(--bag-surface);
 }
 
+/* + at the stock the last re-price saw (lib/cartLine.js). */
+.sf-bag__stepper button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: transparent;
+}
+
+.sf-bag__line-issue {
+  margin: 0;
+}
+
 .sf-bag__qty {
   min-width: 1.75rem;
   text-align: center;

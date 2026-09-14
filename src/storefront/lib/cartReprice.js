@@ -71,6 +71,8 @@ export const applyCartReprice = (cart = [], variants = [], currentPrice = (line)
       next = { ...line, reprice_unavailable: flag };
       if (!flag) delete next.reprice_unavailable;
     }
+    // Kept on the line so the + button stops at what can be bought (lib/cartLine.js).
+    if (line.reprice_stock !== stock) next = { ...next, reprice_stock: stock };
     if (sellable) {
       const shown = toMoney(currentPrice(line));
       const compareAtPrice = toMoney(entry.compare_at_price);
@@ -100,4 +102,13 @@ export const isStaleCartCheckoutError = (error) => {
   const status = Number(error?.status || error?.response?.status || 0);
   const field = String(error?.responseBody?.field || error?.response?.data?.field || "").toLowerCase();
   return (status === 409 && field === "delivery_fee") || (status === 400 && field === "paid_amount");
+};
+
+// Checkout refusing a line: a variant that is hidden, archived or gone (items.variant_id) or more than is
+// in stock (items.quantity). The message named no line, so the shopper could not tell which to fix; a
+// re-price flags the line itself.
+export const isCartLineCheckoutError = (error) => {
+  const status = Number(error?.status || error?.response?.status || 0);
+  const field = String(error?.responseBody?.field || error?.response?.data?.field || "").toLowerCase();
+  return status === 400 && (field === "items.variant_id" || field === "items.quantity");
 };

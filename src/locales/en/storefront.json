@@ -687,7 +687,11 @@
     "repriceOutOfStock": "{{name}} is out of stock. Remove it to continue.",
     "repriceLowStock": "Only {{stock}} left of {{name}}. Lower the quantity to continue.",
     "repriceCheckoutRetry": "Your cart was updated to today's prices and shipping. Review the total, then place the order again.",
-    "repriceDismiss": "Dismiss"
+    "repriceDismiss": "Dismiss",
+    "lineUnavailable": "No longer available. Remove it to continue.",
+    "lineOutOfStock": "Out of stock. Remove it to continue.",
+    "lineLowStock": "Only {{stock}} left. Lower the quantity to continue.",
+    "lineCheckoutRefused": "An item in your cart can't be ordered as it is. Check the note above, then place the order again."
   },
   "success": {
     "awaitingVerificationSubtitle": "We will review the transfer proof, then start preparing the order.",

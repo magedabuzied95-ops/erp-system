@@ -434,7 +434,11 @@
     "repriceOutOfStock": "{{name}} خلص من المخزن. شيله من السلة علشان تكمل.",
     "repriceLowStock": "فاضل {{stock}} بس من {{name}}. قلل الكمية علشان تكمل.",
     "repriceCheckoutRetry": "حدثنا السلة بأسعار النهارده والشحن. راجع الإجمالي وبعدين أكد الطلب تاني.",
-    "repriceDismiss": "إخفاء"
+    "repriceDismiss": "إخفاء",
+    "lineUnavailable": "مبقاش متاح. شيله من السلة علشان تكمل.",
+    "lineOutOfStock": "خلص من المخزن. شيله من السلة علشان تكمل.",
+    "lineLowStock": "فاضل {{stock}} بس. قلل الكمية علشان تكمل.",
+    "lineCheckoutRefused": "فيه منتج في السلة مينفعش يتطلب بحالته دي. شوف الملاحظة اللي فوق وبعدين اطلب تاني."
   },
   "checkout": {
     "actions": {

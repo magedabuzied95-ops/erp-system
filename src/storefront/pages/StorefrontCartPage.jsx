@@ -15,6 +15,7 @@ import {
 } from "../Storefront";
 import { CheckoutTotals } from "../components/StorefrontCheckoutSummary";
 import CartRepriceNotice from "../components/CartRepriceNotice";
+import { canIncreaseCartLine, cartLineIssue } from "../lib/cartLine";
 import { usePublicFreeShippingThreshold } from "../components/FreeShippingProgress";
 import { trackGa4ViewCart } from "../lib/ga4Events";
 import { ROOT_PATHS } from "../lib/paths";
@@ -35,6 +36,7 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
   const compare = displayCartItemComparePrice(item);
   const hasDiscount = compare > price;
   const quantity = Math.max(1, Number(item.quantity) || 1);
+  const issue = cartLineIssue(item);
   const href = item.slug || item.product_id ? productUrl({ id: item.product_id, slug: item.slug, selected_variant_id: item.variant_id }) : "";
   const variantText = [localizeColorName(item.color, i18n.language), localizeSizeLabel(item.display_size || item.size, i18n.language)].filter(Boolean).join(" / ");
   const showBrand = Boolean(item.brand) && !String(item.name || "").toLowerCase().includes(String(item.brand).toLowerCase());
@@ -49,6 +51,8 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
             {showBrand ? <p className="sfk-line__brand">{item.brand}</p> : null}
             {href ? <Link to={href} className="sfk-line__name">{item.name}</Link> : <p className="sfk-line__name">{item.name}</p>}
             {variantText ? <p className="sfk-line__variant">{variantText}</p> : null}
+            {/* Said on the line itself, so the shopper knows which one checkout would refuse. */}
+            {issue ? <p className="sfx-error sfk-line__issue">{sfText(issue.key, undefined, { stock: issue.stock })}</p> : null}
           </div>
           <p className="sfk-price">
             <span className="sfk-price__now">{money(price * quantity)}</span>
@@ -75,7 +79,7 @@ function CartLine({ item, bundleShare, bundlePercent, updateCart, removeFromCart
               {quantity > 1 ? <Minus aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
             </button>
             <span className="sfx-stepper__value sfk-stepper__qty" aria-live="polite">{quantity}</span>
-            <button type="button" onClick={() => updateCart(item.lineId, quantity + 1)} aria-label={sfText("storefront.cart.increaseQuantity", "زيادة الكمية")}>
+            <button type="button" onClick={() => updateCart(item.lineId, quantity + 1)} disabled={!canIncreaseCartLine(item)} aria-label={sfText("storefront.cart.increaseQuantity", "زيادة الكمية")}>
               <Plus aria-hidden="true" />
             </button>
           </div>

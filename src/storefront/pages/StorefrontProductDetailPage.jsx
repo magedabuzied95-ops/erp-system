@@ -48,6 +48,7 @@ import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } 
 import { trackGa4ViewItem } from "../lib/ga4Events";
 import DeliveryEstimate from "../components/DeliveryEstimate";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
+import { productSelectionSearchKey, resolveRequestedVariant, soldOutColorKeyToKeep } from "../lib/pdpSelection";
 import { CompareToggleButton } from "../components/StorefrontCompare";
 import { releaseBootLoader } from "../lib/bootLoader";
 import "./pdp.css";
@@ -175,13 +176,53 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const mainImageRef = useRef(null);
   const initialRouteSearchRef = useRef(location.search);
   const previousProductRouteRef = useRef(productRouteKey);
-  const normalizeQueryValue = (value = "") => String(value || "").trim();
+  const [keepColorKey, setKeepColorKey] = useState("");
+  const appliedSelectionKeyRef = useRef(null);
 
   useEffect(() => {
     if (previousProductRouteRef.current === productRouteKey) return;
     previousProductRouteRef.current = productRouteKey;
     initialRouteSearchRef.current = location.search;
   }, [location.search, productRouteKey]);
+
+  // Selects the variant a link's ?variant= / ?color= / ?size= asks for (lib/pdpSelection.js).
+  const applyRequestedSelection = (loadedProduct, search) => {
+    const productVariants = Array.isArray(loadedProduct?.variants) ? loadedProduct.variants : [];
+    const { variant: first, sizeChosen } = resolveRequestedVariant({
+      variants: productVariants,
+      search,
+      colorIdentity: variantColorIdentity,
+      colorName: variantColorName,
+      hasStock: variantHasStock,
+      firstDisplayVariant,
+    });
+    appliedSelectionKeyRef.current = productSelectionSearchKey(search);
+    setKeepColorKey(soldOutColorKeyToKeep(first, variantColorIdentity, variantHasStock, productVariants));
+    setQty(1);
+    setSelected({
+      variantId: first?.id || "",
+      size: first?.size || "",
+      colorKey: first ? variantColorIdentity(first) : "",
+      colorName: first ? variantColorName(first) : "",
+      image: variantImage(first) || displayImageForProduct(loadedProduct, first) || loadedProduct?.image_url || loadedProduct?.gallery_images?.[0] || "",
+    });
+    setActiveImageIndex(0);
+    // A size named in the link (a size chip tapped on the product card) is a
+    // choice the shopper already made; a size the page picked itself is not.
+    setTouchedOptions({ color: false, size: sizeChosen });
+    return first;
+  };
+
+  // The page is keyed on the path, so a link to another colour or size of the product already open
+  // (a bag line, a search hit) changes only the query: nothing remounted and the old colour stayed.
+  // Re-run the selection when the variant-choosing params change; tracking params do not count.
+  const selectionSearchKey = productSelectionSearchKey(location.search);
+  useEffect(() => {
+    if (!state.product || appliedSelectionKeyRef.current === null || appliedSelectionKeyRef.current === selectionSearchKey) return;
+    initialRouteSearchRef.current = location.search;
+    applyRequestedSelection(state.product, location.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectionSearchKey, state.product]);
 
   useEffect(() => {
     let cancelled = false;
@@ -242,50 +283,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             lastError.responseBody = data;
             continue;
           }
-          const productVariants = (Array.isArray(product?.variants) ? product.variants : []).filter((variant) => variant && typeof variant === "object");
-          const routeSearchParams = new URLSearchParams(initialRouteSearchRef.current || "");
-          const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
-          const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
-          const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
-          const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
-          const requestedColorKey = requestedColor;
-          const matchesRequestedColor = (variant) => requestedColor && (
-            variantColorIdentity(variant) === requestedColorKey ||
-            String(variantColorName(variant) || "").toLowerCase() === requestedColorKey
-          );
-          const availableVariants = productVariants.filter(variantHasStock);
-          const requested =
-            availableVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId)) ||
-            availableVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId)) ||
-            availableVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
-            availableVariants.find((variant) => requestedSize && matchesRequestedColor(variant) && String(variant?.size || "") === requestedSize) ||
-            availableVariants.find(matchesRequestedColor) ||
-            productVariants.find(matchesRequestedColor) ||
-            productVariants.find(
-              (variant) =>
-                requestedSize &&
-                String(variant?.size || "") === requestedSize &&
-                (!requestedColor || matchesRequestedColor(variant)) &&
-                variantHasStock(variant)
-            ) ||
-            availableVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize) ||
-            availableVariants[0] ||
-            firstDisplayVariant(productVariants) ||
-            null;
-          const first = requested || availableVariants[0] || firstDisplayVariant(productVariants) || null;
           if (!cancelled) {
             setState({ loading: false, product, error: "" });
-            setSelected({
-              variantId: first?.id || "",
-              size: first?.size || "",
-              colorKey: first ? variantColorIdentity(first) : "",
-              colorName: first ? variantColorName(first) : "",
-              image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
-            });
-            setActiveImageIndex(0);
-            // A size named in the link (a size chip tapped on the product card) is a
-            // choice the shopper already made; a size the page picked itself is not.
-            setTouchedOptions({ color: false, size: Boolean(requestedSize && String(first?.size || "") === requestedSize) });
+            const first = applyRequestedSelection(product, initialRouteSearchRef.current);
             const pricing = getDisplayPricing(product, saleModeEnabled, first || {});
             const contentId = metaCatalogContentId(product, first || {});
             const viewKey = `${productRouteKey}:${contentId}`;
@@ -369,8 +369,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     [product]
   );
   const colorGroups = useMemo(
-    () => buildProductColorGroups({ product, variants, colorKey: variantColorIdentity, colorName: variantColorName, variantHasStock }),
-    [product, variants]
+    () => buildProductColorGroups({ product, variants, colorKey: variantColorIdentity, colorName: variantColorName, variantHasStock, keepColorKey }),
+    [product, variants, keepColorKey]
   );
   const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId)) || null;
   const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorIdentity(selectedVariant) : "");
@@ -646,7 +646,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   };
   const shareProduct = async () => {
     const shareVersion = Date.now();
-    const url = productShareUrl(product, safeActiveVariant, shareVersion);
+    // A size the page preselected is not one to hand on: the link would open with it already chosen.
+    const url = productShareUrl(product, safeActiveVariant, shareVersion, { sizeChosen: !sizeChoiceRequired });
     const sharePayload = { url };
     try {
       if (navigator.share) {

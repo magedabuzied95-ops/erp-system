@@ -213,6 +213,11 @@ body.storefront-shell .sfk-bundle {
   height: 15px;
 }
 
+/* A line the re-price flagged (lib/cartLine.js cartLineIssue). */
+.sfk-line__issue {
+  margin: 0;
+}
+
 body.storefront-shell .sfk-line__each {
   color: var(--m1h-text-3) !important;
   -webkit-text-fill-color: currentColor;

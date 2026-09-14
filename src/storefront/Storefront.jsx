@@ -100,8 +100,11 @@ import { forceCleanReload, hasChunkReloadAttempted, importWithChunkRetry, isChun
 import { openSizeGuide } from "./lib/sizeGuideStore";
 import { SizeGuideHost } from "./components/SizeGuideSheet";
 import { animateFlyToCart } from "./lib/flyToCart";
-import { CART_REPRICE_ENDPOINT, applyCartReprice, cartRepriceKey, cartRepriceVariantIds, isStaleCartCheckoutError } from "./lib/cartReprice";
+import { CART_REPRICE_ENDPOINT, applyCartReprice, cartRepriceKey, cartRepriceVariantIds, isCartLineCheckoutError, isStaleCartCheckoutError } from "./lib/cartReprice";
 import CartRepriceNotice from "./components/CartRepriceNotice";
+import { canIncreaseCartLine, cartFromStorageEvent, cartLineComparePrice, cartLineIssue, setCartLineQuantity } from "./lib/cartLine";
+import { productShareParamEntries } from "./lib/pdpSelection";
+import { applyProductImageFallback } from "./lib/productImageFallback";
 import { releaseBootLoader } from "./lib/bootLoader";
 import { useDialogFocus } from "./lib/useDialogFocus";
 import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
@@ -225,11 +228,9 @@ const productSharePath = (product = {}) => {
   const identifier = productRouteIdentifier(product);
   return identifier ? `/share/product/${encodeURIComponent(identifier)}` : "/share/product";
 };
-const productShareUrl = (product = {}, variant = null, shareVersion = Date.now()) => {
+const productShareUrl = (product = {}, variant = null, shareVersion = Date.now(), { sizeChosen = true } = {}) => {
   const path = appendProductUrlParams(productSharePath(product), [
-    ["variant", variant?.id || variant?.variant_id || product.selected_variant_id || product.display_variant_id || ""],
-    ["color", variant?.color || variant?.color_key || product.color_key || product.display_color_key || ""],
-    ["size", variant?.size || product.selected_size || ""],
+    ...productShareParamEntries(product, variant, { sizeChosen }),
     ["v", shareVersion || Date.now()],
   ]);
   if (typeof window === "undefined") return path;
@@ -984,42 +985,18 @@ const resolveStorefrontPrice = (product = {}, variant = {}) => {
 // another usable shot of the same shoe -- one missing file on the server turned a
 // real product into a placeholder. Walk the alternates first, and only give up
 // once they are exhausted. data-fallback-src carries them, pipe separated.
+// The walk (and why its flags reset when React puts another photo on the same node) lives in
+// lib/productImageFallback.js.
 const fallbackProductImage = (event) => {
   const node = event.currentTarget;
-  if (!node || node.dataset.fallbackApplied === "true") return;
+  if (!node) return;
   if (isAiSupportDebugEnabled()) {
     console.warn("[storefront-ai] suggested product image failed", {
       src: node.currentSrc || node.src,
       alt: node.alt,
     });
   }
-  node.removeAttribute("srcset");
-  node.removeAttribute("sizes");
-  const originalSrc = String(node.dataset.originalSrc || "").trim();
-  if (originalSrc && node.dataset.originalTried !== "true") {
-    node.dataset.originalTried = "true";
-    // Re-assigning the identical URL is the point. The common failure is a
-    // missing -wN.webp derivative while the original JPEG is fine, and in that
-    // case src already holds the original -- so the old `node.src !== originalSrc`
-    // guard skipped straight past a working image to the site favicon. Dropping
-    // srcset does not by itself start a new load; assigning src does, and it now
-    // resolves against the empty srcset. If the original is dead too, onError
-    // fires again with originalTried set and the alternates still run.
-    node.src = originalSrc;
-    return;
-  }
-  const tried = String(node.dataset.triedSrc || "").split("|").filter(Boolean);
-  const next = String(node.dataset.fallbackSrc || "")
-    .split("|")
-    .map((url) => url.trim())
-    .find((url) => url && url !== node.src && !tried.includes(url));
-  if (next) {
-    node.dataset.triedSrc = [...tried, next].join("|");
-    node.src = next;
-    return;
-  }
-  node.dataset.fallbackApplied = "true";
-  node.src = "/favicon.svg";
+  applyProductImageFallback(node);
 };
 const safeStorefrontRecord = (value) => (value && typeof value === "object" ? value : {});
 const variantHasStock = (variant = {}) => Number(safeStorefrontRecord(variant).stock || 0) > 0;
@@ -2515,7 +2492,9 @@ const displayCartItemPrice = (item = {}) => {
 };
 
 const displayCartItemComparePrice = (item = {}) => {
-  return getDisplayPricing(item, storefrontSalePricesEnabled).comparePrice || 0;
+  const pricing = getDisplayPricing(item, storefrontSalePricesEnabled);
+  // A cart line carries no sale flags, so the rule alone never finds its struck-through price.
+  return cartLineComparePrice(item, pricing.comparePrice, pricing.price);
 };
 
 
@@ -8841,6 +8820,14 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
+      if (isCartLineCheckoutError(error) && typeof repriceCart === "function") {
+        // "Selected variant is unavailable" named no line. A re-price flags the one that cannot be
+        // bought (or is over stock) and the notice at the top names it.
+        await repriceCart();
+        toast.error(sfText("storefront.cart.lineCheckoutRefused"));
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
       const backendMessage = error?.responseBody?.message || error?.message;
       const couponReason = error?.responseBody?.details?.coupon?.reason || error?.responseBody?.coupon?.reason || backendMessage;
       const field = String(error?.responseBody?.field || "").toLowerCase();
@@ -10108,6 +10095,7 @@ function CartDrawerLine({ item, bundleShare = 0, bundlePercent = 0, updateCart, 
   const price = displayCartItemPrice(item);
   const compare = displayCartItemComparePrice(item);
   const hasDiscount = compare > price;
+  const issue = cartLineIssue(item);
   const href = item.slug || item.product_id ? productUrl({ id: item.product_id, slug: item.slug, selected_variant_id: item.variant_id }) : "";
   const variantText = [localizeColorName(item.color, i18n.language), localizeSizeLabel(item.display_size || item.size, i18n.language)].filter(Boolean).join(" · ");
   const showBrand = Boolean(item.brand) && !String(item.name || "").toLowerCase().includes(String(item.brand).toLowerCase());
@@ -10125,6 +10113,7 @@ function CartDrawerLine({ item, bundleShare = 0, bundlePercent = 0, updateCart, 
           <p className="sf-bag__line-name">{item.name}</p>
         )}
         {variantText ? <p className="sf-bag__line-variant">{variantText}</p> : null}
+        {issue ? <p className="sfx-error sf-bag__line-issue">{sfText(issue.key, undefined, { stock: issue.stock })}</p> : null}
         <p className="sf-bag__price">
           {hasDiscount ? <span className="sf-bag__price-was">{money(compare)}</span> : null}
           <span className={`sf-bag__price-now${hasDiscount ? " is-sale" : ""}`}>{money(price)}</span>
@@ -10147,7 +10136,7 @@ function CartDrawerLine({ item, bundleShare = 0, bundlePercent = 0, updateCart, 
               {item.quantity > 1 ? <Minus strokeWidth={1.8} /> : <Trash2 strokeWidth={1.6} />}
             </button>
             <span className="sf-bag__qty" aria-live="polite">{item.quantity}</span>
-            <button type="button" onClick={() => updateCart(item.lineId, item.quantity + 1)} aria-label={sfText("storefront.cart.increaseQuantity")}>
+            <button type="button" onClick={() => updateCart(item.lineId, item.quantity + 1)} disabled={!canIncreaseCartLine(item)} aria-label={sfText("storefront.cart.increaseQuantity")}>
               <Plus strokeWidth={1.8} />
             </button>
           </div>
@@ -10708,6 +10697,8 @@ function Storefront() {
   const cartSyncSaveTimerRef = useRef(null);
   const cartSyncConflictsRef = useRef(0);
   const cartRef = useRef(cart);
+  // The cart array last taken from another tab's save; see the storage listener below.
+  const cartFromOtherTabRef = useRef(null);
   const wishlistRef = useRef(wishlist);
   const previousDocumentThemeRef = useRef(null);
   const [cartSyncReady, setCartSyncReady] = useState(false);
@@ -10743,12 +10734,34 @@ function Storefront() {
   }, []);
 
   useEffect(() => {
+    // A cart taken from another tab is already what storage holds; writing it back is how two tabs
+    // start echoing one change between them.
+    if (cart === cartFromOtherTabRef.current) return;
     writeStorefrontStorage(CART_KEY, cart);
   }, [cart]);
 
   useEffect(() => {
     cartRef.current = cart;
   }, [cart]);
+
+  // The cart was read from storage once, at load. A guest's second tab kept its old bag, and its next
+  // change wrote that bag back over the item added (or the order placed) in the other tab. Follow the
+  // other tab's saves instead. For a signed-in shopper the tab that made the change also saves it to the
+  // server and moves the shared sync marker; this tab only mirrors the result and never PUTs it itself
+  // (see the save effect), so the two tabs cannot race each other into a 409 three-way merge.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const syncCartFromOtherTab = (event) => {
+      const items = cartFromStorageEvent(event, CART_KEY);
+      if (!items) return;
+      const next = normalizeCartCollection(items);
+      cartFromOtherTabRef.current = next;
+      cartRef.current = next;
+      setCart(next);
+    };
+    window.addEventListener("storage", syncCartFromOtherTab);
+    return () => window.removeEventListener("storage", syncCartFromOtherTab);
+  }, []);
 
   useEffect(() => {
     writeStorefrontStorage(WISHLIST_KEY, wishlist);
@@ -10930,7 +10943,8 @@ function Storefront() {
     setCart((prev) => {
       const nextQuantity = Number(quantity || 0);
       if (nextQuantity <= 0) return prev.filter((item) => item.lineId !== lineId);
-      return prev.map((item) => (item.lineId === lineId ? { ...item, quantity: nextQuantity, total_amount: Number(item.price || 0) * nextQuantity } : item));
+      // Raising stops at the stock the last re-price saw, so the bag cannot promise what checkout refuses.
+      return prev.map((item) => (item.lineId === lineId ? setCartLineQuantity(item, nextQuantity) : item));
     });
   }, []);
 
@@ -11163,6 +11177,8 @@ function Storefront() {
       window.clearTimeout(cartSyncSaveTimerRef.current);
       cartSyncSaveTimerRef.current = null;
     }
+    // Mirrored from another tab: that tab saves it (it already holds everything this tab had).
+    if (cart === cartFromOtherTabRef.current) return undefined;
     const phone = String(customerAuth.phone || readStorefrontCustomerAuth().phone || "");
     const snapshot = normalizeCartCollection(cart);
     const marker = readCartSyncMarker(phone);
