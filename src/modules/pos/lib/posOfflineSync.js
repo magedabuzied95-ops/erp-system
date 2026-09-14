@@ -1,6 +1,8 @@
 import {
   OPEN_OFFLINE_ORDER_STATUSES,
+  isOfflineRecordOwnedByAnotherUser,
   listOfflineOrders,
+  readCurrentPosUser,
   pruneSyncedOfflineOrders,
   retryPendingOfflineOrders,
 } from "./posOfflineOrders.js";
@@ -31,6 +33,43 @@ const SYNC_INTERVAL_MAX_MS = 5 * 60 * 1000;
 const SYNC_BACKOFF_FACTOR = 2;
 
 const nowMs = () => Date.now();
+
+// Dispatched by shared/auth/authStorage on every login, logout and user refresh.
+const AUTH_USER_UPDATED_EVENT = "erp:auth-user-updated";
+
+/** What a pass request answers while another pass is still sending. */
+export const BUSY_RESULT = Object.freeze({
+  skipped: true,
+  status: "busy",
+  reason: "busy",
+  reachable: null,
+  orders: null,
+  customers: null,
+  expenses: null,
+});
+
+/**
+ * Fetches the POS screens that are split into their own chunks while the line is
+ * up, so the service worker's runtime cache holds them before an outage. Without
+ * this the first tap on "restock" or "online order" during an outage asked the
+ * network for a chunk it had never seen. Idle, best-effort, once per page.
+ */
+let offlineScreensWarmed = false;
+export const warmOfflinePosScreens = (
+  loaders = [
+    () => import("../components/PosRestockModal.jsx"),
+    () => import("../components/PosOnlineOrderModal.jsx"),
+  ]
+) => {
+  if (offlineScreensWarmed) return Promise.resolve(false);
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return Promise.resolve(false);
+  offlineScreensWarmed = true;
+  return Promise.allSettled(loaders.map((load) => Promise.resolve().then(load))).then((results) => {
+    // A failed warm is retried on the next call rather than remembered as done.
+    if (results.some((entry) => entry.status === "rejected")) offlineScreensWarmed = false;
+    return results.every((entry) => entry.status === "fulfilled");
+  });
+};
 
 // `/health` is served under the API prefix (`/api/health`) as well as at the
 // root. Only the prefixed form survives the SPA host's rewrite -- on Vercel just
@@ -89,6 +128,13 @@ export const countOpenOfflineWork = async ({ tenantId } = {}) => {
   const openOrders = orders.filter((order) =>
     OPEN_OFFLINE_ORDER_STATUSES.includes(String(order.status || ""))
   );
+  const currentUser = readCurrentPosUser();
+  // Still counted in the drawer block: the cash from another cashier's queued
+  // sale is physically in this drawer. Reported separately so the UI can say
+  // whose login it is waiting for.
+  const foreignOwner =
+    openOrders.filter((order) => isOfflineRecordOwnedByAnotherUser(order, currentUser)).length +
+    expenses.filter((expense) => isOfflineRecordOwnedByAnotherUser(expense, currentUser)).length;
   const needsReview =
     openOrders.filter((order) => String(order.status || "") === "needs_review").length +
     expenses.filter((expense) => String(expense.status || "") === "needs_review").length;
@@ -96,6 +142,7 @@ export const countOpenOfflineWork = async ({ tenantId } = {}) => {
     orders: openOrders.length,
     expenses: expenses.length,
     needsReview,
+    foreignOwner,
     customers: customers.length,
     // Expenses count toward the shift-close block alongside invoices: both move
     // cash in the drawer the close is about to settle.
@@ -120,6 +167,11 @@ export const runOfflineSyncPass = async ({ tenantId, apiBaseUrl = "", force = fa
     return { skipped: true, reason: "unreachable", reachable, customers: null, orders: null };
   }
 
+  // Once any queue hears "log in again", the rest of the pass is skipped: the
+  // session is gone for all of them, and each skipped record stays pending
+  // untouched rather than collecting a failure it did not earn.
+  const skippedForLogin = () => ({ total: 0, synced: [], failed: [], skipped_login_required: true });
+
   let customers;
   try {
     customers = await retryPendingOfflineCustomers(undefined, { tenantId });
@@ -128,21 +180,31 @@ export const runOfflineSyncPass = async ({ tenantId, apiBaseUrl = "", force = fa
   }
 
   let orders;
-  try {
-    orders = await retryPendingOfflineOrders();
-  } catch (error) {
-    orders = { total: 0, synced: [], failed: [{ error: String(error?.message || error) }] };
+  if (customers?.login_required) {
+    orders = skippedForLogin();
+  } else {
+    try {
+      orders = await retryPendingOfflineOrders();
+    } catch (error) {
+      orders = { total: 0, synced: [], failed: [{ error: String(error?.message || error) }] };
+    }
   }
 
   // Expenses last. An expense needs an open shift exactly as an invoice does, so
   // sending them after the invoices means one shift lookup has already proved
   // itself before the drawer withdrawals go out.
   let expenses;
-  try {
-    expenses = await retryPendingOfflineExpenses();
-  } catch (error) {
-    expenses = { total: 0, synced: [], failed: [{ error: String(error?.message || error) }] };
+  if (customers?.login_required || orders?.login_required) {
+    expenses = skippedForLogin();
+  } else {
+    try {
+      expenses = await retryPendingOfflineExpenses();
+    } catch (error) {
+      expenses = { total: 0, synced: [], failed: [{ error: String(error?.message || error) }] };
+    }
   }
+
+  const loginRequired = Boolean(customers?.login_required || orders?.login_required || expenses?.login_required);
 
   // Housekeeping runs after a successful pass, never before: a device that is
   // still offline must not lose anything to a prune it could not replace.
@@ -150,7 +212,16 @@ export const runOfflineSyncPass = async ({ tenantId, apiBaseUrl = "", force = fa
   void pruneSyncedOfflineCustomers().catch(() => 0);
   void pruneSyncedOfflineExpenses().catch(() => 0);
 
-  return { skipped: false, reason: "", reachable, customers, orders, expenses };
+  return {
+    skipped: false,
+    status: loginRequired ? "login_required" : "done",
+    reason: loginRequired ? "login_required" : "",
+    loginRequired,
+    reachable,
+    customers,
+    orders,
+    expenses,
+  };
 };
 
 /**
@@ -168,9 +239,11 @@ export const createOfflineSyncScheduler = ({
 } = {}) => {
   let stopped = false;
   let timer = null;
-  let inFlight = false;
+  let inFlightPass = null;
+  let followUp = null;
   let currentInterval = minIntervalMs;
   let lastRunAt = 0;
+  let loginRequired = false;
 
   const clearTimer = () => {
     if (timer) {
@@ -187,9 +260,26 @@ export const createOfflineSyncScheduler = ({
     }, Math.max(1000, delayMs));
   };
 
-  const run = async ({ reason = "timer", force = false } = {}) => {
-    if (stopped || inFlight) return null;
+  const run = ({ reason = "timer", force = false } = {}) => {
+    if (stopped) return Promise.resolve(null);
+    if (inFlightPass) {
+      // A pass is already sending. That is not "no connection" -- the old null
+      // read exactly like one, and a Retry pressed mid-pass then waited for the
+      // backoff timer (up to five minutes). Remember the request; it runs the
+      // moment the current pass ends.
+      followUp = { reason, force: Boolean(force || followUp?.force) };
+      return Promise.resolve({ ...BUSY_RESULT });
+    }
+    inFlightPass = runPass({ reason, force }).finally(() => {
+      inFlightPass = null;
+      const next = followUp;
+      followUp = null;
+      if (next && !stopped) void run(next);
+    });
+    return inFlightPass;
+  };
 
+  const runPass = async ({ reason, force }) => {
     const work = await countOpenOfflineWork({ tenantId }).catch(() => ({ total: 0 }));
     if (!work.total) {
       // Nothing owed. Still probe, at the slow cadence: the point of the
@@ -199,31 +289,45 @@ export const createOfflineSyncScheduler = ({
       const reachable = await probeBackendReachable({ apiBaseUrl });
       currentInterval = maxIntervalMs;
       schedule(currentInterval);
-      onResult?.({ reason, work, result: { skipped: true, reason: "idle", reachable, orders: null, customers: null } });
-      return null;
+      const idle = { skipped: true, status: "idle", reason: "idle", reachable, orders: null, customers: null };
+      onResult?.({ reason, work, result: idle });
+      return idle;
     }
 
-    inFlight = true;
     lastRunAt = nowMs();
-    try {
-      const result = await runOfflineSyncPass({ tenantId, apiBaseUrl, force });
-      const nextWork = await countOpenOfflineWork({ tenantId }).catch(() => work);
-      const madeProgress = Boolean(
-        result?.orders?.synced?.length || result?.customers?.synced?.length || result?.expenses?.synced?.length
-      );
+    const result = await runOfflineSyncPass({ tenantId, apiBaseUrl, force });
+    const nextWork = await countOpenOfflineWork({ tenantId }).catch(() => work);
+    const madeProgress = Boolean(
+      result?.orders?.synced?.length || result?.customers?.synced?.length || result?.expenses?.synced?.length
+    );
+    loginRequired = Boolean(result?.loginRequired);
 
-      if (result.skipped || (!madeProgress && nextWork.total > 0)) {
-        currentInterval = Math.min(maxIntervalMs, Math.max(minIntervalMs, currentInterval * SYNC_BACKOFF_FACTOR));
-      } else {
-        currentInterval = minIntervalMs;
-      }
-
-      onResult?.({ reason, work: nextWork, result });
-      schedule(nextWork.total > 0 ? currentInterval : maxIntervalMs);
-      return result;
-    } finally {
-      inFlight = false;
+    if (result.skipped || (!madeProgress && nextWork.total > 0)) {
+      currentInterval = Math.min(maxIntervalMs, Math.max(minIntervalMs, currentInterval * SYNC_BACKOFF_FACTOR));
+    } else {
+      currentInterval = minIntervalMs;
     }
+
+    onResult?.({ reason, work: nextWork, result });
+    schedule(nextWork.total > 0 ? currentInterval : maxIntervalMs);
+    return result;
+  };
+
+  // The cashier's button waits for a pass that is already running and then runs
+  // its own, so what it reports is a real outcome, never "busy".
+  const syncNow = async ({ wait = true } = {}) => {
+    if (!wait) return run({ reason: "manual", force: true });
+    for (let attempt = 0; attempt < 3 && inFlightPass; attempt += 1) {
+      await inFlightPass.catch(() => null);
+    }
+    if (inFlightPass) return { ...BUSY_RESULT };
+    return run({ reason: "manual", force: true });
+  };
+
+  // A fresh login is the one thing that frees a queue held for "login required".
+  const handleAuthChanged = (event) => {
+    if (event?.detail && event.detail.user === null) return;
+    wake("login");
   };
 
   const wake = (reason) => {
@@ -243,9 +347,10 @@ export const createOfflineSyncScheduler = ({
   };
   const handleFocus = () => wake("focus");
 
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
     window.addEventListener("online", handleOnline);
     window.addEventListener("focus", handleFocus);
+    window.addEventListener(AUTH_USER_UPDATED_EVENT, handleAuthChanged);
   }
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", handleVisibility);
@@ -254,14 +359,17 @@ export const createOfflineSyncScheduler = ({
   void run({ reason: "start" });
 
   return {
-    syncNow: () => run({ reason: "manual", force: true }),
+    syncNow,
     refresh: () => wake("refresh"),
+    isSyncing: () => Boolean(inFlightPass),
+    isLoginRequired: () => loginRequired,
     stop: () => {
       stopped = true;
       clearTimer();
-      if (typeof window !== "undefined") {
+      if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
         window.removeEventListener("online", handleOnline);
         window.removeEventListener("focus", handleFocus);
+        window.removeEventListener(AUTH_USER_UPDATED_EVENT, handleAuthChanged);
       }
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibility);

@@ -3,8 +3,36 @@ import i18n from "../../i18n/i18n";
 import {
   hasChunkReloadAttempted,
   isChunkLoadError,
+  isChunkRecoveryBlockedOffline,
   recoverFromChunkLoadError,
 } from "../utils/chunkLoadRecovery";
+
+// Shown instead of a reload when a screen's code is not on the device and there
+// is no connection to fetch it. Nothing was purged, so going back leaves the
+// rest of the app -- the POS till above all -- working offline.
+function ChunkOfflineFallback({ onBack }) {
+  return (
+    <div dir="rtl" role="alert" className="flex min-h-[50vh] items-center justify-center px-4 py-10 text-[var(--text,#fff)]">
+      <div className="flex w-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-amber-400/40 bg-amber-400/10 p-6 text-center">
+        <h1 className="m1-page-title">
+          {i18n.t("common.chunkOffline.title", { defaultValue: "الشاشة دي محتاجة إنترنت" })}
+        </h1>
+        <p className="text-sm opacity-80">
+          {i18n.t("common.chunkOffline.body", {
+            defaultValue: "مش متحملة على الجهاز ومفيش اتصال دلوقتي. باقي الشاشات شغالة عادي، والمبيعات بتتحفظ لحد ما النت يرجع.",
+          })}
+        </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-2 rounded-full bg-white px-5 py-3 text-sm font-black text-stone-950"
+        >
+          {i18n.t("common.chunkOffline.back", { defaultValue: "رجوع" })}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ChunkReloadFallback({ showAction = false }) {
   return (
@@ -31,8 +59,15 @@ function ChunkReloadFallback({ showAction = false }) {
 export default class DebugErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { error: null, info: null, showChunkAction: false };
+    this.state = { error: null, info: null, showChunkAction: false, chunkOffline: false };
     this.chunkActionTimer = null;
+    this.unmounted = false;
+    this.handleChunkOfflineBack = this.handleChunkOfflineBack.bind(this);
+  }
+
+  handleChunkOfflineBack() {
+    if (this.chunkActionTimer) window.clearTimeout(this.chunkActionTimer);
+    this.setState({ error: null, info: null, showChunkAction: false, chunkOffline: false });
   }
 
   static getDerivedStateFromError(error) {
@@ -44,7 +79,13 @@ export default class DebugErrorBoundary extends React.Component {
     console.error("[DebugErrorBoundary] componentStack:", info?.componentStack);
     this.setState({ info });
     if (isChunkLoadError(error)) {
-      recoverFromChunkLoadError(error);
+      Promise.resolve(recoverFromChunkLoadError(error))
+        .then((recovering) => {
+          if (!recovering && isChunkRecoveryBlockedOffline() && !this.unmounted) {
+            this.setState({ chunkOffline: true });
+          }
+        })
+        .catch(() => {});
       this.chunkActionTimer = window.setTimeout(() => {
         this.setState({ showChunkAction: true });
       }, 8_000);
@@ -52,6 +93,7 @@ export default class DebugErrorBoundary extends React.Component {
   }
 
   componentWillUnmount() {
+    this.unmounted = true;
     if (this.chunkActionTimer) window.clearTimeout(this.chunkActionTimer);
   }
 
@@ -60,6 +102,9 @@ export default class DebugErrorBoundary extends React.Component {
 
     if (this.state.error) {
       if (isChunkLoadError(this.state.error)) {
+        if (this.state.chunkOffline) {
+          return <ChunkOfflineFallback onBack={this.handleChunkOfflineBack} />;
+        }
         return <ChunkReloadFallback showAction={hasChunkReloadAttempted() && this.state.showChunkAction} />;
       }
 

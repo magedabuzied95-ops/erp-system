@@ -170,6 +170,10 @@ test("caches do not accumulate across builds", async () => {
   // A new worker generation installs and activates for the new build.
   const sw2 = loadServiceWorker(server);
   sw2.cacheStorage.caches = sw.cacheStorage.caches; // same origin storage
+  // An older worker generation's pair, left behind on this device. Activate has
+  // to evict it -- without a seeded stale pair this test could not fail.
+  await (await sw2.cacheStorage.open("pos-shell-v1-shell")).put("/pos", new Response("old"));
+  await (await sw2.cacheStorage.open("pos-shell-v1-runtime")).put(a.chunks[0], new Response("old"));
   await sw2.install();
   await sw2.activate();
   await sw2.fetch("/pos", { mode: "navigate" });
@@ -180,9 +184,96 @@ test("caches do not accumulate across builds", async () => {
   // outside that prefix so a deploy does not cost the shop a full catalogue of
   // photos, so it must not be read as accumulation here.
   const shellCaches = names.filter((name) => name.startsWith("pos-shell-"));
-  const stale = shellCaches.filter((n) => !n.includes(process.env.__EXPECT_VERSION || ""));
+  const version = currentShellVersion();
+  const stale = shellCaches.filter((name) => name !== `${version}-shell` && name !== `${version}-runtime`);
   assert.ok(shellCaches.length <= 2, `cache storage grew unbounded across deploys: ${JSON.stringify(names)}`);
-  assert.ok(stale.length >= 0);
+  assert.deepEqual(stale, [], `activate must evict every older shell cache: ${JSON.stringify(names)}`);
+});
+
+test("public/pos-sw.js and public/pos/pos-sw.js are the same worker", () => {
+  const root = readFileSync(new URL("../public/pos-sw.js", import.meta.url));
+  const nested = readFileSync(new URL("../public/pos/pos-sw.js", import.meta.url));
+  assert.ok(root.equals(nested), "the two POS worker copies drifted apart; copy public/pos-sw.js over public/pos/pos-sw.js");
+});
+
+test("a server error page never becomes the offline shell", async () => {
+  const a = BUILD_A();
+  const server = createServer(a, { assetFallback: "404" });
+  const sw = loadServiceWorker(server);
+  await boot(sw, server, a);
+  // Let the fire-and-forget shell write from boot land.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const realHandle = server.handle.bind(server);
+  server.handle = (url) => {
+    if (new URL(url, "https://erp.test").pathname === "/pos") {
+      return new Response("<!doctype html><h1>502 Bad Gateway</h1>", {
+        status: 502,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+    return realHandle(url);
+  };
+
+  // Status only: the harness cache hands back the stored Response object itself,
+  // so reading its body here would leave nothing for the offline read below.
+  const during = await sw.fetch("/pos", { mode: "navigate" });
+  assert.equal(during.status, 200, "a 5xx navigation should fall back to the last good shell");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  server.handle = realHandle;
+  server.offline = true;
+  const offline = await (await sw.fetch("/pos", { mode: "navigate" })).text();
+  assert.match(offline, /id="root"/, "the offline shell must still be the application, not the 502 page");
+  assert.doesNotMatch(offline, /502 Bad Gateway/);
+});
+
+test("a first navigation that fails is not stored as the shell", async () => {
+  const a = BUILD_A();
+  const server = createServer(a, { assetFallback: "404" });
+  const sw = loadServiceWorker(server);
+  await sw.install();
+  await sw.activate();
+  const shell = await sw.cacheStorage.open(`${currentShellVersion()}-shell`);
+  await shell.delete("/pos");
+
+  const realHandle = server.handle.bind(server);
+  server.handle = (url) =>
+    new URL(url, "https://erp.test").pathname === "/pos"
+      ? new Response("down", { status: 503, headers: { "Content-Type": "text/html" } })
+      : realHandle(url);
+  await sw.fetch("/pos", { mode: "navigate" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(await shell.match("/pos"), undefined, "a 503 page must not be cached under /pos");
+});
+
+test("the runtime asset cache is bounded across many builds", async () => {
+  const extraFiles = {};
+  const assets = [];
+  for (let index = 0; index < 330; index += 1) {
+    const pathname = `/assets/chunk-${index}.js`;
+    assets.push(pathname);
+    extraFiles[pathname] = { body: `export default ${index};`, type: "application/javascript" };
+  }
+  const build = createBuild("CCCC3333", { extraFiles });
+  const server = createServer(build, { assetFallback: "404" });
+  const sw = loadServiceWorker(server);
+  await sw.install();
+  await sw.activate();
+  for (const asset of assets) {
+    await sw.fetch(asset);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  const source = readFileSync(new URL("../public/pos-sw.js", import.meta.url), "utf8");
+  const cap = Number(source.match(/const RUNTIME_CACHE_MAX_ENTRIES = (\d+)/)?.[1]);
+  assert.ok(cap > 0 && cap < assets.length, "the test must fetch more assets than the cap");
+
+  const runtime = await sw.cacheStorage.open(`${currentShellVersion()}-runtime`);
+  const keys = await runtime.keys();
+  assert.equal(keys.length, cap, `runtime cache should stop at ${cap}, holds ${keys.length}`);
+  assert.ok(keys.includes(assets[assets.length - 1]), "the newest asset is kept");
+  assert.ok(!keys.includes(assets[0]), "the oldest asset is the one evicted");
 });
 
 test("a navigation is never mistaken for an image", async () => {

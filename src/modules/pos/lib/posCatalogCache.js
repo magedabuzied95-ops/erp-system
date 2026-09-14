@@ -375,6 +375,106 @@ export const getPosCatalogSnapshot = async () => {
   }
 };
 
+const soldLineVariantId = (line = {}) => {
+  const value = line.variant_id ?? line.variantId ?? null;
+  if (value === null || value === undefined || value === "" || String(value).startsWith("product:")) return null;
+  // A simple product's cart line can carry its product id as the "variant".
+  const fullVariations = String(line.variation_mode || "").trim().toLowerCase() === "full_variations";
+  if (!fullVariations && String(value) === String(line.product_id ?? line.productId ?? "")) return null;
+  return String(value);
+};
+
+/**
+ * Pure: the snapshot's products with `lines` taken out of stock. Matches a
+ * variant by id, then by colour + size; a line with no variant lowers the
+ * product itself. Totals are recomputed from the variants, never decremented
+ * separately, so the two can not drift.
+ */
+export const applySoldLinesToCatalogProducts = (products = [], lines = []) => {
+  const nextProducts = (Array.isArray(products) ? products : []).map((product) => ({
+    ...product,
+    variants: Array.isArray(product?.variants) ? product.variants.map((variant) => ({ ...variant })) : [],
+  }));
+
+  for (const line of Array.isArray(lines) ? lines : []) {
+    const productId = line?.product_id ?? line?.productId ?? null;
+    const quantity = Math.max(0, normalizeNumber(line?.quantity ?? line?.qty));
+    if (productId === null || productId === undefined || quantity <= 0) continue;
+    const product = nextProducts.find((entry) => String(entry.id ?? entry.product_id) === String(productId));
+    if (!product) continue;
+
+    const variantId = soldLineVariantId(line);
+    const variant =
+      (variantId !== null &&
+        product.variants.find((entry) => String(entry.variant_id ?? entry.id) === variantId)) ||
+      (line?.color || line?.size
+        ? product.variants.find(
+            (entry) =>
+              normalizeText(entry.color).toLowerCase() === normalizeText(line.color).toLowerCase() &&
+              normalizeText(entry.size).toLowerCase() === normalizeText(line.size).toLowerCase()
+          )
+        : null);
+
+    if (variant) {
+      const nextStock = Math.max(0, normalizeNumber(variant.stock_quantity ?? variant.stock) - quantity);
+      variant.stock = nextStock;
+      variant.stock_quantity = nextStock;
+      variant.available = nextStock > 0;
+    } else if (product.variants.length === 0) {
+      const nextStock = Math.max(0, normalizeNumber(product.stock_quantity ?? product.stock) - quantity);
+      product.stock = nextStock;
+      product.total_stock = nextStock;
+      product.stock_quantity = nextStock;
+      product.available = nextStock > 0;
+      continue;
+    } else {
+      continue;
+    }
+
+    const totalStock = product.variants.reduce(
+      (sum, entry) => sum + normalizeNumber(entry.stock_quantity ?? entry.stock),
+      0
+    );
+    product.stock = totalStock;
+    product.total_stock = totalStock;
+    product.stock_quantity = totalStock;
+    product.available = totalStock > 0;
+  }
+
+  return nextProducts;
+};
+
+// Offline sales can land seconds apart; each read-modify-write waits for the
+// previous one so the second sale never overwrites the first sale's decrement.
+let offlineSaleWriteChain = Promise.resolve();
+
+/**
+ * An offline sale lowered stock only in memory, so a reload during the outage
+ * brought the sold pairs back and the till could sell them twice. This writes
+ * the same decrement into the cached snapshot. The catalog version is kept: the
+ * next online refresh replaces the snapshot with the server's numbers anyway.
+ */
+export const applyOfflineSaleToCachedCatalog = (lines = []) => {
+  const task = offlineSaleWriteChain.then(async () => {
+    try {
+      const snapshot = await readStoreValue(POS_CATALOG_DB_KEY);
+      if (!snapshot || snapshot.schema_version !== POS_CATALOG_SCHEMA_VERSION) return false;
+      const products = applySoldLinesToCatalogProducts(extractSnapshotProducts(snapshot), lines);
+      await writeStoreValue(POS_CATALOG_DB_KEY, {
+        ...snapshot,
+        products,
+        offline_sales_applied_at: new Date().toISOString(),
+      });
+      return true;
+    } catch (error) {
+      debugLog("POS_OFFLINE_CATALOG_SALE_APPLY_FAILED", error?.message || error);
+      return false;
+    }
+  });
+  offlineSaleWriteChain = task.catch(() => false);
+  return task;
+};
+
 export const getPosCatalogCacheMeta = async () => {
   const snapshot = await getPosCatalogSnapshot();
   return snapshot?.meta || null;

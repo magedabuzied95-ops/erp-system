@@ -152,6 +152,9 @@ export const isChunkRecoveryInFlight = () => recoveryInFlight;
 
 export const forceCleanReload = async () => {
   if (typeof window === "undefined") return false;
+  // Tearing down the caches with no connection is what turns a missing screen
+  // into a missing app: the reload lands on the browser's offline page.
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
 
   recoveryInFlight = true;
   markChunkReloadAttempted();
@@ -163,9 +166,79 @@ export const forceCleanReload = async () => {
   return true;
 };
 
-export const recoverFromChunkLoadError = async (error) => {
+/* ==========================================================================
+   OFFLINE IS NOT A STALE BUILD
+   A lazy chunk the device never fetched fails the same way offline as it does
+   after a deploy. Recovery used to treat both alike: it deleted every cache,
+   unregistered the POS service worker and reloaded -- straight into the
+   browser's offline page, so a till that could have kept selling was dead
+   until the internet came back. When the origin cannot be reached, nothing is
+   purged and nothing reloads; the error boundary shows "this screen needs
+   internet" instead, and the rest of the app keeps its offline shell.
+   ========================================================================== */
+
+const REACHABILITY_TIMEOUT_MS = 2500;
+export const CHUNK_RECOVERY_OFFLINE_EVENT = "erp:chunk-recovery-offline";
+
+let recoveryBlockedOffline = false;
+
+/** True when the last recovery attempt stood down because the origin was unreachable. */
+export const isChunkRecoveryBlockedOffline = () => recoveryBlockedOffline;
+
+/**
+ * Can this page reach its own origin right now? `navigator.onLine === false` is
+ * a definite no. Otherwise a short no-store request decides: any HTTP answer is
+ * a yes (a missing chunk behind a live origin is the stale-build case recovery
+ * exists for); a network error or the timeout is a no. With no fetch available
+ * the answer is yes, which keeps the recovery behaviour it always had.
+ */
+export const isOriginReachable = async ({ fetchImpl, timeoutMs = REACHABILITY_TIMEOUT_MS } = {}) => {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return false;
+  const doFetch = fetchImpl || (typeof fetch === "function" ? fetch : null);
+  if (!doFetch || typeof window === "undefined") return true;
+
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  let timer = null;
+  try {
+    const probe = doFetch(`/index.html?__m1_probe=${Date.now()}`, {
+      method: "GET",
+      cache: "no-store",
+      credentials: "omit",
+      signal: controller?.signal,
+    });
+    const timeout = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        controller?.abort();
+        resolve(null);
+      }, timeoutMs);
+    });
+    const response = await Promise.race([probe, timeout]);
+    return Boolean(response && Number(response.status || 0) > 0);
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
+const announceOfflineRecoveryBlocked = (error) => {
+  recoveryBlockedOffline = true;
+  try {
+    window.dispatchEvent(new CustomEvent(CHUNK_RECOVERY_OFFLINE_EVENT, { detail: { url: extractChunkUrl(error) } }));
+  } catch {
+    // No CustomEvent: the boundary still reads isChunkRecoveryBlockedOffline().
+  }
+};
+
+export const recoverFromChunkLoadError = async (error, { probe = isOriginReachable } = {}) => {
   if (typeof window === "undefined" || !isChunkLoadError(error)) return false;
   if (hasChunkReloadAttempted()) return false;
+
+  if (!(await probe())) {
+    announceOfflineRecoveryBlocked(error);
+    return false;
+  }
+  recoveryBlockedOffline = false;
 
   await forceCleanReload();
   return true;

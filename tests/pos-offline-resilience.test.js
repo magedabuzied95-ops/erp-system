@@ -163,9 +163,18 @@ test("a replay refused for a closed shift stays retryable, and a stock conflict 
   assert.equal(classifyOfflineSyncError({ message: "Failed to fetch" }).retryable, true);
 
   // A genuine rejection still keeps the invoice -- it just needs a person.
-  const rejected = classifyOfflineSyncError({ status: 403, message: "forbidden" });
+  const rejected = classifyOfflineSyncError({ status: 422, message: "invalid payload" });
   assert.equal(rejected.status, OFFLINE_ORDER_STATUS.NEEDS_REVIEW);
   assert.equal(rejected.retryable, false);
+
+  // An expired or refused login is not a verdict on the invoice: it stays
+  // pending and stops the pass (see pos-offline-queue-hardening.test.js).
+  for (const status of [401, 403]) {
+    const auth = classifyOfflineSyncError({ status, message: "Session expired or unauthorized" });
+    assert.equal(auth.status, OFFLINE_ORDER_STATUS.PENDING);
+    assert.equal(auth.reason, "login_required");
+    assert.equal(auth.stopPass, true);
+  }
 });
 
 test("an invoice parked for review is never retried automatically, but a manual requeue frees it", async () => {
@@ -276,7 +285,8 @@ test("the offline invoice reference is a per-day sequence that resets on a new d
     const second = createOfflineInvoiceReference(day);
     const nextDay = createOfflineInvoiceReference(new Date("2026-09-09T10:00:00Z"));
 
-    assert.match(first, /^OFF-[A-Z0-9]{2}-\d{6}-\d{3}$/);
+    // At least six device characters: two gave 1,296 tags and real collisions.
+    assert.match(first, /^OFF-[A-Z0-9]{6,}-\d{6}-\d{3}$/);
     assert.ok(first.endsWith("-001"));
     assert.ok(second.endsWith("-002"));
     assert.ok(nextDay.endsWith("-001"), "a new day starts the sequence again");
