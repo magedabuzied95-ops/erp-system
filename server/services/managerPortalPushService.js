@@ -748,18 +748,21 @@ const DELETE_TITLES = {
   delete: "حذف فاتورة",
   archive: "أرشفة فاتورة",
   permanent: "حذف نهائي لفاتورة",
+  cancel: "إلغاء فاتورة",
 };
 
 const DELETE_TYPES = {
   delete: "order_deleted",
   archive: "order_archived",
   permanent: "order_hard_deleted",
+  cancel: "order_cancelled",
 };
 
 const DELETE_ENTITY_PREFIX = {
   delete: "delete",
   archive: "archive",
   permanent: "hard-delete",
+  cancel: "cancel",
 };
 
 export const sendManagerInvoiceDeletedPush = async ({

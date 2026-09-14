@@ -5189,18 +5189,50 @@ const assertOrderBranchScope = (req, order = {}) => {
   }
 };
 
+// A partial return keeps the invoice's own status (see returnOrder), so the edit lock
+// cannot rely on status = 'returned' alone: any invoice that has had goods returned stays
+// locked for edits, exactly as it was when every return flipped the status.
+// returnOrder stamps returned_at on every return, partial or full.
+const hasOrderReturnHistory = (order = {}) => Boolean(order?.returned_at);
+
 const assertOrderEditable = (order) => {
-  if (!order || BLOCKED_OPERATION_STATUSES.has(normalizeOrderStatus(order.status))) {
+  if (!order || BLOCKED_OPERATION_STATUSES.has(normalizeOrderStatus(order.status)) || hasOrderReturnHistory(order)) {
     const error = new Error("لا يمكن تعديل أو تنفيذ عملية على فاتورة ملغاة أو مستردة");
     error.status = 400;
     throw error;
   }
 };
 
-const assertOrderReturnable = (order) => {
+// The units a cancel or delete puts back: what was sold minus what already came back
+// through a return. A return handled its own units — restocked, or held as defective —
+// so walking them back in again would count them twice.
+const unreturnedOrderItems = (items = []) =>
+  (Array.isArray(items) ? items : []).map((item) => ({
+    ...item,
+    quantity: Math.max(0, Number(item?.quantity || 0) - Number(item?.returned_quantity || 0)),
+  }));
+
+const isOrderFullyReturned = (items = []) => {
+  const lines = (Array.isArray(items) ? items : []).filter((item) => Number(item?.quantity || 0) > 0);
+  return lines.length > 0 && lines.every((item) => Number(item?.returned_quantity || 0) >= Number(item?.quantity || 0));
+};
+
+// Returnable until it is cancelled or every sold unit has come back. A partial return used to
+// flip the status to 'returned', and that alone blocked the customer's second return.
+const assertOrderReturnable = (order, items = null) => {
   const status = normalizeOrderStatus(order?.status || order?.payment_status);
-  if (!order || ["cancelled", "returned"].includes(status)) {
+  const fullyReturned = Array.isArray(items) ? isOrderFullyReturned(items) : status === "returned";
+  if (!order || status === "cancelled" || order.deleted_at || fullyReturned) {
     const error = new Error("لا يمكن إنشاء مرتجع لفاتورة ملغاة أو مرتجعة بالكامل");
+    error.status = 400;
+    throw error;
+  }
+};
+
+const assertOrderCancellable = (order, items = []) => {
+  const status = normalizeOrderStatus(order?.status);
+  if (!order || status === "cancelled" || order.cancelled_at || isOrderFullyReturned(items)) {
+    const error = new Error("لا يمكن تعديل أو تنفيذ عملية على فاتورة ملغاة أو مستردة");
     error.status = 400;
     throw error;
   }
@@ -5522,7 +5554,7 @@ const deleteOrderRelatedRows = async (client, orderId) => {
                ELSE 0
              END) AS delta
       FROM cash_drawer_shift_events
-      WHERE (source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale'))
+      WHERE (source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale', 'order_cancel'))
          OR (LOWER(source_type) = 'return' AND source_id = ANY($2::bigint[]))
       GROUP BY shift_id
     ) d
@@ -5533,7 +5565,7 @@ const deleteOrderRelatedRows = async (client, orderId) => {
   addCount("cash_drawer_shift_events", await deleteFromTableByPredicates(client, "cash_drawer_shift_events", [
     { columns: ["order_id"], sql: "order_id = $1" },
     { columns: ["reference_id", "reference_type"], sql: "reference_id = $1 AND LOWER(reference_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
-    { columns: ["source_id", "source_type"], sql: "source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale')" },
+    { columns: ["source_id", "source_type"], sql: "source_id = $1 AND LOWER(source_type) IN ('order', 'invoice', 'pos_order', 'sale', 'order_cancel')" },
     { columns: ["source_id", "source_type"], sql: "LOWER(source_type) = 'return' AND source_id = ANY($2::bigint[])" },
   ], [orderId, refIds]));
   addCount("financial_account_entries", await deleteFromTableByPredicates(client, "financial_account_entries", [
@@ -5601,12 +5633,10 @@ const deleteOrderRelatedRows = async (client, orderId) => {
   addCount("order_reprint_logs", await deleteFromTableByPredicates(client, "order_reprint_logs", [
     { columns: ["order_id"], sql: "order_id = $1" },
   ], [orderId]));
-  addCount("order_edit_audits", await deleteFromTableByPredicates(client, "order_edit_audits", [
-    { columns: ["order_id"], sql: "order_id = $1" },
-  ], [orderId]));
-  addCount("activity_logs", await deleteFromTableByPredicates(client, "activity_logs", [
-    { columns: ["entity", "entity_id"], sql: "entity_id = $1 AND UPPER(entity) IN ('ORDER', 'INVOICE')" },
-  ], [orderId]));
+  // order_edit_audits and activity_logs are deliberately KEPT. They are the history of who
+  // edited, cancelled and removed this invoice, and a permanent delete is exactly the moment
+  // that history is needed. Neither table has a foreign key to orders, so nothing forces
+  // them out.
   addCount("order_items", await deleteFromTableByPredicates(client, "order_items", [
     { columns: ["order_id"], sql: "order_id = $1" },
   ], [orderId]));
@@ -7718,6 +7748,107 @@ export const updateOrderShipment = async (req, res) => {
   }
 };
 
+/**
+ * What the returns on this invoice already paid back: the document total (for the journal)
+ * and the money that left each account (for the money_transactions reversal), so a cancel
+ * or delete reverses only what the customer still has not been given back.
+ */
+const loadOrderReturnRefunds = async (client, { tenantId = null, orderId }) => {
+  const empty = { returnIds: [], refundTotal: 0, moneyOffsets: [] };
+  if (!orderId || !(await tableExists(client, "returns"))) return empty;
+  const returnsResult = await client.query(
+    `SELECT id, COALESCE(refund_amount, 0)::numeric AS refund_amount FROM returns WHERE order_id = $1`,
+    [orderId]
+  );
+  const returnIds = returnsResult.rows.map((row) => Number(row.id)).filter(Boolean);
+  if (!returnIds.length) return empty;
+  const refundTotal = normalizeInvoiceMoney(returnsResult.rows.reduce((sum, row) => sum + Number(row.refund_amount || 0), 0));
+  let moneyOffsets = [];
+  if (tenantId && await tableExists(client, "money_transactions")) {
+    const moneyResult = await client.query(
+      `
+      SELECT account_id, COALESCE(SUM(amount), 0)::numeric AS amount
+      FROM money_transactions
+      WHERE tenant_id = $1
+        AND LOWER(COALESCE(reference_type, '')) IN ('return', 'exchange_return', 'exchange')
+        AND reference_id = ANY($2::bigint[])
+        AND direction = 'out'
+        AND reversal_of IS NULL
+      GROUP BY account_id
+      `,
+      [tenantId, returnIds]
+    );
+    moneyOffsets = moneyResult.rows.map((row) => ({ accountId: row.account_id, amount: Number(row.amount || 0) }));
+  }
+  return { returnIds, refundTotal, moneyOffsets };
+};
+
+/**
+ * Walks the invoice's cash back out of the drawer when it is cancelled or deleted.
+ *
+ * The drawer's running expected_cash (A) took the sale in through a sale_cash event, while the
+ * shift report (B, buildPosShiftReport) reads the order row — so a cancel with no drawer event
+ * dropped the sale from B but left it in A, and the close booked a false shortage. This writes
+ * ONE `refund_cash` event with source_type `order_cancel` for the cash the drawer still holds for
+ * this invoice: sale cash + edit cash-ins − edit cash refunds − cash already refunded by returns.
+ *
+ *   - Invoice's shift still open → the event lands there (A and B both net the sale to zero).
+ *   - Shift closed, the cashier has one open → recordCashDrawerEvent falls back to that shift:
+ *     the cash leaves today's drawer, and B keeps the sale in the closed shift (it counts a
+ *     cancelled order whose cash left through an `order_cancel` event).
+ *   - Shift closed and no open shift → nothing is written; A of the closed shift is untouched and
+ *     B keeps the sale there too, because the invoice was cancelled after that shift closed.
+ */
+const reverseOrderCashDrawer = async (client, { tenantId, order, userId, returnIds = [] }) => {
+  if (!tenantId || !order?.id || !(await tableExists(client, "cash_drawer_shift_events"))) return null;
+  const hasEditAudits = await tableExists(client, "order_edit_audits");
+  const held = await client.query(
+    `
+    SELECT
+      COALESCE(SUM(CASE
+        WHEN LOWER(e.source_type) = 'order' AND e.event_type = 'sale_cash' THEN e.amount
+        WHEN LOWER(e.source_type) = 'order_edit' AND e.event_type = 'cash_in' THEN e.amount
+        WHEN LOWER(e.source_type) = 'order_edit' AND e.event_type = 'refund_cash' THEN -e.amount
+        WHEN LOWER(e.source_type) = 'return' AND e.event_type = 'refund_cash' THEN -e.amount
+        ELSE 0
+      END), 0)::numeric AS cash_held,
+      COALESCE(BOOL_OR(LOWER(e.source_type) = 'order_cancel'), FALSE) AS already_reversed
+    FROM cash_drawer_shift_events e
+    WHERE e.tenant_id = $1
+      AND (
+        (LOWER(e.source_type) IN ('order', 'order_cancel') AND e.source_id = $2)
+        ${hasEditAudits ? "OR (LOWER(e.source_type) = 'order_edit' AND e.source_id IN (SELECT id FROM order_edit_audits WHERE order_id = $2))" : ""}
+        OR (LOWER(e.source_type) = 'return' AND e.source_id = ANY($3::bigint[]))
+      )
+    `,
+    [tenantId, order.id, returnIds.length ? returnIds : [-1]]
+  );
+  const cashHeld = normalizeInvoiceMoney(held.rows[0]?.cash_held || 0);
+  if (held.rows[0]?.already_reversed || !(cashHeld > 0)) return null;
+  return recordCashDrawerEvent(client, {
+    tenantId,
+    branchId: order.branch_id || null,
+    createdBy: userId || null,
+    shiftId: order.shift_id || null,
+    eventType: "refund_cash",
+    sourceType: "order_cancel",
+    sourceId: order.id,
+    amount: cashHeld,
+  });
+};
+
+// The refund belongs to the drawer shift of the person handing it back today, whatever the
+// method: a Vodafone Cash or InstaPay refund on last week's invoice used to land in last
+// week's closed shift. The original shift is only the fallback when nobody has one open.
+const resolveReturnRefundShiftId = async (client, { tenantId, branchId = null, userId = null, refundFunding = null, originalOrderShiftId = null }) => {
+  if (refundFunding?.shift?.id) return refundFunding.shift.id;
+  if (tenantId && userId) {
+    const current = await getCurrentCashDrawerShift(client, { tenantId, userId, branchId });
+    if (current?.id) return current.id;
+  }
+  return originalOrderShiftId || null;
+};
+
 export const cancelOrder = async (req, res) => {
   const client = await db.connect();
   try {
@@ -7730,7 +7861,7 @@ export const cancelOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     assertOrderBranchScope(req, loaded.order);
-    assertOrderEditable(loaded.order);
+    assertOrderCancellable(loaded.order, loaded.items);
     if (isDeliveredOrder(loaded.order)) {
       await client.query("ROLLBACK");
       return res.status(409).json({
@@ -7739,11 +7870,15 @@ export const cancelOrder = async (req, res) => {
         reason: "ORDER_ALREADY_DELIVERED",
       });
     }
+    // A super admin acts with no tenant scope, but every ledger below is tenant-scoped:
+    // the invoice's own tenant is the one its money and drawer belong to.
+    const orderTenantId = loaded.order.tenant_id ?? tenantId;
+    const priorRefunds = await loadOrderReturnRefunds(client, { tenantId: orderTenantId, orderId: loaded.order.id });
 
-    await restoreOrderInventory(client, {
+    const restoredItems = await restoreOrderInventory(client, {
       tenantId,
       order: loaded.order,
-      items: loaded.items,
+      items: unreturnedOrderItems(loaded.items),
       movementType: "ORDER_CANCEL_RESTORE",
       reason: "POS invoice cancel",
       userId: req.user?.id || null,
@@ -7774,10 +7909,13 @@ export const cancelOrder = async (req, res) => {
     });
     await releaseCouponForOrder({ client, orderId: loaded.order.id, reason: "order_cancelled" });
 
+    const orderTotal = Number(loaded.order.total_amount || loaded.order.total || 0);
+    // What the returns already refunded is not reversed a second time.
+    const cancelReversalAmount = normalizeInvoiceMoney(Math.max(0, orderTotal - priorRefunds.refundTotal));
     try {
       await postReturnEntry(client, {
-        tenantId,
-        amount: Number(loaded.order.total_amount || loaded.order.total || 0),
+        tenantId: orderTenantId,
+        amount: cancelReversalAmount,
         direction: "out",
         referenceType: "order_cancel",
         referenceId: loaded.order.id,
@@ -7791,7 +7929,7 @@ export const cancelOrder = async (req, res) => {
     }
 
     await reverseMoneyTransactionsForReference(client, {
-      tenantId,
+      tenantId: orderTenantId,
       referenceType: "order",
       referenceId: loaded.order.id,
       transactionType: "pos_sale_payment",
@@ -7799,9 +7937,53 @@ export const cancelOrder = async (req, res) => {
       reversalReferenceId: loaded.order.id,
       notes: req.body?.reason || "Order cancelled",
       createdBy: req.user?.id || null,
+      offsets: priorRefunds.moneyOffsets,
     });
 
+    const drawerEvent = await reverseOrderCashDrawer(client, {
+      tenantId: orderTenantId,
+      order: loaded.order,
+      userId: req.user?.id || null,
+      returnIds: priorRefunds.returnIds,
+    });
+
+    await logActivity(
+      client,
+      req.user?.id || null,
+      "CANCEL_ORDER",
+      "ORDER",
+      loaded.order.id,
+      {
+        order_code: loaded.order.public_order_number || loaded.order.display_order_number || loaded.order.invoice_number || String(loaded.order.id),
+        invoice_number: loaded.order.invoice_number || null,
+        tenant_id: loaded.order.tenant_id || null,
+        branch_id: loaded.order.branch_id || null,
+        customer_name: loaded.order.customer_name || "",
+        total_amount: orderTotal,
+        refunded_by_returns: priorRefunds.refundTotal,
+        reversed_amount: cancelReversalAmount,
+        cancelled_by: req.user?.id || null,
+        cancelled_by_name: req.user?.name || req.user?.email || "",
+        reason: req.body?.reason || "",
+        restored_items: restoredItems,
+        drawer_event_id: drawerEvent?.id || null,
+        drawer_shift_id: drawerEvent?.shift_id || null,
+        items: deletedInvoiceLines(loaded.items),
+      }
+    );
+
     await client.query("COMMIT");
+    // A cancel takes the sale off the books and the goods back onto the shelf; the manager
+    // hears about it the same way they hear about a delete or an archive.
+    sendManagerInvoiceDeletedPush({
+      kind: "cancel",
+      order: { ...loaded.order, ...updateResult.rows[0] },
+      items: deletedInvoiceLines(loaded.items),
+      actorName: req.user?.name || req.user?.email || "",
+      reason: req.body?.reason || "",
+      stockRestored: restoredItems.length > 0,
+      amount: orderTotal,
+    }).catch((error) => console.warn("[manager-push:invoice-cancelled-skipped]", { orderId: loaded.order.id, message: error?.message || String(error) }));
     // A cancelled parcel is not on its way either, so the star it earned goes back.
     void syncDeliveryOrderFavorite({
       tenantId: updateResult.rows[0]?.tenant_id || tenantId,
@@ -7863,19 +8045,23 @@ export const deleteOrder = async (req, res) => {
       });
     }
 
+    // Only a cancel restores the whole invoice's stock. A return — partial or full — restores
+    // just its own units, so the units never returned still come back here.
+    const wasCancelled = Boolean(loaded.order.cancelled_at || status === "cancelled");
     const stockAlreadyRestored = Boolean(
       loaded.order.inventory_rollback_done ||
       loaded.order.stock_reverted_at ||
       loaded.order.stock_restored_at ||
-      loaded.order.cancelled_at ||
-      ["cancelled", "returned"].includes(status)
+      wasCancelled
     );
+    const orderTenantId = loaded.order.tenant_id ?? tenantId;
+    const priorRefunds = await loadOrderReturnRefunds(client, { tenantId: orderTenantId, orderId: loaded.order.id });
     const restoredItems = stockAlreadyRestored
       ? []
       : await restoreOrderInventory(client, {
           tenantId,
           order: loaded.order,
-          items: loaded.items,
+          items: unreturnedOrderItems(loaded.items),
           movementType: "ORDER_CANCEL_RESTORE",
           reason: "Order cancelled from dashboard",
           userId: req.user?.id || null,
@@ -7930,7 +8116,7 @@ export const deleteOrder = async (req, res) => {
     );
 
     await reverseMoneyTransactionsForReference(client, {
-      tenantId,
+      tenantId: orderTenantId,
       referenceType: "order",
       referenceId: loaded.order.id,
       transactionType: "pos_sale_payment",
@@ -7938,7 +8124,18 @@ export const deleteOrder = async (req, res) => {
       reversalReferenceId: loaded.order.id,
       notes: req.body?.reason || "Order deleted",
       createdBy: req.user?.id || null,
+      offsets: priorRefunds.moneyOffsets,
     });
+
+    // A cancel already walked the cash out of the drawer; a delete of a live invoice does it here.
+    if (!wasCancelled) {
+      await reverseOrderCashDrawer(client, {
+        tenantId: orderTenantId,
+        order: loaded.order,
+        userId: req.user?.id || null,
+        returnIds: priorRefunds.returnIds,
+      });
+    }
 
     await client.query("COMMIT");
     // Nothing else tells the manager an invoice is gone — it just stops appearing in the
@@ -8069,20 +8266,28 @@ export const permanentDeleteOrder = async (req, res) => {
       return res.status(404).json({ success: false, message: "Order not found or already permanently deleted." });
     }
     assertOrderBranchScope(req, loaded.order);
+    // Delivered goods are with the customer: erasing the invoice would put them back on the
+    // shelf and wipe the sale. Soft delete and cancel refuse it; so does the hard delete.
+    if (isDeliveredOrder(loaded.order)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        success: false,
+        message: "This order is already delivered. Use the return/refund flow instead of deleting it.",
+        reason: "ORDER_ALREADY_DELIVERED",
+      });
+    }
 
     const status = normalizeOrderStatus(loaded.order.status || loaded.order.payment_status);
+    // A return (partial or full) restored only its own units; the never-returned units are
+    // still owed back to the shelf, so returned_at / status 'returned' do not count here.
     const stockAlreadyRestored = Boolean(
       loaded.order.inventory_rollback_done ||
       loaded.order.stock_reverted_at ||
       loaded.order.stock_restored_at ||
       loaded.order.cancelled_at ||
-      loaded.order.returned_at ||
-      ["cancelled", "returned"].includes(status)
+      status === "cancelled"
     );
-    const netItems = loaded.items.map((item) => ({
-      ...item,
-      quantity: Math.max(0, Number(item.quantity || 0) - Number(item.returned_quantity || 0)),
-    }));
+    const netItems = unreturnedOrderItems(loaded.items);
     const restoredItems = stockAlreadyRestored
       ? []
       : await restoreOrderInventory(client, {
@@ -8188,7 +8393,7 @@ export const returnOrder = async (req, res) => {
       step: "order_loaded",
       itemsCount: loaded.items.length,
     });
-    assertOrderReturnable(loaded.order);
+    assertOrderReturnable(loaded.order, loaded.items);
 
     const requestedItems = Array.isArray(req.body.items) && req.body.items.length
       ? req.body.items
@@ -8266,7 +8471,13 @@ export const returnOrder = async (req, res) => {
       refundMethod,
     });
     const originalOrderShiftId = loaded.order.shift_id || null;
-    const refundShiftId = refundMethod === "cash" ? (refundFunding.shift?.id || null) : originalOrderShiftId;
+    const refundShiftId = await resolveReturnRefundShiftId(client, {
+      tenantId,
+      branchId: loaded.order.branch_id || null,
+      userId: req.user?.id || null,
+      refundFunding,
+      originalOrderShiftId,
+    });
     const returnResult = await client.query(
       `
       INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, disposition, refund_amount, created_by, shift_id, cashier_user_id)
@@ -8388,19 +8599,21 @@ export const returnOrder = async (req, res) => {
       returnRow.id,
     ]);
 
-    const status = "returned";
+    // Only a full return turns the invoice into 'returned'. A partial one keeps its own
+    // status (the sale still stands for the units the customer kept) and says so through
+    // payment_status — which is also what leaves the rest of the invoice returnable.
     const paymentStatus = projectedReturnedAll ? "refunded" : "partially_refunded";
     const updatedOrder = await client.query(
       `
       UPDATE orders
-      SET status = $2,
+      SET status = CASE WHEN $2::boolean THEN 'returned' ELSE status END,
           payment_status = $3,
           returned_at = NOW(),
           updated_at = NOW()
       WHERE id = $1
       RETURNING *
       `,
-      [loaded.order.id, status, paymentStatus]
+      [loaded.order.id, projectedReturnedAll, paymentStatus]
     );
     logReturnFlowStep(routeName, {
       orderId: loaded.order.id,
@@ -8841,7 +9054,13 @@ export const createReturn = async (req, res) => {
       refundMethod,
     });
     const originalOrderShiftId = orderRow?.shift_id || null;
-    const refundShiftId = refundMethod === "cash" ? (refundFunding.shift?.id || null) : originalOrderShiftId;
+    const refundShiftId = await resolveReturnRefundShiftId(client, {
+      tenantId,
+      branchId: orderRow?.branch_id || null,
+      userId: req.user?.id || null,
+      refundFunding,
+      originalOrderShiftId,
+    });
 
     const returnNumberBase = buildDerivedInvoiceNumber(orderRow?.invoice_number, "RET") || `RET-${orderId}`;
     const temporaryReturnNumber = `${returnNumberBase}-${buildTemporaryInvoiceNumber()}`;
