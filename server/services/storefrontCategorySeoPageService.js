@@ -6,9 +6,14 @@ import {
   productHasLargeAvailableSize,
   seoCategoryByKey,
 } from "../../src/shared/lib/categorySeo.js";
-import { createCachedShellLoader } from "./storefrontProductSeoPageService.js";
+import {
+  SEO_DATA_TIMEOUT_MS,
+  callStorefrontJsonController,
+  createCachedShellLoader,
+  sendSeoHtml,
+  withSeoDataTimeout,
+} from "./storefrontProductSeoPageService.js";
 
-const API_ORIGIN = String(process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/, "");
 const STOREFRONT_ORIGIN = "https://m1store-egy.com";
 const PAGE_SIZE = 24;
 
@@ -124,17 +129,27 @@ export const loadStorefrontCategoryHtmlShell = async (fetchImpl = fetch) => {
   return response.text();
 };
 
-export const loadCategoryProducts = async (definition, page = 1, fetchImpl = fetch) => {
-  const query = new URLSearchParams();
-  Object.entries(definition.apiFilters || {}).forEach(([key, value]) => query.set(key, String(value)));
-  query.set("sort", "newest");
-  query.set("limit", String(PAGE_SIZE));
-  query.set("offset", String((page - 1) * PAGE_SIZE));
-  const response = await fetchImpl(`${API_ORIGIN}/api/storefront/products?${query}`, {
-    headers: { "X-Tenant-Id": String(process.env.STOREFRONT_TENANT_ID || 1) },
-  });
-  if (!response.ok) throw new Error(`category_products_${response.status}`);
-  const payload = await response.json();
+// In-process with a capped wait, like the product page: see loadProductSeoData.
+export const loadCategoryProducts = async (
+  definition,
+  page = 1,
+  { listProducts = null, timeoutMs = SEO_DATA_TIMEOUT_MS } = {}
+) => {
+  const query = {};
+  Object.entries(definition.apiFilters || {}).forEach(([key, value]) => { query[key] = String(value); });
+  query.sort = "newest";
+  query.limit = String(PAGE_SIZE);
+  query.offset = String((page - 1) * PAGE_SIZE);
+  const controller = listProducts || (await import("../controllers/storefrontController.js")).listProducts;
+  const { status, body: payload } = await withSeoDataTimeout(
+    callStorefrontJsonController(controller, {
+      query,
+      headers: { "x-tenant-id": String(process.env.STOREFRONT_TENANT_ID || 1) },
+    }),
+    timeoutMs,
+    "category_seo_data"
+  );
+  if (status < 200 || status >= 300 || !payload) throw new Error(`category_products_${status}`);
   let products = payload?.products || payload?.items || [];
   let total = Number(payload?.total ?? payload?.total_count ?? products.length);
   if (definition.largeSizes) {
@@ -156,13 +171,20 @@ export const createStorefrontCategorySeoPageHandler = ({
     if (!definition) return res.status(404).send("Category not found");
     const page = positivePage(req.query.page);
     const indexable = Object.keys(req.query || {}).every((key) => key === "page");
-    const { products, total } = await loadProducts(definition, page);
+    let loaded = null;
+    try {
+      loaded = await loadProducts(definition, page);
+    } catch (error) {
+      console.warn("[storefront-seo] category data unavailable; serving the plain shell", {
+        category: definition.key,
+        error: error?.message || String(error),
+      });
+    }
+    // Shoppers still get the app, which loads the listing itself; the fallback is never cached.
+    if (!loaded) return sendSeoHtml(res, await loadShell());
+    const { products, total } = loaded;
     const html = injectCategorySeoIntoHtml(await loadShell(), definition, products, { page, total, indexable });
-    res.set("Content-Type", "text/html; charset=utf-8");
-    res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
-    return res.status(200).send(html);
+    return sendSeoHtml(res, html, { cacheable: true });
   } catch (error) {
     // A request-timeout middleware may already have answered; a second response throws
     // ERR_HTTP_HEADERS_SENT (seen in production during the 524 storm).

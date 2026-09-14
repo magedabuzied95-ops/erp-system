@@ -84,13 +84,83 @@ export const injectProductSeoIntoHtml = (html = "", seo = {}) => {
   return cleaned.replace("</head>", `    ${tags}\n  </head>`);
 };
 
-export const loadProductSeoData = async (identifier, fetchImpl = fetch) => {
-  const response = await fetchImpl(`${API_ORIGIN}/api/storefront/products/${encodeURIComponent(identifier)}`, {
-    headers: { "X-Tenant-Id": String(process.env.STOREFRONT_TENANT_ID || 1) },
+/*
+  Vercel sends every shopper's document request for a product or category page here, not just
+  crawlers. The data behind those pages used to be fetched from our own public API URL — out
+  through Cloudflare and back into this same process, with no timeout — so one slow round trip
+  held a shopper's page open with nothing on screen. The storefront controllers are now called
+  in-process through a tiny req/res stand-in, and the wait is capped: past the cap the shopper
+  gets the plain app shell and the app loads the data itself.
+*/
+export const SEO_DATA_TIMEOUT_MS = 5 * 1000;
+
+const storefrontTenantHeaders = () => ({ "x-tenant-id": String(process.env.STOREFRONT_TENANT_ID || 1) });
+
+export const callStorefrontJsonController = (controller, { params = {}, query = {}, headers = {} } = {}) =>
+  new Promise((resolve, reject) => {
+    let statusCode = 200;
+    const req = {
+      method: "GET",
+      params,
+      query,
+      headers,
+      body: {},
+      url: "",
+      originalUrl: "",
+      get: (name) => headers[String(name || "").toLowerCase()],
+    };
+    const finish = (body) => {
+      res.headersSent = true;
+      resolve({ status: statusCode, body });
+      return res;
+    };
+    const res = {
+      headersSent: false,
+      set: () => res,
+      setHeader: () => res,
+      header: () => res,
+      status: (code) => {
+        statusCode = Number(code) || statusCode;
+        return res;
+      },
+      json: finish,
+      send: finish,
+      end: () => finish(null),
+    };
+    Promise.resolve()
+      .then(() => controller(req, res, (error) => (error ? reject(error) : finish(null))))
+      .then(() => {
+        if (!res.headersSent) finish(null);
+      }, reject);
   });
-  if (!response.ok) return { status: response.status, product: null };
-  const payload = await response.json();
-  return { status: 200, product: payload?.product || payload?.data?.product || null };
+
+// The data work is not cancelled at the cap — it finishes and warms the controller caches for
+// the next visitor; this page just stops waiting for it.
+export const withSeoDataTimeout = (promise, ms = SEO_DATA_TIMEOUT_MS, label = "seo_data") => {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label}_timeout_${ms}ms`)), ms);
+    timer.unref?.();
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
+// Imported on first use so the many tests that only need the HTML helpers here do not load the
+// controller and its database pool.
+const loadStorefrontController = () => import("../controllers/storefrontController.js");
+
+export const loadProductSeoData = async (
+  identifier,
+  { getProduct = null, timeoutMs = SEO_DATA_TIMEOUT_MS } = {}
+) => {
+  const controller = getProduct || (await loadStorefrontController()).getProduct;
+  const { status, body } = await withSeoDataTimeout(
+    callStorefrontJsonController(controller, { params: { identifier }, headers: storefrontTenantHeaders() }),
+    timeoutMs,
+    "product_seo_data"
+  );
+  const product = status >= 200 && status < 300 ? body?.product || body?.data?.product || null : null;
+  return { status: product ? 200 : status, product };
 };
 
 export const loadStorefrontHtmlShell = async (fetchImpl = fetch) => {
@@ -191,14 +261,56 @@ export const createCachedShellLoader = (
 const cachedStorefrontHtmlShell = createCachedShellLoader(loadStorefrontHtmlShell);
 export const warmStorefrontHtmlShell = () => cachedStorefrontHtmlShell.warm();
 
+/*
+  A rendered page holds only public catalogue data and the static shell — nothing about the
+  visitor — so a shared cache may keep it briefly. The stale window is kept short on purpose:
+  the shell names the build's hashed bundles, and a copy served long after a deploy points at
+  bundles that no longer exist. Failures and not-found pages are never cached.
+*/
+export const SEO_PAGE_CACHE_CONTROL = "public, max-age=0, s-maxage=60, stale-while-revalidate=120";
+export const SEO_PAGE_NO_STORE = "no-store, no-cache, must-revalidate, max-age=0";
+
+export const sendSeoHtml = (res, html, { status = 200, cacheable = false } = {}) => {
+  res.set("Content-Type", "text/html; charset=utf-8");
+  if (cacheable) {
+    res.set("Cache-Control", SEO_PAGE_CACHE_CONTROL);
+  } else {
+    res.set("Cache-Control", SEO_PAGE_NO_STORE);
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  }
+  return res.status(status).send(html);
+};
+
+// A missing product still gets the app (it shows its own not-found screen), but a crawler must
+// not index the shell's generic storefront text under that URL.
+export const markHtmlNoindex = (html = "") =>
+  String(html)
+    .replace(/<meta\s+name=["']robots["'][^>]*>/gi, "")
+    .replace("</head>", `    <meta name="robots" content="noindex,follow" />\n  </head>`);
+
 export const createStorefrontProductSeoPageHandler = ({
   loadProduct = loadProductSeoData,
   loadShell = cachedStorefrontHtmlShell,
 } = {}) => async (req, res, next) => {
   try {
     const identifier = String(req.params.identifier || "").trim();
-    const { status, product } = await loadProduct(identifier);
-    if (!product) return res.status(status === 404 ? 404 : 503).send("Product not found");
+    let loaded = null;
+    try {
+      loaded = await loadProduct(identifier);
+    } catch (error) {
+      console.warn("[storefront-seo] product data unavailable; serving the plain shell", {
+        identifier,
+        error: error?.message || String(error),
+      });
+    }
+    const product = loaded?.product || null;
+    if (!product) {
+      if (loaded?.status === 404) return sendSeoHtml(res, markHtmlNoindex(await loadShell()), { status: 404 });
+      // A slow or failing lookup is temporary: no noindex (that would drop a ranking page), and
+      // the shell's generic meta is what a crawler that renders the app replaces anyway.
+      return sendSeoHtml(res, await loadShell());
+    }
     // The ad feeds link each colourway with ?color=; the schema must quote that colour's offer.
     const color = String(req.query?.color || "").trim().slice(0, 120);
     const variant = String(req.query?.variant || "").trim().slice(0, 40);
@@ -206,11 +318,7 @@ export const createStorefrontProductSeoPageHandler = ({
       await loadShell(),
       makeProductSeoImagesAbsolute(buildProductSeo(product, { color, variant }))
     );
-    res.set("Content-Type", "text/html; charset=utf-8");
-    res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
-    return res.status(200).send(html);
+    return sendSeoHtml(res, html, { cacheable: true });
   } catch (error) {
     // A request-timeout middleware may already have answered; a second response throws
     // ERR_HTTP_HEADERS_SENT (seen in production during the 524 storm).
