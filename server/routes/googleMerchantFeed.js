@@ -12,7 +12,9 @@ export const createGoogleMerchantFeedHandler = ({
       return res.status(304).end();
     }
     res.set("Content-Type", "application/rss+xml; charset=utf-8");
-    res.set("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=3600");
+    // The CDN copy used to live 24h on top of the process copy; it now keeps the Meta feed's
+    // 15 minutes, so a price or stock change reaches Merchant Center within the hour.
+    res.set("Cache-Control", "public, max-age=900, s-maxage=900, stale-while-revalidate=300");
     res.set("ETag", feed.etag);
     res.set("Last-Modified", new Date(feed.generatedAt).toUTCString());
     return res.status(200).send(feed.xml);

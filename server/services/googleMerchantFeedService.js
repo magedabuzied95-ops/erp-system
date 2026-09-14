@@ -6,9 +6,16 @@ import { resolveEffectiveCustomerPrice } from "../../src/shared/lib/effectiveCus
 import { loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { resolveProductAudience } from "./productAudienceResolver.js";
 import { AD_FEED_PURCHASE_COLUMNS, AD_FEED_PURCHASE_CTES, AD_FEED_PURCHASE_JOINS } from "./adFeedPurchaseLinesSql.js";
+import { onCacheInvalidatePattern } from "./cacheService.js";
 
 export const GOOGLE_FEED_URL = "https://m1store-egy.com/feeds/google.xml";
-export const GOOGLE_FEED_TTL_MS = 24 * 60 * 60 * 1000;
+// Merchant Center compares the feed with the live product page. A 24h copy kept advertising a
+// size that sold out in the morning, at yesterday's price, for the rest of the day. The copy now
+// lives an hour at most, and any catalogue change (see markGoogleMerchantFeedStale) retires it
+// sooner -- but never within GOOGLE_FEED_MIN_REBUILD_MS of the last build: every till sale
+// invalidates the storefront, and a 12s feed query per sale would load the database for nothing.
+export const GOOGLE_FEED_TTL_MS = 60 * 60 * 1000;
+export const GOOGLE_FEED_MIN_REBUILD_MS = 10 * 60 * 1000;
 const STOREFRONT_URL = "https://m1store-egy.com";
 const BACKEND_URL = "https://api.m1store-egy.com";
 const FALLBACK_IMAGE = `${STOREFRONT_URL}/branding/m-one-logo-dark-fixed.png`;
@@ -397,9 +404,27 @@ export const clearGoogleMerchantFeedCache = () => {
   feedCache = null;
 };
 
+// A stale copy is kept, not dropped: it is still the fallback when the rebuild fails.
+export const markGoogleMerchantFeedStale = () => {
+  if (feedCache) feedCache.stale = true;
+};
+
+export const googleMerchantFeedCacheIsFresh = (cache, now = Date.now()) => {
+  if (!cache) return false;
+  const age = now - Number(cache.generatedAt || 0);
+  if (age < GOOGLE_FEED_MIN_REBUILD_MS) return true;
+  return !cache.stale && age < GOOGLE_FEED_TTL_MS;
+};
+
+// Product saves, purges, classification edits and live stock all clear the storefront cache
+// through invalidateCachePattern; the feed follows them.
+onCacheInvalidatePattern((pattern) => {
+  if (pattern === "*" || pattern.startsWith("storefront")) markGoogleMerchantFeedStale();
+});
+
 export const buildGoogleMerchantFeed = async ({ force = false } = {}) => {
   const now = Date.now();
-  if (!force && feedCache && now - feedCache.generatedAt < GOOGLE_FEED_TTL_MS) return feedCache;
+  if (!force && googleMerchantFeedCacheIsFresh(feedCache, now)) return feedCache;
   try {
     return await rebuildGoogleMerchantFeed(now);
   } catch (error) {
