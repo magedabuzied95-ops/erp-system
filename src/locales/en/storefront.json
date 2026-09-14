@@ -91,6 +91,16 @@
     "couponAppliedSummary": "Coupon applied: {{code}} - {{discount}}",
     "couponNeedsApply": "Coupon entered. Apply it to calculate the discount.",
     "couponTotalChanged": "Your discount was updated and the amount to transfer is now {{amount}}. Please review it, transfer that amount, upload the receipt and place the order again.",
+    "errors": {
+      "emptyCart": "Your cart is empty. Add a product first",
+      "stockShort": "Only {{available}} left of {{product}}. Lower the quantity and try again",
+      "stockShortUnnamed": "Only {{available}} left of one of the products. Lower the quantity and try again",
+      "onlinePaymentUnavailable": "Online card payment is unavailable right now. Choose another payment method",
+      "codDisabled": "Cash on delivery is not available right now. Choose another payment method",
+      "paymentMethodUnsupported": "This payment method is not available. Choose another one",
+      "pickupDisabled": "Store pickup is not available right now. Choose delivery",
+      "shippingMethodUnsupported": "This shipping method is not available. Choose another one"
+    },
     "couponErrors": {
       "invalid": "Invalid coupon code",
       "required": "Enter a coupon code first",
@@ -805,7 +815,15 @@
     "trackOnBosta": "Follow the parcel on Bosta",
     "copyTracking": "Copy tracking number",
     "noTrackingYet": "The tracking number appears once the parcel is handed to the courier.",
-    "searchAnother": "Track another order"
+    "searchAnother": "Track another order",
+    "stages": {
+      "received": "Order received",
+      "confirmed": "Order confirmed",
+      "ready_to_ship": "Ready to ship",
+      "shipment_created": "Shipment created",
+      "out_for_delivery": "Out for delivery",
+      "delivered": "Delivered"
+    }
   },
   "orders": {
     "orderNumber": "Order number",
@@ -1384,7 +1402,13 @@
     "updating": "Updating...",
     "updatePassword": "Update password",
     "requestNewLink": "Request a new link",
-    "resendIn": "Resend in {{seconds}}s"
+    "resendIn": "Resend in {{seconds}}s",
+    "accountDisabled": "This account is disabled. Contact us on WhatsApp for help",
+    "emailAlreadyExists": "This email already has an account. Sign in instead",
+    "phoneAlreadyRegistered": "This mobile number already has an account. Sign in with a WhatsApp code on the same number",
+    "resetLinkExpired": "This reset link is invalid or has expired. Request a new one",
+    "otpCooldown": "Wait {{seconds}} seconds before asking for a new code",
+    "tooManyAttempts": "Too many attempts. Try again in {{seconds}} seconds"
   },
   "restock": {
     "notifyProduct": "We will let you know when this product is back",

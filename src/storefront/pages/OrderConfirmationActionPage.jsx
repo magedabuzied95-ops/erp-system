@@ -80,8 +80,9 @@ const EXPIRED_CODES = new Set([
   "ORDER_CONFIRMATION_CODE_ALREADY_USED",
 ]);
 
-// Built per call: a module-scope formatter would pin the digit system to whichever language loaded the chunk.
-const moneyFormatter = { format: (value) => new Intl.NumberFormat(String(i18n.language || "ar").startsWith("ar") ? "ar-EG" : "en-EG", { maximumFractionDigits: 2 }).format(value) };
+// Built per call: a module-scope formatter would pin the locale to whichever language loaded the chunk.
+// Latin digits in both languages, like the checkout, the invoice and the quantity beside each price.
+const moneyFormatter = { format: (value) => new Intl.NumberFormat(String(i18n.language || "ar").startsWith("ar") ? "ar-EG" : "en-EG", { maximumFractionDigits: 2, numberingSystem: "latn" }).format(value) };
 
 const text = (...values) => {
   for (const value of values) {

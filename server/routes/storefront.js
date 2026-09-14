@@ -131,6 +131,7 @@ const visualUpload = (req, res, next) => {
     if (!error) return next();
     return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({
       success: false,
+      error_code: error.code === "LIMIT_FILE_SIZE" ? "IMAGE_TOO_LARGE" : "UNSUPPORTED_IMAGE_TYPE",
       message: error.code === "LIMIT_FILE_SIZE" ? IMAGE_TOO_LARGE_MESSAGE : UNSUPPORTED_IMAGE_MESSAGE,
     });
   });
@@ -474,6 +475,7 @@ router.post("/auth/request-otp", async (req, res) => {
     if (result?.cooldown) {
       return res.status(429).json({
         success: false,
+        error: "OTP_COOLDOWN",
         message: "رجاءً انتظر قليلًا قبل طلب كود جديد",
         retry_after_seconds: result.retry_after_seconds || 60,
       });
@@ -490,6 +492,7 @@ router.post("/auth/request-otp", async (req, res) => {
     }
     return res.status(error?.status || 500).json({
       success: false,
+      error: "OTP_SEND_FAILED",
       message: "تعذر إرسال كود الدخول حاليًا",
     });
   }
@@ -595,6 +598,7 @@ router.post("/auth/verify-otp", async (req, res) => {
     if (!result?.success) {
       return res.status(400).json({
         success: false,
+        error: "INVALID_OR_EXPIRED_OTP",
         message: "كود الدخول غير صحيح أو منتهي",
       });
     }
@@ -606,6 +610,7 @@ router.post("/auth/verify-otp", async (req, res) => {
   } catch {
     return res.status(500).json({
       success: false,
+      error: "INVALID_OR_EXPIRED_OTP",
       message: "كود الدخول غير صحيح أو منتهي",
     });
   }

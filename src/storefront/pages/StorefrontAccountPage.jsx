@@ -36,7 +36,15 @@ import {
   storeStorefrontCustomerAuth,
   storefrontCustomerRequest,
 } from "../lib/storefrontCustomerAuth";
+import { storefrontAuthErrorCopy, trackingStageKey } from "../lib/serverCopy";
+import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import "./account.css";
+
+// A failed auth request in the shopper's language: the server's code picks the copy, never its message.
+const toastAuthError = (error, fallbackKey) => {
+  const { key, options } = storefrontAuthErrorCopy(error, fallbackKey);
+  toast.error(sfText(key, undefined, options));
+};
 
 /*
  * The account page (/account) in the homepage look: every colour is a `--m1h-*` token
@@ -314,7 +322,7 @@ function OrderDetails({ data, helpers }) {
                 <span className="sfa-step__dot" aria-hidden="true">
                   {state === "done" ? <Check className="h-3 w-3" /> : null}
                 </span>
-                <span className="sfa-step__label">{step.label}</span>
+                <span className="sfa-step__label">{trackingStageKey(step) ? sfText(trackingStageKey(step), step.label) : step.label}</span>
               </li>
             );
           })}
@@ -346,7 +354,7 @@ function OrderDetails({ data, helpers }) {
               <div className="min-w-0 flex-1">
                 <div className="sfa-item__name">{item.product_name || item.name}</div>
                 <div className="sfa-item__meta">
-                  {[item.color, item.size].filter(Boolean).join(" / ")} × {item.quantity}
+                  {[localizeColorName(item.color, i18n.language), localizeSizeLabel(item.size, i18n.language)].filter(Boolean).join(" / ")} × {item.quantity}
                 </div>
               </div>
               <div className="sfa-item__price">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
@@ -596,7 +604,7 @@ function StorefrontAccountPageContent({
         invalidateCustomerIdentity();
       }
       if (!silent) {
-        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
+        toast.error(sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
       }
       return null;
     } finally {
@@ -664,7 +672,7 @@ function StorefrontAccountPageContent({
       setOtpCode("");
       toast.success(sfText("storefront.auth.otpSent"));
     } catch (error) {
-      toast.error(error.message || sfText("storefront.auth.otpSendFailed"));
+      toastAuthError(error, "storefront.auth.otpSendFailed");
     } finally {
       setRequestingOtp(false);
     }
@@ -700,7 +708,7 @@ function StorefrontAccountPageContent({
       toast.success(sfText("storefront.auth.loginSuccess"));
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || sfText("storefront.auth.otpInvalid"));
+      toastAuthError(error, "storefront.auth.otpInvalid");
     } finally {
       setVerifyingOtp(false);
     }
@@ -770,7 +778,7 @@ function StorefrontAccountPageContent({
       toast.success(sfText("storefront.auth.registerSuccess"));
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || sfText("storefront.auth.registerFailed"));
+      toastAuthError(error, "storefront.auth.registerFailed");
     } finally {
       setAuthSubmitting(false);
     }
@@ -799,7 +807,7 @@ function StorefrontAccountPageContent({
       toast.success(sfText("storefront.auth.loginSuccess"));
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || sfText("storefront.auth.loginInvalid"));
+      toastAuthError(error, "storefront.auth.loginInvalid");
     } finally {
       setAuthSubmitting(false);
     }
@@ -820,7 +828,7 @@ function StorefrontAccountPageContent({
       setAuthMode("forgot");
       toast.success(sfText("storefront.auth.resetLinkSent"));
     } catch (error) {
-      toast.error(error?.message || sfText("storefront.auth.resetSendFailed"));
+      toastAuthError(error, "storefront.auth.resetSendFailed");
     } finally {
       setAuthSubmitting(false);
     }
@@ -856,7 +864,7 @@ function StorefrontAccountPageContent({
       setSearchParams({});
       navigate("/account", { replace: true });
     } catch (error) {
-      toast.error(error?.message || sfText("storefront.auth.passwordUpdateFailed"));
+      toastAuthError(error, "storefront.auth.passwordUpdateFailed");
     } finally {
       setAuthSubmitting(false);
     }

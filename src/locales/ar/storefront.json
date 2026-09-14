@@ -498,6 +498,16 @@
     "couponAppliedSummary": "تم تطبيق الكوبون: {{code}} - {{discount}}",
     "couponNeedsApply": "تم إدخال الكوبون. اضغط تطبيق لحساب الخصم.",
     "couponTotalChanged": "تم تحديث الخصم والمبلغ المطلوب تحويله الآن أصبح {{amount}}. راجع المبلغ وحوّله ثم ارفع الإيصال واضغط إتمام الطلب مرة أخرى.",
+    "errors": {
+      "emptyCart": "السلة فاضية. ضيف منتج الأول",
+      "stockShort": "فاضل {{available}} بس من {{product}}. قلّل الكمية وجرّب تاني",
+      "stockShortUnnamed": "فاضل {{available}} بس من أحد المنتجات. قلّل الكمية وجرّب تاني",
+      "onlinePaymentUnavailable": "الدفع بالكارت أونلاين مش متاح دلوقتي. اختار طريقة دفع تانية",
+      "codDisabled": "الدفع عند الاستلام مش متاح دلوقتي. اختار طريقة دفع تانية",
+      "paymentMethodUnsupported": "طريقة الدفع دي مش متاحة. اختار طريقة تانية",
+      "pickupDisabled": "الاستلام من الفرع مش متاح دلوقتي. اختار التوصيل",
+      "shippingMethodUnsupported": "طريقة الشحن دي مش متاحة. اختار طريقة تانية"
+    },
     "couponErrors": {
       "invalid": "كود الكوبون غير صالح",
       "required": "أدخل كود الكوبون أولًا",
@@ -826,7 +836,15 @@
     "trackOnBosta": "تابع الشحنة على موقع بوسطة",
     "copyTracking": "انسخ رقم التتبع",
     "noTrackingYet": "رقم التتبع هيظهر أول ما الشحنة تتسلّم لشركة الشحن.",
-    "searchAnother": "تتبع طلب تاني"
+    "searchAnother": "تتبع طلب تاني",
+    "stages": {
+      "received": "تم استلام الطلب",
+      "confirmed": "تم تأكيد الطلب",
+      "ready_to_ship": "جاهز للشحن",
+      "shipment_created": "تم إنشاء الشحنة",
+      "out_for_delivery": "خرج للتسليم",
+      "delivered": "تم التسليم"
+    }
   },
   "account": {
     "eyebrow": "حساب خفيف بالموبايل",
@@ -1384,7 +1402,13 @@
     "updating": "جاري التحديث...",
     "updatePassword": "تحديث كلمة المرور",
     "requestNewLink": "طلب رابط جديد",
-    "resendIn": "إعادة الإرسال بعد {{seconds}} ثانية"
+    "resendIn": "إعادة الإرسال بعد {{seconds}} ثانية",
+    "accountDisabled": "الحساب ده متوقف. كلّمنا على واتساب وهنساعدك",
+    "emailAlreadyExists": "البريد ده عليه حساب بالفعل. سجّل دخول بيه",
+    "phoneAlreadyRegistered": "رقم الموبايل ده عليه حساب بالفعل. ادخل بكود واتساب على نفس الرقم",
+    "resetLinkExpired": "رابط إعادة التعيين غير صالح أو انتهت صلاحيته. اطلب رابط جديد",
+    "otpCooldown": "استنى {{seconds}} ثانية قبل ما تطلب كود جديد",
+    "tooManyAttempts": "محاولات كتير. جرّب تاني بعد {{seconds}} ثانية"
   },
   "restock": {
     "notifyProduct": "هنبلغك لما المنتج يتوفر",

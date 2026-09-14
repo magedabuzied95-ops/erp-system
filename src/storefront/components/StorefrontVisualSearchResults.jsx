@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { PackageSearch } from "lucide-react";
 import { parseSaleModeEnabled } from "../../shared/lib/storefrontPricing";
+import { visualSearchSubtitleKey } from "../lib/serverCopy";
 
 class VisualSearchCardBoundary extends Component {
   constructor(props) {
@@ -186,7 +187,7 @@ export default function StorefrontVisualSearchResults({ products = [], loading, 
         <div className="min-w-0">
           <h3 className="text-sm font-semibold" style={{ color: "var(--m1h-text)" }}>{t("storefront.visualSearch.similarProducts", "منتجات مشابهة")}</h3>
           <p className="mt-0.5 truncate text-xs" style={{ color: "var(--m1h-text-3)" }}>
-            {loading ? t("storefront.visualSearch.analyzing", "جاري تحليل الصورة والبحث عن أقرب المنتجات...") : visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.resultsFromImage", "نتائج مبنية على الصورة المرفوعة")}
+            {loading ? t("storefront.visualSearch.analyzing", "جاري تحليل الصورة والبحث عن أقرب المنتجات...") : t(visualSearchSubtitleKey(visualSearch), "نتائج مبنية على الصورة المرفوعة")}
           </p>
         </div>
         <span className="sfx-badge sfx-badge--ink shrink-0">
@@ -210,7 +211,7 @@ export default function StorefrontVisualSearchResults({ products = [], loading, 
         </div>
       ) : (
         <VisualSearchEmpty
-          message={visualSearch?.error || visualSearch?.message || t("storefront.visualSearch.noSimilarProduct", "لم يتم العثور على منتج مشابه")}
+          message={visualSearch?.error ? t(visualSearchSubtitleKey(visualSearch)) : ""}
           keywords={keywords}
           onPickTerm={onPickTerm}
         />

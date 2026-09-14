@@ -4303,13 +4303,13 @@ export const imageSearchProducts = async (req, res) => {
     await ensureProductVariantImagesSchema();
 
     if (!file?.buffer?.length) {
-      return res.status(400).json({ success: false, message: "يرجى رفع صورة للبحث" });
+      return res.status(400).json({ success: false, error_code: "IMAGE_REQUIRED", message: "يرجى رفع صورة للبحث" });
     }
     if (!VISUAL_SEARCH_ALLOWED_TYPES.has(file.mimetype)) {
-      return res.status(400).json({ success: false, message: "نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP" });
+      return res.status(400).json({ success: false, error_code: "UNSUPPORTED_IMAGE_TYPE", message: "نوع الصورة غير مدعوم. استخدم JPG أو PNG أو WEBP" });
     }
     if (Number(file.size || file.buffer.length) > VISUAL_SEARCH_MAX_BYTES) {
-      return res.status(413).json({ success: false, message: "حجم الصورة كبير. ارفع صورة أصغر" });
+      return res.status(413).json({ success: false, error_code: "IMAGE_TOO_LARGE", message: "حجم الصورة كبير. ارفع صورة أصغر" });
     }
 
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);

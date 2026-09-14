@@ -116,10 +116,36 @@ const ARABIC_COLOR_ALIASES = {
   "افتراضي": "default",
 };
 
+// Looked up by normalizeWord, so the keys are normalized the same way ("مستردة" is stored as "مسترده").
+const ARABIC_COLOR_ALIAS_INDEX = Object.fromEntries(
+  Object.entries(ARABIC_COLOR_ALIASES).map(([spelling, key]) => [normalizeWord(spelling), key])
+);
+
 const colorEntry = (word = "") => {
   const key = normalizeWord(word);
   if (!key) return null;
-  return COLOR_WORDS[key] || COLOR_WORDS[ARABIC_COLOR_ALIASES[key]] || null;
+  return COLOR_WORDS[key] || COLOR_WORDS[ARABIC_COLOR_ALIAS_INDEX[key]] || null;
+};
+
+// "أوف وايت" holds a space and a و like the Arabic "and" does, so a piece is split on " و" only where
+// every resulting part is a colour; the longest colour phrase is tried first. null = not all colours.
+const colorEntriesOf = (segment = "") => {
+  const pieces = String(segment).split(/(\s+و\s*)/);
+  const words = pieces.filter((_, index) => index % 2 === 0);
+  const joins = pieces.filter((_, index) => index % 2 === 1);
+  const walk = (start) => {
+    if (start >= words.length) return [];
+    if (!words[start].trim()) return walk(start + 1);
+    for (let end = words.length - 1; end >= start; end -= 1) {
+      let phrase = words[start];
+      for (let index = start; index < end; index += 1) phrase += joins[index] + words[index + 1];
+      const entry = colorEntry(phrase);
+      const rest = entry ? walk(end + 1) : null;
+      if (rest) return [entry, ...rest];
+    }
+    return null;
+  };
+  return walk(0);
 };
 
 /** "Black & White" → "أسود وأبيض" in Arabic; "أسود" → "Black" in English. Unknown parts stay. */
@@ -127,9 +153,9 @@ export const localizeColorName = (value = "", lang = "ar") => {
   const text = String(value ?? "").trim();
   if (!text) return text;
   const arabic = isArabic(lang);
-  const parts = text.split(/\s*(?:&|\/|,|\+|\s-\s|\sand\s|\s+و\s*)\s*/i).filter(Boolean);
+  const parts = text.split(/\s*(?:&|\/|,|\+|\s-\s|\sand\s)\s*/i).filter(Boolean);
   if (!parts.length) return text;
-  const entries = parts.map(colorEntry);
+  const entries = parts.flatMap((part) => colorEntriesOf(part) || [null]);
   // Only a name made entirely of colour words is translated; "Air Max - Black" is a product name.
   if (entries.some((entry) => !entry)) return text;
   const labels = entries.map((entry) => (arabic ? entry[1] : entry[0]));

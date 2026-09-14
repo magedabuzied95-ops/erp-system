@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/api";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
+import i18n from "../../i18n/i18n";
+import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
+import { trackingStageKey } from "../lib/serverCopy";
 import {
   Check,
   Copy,
@@ -47,9 +50,11 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
   const [copied, setCopied] = useState(false);
   const order = data.order || {};
   const items = Array.isArray(data.items) ? data.items : [];
+  // The server's stage labels are Arabic; each known stage reads from the shopper's language by key.
   const timeline = Array.isArray(data.timeline) && data.timeline.length
-    ? data.timeline
+    ? data.timeline.map((step) => (trackingStageKey(step) ? { ...step, label: sfText(trackingStageKey(step), step.label) } : step))
     : getStatusLabels().map((label, index) => ({ key: String(index), label, done: index === 0 }));
+  const lang = i18n.language;
   const derailedKey = trackingDerailedKey(order);
   // The stage the parcel is at: the last one lit. Everything before it is done.
   const currentIndex = timeline.reduce((last, step, index) => (step.done ? index : last), 0);
@@ -147,7 +152,7 @@ function TrackingResult({ data, helpers, onSearchAnother }) {
               const image = item.variant_image || item.variant_image_url || item.color_image || item.color_image_url || item.image_url || item.product_image || item.product_image_url;
               const quantity = Number(item.quantity || 1);
               const lineTotal = Number(item.total_amount || 0) || Number(item.price || item.sale_price || 0) * quantity;
-              const options = [item.color, item.size].filter(Boolean).join(" / ");
+              const options = [localizeColorName(item.color, lang), localizeSizeLabel(item.size, lang)].filter(Boolean).join(" / ");
               return (
                 <li key={item.id || `${item.product_id}-${item.variant_id}`} className="sft-item">
                   <img src={imageFor(image)} onError={fallbackProductImage} alt="" className="sft-item__img" loading="lazy" decoding="async" width="56" height="56" />

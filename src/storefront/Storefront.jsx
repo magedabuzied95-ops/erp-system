@@ -106,6 +106,7 @@ import { releaseBootLoader } from "./lib/bootLoader";
 import { useDialogFocus } from "./lib/useDialogFocus";
 import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
 import { localizeColorName, localizeHoursLine, localizeSizeLabel } from "./lib/displayCopy";
+import { storefrontCheckoutErrorCopy, visualSearchErrorKey } from "./lib/serverCopy";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import { attachSiteDesign, detachSiteDesign, refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
 import {
@@ -2644,9 +2645,9 @@ const PRODUCT_TYPE_LABELS = {
   crocs: { ar: "كروكس", en: "Crocs", aliases: ["croc", "crocs", "كروكس"] },
   slippers: { ar: "سليبر", en: "Slippers", aliases: ["slipper", "slippers", "slide", "slides", "سليبر", "شباشب"] },
   sneakers: { ar: "سنيكرز", en: "Sneakers", aliases: ["sneaker", "sneakers", "سنيكرز"] },
-  shoes: { ar: "Shoes", en: "Shoes", aliases: ["shoe", "shoes", "أحذية", "حذاء", "أحذيه"] },
-  running: { ar: "Running", en: "Running", aliases: ["running", "run", "جري", "رياضي"] },
-  casualshoes: { ar: "Casual Shoes", en: "Casual Shoes", aliases: ["casual shoe", "casual shoes", "casual", "كاجوال", "كاجوال شوز"] },
+  shoes: { ar: "أحذية", en: "Shoes", aliases: ["shoe", "shoes", "أحذية", "حذاء", "أحذيه"] },
+  running: { ar: "جري", en: "Running", aliases: ["running", "run", "جري", "رياضي"] },
+  casualshoes: { ar: "أحذية كاجوال", en: "Casual Shoes", aliases: ["casual shoe", "casual shoes", "casual", "كاجوال", "كاجوال شوز"] },
 };
 const normalizeProductTypeKey = (value = "") => storefrontLabelKey(value).replace(/[\s_-]+/g, "");
 const resolveProductTypeKey = (value = "") => {
@@ -5401,11 +5402,8 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         });
         setImageSearchOpen(true);
       } catch (error) {
-        const message =
-          error?.responseBody?.message ||
-          error?.responseBody?.error ||
-          (error?.message && error.message !== "Request Failed" ? error.message : "") ||
-          sfText("storefront.visualSearch.unavailableRetry");
+        // A copy key, not the server's Arabic text: the results panel reads it in the shopper's language.
+        const message = visualSearchErrorKey(error);
         setSuggestions([]);
         setVisualSearch({
           active: true,
@@ -8861,7 +8859,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
         scrollToFirstCheckoutError();
         return;
       }
-      toast.error(field === "coupon_code" ? couponErrorText(couponReason) : (backendMessage || sfText("storefront.toasts.checkoutFailed")));
+      // The server's message is English staff text; the field and status pick the shopper's copy.
+      const checkoutCopy = storefrontCheckoutErrorCopy(error);
+      toast.error(field === "coupon_code" ? couponErrorText(couponReason) : sfText(checkoutCopy.key, undefined, checkoutCopy.options));
     } finally {
       setSubmitting(false);
     }
