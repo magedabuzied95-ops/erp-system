@@ -566,6 +566,21 @@ const resolveScopedItems = async ({ client, scope, items }) => {
  *                   relax the usage count, per-customer limit or budget, so a second redeem on the
  *                   same order is still refused.
  */
+/*
+ * What a shopper is told about a coupon. The full validation carries the coupon row (including
+ * the customer it is assigned to) and the campaign's budget cap, scope and stacking rules; none of
+ * that is the caller's business, and the public endpoints used to echo all of it.
+ */
+export const publicCouponValidation = (result = {}) => ({
+  valid: Boolean(result?.valid),
+  reason: result?.reason || "",
+  discount_amount: Number(result?.discount_amount || 0),
+  free_shipping: Boolean(result?.free_shipping),
+  final_total: Number(result?.final_total || 0),
+  ...(result?.base_total !== undefined ? { base_total: result.base_total } : {}),
+  coupon: result?.coupon?.code ? { code: result.coupon.code } : null,
+});
+
 export const validateCoupon = async ({
   tenantId = null,
   code,

@@ -1,4 +1,5 @@
 import express from "express";
+import jwt from "jsonwebtoken";
 
 import {
   assignCoupon,
@@ -20,8 +21,9 @@ import {
   removeCampaign,
   validate,
 } from "../controllers/couponsController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { isStaffSessionToken, protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import { rateLimitClientKey } from "../utils/requestRateLimit.js";
 
 const router = express.Router();
 const requireCouponManager = (req, res, next) => {
@@ -33,12 +35,14 @@ const requireCouponManager = (req, res, next) => {
 // /validate is public (the storefront checkout calls it before login). Codes are PREFIX-XXXXXX over a
 // 32-symbol alphabet, so brute force is impractical — but an unthrottled oracle still leaks which codes
 // exist. Fixed window per client IP, in-process; good enough for a single backend instance.
+// The IP is the proxy-verified one: behind nginx/Cloudflare `req.ip` alone is the proxy, which put
+// every shopper in one bucket of 20 checks a minute.
 const VALIDATE_WINDOW_MS = 60_000;
 const VALIDATE_MAX_PER_WINDOW = Number(process.env.COUPON_VALIDATE_RATE_LIMIT || 20);
 const validateHits = new Map();
 const validateRateLimit = (req, res, next) => {
   const now = Date.now();
-  const key = String(req.ip || req.socket?.remoteAddress || "unknown");
+  const key = rateLimitClientKey(req);
   const entry = validateHits.get(key);
   if (!entry || now - entry.start >= VALIDATE_WINDOW_MS) {
     validateHits.set(key, { start: now, count: 1 });
@@ -55,6 +59,22 @@ const validateRateLimit = (req, res, next) => {
   return next();
 };
 
+// The till calls /validate with the cashier's session and the customer picked on screen. Only such
+// a session may have its customer_id used; a shopper's token or no token is treated as anonymous.
+export const markCouponStaffCaller = (req, _res, next) => {
+  req.couponStaffCaller = false;
+  const header = String(req.headers?.authorization || "").trim();
+  if (header.toLowerCase().startsWith("bearer ")) {
+    try {
+      const decoded = jwt.verify(header.slice(7).trim(), process.env.JWT_SECRET || "SECRET_KEY");
+      req.couponStaffCaller = isStaffSessionToken(decoded);
+    } catch {
+      req.couponStaffCaller = false;
+    }
+  }
+  return next();
+};
+
 // Manual redemption burns a coupon; it must always point at the order it was burned for.
 const requireRedeemOrder = (req, res, next) => {
   const orderId = req.body?.order_id ?? req.body?.orderId;
@@ -64,7 +84,7 @@ const requireRedeemOrder = (req, res, next) => {
   return next();
 };
 
-router.post("/validate", validateRateLimit, validate);
+router.post("/validate", validateRateLimit, markCouponStaffCaller, validate);
 router.post("/redeem", protect, requireCouponManager, requireRedeemOrder, redeem);
 
 router.get("/reports/performance", protect, permit("marketing", "view"), getPerformanceReport);

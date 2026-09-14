@@ -192,6 +192,105 @@ export const sendStorefrontMetaEvent = async ({ req, event = {}, tenantId = 1 } 
   throw lastError || new Error("Meta Conversions API request failed");
 };
 
+// The hosts whose browsers may relay events into the live dataset: the same two the browser Pixel
+// is allowed on (src/shared/lib/metaPixel.js). META_CAPI_RELAY_ALLOWED_HOSTS replaces the list.
+const DEFAULT_META_RELAY_HOSTS = ["m1store-egy.com", "www.m1store-egy.com"];
+const metaRelayAllowedHosts = () => {
+  const configured = text(process.env.META_CAPI_RELAY_ALLOWED_HOSTS)
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(configured.length ? configured : DEFAULT_META_RELAY_HOSTS);
+};
+const hostOf = (value = "") => {
+  try {
+    return new URL(text(value)).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+};
+
+// The page that sent the relay, from Origin (always on a browser POST) or else Referer. A request
+// with neither is not a shopper's browser, and is ignored with the rest.
+export const isAllowedMetaRelayOrigin = (req = {}) => {
+  const host = hostOf(req?.headers?.origin) || hostOf(req?.headers?.referer);
+  return Boolean(host) && metaRelayAllowedHosts().has(host);
+};
+
+const RELAY_PURCHASE_MAX_AGE_DAYS = 3;
+const RELAY_PURCHASE_EVENT_PREFIX = "m1_purchase_order_";
+
+/*
+ * A browser Purchase, rebuilt from the order it names.
+ *
+ * The browser's event_id is metaPurchaseEventId(order), so it points at an order id. Only a
+ * website order from the last few days that is still a sale is accepted, and the value, products
+ * and customer come from that row — never from the request body. Returns null for anything else.
+ * Replaying a real order's event is harmless: it carries the same event_id the order pipeline
+ * already sent, so Meta collapses it into the one conversion.
+ */
+export const loadVerifiedRelayPurchaseEvent = async ({ tenantId = 1, eventId = "", client = db } = {}) => {
+  const safeEventId = text(eventId);
+  if (!safeEventId.startsWith(RELAY_PURCHASE_EVENT_PREFIX)) return null;
+  const orderId = safeEventId.slice(RELAY_PURCHASE_EVENT_PREFIX.length);
+  if (!/^\d{1,18}$/.test(orderId)) return null;
+
+  const orderResult = await client.query(
+    `
+    SELECT *
+    FROM orders
+    WHERE id = $1::bigint
+      AND tenant_id = $2::bigint
+      AND created_at >= NOW() - ($3::int * INTERVAL '1 day')
+    LIMIT 1
+    `,
+    [orderId, Number(tenantId) || 1, RELAY_PURCHASE_MAX_AGE_DAYS]
+  );
+  const order = orderResult.rows?.[0] || null;
+  if (!order) return null;
+  const source = text(order.source || order.channel).toLowerCase();
+  if (!["website", "storefront"].includes(source) || text(order.origin_surface).toLowerCase() === "pos") return null;
+  if (!isMetaPurchaseEligible(order) || metaPurchaseEventId(order) !== safeEventId) return null;
+
+  const itemsResult = await client.query(
+    `
+    SELECT oi.*, pv.sku AS variant_sku
+    FROM order_items oi
+    LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+    WHERE oi.order_id = $1::bigint
+    ORDER BY oi.id ASC
+    `,
+    [order.id]
+  );
+  const contents = metaEventContents(
+    (itemsResult.rows || []).map((item) => ({
+      id: metaCatalogContentId(item, item),
+      quantity: item.quantity,
+      item_price: numberValue(item.unit_price) || numberValue(item.price) || numberValue(item.sale_price),
+    }))
+  );
+  const value = numberValue(order.total_amount ?? order.total ?? order.total_price);
+  if (!contents.length || value <= 0) return null;
+
+  const nameParts = text(order.customer_name).split(/\s+/).filter(Boolean);
+  return {
+    event_name: "Purchase",
+    event_id: safeEventId,
+    content_ids: contents.map((line) => line.id),
+    contents,
+    num_items: contents.reduce((total, line) => total + Number(line.quantity || 0), 0),
+    value,
+    currency: "EGP",
+    email: order.customer_email,
+    phone: order.customer_phone,
+    first_name: nameParts[0] || "",
+    last_name: nameParts.slice(1).join(" "),
+    city: order.city_area,
+    state: order.governorate,
+    external_id: order.customer_id,
+  };
+};
+
 /*
  * The sale, reported by the shop itself.
  *

@@ -14,7 +14,7 @@ test("storefront CAPI event sends the signed-in customer authorization header", 
 });
 
 test("optional storefront authentication enriches Meta matching without blocking guests", () => {
-  assert.match(routeSource, /router\.post\("\/meta\/events", storefrontCustomerTransitionAuth/);
+  assert.match(routeSource, /router\.post\("\/meta\/events", metaRelayRateLimit, storefrontCustomerTransitionAuth/);
   assert.match(routeSource, /authenticatedCustomer\.email/);
   assert.match(routeSource, /authenticatedCustomer\.phone/);
   assert.match(routeSource, /authenticatedNameParts/);

@@ -1,6 +1,12 @@
 import express from "express";
 
 import { consumeOrderConfirmationLink } from "../services/whatsappOrderConfirmationService.js";
+import {
+  createRequestRateLimit,
+  createSlidingWindowCounter,
+  createSuccessRateLimit,
+  rateLimitClientKey,
+} from "../utils/requestRateLimit.js";
 
 const router = express.Router();
 
@@ -121,7 +127,17 @@ const handleRequest = async (req, res) => {
   }
 };
 
-router.get("/:code", handleRequest);
-router.post("/:code", handleRequest);
+// A customer opens their link, maybe refreshes, and taps one button: a handful of requests. Each
+// guess opens a transaction with SELECT ... FOR UPDATE, so a guesser is capped on every request,
+// and much harder on codes that do not exist.
+const codeRequestRateLimit = createRequestRateLimit({ windowMs: 10 * 60_000, max: 30 });
+const unknownCodeRateLimit = createSuccessRateLimit({
+  counter: createSlidingWindowCounter({ windowMs: 60 * 60_000, max: 10 }),
+  keysOf: (req) => [rateLimitClientKey(req)],
+  countWhen: (statusCode) => statusCode === 404 || statusCode === 400,
+});
+
+router.get("/:code", codeRequestRateLimit, unknownCodeRateLimit, handleRequest);
+router.post("/:code", codeRequestRateLimit, unknownCodeRateLimit, handleRequest);
 
 export default router;

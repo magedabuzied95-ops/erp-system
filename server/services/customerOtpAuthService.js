@@ -44,7 +44,16 @@ const otpLog = (event, payload = {}) => {
   console.log(`[customer-otp] ${event}`, payload);
 };
 
+// Once per process: request-otp and verify-otp are public, and re-running this DDL on each call
+// queued ALTER locks behind live traffic. A failed run is retried next call.
+let customerOtpAuthSchemaReady = false;
 const ensureCustomerOtpAuthSchema = async () => {
+  if (customerOtpAuthSchemaReady) return;
+  await runCustomerOtpAuthSchema();
+  customerOtpAuthSchemaReady = true;
+};
+
+const runCustomerOtpAuthSchema = async () => {
   await db.query(`
     CREATE TABLE IF NOT EXISTS customer_otps (
       id SERIAL PRIMARY KEY,

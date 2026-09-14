@@ -67,12 +67,14 @@ const track = (eventName, payload = {}) => {
     ...browserPayload
   } = eventPayload;
   browserPayload.event_source_url = typeof window !== "undefined" ? window.location.href : "";
-  if (initMetaPixel(payload.customer || {}) && typeof window.fbq === "function") {
+  // initMetaPixel is false off the live shop hosts (localhost, Vercel previews). The server relay
+  // follows the same gate, so a local or preview session never writes into the live dataset.
+  const trackable = initMetaPixel(payload.customer || {});
+  if (!trackable) return eventPayload;
+  if (typeof window.fbq === "function") {
     window.fbq("track", eventName, browserPayload, { eventID: id });
   }
-  if (typeof window !== "undefined") {
-    void sendCapi(eventName, { ...eventPayload, event_source_url: window.location.href });
-  }
+  void sendCapi(eventName, { ...eventPayload, event_source_url: window.location.href });
   return eventPayload;
 };
 

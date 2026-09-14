@@ -24,7 +24,16 @@ const logEvent = (event, payload = {}) => {
   console.info(`[storefront-customer-email-auth] ${event}`, payload);
 };
 
+// Once per process, not on every login, register and reset: each ALTER waits for an ACCESS
+// EXCLUSIVE lock on customers, and these routes are public. A failed run is retried next call.
+let customerEmailAuthSchemaReady = false;
 const ensureCustomerEmailAuthSchema = async () => {
+  if (customerEmailAuthSchemaReady) return;
+  await runCustomerEmailAuthSchema();
+  customerEmailAuthSchemaReady = true;
+};
+
+const runCustomerEmailAuthSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_hash TEXT`);
   await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NULL`);
   await db.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT`);

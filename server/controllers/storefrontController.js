@@ -38,7 +38,7 @@ import {
 import { ensureWhatsappShippingSchema, sendShipmentCreated } from "../services/whatsappShippingService.js";
 import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
-import { issueFirstOrderCoupons, redeemCoupon, validateCoupon } from "../services/couponsService.js";
+import { issueFirstOrderCoupons, publicCouponValidation, redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { buildBundlePairEligibility, getPinnedPairProductId, loadBundleSettings, recordOrderBundleDiscounts } from "../services/productBundleService.js";
 import { computeBundleDiscount } from "../../shared/bundleDiscount.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
@@ -5895,7 +5895,8 @@ export const createWebsiteOrder = async (req, res) => {
         await client.query("ROLLBACK");
         return checkoutValidationResponse(400, couponValidation.reason || "Invalid coupon", "coupon_code", {
           coupon_code: couponCode,
-          coupon: couponValidation,
+          // The shopper's view only: the raw validation names the customer a coupon is assigned to.
+          coupon: publicCouponValidation(couponValidation),
         });
       }
       couponDiscountAmount = Math.max(0, Number(couponValidation.discount_amount || 0));
@@ -6525,6 +6526,26 @@ const buildOrderTimeline = (order = {}) => {
   }));
 };
 
+// What /storefront/account hands the signed-in shopper. The rows are read with SELECT *, and the
+// customers row carries the bcrypt password hash, the reset-token hash and staff-only notes and
+// AI scores; the orders row carries cashier, commission and staff notes. Only these leave.
+export const STOREFRONT_ACCOUNT_CUSTOMER_FIELDS = Object.freeze([
+  "id", "name", "phone", "email", "preferred_sizes",
+  "loyalty_points", "loyalty_tier", "wallet_balance", "total_orders", "total_spent", "created_at",
+]);
+export const STOREFRONT_ACCOUNT_ORDER_FIELDS = Object.freeze([
+  "id", "invoice_number", "public_order_number", "display_order_number", "order_number", "channel", "source",
+  "status", "payment_status", "payment_method", "shipping_status", "shipment_status", "shipping_provider",
+  "tracking_number", "tracking_url", "expected_delivery_at", "created_at", "updated_at", "cancelled_at", "returned_at",
+  "subtotal", "discount_amount", "coupon_code", "coupon_discount_amount", "delivery_fee", "shipping_fee",
+  "total_amount", "total", "total_price", "paid_amount", "remaining_amount", "cod_amount",
+  "customer_id", "customer_name", "customer_phone", "customer_address", "governorate", "city_area", "landmark",
+]);
+export const pickStorefrontAccountFields = (row, fields) => {
+  if (!row || typeof row !== "object") return null;
+  return Object.fromEntries(fields.filter((field) => Object.hasOwn(row, field)).map((field) => [field, row[field]]));
+};
+
 export const accountByPhone = async (req, res) => {
   try {
     await ensureStorefrontSchema(db);
@@ -6667,9 +6688,9 @@ export const accountByPhone = async (req, res) => {
       .filter(Boolean);
     res.json({
       success: true,
-      customer: customer.rows[0] || null,
+      customer: pickStorefrontAccountFields(customer.rows[0], STOREFRONT_ACCOUNT_CUSTOMER_FIELDS),
       preferences: normalizePreferredSizes(customer.rows[0]?.preferred_sizes || defaultPreferredSizes()),
-      orders: orders.rows.map(attachPublicOrderNumber),
+      orders: orders.rows.map((order) => attachPublicOrderNumber(pickStorefrontAccountFields(order, STOREFRONT_ACCOUNT_ORDER_FIELDS))),
       loyalty,
       addresses,
       wishlist: wishlist.rows.map((row) => ({ product_id: row.id })),

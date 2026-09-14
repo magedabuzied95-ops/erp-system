@@ -18,7 +18,8 @@ const onceEvents = new Set();
 const isPublicStorefrontHost = () => {
   if (typeof window === "undefined") return false;
   const host = String(window.location.hostname || "").toLowerCase();
-  return host === "m1store-egy.com" || host === "www.m1store-egy.com" || host === "localhost" || host === "127.0.0.1";
+  // Only the live shop: a local or preview session would write into the production property.
+  return host === "m1store-egy.com" || host === "www.m1store-egy.com";
 };
 
 export const ensureGoogleTag = () => {

@@ -70,7 +70,17 @@ const publicCustomer = (customer = {}, loyalty = null) => ({
   },
 });
 
+// Once per process. Boot runs it (server.js); /customer/me, /customer/session and restore-cart used
+// to re-run all of it on every request, and each ALTER queues for an ACCESS EXCLUSIVE lock on
+// customers behind any long read, stalling the POS and admin behind it. A failed run is retried.
+let storefrontCustomerSessionSchemaReady = false;
 export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) => {
+  if (storefrontCustomerSessionSchemaReady) return;
+  await runStorefrontCustomerSessionSchema(clientOrPool);
+  storefrontCustomerSessionSchemaReady = true;
+};
+
+const runStorefrontCustomerSessionSchema = async (clientOrPool) => {
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS customers (
       id BIGSERIAL PRIMARY KEY,

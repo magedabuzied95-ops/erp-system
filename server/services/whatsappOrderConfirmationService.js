@@ -1,4 +1,4 @@
-﻿import { createHmac, randomBytes } from "node:crypto";
+﻿import { createHmac, randomInt } from "node:crypto";
 
 import db from "../database/db.js";
 import {
@@ -43,7 +43,12 @@ const automationSwitchOn = async (name) => {
 const STOREFRONT_SOURCES = new Set(["storefront", "website", "web"]);
 const PAYMENT_REVIEW_METHODS = new Set(["instapay", "vodafone_cash", "bank_transfer", "shipping_confirmation", "transfer"]);
 const PAYMENT_REVIEW_STATUSES = new Set(["partially_paid", "awaiting_payment_review", "shipping_paid"]);
-const ORDER_CONFIRMATION_CODE_LENGTH = 7;
+// The code alone opens the order (name, phone, address) and can cancel it, for 72 hours. Seven
+// characters could be walked by a sustained guesser across a few thousand live codes; sixteen
+// (about 95 bits) cannot. It is also the width of order_confirmation_codes.code, VARCHAR(16).
+// Codes already sent keep working: lookup is by HMAC of whatever the link carries.
+const ORDER_CONFIRMATION_CODE_LENGTH = 16;
+const ORDER_CONFIRMATION_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const ORDER_CONFIRMATION_TOKEN_TTL_MINUTES = Number(process.env.ORDER_CONFIRMATION_TOKEN_TTL_MINUTES || 72 * 60);
 const ORDER_CONFIRMATION_FALLBACK_TEXT = buildCodOrderConfirmationMessage({ withActions: true });
 const ORDER_CONFIRMATION_PROTECTED_STATUSES = new Set(["shipped", "out_for_delivery", "delivered", "completed", "shipment_created", "ready_to_ship"]);
@@ -719,7 +724,10 @@ const orderConfirmationSecret = () =>
   ) || "order-confirmation-local-secret";
 
 const hashOrderConfirmationCode = (code = "") => createHmac("sha256", orderConfirmationSecret()).update(text(code)).digest("hex");
-const generateOrderConfirmationCode = () => randomBytes(8).toString("base64url").replace(/[^a-zA-Z0-9]/g, "").slice(0, ORDER_CONFIRMATION_CODE_LENGTH).padEnd(ORDER_CONFIRMATION_CODE_LENGTH, "A");
+// Every character drawn uniformly from the alphabet; the old base64url slice dropped "-"/"_" and
+// padded the gap with "A", which made short codes more likely than they looked.
+export const generateOrderConfirmationCode = () =>
+  Array.from({ length: ORDER_CONFIRMATION_CODE_LENGTH }, () => ORDER_CONFIRMATION_CODE_ALPHABET[randomInt(ORDER_CONFIRMATION_CODE_ALPHABET.length)]).join("");
 const buildOrderConfirmationPublicUrl = (code = "") => {
   const safeCode = text(code);
   if (!safeCode) return "";

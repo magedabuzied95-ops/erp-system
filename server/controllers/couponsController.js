@@ -13,6 +13,7 @@ import {
   listCampaigns,
   listCoupons,
   listRedemptions,
+  publicCouponValidation,
   redeemCoupon,
   updateCampaign,
   validateCoupon,
@@ -109,6 +110,11 @@ export const getStats = async (req, res) => {
 export const validate = async (req, res) => {
   try {
     const tenantId = req.user ? scopedTenantId(req) : getTenantId(req, null);
+    // The route is public. A customer id from the body is honoured only for a signed-in staff
+    // session (the till picks the customer on screen); from anyone else it turned the per-customer
+    // rules ("first orders only", "usage limit for this customer") into a lookup of which
+    // customer ids have ordered. Checkout re-runs those rules against the real customer.
+    const staffCaller = Boolean(req.couponStaffCaller);
     const result = await validateCoupon({
       tenantId,
       code: req.body?.code,
@@ -117,9 +123,9 @@ export const validate = async (req, res) => {
       items: req.body?.items,
       appliedDiscounts: req.body?.applied_discounts ?? req.body?.appliedDiscounts ?? {},
       source: req.body?.source,
-      customerId: req.body?.customer_id ?? req.body?.customerId,
+      customerId: staffCaller ? req.body?.customer_id ?? req.body?.customerId : null,
     });
-    return res.json({ success: true, ...result });
+    return res.json({ success: true, ...(staffCaller ? result : publicCouponValidation(result)) });
   } catch (error) {
     return sendError(res, error, "Unable to validate coupon");
   }

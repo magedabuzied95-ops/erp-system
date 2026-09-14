@@ -59,8 +59,19 @@ import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAu
 import { hasStorefrontCustomerToken, readOtpVerifiedStorefrontPhone, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { createIntent as createRestockIntent, listIntents as listRestockIntents, cancelIntent as cancelRestockIntent } from "../services/restockIntentService.js";
 import { listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
-import { normalizePhone } from "../utils/phoneSearch.js";
-import { sendStorefrontMetaEvent } from "../services/metaConversionsApiService.js";
+import { canonicalPhoneKey, normalizePhone } from "../utils/phoneSearch.js";
+import {
+  isAllowedMetaRelayOrigin,
+  loadVerifiedRelayPurchaseEvent,
+  sendStorefrontMetaEvent,
+} from "../services/metaConversionsApiService.js";
+import {
+  createRequestRateLimit,
+  createSlidingWindowCounter,
+  createSuccessRateLimit,
+  rateLimitClientKey,
+  sendTooManyAttempts,
+} from "../utils/requestRateLimit.js";
 import {
   storefrontRobotsHandler,
   storefrontSitemapHandler,
@@ -139,6 +150,55 @@ const visualUpload = (req, res, next) => {
 
 // publicTenantId is declared further down; the limiter only calls it per request, after load.
 const customerSessionRateLimit = createStorefrontCustomerSessionRateLimit({ tenantIdOf: (req) => publicTenantId(req) });
+
+// None of the email/password endpoints sit behind a login, so each has its own ceiling. Login is
+// also counted per email, on failures only, so a guesser spreading over many addresses still hits
+// the per-IP cap and one aimed at a single account stops after a handful of wrong passwords.
+const MINUTE_MS = 60_000;
+const clientKeyWithTenant = (req) => `${publicTenantId(req)}:${rateLimitClientKey(req)}`;
+const emailKeyWithTenant = (req) => {
+  const email = toText(req.body?.email).toLowerCase();
+  return email ? `${publicTenantId(req)}:${email}` : "";
+};
+const loginRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
+const loginFailuresByEmail = createSlidingWindowCounter({ windowMs: 15 * MINUTE_MS, max: 5 });
+const registerRateLimit = createRequestRateLimit({ windowMs: 60 * MINUTE_MS, max: 10, keysOf: (req) => [clientKeyWithTenant(req)] });
+// Every reset request mails the address and replaces the pending link, so the address itself is
+// capped too: looping it can neither flood an inbox nor keep killing the owner's real link.
+const passwordResetRequestRateLimit = createRequestRateLimit({
+  windowMs: 60 * MINUTE_MS,
+  max: 3,
+  keysOf: (req) => [emailKeyWithTenant(req) && `reset-email:${emailKeyWithTenant(req)}`],
+});
+const passwordResetRequestIpRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 5, keysOf: (req) => [clientKeyWithTenant(req)] });
+const passwordResetRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 10, keysOf: (req) => [clientKeyWithTenant(req)] });
+
+// Checkout creates an order and takes the stock at once, with no login. Every request counts
+// against a loose per-IP ceiling; placed orders count again per IP and per phone, so a customer
+// who fixes a form error and resubmits is never the one who gets stopped.
+const checkoutRequestRateLimit = createRequestRateLimit({ windowMs: 10 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
+const placedOrdersByKey = createSlidingWindowCounter({ windowMs: 60 * MINUTE_MS, max: 5 });
+const checkoutPhoneKey = (req) => {
+  let checkout = req.body?.checkout;
+  if (typeof checkout === "string") {
+    try {
+      checkout = JSON.parse(checkout);
+    } catch {
+      checkout = null;
+    }
+  }
+  const source = checkout && typeof checkout === "object" ? checkout : req.body || {};
+  const phone = canonicalPhoneKey(source.primary_phone || source.customer_phone || source.phone || "");
+  return phone ? `${publicTenantId(req)}:phone:${phone}` : "";
+};
+const checkoutPlacedOrderRateLimit = createSuccessRateLimit({
+  counter: placedOrdersByKey,
+  keysOf: (req) => [`${clientKeyWithTenant(req)}:orders`, checkoutPhoneKey(req)],
+});
+
+// Browsing fires a ViewContent per product, so the relay's ceiling is generous; it exists to stop
+// a loop from spending the shop's Graph budget.
+const metaRelayRateLimit = createRequestRateLimit({ windowMs: MINUTE_MS, max: 120, keysOf: (req) => [clientKeyWithTenant(req)] });
 
 const storefrontCustomerTransitionAuth = (req, res, next) => {
   if (!hasStorefrontCustomerToken(req)) {
@@ -498,7 +558,7 @@ router.post("/auth/request-otp", async (req, res) => {
   }
 });
 
-router.post("/auth/register", async (req, res) => {
+router.post("/auth/register", registerRateLimit, async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
     const result = await registerStorefrontCustomerEmailAuth({
@@ -523,7 +583,10 @@ router.post("/auth/register", async (req, res) => {
   }
 });
 
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", loginRateLimit, async (req, res) => {
+  const emailKey = emailKeyWithTenant(req);
+  const lockedFor = emailKey ? loginFailuresByEmail.retryAfterSeconds(emailKey) : 0;
+  if (lockedFor > 0) return sendTooManyAttempts(res, lockedFor);
   try {
     const tenantId = publicTenantId(req);
     const result = await loginStorefrontCustomerEmailAuth({
@@ -531,12 +594,16 @@ router.post("/auth/login", async (req, res) => {
       email: req.body?.email || "",
       password: req.body?.password || "",
     });
+    if (emailKey) loginFailuresByEmail.reset(emailKey);
     return res.json({
       success: true,
       token: result.token,
       customer: result.customer,
     });
   } catch (error) {
+    // An unknown email and a wrong password throw the same code, so both count and the lockout
+    // says nothing about whether the account exists.
+    if (emailKey && error?.code === "INVALID_EMAIL_OR_PASSWORD") loginFailuresByEmail.hit(emailKey);
     return res.status(error?.status || 400).json({
       success: false,
       message: error?.message || "البريد أو كلمة المرور غير صحيحة",
@@ -545,7 +612,7 @@ router.post("/auth/login", async (req, res) => {
   }
 });
 
-router.post("/auth/request-reset", async (req, res) => {
+router.post("/auth/request-reset", passwordResetRequestIpRateLimit, passwordResetRequestRateLimit, async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
     await requestStorefrontCustomerPasswordReset({
@@ -566,7 +633,7 @@ router.post("/auth/request-reset", async (req, res) => {
   }
 });
 
-router.post("/auth/reset-password", async (req, res) => {
+router.post("/auth/reset-password", passwordResetRateLimit, async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
     await resetStorefrontCustomerPassword({
@@ -650,28 +717,50 @@ router.post("/cart/reprice", async (req, res) => {
     return res.status(500).json({ success: false, message: "Failed to re-price the cart" });
   }
 });
-router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) => {
+router.post("/meta/events", metaRelayRateLimit, storefrontCustomerTransitionAuth, async (req, res) => {
   const eventName = toText(req.body?.event_name);
   if (!["ViewContent", "AddToCart", "InitiateCheckout", "Purchase"].includes(eventName)) {
     return res.status(400).json({ success: false, message: "Unsupported Meta event" });
   }
+  // A developer running the shop on localhost against this API, or a Vercel preview, must not
+  // write into the live dataset. The browser Pixel is host-gated the same way.
+  if (!isAllowedMetaRelayOrigin(req)) {
+    return res.status(202).json({ success: true, capi_sent: false, reason: "origin_not_tracked" });
+  }
   try {
+    const tenantId = publicTenantId(req);
     const authenticatedCustomer = req.storefrontCustomer || {};
     const authenticatedNameParts = toText(authenticatedCustomer.name).split(/\s+/).filter(Boolean);
+    let event = {
+      ...(req.body || {}),
+      email: authenticatedCustomer.email || req.body?.email,
+      phone: authenticatedCustomer.phone || req.body?.phone,
+      first_name: authenticatedNameParts[0] || req.body?.first_name,
+      last_name: authenticatedNameParts.slice(1).join(" ") || req.body?.last_name,
+      city: req.body?.city,
+      state: req.body?.state,
+      country: req.body?.country,
+      external_id: authenticatedCustomer.customer_id || req.body?.external_id,
+    };
+    // A Purchase is only relayed for a real, recent website order, with the value, products and
+    // customer read back from the database. Anyone could otherwise post a conversion of any value
+    // under the shop's token. The browser's own cookies (fbp/fbc) and page URL still ride along.
+    if (eventName === "Purchase") {
+      const verified = await loadVerifiedRelayPurchaseEvent({ tenantId, eventId: req.body?.event_id });
+      if (!verified) {
+        return res.status(202).json({ success: true, capi_sent: false, reason: "purchase_not_verified" });
+      }
+      event = {
+        ...verified,
+        fbp: req.body?.fbp,
+        fbc: req.body?.fbc,
+        event_source_url: req.body?.event_source_url,
+      };
+    }
     const result = await sendStorefrontMetaEvent({
       req,
-      event: {
-        ...(req.body || {}),
-        email: authenticatedCustomer.email || req.body?.email,
-        phone: authenticatedCustomer.phone || req.body?.phone,
-        first_name: authenticatedNameParts[0] || req.body?.first_name,
-        last_name: authenticatedNameParts.slice(1).join(" ") || req.body?.last_name,
-        city: req.body?.city,
-        state: req.body?.state,
-        country: req.body?.country,
-        external_id: authenticatedCustomer.customer_id || req.body?.external_id,
-      },
-      tenantId: publicTenantId(req),
+      event,
+      tenantId,
     });
     return res.status(202).json({ success: true, capi_sent: Boolean(result.sent), reason: result.reason || "" });
   } catch {
@@ -680,7 +769,7 @@ router.post("/meta/events", storefrontCustomerTransitionAuth, async (req, res) =
   }
 });
 router.get("/checkout/whatsapp-check", checkCheckoutWhatsappNumber);
-router.post("/checkout", checkoutUpload, createWebsiteOrder);
+router.post("/checkout", checkoutRequestRateLimit, checkoutUpload, checkoutPlacedOrderRateLimit, createWebsiteOrder);
 // Both are addressed by the order's unguessable public token. The confirmation
 // page polls the first after Paymob redirects back, and calls the second when
 // the customer closed the hosted page and wants to pay again.
