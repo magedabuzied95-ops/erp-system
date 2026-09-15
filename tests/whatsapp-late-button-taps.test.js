@@ -64,7 +64,9 @@ test("a refused action tells the customer the truth instead of a success message
   // the success notification must be unreachable when the action was refused
   const refusalBlockIndex = replySource.indexOf("if (refusalReason) {");
   // anchor on the success path itself, not on wording that is free to change
-  const successNotificationIndex = replySource.indexOf("buildOrderConfirmedMessage(");
+  // The LAST use is the success path after applying the action; an earlier one answers a confirm
+  // on an order that was already confirmed (nothing to refuse there — INV-1616).
+  const successNotificationIndex = replySource.lastIndexOf("buildOrderConfirmedMessage(");
   assert.ok(refusalBlockIndex > -1, "there is a refusal branch");
   assert.ok(refusalBlockIndex < successNotificationIndex, "refusal returns before the success message");
   assert.match(replySource, /return \{ action: "refused", reason: refusalReason/);

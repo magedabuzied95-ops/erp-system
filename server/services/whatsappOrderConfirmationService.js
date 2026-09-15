@@ -756,6 +756,68 @@ const buildOrderConfirmationPublicUrl = (code = "") => {
 };
 // Two shapes of the same message. The buttons carry the actions, so the interactive body has no
 // link in it; the text fallback has no buttons, so it keeps the secure link as the way to act.
+// Stamps the customer's confirmation on an order that was already confirmed another way.
+// Only the first tap counts; later ones change nothing.
+const recordLateCustomerConfirmation = async (order = {}) => {
+  const result = await db.query(
+    `
+    UPDATE orders
+    SET whatsapp_confirmed_at = NOW(),
+        timeline = COALESCE(timeline, '[]'::jsonb) || jsonb_build_array(jsonb_build_object(
+          'action', $2::text, 'status', COALESCE(status, ''), 'note', '', 'source', 'whatsapp_webhook',
+          'actor', 'customer', 'label', $3::text, 'at', NOW()
+        )),
+        updated_at = NOW()
+    WHERE id = $1 AND whatsapp_confirmed_at IS NULL
+    RETURNING *
+    `,
+    [order.id, ORDER_CONFIRMATION_ACTION_META.confirm.action, ORDER_CONFIRMATION_ACTION_META.confirm.label]
+  );
+  if (result.rows[0]) return result.rows[0];
+  const fresh = await db.query("SELECT * FROM orders WHERE id = $1", [order.id]);
+  return fresh.rows[0] || null;
+};
+
+// An automatic reply goes into the inbox thread as the SYSTEM. Sent bare, it only came back
+// through delivery reconciliation, which files every unknown outbound message as staff.
+const sendSystemOrderText = async ({ order = {}, phone = "", message = "", source = "whatsapp_order_reply", tenantId = null } = {}) => {
+  let result = null;
+  try {
+    result = await sendTextMessage({ phone, message });
+  } catch (error) {
+    console.warn("[whatsapp:order-confirmation] reply send failed", { orderId: order?.id, message: error?.message });
+    return null;
+  }
+  const messageId = extractWhatsAppMessageId(result);
+  await appendWhatsappOutboundSupportReply({
+    tenantId,
+    sessionId: `whatsapp:${phone}`,
+    message,
+    messageType: "text",
+    senderType: "system",
+    source,
+    channel: "whatsapp",
+    deliveryStatus: "sent",
+    externalMessageId: messageId,
+    providerMessageId: messageId,
+    whatsappInstance: result?.instanceName || result?.instance || "",
+    remoteJid: `whatsapp:${phone}`,
+    resolvedReplyJid: `whatsapp:${phone}`,
+    resolvedPhone: phone,
+    preserveExactMessage: true,
+    upsertSession: true,
+    sessionStatus: "ai_active",
+    sessionSource: "whatsapp",
+    sessionChannel: "whatsapp",
+    sessionCustomerName: order?.customer_name || "",
+    sourcePath: source,
+    insertSource: source,
+    confidence: 1,
+    detectedIntent: source,
+  }).catch((error) => console.warn("[whatsapp:order-confirmation] reply transcript failed", { orderId: order?.id, message: error?.message }));
+  return result;
+};
+
 const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", publicUrl = "", withLink = false, withActions = false, shippingAdvance = null } = {}) =>
   buildCodOrderConfirmationMessage({
     customerName: firstName(customerName),
@@ -2405,6 +2467,29 @@ export const processConfirmationReply = async (message = {}) => {
 
   // Re-tapping a button the order already reflects is a no-op, but silence reads as a broken
   // system. Acknowledge the state the order is actually in, and never re-run the side effects.
+  // A confirm on an order already confirmed some other way (staff, an approved transfer) is still
+  // the customer confirming: record it, and answer with where the order actually is.
+  if (action === "confirm" && currentStatus === "confirmed" && order?.id) {
+    const stamped = await recordLateCustomerConfirmation(order).catch((error) => {
+      console.warn("[whatsapp:order-confirmation] late confirm not recorded", { orderId: order.id, message: error?.message });
+      return null;
+    });
+    const current = stamped || order;
+    if (phone) {
+      await sendSystemOrderText({
+        order: current,
+        phone,
+        message: buildOrderConfirmedMessage({
+          customerName: firstName(current.customer_name),
+          order: current,
+          trackingUrl: buildOrderTrackingUrl(orderNumber(current), phone),
+        }),
+        source: "whatsapp_order_confirmed_reply",
+        tenantId: tenantIdForMessage(message, current),
+      });
+    }
+    return { action: "confirmed", order: current, repeated: true, customer_confirmation_recorded: Boolean(stamped) };
+  }
   const alreadyInState = {
     confirm: currentStatus === "confirmed" ? `طلبك رقم ${orderNumber(order)} مؤكد بالفعل ✅ وإحنا بنجهّزه.` : "",
     edit: currentStatus === "edit_requested" ? `طلب التعديل على طلبك رقم ${orderNumber(order)} وصلنا بالفعل، والفريق بيراجعه.` : "",
@@ -2516,7 +2601,13 @@ export const processConfirmationReply = async (message = {}) => {
         : action === "edit"
           ? `وصلنا طلب التعديل على طلبك رقم ${orderNumber(updatedOrder)}. سيقوم الفريق بمراجعته الآن.`
           : `تم إلغاء طلبك رقم ${orderNumber(updatedOrder)}. نأسف لعدم إكمال الطلب.`;
-      await sendTextMessage({ phone, message: notificationMessage }).catch(() => {});
+      await sendSystemOrderText({
+        order: updatedOrder,
+        phone,
+        message: notificationMessage,
+        source: `whatsapp_order_${action}_reply`,
+        tenantId: tenantIdForMessage(message, updatedOrder),
+      });
     }
 
     const tenantId = tenantIdForMessage(message, updatedOrder);

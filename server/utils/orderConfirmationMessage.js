@@ -170,6 +170,22 @@ export const buildOrderConfirmedMessage = ({
     source.public_order_number || source.display_order_number || source.invoice_number || source.order_number || source.id
   ).replace(/^#/, "");
 
+  // A tap can land after the parcel is already booked (INV-1616: shipped at 4:20, confirmed at
+  // 4:32 and told "بنجهّزه"). Say where the order really is: with the courier, under which
+  // tracking number, and what the courier will collect.
+  const trackingNumber = clean(source.shipping_tracking_number || source.tracking_number);
+  if (trackingNumber) {
+    const collect = formatAmount(collectOnDeliveryAmount(source));
+    const courier = clean(source.shipping_provider || source.shipping_provider_id).toLowerCase() === "bosta" ? "بوسطة" : "شركة الشحن";
+    return [
+      orderRef ? `✅ تم تأكيد طلبك رقم ${orderRef} يا ${name}` : `✅ تم تأكيد طلبك يا ${name}`,
+      `🚚 طلبك اتسلّم لـ${courier}، ورقم الشحنة ${trackingNumber}.`,
+      collect ? `💰 المندوب هيحصّل ${collect} جنيه عند الاستلام.` : "💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام.",
+      trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
+      "شكراً لاختيارك M1 Store ❤️",
+    ].filter(Boolean).join("\n\n");
+  }
+
   // Deliberately short. The customer read the full order seconds ago in the message they just
   // pressed the button on — repeating it here only buries the one thing this reply adds, which
   // is the tracking link. The order number stays in the headline so the reply still says which

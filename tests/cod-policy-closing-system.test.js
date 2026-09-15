@@ -238,3 +238,25 @@ test("the POS edit reason stays in the audit and never replaces the order notes 
   assert.match(source, /String\(req\.body\.notes \|\| ""\)\.trim\(\) \|\| null,/);
   assert.match(source, /req\.body\.reason \|\| "POS invoice edit"/, "the audit row still records the reason");
 });
+
+// ---- INV-1616: confirmed at 4:32 after the parcel was booked at 4:20, and told "بنجهّزه"
+import { buildOrderConfirmedMessage } from "../server/utils/orderConfirmationMessage.js";
+
+test("a confirmation after the parcel is booked names the courier, tracking number and what is collected", () => {
+  const shipped = { invoice_number: "INV-1616", shipping_provider: "bosta", shipping_tracking_number: "1399658887", total_amount: 1290, paid_amount: 90, cod_amount: 1200 };
+  const reply = buildOrderConfirmedMessage({ customerName: "هدير", order: shipped, trackingUrl: "https://m1store-egy.com/track/x" });
+  assert.match(reply, /تم تأكيد طلبك رقم INV-1616 يا هدير/);
+  assert.match(reply, /اتسلّم لـبوسطة، ورقم الشحنة 1399658887/);
+  assert.match(reply, /المندوب هيحصّل 1,200 جنيه/);
+  assert.doesNotMatch(reply, /بنجهّزه|بدأ تجهيز/);
+  const notShipped = buildOrderConfirmedMessage({ customerName: "هدير", order: { invoice_number: "INV-1" } });
+  assert.match(notShipped, /بدأ تجهيز طلبك للشحن/);
+});
+
+test("a late confirm is recorded as the customer's and the reply is logged as the system", async () => {
+  const fs = await import("node:fs");
+  const source = fs.readFileSync(new URL("../server/services/whatsappOrderConfirmationService.js", import.meta.url), "utf8");
+  assert.match(source, /if \(action === "confirm" && currentStatus === "confirmed" && order\?\.id\)/);
+  assert.match(source, /SET whatsapp_confirmed_at = NOW\(\),[\s\S]*WHERE id = \$1 AND whatsapp_confirmed_at IS NULL/);
+  assert.match(source, /const sendSystemOrderText = [\s\S]*senderType: "system"/);
+});
