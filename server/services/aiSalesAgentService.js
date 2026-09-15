@@ -1,3 +1,4 @@
+import { codFaqAnswer } from "./codPolicyReplyService.js";
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, loadTenantSaleModeSettings } from "../utils/customerDisplayPrice.js";
 import { getPerfContext } from "../utils/perfDebug.js";
@@ -1892,7 +1893,7 @@ export const upsertAiCustomerProfile = async ({ tenantId, sessionId = "", metada
   return profile;
 };
 
-export const composeObjectionReply = ({ message = "", product = null, settings = DEFAULT_SETTINGS } = {}) => {
+export const composeObjectionReply = ({ message = "", product = null, settings = DEFAULT_SETTINGS, codAnswer = "" } = {}) => {
   const objection = detectSalesObjection(message);
   if (!objection) return null;
   const opener = pick(settings.allowed_phrases?.length ? settings.allowed_phrases : RESPONSE_VARIANTS.opener, `${message}:${objection.type}`);
@@ -1938,7 +1939,7 @@ export const composeObjectionReply = ({ message = "", product = null, settings =
       : objection.action === "shipping_context"
         ? "التوصيل بيتحسب حسب المحافظة والمنطقة، وابعتلي منطقتك أقولك الأنسب."
         : objection.action === "payment_context"
-          ? "الدفع عند الاستلام متاح حسب المنطقة وحالة العميل، ابعتلي رقمك ومنطقتك ونأكدها."
+          ? (codAnswer || "الدفع عند الاستلام متاح، ابعتلي محافظتك ونأكد معاك التفاصيل.")
           : "السياسة بتتأكد حسب حالة المنتج والطلب، أقدر أوصلك بفريق الدعم لو محتاج تفاصيل دقيقة.";
   return {
     answer: `${opener}، ${line}`,
@@ -1957,7 +1958,7 @@ export const humanizeSalesResponse = async ({ tenantId, message = "", response =
     ...asArray(response.channel_reply?.product_cards),
   ];
   const firstProduct = products[0] || null;
-  const objectionReply = composeObjectionReply({ message, product: firstProduct, settings });
+  const objectionReply = composeObjectionReply({ message, product: firstProduct, settings, codAnswer: await codFaqAnswer() });
   if (objectionReply) {
     return {
       ...response,

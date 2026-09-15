@@ -1,4 +1,4 @@
-import { codPolicyFacts, restrictedCodFaqAnswer, shippingFeeAdvanceNoticeFor } from "./codPolicyReplyService.js";
+import { codFaqAnswer, codPolicyFacts, shippingFeeAdvanceNoticeFor } from "./codPolicyReplyService.js";
 import db from "../database/db.js";
 import { getSetting } from "./settingsService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
@@ -252,13 +252,13 @@ export const getPolicyFacts = async ({ tenantId } = {}) => {
       getSetting("storefront.payment_methods.shipping_confirmation_amount", 75).catch(() => 75),
     ]),
   ]);
-  const [codPolicy, restrictedCodAnswer] = await Promise.all([
+  const [codPolicy, codAnswer] = await Promise.all([
     codPolicyFacts().catch(() => null),
-    restrictedCodFaqAnswer().catch(() => ""),
+    codFaqAnswer().catch(() => ""),
   ]);
   const paymentRules = {
     // First, so a prompt that trims payment_rules keeps the closing system.
-    cod_policy_text: restrictedCodAnswer,
+    cod_policy_text: codAnswer,
     cod_policy: codPolicy,
     cash_on_delivery_enabled: Boolean(codEnabled),
     payment_options: {
@@ -284,7 +284,7 @@ export const getPolicyFacts = async ({ tenantId } = {}) => {
       ...paymentRules,
       payment_policy_text: text(websiteSettings.paymentPolicy || websiteSettings.payment_policy || ""),
       payment_methods_text: text(websiteSettings.paymentMethods || websiteSettings.payment_methods || ""),
-      cod_availability_text: restrictedCodAnswer || text(agentSettings.cod_availability_text || ""),
+      cod_availability_text: codAnswer || text(agentSettings.cod_availability_text || ""),
       delivery_policy_text: text(agentSettings.delivery_policy_text || ""),
     },
     shipping_policy_text: text(agentSettings.delivery_policy_text || websiteSettings.deliveryPolicy || websiteSettings.shipping_policy || ""),

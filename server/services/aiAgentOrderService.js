@@ -17,7 +17,7 @@ import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
-import { restrictedCodFaqAnswer, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
+import { codFaqAnswer, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -1821,7 +1821,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (objection && product && confidence >= CONFIDENCE_THRESHOLD) {
     logSalesFlow("objection_handling", { tenantId, conversationId, objection, product_id: product.id });
     return withOrderSalesStage({
-      answer: (objection === "cod" && (await restrictedCodFaqAnswer())) || buildObjectionAnswer({ objection, product, variant, settings }),
+      answer: objection === "cod" ? await codFaqAnswer() : buildObjectionAnswer({ objection, product, variant, settings }),
       confidence,
       needs_human_support: false,
       sources_used: [`product_${product.id}`],

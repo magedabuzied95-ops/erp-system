@@ -121,6 +121,33 @@ export const restrictedCodFaqAnswer = async () => {
   }
 };
 
+/**
+ * The one "is there cash on delivery / how do I pay" answer, decided by the settings switch
+ * alone — the free-text COD reply in the AI settings no longer overrides it, so an old
+ * "دمياط بس" typed there cannot contradict the open system (owner decision 2026-09-15).
+ */
+export const buildCodFaqAnswer = ({ policy, codEnabled = true, transfer = {} } = {}) => {
+  if (!codEnabled) {
+    return ["الدفع عند الاستلام مش متاح حالياً، الدفع بيكون بتحويل قبل الشحن.", ...transferDetailLines(transfer)].join("\n");
+  }
+  return buildRestrictedCodFaqAnswer({ policy, transfer }) || "أيوه، الدفع عند الاستلام متاح لكل المحافظات 👌";
+};
+
+export const codFaqAnswer = async () => {
+  try {
+    const [policy, codEnabled, transfer] = await Promise.all([
+      loadCodPolicySettings(),
+      getSetting("orders.allow_cod", true),
+      loadTransferDetails(),
+    ]);
+    const enabled = !(codEnabled === false || ["false", "0", "off", "no"].includes(String(codEnabled).trim().toLowerCase()));
+    return buildCodFaqAnswer({ policy, codEnabled: enabled, transfer });
+  } catch (error) {
+    console.warn("[cod-policy-reply] cod answer fell back", { message: error?.message || String(error) });
+    return "أيوه، الدفع عند الاستلام متاح 👌";
+  }
+};
+
 /** Facts for the AI tools / prompt, so the model and the reply validator see the same rule. */
 export const codPolicyFacts = async () => {
   const policy = normalizeCodPolicy(await loadCodPolicySettings());

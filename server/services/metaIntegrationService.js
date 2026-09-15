@@ -3,7 +3,7 @@
 import iconv from "iconv-lite";
 
 import db from "../database/db.js";
-import { restrictedCodFaqAnswer, shippingFeeAdvanceNoticeForAddress, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
+import { codFaqAnswer, shippingFeeAdvanceNoticeForAddress, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl, absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
@@ -19913,11 +19913,11 @@ const answerFaqIfMatched = async ({ config, message } = {}) => {
     });
     return {};
   });
-  // The restricted closing system overrides the shop's COD wording: "متاح حسب المنطقة"
-  // would promise cash on delivery to a governorate that has to prepay its shipping.
-  const restrictedCodAnswer = faqIntent === "payment" ? await restrictedCodFaqAnswer() : "";
+  // The closing-system switch alone decides the COD answer (codPolicyReplyService): the
+  // free-text reply in the AI settings could contradict it.
+  const codAnswer = faqIntent === "payment" ? await codFaqAnswer() : "";
   const answers = {
-    payment: restrictedCodAnswer || readableArabicSetting(settings.cod_availability_text) || "أيوه، متاح الدفع عند الاستلام حسب المنطقة وشركة الشحن.",
+    payment: codAnswer,
     delivery: readableArabicSetting(settings.delivery_policy_text) || "الشحن حسب المحافظة والمنطقة. ابعتلي عنوانك أأكدلك التكلفة.",
     exchange: readableArabicSetting(settings.exchange_return_policy_text) || "ينفع الاستبدال حسب سياسة المتجر وحالة المنتج.",
   };

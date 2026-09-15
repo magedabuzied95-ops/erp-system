@@ -183,3 +183,20 @@ test("the portal action records the fee with the method staff picked", async () 
   assert.equal(calls[0].tenantId, 2);
   assert.equal(calls[0].actorName, "Mona");
 });
+
+import { buildCodFaqAnswer } from "../server/services/codPolicyReplyService.js";
+
+test("the COD answer follows the switch alone: every governorate when open, Damietta + transfer when restricted, none when COD is off", () => {
+  assert.equal(buildCodFaqAnswer({ policy: { mode: "open" } }), "أيوه، الدفع عند الاستلام متاح لكل المحافظات 👌");
+  assert.doesNotMatch(buildCodFaqAnswer({ policy: { mode: "open" } }), /حسب المنطقة/);
+  assert.match(buildCodFaqAnswer({ policy: restricted }), /لمحافظة دمياط/);
+  assert.match(buildCodFaqAnswer({ policy: { mode: "open" }, codEnabled: false, transfer: { vodafone: "01012345678" } }), /مش متاح حالياً[\s\S]*01012345678/);
+});
+
+test("the typed COD reply in the AI settings no longer decides the answer", async () => {
+  const fs = await import("node:fs");
+  const meta = fs.readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
+  assert.match(meta, /payment: codAnswer,/);
+  const order = fs.readFileSync(new URL("../server/services/aiAgentOrderService.js", import.meta.url), "utf8");
+  assert.match(order, /answer: objection === "cod" \? await codFaqAnswer\(\)/);
+});
