@@ -352,6 +352,9 @@
     "sizeGuide": "Size guide",
     "returns": "Returns policy",
     "contact": "Contact us",
+    "shopAll": "Shop all {{audience}}",
+    "largeSizes": "Large sizes 47–50",
+    "moreCategories": "More",
     "mobileNavigation": "Storefront mobile navigation"
   },
   "search": {

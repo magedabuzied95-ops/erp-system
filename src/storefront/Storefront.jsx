@@ -69,6 +69,7 @@ import {
   ShieldCheck,
   Tag,
   RefreshCcw,
+  Ruler,
   Trash2,
   Truck,
   Upload,
@@ -5189,8 +5190,21 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   // site tokens, and the bottom hairline is the site line (inline, below). The
   // light-only `border-black/5` + shadow literals made the two themes differ.
   const headerShellClassName = "sf-luxury-header sf-header-v2 sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300";
-  const mobileMenuLinkClassName = "sf-mobile-menu-link flex min-h-12 items-center gap-3 border px-4 py-3.5 text-sm font-semibold transition active:scale-[0.98]";
-  const mobileMenuLinkStyle = { borderRadius: "var(--m1h-r-lg)" };
+  // What each audience tab lists. Every row is a real listing: /offers and
+  // /products take gender and type from the query, /men pins its own gender.
+  const menuAudienceLabel = menuTabs.find((tab) => tab.id === menuTab)?.label || "";
+  const menuShopRows = [
+    { label: t("storefront.nav.shopAll", { audience: menuAudienceLabel, defaultValue: "Shop all {{audience}}" }), to: `/${menuTab}` },
+    { label: t("storefront.nav.sale"), to: `/offers?gender=${menuTab}`, accent: true },
+    ...(menuTab === "men" ? [{ label: t("storefront.nav.largeSizes", "Large sizes 47–50"), to: "/men/large-sizes" }] : []),
+    { label: getProductTypeLabel("slippers", currentLanguage), to: `/products?gender=${menuTab}&type=slippers` },
+    { label: getProductTypeLabel("crocs", currentLanguage), to: `/products?gender=${menuTab}&type=crocs` },
+  ];
+  const menuMoreRows = [
+    { label: getProductTypeLabel("bags", currentLanguage), to: "/bags" },
+    { label: t("storefront.header.trackOrder"), to: "/track" },
+    { label: t("storefront.header.wishlist"), to: "/wishlist" },
+  ];
   const mobileMenuIsRtl = currentLanguage === "ar";
   // Which edge the panel hangs off, and nothing else. The rounded corner, the
   // border and the drop shadow used to live here as utilities — and a utility
@@ -5873,7 +5887,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               inside the drawer — drop it and the lists below turn into black
               blocks on a white panel. `sf-menu-panel` only restyles the panel's
               own chrome. */}
-          <aside ref={mobileMenuPanelRef} data-theme={effectiveTheme} className={`sf-mobile-menu-drawer sf-menu-panel fixed inset-y-0 z-[161] flex h-full w-[min(20rem,80vw)] flex-col overflow-hidden ${mobileMenuSideClass}`}>
+          <aside ref={mobileMenuPanelRef} data-theme={effectiveTheme} className={`sf-mobile-menu-drawer sf-menu-panel fixed inset-y-0 z-[161] flex h-full w-[min(26rem,88vw)] flex-col overflow-hidden ${mobileMenuSideClass}`}>
             {/* Language and theme sit ABOVE the account row, where the owner
                 asked for them. Close keeps the far side to itself. */}
             <div className="sf-menu-toolbar">
@@ -5935,40 +5949,50 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
                 </button>
               ))}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-              <div className="grid gap-4">
-                {[
-                  { label: t("storefront.nav.sizeGuide"), to: "/size-guide" },
-                  { label: t("storefront.nav.returns"), to: "/returns" },
-                  { label: t("storefront.nav.contact"), to: "/contact" },
-                ].map(({ label, to, external = false, icon: Icon }) =>
-                  external ? (
-                    <a
-                      key={`${label}-${to}`}
-                      href={to}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={closeMobileMenu}
-                      className={mobileMenuLinkClassName}
-                      style={mobileMenuLinkStyle}
-                    >
-                      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+            {/* The shop rows scroll; the help links are pinned under them at the
+                very bottom of the panel, the way the big fashion sites do it. */}
+            <nav className="sf-menu-body" aria-label={menuTabs.find((tab) => tab.id === menuTab)?.label}>
+              <ul className="sf-menu-list">
+                {menuShopRows.map(({ label, to, accent = false }) => (
+                  <li key={to}>
+                    <Link to={to} onClick={closeMobileMenu} className={`sf-menu-row${accent ? " is-accent" : ""}`}>
                       <span>{label}</span>
-                    </a>
-                  ) : (
-                    <Link
-                      key={`${label}-${to}`}
-                      to={to}
-                      onClick={closeMobileMenu}
-                      className={mobileMenuLinkClassName}
-                      style={mobileMenuLinkStyle}
-                    >
-                      {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
-                      <span>{label}</span>
+                      {mobileMenuIsRtl ? (
+                        <ChevronLeft className="sf-menu-chevron" strokeWidth={1.25} />
+                      ) : (
+                        <ChevronRight className="sf-menu-chevron" strokeWidth={1.25} />
+                      )}
                     </Link>
-                  )
-                )}
-              </div>
+                  </li>
+                ))}
+              </ul>
+              <p className="sf-menu-heading">{t("storefront.nav.moreCategories", "More")}</p>
+              <ul className="sf-menu-list">
+                {menuMoreRows.map(({ label, to }) => (
+                  <li key={to}>
+                    <Link to={to} onClick={closeMobileMenu} className="sf-menu-row sf-menu-row--compact">
+                      <span>{label}</span>
+                      {mobileMenuIsRtl ? (
+                        <ChevronLeft className="sf-menu-chevron" strokeWidth={1.25} />
+                      ) : (
+                        <ChevronRight className="sf-menu-chevron" strokeWidth={1.25} />
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div className="sf-menu-footer">
+              {[
+                { label: t("storefront.nav.sizeGuide"), to: "/size-guide", icon: Ruler },
+                { label: t("storefront.nav.returns"), to: "/returns", icon: RefreshCcw },
+                { label: t("storefront.nav.contact"), to: "/contact", icon: Headphones },
+              ].map(({ label, to, icon: Icon }) => (
+                <Link key={to} to={to} onClick={closeMobileMenu} className="sf-menu-help">
+                  <Icon strokeWidth={1.25} />
+                  <span>{label}</span>
+                </Link>
+              ))}
             </div>
           </aside>
         </div>,

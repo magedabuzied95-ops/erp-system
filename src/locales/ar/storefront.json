@@ -84,6 +84,9 @@
     "sizeGuide": "دليل المقاسات",
     "returns": "سياسة الاستبدال",
     "contact": "تواصل معنا",
+    "shopAll": "كل منتجات {{audience}}",
+    "largeSizes": "مقاسات كبيرة 47–50",
+    "moreCategories": "المزيد",
     "mobileNavigation": "تصفح المتجر على الموبايل"
   },
   "search": {

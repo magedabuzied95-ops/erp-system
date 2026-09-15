@@ -7873,6 +7873,93 @@ body.storefront-shell:not(.storefront-dark) .sf-buy-now:disabled {
     font-weight: 600;
     border-bottom-color: currentColor;
   }
+
+  /* The shop rows: bare text on hairlines, no cards — the reference's list. */
+  .sf-menu-body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.5rem 1.25rem 1.5rem;
+  }
+
+  .sf-menu-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .sf-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 3.5rem;
+    border-bottom: 1px solid var(--m1h-line);
+    color: inherit;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.3;
+    transition: opacity 180ms ease;
+  }
+
+  .sf-menu-row:active {
+    opacity: 0.6;
+  }
+
+  .sf-menu-row.is-accent {
+    color: var(--m1h-sale, #c8102e);
+    font-weight: 600;
+  }
+
+  .sf-menu-row--compact {
+    min-height: 3rem;
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  .sf-menu-heading {
+    margin: 1.75rem 0 0.25rem;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+
+  /* Help links pinned to the bottom edge, under a hairline, clear of the
+     home indicator. */
+  .sf-menu-footer {
+    flex: 0 0 auto;
+    display: grid;
+    gap: 0.125rem;
+    padding: 0.75rem 1.25rem calc(0.875rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--m1h-line);
+    background: var(--sfx-surface-2);
+  }
+
+  .sf-menu-help {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 2.75rem;
+    color: inherit;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.2;
+    transition: opacity 180ms ease;
+  }
+
+  .sf-menu-help > svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    opacity: 0.7;
+  }
+
+  .sf-menu-help:active {
+    opacity: 0.6;
+  }
 }
 
 /* ============================================================================
