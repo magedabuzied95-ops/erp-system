@@ -22,6 +22,7 @@ import {
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls.js";
 import RestockRequestsPanel from "./RestockRequestsPanel.jsx";
+import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
 import "./Customer360Drawer.css";
 
@@ -187,6 +188,10 @@ export default function Customer360Drawer({
   customer = null,
   customerId = "",
   customerProfile = null,
+  // The conversation this drawer was opened from: with it the orders tab can act on the
+  // customer's live orders (confirmation message, payment review, deposit request).
+  conversation = null,
+  onOrderNotice = null,
   context = {},
   title = "",
   initialTab = "summary",
@@ -534,6 +539,14 @@ export default function Customer360Drawer({
 
           {activeTab === "orders" ? (
             <div className="space-y-2">
+              {/* Live orders with their actions on top; the profile's order history stays below. */}
+              {conversation ? (
+                <InboxCustomerOrdersPanel
+                  conversation={conversation}
+                  tone="light"
+                  onNotice={onOrderNotice}
+                />
+              ) : null}
               {orders.length ? orders.map((order, index) => (
                 <div key={order.id || order.order_id || index} className="rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                   <div className="flex items-start justify-between gap-2">

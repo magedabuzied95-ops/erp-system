@@ -8676,6 +8676,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
           onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
           customer={customerDrawer.customer}
           customerId={customerDrawer.customerId}
+          conversation={selectedConversation}
+          onOrderNotice={(tone, message) => (tone === "error" ? toast.error(message) : toast.success(message))}
           context={customerDrawer.context}
           aiAnalysis={customerDrawerAnalysis}
           title={t("aiSupport.inbox.ui.customer360")}

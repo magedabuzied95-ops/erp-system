@@ -13,7 +13,7 @@ import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, 
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
 import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
-import { notifyPaymentProofApproved } from "../modules/shipping/paymentProofLink.js";
+import { notifyPaymentProofApproved, sendShippingFeePaymentRequest } from "../modules/shipping/paymentProofLink.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL } from "../modules/shipping/shipping.settlements.service.js";
 import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
@@ -6523,6 +6523,19 @@ export const markOrderShippingFeePaid = async (req, res) => {
     const status = error.status || 500;
     if (status >= 500) console.error("[orders.shipping-fee-paid] failed", { orderId: req.params.id, message: error?.message });
     return res.status(status).json({ success: false, code: error.code, message: error.message || "Failed to record the shipping payment" });
+  }
+};
+
+// Staff ask the customer for the shipping deposit on demand (the AI Inbox's order card).
+export const requestOrderShippingFeePayment = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const result = await sendShippingFeePaymentRequest({ orderId: req.params.id, tenantId });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) console.error("[orders.request-shipping-fee] failed", { orderId: req.params.id, message: error?.message });
+    return res.status(status).json({ success: false, code: error.code, message: error.message || "Failed to send the payment request" });
   }
 };
 

@@ -99,6 +99,8 @@ import ProductCardPicker from "../components/ProductCardPicker";
 import IntegrationsCenter from "../components/integrations/lazyIntegrationsCenter";
 // One composer, both surfaces — see components/InboxOrderComposer.jsx.
 import InboxOrderComposer from "../components/InboxOrderComposer";
+// The customer's real orders, with the confirmation message and the payment review on them.
+import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel";
 // The suggested-reply card is shared with the PWA — see components/AiSuggestionCard.jsx.
 import AiSuggestionCard from "../components/AiSuggestionCard";
 // The AI-correction dialog is shared with the PWA — see components/ReplyCorrectionModal.jsx.
@@ -4239,6 +4241,7 @@ function SalesIntelligencePanel({ conversation = {}, recommendationIntel = null,
 function RightToolsTabsPanel({
   activeTab,
   onTabChange,
+  inboxHeaders = undefined,
   conversation,
   channelStatus = {},
   loading = false,
@@ -4356,6 +4359,11 @@ function RightToolsTabsPanel({
 
         {activeTab === "orders" ? (
           <div className="space-y-3">
+            <InboxCustomerOrdersPanel
+              conversation={conversation}
+              headers={inboxHeaders}
+              onNotice={(tone, message) => (tone === "error" ? toast.error(message) : toast.success(message))}
+            />
             <RecommendationsPanel
               products={recommendations?.sessionId === conversation.session_id ? recommendations.products : []}
               loading={recommendations?.loading}
@@ -9876,6 +9884,7 @@ export default function AiInbox({ reviewerMode = false }) {
                     <RightToolsTabsPanel
                     activeTab={toolsTab}
                     onTabChange={setToolsTab}
+                    inboxHeaders={headers}
                     conversation={selectedConversation}
                     channelStatus={selectedChannelStatus}
                     loading={loading}

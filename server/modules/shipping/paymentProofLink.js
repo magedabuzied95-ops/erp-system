@@ -641,3 +641,35 @@ export const answerTransferScreenshotInChat = async ({ phone = "" } = {}) => {
     return { handled: false, reason: "check_failed" };
   }
 };
+
+/**
+ * Staff ask the customer for the shipping deposit from wherever they are — the AI Inbox, the order
+ * page — instead of waiting for the order confirmation to carry the card. Same card, same upload
+ * link, so an uploaded screenshot lands on the order and reaches payment review like any other.
+ */
+export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null } = {}) => {
+  const found = await db.query(
+    `SELECT * FROM orders WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL) LIMIT 1`,
+    [orderId, tenantId]
+  );
+  const order = found.rows[0];
+  if (!order) throw httpError(404, "ORDER_NOT_FOUND", "الطلب غير موجود.");
+  const phone = text(order.customer_phone);
+  if (!phone) throw httpError(409, "NO_CUSTOMER_PHONE", "الأوردر ده مفيهوش رقم تليفون نبعتله.");
+  const { loadCodPolicySettings } = await import("../../services/storefrontShippingService.js");
+  const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
+  if (!advance.required) throw httpError(409, "PAYMENT_NOT_REQUIRED", "الأوردر ده مش محتاج تحويل مقدّم.");
+  if (advance.status === "paid") throw httpError(409, "ALREADY_PAID", "رسوم الشحن للأوردر ده اتأكدت خلاص.");
+  const card = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
+  if (!card) throw httpError(502, "CARD_UNAVAILABLE", "مش قادرين نجهّز كارت الدفع دلوقتي.");
+  const queued = await queueShippingFeePaymentCard({
+    order,
+    card,
+    phone,
+    tenantId: Number(tenantId) || tenantOf(order),
+    // Every manual ask is its own message: staff repeat it when the customer loses the first one.
+    idempotencySuffix: `manual-${Date.now()}`,
+  });
+  console.info("[payment-proof] deposit requested by staff", { orderId: order.id, amount: advance.amount, queued: queued?.queued !== false });
+  return { sent: queued?.queued !== false, amount: advance.amount, upload_url: card.uploadUrl, status: advance.status };
+};

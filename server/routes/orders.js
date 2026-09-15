@@ -36,6 +36,7 @@ import {
   permanentDeleteOrder,
   returnOrder,
   rejectShippingPayment,
+  requestOrderShippingFeePayment,
   startPosEditTiming,
   getShiftReport,
   updateOrderShipment,
@@ -170,6 +171,13 @@ router.post(
     return next();
   }),
   markOrderShippingFeePaid
+);
+
+router.post(
+  "/:id/request-shipping-fee",
+  protect,
+  permit("orders", "edit"),
+  requestOrderShippingFeePayment
 );
 
 router.post(

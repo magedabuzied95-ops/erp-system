@@ -170,6 +170,7 @@ import { listChannelAccounts, setChannelAccountActive, syncEnvChannelAccounts, s
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
 import { shippingFeeAdvanceNoticeFor } from "../services/codPolicyReplyService.js";
 import { resolveCodPolicy } from "../../shared/codPolicy.js";
+import { listInboxConversationOrders } from "../modules/orders/inboxConversationOrders.js";
 
 const router = express.Router();
 
@@ -5801,6 +5802,23 @@ router.post("/conversations/:conversationId/address-request", protect, inboxRepl
     return res.status(201).json({ success: true, request });
   } catch (error) {
     return sendError(res, error, "Failed to create address request link");
+  }
+});
+
+// Every order this customer has, so the confirmation message and the payment review happen
+// where the conversation is instead of sending staff to the orders page.
+router.get("/conversations/:conversationId/orders", protect, inboxView(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const orders = await listInboxConversationOrders({
+      tenantId,
+      sessionId: envText(req.params.conversationId),
+      phone: envText(req.query?.phone),
+      limit: req.query?.limit,
+    });
+    return res.json({ success: true, orders });
+  } catch (error) {
+    return sendError(res, error, "Failed to load the customer orders");
   }
 });
 
