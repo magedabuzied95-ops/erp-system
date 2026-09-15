@@ -3,6 +3,7 @@ import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
 import { loadCodPolicySettings } from "../../services/storefrontShippingService.js";
 import { describeShippingFeeAdvance } from "./shippingFeeAdvance.js";
+import { buildPackingDescription, packingDetailsEnabled, stampPackingQrOnAirwayBill } from "./packingSlip.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
@@ -988,7 +989,17 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     const allowOpenPackage = resolveOpenPackagePreference({ order, defaultMode: config.allowOpenPackage, override: options.allowOpenPackage });
 
     const bosta = createBostaClient(config);
-    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl() });
+    // Every piece with colour, size and article code on the label (orders.bosta_awb_packing_details).
+    let description = "";
+    if (await packingDetailsEnabled()) {
+      try {
+        const { itemsForOrders } = await import("./shipping.portal.service.js");
+        description = buildPackingDescription((await itemsForOrders([order.id], client)).get(String(order.id)) || []);
+      } catch (descriptionError) {
+        console.warn("[bosta] detailed description skipped", { orderId: order.id, message: descriptionError?.message });
+      }
+    }
+    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl(), description });
     // Redacted: the callback carries the webhook secret in its query string, and this
     // line goes to the container log verbatim.
     console.log("[bosta-create-payload]", JSON.stringify(redactBostaPayload(deliveryPayload)));
@@ -1169,10 +1180,26 @@ export const fetchBostaShipmentLabels = async (orderIds = []) => {
     throw error;
   }
 
+  // A QR under each label that opens the parcel's models. Never costs the print: any
+  // failure hands back Bosta's own PDF untouched.
+  let pdfBase64 = awb.pdf_base64;
+  let packingQr = { stamped: false, reason: "disabled" };
+  if (await packingDetailsEnabled()) {
+    try {
+      packingQr = await stampPackingQrOnAirwayBill(awb.pdf_base64, printable);
+      pdfBase64 = packingQr.pdf_base64 || awb.pdf_base64;
+      if (!packingQr.stamped) console.warn("[bosta] awb packing QR not stamped", { reason: packingQr.reason, pages: packingQr.pages, orders: packingQr.orders });
+    } catch (stampError) {
+      console.warn("[bosta] awb packing QR failed; printing the plain label", { message: stampError?.message });
+      pdfBase64 = awb.pdf_base64;
+    }
+  }
+
   return {
-    pdf_base64: awb.pdf_base64,
+    pdf_base64: pdfBase64,
     content_type: "application/pdf",
-    byte_length: awb.byte_length,
+    byte_length: Buffer.byteLength(pdfBase64, "base64"),
+    packing_qr: Boolean(packingQr.stamped),
     printed: printable,
     skipped,
   };

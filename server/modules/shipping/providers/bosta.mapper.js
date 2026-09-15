@@ -235,7 +235,7 @@ export const buildBostaAddressLine = (order = {}) => {
 // That fits the evidence exactly: shipping_events has never held a single row since the
 // integration went live. Sent only when a full URL could be built — a half-formed
 // callback is worse than none, because it looks configured.
-export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "" }) => {
+export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "", description = "" }) => {
   const names = text(order.customer_name || order.full_name || "Online Customer").split(/\s+/);
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
@@ -263,7 +263,8 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
       size: "MEDIUM",
       packageDetails: {
         itemsCount: itemCount,
-        description: items.map((item) => item.product_name || item.name).filter(Boolean).slice(0, 4).join(", ") || `Order ${order.id}`,
+        // The detailed per-piece line (colour, size, article) when the shop has it switched on.
+        description: text(description) || items.map((item) => item.product_name || item.name).filter(Boolean).slice(0, 4).join(", ") || `Order ${order.id}`,
       },
     },
     notes: text(order.delivery_notes || order.order_notes || order.notes),

@@ -96,7 +96,7 @@ const buildBaseWhere = ({ columns, sql, tenantId, range, search }) => {
   return { where: filters.join("\n      AND "), params };
 };
 
-const itemsForOrders = async (orderIds, client = db) => {
+export const itemsForOrders = async (orderIds, client = db) => {
   if (!orderIds.length || !(await tableExists("order_items", client))) return new Map();
   const [itemColumns, variantColumns, hasVariantImages, hasColorGroups] = await Promise.all([
     loadColumns("order_items", client),

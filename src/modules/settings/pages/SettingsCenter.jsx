@@ -240,7 +240,7 @@ const sectionMap = {
     ["Governorates & Cities", ["storefront.shipping_zones"]],
     ["Free Shipping Rules", ["storefront.free_shipping_threshold", "storefront.shipping_zones"]],
     ["Shipping Proof Rules", ["storefront.shipping_zones"]],
-    ["Shipping Providers", ["orders.shipping_provider", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package"]],
+    ["Shipping Providers", ["orders.shipping_provider", "orders.bosta_api_key", "orders.bosta_webhook_secret", "orders.bosta_allow_open_package", "orders.bosta_awb_packing_details"]],
   ],
   payments: [
     ["Cash on Delivery", ["orders.allow_cod", "orders.cod_policy_mode", "orders.cod_governorates"]],
