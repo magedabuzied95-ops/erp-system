@@ -114,7 +114,7 @@ test("a cash-on-delivery order outside the COD list is asked for the shipping fe
   assert.equal(payment.advance, 90);
   assert.equal(payment.collect, 1750);
   const rendered = renderCustomerOrderConfirmation({ ...fixture, order: { ...fixture.order, ...cairoCod }, payment });
-  assert.match(rendered.html, /رسوم الشحن مقدّم/);
+  assert.match(rendered.html, /مطلوب تحويل رسوم الشحن قبل الشحن/);
   assert.match(rendered.html, /90\.00 EGP/);
   assert.match(rendered.html, /1,750\.00 EGP/);
   assert.match(rendered.html, /01024960585/);
@@ -148,4 +148,25 @@ test("a till-raised online order is labelled as one and the track link carries t
   assert.match(admin.html, /أوردر أونلاين جديد من الكاشير/);
   const source = await readFile(new URL("../server/services/transactionalEmail/orderEmailService.js", import.meta.url), "utf8");
   assert.match(source, /buildOrderTrackingUrl\(number, order\.customer_phone, appUrl\)/);
+});
+
+test('the redesigned customer email carries the order tracker, product details and a WhatsApp help button', async () => {
+  const { renderCustomerOrderEmailBody, stepIndexFor } = await import('../server/services/transactionalEmail/customerEmailDesign.js');
+  assert.equal(stepIndexFor({ status: 'pending_confirmation' }), 0);
+  assert.equal(stepIndexFor({ status: 'confirmed' }), 1);
+  assert.equal(stepIndexFor({ status: 'confirmed', shipping_tracking_number: '1399658887' }), 2);
+  assert.equal(stepIndexFor({ status: 'delivered' }), 3);
+  const html = renderCustomerOrderEmailBody({
+    order: { ...fixture.order, coupon_code: 'SAVE10' },
+    items: [{ ...fixture.items[0], article_code: 'ART-9' }],
+    links: fixture.links,
+    brand: { whatsappUrl: 'https://wa.me/201024960585', phone: '01024960585' },
+    nextStep: 'x',
+  });
+  for (const label of ['تم استلام الطلب', 'تأكيد الطلب', 'الشحن', 'التسليم']) assert.match(html, new RegExp(label));
+  assert.ok(html.includes('أرتكل: <span dir="ltr">ART-9</span>'));
+  assert.match(html, /SAVE10/);
+  assert.match(html, /كلّمنا على واتساب/);
+  assert.ok(html.includes("https://wa.me/201024960585"));
+  assert.doesNotMatch(html, /Bag <b>unsafe/);
 });

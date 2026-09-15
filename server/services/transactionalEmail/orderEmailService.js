@@ -7,6 +7,7 @@ import { buildOrderEmailPayment } from "./payment.js";
 import { loadCodPolicySettings } from "../storefrontShippingService.js";
 import { loadTransferDetails } from "../codPolicyReplyService.js";
 import { buildOrderTrackingUrl } from "../../utils/whatsapp.js";
+import { getSetting } from "../settingsService.js";
 
 const CUSTOMER_TEMPLATE = "customer_order_confirmation";
 const ADMIN_TEMPLATE = "admin_order_notification";
@@ -77,8 +78,31 @@ export const enqueueOrderCreatedEmails = async (client, { tenantId, orderId, cus
   return { queued: records.length };
 };
 
+const loadStoreContact = async () => {
+  const read = (key) => getSetting(key, "").then(text).catch(() => "");
+  const [whatsappUrl, whatsappPhone, phone, facebook, instagram] = await Promise.all([
+    read("storefront.whatsapp_url"),
+    read("storefront.whatsapp_phone"),
+    read("storefront.contact_phone"),
+    read("storefront.facebook_url"),
+    read("storefront.instagram_url"),
+  ]);
+  return { whatsappUrl, whatsappPhone, phone, facebook, instagram };
+};
+
+// wa.me needs the country code; a local 01xxxxxxxxx has none.
+const whatsappHref = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "";
+  if (/^https:\/\//i.test(raw)) return raw;
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith("01")) digits = `20${digits.slice(1)}`;
+  return digits.length >= 10 ? `https://wa.me/${digits}` : "";
+};
+
 const loadOrderEmailData = async (job) => {
-  const [orderResult, itemsResult, previousResult, site, codPolicy, transfer, enrichedItems] = await Promise.all([
+  const [orderResult, itemsResult, previousResult, site, codPolicy, transfer, enrichedItems, contact] = await Promise.all([
     db.query(`
       SELECT o.*, c.email AS customer_email
       FROM orders o
@@ -101,6 +125,7 @@ const loadOrderEmailData = async (job) => {
       .then(({ itemsForOrders }) => itemsForOrders([job.order_id]))
       .then((byOrder) => byOrder.get(String(job.order_id)) || [])
       .catch(() => []),
+    loadStoreContact(),
   ]);
   const order = orderResult.rows[0];
   if (!order) throw new Error("ORDER_EMAIL_ORDER_NOT_FOUND");
@@ -128,9 +153,12 @@ const loadOrderEmailData = async (job) => {
     brand: {
       logoUrl: configuredLogo || fallbackLogo,
       supportEmail: text(process.env.SUPPORT_EMAIL || "support@m1store-egy.com"),
+      // The same contact details the storefront header shows, from Settings → Storefront.
+      whatsappUrl: whatsappHref(contact.whatsappUrl || contact.whatsappPhone),
+      phone: text(contact.phone),
       socialLinks: [
-        { label: "Facebook", url: text(process.env.STORE_FACEBOOK_URL) },
-        { label: "Instagram", url: text(process.env.STORE_INSTAGRAM_URL) },
+        { label: "Facebook", url: text(contact.facebook || process.env.STORE_FACEBOOK_URL) },
+        { label: "Instagram", url: text(contact.instagram || process.env.STORE_INSTAGRAM_URL) },
         { label: "TikTok", url: text(process.env.STORE_TIKTOK_URL) },
       ],
     },

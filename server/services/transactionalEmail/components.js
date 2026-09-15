@@ -11,7 +11,7 @@ export const emailButton = ({ href, label, secondary = false }) => {
 export const emailHeader = ({ logoUrl = "", eyebrow = "M1 STORE" } = {}) => `<tr><td bgcolor="#101010" style="padding:20px 26px;background:#101010;background-image:linear-gradient(#101010,#101010);border-bottom:3px solid ${BRAND.gold}">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="ltr"><tr>
     <td width="68" style="width:68px;vertical-align:middle">
-      ${safeUrl(logoUrl) ? `<div style="width:58px;height:58px;border-radius:16px;background:#ffffff;border:1px solid #343434;overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="58" height="58" alt="M1 Store" style="display:block;width:58px;height:58px;object-fit:contain;border:0"></div>` : `<div style="width:58px;height:58px;border-radius:16px;background:${BRAND.gold};color:#101010;text-align:center;font:800 17px/58px Arial,sans-serif">M1</div>`}
+      ${safeUrl(logoUrl) ? `<div style="width:58px;height:58px;border-radius:16px;background:#101010;border:1px solid #3a3222;overflow:hidden"><img src="${escapeHtml(logoUrl)}" width="58" height="58" alt="M1 Store" style="display:block;width:58px;height:58px;object-fit:contain;border:0"></div>` : `<div style="width:58px;height:58px;border-radius:16px;background:${BRAND.gold};color:#101010;text-align:center;font:800 17px/58px Arial,sans-serif">M1</div>`}
     </td>
     <td style="padding-left:14px;vertical-align:middle;text-align:left">
       <div style="color:#f0c94f!important;-webkit-text-fill-color:#f0c94f;font:900 22px/1.2 Arial,sans-serif;letter-spacing:2.5px;text-shadow:0 0 1px #f0c94f">${escapeHtml(eyebrow)}</div>
@@ -75,6 +75,6 @@ export const paymentPanel = (payment = null, { audience = "customer" } = {}) => 
   return box("info", `<div style="font:700 14px Arial,sans-serif">الطلب مدفوع بالكامل — مفيش مبلغ هيتحصّل عند الاستلام.</div>`);
 };
 
-export const emailLayout = ({ preheader = "", header = "", body = "", footer = "" } = {}) => `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M1 Store</title></head>
+export const emailLayout = ({ preheader = "", header = "", body = "", footer = "" } = {}) => `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="format-detection" content="telephone=no,address=no,email=no"><title>M1 Store</title></head>
 <body style="margin:0;padding:0;background:${BRAND.paper};font-family:Arial,sans-serif;color:#171717"><div style="display:none;max-height:0;overflow:hidden;opacity:0">${escapeHtml(preheader)}</div>
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:${BRAND.paper}"><tr><td align="center" style="padding:24px 10px"><table role="presentation" width="640" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:640px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 35px rgba(0,0,0,.08)">${header}<tr><td style="padding:32px">${body}</td></tr>${footer}</table></td></tr></table></body></html>`;

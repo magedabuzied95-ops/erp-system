@@ -1,4 +1,5 @@
 import { emailButton, emailFooter, emailHeader, emailLayout, orderSummary, paymentPanel, productRows } from "./components.js";
+import { customerEmailFooter, renderCustomerOrderEmailBody } from "./customerEmailDesign.js";
 import { deliveryLabel, escapeHtml, formatCurrency, formatOrderDate, paymentLabel, statusLabel } from "./helpers.js";
 
 const infoCell = (label, value) => `<td style="padding:10px;border:1px solid #e8e3da;border-radius:8px"><div style="color:#77736b;font:11px Arial,sans-serif">${escapeHtml(label)}</div><div style="margin-top:4px;font:700 13px/1.5 Arial,sans-serif">${escapeHtml(value || "-")}</div></td>`;
@@ -13,13 +14,7 @@ export const renderCustomerOrderConfirmation = (data = {}) => {
     : order.customer_phone && String(order.status || "").toLowerCase() === "pending_confirmation"
       ? `تم استلام طلبك، وهتوصلك رسالة على واتساب على رقم <span dir="ltr">${escapeHtml(order.customer_phone)}</span> عشان تأكد الطلب.`
       : "تم استلام طلبك وسيتم مراجعته والتواصل معك لتأكيده.";
-  const body = `<div style="text-align:center"><div style="font:700 25px/1.35 Arial,sans-serif">شكرًا لطلبك، ${escapeHtml(order.customer_name || "عميلنا العزيز")}</div><p style="margin:10px 0 24px;color:#6b6861;font:14px/1.8 Arial,sans-serif">${nextStep}</p></div>
-  <table role="presentation" width="100%" cellspacing="8" cellpadding="0"><tr>${infoCell("رقم الطلب", number)}${infoCell("تاريخ الطلب", formatOrderDate(order.created_at))}</tr><tr>${infoCell("الحالة", statusLabel(order.status))}${infoCell("طريقة الدفع", paymentLabel(order.payment_method))}</tr></table>
-  <h2 style="margin:28px 0 8px;font:700 17px Arial,sans-serif">ملخص الطلب</h2>${productsTable(items)}
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px">${orderSummary(order)}</table>
-  ${paymentPanel(payment)}
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:28px"><tr><td style="vertical-align:top;width:50%;padding-left:12px"><div style="font:700 14px Arial,sans-serif">معلومات العميل</div><div style="margin-top:8px;color:#6b6861;font:13px/1.8 Arial,sans-serif">${escapeHtml(order.customer_name)}<br>${escapeHtml(order.customer_phone)}<br>${escapeHtml(order.customer_email)}</div></td><td style="vertical-align:top;width:50%"><div style="font:700 14px Arial,sans-serif">عنوان الشحن</div><div style="margin-top:8px;color:#6b6861;font:13px/1.8 Arial,sans-serif">${escapeHtml(order.shipping_address_line || order.customer_address)}<br>${escapeHtml([order.city_area, order.governorate].filter(Boolean).join("، "))}<br>${escapeHtml(deliveryLabel(order.shipping_method || order.shipping_provider))}</div></td></tr></table>
-  <div style="margin-top:28px;text-align:center">${emailButton({ href: links.invoice, label: "عرض الفاتورة" })}${emailButton({ href: links.track, label: "تتبع الطلب", secondary: true })}</div>`;
+  const body = renderCustomerOrderEmailBody({ order, items, links, brand, payment, nextStep });
   return {
     subject: `تأكيد طلبك ${number} | M1 Store`,
     text: [
@@ -29,7 +24,7 @@ export const renderCustomerOrderConfirmation = (data = {}) => {
       payment?.kind === "cod" ? `المطلوب عند الاستلام: ${formatCurrency(payment.collect)}.` : "",
       links.track ? `تتبع الطلب: ${links.track}` : "",
     ].filter(Boolean).join("\n"),
-    html: emailLayout({ preheader: `تم استلام طلبك ${number}`, header: emailHeader(brand), body, footer: emailFooter(brand) }),
+    html: emailLayout({ preheader: payment?.kind === "advance_required" ? `طلبك ${number} اتسجّل — مستنيين تحويل رسوم الشحن` : `تم استلام طلبك ${number} — هتوصلك رسالة تأكيد على واتساب`, header: emailHeader(brand), body, footer: customerEmailFooter(brand) }),
   };
 };
 
