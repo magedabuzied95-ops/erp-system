@@ -116,11 +116,17 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
   const vodafone = text(transfer.vodafone);
   const hasInstapay = Boolean(instapayUrl || instapayHandle);
 
+  // Evolution refuses more than TWO CTA buttons on a message ("Maximum of 2 CTA buttons allowed" —
+  // INV-1652 went out as plain text because the card had three). The upload button always stays;
+  // the other slot is the quickest way to pay: open InstaPay when there is a payment link, else
+  // copy the Vodafone Cash number. Every value is also written in the body.
+  const payButton = instapayUrl
+    ? { type: "url", displayText: "ادفع بانستا باي", url: instapayUrl }
+    : vodafone
+      ? { type: "copy", displayText: "انسخ رقم فودافون كاش", copyCode: vodafone }
+      : instapayHandle ? { type: "copy", displayText: "انسخ حساب انستا باي", copyCode: instapayHandle } : null;
   const buttons = [
-    instapayUrl
-      ? { type: "url", displayText: "ادفع بانستا باي", url: instapayUrl }
-      : instapayHandle ? { type: "copy", displayText: "انسخ حساب انستا باي", copyCode: instapayHandle } : null,
-    vodafone ? { type: "copy", displayText: "انسخ رقم فودافون كاش", copyCode: vodafone } : null,
+    payButton,
     uploadUrl ? { type: "url", displayText: "ارفع صورة التحويل", url: uploadUrl } : null,
   ].filter(Boolean);
 
@@ -129,12 +135,14 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
   const opening = `رسوم الشحن لطلبك${ref ? ` رقم ${ref}` : ""}: ${fee} جنيه${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
   const closing = "وأول ما نراجع التحويل هنأكد طلبك ونشحنه على طول ✅";
 
+  const detailLines = [
+    instapayHandle ? `🏦 InstaPay: ${instapayHandle}` : "",
+    vodafone ? `📱 فودافون كاش: ${vodafone}` : "",
+  ].filter(Boolean);
   const body = [
     opening,
-    [
-      `1️⃣ حوّل ${fee} جنيه${via ? ` ${via}` : ""}`,
-      uploadUrl ? "2️⃣ اضغط «ارفع صورة التحويل» وابعت الصورة" : "2️⃣ ابعت صورة التحويل هنا",
-    ].join("\n"),
+    [`1️⃣ حوّل ${fee} جنيه${via ? ` ${via}` : ""}${detailLines.length ? ":" : ""}`, ...detailLines].join("\n"),
+    uploadUrl ? "2️⃣ اضغط «ارفع صورة التحويل» وابعت الصورة" : "2️⃣ ابعت صورة التحويل هنا",
     closing,
   ].join("\n\n");
 
