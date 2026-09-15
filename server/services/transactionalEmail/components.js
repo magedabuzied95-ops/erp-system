@@ -38,7 +38,7 @@ export const productRows = (items = []) => items.map((item) => {
   const unit = Number(item.sale_price || item.price || 0);
   return `<tr>
     <td style="padding:14px 0;border-bottom:1px solid #ece8df;width:70px">${image ? `<img src="${escapeHtml(image)}" width="58" height="58" alt="" style="display:block;width:58px;height:58px;border-radius:10px;object-fit:cover;background:#fff">` : ""}</td>
-    <td style="padding:14px 10px;border-bottom:1px solid #ece8df;font:13px/1.6 Arial,sans-serif;color:#171717"><strong>${escapeHtml(item.product_name || "منتج")}</strong><br><span style="color:#6b6861">اللون: ${escapeHtml(item.color || "-")} &nbsp; المقاس: ${escapeHtml(item.size || "-")}</span></td>
+    <td style="padding:14px 10px;border-bottom:1px solid #ece8df;font:13px/1.6 Arial,sans-serif;color:#171717"><strong>${escapeHtml(item.product_name || "منتج")}</strong><br><span style="color:#6b6861">اللون: ${escapeHtml(item.color || "-")} &nbsp; المقاس: ${escapeHtml(item.size || "-")}${item.article_code ? ` &nbsp; أرتكل: <span dir="ltr">${escapeHtml(item.article_code)}</span>` : ""}</span></td>
     <td style="padding:14px 4px;border-bottom:1px solid #ece8df;text-align:center;font:13px Arial,sans-serif">${qty}</td>
     <td style="padding:14px 4px;border-bottom:1px solid #ece8df;text-align:left;font:12px Arial,sans-serif;white-space:nowrap">${formatCurrency(unit)}</td>
     <td style="padding:14px 0;border-bottom:1px solid #ece8df;text-align:left;font:700 13px Arial,sans-serif;white-space:nowrap">${formatCurrency(unit * qty)}</td>
@@ -53,6 +53,26 @@ export const orderSummary = (order = {}) => {
   ];
   return `${rows.map(([label, value]) => `<tr><td style="padding:6px 0;color:#6b6861;font:13px Arial,sans-serif">${label}</td><td style="padding:6px 0;text-align:left;font:13px Arial,sans-serif">${typeof value === "string" ? value : formatCurrency(value)}</td></tr>`).join("")}
   <tr><td style="padding:12px 0 4px;border-top:2px solid #171717;font:700 16px Arial,sans-serif">الإجمالي</td><td style="padding:12px 0 4px;border-top:2px solid #171717;text-align:left;color:#a47a12;font:700 18px Arial,sans-serif">${formatCurrency(order.total_amount || order.total)}</td></tr>`;
+};
+
+// What the customer pays and when — the closing system, a transfer under review, or cash on delivery.
+export const paymentPanel = (payment = null, { audience = "customer" } = {}) => {
+  if (!payment) return "";
+  const row = (label, value, strong = false) => `<tr><td style="padding:6px 0;color:#6b6861;font:13px Arial,sans-serif">${label}</td><td style="padding:6px 0;text-align:left;font:${strong ? "700 15px" : "13px"} Arial,sans-serif">${value}</td></tr>`;
+  const box = (tone, inner) => `<div style="margin-top:18px;padding:14px 16px;border-radius:12px;background:${tone === "warn" ? "#fff6e0" : "#f7f5f0"};border:1px solid ${tone === "warn" ? "#f0c94f" : "#e8e3da"}">${inner}</div>`;
+  if (payment.kind === "transfer_review") {
+    return box("info", `<div style="font:700 14px Arial,sans-serif">${audience === "admin" ? "تحويل مستني مراجعة" : "التحويل قيد المراجعة"}</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:6px">${row("المبلغ المحوّل (قيد المراجعة)", formatCurrency(payment.transferred))}${payment.collect > 0 ? row("الباقي عند الاستلام", formatCurrency(payment.collect), true) : ""}</table>`);
+  }
+  if (payment.kind === "advance_required") {
+    const lines = audience === "admin"
+      ? `<div style="margin-top:6px;font:13px/1.8 Arial,sans-serif">المحافظة برّه محافظات الدفع عند الاستلام: الأوردر مش هيتشحن غير بعد دفع الشحن ${formatCurrency(payment.advance)} وتسجيله بزرار "تم دفع الشحن".</div>`
+      : `<div style="margin-top:6px;font:13px/1.9 Arial,sans-serif">${String(payment.notice || "").split("\n").filter((line) => !line.startsWith("📸")).concat("📸 ابعت صورة التحويل على واتساب M1 Store، وهنأكد الطلب ونشحنه على طول.").map((line) => escapeHtml(line)).join("<br>")}</div>`;
+    return box("warn", `<div style="font:700 14px Arial,sans-serif">رسوم الشحن مقدّم</div>${lines}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:6px">${row("المطلوب تحويله قبل الشحن", formatCurrency(payment.advance), true)}${row("الباقي عند الاستلام", formatCurrency(payment.collect))}</table>`);
+  }
+  if (payment.kind === "cod") {
+    return box("info", `<table role="presentation" width="100%" cellspacing="0" cellpadding="0">${payment.paid > 0 ? row("المدفوع", formatCurrency(payment.paid)) : ""}${row("المطلوب عند الاستلام", formatCurrency(payment.collect), true)}</table>`);
+  }
+  return box("info", `<div style="font:700 14px Arial,sans-serif">الطلب مدفوع بالكامل — مفيش مبلغ هيتحصّل عند الاستلام.</div>`);
 };
 
 export const emailLayout = ({ preheader = "", header = "", body = "", footer = "" } = {}) => `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>M1 Store</title></head>

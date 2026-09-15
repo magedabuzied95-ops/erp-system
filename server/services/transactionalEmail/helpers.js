@@ -37,7 +37,11 @@ export const statusLabel = (value = "") => ({
 
 export const paymentLabel = (value = "") => ({
   cod: "الدفع عند الاستلام",
+  cash_on_delivery: "الدفع عند الاستلام",
   cash: "نقدي",
+  card: "بطاقة / Apple Pay",
+  credit_sale: "آجل",
+  mixed: "أكثر من طريقة",
   instapay: "InstaPay",
   vodafone_cash: "Vodafone Cash",
   transfer: "تحويل بنكي",

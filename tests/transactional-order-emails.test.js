@@ -101,3 +101,51 @@ test("customer delivery resolves email from the linked customer and retry SQL ca
   assert.match(source, /attempts=\$3::integer/);
   assert.match(source, /POWER\(2, \$3::integer\)/);
 });
+
+// ---- 2026-09-15: the order emails read the closing system, the transfer review and total - paid
+import { buildOrderEmailPayment } from "../server/services/transactionalEmail/payment.js";
+
+const restrictedPolicy = { mode: "restricted", governorates: ["damietta"] };
+const cairoCod = { governorate: "القاهره", payment_method: "cod", status: "pending_confirmation", shipping_fee: 90, total_amount: 1840, paid_amount: 0, cod_amount: 1840, customer_phone: "01140950941" };
+
+test("a cash-on-delivery order outside the COD list is asked for the shipping fee in the email", () => {
+  const payment = buildOrderEmailPayment({ order: cairoCod, policy: restrictedPolicy, transfer: { vodafone: "01024960585" } });
+  assert.equal(payment.kind, "advance_required");
+  assert.equal(payment.advance, 90);
+  assert.equal(payment.collect, 1750);
+  const rendered = renderCustomerOrderConfirmation({ ...fixture, order: { ...fixture.order, ...cairoCod }, payment });
+  assert.match(rendered.html, /رسوم الشحن مقدّم/);
+  assert.match(rendered.html, /90\.00 EGP/);
+  assert.match(rendered.html, /1,750\.00 EGP/);
+  assert.match(rendered.html, /01024960585/);
+  assert.match(rendered.html, /على واتساب M1 Store/);
+  assert.doesNotMatch(rendered.html, /ابعت صورة التحويل هنا/);
+  assert.match(rendered.html, /رسالة على واتساب على رقم/);
+  const admin = renderAdminOrderNotification({ ...fixture, order: { ...fixture.order, ...cairoCod }, payment });
+  assert.match(admin.subject, /مستني دفع الشحن/);
+});
+
+test("the open system keeps plain cash on delivery with the amount owed", () => {
+  const payment = buildOrderEmailPayment({ order: cairoCod, policy: { mode: "open" } });
+  assert.deepEqual([payment.kind, payment.collect], ["cod", 1840]);
+});
+
+test("a shipping-fee transfer under review shows what was sent and what is left", () => {
+  const order = { governorate: "Cairo", payment_method: "instapay", transfer_proof_status: "pending", shipping_fee: 90, total_amount: 1940, paid_amount: 0, cod_amount: 1850 };
+  const payment = buildOrderEmailPayment({ order, policy: restrictedPolicy });
+  assert.deepEqual([payment.kind, payment.transferred, payment.collect], ["transfer_review", 90, 1850]);
+  const full = buildOrderEmailPayment({ order: { ...order, cod_amount: 0 }, policy: { mode: "open" } });
+  assert.deepEqual([full.kind, full.transferred, full.collect], ["transfer_review", 1940, 0]);
+});
+
+test("a stale cod_amount never reaches the email (INV-1616)", () => {
+  const payment = buildOrderEmailPayment({ order: { governorate: "دمياط", payment_method: "instapay", transfer_proof_status: "approved", total_amount: 1290, paid_amount: 90, cod_amount: 2400 }, policy: restrictedPolicy });
+  assert.deepEqual([payment.kind, payment.collect], ["cod", 1200]);
+});
+
+test("a till-raised online order is labelled as one and the track link carries the phone", async () => {
+  const admin = renderAdminOrderNotification({ ...fixture, order: { ...fixture.order, origin_surface: "pos" } });
+  assert.match(admin.html, /أوردر أونلاين جديد من الكاشير/);
+  const source = await readFile(new URL("../server/services/transactionalEmail/orderEmailService.js", import.meta.url), "utf8");
+  assert.match(source, /buildOrderTrackingUrl\(number, order\.customer_phone, appUrl\)/);
+});

@@ -31,7 +31,7 @@ const governorateName = (value) => {
   return governorateOptions.find((option) => option.value === id)?.ar || text(value);
 };
 
-const loadTransferDetails = async () => {
+export const loadTransferDetails = async () => {
   const [vodafoneA, vodafoneB, instapayUrl, instapayHandleA, instapayHandleB] = await Promise.all([
     getSetting("storefront.payment_methods.vodafone_cash_number", ""),
     getSetting("payments.vodafone_cash_number", ""),
@@ -97,7 +97,7 @@ export const shippingFeeAdvanceNoticeForAddress = async ({ governorate = "", sub
   }
 };
 
-export const shippingFeeAdvanceNoticeForOrder =(order = {}, options = {}) =>
+export const shippingFeeAdvanceNoticeForOrder = (order = {}, options = {}) =>
   shippingFeeAdvanceNoticeFor({
     governorate: order.governorate || order.shipping_city_name_ar || order.shipping_city_name_en || "",
     governorateId: order.governorate_id || "",

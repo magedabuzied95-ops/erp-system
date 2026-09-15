@@ -3,6 +3,10 @@ import { sendSmtpMail } from "../staffTaskEmailNotificationService.js";
 import { getSiteSettings } from "../siteSettingsService.js";
 import { absoluteAssetUrl, storefrontUrl, text } from "./helpers.js";
 import { renderAdminOrderNotification, renderCustomerOrderConfirmation } from "./templates.js";
+import { buildOrderEmailPayment } from "./payment.js";
+import { loadCodPolicySettings } from "../storefrontShippingService.js";
+import { loadTransferDetails } from "../codPolicyReplyService.js";
+import { buildOrderTrackingUrl } from "../../utils/whatsapp.js";
 
 const CUSTOMER_TEMPLATE = "customer_order_confirmation";
 const ADMIN_TEMPLATE = "admin_order_notification";
@@ -74,7 +78,7 @@ export const enqueueOrderCreatedEmails = async (client, { tenantId, orderId, cus
 };
 
 const loadOrderEmailData = async (job) => {
-  const [orderResult, itemsResult, previousResult, site] = await Promise.all([
+  const [orderResult, itemsResult, previousResult, site, codPolicy, transfer, enrichedItems] = await Promise.all([
     db.query(`
       SELECT o.*, c.email AS customer_email
       FROM orders o
@@ -90,15 +94,27 @@ const loadOrderEmailData = async (job) => {
         AND LOWER(COALESCE(status, '')) NOT IN ('cancelled','canceled')
     `, [job.order_id, job.tenant_id]),
     getSiteSettings({ tenantId: job.tenant_id }).catch(() => ({})),
+    loadCodPolicySettings().catch(() => undefined),
+    loadTransferDetails().catch(() => ({})),
+    // The photo, colour, size and article code the portals and the packing page show.
+    import("../../modules/shipping/shipping.portal.service.js")
+      .then(({ itemsForOrders }) => itemsForOrders([job.order_id]))
+      .then((byOrder) => byOrder.get(String(job.order_id)) || [])
+      .catch(() => []),
   ]);
   const order = orderResult.rows[0];
   if (!order) throw new Error("ORDER_EMAIL_ORDER_NOT_FOUND");
-  const items = itemsResult.rows.map((item) => ({
-    ...item,
-    image_url: absoluteAssetUrl(item.variant_image || item.product_image || item.image_url || ""),
-    color: item.color || item.color_name || "",
-    size: item.size || item.variant_name || "",
-  }));
+  const enrichedById = new Map(enrichedItems.map((item) => [String(item.id), item]));
+  const items = itemsResult.rows.map((item) => {
+    const enriched = enrichedById.get(String(item.id)) || {};
+    return {
+      ...item,
+      image_url: absoluteAssetUrl(enriched.image_url || item.variant_image || item.product_image || item.image_url || ""),
+      color: enriched.color || item.color || item.color_name || "",
+      size: enriched.size || item.size || item.variant_name || "",
+      article_code: enriched.article_code || "",
+    };
+  });
   const appUrl = storefrontUrl();
   const token = text(order.public_token || order.invoice_number || order.id);
   const number = text(order.public_order_number || order.invoice_number || order.id);
@@ -108,6 +124,7 @@ const loadOrderEmailData = async (job) => {
     order,
     items,
     previousOrdersCount: Number(previousResult.rows[0]?.count || 0),
+    payment: buildOrderEmailPayment({ order, policy: codPolicy, transfer }),
     brand: {
       logoUrl: configuredLogo || fallbackLogo,
       supportEmail: text(process.env.SUPPORT_EMAIL || "support@m1store-egy.com"),
@@ -119,7 +136,8 @@ const loadOrderEmailData = async (job) => {
     },
     links: {
       invoice: appUrl && token ? `${appUrl}/invoice/${encodeURIComponent(token)}` : "",
-      track: appUrl && number ? `${appUrl}/track?order_number=${encodeURIComponent(number)}` : "",
+      // The phone opens the order itself; without it /track shows an empty lookup form.
+      track: appUrl && number ? buildOrderTrackingUrl(number, order.customer_phone, appUrl) : "",
       erpOrder: appUrl ? `${appUrl}/orders/${encodeURIComponent(String(order.id))}` : "",
     },
   };
