@@ -681,8 +681,10 @@ html[data-theme="dark"] .ai-pwa-product-sheet option {
     height: 38px;
   }
 
+  /* The thread header keeps only the ⋯ button on a phone, so the name and the
+     channel / last-seen line take the freed width instead of a fixed cap. */
   .ai-pwa-contact-copy {
-    max-width: min(8.5rem, 30vw);
+    max-width: none;
   }
 
   .ai-pwa-contact-copy > div:first-of-type {

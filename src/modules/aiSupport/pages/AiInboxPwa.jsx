@@ -7925,7 +7925,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
             className="ai-pwa-fixed ai-pwa-conversation-header fixed inset-x-0 top-0 z-[60] mx-auto w-full border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur"
           >
             <div className="ai-pwa-conversation-top flex items-center justify-between gap-3" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
-              <div className="ai-pwa-conversation-identity flex min-w-0 items-center gap-2.5">
+              <div className="ai-pwa-conversation-identity flex min-w-0 flex-1 items-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleBackNavigation}
@@ -7976,7 +7976,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                     <UserRound className="h-4.5 w-4.5" />
                   </button>
                 )}
-                <div className="ai-pwa-contact-copy min-w-0">
+                <div className="ai-pwa-contact-copy min-w-0 flex-1">
                   <button
                     type="button"
                     onClick={() =>
@@ -7990,9 +7990,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
                   >
                     {isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
                   </button>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
-                      <SelectedChannelIcon className={`h-3 w-3 ${isSocialCommentThread(selectedConversation || {}) ? "text-blue-600" : "text-cyan-600"}`} />
+                  {/* The chip and its logo never shrink: in an overflowing row the svg
+                      used to squeeze to 0px, leaving only the gap where the logo was. */}
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                      <SelectedChannelIcon className={`h-3 w-3 shrink-0 ${isSocialCommentThread(selectedConversation || {}) ? "text-blue-600" : "text-cyan-600"}`} />
                       {selectedMetaLabel}
                     </span>
                     {selectedWorkflowStatus === "human_takeover" ? (
@@ -8001,7 +8003,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                         {t("aiSupport.inbox.ui.needsHuman")}
                       </span>
                     ) : null}
-                    <span className="truncate">{selectedLastSeen}</span>
+                    <span className="min-w-0 truncate">{selectedLastSeen}</span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {conversationLabels.slice(0, 3).map((label) => (
