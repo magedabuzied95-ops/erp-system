@@ -19,6 +19,13 @@ const codGovernorateNames = (policy) =>
     .filter(Boolean)
     .join(" و");
 
+// "للقاهرة", "لدمياط" — the preposition joins the name the way it is written, never "لـالقاهرة".
+export const toPlace = (name = "") => {
+  const place = text(name);
+  if (!place) return "";
+  return place.startsWith("ال") ? `لل${place.slice(2)}` : `ل${place}`;
+};
+
 const governorateName = (value) => {
   const id = resolveGovernorateId(value);
   return governorateOptions.find((option) => option.value === id)?.ar || text(value);
@@ -57,7 +64,7 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
     return `💳 رسوم الشحن ${fee} جنيه تتحوّل مقدّم قبل الشحن${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : ""}.`;
   }
   return [
-    `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن${where ? ` لـ${where}` : ""} لازم تحوّل رسوم الشحن ${fee} جنيه الأول${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`,
+    `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن طلبك${where ? ` ${toPlace(where)}` : ""} لازم تحوّل رسوم الشحن ${fee} جنيه الأول${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`,
     ...transferDetailLines(transfer),
     "📸 ابعت صورة التحويل هنا وهنأكد الطلب ونشحنه على طول.",
   ].join("\n");

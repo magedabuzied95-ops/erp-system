@@ -260,3 +260,13 @@ test("a late confirm is recorded as the customer's and the reply is logged as th
   assert.match(source, /SET whatsapp_confirmed_at = NOW\(\),[\s\S]*WHERE id = \$1 AND whatsapp_confirmed_at IS NULL/);
   assert.match(source, /const sendSystemOrderText = [\s\S]*senderType: "system"/);
 });
+
+import { toPlace } from "../server/services/codPolicyReplyService.js";
+
+test("the notice names the governorate as written Arabic: للقاهرة, لدمياط", () => {
+  assert.equal(toPlace("القاهرة"), "للقاهرة");
+  assert.equal(toPlace("دمياط"), "لدمياط");
+  const notice = buildShippingFeeAdvanceNotice({ policy: restricted, governorate: "القاهره", shippingFee: 90, orderTotal: 1840 });
+  assert.match(notice, /عشان نشحن طلبك للقاهرة لازم تحوّل رسوم الشحن 90 جنيه/);
+  assert.doesNotMatch(notice, /لـال/);
+});
