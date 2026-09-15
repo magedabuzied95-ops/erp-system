@@ -27,7 +27,32 @@ const normalizePermissionKey = (permission) => {
   return value;
 };
 
+// A page-scoped session that never touches storage: the employee portal's messages
+// screen borrows an inbox session this way, so a staff login saved in the same
+// browser is neither used nor overwritten, and a reload re-mints it from the link.
+let sessionOverride = null;
+
+const notifyAuthUserUpdated = (user) => {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("erp:auth-user-updated", { detail: { user: user || null } }));
+  }
+};
+
+export const setAuthSessionOverride = ({ token, user } = {}) => {
+  sessionOverride = token ? { token, user: user || null } : null;
+  notifyAuthUserUpdated(sessionOverride?.user);
+};
+
+export const clearAuthSessionOverride = () => {
+  if (!sessionOverride) return;
+  sessionOverride = null;
+  notifyAuthUserUpdated(null);
+};
+
+export const hasAuthSessionOverride = () => Boolean(sessionOverride);
+
 export const getToken = () => {
+  if (sessionOverride) return sessionOverride.token;
   for (const key of TOKEN_KEYS) {
     const value = localStorage.getItem(key);
     if (value) return value;
@@ -36,7 +61,7 @@ export const getToken = () => {
 };
 
 export const getCurrentUser = () =>
-  parseUser(localStorage.getItem("user"));
+  sessionOverride ? sessionOverride.user : parseUser(localStorage.getItem("user"));
 
 const CURRENT_TENANT_KEY = "erp.saas.currentTenant";
 
@@ -152,6 +177,11 @@ export const setAuth = ({ token, user }) => {
 };
 
 export const clearAuth = () => {
+  // An expired borrowed session must not sign the browser's own staff login out.
+  if (sessionOverride) {
+    clearAuthSessionOverride();
+    return;
+  }
   TOKEN_KEYS.forEach((key) => {
     localStorage.removeItem(key);
   });

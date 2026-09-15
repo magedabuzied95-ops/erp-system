@@ -5,6 +5,7 @@ import { sendLoginTaskDigestIfNeeded } from "../services/staffTaskEmailNotificat
 import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staffTasksService.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
+import { isPortalInboxRole } from "../modules/aiInboxPortal/portalInboxAccess.js";
 
 // Boot runs this before listen(); login used to run it again on EVERY sign-in, and each run is two
 // ALTER TABLE users, which lock the table every authenticated request reads.
@@ -440,6 +441,11 @@ export const login = async (req, res) => {
         success: false,
         message: "Account Disabled",
       });
+    }
+
+    // The hidden per-employee messages account opens only from the employee portal.
+    if (isPortalInboxRole(getRoleName(user)) || /^portal-inbox-\d+@employee-portal\.invalid$/i.test(String(user.email || ""))) {
+      return res.status(403).json({ success: false, message: "Account Disabled" });
     }
 
     if (isMetaReviewerRole(getRoleName(user)) && (!user.account_expires_at || metaReviewerAccountExpired(user.account_expires_at))) {

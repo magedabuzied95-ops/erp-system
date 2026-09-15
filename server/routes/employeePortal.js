@@ -58,6 +58,7 @@ import { getSalesOpportunitiesForScope, loadEmployeeSalesBoard } from "../servic
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { PORTAL_SHIP_ACTIONS, runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
 import { employeeCanActOnOnlineOrders } from "../modules/shipping/shipping.portal.access.js";
+import { employeePortalInboxEnabled, mintPortalInboxSession } from "../modules/aiInboxPortal/portalInboxAccess.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { emitToRooms } from "../utils/socket.js";
@@ -639,6 +640,33 @@ router.get("/:token/products", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] product browser load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load employee products" });
+  }
+});
+
+// الرسائل: the AI Inbox messages (no comments) for employees the admin switched on.
+router.get("/:token/inbox-access", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const enabled = await employeePortalInboxEnabled({ employeeId: employee.id, tenantId: employee.tenant_id });
+    return res.json({ success: true, enabled });
+  } catch (error) {
+    console.error("[employee-portal] inbox access load error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load messages access" });
+  }
+});
+
+router.post("/:token/inbox-session", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, private");
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const session = await mintPortalInboxSession({ employee, portalToken: req.params.token });
+    return res.json({ success: true, ...session });
+  } catch (error) {
+    if (error.status !== 403) console.error("[employee-portal] inbox session error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to open messages" });
   }
 });
 

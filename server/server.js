@@ -652,6 +652,7 @@ io.on("connection", async (socket) => {
 const { default: authRoutes } = await import("./routes/auth.js");
 const { default: metaReviewerInboxRoutes } = await import("./routes/metaReviewerInbox.js");
 const { default: metaReviewerApiBoundary } = await import("./middleware/metaReviewerBoundary.js");
+const { default: portalInboxApiBoundary } = await import("./modules/aiInboxPortal/portalInboxBoundary.js");
 const { default: productsRoutes } = await import("./routes/products.js");
 const { default: ordersRoutes } = await import("./routes/orders.js");
 const { default: posRoutes } = await import("./routes/pos.js");
@@ -1911,6 +1912,7 @@ app.use("/uploads", express.static(path.join(currentDir, "..", "uploads"), uploa
 ========================= */
 
 app.use(metaReviewerApiBoundary);
+app.use(portalInboxApiBoundary);
 app.use("/api/auth", authRoutes);
 app.use("/api/meta-reviewer/inbox", metaReviewerInboxRoutes);
 app.use("/api/products", productsRoutes);

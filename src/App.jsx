@@ -182,6 +182,7 @@ const EmployeePortalInventory = lazy(() => import("./modules/employees/pages/Emp
 // Retried past a CDN-cached 404 like the storefront's pages: الشحن is the portal page people
 // open right after a deploy, and a poisoned edge made that first open crash.
 const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders")));
+const EmployeePortalInbox = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalInbox")));
 const EmployeeAppShell = lazy(() => import("./modules/employees/pages/EmployeeAppShell"));
 const EmployeePayrollPortal = lazy(() => import("./modules/employees/pages/EmployeePayrollPortal"));
 const ManagerPortal = lazy(() => import("./modules/managerPortal/pages/ManagerPortal"));
@@ -460,6 +461,8 @@ function App() {
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/online-orders" element={<EmployeePortalOnlineOrders />} />
+            <Route path="/employee-app/:token/inbox" element={<EmployeePortalInbox />} />
+            <Route path="/employee-app/:token/inbox/:conversationId" element={<EmployeePortalInbox />} />
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
             <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>
@@ -617,6 +620,9 @@ function App() {
         element={<EmployeePortalOnlineOrders />}
       />
 
+      <Route path="/employee/portal/:token/inbox" element={<EmployeePortalInbox />} />
+      <Route path="/employee/portal/:token/inbox/:conversationId" element={<EmployeePortalInbox />} />
+
       <Route
         path="/employee-portal/:token"
         element={<EmployeePayrollPortal />}
@@ -641,6 +647,9 @@ function App() {
         path="/employee-portal/:token/online-orders"
         element={<EmployeePortalOnlineOrders />}
       />
+
+      <Route path="/employee-portal/:token/inbox" element={<EmployeePortalInbox />} />
+      <Route path="/employee-portal/:token/inbox/:conversationId" element={<EmployeePortalInbox />} />
 
       <Route
         path="/manager-portal/:token"

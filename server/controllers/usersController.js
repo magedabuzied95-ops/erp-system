@@ -336,7 +336,8 @@ async (req, res) => {
         params
       );
 
-    const visibleUsers = users.rows.filter((user) => !isDebugLikeUser(user));
+    // The per-employee messages accounts belong to the employee portal switch, not this list.
+    const visibleUsers = users.rows.filter((user) => !isDebugLikeUser(user) && String(user.role || "").toLowerCase() !== "portal_inbox");
     const hiddenCount = users.rows.length - visibleUsers.length;
     if (hiddenCount > 0) {
       console.log("[users] filtered non-production users", {

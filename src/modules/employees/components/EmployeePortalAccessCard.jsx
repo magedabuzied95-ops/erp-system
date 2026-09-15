@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 import { regenerateEmployeePortalToken } from "../../sales/services/salesEmployeesApi";
 import { getEmployeeOnlineOrdersAccess, setEmployeeOnlineOrdersAccess } from "../services/onlineOrdersAccessApi";
+import { getEmployeePortalInboxSwitch, setEmployeePortalInboxSwitch } from "../services/employeePortalInboxApi";
 
 // أوردرات الشحن: every employee can SEE the board; this switch lets one ACT on it
 // (confirm, ready to ship, create the Bosta parcel, print the airway bill).
@@ -44,6 +45,57 @@ function OnlineOrdersAccessToggle({ employeeId }) {
       <span className="flex shrink-0 items-center gap-2">
         <span className="text-xs font-black text-white">
           {enabled === null ? "…" : enabled ? t("orders.portalBoard.access.on") : t("orders.portalBoard.access.off")}
+        </span>
+        <input
+          type="checkbox"
+          className="h-5 w-5 accent-[var(--primary)]"
+          checked={enabled === true}
+          disabled={enabled === null || saving}
+          onChange={(event) => void toggle(event.target.checked)}
+        />
+      </span>
+    </label>
+  );
+}
+
+// الرسائل: opens (or closes) the AI Inbox messages — never the comments — in this
+// employee's portal.
+function PortalInboxAccessToggle({ employeeId }) {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEnabled(null);
+    getEmployeePortalInboxSwitch(employeeId)
+      .then((response) => { if (!cancelled) setEnabled(response?.enabled === true); })
+      .catch(() => { if (!cancelled) setEnabled(false); });
+    return () => { cancelled = true; };
+  }, [employeeId]);
+
+  const toggle = async (next) => {
+    setSaving(true);
+    try {
+      const response = await setEmployeePortalInboxSwitch(employeeId, next);
+      setEnabled(response?.enabled === true);
+      toast.success(t("employeePortal.messages.accessSaved"));
+    } catch (error) {
+      toast.error(error?.message || t("employeePortal.messages.accessFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <label className="mt-3 flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-4">
+      <div className="min-w-0">
+        <div className="text-sm font-black text-white">{t("employeePortal.messages.accessTitle")}</div>
+        <div className="mt-1 text-xs leading-5 text-zinc-400">{t("employeePortal.messages.accessHint")}</div>
+      </div>
+      <span className="flex shrink-0 items-center gap-2">
+        <span className="text-xs font-black text-white">
+          {enabled === null ? "…" : enabled ? t("employeePortal.messages.accessOn") : t("employeePortal.messages.accessOff")}
         </span>
         <input
           type="checkbox"
@@ -175,6 +227,7 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
       </div>
 
       <OnlineOrdersAccessToggle employeeId={employee.id} />
+      <PortalInboxAccessToggle employeeId={employee.id} />
 
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         <button type="button" onClick={copyPortalLink} disabled={!effectivePortalUrl} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">

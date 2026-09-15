@@ -806,6 +806,22 @@
     "managerLink": "Manager portal link",
     "linkNotCreated": "No link has been created yet"
   },
+  "messages": {
+    "entry": "Messages",
+    "entryHint": "WhatsApp, Messenger and Instagram messages",
+    "opening": "Opening messages…",
+    "disabledTitle": "Messages are not enabled for you",
+    "disabledHint": "Ask the admin to enable messages in your account settings.",
+    "failedTitle": "Could not open messages",
+    "retry": "Try again",
+    "backToPortal": "Portal",
+    "accessTitle": "Messages (AI Inbox)",
+    "accessHint": "Lets this employee read and answer WhatsApp, Messenger and Instagram messages from their portal. Comments are never shown.",
+    "accessOn": "Open",
+    "accessOff": "Closed",
+    "accessSaved": "Messages access saved",
+    "accessFailed": "Could not save messages access"
+  },
   "initials": {
     "alef": "A",
     "ya": "Y",

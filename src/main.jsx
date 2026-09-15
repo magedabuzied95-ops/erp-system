@@ -109,6 +109,7 @@ if (isEmployeeAppRoute) {
   // (2026-09-11) and fell through to the home below, so the tab "did nothing".
   // الشحن is lazy (the home prefetches it once idle) so the board never weighs on the boot.
   const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders.jsx")));
+  const EmployeePortalInbox = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalInbox.jsx")));
   Promise.all([
     import("./modules/employees/pages/EmployeeAppShell.jsx"),
     import("./modules/employees/pages/EmployeePortalProducts.jsx"),
@@ -129,6 +130,8 @@ if (isEmployeeAppRoute) {
             <Route path="/employee-app/:token/inventory" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/inventory/:sessionId" element={<EmployeePortalInventory />} />
             <Route path="/employee-app/:token/online-orders" element={<Suspense fallback={null}><EmployeePortalOnlineOrders /></Suspense>} />
+            <Route path="/employee-app/:token/inbox" element={<Suspense fallback={null}><EmployeePortalInbox /></Suspense>} />
+            <Route path="/employee-app/:token/inbox/:conversationId" element={<Suspense fallback={null}><EmployeePortalInbox /></Suspense>} />
             <Route path="/employee-app/:token" element={<EmployeeAppShell />} />
             <Route path="/employee-app/*" element={<EmployeeAppShell />} />
           </Routes>

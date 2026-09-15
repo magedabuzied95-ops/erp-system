@@ -10,6 +10,7 @@ import {
   Download,
   ExternalLink,
   Globe,
+  House,
   Image,
   Layers3,
   Loader2,
@@ -1913,6 +1914,14 @@ const NAV_ITEMS = [
   { key: "more", labelKey: "aiSupport.inbox.pwa.more", icon: MoreHorizontal },
 ];
 
+// The employee portal's الرسائل: messages only — no comments, no settings, and the
+// last slot leads back to the portal home instead of the admin inbox.
+const PORTAL_NAV_ITEMS = [
+  { key: "conversations", labelKey: "aiSupport.inbox.ui.aiInbox", icon: MessageCircleMore },
+  { key: "leads", labelKey: "aiSupport.inbox.pwa.leads", icon: Layers3 },
+  { key: "portal_home", labelKey: "employeePortal.messages.backToPortal", icon: House },
+];
+
 function PwaChip({ children, tone = "slate" }) {
   const classes = {
     slate: "bg-slate-100 text-slate-600",
@@ -3412,8 +3421,11 @@ function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
   );
 }
 
-export default function AiInboxPwa() {
+export default function AiInboxPwa({ portal = null } = {}) {
   const { t, i18n } = useTranslation();
+  const portalMode = Boolean(portal);
+  const inboxBasePath = portal?.basePath || "/inbox";
+  const navItems = portalMode ? PORTAL_NAV_ITEMS : NAV_ITEMS;
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
@@ -3665,8 +3677,8 @@ export default function AiInboxPwa() {
 
   const tab = useMemo(() => {
     const value = new URLSearchParams(location.search).get("tab");
-    return NAV_ITEMS.some((item) => item.key === value) ? value : "conversations";
-  }, [location.search]);
+    return navItems.some((item) => item.key === value && item.key !== "portal_home") ? value : "conversations";
+  }, [location.search, navItems]);
   const socialPostParam = useMemo(() => clean(new URLSearchParams(location.search).get("postId")), [location.search]);
   const inboxSection = tab;
   const isConversationMode = inboxSection === "conversations";
@@ -3680,10 +3692,10 @@ export default function AiInboxPwa() {
       if (nextTab === "social_comments" && nextPostId) searchParams.set("postId", nextPostId);
       else searchParams.delete("postId");
       const searchText = searchParams.toString();
-      const nextPath = nextTab === "social_comments" ? "/inbox" : nextConversationId ? `/inbox/${encodeConversationId(nextConversationId)}` : "/inbox";
+      const nextPath = nextTab === "social_comments" ? inboxBasePath : nextConversationId ? `${inboxBasePath}/${encodeConversationId(nextConversationId)}` : inboxBasePath;
       navigate(`${nextPath}${searchText ? `?${searchText}` : ""}`, { replace });
     },
-    [conversationParam, location.search, navigate, socialPostParam, tab]
+    [conversationParam, inboxBasePath, location.search, navigate, socialPostParam, tab]
   );
 
   const patchConversation = useCallback((targetId, updater) => {
@@ -4084,7 +4096,7 @@ export default function AiInboxPwa() {
           );
         });
         setLoading(false);
-        void api.get("/ai-agent/settings/ai-assistant-global", {
+        if (!portalMode) void api.get("/ai-agent/settings/ai-assistant-global", {
           params: { tenant_id: tenantId },
           headers,
           timeoutMs: 10000,
@@ -4094,7 +4106,7 @@ export default function AiInboxPwa() {
             setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
           }
         }).catch(() => {});
-        if (tab === "social_comments" && !socialCommentsLoadedRef.current && !socialCommentsRequestRef.current) {
+        if (!portalMode && tab === "social_comments" && !socialCommentsLoadedRef.current && !socialCommentsRequestRef.current) {
           void loadSocialComments({ silent });
         }
 
@@ -4138,7 +4150,7 @@ export default function AiInboxPwa() {
         }
       }
     },
-    [conversationParam, debouncedSearch, favoriteFilter, headers, loadSocialComments, messagePlatformFilter, pageVisible, readFilter, tab, tenantId, updateUrlState]
+    [conversationParam, debouncedSearch, favoriteFilter, headers, loadSocialComments, messagePlatformFilter, pageVisible, portalMode, readFilter, tab, tenantId, updateUrlState]
   );
 
   const requestRefresh = useCallback(
@@ -4369,7 +4381,7 @@ export default function AiInboxPwa() {
   // The account registry is not needed to render conversations, so it loads once
   // out of band. A tenant with a single number per platform never sees it.
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId || portalMode) return;
     let cancelled = false;
     api.get("/ai-agent/channel-accounts", {
       params: { tenant_id: tenantId },
@@ -4381,7 +4393,7 @@ export default function AiInboxPwa() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [headers, tenantId]);
+  }, [headers, portalMode, tenantId]);
 
   useEffect(() => {
     if (lastRequestedMessagePlatformRef.current === messagePlatformFilter) return;
@@ -4411,29 +4423,32 @@ export default function AiInboxPwa() {
       document.documentElement.style.backgroundColor = "#f8fafc";
       document.body.style.backgroundColor = "#f8fafc";
     }
+    if (portalMode) return;
     try {
       localStorage.setItem("ai_inbox_last_url", `${location.pathname}${location.search}`);
       localStorage.setItem("portal_last_url", `${location.pathname}${location.search}`);
     } catch {
       // Ignore storage errors.
     }
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, portalMode]);
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return undefined;
+    // The portal keeps its own worker and push; the inbox worker is scoped to /inbox.
+    if (portalMode || !("serviceWorker" in navigator)) return undefined;
     // `?v=` must move with VERSION inside inbox-sw.js, or clients keep running the
     // old worker and the cache-first `/assets/` rule strands them on a stale bundle.
     navigator.serviceWorker.register("/inbox-sw.js?v=20", { scope: "/inbox" }).catch(() => null);
     return undefined;
-  }, []);
+  }, [portalMode]);
 
   useEffect(() => {
     primeInboxChime();
+    if (portalMode) return undefined;
     // Push endpoints rotate. Re-subscribing on load keeps the stored one live,
     // otherwise notifications stop with nothing on screen to explain why.
     refreshInboxPushSubscription({ surface: "/inbox" }).catch(() => null);
     return subscribeToPushWorkerMessages();
-  }, []);
+  }, [portalMode]);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (event) => {
@@ -4794,6 +4809,10 @@ export default function AiInboxPwa() {
     return unread;
   }, [channelSummaries]);
 
+  const portalMessageConversations = useMemo(
+    () => (portalMode ? conversations.filter((conversation) => !isSocialCommentThread(conversation)) : conversations),
+    [conversations, portalMode]
+  );
   const filteredConversations = useMemo(() => {
     const normalized = debouncedSearch.toLowerCase();
     return conversations.filter((conversation) => {
@@ -5504,6 +5523,7 @@ export default function AiInboxPwa() {
       setComposerMode("reply");
       setMenuOpen(false);
       if (isSocialCommentThread(conversation)) {
+        if (portalMode) return;
         const nextUrl = buildSocialCommentsCenterUrl(conversation);
         console.info("AI_INBOX_OPEN_SOCIAL_COMMENT", {
           post_id: clean(conversation?.post_id || conversation?.conversation_post_id || conversation?.thread_post_id || socialPostIdentity(conversation) || ""),
@@ -5524,7 +5544,7 @@ export default function AiInboxPwa() {
       setComposerText("");
       updateUrlState({ nextConversationId, nextTab: "conversations" });
     },
-    [buildSocialCommentsCenterUrl, navigate, socialPostIdentity, tenantId, updateUrlState]
+    [buildSocialCommentsCenterUrl, navigate, portalMode, socialPostIdentity, tenantId, updateUrlState]
   );
 
   const backToList = useCallback(() => {
@@ -7949,6 +7969,8 @@ export default function AiInboxPwa() {
                   anchorRef={menuButtonRef}
                   onClose={() => setMenuOpen(false)}
                 >
+                  {/* The shop-wide AI switch is a setting, not a message action. */}
+                  {portalMode ? null : (
                   <button type="button" onClick={() => { void toggleGlobalAiAssistant(); setMenuOpen(false); }} disabled={aiAssistantGlobalSaving} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     <span className="flex items-center gap-3">
                       {aiAssistantGlobalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
@@ -7958,6 +7980,7 @@ export default function AiInboxPwa() {
                       {aiAssistantGlobalEnabled ? t("aiSupport.inbox.pwa.on") : t("aiSupport.inbox.pwa.off")}
                     </span>
                   </button>
+                  )}
                   <button type="button" onClick={() => { void toggleConversationAi(); setMenuOpen(false); }} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
                     {selectedWorkflowStatus === "human_takeover" ? t("aiSupport.inbox.header.returnToAi") : isConversationAiEnabled(selectedConversation) ? t("aiSupport.inbox.header.aiOn") : t("aiSupport.inbox.header.aiOff")}
@@ -8069,7 +8092,7 @@ export default function AiInboxPwa() {
               <div className="flex items-center justify-between gap-3">
                 <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">{t("aiSupport.inbox.kpi.socialCenter")}</h1>
                 <div className="flex shrink-0 items-center gap-2">
-                  {tab === "conversations" ? (
+                  {tab === "conversations" && !portalMode ? (
                     // Webhooks only carry new events. This pulls the page's
                     // existing Messenger + Instagram threads out of the Graph API.
                     <button
@@ -8083,7 +8106,7 @@ export default function AiInboxPwa() {
                       {metaHistorySyncing ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <FaFacebookMessenger className="h-4.5 w-4.5" />}
                     </button>
                   ) : null}
-                  <InboxNotificationBell surface="/inbox" />
+                  {portalMode ? null : <InboxNotificationBell surface="/inbox" />}
                   <button
                     type="button"
                     onClick={togglePwaTheme}
@@ -8104,7 +8127,7 @@ export default function AiInboxPwa() {
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400"
                 />
               </label>
-              {tab === "conversations" ? (
+              {tab === "conversations" && !portalMode ? (
                 // A dead WhatsApp session looks exactly like a quiet day, which is
                 // how one went unnoticed for 37 hours. Say it where the operator is
                 // already looking.
@@ -8215,8 +8238,8 @@ export default function AiInboxPwa() {
                   loadingOlder={olderLoading}
                   onLoadOlder={loadOlderMessages}
                   olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
-                  onReplyComment={sendLeadCommentReply}
-                  onPrivateMessage={sendLeadPrivateMessage}
+                  onReplyComment={portalMode ? null : sendLeadCommentReply}
+                  onPrivateMessage={portalMode ? null : sendLeadPrivateMessage}
                   onReact={["whatsapp", "instagram", "messenger"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
                   onEditMessage={normalizeConversationChannel(selectedConversation || {}) === "whatsapp" ? editMessage : null}
                   onOpenCorrection={openReplyCorrection}
@@ -8268,20 +8291,20 @@ export default function AiInboxPwa() {
                 {t("aiSupport.inbox.pwa.noMessagesMatch")}
               </div>
             )
-          ) : isSocialMode ? (
+          ) : isSocialMode && !portalMode ? (
             renderSocialCommentsWorkspace()
           ) : null}
 
           {tab === "leads" ? (
             <LeadsView
-              conversations={conversations}
+              conversations={portalMode ? portalMessageConversations : conversations}
               search={debouncedSearch}
               leadFilter={leadFilter}
               onLeadFilterChange={setLeadFilter}
               onOpenConversation={openConversation}
             />
           ) : null}
-          {tab === "more" ? <MoreView installAvailable={Boolean(installPrompt)} onInstall={installApp} /> : null}
+          {tab === "more" && !portalMode ? <MoreView installAvailable={Boolean(installPrompt)} onInstall={installApp} /> : null}
         </main>
 
         {showComposer ? (
@@ -8380,8 +8403,8 @@ export default function AiInboxPwa() {
 
         {!contentScreen ? (
         <nav className="ai-pwa-fixed ai-pwa-nav fixed inset-x-0 bottom-0 z-20 mx-auto w-full border-t border-slate-200 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
-          <div className="grid grid-cols-5 gap-1">
-            {NAV_ITEMS.map((item) => {
+          <div className={`grid gap-1 ${portalMode ? "grid-cols-3" : "grid-cols-5"}`}>
+            {navItems.map((item) => {
               const active = tab === item.key;
               const Icon = item.icon;
               return (
@@ -8389,6 +8412,10 @@ export default function AiInboxPwa() {
                   key={item.key}
                   type="button"
                   onClick={() => {
+                    if (item.key === "portal_home") {
+                      navigate(portal?.homePath || "/");
+                      return;
+                    }
                     if (item.key === "config") {
                       setSettingsSheetOpen(true);
                       return;

@@ -15,6 +15,7 @@ import {
 } from "../services/employeeChatService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { employeeCanActOnOnlineOrders, setEmployeeOnlineOrdersAccess } from "../modules/shipping/shipping.portal.access.js";
+import { employeePortalInboxEnabled, setEmployeePortalInboxAccess } from "../modules/aiInboxPortal/portalInboxAccess.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -308,6 +309,30 @@ router.patch("/:employeeId/online-orders-access", protect, permit("employees", "
     return res.json({ success: true, ...result });
   } catch (error) {
     console.error("[employees] online orders access update error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update access" });
+  }
+});
+// الرسائل: may this employee open the AI Inbox messages (no comments) from their portal?
+router.get("/:employeeId/portal-inbox-access", protect, permit("employees", "view"), async (req, res) => {
+  try {
+    const enabled = await employeePortalInboxEnabled({ employeeId: req.params.employeeId, tenantId: req.user?.tenant_id || req.user?.tenantId || null });
+    return res.json({ success: true, enabled });
+  } catch (error) {
+    console.error("[employees] portal inbox access read error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load access" });
+  }
+});
+
+router.patch("/:employeeId/portal-inbox-access", protect, permit("employees", "edit"), async (req, res) => {
+  try {
+    const result = await setEmployeePortalInboxAccess({
+      employeeId: req.params.employeeId,
+      tenantId: req.user?.tenant_id || req.user?.tenantId || null,
+      enabled: req.body?.enabled === true,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employees] portal inbox access update error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update access" });
   }
 });

@@ -55,7 +55,7 @@ const dependenciesReadBeforeDeclaration = ({ lines, start, end }) => {
 
 const SURFACES = [
   ["src/modules/aiSupport/pages/AiInbox.jsx", "export default function AiInbox({ reviewerMode = false })"],
-  ["src/modules/aiSupport/pages/AiInboxPwa.jsx", "export default function AiInboxPwa()"],
+  ["src/modules/aiSupport/pages/AiInboxPwa.jsx", "export default function AiInboxPwa({ portal = null } = {})"],
 ];
 
 for (const [file, startsWith] of SURFACES) {

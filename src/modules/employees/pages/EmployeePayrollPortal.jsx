@@ -76,6 +76,7 @@ import i18n from "../../../i18n/i18n";
 const ringText = (key) => i18n.t(`common.chatRing.${key}`);
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
+import { getEmployeePortalInboxAccess } from "../services/employeePortalInboxApi";
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
 import { getEmployeeSalesOpportunities, getEmployeeSalesBoard } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
@@ -1559,7 +1560,16 @@ export default function EmployeePayrollPortal() {
   const language = "ar";
   // Dictionary strings on this screen (أوردرات الشحن, chat ring) must be Arabic too, and
   // re-render once the Arabic dictionary is active.
-  useEmployeePortalArabic();
+  const { t: portalT } = useEmployeePortalArabic();
+  // الرسائل shows only for employees the admin switched on.
+  const [inboxEnabled, setInboxEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    getEmployeePortalInboxAccess(token)
+      .then((response) => { if (!cancelled) setInboxEnabled(response?.enabled === true); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [token]);
   useEffect(() => {
     const idle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1500));
     const cancel = window.cancelIdleCallback || window.clearTimeout;
@@ -3925,6 +3935,19 @@ export default function EmployeePayrollPortal() {
                 <ClipboardList className="h-4 w-4" />
                 <span>{text.inventoryTab}</span>
               </a>
+
+              {inboxEnabled ? (
+                <button
+                  type="button"
+                  data-testid="employee-inbox-link"
+                  onPointerEnter={() => { void import("./EmployeePortalInbox"); }}
+                  onClick={() => navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inbox`)}
+                  className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  <span>{portalT("employeePortal.messages.entry")}</span>
+                </button>
+              ) : null}
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
