@@ -1,5 +1,5 @@
 import { emailButton, emailFooter, emailHeader, emailLayout, orderSummary, paymentPanel, productRows } from "./components.js";
-import { customerEmailFooter, customerEmailHeader, renderCustomerOrderEmailBody } from "./customerEmailDesign.js";
+import { adminEmailFooter, customerEmailFooter, customerEmailHeader, renderAdminOrderEmailBody, renderCustomerOrderEmailBody } from "./customerEmailDesign.js";
 import { deliveryLabel, escapeHtml, formatCurrency, formatOrderDate, paymentLabel, statusLabel } from "./helpers.js";
 
 const infoCell = (label, value) => `<td style="padding:10px;border:1px solid #e8e3da;border-radius:8px"><div style="color:#77736b;font:11px Arial,sans-serif">${escapeHtml(label)}</div><div style="margin-top:4px;font:700 13px/1.5 Arial,sans-serif">${escapeHtml(value || "-")}</div></td>`;
@@ -33,15 +33,10 @@ export const renderAdminOrderNotification = (data = {}) => {
   const number = order.public_order_number || order.invoice_number || order.id;
   // A till-raised online order goes through the same checkout; say which door it came in by.
   const fromTill = String(order.origin_surface || "").toLowerCase() === "pos";
-  const body = `<div style="font:700 24px/1.35 Arial,sans-serif">${fromTill ? "أوردر أونلاين جديد من الكاشير" : "طلب جديد من الموقع"}</div><p style="color:#6b6861;font:14px Arial,sans-serif">تم إنشاء الطلب بنجاح داخل قاعدة البيانات.</p>
-  <table role="presentation" width="100%" cellspacing="8" cellpadding="0"><tr>${infoCell("رقم الطلب", number)}${infoCell("وقت الطلب", formatOrderDate(order.created_at))}</tr><tr>${infoCell("العميل", order.customer_name)}${infoCell("الهاتف", order.customer_phone)}</tr><tr>${infoCell("المحافظة", order.governorate)}${infoCell("طلبات سابقة", String(previousOrdersCount))}</tr><tr>${infoCell("طريقة الدفع", paymentLabel(order.payment_method))}${infoCell("طريقة التوصيل", deliveryLabel(order.shipping_method || order.shipping_provider))}</tr></table>
-  <div style="margin:16px 8px;padding:12px;border-radius:10px;background:#f7f5f0;font:13px/1.8 Arial,sans-serif"><strong>العنوان:</strong> ${escapeHtml(order.shipping_address_line || order.customer_address || "-")}</div>
-  ${productsTable(items)}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px">${orderSummary(order)}</table>
-  ${paymentPanel(payment, { audience: "admin" })}
-  <div style="margin-top:28px;text-align:center">${emailButton({ href: links.erpOrder, label: "فتح الطلب في ERP" })}${emailButton({ href: links.invoice, label: "فتح الفاتورة", secondary: true })}</div>`;
+  const body = renderAdminOrderEmailBody({ order, items, links, payment, previousOrdersCount, fromTill, deliveryName: deliveryLabel(order.shipping_method || order.shipping_provider) });
   return {
     subject: `${fromTill ? "أوردر أونلاين من الكاشير" : "طلب موقع جديد"} ${number} — ${formatCurrency(order.total_amount || order.total)}${payment?.kind === "advance_required" ? " — مستني دفع الشحن" : payment?.kind === "transfer_review" ? " — تحويل مستني مراجعة" : ""}`,
     text: `طلب جديد ${number}. العميل: ${order.customer_name || "-"}. الهاتف: ${order.customer_phone || "-"}. الإجمالي: ${formatCurrency(order.total_amount || order.total)}.`,
-    html: emailLayout({ preheader: `طلب جديد ${number}`, header: emailHeader(brand), body, footer: emailFooter(brand) }),
+    html: emailLayout({ preheader: `طلب جديد ${number}`, header: customerEmailHeader(brand), body, footer: adminEmailFooter() }),
   };
 };

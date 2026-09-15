@@ -74,8 +74,13 @@ test("admin notification contains operational order data and previous-order coun
   assert.match(rendered.subject, /WEB-701/);
   assert.match(rendered.html, /فتح الطلب في ERP/);
   assert.match(rendered.html, /فتح الفاتورة/);
-  assert.match(rendered.html, />3</);
+  assert.match(rendered.html, />طلبات سابقة</);
+  assert.match(rendered.html, /3 <span[^>]*>— عميل راجع/);
   assert.match(rendered.html, /201000000000/);
+  // Same design as the customer email: the round-logo header and the redesigned cards.
+  assert.match(rendered.html, /border-radius:42px/);
+  assert.match(rendered.html, /إشعار داخلي/);
+  assert.doesNotMatch(rendered.html, /DAMIETTA/);
 });
 
 test("storefront checkout queues email through a savepoint before commit", async () => {
@@ -148,7 +153,7 @@ test("a stale cod_amount never reaches the email (INV-1616)", () => {
 
 test("a till-raised online order is labelled as one and the track link carries the phone", async () => {
   const admin = renderAdminOrderNotification({ ...fixture, order: { ...fixture.order, origin_surface: "pos" } });
-  assert.match(admin.html, /أوردر أونلاين جديد من الكاشير/);
+  assert.match(admin.html, /أوردر أونلاين من الكاشير/);
   const source = await readFile(new URL("../server/services/transactionalEmail/orderEmailService.js", import.meta.url), "utf8");
   assert.match(source, /buildOrderTrackingUrl\(number, order\.customer_phone, appUrl\)/);
 });

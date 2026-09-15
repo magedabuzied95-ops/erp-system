@@ -241,3 +241,67 @@ export const customerEmailFooter = ({ supportEmail = "support@m1store-egy.com", 
     <div style="margin-top:6px;font:400 11px/1.6 ${FONT};color:#55524c" dir="ltr">© ${year} M1 Store</div>
   </td></tr>`;
 };
+
+/* ------------------------------------------------------------- admin email */
+
+// The shop's own "new order" email in the same design (owner, 2026-09-15): the same header, cards
+// and footer, but written for whoever fulfils it — who ordered, how it pays, what to do next.
+const factCell = (label, value) => `<div style="display:inline-block;width:100%;max-width:262px;min-width:200px;vertical-align:top;margin:0 6px 10px;text-align:right" dir="rtl">
+  ${card(`<div style="font:400 11px/1.4 ${FONT};color:${C.muted}">${escapeHtml(label)}</div><div style="margin-top:4px;font:700 14px/1.6 ${FONT};color:${C.ink}">${value || "-"}</div>`, { padding: 14 })}
+</div>`;
+
+// Amounts inside an Arabic sentence stay one left-to-right run, or "EGP 90.00" splits around the words.
+const ltrMoney = (value) => `<span dir="ltr" style="white-space:nowrap">${formatCurrency(value)}</span>`;
+
+const adminPaymentCallout = (payment = null) => {
+  if (!payment) return "";
+  const wrap = (tone, title, text) => {
+    const background = tone === "warn" ? C.warnSoft : tone === "green" ? C.greenSoft : C.soft;
+    const border = tone === "warn" ? "#f1d27a" : tone === "green" ? "#bfe3cd" : C.line;
+    return card(`<div style="font:700 15px/1.5 ${FONT};color:${C.ink}">${title}</div><div style="margin-top:6px;font:400 13px/1.9 ${FONT};color:${C.body}">${text}</div>`, { background, border, padding: 18 });
+  };
+  if (payment.kind === "advance_required") {
+    return wrap("warn", "مستني دفع الشحن قبل الشحن", `المحافظة برّه محافظات الدفع عند الاستلام. العميل لازم يحوّل ${ltrMoney(payment.advance)} الأول، وبعدها اضغط "تم دفع الشحن" على الأوردر. المندوب هيحصّل ${ltrMoney(payment.collect)}.`);
+  }
+  if (payment.kind === "transfer_review") {
+    return wrap("neutral", "تحويل مستني مراجعة", `العميل رفع صورة تحويل بـ ${ltrMoney(payment.transferred)}. راجعها وأكّدها من صفحة الأوردر.${payment.collect > 0 ? ` الباقي عند الاستلام ${ltrMoney(payment.collect)}.` : ""}`);
+  }
+  if (payment.kind === "cod") {
+    return wrap("neutral", "دفع عند الاستلام", `المندوب هيحصّل ${ltrMoney(payment.collect)}.${payment.paid > 0 ? ` المدفوع مقدّم ${ltrMoney(payment.paid)}.` : ""}`);
+  }
+  return wrap("green", "مدفوع بالكامل", "مفيش مبلغ هيتحصّل عند الاستلام.");
+};
+
+export const renderAdminOrderEmailBody = ({ order = {}, items = [], links = {}, payment = null, previousOrdersCount = 0, fromTill = false, deliveryName = "" } = {}) => {
+  const number = order.public_order_number || order.invoice_number || order.id;
+  const phones = [order.customer_phone, order.customer_secondary_phone].filter(Boolean)
+    .map((phone) => `<span dir="ltr" style="white-space:nowrap">${escapeHtml(phone)}</span>`).join(" / ");
+  const address = [order.shipping_address_line || order.customer_address, [order.city_area, order.governorate].filter(Boolean).join("، ")]
+    .filter(Boolean).map((line) => escapeHtml(line)).join("<br>");
+  const repeat = Number(previousOrdersCount || 0);
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+    <tr><td style="text-align:center">
+      <div style="display:inline-block;padding:6px 14px;border-radius:999px;background:${C.goldSoft};border:1px solid #efd98f;font:700 12px/1.4 ${FONT};color:${C.goldDeep}">${fromTill ? "أوردر أونلاين من الكاشير" : "طلب جديد من الموقع"}</div>
+      <div style="margin-top:12px;font:700 24px/1.4 ${FONT};color:${C.ink}">أوردر <span dir="ltr">${escapeHtml(number)}</span></div>
+      <div style="margin-top:4px;font:700 26px/1.3 ${FONT};color:${C.goldDeep}">${formatCurrency(order.total_amount || order.total)}</div>
+      <div style="margin-top:6px;font:400 12px/1.6 ${FONT};color:${C.muted}">${escapeHtml(formatOrderDate(order.created_at))}</div>
+    </td></tr>
+    ${spacer(20)}
+    ${payment ? `<tr><td>${adminPaymentCallout(payment)}</td></tr>${spacer(14)}` : ""}
+    <tr><td style="text-align:center;font-size:0">
+      ${factCell("العميل", escapeHtml(order.customer_name))}${factCell("الموبايل", phones)}
+      ${factCell("المحافظة", escapeHtml(order.governorate))}${factCell("طلبات سابقة", repeat > 0 ? `${repeat} <span style="font-weight:400;color:${C.muted}">— عميل راجع</span>` : `0 <span style="font-weight:400;color:${C.muted}">— أول طلب</span>`)}
+      ${factCell("طريقة الدفع", escapeHtml(paymentLabel(order.payment_method)))}${factCell("التوصيل", escapeHtml(deliveryName))}
+    </td></tr>
+    ${address ? `${spacer(4)}<tr><td>${card(`<div style="font:700 13px/1.4 ${FONT};color:${C.ink};margin-bottom:6px">العنوان</div><div style="font:400 13px/1.8 ${FONT};color:${C.body}">${address}</div>${order.delivery_notes || order.order_notes ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed ${C.line};font:400 12px/1.8 ${FONT};color:${C.muted}">ملاحظات: ${escapeHtml(order.delivery_notes || order.order_notes)}</div>` : ""}`, { padding: 16 })}</td></tr>` : ""}
+    ${spacer(14)}
+    <tr><td>${card(`${sectionTitle(`المنتجات (${items.reduce((sum, item) => sum + Math.max(1, Number(item.quantity || 1)), 0)})`)}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${items.map(productCard).join("")}</table>${totals(order)}`)}</td></tr>
+    ${spacer(18)}
+    <tr><td style="text-align:center">${button({ href: links.erpOrder, label: "فتح الطلب في ERP", tone: "gold" })}${button({ href: links.invoice, label: "فتح الفاتورة", tone: "light" })}</td></tr>
+  </table>`;
+};
+
+export const adminEmailFooter = () => `<tr><td bgcolor="#101010" style="padding:22px 32px;background:#101010;text-align:center" dir="rtl">
+    <div style="font:400 11px/1.9 ${FONT};color:#6f6c65">إشعار داخلي من نظام المتجر — مابيتبعتش للعميل.</div>
+    <div style="margin-top:4px;font:400 11px/1.6 ${FONT};color:#55524c" dir="ltr">© ${new Date().getFullYear()} M1 Store</div>
+  </td></tr>`;
