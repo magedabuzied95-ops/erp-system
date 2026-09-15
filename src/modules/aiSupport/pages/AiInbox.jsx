@@ -1,3 +1,4 @@
+import { applyInboxMessageDelete, applyInboxMessageEdit, isSameInboxMessage, messageDeleteToast, messageEditToast } from "../services/messageActions.js";
 import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -2639,6 +2640,7 @@ const Transcript = memo(function Transcript({
   onPrivateMessage,
   onReact,
   onEditMessage,
+  onDeleteMessage,
   reactionOptions,
   olderMessagesAvailable = false,
 }) {
@@ -2726,6 +2728,7 @@ const Transcript = memo(function Transcript({
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
               onEditMessage={onEditMessage}
+              onDeleteMessage={onDeleteMessage}
               reactionOptions={reactionOptions}
               channelLabel={row.channelLabel}
               channelKey={threadChannel}
@@ -8600,9 +8603,10 @@ export default function AiInbox({ reviewerMode = false }) {
     }
   }, [headers, selectedConversation, selectedConversationRouteId, tenantId]);
 
-  // Edits a message that already reached the customer. WhatsApp accepts the edit
-  // only inside its own 15-minute window, so the server is the authority — the
-  // local thread is rewritten only after it confirms.
+  // Edits a message we sent. The server decides where the edit lands: on the
+  // customer's phone when WhatsApp still allows it (15 minutes), otherwise in the
+  // inbox only — and every replaced text stays on the message's edit history. The
+  // local thread is rewritten only after the server confirms.
   const editMessage = useCallback(async ({ message = {}, text = "", targetMessageId = "", remoteJid = "" } = {}) => {
     if (!selectedConversation?.session_id || !targetMessageId) return null;
     const conversationIdentifier = clean(selectedConversation.conversation_key || selectedConversation.session_id);
@@ -8613,29 +8617,44 @@ export default function AiInbox({ reviewerMode = false }) {
         target_message_id: targetMessageId,
         remote_jid: remoteJid,
       }, { headers, perfComponent: "AiInbox.messageEdit" });
-      const editedAt = clean(payload?.edited_at) || new Date().toISOString();
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
-        messages: asArray(conversation.messages).map((item) => {
-          const sameMessage = (message.id && item.id === message.id)
-            || clean(item.provider_message_id) === clean(targetMessageId)
-            || clean(item.external_message_id) === clean(targetMessageId);
-          if (!sameMessage) return item;
-          return {
-            ...item,
-            message_text: text,
-            staff_message: item.staff_message ? text : item.staff_message,
-            ai_answer: item.ai_answer ? text : item.ai_answer,
-            edited_at: editedAt,
-            original_message_text: item.original_message_text || clean(payload?.previous_text),
-          };
-        }),
+        messages: asArray(conversation.messages).map((item) => (
+          isSameInboxMessage(item, message, targetMessageId) ? applyInboxMessageEdit(item, payload, text) : item
+        )),
       }));
-      setToast({ tone: "emerald", text: "تم تعديل الرسالة عند العميل" });
+      setToast({ tone: "emerald", text: messageEditToast(payload) });
       return payload;
     } catch (editError) {
       setToast({ tone: "rose", text: editError?.message || "تعذر تعديل الرسالة" });
       throw editError;
+    }
+  }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
+
+  // Deletes one message: "everyone" recalls our WhatsApp message from the customer's
+  // phone too, "inbox" removes it from the inbox only. The row stays in the thread
+  // as a "deleted" placeholder.
+  const deleteMessage = useCallback(async ({ message = {}, scope = "inbox", targetMessageId = "", remoteJid = "" } = {}) => {
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    const conversationIdentifier = clean(selectedConversation.conversation_key || selectedConversation.session_id);
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/delete"), {
+        tenant_id: tenantId,
+        scope,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+      }, { headers, perfComponent: "AiInbox.messageDelete" });
+      patchConversation(conversationIdentifier, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          isSameInboxMessage(item, message, targetMessageId) ? applyInboxMessageDelete(item, payload, scope) : item
+        )),
+      }));
+      setToast({ tone: "emerald", text: messageDeleteToast(payload) });
+      return payload;
+    } catch (deleteError) {
+      setToast({ tone: "rose", text: deleteError?.message || "تعذر حذف الرسالة" });
+      throw deleteError;
     }
   }, [headers, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
 
@@ -9779,7 +9798,8 @@ export default function AiInbox({ reviewerMode = false }) {
                         onReplyComment={sendLeadCommentReplyQuick}
                         onPrivateMessage={sendLeadPrivateMessage}
                         onReact={(isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) || isMetaChannel(selectedConversation?.channel || selectedConversation?.source)) ? reactToMessage : null}
-                        onEditMessage={isWhatsappChannel(selectedConversation?.channel || selectedConversation?.source) ? editMessage : null}
+                        onEditMessage={canReply ? editMessage : null}
+                        onDeleteMessage={canReply ? deleteMessage : null}
                         reactionOptions={clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("instagram") ? INSTAGRAM_MESSAGE_REACTIONS : clean(selectedConversation?.channel || selectedConversation?.source).toLowerCase().includes("messenger") ? MESSENGER_MESSAGE_REACTIONS : undefined}
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />

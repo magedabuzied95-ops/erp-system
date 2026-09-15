@@ -606,6 +606,20 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       // the list, and its transcript starts after this moment, until the customer
       // writes again. Nullable, no default — metadata-only on a hot table.
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
+      // One message deleted or edited from the inbox. Soft for the same reason as the
+      // thread: the syncs would re-import a removed row. deleted_scope / edit_scope say
+      // whether the customer's phone changed too ('everyone') or only our copy ('inbox');
+      // edit_history keeps every text the message carried and when it was replaced.
+      // One statement, one lock; all nullable with no default — metadata-only.
+      await clientOrPool.query(`
+        ALTER TABLE IF EXISTS ai_support_messages
+          ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL,
+          ADD COLUMN IF NOT EXISTS deleted_by BIGINT NULL,
+          ADD COLUMN IF NOT EXISTS deleted_scope TEXT NULL,
+          ADD COLUMN IF NOT EXISTS edited_by BIGINT NULL,
+          ADD COLUMN IF NOT EXISTS edit_scope TEXT NULL,
+          ADD COLUMN IF NOT EXISTS edit_history JSONB NULL
+      `);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS sentiment TEXT`);
@@ -969,7 +983,28 @@ const logAiInboxConversationFilterDebug = ({
   });
 };
 
-export const normalizeInboxMessage = (row = {}) => {
+// What a deleted message says in place of its text. The row keeps its side and its
+// place in the thread; the text, media and cards stay in the database only.
+export const DELETED_INBOX_MESSAGE_TEXT = "تم حذف هذه الرسالة";
+
+export const normalizeInboxMessage = (rawRow = {}) => {
+  const row = rawRow.deleted_at
+    ? {
+        ...rawRow,
+        message_text: DELETED_INBOX_MESSAGE_TEXT,
+        customer_message: rawRow.customer_message ? DELETED_INBOX_MESSAGE_TEXT : "",
+        staff_message: rawRow.staff_message ? DELETED_INBOX_MESSAGE_TEXT : "",
+        ai_answer: rawRow.ai_answer ? DELETED_INBOX_MESSAGE_TEXT : "",
+        original_message_text: "",
+        edit_history: null,
+        product_cards: [],
+        productCards: [],
+        suggested_products: [],
+        visual_attachments: [],
+        suggested_actions: [],
+        message_type: "text",
+      }
+    : rawRow;
   const senderType = text(row.sender_type || (row.staff_message ? "staff" : "customer")).toLowerCase();
   const isOutbound = ["staff", "agent", "human", "assistant", "ai", "bot", "system"].includes(senderType);
   const body = row.message_text || row.staff_message || row.ai_answer || row.customer_message || "";
@@ -998,6 +1033,10 @@ export const normalizeInboxMessage = (row = {}) => {
     message_type: row.message_type || "",
     edited_at: row.edited_at || null,
     original_message_text: row.original_message_text || "",
+    edit_scope: row.edit_scope || null,
+    edit_history: asArray(row.edit_history),
+    deleted_at: row.deleted_at || null,
+    deleted_scope: row.deleted_scope || null,
     confidence: Number(row.confidence || 0),
     needs_human_support: row.needs_human_support === true,
     detected_intent: row.detected_intent || "",
@@ -1103,6 +1142,10 @@ const summarizeInboxMessage = (row = {}) => {
     // attachments here made an inbound photo show as text-only there while the
     // desktop inbox (which always refetches /messages) rendered it fine.
     visual_attachments: asArray(row.visual_attachments),
+    // Only when set: the client merges this preview over the thread it already holds,
+    // and a null here would undo an edit or a delete it has already drawn.
+    ...(row.edited_at ? { edited_at: row.edited_at } : {}),
+    ...(row.deleted_at ? { deleted_at: row.deleted_at, deleted_scope: row.deleted_scope || null } : {}),
     created_at: row.created_at,
     system_events: Array.isArray(row.system_events) ? row.system_events.slice(0, 2) : [],
   };
@@ -2654,6 +2697,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ${unreadCustomerMessageCountSql} AS unread_count,
       ${unreadFromChatPreviewSql("m.latest_message_created_at")},
       m.latest_message_id,
+      m.latest_message_edited_at,
+      m.latest_message_deleted_at,
+      m.latest_message_deleted_scope,
       m.latest_message_customer_name,
       m.latest_message_customer_avatar_url,
       m.customer_message,
@@ -2705,6 +2751,9 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     LEFT JOIN LATERAL (
       SELECT
         msg.id AS latest_message_id,
+        msg.edited_at AS latest_message_edited_at,
+        msg.deleted_at AS latest_message_deleted_at,
+        msg.deleted_scope AS latest_message_deleted_scope,
         msg.customer_name AS latest_message_customer_name,
         msg.customer_avatar_url AS latest_message_customer_avatar_url,
         msg.customer_message,
@@ -2801,6 +2850,13 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           // real row, so a thread holding that row got the preview appended as a second copy.
           id: conversation.latest_message_id,
           created_at: conversation.latest_message_created_at || conversation.updated_at,
+          // The spread also carries the SESSION's deleted_at (a deleted thread); the
+          // message's own columns are the ones that describe this row.
+          edited_at: conversation.latest_message_edited_at || null,
+          deleted_at: conversation.latest_message_deleted_at || null,
+          deleted_scope: conversation.latest_message_deleted_scope || null,
+          edit_history: null,
+          edit_scope: null,
           customer_message: isOutboundMessageRow(conversation) ? "" : conversation.customer_message || conversation.message_text || "",
           message_text: conversation.message_text || conversation.customer_message || "",
           ai_answer: conversation.ai_answer || (isOutboundMessageRow(conversation) ? conversation.message_text || "" : ""),

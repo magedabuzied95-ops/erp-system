@@ -143,6 +143,8 @@ import {
   markAiSupportConversationRead,
   markAiSupportConversationUnread,
   deleteAiSupportConversation,
+  markAiSupportMessageDeleted,
+  recordAiSupportMessageEdit,
   markAllAiSupportConversationsRead,
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
@@ -5960,60 +5962,107 @@ router.post("/conversations/:conversationId/reaction", protect, inboxReply(), as
   }
 });
 
-// Editing a message that already reached the customer. WhatsApp is the only
-// channel of ours that has an edit primitive at all — Instagram and Messenger
-// expose no edit endpoint, so those conversations are refused up front instead
-// of silently rewriting only our copy of the thread.
+// Editing and deleting one message from the inbox.
+//
+// WhatsApp is the only channel with primitives for either: an edit inside its own
+// 15-minute window and a delete-for-everyone inside about two days, and only for a
+// message we sent. Everything else — an older message, Messenger, Instagram, a
+// customer's own message — changes our copy of the thread only, and the row says so
+// (edit_scope / deleted_scope = 'inbox') so nobody mistakes it for what the customer
+// sees. Every replaced text is kept on edit_history with the moment it was replaced.
 const EDITABLE_MESSAGE_TYPES = new Set(["", "text", "private_message"]);
+const OUTBOUND_MESSAGE_SENDERS = new Set(["staff", "agent", "human", "ai", "assistant", "bot", "system"]);
+// WhatsApp's own limit is a little over two days; staying under it means the button
+// never offers a recall the phone will refuse. Mirrored in TranscriptMessage.jsx.
+const WHATSAPP_DELETE_WINDOW_MS = 48 * 60 * 60 * 1000;
 
+const loadInboxActionTarget = async ({ req, tenantId, requestedConversationId, requestedTargetId, codePrefix }) => {
+  if (!requestedTargetId) {
+    throw Object.assign(new Error("Message id is required"), { status: 400, code: `${codePrefix}_MESSAGE_ID_REQUIRED` });
+  }
+  const conversation = await loadLeadConversationForAction({ tenantId, conversationId: requestedConversationId });
+  if (!conversation) {
+    throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+  }
+  const sessionId = envText(conversation.session_id || requestedConversationId);
+  const targetResult = await db.query(
+    `
+    SELECT id, session_id, provider_message_id, external_message_id, message_identity_key, remote_jid, resolved_reply_jid,
+           resolved_phone, whatsapp_instance, sender_type, message_type, message_text, staff_message, ai_answer,
+           customer_message, original_message_text, visual_attachments, product_cards, created_at, deleted_at
+    FROM ai_support_messages
+    WHERE tenant_id = $1::bigint
+      AND session_id = $2::text
+      AND (
+        provider_message_id = $3::text
+        OR external_message_id = $3::text
+        OR id::text = $3::text
+      )
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [tenantId, sessionId, requestedTargetId]
+  );
+  const target = targetResult.rows[0] || null;
+  if (!target) {
+    throw Object.assign(new Error("Message not found in this conversation"), { status: 404, code: `${codePrefix}_TARGET_NOT_FOUND` });
+  }
+  const channel = envText(conversation.channel || conversation.source).toLowerCase();
+  const isWhatsapp = channel.includes("whatsapp");
+  const rawRemoteJid = envText(
+    target.remote_jid ||
+    target.resolved_reply_jid ||
+    req.body?.remote_jid ||
+    conversation.remote_jid ||
+    conversation.channel_metadata?.remote_jid ||
+    conversation.channel_metadata?.resolved_reply_jid ||
+    conversation.external_customer_id ||
+    conversation.customer_phone ||
+    conversation.customer_profile?.phone
+  ).replace(/^whatsapp:/i, "");
+  // A LID chat is addressed @lid, never @s.whatsapp.net — same trap the
+  // reaction path hit.
+  const remoteDigits = rawRemoteJid.replace(/\D/g, "");
+  const remoteJid = normalizeWhatsappRemoteJid(rawRemoteJid)
+    || (rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "");
+  const instance = envText(target.whatsapp_instance || conversation.channel_metadata?.whatsapp_instance || conversation.channel_metadata?.instance);
+  return {
+    conversation,
+    sessionId,
+    target,
+    channel,
+    isWhatsapp,
+    remoteJid,
+    instance,
+    // Only an Evolution number can edit or recall; a Cloud API number has neither.
+    evolutionNumber: isWhatsapp && !instance.toLowerCase().startsWith("cloud:"),
+    providerMessageId: envText(target.provider_message_id || target.external_message_id),
+    outbound: OUTBOUND_MESSAGE_SENDERS.has(envText(target.sender_type).toLowerCase()),
+    sentAtMs: target.created_at ? new Date(target.created_at).getTime() : 0,
+  };
+};
+
+// scope: "everyone" insists the customer's phone changes too (and fails if WhatsApp
+// cannot), "inbox" changes our copy only, and no scope does whichever is possible.
 router.post("/conversations/:conversationId/message/edit", protect, inboxReply(), async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const requestedConversationId = envText(req.params.conversationId);
     const requestedTargetId = envText(req.body?.target_message_id || req.body?.message_id || req.body?.targetMessageId);
+    const requestedScope = envText(req.body?.scope).toLowerCase();
     const nextText = String(req.body?.text ?? req.body?.message ?? "").trim();
-    if (!requestedTargetId) {
-      throw Object.assign(new Error("Message id is required for an edit"), { status: 400, code: "MESSAGE_EDIT_MESSAGE_ID_REQUIRED" });
-    }
     if (!nextText) {
       throw Object.assign(new Error("New message text is required"), { status: 400, code: "MESSAGE_EDIT_TEXT_REQUIRED" });
     }
     if (nextText.length > 4096) {
       throw Object.assign(new Error("Message text is too long to edit"), { status: 400, code: "MESSAGE_EDIT_TEXT_TOO_LONG" });
     }
-    const conversation = await loadLeadConversationForAction({ tenantId, conversationId: requestedConversationId });
-    if (!conversation) {
-      throw Object.assign(new Error("Conversation not found"), { status: 404, code: "AI_INBOX_CONVERSATION_NOT_FOUND" });
+    const action = await loadInboxActionTarget({ req, tenantId, requestedConversationId, requestedTargetId, codePrefix: "MESSAGE_EDIT" });
+    const { target, sessionId } = action;
+    if (target.deleted_at) {
+      throw Object.assign(new Error("A deleted message cannot be edited"), { status: 409, code: "MESSAGE_EDIT_DELETED" });
     }
-    const channel = envText(conversation.channel || conversation.source).toLowerCase();
-    if (!channel.includes("whatsapp")) {
-      throw Object.assign(new Error("Editing a sent message is only supported on WhatsApp"), { status: 409, code: "MESSAGE_EDIT_CHANNEL_UNSUPPORTED" });
-    }
-    const sessionId = envText(conversation.session_id || requestedConversationId);
-    const targetResult = await db.query(
-      `
-      SELECT id, provider_message_id, external_message_id, remote_jid, resolved_reply_jid, resolved_phone,
-             sender_type, message_type, message_text, staff_message, ai_answer, customer_message,
-             original_message_text, visual_attachments, product_cards, created_at
-      FROM ai_support_messages
-      WHERE tenant_id = $1::bigint
-        AND session_id = $2::text
-        AND (
-          provider_message_id = $3::text
-          OR external_message_id = $3::text
-          OR id::text = $3::text
-        )
-      ORDER BY created_at DESC, id DESC
-      LIMIT 1
-      `,
-      [tenantId, sessionId, requestedTargetId]
-    );
-    const target = targetResult.rows[0] || null;
-    if (!target) {
-      throw Object.assign(new Error("Message not found in this conversation"), { status: 404, code: "MESSAGE_EDIT_TARGET_NOT_FOUND" });
-    }
-    const senderType = envText(target.sender_type).toLowerCase();
-    if (!["staff", "agent", "human", "ai", "assistant", "bot", "system"].includes(senderType)) {
+    if (!action.outbound) {
       throw Object.assign(new Error("Only messages we sent can be edited"), { status: 409, code: "MESSAGE_EDIT_INBOUND_NOT_EDITABLE" });
     }
     const messageType = envText(target.message_type).toLowerCase();
@@ -6022,85 +6071,126 @@ router.post("/conversations/:conversationId/message/edit", protect, inboxReply()
     if (!EDITABLE_MESSAGE_TYPES.has(messageType) || hasAttachments || hasProductCards) {
       throw Object.assign(new Error("Only a plain text message can be edited"), { status: 409, code: "MESSAGE_EDIT_TYPE_NOT_EDITABLE" });
     }
-    const sentAt = target.created_at ? new Date(target.created_at).getTime() : 0;
-    if (!sentAt || Date.now() - sentAt > WHATSAPP_EDIT_WINDOW_MS) {
-      throw Object.assign(
-        new Error("WhatsApp only allows editing a message within 15 minutes of sending it"),
-        { status: 409, code: "MESSAGE_EDIT_WINDOW_EXPIRED" }
-      );
-    }
-    const targetMessageId = envText(target.provider_message_id || target.external_message_id);
-    if (!targetMessageId) {
-      throw Object.assign(new Error("This message has no WhatsApp id, so it cannot be edited"), { status: 409, code: "MESSAGE_EDIT_PROVIDER_ID_MISSING" });
-    }
-    const rawRemoteJid = envText(
-      target.remote_jid ||
-      target.resolved_reply_jid ||
-      req.body?.remote_jid ||
-      conversation.remote_jid ||
-      conversation.channel_metadata?.remote_jid ||
-      conversation.channel_metadata?.resolved_reply_jid ||
-      conversation.external_customer_id ||
-      conversation.customer_phone ||
-      conversation.customer_profile?.phone
-    ).replace(/^whatsapp:/i, "");
-    // A LID chat is addressed @lid, never @s.whatsapp.net — same trap the
-    // reaction path hit.
-    const remoteDigits = rawRemoteJid.replace(/\D/g, "");
-    const remoteJid = normalizeWhatsappRemoteJid(rawRemoteJid)
-      || (rawRemoteJid.includes("@") ? rawRemoteJid : remoteDigits ? `${remoteDigits}@s.whatsapp.net` : "");
     const previousText = envText(target.message_text || target.staff_message || target.ai_answer || target.customer_message);
-    await editWhatsappTextMessage({
-      remoteJid,
-      targetMessageId,
-      messageText: nextText,
-      instance: envText(conversation.channel_metadata?.whatsapp_instance || conversation.channel_metadata?.instance),
+    if (nextText === previousText) {
+      throw Object.assign(new Error("The text did not change"), { status: 400, code: "MESSAGE_EDIT_UNCHANGED" });
+    }
+
+    const withinWindow = Boolean(action.sentAtMs) && Date.now() - action.sentAtMs <= WHATSAPP_EDIT_WINDOW_MS;
+    const reachesCustomer = action.evolutionNumber && withinWindow && Boolean(action.providerMessageId) && Boolean(action.remoteJid);
+    if (requestedScope === "everyone" && !reachesCustomer) {
+      const [message, code] = !action.isWhatsapp
+        ? ["Only WhatsApp can edit a message on the customer's phone", "MESSAGE_EDIT_CHANNEL_UNSUPPORTED"]
+        : !withinWindow
+          ? ["WhatsApp only allows editing a message within 15 minutes of sending it", "MESSAGE_EDIT_WINDOW_EXPIRED"]
+          : ["This message cannot be edited on WhatsApp", "MESSAGE_EDIT_PROVIDER_ID_MISSING"];
+      throw Object.assign(new Error(message), { status: 409, code });
+    }
+    const scope = requestedScope === "inbox" || !reachesCustomer ? "inbox" : "everyone";
+    if (scope === "everyone") {
+      await editWhatsappTextMessage({
+        remoteJid: action.remoteJid,
+        targetMessageId: action.providerMessageId,
+        messageText: nextText,
+        instance: action.instance,
+      });
+    }
+    // Written after WhatsApp accepted the edit, so an 'everyone' row can never
+    // carry text the customer did not receive.
+    const stored = await recordAiSupportMessageEdit({
+      tenantId,
+      sessionId,
+      messageId: target.id,
+      nextText,
+      previousText,
+      scope,
+      userId: req.user?.id || null,
+      userName: userDisplayName(req.user),
     });
-    // Only rewrite our copy of the thread after WhatsApp accepted the edit, so
-    // the inbox can never show text the customer never received.
-    await db.query(
-      `
-      UPDATE ai_support_messages
-      SET message_text = $3::text,
-          staff_message = CASE WHEN staff_message <> '' THEN $3::text ELSE staff_message END,
-          ai_answer = CASE WHEN ai_answer <> '' THEN $3::text ELSE ai_answer END,
-          last_message = CASE WHEN last_message <> '' THEN $3::text ELSE last_message END,
-          original_message_text = CASE WHEN original_message_text = '' THEN $4::text ELSE original_message_text END,
-          edited_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE tenant_id = $1::bigint
-        AND id = $2::bigint
-      `,
-      [tenantId, target.id, nextText, previousText]
-    );
-    await db.query(
-      `
-      UPDATE ai_support_sessions
-      SET last_message = $3::text,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE tenant_id = $1::bigint
-        AND session_id = $2::text
-        AND last_message = $4::text
-      `,
-      [tenantId, sessionId, nextText, previousText]
-    ).catch(() => null);
+    console.log("[ai-inbox][message-edit]", { tenant_id: tenantId, session_id: sessionId, message_id: target.id, scope, user_id: req.user?.id || null });
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
       tenant_id: tenantId,
       session_id: sessionId,
-      channel: "whatsapp",
+      channel: action.channel,
       reason: "staff_message_edited",
       at: new Date().toISOString(),
     });
     return res.json({
       success: true,
       message_id: target.id,
-      target_message_id: targetMessageId,
+      target_message_id: action.providerMessageId || String(target.id),
       text: nextText,
       previous_text: previousText,
-      edited_at: new Date().toISOString(),
+      scope,
+      edit_scope: stored.edit_scope,
+      edit_history: stored.edit_history || [],
+      original_message_text: stored.original_message_text || previousText,
+      edited_at: stored.edited_at,
     });
   } catch (error) {
     return sendError(res, error, "Failed to edit the sent message");
+  }
+});
+
+// scope: "everyone" recalls our WhatsApp message from the customer's phone as well
+// (and fails if WhatsApp cannot); "inbox" removes it from the inbox only, for any
+// message in the thread, on any channel.
+router.post("/conversations/:conversationId/message/delete", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedConversationId = envText(req.params.conversationId);
+    const requestedTargetId = envText(req.body?.target_message_id || req.body?.message_id || req.body?.targetMessageId);
+    const scope = envText(req.body?.scope).toLowerCase() === "everyone" ? "everyone" : "inbox";
+    const action = await loadInboxActionTarget({ req, tenantId, requestedConversationId, requestedTargetId, codePrefix: "MESSAGE_DELETE" });
+    const { target, sessionId } = action;
+    if (target.deleted_at && scope === "inbox") {
+      return res.json({ success: true, message_id: target.id, deleted_at: target.deleted_at, deleted_scope: "inbox", already_deleted: true });
+    }
+    if (scope === "everyone") {
+      if (!action.isWhatsapp || !action.evolutionNumber) {
+        throw Object.assign(new Error("Only WhatsApp can delete a message from the customer's phone"), { status: 409, code: "MESSAGE_DELETE_CHANNEL_UNSUPPORTED" });
+      }
+      if (!action.outbound) {
+        throw Object.assign(new Error("Only messages we sent can be deleted for everyone"), { status: 409, code: "MESSAGE_DELETE_INBOUND" });
+      }
+      if (!action.sentAtMs || Date.now() - action.sentAtMs > WHATSAPP_DELETE_WINDOW_MS) {
+        throw Object.assign(new Error("WhatsApp only allows deleting a message for everyone within two days of sending it"), { status: 409, code: "MESSAGE_DELETE_WINDOW_EXPIRED" });
+      }
+      if (!action.providerMessageId || !action.remoteJid) {
+        throw Object.assign(new Error("This message has no WhatsApp id, so it cannot be deleted for everyone"), { status: 409, code: "MESSAGE_DELETE_PROVIDER_ID_MISSING" });
+      }
+      const { deleteWhatsappMessageForEveryone } = await import("../services/whatsappCapabilitiesService.js");
+      await deleteWhatsappMessageForEveryone({
+        chatJid: action.remoteJid,
+        messageId: action.providerMessageId,
+        fromMe: true,
+        instance: action.instance,
+      });
+    }
+    const stored = await markAiSupportMessageDeleted({
+      tenantId,
+      sessionId,
+      message: target,
+      scope,
+      userId: req.user?.id || null,
+    });
+    console.log("[ai-inbox][message-delete]", { tenant_id: tenantId, session_id: sessionId, message_id: target.id, scope, rows: stored.rows, user_id: req.user?.id || null });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: sessionId,
+      channel: action.channel,
+      reason: "staff_message_deleted",
+      at: new Date().toISOString(),
+    });
+    return res.json({
+      success: true,
+      message_id: target.id,
+      target_message_id: action.providerMessageId || String(target.id),
+      deleted_at: stored.deleted_at,
+      deleted_scope: stored.deleted_scope,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to delete the message");
   }
 });
 

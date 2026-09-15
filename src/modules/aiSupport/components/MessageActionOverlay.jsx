@@ -279,13 +279,15 @@ export default function MessageActionOverlay({
           transformOrigin: layout.anchorRight ? "top right" : "top left",
         }}
       >
-        {items.map(({ label, icon: Icon, action, disabled, active, fill }) => (
+        {items.map(({ label, icon: Icon, action, disabled, active, fill, danger }) => (
           <button
             key={label}
             type="button"
             role="menuitem"
             onClick={action}
             disabled={disabled}
+            // Inline, like the bubble colours: the theme layer re-points the red utilities.
+            style={danger ? { color: "#ef4444" } : undefined}
             className={`flex h-11 w-full items-center gap-3 px-3.5 text-left text-[13.5px] font-semibold transition disabled:opacity-40 ${skin.item} ${active ? skin.active : ""}`}
           >
             {Icon ? <Icon className={`h-[18px] w-[18px] shrink-0 ${fill ? "fill-current" : ""}`} /> : null}

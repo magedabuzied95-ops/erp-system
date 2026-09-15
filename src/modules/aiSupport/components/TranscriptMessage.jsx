@@ -1,6 +1,6 @@
 ﻿import { memo, useContext, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Camera, CheckSquare, Copy, ExternalLink, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, UserCheck, X } from "lucide-react";
+import { Ban, Bot, Camera, CheckSquare, Copy, ExternalLink, History, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, Trash2, UserCheck, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -32,10 +32,12 @@ const MESSAGE_FOCUS_EVENT = "m1:ai-inbox-message-focus";
 // transcript ignores an opening tap for a moment after a sheet closes.
 const ACTION_SHEET_REOPEN_GUARD_MS = 350;
 let actionSheetClosedAt = 0;
-// WhatsApp refuses an edit older than 15 minutes, so the action disappears
-// rather than offering a button that can only fail. Mirrors
-// WHATSAPP_EDIT_WINDOW_MS on the server.
+// WhatsApp refuses an edit older than 15 minutes and a recall older than about two
+// days. Past those an edit or a delete changes the inbox only, and the editor says
+// so before it is saved. Mirrors WHATSAPP_EDIT_WINDOW_MS and
+// WHATSAPP_DELETE_WINDOW_MS on the server.
 const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+const MESSAGE_DELETE_FOR_EVERYONE_WINDOW_MS = 48 * 60 * 60 * 1000;
 const EDITABLE_MESSAGE_TYPES = new Set(["", "text", "private_message"]);
 const isOutboundMessage = (message = {}) =>
   message.from_me === true ||
@@ -46,6 +48,27 @@ const staffSenderLabel = (message = {}) => {
   const source = clean(`${message.source_path || ""} ${message.insert_source || ""} ${message.message_type || ""}`).toLowerCase();
   if (source.includes("automation") || source.includes("system")) return "النظام";
   return "أنا";
+};
+
+// The moment of an edit: the time alone today, the date with it otherwise.
+const actionStamp = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const sameDay = date.toDateString() === new Date().toDateString();
+  return date.toLocaleString("ar-EG", sameDay ? { timeStyle: "short" } : { dateStyle: "medium", timeStyle: "short" });
+};
+
+// Every text the message has carried, oldest first, each with the moment it was
+// replaced. An edit saved before edit_history existed still has its original text.
+export const messageEditVersions = (message = {}, currentText = "") => {
+  const history = asArray(message.edit_history).filter((entry) => entry && typeof entry === "object");
+  const versions = history.length
+    ? history.map((entry) => ({ text: clean(entry.text), at: entry.replaced_at || "", scope: clean(entry.scope), by: clean(entry.user_name) }))
+    : clean(message.original_message_text)
+      ? [{ text: clean(message.original_message_text), at: message.edited_at || "", scope: clean(message.edit_scope) || "everyone", by: "" }]
+      : [];
+  return [...versions, { text: clean(currentText), at: "", scope: "", by: "", current: true }];
 };
 
 const absoluteTime = (value) => {
@@ -206,7 +229,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   );
 }
 
-function MessageActionShell({ row, message, variant, mode = "dark", align = "left", createdAt = "", channelLabel = "", onReact, onEditMessage, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
+function MessageActionShell({ row, message, variant, mode = "dark", align = "left", createdAt = "", channelLabel = "", channelKey = "", onReact, onEditMessage, onDeleteMessage, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
   const { t } = useTranslation();
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -222,6 +245,9 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
   const [editDraft, setEditDraft] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [locallyEdited, setLocallyEdited] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState("");
   const [pinned, setPinned] = useState(() => readStoredMessageSet(MESSAGE_PIN_STORAGE_KEY).has(key));
   const [starred, setStarred] = useState(() => readStoredMessageSet(MESSAGE_STAR_STORAGE_KEY).has(key));
   const shellRef = useRef(null);
@@ -235,20 +261,37 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
   const ownReactionEmoji = reactionEmoji(ownReaction?.message_text || ownReaction?.text || ownReaction?.customer_message || ownReaction?.staff_message);
   const effectiveOwnReaction = localReaction === null ? ownReactionEmoji : localReaction;
   const reactionTargetMessageId = clean(message.provider_message_id || message.external_message_id || message.whatsapp_message_id || message.message_id);
-  const canReact = Boolean(onReact && reactionTargetMessageId);
+  const deleted = Boolean(message.deleted_at);
+  const canReact = Boolean(onReact && reactionTargetMessageId && !deleted);
+  const actionTargetId = reactionTargetMessageId || clean(message.id);
   const sentAtMs = message.created_at ? new Date(message.created_at).getTime() : 0;
-  const withinEditWindow = Boolean(sentAtMs) && Date.now() - sentAtMs <= MESSAGE_EDIT_WINDOW_MS;
+  const whatsappThread = clean(channelKey || message.channel).toLowerCase().includes("whatsapp");
+  const outbound = isOutboundMessage(message);
+  const isNote = clean(message.message_type).toLowerCase() === "internal_note";
+  // An edit reaches the customer only on WhatsApp, inside its window; any other
+  // edit of ours rewrites the inbox copy, and the editor says so first.
+  const editReachesCustomer = whatsappThread && Boolean(reactionTargetMessageId) && Boolean(sentAtMs) && Date.now() - sentAtMs <= MESSAGE_EDIT_WINDOW_MS;
   const canEdit = Boolean(
     onEditMessage
-      && reactionTargetMessageId
+      && !deleted
+      && actionTargetId
       && text
-      && isOutboundMessage(message)
-      && withinEditWindow
+      && outbound
       && EDITABLE_MESSAGE_TYPES.has(clean(message.message_type).toLowerCase())
       && !asArray(message.visual_attachments).length
       && !asArray(message.product_cards || message.productCards).length
   );
-  const wasEdited = Boolean(message.edited_at) || locallyEdited;
+  const canDelete = Boolean(onDeleteMessage && !deleted && actionTargetId);
+  const canDeleteForEveryone = canDelete
+    && whatsappThread
+    && outbound
+    && !isNote
+    && Boolean(reactionTargetMessageId)
+    && Boolean(sentAtMs)
+    && Date.now() - sentAtMs <= MESSAGE_DELETE_FOR_EVERYONE_WINDOW_MS;
+  const wasEdited = !deleted && (Boolean(message.edited_at) || locallyEdited);
+  const editVersions = wasEdited ? messageEditVersions(message, text) : [];
+  const editedInboxOnly = clean(message.edit_scope) === "inbox";
   const displayedReactions = [
     ...reactions.filter((reaction) => reaction !== ownReaction),
     ...(effectiveOwnReaction ? [{ id: `local-reaction:${key}`, message_text: effectiveOwnReaction, from_me: true, direction: "outbound", sender_type: "staff" }] : []),
@@ -266,6 +309,8 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
     setEditing(false);
     setEditDraft("");
     setLocallyEdited(false);
+    setHistoryOpen(false);
+    setDeleteOpen(false);
   }, [key]);
 
   // The sheet dismisses itself: it owns the scrim, so a stray listener here
@@ -306,7 +351,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
     || shellRef.current;
 
   const canOpenActionsFrom = (target) => {
-    if (editing || menuOpen) return false;
+    if (editing || deleteOpen || menuOpen) return false;
     if (Date.now() - actionSheetClosedAt < ACTION_SHEET_REOPEN_GUARD_MS) return false;
     if (!target?.closest?.("[data-ai-message-bubble='true'], [data-ai-message-body='true']")) return false;
     if (target.closest("a, button, input, textarea, select, audio, video, [role='button']")) return false;
@@ -434,7 +479,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
         row,
         message,
         text: nextText,
-        targetMessageId: reactionTargetMessageId,
+        targetMessageId: actionTargetId,
         remoteJid: clean(message.remote_jid || message.resolved_reply_jid || message.channel_metadata?.remote_jid || ""),
       });
       setLocallyEdited(true);
@@ -447,14 +492,39 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
     }
   };
 
-  const menuItems = [
+  const submitDelete = async (scope) => {
+    if (!canDelete || deleteSaving) return;
+    if (scope === "everyone" && !canDeleteForEveryone) return;
+    setDeleteSaving(scope);
+    try {
+      await onDeleteMessage({
+        row,
+        message,
+        scope,
+        targetMessageId: actionTargetId,
+        remoteJid: clean(message.remote_jid || message.resolved_reply_jid || message.channel_metadata?.remote_jid || ""),
+      });
+      setDeleteOpen(false);
+    } catch {
+      // The caller raises the toast; the panel stays so the other choice is one tap away.
+    } finally {
+      setDeleteSaving("");
+    }
+  };
+
+  // A deleted message has nothing left to reply to, copy or edit — only its details.
+  const menuItems = deleted ? [
+    { label: t("aiSupport.inbox.message.info"), icon: Info, action: () => { setInfoOpen(true); closeActions(); } },
+  ] : [
     { label: t("aiSupport.inbox.message.reply"), icon: ReplyIcon, action: replyToMessage, disabled: !text },
     ...(canEdit ? [{ label: t("aiSupport.inbox.message.edit"), icon: Pencil, action: startEditing }] : []),
+    ...(editVersions.length > 1 ? [{ label: t("aiSupport.inbox.message.editHistory"), icon: History, action: () => { setHistoryOpen(true); closeActions(); } }] : []),
     { label: t(copied ? "aiSupport.inbox.message.copied" : "aiSupport.inbox.message.copy"), icon: Copy, action: copyMessage, disabled: !text },
     { label: t(pinned ? "aiSupport.inbox.message.unpin" : "aiSupport.inbox.message.pin"), icon: pinned ? PinOff : Pin, action: togglePinned },
     { label: t(starred ? "aiSupport.inbox.message.unstar" : "aiSupport.inbox.message.star"), icon: Star, action: toggleStarred, active: starred, fill: starred },
     { label: t(selected ? "aiSupport.inbox.message.deselect" : "aiSupport.inbox.message.select"), icon: CheckSquare, action: () => { setSelected((current) => !current); closeActions(); }, active: selected },
     { label: t("aiSupport.inbox.message.info"), icon: Info, action: () => { setInfoOpen(true); closeActions(); } },
+    ...(canDelete ? [{ label: t("aiSupport.inbox.message.delete"), icon: Trash2, action: () => { setDeleteOpen(true); closeActions(); }, danger: true }] : []),
   ];
 
   return (
@@ -479,7 +549,19 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
         <div className={`mb-1 flex items-center gap-1.5 px-2 text-[10px] font-black text-amber-400 ${align === "right" ? "justify-end" : "justify-start"}`}>
           {pinned ? <span className="inline-flex items-center gap-1"><Pin className="h-3 w-3" /> {t("aiSupport.inbox.message.pinned")}</span> : null}
           {starred ? <span className="inline-flex items-center gap-1"><Star className="h-3 w-3 fill-current" /> {t("aiSupport.inbox.message.starred")}</span> : null}
-          {wasEdited ? <span className="inline-flex items-center gap-1"><Pencil className="h-3 w-3" /> {t("aiSupport.inbox.message.edited")}</span> : null}
+          {wasEdited ? (
+            <button
+              type="button"
+              data-ai-message-edited="true"
+              title={t("aiSupport.inbox.message.editHistory")}
+              onClick={(event) => { event.stopPropagation(); if (editVersions.length > 1) setHistoryOpen(true); }}
+              className="inline-flex items-center gap-1 rounded-full hover:underline"
+            >
+              <Pencil className="h-3 w-3" />
+              {message.edited_at ? t("aiSupport.inbox.message.editedAt", { time: actionStamp(message.edited_at) }) : t("aiSupport.inbox.message.edited")}
+              {editedInboxOnly ? <span className="opacity-80">· {t("aiSupport.inbox.message.editedInboxOnly")}</span> : null}
+            </button>
+          ) : null}
         </div>
       ) : null}
       {/* The pressable body of the message, and the node the sheet lifts when
@@ -504,11 +586,46 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
               className={`w-full resize-y rounded-xl border px-3 py-2 text-sm font-semibold outline-none ${variant === "pwa" ? "border-slate-200 bg-slate-50 text-slate-900" : "border-white/10 bg-black/25 text-white"}`}
             />
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold text-slate-400">{t("aiSupport.inbox.message.editHint")}</span>
+              <span className="text-[10px] font-bold text-slate-400">{t(editReachesCustomer ? "aiSupport.inbox.message.editHintEveryone" : "aiSupport.inbox.message.editHintInbox")}</span>
               <div className="flex items-center gap-2">
                 <button type="button" disabled={editSaving} onClick={() => setEditing(false)} className="rounded-lg px-3 py-1.5 text-xs font-black text-slate-400 transition hover:bg-white/10 disabled:opacity-50">{t("aiSupport.inbox.message.editCancel")}</button>
                 <button type="button" disabled={editSaving || !clean(editDraft) || clean(editDraft) === text} onClick={() => void submitEdit()} className="rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-black text-black transition hover:bg-amber-300 disabled:opacity-40">{t(editSaving ? "aiSupport.inbox.message.editSaving" : "aiSupport.inbox.message.editSave")}</button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteOpen ? (
+        <div data-ai-message-delete="true" className={`mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
+          <div dir="rtl" className={`w-full max-w-[420px] rounded-2xl border p-3 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#20231f] text-white"}`}>
+            <div className="flex items-center gap-1.5 text-[12px] font-black" style={{ color: "#ef4444" }}>
+              <Trash2 className="h-3.5 w-3.5" />
+              {t("aiSupport.inbox.message.deleteTitle")}
+            </div>
+            <p className="mt-1 text-[11px] font-bold leading-5 text-slate-400">
+              {t(canDeleteForEveryone ? "aiSupport.inbox.message.deleteEveryoneHint" : "aiSupport.inbox.message.deleteInboxHint")}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+              <button type="button" disabled={Boolean(deleteSaving)} onClick={() => setDeleteOpen(false)} className="rounded-lg px-3 py-1.5 text-xs font-black text-slate-400 transition hover:bg-white/10 disabled:opacity-50">{t("aiSupport.inbox.message.deleteCancel")}</button>
+              <button
+                type="button"
+                disabled={Boolean(deleteSaving)}
+                onClick={() => void submitDelete("inbox")}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-black transition disabled:opacity-40 ${variant === "pwa" ? "border-slate-200 hover:bg-slate-100" : "border-white/15 hover:bg-white/10"}`}
+              >
+                {t(deleteSaving === "inbox" ? "aiSupport.inbox.message.deleting" : "aiSupport.inbox.message.deleteFromInbox")}
+              </button>
+              {canDeleteForEveryone ? (
+                <button
+                  type="button"
+                  disabled={Boolean(deleteSaving)}
+                  onClick={() => void submitDelete("everyone")}
+                  style={{ background: "#ef4444", color: "#ffffff" }}
+                  className="rounded-lg px-3 py-1.5 text-xs font-black transition hover:opacity-90 disabled:opacity-40"
+                >
+                  {t(deleteSaving === "everyone" ? "aiSupport.inbox.message.deleting" : "aiSupport.inbox.message.deleteForEveryone")}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>
@@ -588,6 +705,18 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
               <dt className="text-slate-400">{t("aiSupport.inbox.message.time")}</dt><dd className="font-bold">{createdAt || "—"}</dd>
               <dt className="text-slate-400">{t("aiSupport.inbox.message.type")}</dt><dd className="font-bold">{message.message_type || row.kind || "message"}</dd>
               <dt className="text-slate-400">{t("aiSupport.inbox.message.status")}</dt><dd className="font-bold">{message.delivery_status || "—"}</dd>
+              {message.edited_at && !deleted ? (
+                <>
+                  <dt className="text-slate-400">{t("aiSupport.inbox.message.edited")}</dt>
+                  <dd className="font-bold">{absoluteTime(message.edited_at)}{editedInboxOnly ? ` · ${t("aiSupport.inbox.message.editedInboxOnly")}` : ""}</dd>
+                </>
+              ) : null}
+              {deleted ? (
+                <>
+                  <dt className="text-slate-400">{t("aiSupport.inbox.message.deleted")}</dt>
+                  <dd className="font-bold">{absoluteTime(message.deleted_at)}{clean(message.deleted_scope) === "inbox" ? ` · ${t("aiSupport.inbox.message.deletedInboxOnly")}` : ""}</dd>
+                </>
+              ) : null}
               {/* The AI bubble used to print "conf 0.62" beside the sender caption.
                   It is a diagnostic, not chat, so it moved here with the rest. */}
               {Number(message.confidence) > 0 ? (
@@ -598,6 +727,35 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
               ) : null}
               <dt className="text-slate-400">{t("aiSupport.inbox.message.identifier")}</dt><dd dir="ltr" className="truncate text-left font-mono text-xs">{key || "—"}</dd>
             </dl>
+          </section>
+        </div>
+      ) : null}
+      {historyOpen ? (
+        <div className="fixed inset-0 z-[2147482500] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryOpen(false); }}>
+          <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.editHistory")} className="flex max-h-[80vh] w-full max-w-md flex-col rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-lg font-black"><History className="h-5 w-5" /> {t("aiSupport.inbox.message.editHistory")}</h3>
+              <button type="button" onClick={() => setHistoryOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5"><X className="h-4 w-4" /></button>
+            </div>
+            <ol data-ai-message-edit-history="true" className="mt-4 space-y-2 overflow-y-auto">
+              {editVersions.map((version, index) => (
+                <li key={`${index}:${version.at}`} className={`rounded-2xl border p-3 ${version.current ? "border-amber-300/40 bg-amber-300/10" : "border-white/10 bg-black/20"}`}>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] font-black text-slate-400">
+                    <span className={version.current ? "text-amber-300" : ""}>
+                      {version.current
+                        ? t("aiSupport.inbox.message.editHistoryCurrent")
+                        : index === 0
+                          ? t("aiSupport.inbox.message.editHistoryOriginal")
+                          : `#${index + 1}`}
+                    </span>
+                    {version.at ? <span>· {t("aiSupport.inbox.message.editHistoryReplaced", { time: absoluteTime(version.at) })}</span> : null}
+                    {version.scope ? <span>· {t(version.scope === "inbox" ? "aiSupport.inbox.message.editHistoryInboxOnly" : "aiSupport.inbox.message.editHistoryEveryone")}</span> : null}
+                    {version.by ? <span>· {version.by}</span> : null}
+                  </div>
+                  <p dir="auto" className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold">{version.text || "—"}</p>
+                </li>
+              ))}
+            </ol>
           </section>
         </div>
       ) : null}
@@ -897,6 +1055,7 @@ function TranscriptMessage({
   onPrivateMessage,
   onReact,
   onEditMessage,
+  onDeleteMessage,
   reactionOptions = QUICK_MESSAGE_REACTIONS,
   channelLabel = "",
   channelKey = "",
@@ -989,13 +1148,36 @@ function TranscriptMessage({
       align={align}
       createdAt={createdAt}
       channelLabel={channelLabel}
+      channelKey={channelKey}
       onReact={onReact}
       onEditMessage={onEditMessage}
+      onDeleteMessage={onDeleteMessage}
       reactionOptions={reactionOptions}
     >
       {children}
     </MessageActionShell>
   );
+
+  /* ── A deleted message ──────────────────────────────────────────────────
+   * It keeps its side and its place in the thread, the way the customer's own app
+   * leaves "This message was deleted" behind; the text is gone from the screen. */
+  if (message.deleted_at) {
+    const inboxOnly = clean(message.deleted_scope) === "inbox";
+    return shell(
+      <ChatRow side={side} align={align} variant={variant} avatarUrl={avatarUrl} customerName={customerName || commenterName} showAvatar={showAvatar}>
+        <ChatBubble skin={skin} radius={chrome.radius} side={side}>
+          <p data-ai-message-deleted="true" dir="auto" style={{ color: skin.meta }} className={`flex items-center gap-1.5 italic ${textClass}`}>
+            <Ban className="h-3.5 w-3.5 shrink-0" />
+            {t("aiSupport.inbox.message.deleted")}
+          </p>
+          {inboxOnly ? (
+            <p style={{ color: skin.meta }} className="mt-0.5 text-[10.5px] font-semibold leading-4">{t("aiSupport.inbox.message.deletedInboxOnly")}</p>
+          ) : null}
+          <BubbleStamp skin={skin} time={clock} status="" showTicks={false} />
+        </ChatBubble>
+      </ChatRow>
+    );
+  }
 
   /* ── The product card ─────────────────────────────────────────────────────
    * On WhatsApp the card is the outgoing bubble; on Messenger and Instagram the
@@ -1153,5 +1335,5 @@ function TranscriptMessage({
   );
 }
 
-export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.onEditMessage === next.onEditMessage && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel && prev.channelKey === next.channelKey && prev.avatarUrl === next.avatarUrl && prev.customerName === next.customerName && prev.showAvatar === next.showAvatar);
+export default memo(TranscriptMessage, (prev, next) => prev.row === next.row && prev.variant === next.variant && prev.onOpenCorrection === next.onOpenCorrection && prev.onReact === next.onReact && prev.onEditMessage === next.onEditMessage && prev.onDeleteMessage === next.onDeleteMessage && prev.reactionOptions === next.reactionOptions && prev.channelLabel === next.channelLabel && prev.channelKey === next.channelKey && prev.avatarUrl === next.avatarUrl && prev.customerName === next.customerName && prev.showAvatar === next.showAvatar);
 

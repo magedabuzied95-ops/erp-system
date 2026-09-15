@@ -1,3 +1,4 @@
+import { applyInboxMessageDelete, applyInboxMessageEdit, isSameInboxMessage, messageDeleteToast, messageEditToast } from "../services/messageActions.js";
 import { createPortal } from "react-dom";
 import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
@@ -2496,6 +2497,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   onPrivateMessage,
   onReact,
   onEditMessage,
+  onDeleteMessage,
   onOpenCorrection,
   reactionOptions,
 }) {
@@ -2595,6 +2597,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
               onPrivateMessage={onPrivateMessage}
               onReact={onReact}
               onEditMessage={onEditMessage}
+              onDeleteMessage={onDeleteMessage}
               onOpenCorrection={onOpenCorrection}
               reactionOptions={reactionOptions}
               channelKey={threadChannel}
@@ -5846,10 +5849,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
     }
   }, [headers, requestRefresh, selectedConversationRouteId, tenantId]);
 
-  // Edits a message the customer already received. WhatsApp only, and only
-  // inside its 15-minute window — the server is the authority, so the thread is
-  // refreshed from it rather than patched optimistically.
-  const editMessage = useCallback(async ({ text = "", targetMessageId = "", remoteJid = "" } = {}) => {
+  // Edits a message we sent. The server decides where it lands: the customer's
+  // phone while WhatsApp still allows it (15 minutes), the inbox only otherwise —
+  // every replaced text stays on the message's edit history. The confirmed answer
+  // is applied to the thread on the spot, then the refresh brings the rest.
+  const editMessage = useCallback(async ({ message = {}, text = "", targetMessageId = "", remoteJid = "" } = {}) => {
     // The live conversation, without taking a dependency on it (see the ref).
     const selectedConversation = selectedConversationRef.current;
     if (!selectedConversation?.session_id || !targetMessageId) return null;
@@ -5860,14 +5864,48 @@ export default function AiInboxPwa({ portal = null } = {}) {
         target_message_id: targetMessageId,
         remote_jid: remoteJid,
       }, { headers, perfComponent: "AiInboxPwa.messageEdit" });
-      toast.success("تم تعديل الرسالة عند العميل");
+      patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          isSameInboxMessage(item, message, targetMessageId) ? applyInboxMessageEdit(item, payload, text) : item
+        )),
+      }));
+      toast.success(messageEditToast(payload));
       requestRefresh("message-edit", { silent: true, force: true });
       return payload;
     } catch (editError) {
       toast.error(editError?.message || "تعذر تعديل الرسالة");
       throw editError;
     }
-  }, [headers, requestRefresh, selectedConversationRouteId, tenantId]);
+  }, [headers, patchConversation, requestRefresh, selectedConversationRouteId, tenantId]);
+
+  // Deletes one message: "everyone" recalls our WhatsApp message from the
+  // customer's phone too, "inbox" removes it from the inbox only. The row stays
+  // in the thread as a "deleted" placeholder.
+  const deleteMessage = useCallback(async ({ message = {}, scope = "inbox", targetMessageId = "", remoteJid = "" } = {}) => {
+    const selectedConversation = selectedConversationRef.current;
+    if (!selectedConversation?.session_id || !targetMessageId) return null;
+    try {
+      const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || selectedConversation.session_id, "/message/delete"), {
+        tenant_id: tenantId,
+        scope,
+        target_message_id: targetMessageId,
+        remote_jid: remoteJid,
+      }, { headers, perfComponent: "AiInboxPwa.messageDelete" });
+      patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
+        ...conversation,
+        messages: asArray(conversation.messages).map((item) => (
+          isSameInboxMessage(item, message, targetMessageId) ? applyInboxMessageDelete(item, payload, scope) : item
+        )),
+      }));
+      toast.success(messageDeleteToast(payload));
+      requestRefresh("message-delete", { silent: true, force: true });
+      return payload;
+    } catch (deleteError) {
+      toast.error(deleteError?.message || "تعذر حذف الرسالة");
+      throw deleteError;
+    }
+  }, [headers, patchConversation, requestRefresh, selectedConversationRouteId, tenantId]);
 
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
     const explicitText = typeof overrideText === "string" ? overrideText : "";
@@ -8294,7 +8332,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
                   onReplyComment={portalMode ? null : sendLeadCommentReply}
                   onPrivateMessage={portalMode ? null : sendLeadPrivateMessage}
                   onReact={["whatsapp", "instagram", "messenger"].includes(normalizeConversationChannel(selectedConversation || {})) ? reactToMessage : null}
-                  onEditMessage={normalizeConversationChannel(selectedConversation || {}) === "whatsapp" ? editMessage : null}
+                  onEditMessage={canReply ? editMessage : null}
+                  onDeleteMessage={canReply ? deleteMessage : null}
                   onOpenCorrection={openReplyCorrection}
                   reactionOptions={normalizeConversationChannel(selectedConversation || {}) === "instagram" ? INSTAGRAM_MESSAGE_REACTIONS : normalizeConversationChannel(selectedConversation || {}) === "messenger" ? MESSENGER_MESSAGE_REACTIONS : undefined}
                 />

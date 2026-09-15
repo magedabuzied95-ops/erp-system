@@ -656,9 +656,11 @@ const persistOutboundTranscriptRow = async ({
       tenant_id = $3,
       user_id = $4,
       session_id = $5,
-      message_text = $6,
-      customer_message = $7,
-      ai_answer = $8,
+      -- A message staff edited from the inbox keeps the edited text: a provider echo or
+      -- a history re-import of the same id carries the text it was first sent with.
+      message_text = CASE WHEN edited_at IS NULL THEN $6 ELSE message_text END,
+      customer_message = CASE WHEN edited_at IS NULL THEN $7 ELSE customer_message END,
+      ai_answer = CASE WHEN edited_at IS NULL THEN $8 ELSE ai_answer END,
       confidence = $9,
       needs_human_support = $10,
       sources_used = $11::jsonb,
@@ -667,7 +669,7 @@ const persistOutboundTranscriptRow = async ({
       suggested_actions = $14::jsonb,
       detected_intent = $15,
       fallback_reason = $16,
-      staff_message = $17,
+      staff_message = CASE WHEN edited_at IS NULL THEN $17 ELSE staff_message END,
       sender_type = $18,
       manual_message = $19,
       staff_user_id = $20,
@@ -1761,6 +1763,140 @@ export const deleteAiSupportConversation = async ({
     session_id: sessionResult.rows[0].session_id,
     deleted_at: sessionResult.rows[0].deleted_at,
     deleted: true,
+  };
+};
+
+// Our copy of one message after staff edited it. The text it replaced goes onto
+// edit_history with the moment it was replaced, who replaced it, and whether the
+// customer's phone was changed too ('everyone') or only the inbox ('inbox').
+// original_message_text keeps the very first text however many edits follow.
+export const recordAiSupportMessageEdit = async ({
+  tenantId,
+  sessionId,
+  messageId,
+  nextText,
+  previousText,
+  scope = "inbox",
+  userId = null,
+  userName = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeMessageId = numberOrNull(messageId);
+  const safeScope = scope === "everyone" ? "everyone" : "inbox";
+  if (!safeTenantId || !safeMessageId) {
+    throw Object.assign(new Error("tenant_id and message id are required"), { status: 400 });
+  }
+  const entry = {
+    text: toText(previousText),
+    replaced_at: new Date().toISOString(),
+    scope: safeScope,
+    user_id: numberOrNull(userId),
+    user_name: toText(userName),
+  };
+  const result = await db.query(
+    `
+    UPDATE ai_support_messages
+    SET message_text = $3::text,
+        staff_message = CASE WHEN staff_message <> '' THEN $3::text ELSE staff_message END,
+        ai_answer = CASE WHEN ai_answer <> '' THEN $3::text ELSE ai_answer END,
+        last_message = CASE WHEN last_message <> '' THEN $3::text ELSE last_message END,
+        original_message_text = CASE WHEN original_message_text = '' THEN $4::text ELSE original_message_text END,
+        edit_history = COALESCE(edit_history, '[]'::jsonb) || jsonb_build_array($5::jsonb),
+        edit_scope = $6::text,
+        edited_by = $7::bigint,
+        edited_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint
+      AND id = $2::bigint
+      AND deleted_at IS NULL
+    RETURNING id, message_text, original_message_text, edit_history, edit_scope, edited_at
+    `,
+    [safeTenantId, safeMessageId, toText(nextText), entry.text, JSON.stringify(entry), safeScope, entry.user_id]
+  );
+  if (!result.rows.length) {
+    throw Object.assign(new Error("Message not found, or it was deleted"), { status: 404, code: "MESSAGE_EDIT_TARGET_NOT_FOUND" });
+  }
+  await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET last_message = $3::text,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint
+      AND session_id = $2::text
+      AND last_message = $4::text
+    `,
+    [safeTenantId, toText(sessionId), toText(nextText), entry.text]
+  ).catch(() => null);
+  return result.rows[0];
+};
+
+// Delete one message from the inbox. Soft, like a deleted conversation: the WhatsApp
+// and Meta syncs re-import history by provider id, and a removed row would come
+// straight back as a new one. Every row of the thread that carries the same message
+// identity is marked, because the transcript de-duplicates by identity and shows
+// whichever copy is newest. The text stays in the database; the inbox shows a
+// "deleted" placeholder in its place (normalizeInboxMessage).
+export const markAiSupportMessageDeleted = async ({
+  tenantId,
+  sessionId,
+  message = {},
+  scope = "inbox",
+  userId = null,
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  const safeMessageId = numberOrNull(message.id);
+  if (!safeTenantId || !safeSessionId || !safeMessageId) {
+    throw Object.assign(new Error("tenant_id, conversation and message are required"), { status: 400 });
+  }
+  const identities = [
+    toText(message.provider_message_id),
+    toText(message.external_message_id),
+    toText(message.message_identity_key),
+  ].filter(Boolean);
+  const result = await db.query(
+    `
+    UPDATE ai_support_messages
+    SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP),
+        deleted_by = COALESCE(deleted_by, $4::bigint),
+        deleted_scope = CASE WHEN deleted_scope = 'everyone' THEN deleted_scope ELSE $5::text END,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1::bigint
+      AND session_id = $2::text
+      AND (
+        id = $3::bigint
+        OR provider_message_id = ANY($6::text[])
+        OR external_message_id = ANY($6::text[])
+        OR message_identity_key = ANY($6::text[])
+      )
+    RETURNING id, deleted_at, deleted_scope
+    `,
+    [safeTenantId, safeSessionId, safeMessageId, numberOrNull(userId), scope === "everyone" ? "everyone" : "inbox", identities]
+  );
+  if (!result.rows.length) {
+    throw Object.assign(new Error("Message not found in this conversation"), { status: 404, code: "MESSAGE_DELETE_TARGET_NOT_FOUND" });
+  }
+  // The conversation card previews the session's last_message: a deleted line must
+  // not stay there.
+  const previousText = toText(message.message_text || message.staff_message || message.ai_answer || message.customer_message);
+  if (previousText) {
+    await db.query(
+      `
+      UPDATE ai_support_sessions
+      SET last_message = $3::text
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND last_message = $4::text
+      `,
+      [safeTenantId, safeSessionId, "تم حذف هذه الرسالة", previousText]
+    ).catch(() => null);
+  }
+  const primary = result.rows.find((row) => Number(row.id) === safeMessageId) || result.rows[0];
+  return {
+    message_id: safeMessageId,
+    deleted_at: primary.deleted_at,
+    deleted_scope: primary.deleted_scope,
+    rows: result.rows.length,
   };
 };
 
