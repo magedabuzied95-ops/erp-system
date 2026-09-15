@@ -6666,7 +6666,48 @@ const loadPublicOrder = async ({ tenantId, orderNumber: number, phone }) => {
   const order = result.rows[0];
   if (!order) return null;
   const publicOrder = attachPublicOrderNumber(order);
-  const items = await db.query(`SELECT * FROM order_items WHERE order_id = $1 ORDER BY id ASC`, [order.id]);
+  // order_items keeps no picture, so each line borrows its model's: the variant, then
+  // the colour's gallery, then the product — the same order as the shipping board.
+  const items = await db.query(
+    `
+    SELECT oi.*,
+      COALESCE(
+        NULLIF(to_jsonb(oi)->>'image_url', ''),
+        NULLIF(pv.image_url, ''),
+        NULLIF(variant_image.image_url, ''),
+        NULLIF(colour_image.image_url, ''),
+        NULLIF(p.image_url, ''),
+        ''
+      ) AS image_url
+    FROM order_items oi
+    LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+    LEFT JOIN products p ON p.id = COALESCE(oi.product_id, pv.product_id)
+    LEFT JOIN LATERAL (
+      SELECT pvi.image_url
+      FROM product_variant_images pvi
+      WHERE pvi.variant_id = pv.id
+        AND NULLIF(pvi.image_url, '') IS NOT NULL
+      ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+      LIMIT 1
+    ) variant_image ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT pvi.image_url
+      FROM product_variant_images pvi
+      WHERE pvi.product_id = p.id
+        AND NULLIF(pvi.image_url, '') IS NOT NULL
+        AND (
+          NULLIF(pvi.color_name, '') IS NULL
+          OR LOWER(pvi.color_name) = LOWER(COALESCE(pv.color, to_jsonb(oi)->>'color', ''))
+        )
+      ORDER BY (LOWER(COALESCE(pvi.color_name, '')) = LOWER(COALESCE(pv.color, to_jsonb(oi)->>'color', ''))) DESC,
+        pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+      LIMIT 1
+    ) colour_image ON TRUE
+    WHERE oi.order_id = $1
+    ORDER BY oi.id ASC
+    `,
+    [order.id]
+  );
   return { order: publicOrder, items: items.rows };
 };
 
