@@ -7298,7 +7298,10 @@ export const editOrder = async (req, res) => {
         resolvedCustomerId,
         resolvedCustomerName,
         resolvedCustomerPhone,
-        req.body.reason || req.body.notes || null,
+        // The edit reason is a fixed audit line ("POS edit for invoice …"); written here it replaced the
+        // customer's delivery notes and reached the courier on the airway bill (INV-1616). It stays in
+        // order_edit_audits; the order's notes change only when staff send notes of their own.
+        String(req.body.notes || "").trim() || null,
         loaded.order.id,
         req.body.source || null,
         req.body.channel || req.body.source || null,

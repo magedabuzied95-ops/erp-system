@@ -230,3 +230,11 @@ test("an edited online order keeps its own payment method instead of becoming آ
   assert.equal(isOnlineShippingOrder({ source: "pos", channel: "pos", shipping_provider: "in_store_delivery" }), false, "a till sale can still go on credit");
   assert.equal(isOnlineShippingOrder({ source: "pos", shipping_provider: "bosta" }), true);
 });
+
+test("the POS edit reason stays in the audit and never replaces the order notes the courier reads", async () => {
+  const fs = await import("node:fs");
+  const source = fs.readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /req\.body\.reason \|\| req\.body\.notes \|\| null/);
+  assert.match(source, /String\(req\.body\.notes \|\| ""\)\.trim\(\) \|\| null,/);
+  assert.match(source, /req\.body\.reason \|\| "POS invoice edit"/, "the audit row still records the reason");
+});
