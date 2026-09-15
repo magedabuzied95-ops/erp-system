@@ -127,3 +127,12 @@ test("the transcript cache version drops stale standalone reaction snapshots", (
   const version = Number((cacheStore.match(/SCHEMA_VERSION = (\d+)/) || [])[1] || 0);
   assert.ok(version >= 2, `SCHEMA_VERSION must be >= 2, got ${version}`);
 });
+
+test("the phone inbox folds a reaction onto its target instead of drawing a bubble", () => {
+  const rowsBlock = pwaInbox.slice(pwaInbox.indexOf("const selectedTranscriptRows = useMemo"), pwaInbox.indexOf("transcriptRowCacheRef.current = nextRows;"));
+  assert.match(rowsBlock, /reactionsByTarget\.set\(targetId/);
+  assert.match(rowsBlock, /\.filter\(\(message\) => clean\(message\.message_type\)\.toLowerCase\(\) !== "reaction"\)/);
+  assert.match(rowsBlock, /message: normalizedMessage,\s*reactions,/);
+  // The row cache must notice a reaction arriving on an unchanged message.
+  assert.match(rowsBlock, /cached\.reactionsSignature === reactionsSignature/);
+});

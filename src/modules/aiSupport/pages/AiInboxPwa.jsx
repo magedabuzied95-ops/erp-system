@@ -5421,9 +5421,40 @@ export default function AiInboxPwa({ portal = null } = {}) {
     const messages = cascadeDeliveryStatuses(
       uniqueMessages(selectedConversation?.messages || []).filter((message) => !isHiddenAiReplyDraftMessage(message))
     );
+    // A reaction is a row of its own in the log, but it belongs ON the message it
+    // targets. Without this fold the phone drew a customer's ❤️ as a standalone
+    // bubble at the bottom of the thread. Same fold as AiInbox.jsx: the latest
+    // reaction per actor (customer / staff) per target wins.
+    const reactionsByTarget = new Map();
+    messages.forEach((message) => {
+      if (clean(message.message_type).toLowerCase() !== "reaction") return;
+      const targetId = clean(
+        message.external_reply_id ||
+          message.reaction_target_message_id ||
+          message.reactionTargetMessageId ||
+          message.target_message_id
+      );
+      if (!targetId) return;
+      const actorKey = isFromMeMessage(message) ? "staff" : "customer";
+      if (!reactionsByTarget.has(targetId)) reactionsByTarget.set(targetId, new Map());
+      const reactionsByActor = reactionsByTarget.get(targetId);
+      const existing = reactionsByActor.get(actorKey);
+      const existingAt = new Date(existing?.created_at || 0).getTime() || 0;
+      const nextAt = new Date(message.created_at || 0).getTime() || 0;
+      if (!existing || nextAt >= existingAt) reactionsByActor.set(actorKey, message);
+    });
     const rows = messages
+      .filter((message) => clean(message.message_type).toLowerCase() !== "reaction")
       .map((message) => {
         const normalizedMessage = normalizeInboxMessage(message);
+        const reactionIds = [...new Set([
+          normalizedMessage.provider_message_id,
+          normalizedMessage.external_message_id,
+          normalizedMessage.whatsapp_message_id,
+          normalizedMessage.message_id,
+          normalizedMessage.id,
+        ].map(clean).filter(Boolean))];
+        const reactions = reactionIds.flatMap((id) => [...(reactionsByTarget.get(id)?.values() || [])]);
         const cards = normalizeMessageProductCards(normalizedMessage);
         const hasProductCards = cards.length > 0;
         const isFromMe = isFromMeMessage(normalizedMessage);
@@ -5440,13 +5471,17 @@ export default function AiInboxPwa({ portal = null } = {}) {
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
         const rowKey = messageKey(normalizedMessage);
         const cached = previousRows.get(rowKey);
-        if (cached && cached.source === normalizedMessage && cached.row.conversationMetadata === conversationMetadata) {
+        // A new reaction leaves its target message untouched, so the cached row
+        // must also be keyed on the reactions it carries.
+        const reactionsSignature = reactions.map((reaction) => `${messageKey(reaction)}:${clean(reaction.message_text || reaction.customer_message || reaction.staff_message)}`).join("|");
+        if (cached && cached.source === normalizedMessage && cached.reactionsSignature === reactionsSignature && cached.row.conversationMetadata === conversationMetadata) {
           nextRows.set(rowKey, cached);
           return cached.row;
         }
         const row = {
           key: rowKey,
           message: normalizedMessage,
+          reactions,
           cards,
           kind: hasProductCards || normalizedMessage.message_type === "product_card" ? "product_card" : isCustomer ? "customer" : isStaff ? "staff" : "ai",
           visible: true,
@@ -5459,7 +5494,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
           dayKey: transcriptDayKey(normalizedMessage.created_at),
           conversationMetadata,
         };
-        nextRows.set(rowKey, { source: normalizedMessage, row });
+        nextRows.set(rowKey, { source: normalizedMessage, reactionsSignature, row });
         return row;
       })
       .filter(Boolean);
