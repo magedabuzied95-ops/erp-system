@@ -25,6 +25,7 @@ import { generateProductOgImage, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, buildAbsoluteP
 import { generateAiProductData } from "../services/aiProductDataService.js";
 import { understandProductImageForSearch } from "../services/openaiSupportService.js";
 import { searchAiVisualProductsPro } from "../services/aiVisualSearchProService.js";
+import { decideVisualMatch } from "../services/aiVisualProductRecognitionService.js";
 import { isMirrorProduct, mirrorProductTitle, slugifyEdition } from "../utils/mirrorProduct.js";
 import { buildCacheKey, getOrSetCache, getOrSetCacheSWR, markCachePatternStale, onCacheInvalidatePattern } from "../services/cacheService.js";
 import { createPerfTrace } from "../utils/storefrontPerf.js";
@@ -4360,51 +4361,77 @@ export const imageSearchProducts = async (req, res) => {
     }
 
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    let understanding = null;
-    try {
-      understanding = await withTimeout(
+    // Every stage is timed and named in the answer, so a slow or blind search says which part
+    // was slow or blind. LIVE 2026-09-15: a photo straight out of our own catalogue took 42s and
+    // came back empty, and the response could not say whether vision, the index or the local
+    // pixel pass was at fault.
+    const startedAt = Date.now();
+    const timings = {};
+    const timed = async (name, work) => {
+      const stageStartedAt = Date.now();
+      try {
+        const value = await work;
+        timings[name] = { ms: Date.now() - stageStartedAt, status: "ok" };
+        return value;
+      } catch (error) {
+        const message = String(error?.message || "");
+        timings[name] = { ms: Date.now() - stageStartedAt, status: message.endsWith("_timeout") ? "timeout" : "error" };
+        console.warn(`[storefront-image-search] ${name} failed`, { tenantId, message });
+        return null;
+      }
+    };
+
+    // The pixel pass does not need the vision reading, so it starts now and runs beside it
+    // instead of after it — sequential, the three stages' timeouts added up to the 42s.
+    const localSearch = timed(
+      "local_similarity",
+      withTimeout(
+        findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 18 }),
+        process.env.STOREFRONT_IMAGE_LOCAL_SEARCH_TIMEOUT_MS || 15000,
+        "storefront_image_local_search"
+      )
+    );
+
+    const understanding = await timed(
+      "vision",
+      withTimeout(
         understandProductImageForSearch({
           imageBuffer: file.buffer,
           mimeType: file.mimetype,
           requestId: req.id || `storefront-image:${Date.now()}`,
         }),
-        process.env.STOREFRONT_IMAGE_VISION_TIMEOUT_MS || 12000,
+        process.env.STOREFRONT_IMAGE_VISION_TIMEOUT_MS || 20000,
         "storefront_image_vision"
-      );
-    } catch (error) {
-      console.warn("[storefront-image-search] vision understanding failed; continuing with local matching", {
-        tenantId,
-        message: error?.message || "vision failed",
-      });
-    }
+      )
+    );
+    const visionError = String(understanding?.openai_error?.code || understanding?.error || "").trim();
+    if (visionError && timings.vision) timings.vision = { ...timings.vision, status: "error", code: visionError };
 
-    const requestVisualQuery = [
-      req.body?.query,
-      req.body?.search,
-      req.body?.keyword,
-      file.originalname,
-    ].filter(Boolean).join(" ");
+    // The file name is not a description of the photo: "IMG_2231.jpg" searched the catalogue for
+    // "img" and "jpg". Only words the shopper typed ride along with what vision read.
+    const requestVisualQuery = [req.body?.query, req.body?.search, req.body?.keyword].filter(Boolean).join(" ");
     const visualQuery = [visualQueryFromUnderstanding(understanding), requestVisualQuery].filter(Boolean).join(" ");
-    let proSearch = { candidates: [], attributes: null, topMatches: [], reasonWhyFirstRanked: "" };
-    try {
-      proSearch = await withTimeout(
+    const proSearch = (await timed(
+      "visual_index",
+      withTimeout(
         searchAiVisualProductsPro({
           tenantId,
           detected: understanding?.detected || {},
           visualQuery,
           uploadedImageBuffer: file.buffer,
-          limit: 18,
+          limit: 24,
         }),
-        process.env.STOREFRONT_IMAGE_PRO_SEARCH_TIMEOUT_MS || 9000,
+        process.env.STOREFRONT_IMAGE_PRO_SEARCH_TIMEOUT_MS || 12000,
         "storefront_image_pro_search"
-      );
-    } catch (error) {
-      console.warn("[storefront-image-search] pro visual search failed; continuing with local matching", {
-        tenantId,
-        message: error?.message || "pro visual search failed",
-      });
-    }
+      )
+    )) || { candidates: [], attributes: null, topMatches: [], reasonWhyFirstRanked: "" };
 
+    // The same rule the inbox answers a photo with: ONE product is named only on evidence for the
+    // model itself (the index's exact match, or a score over the floor with the model matched).
+    // A brand-and-colour look-alike is offered as similar, never as "this is it".
+    const decision = decideVisualMatch({ search: proSearch });
+
+    const imageMatches = (await localSearch) || [];
     const proMatches = (Array.isArray(proSearch.candidates) ? proSearch.candidates : []).map((item) => ({
       productId: item.product_id || item.productId,
       variantId: item.variant_id || item.variantId,
@@ -4413,21 +4440,18 @@ export const imageSearchProducts = async (req, res) => {
       exact_image_match: item.exact_image_match,
       score_breakdown: item.score_breakdown || null,
     }));
-
-    const imageMatches = await withTimeout(
-      findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 18 }),
-      process.env.STOREFRONT_IMAGE_LOCAL_SEARCH_TIMEOUT_MS || 26000,
-      "storefront_image_local_search"
-    ).catch((error) => {
-      console.warn("[storefront-image-search] image similarity failed; continuing with fallback", {
-        tenantId,
-        message: error?.message || "image similarity failed",
-      });
-      return [];
-    });
     const mergedMatches = mergeImageSearchMatches(proMatches, imageMatches).slice(0, 18);
-    const matchedIds = [...new Set(mergedMatches.map((item) => Number(item.productId)).filter((value) => Number.isFinite(value) && value > 0))];
 
+    const exactProductIds = new Set();
+    if (decision.accept && decision.best?.product_id) exactProductIds.add(String(decision.best.product_id));
+    for (const match of mergedMatches) {
+      // The same file we already hold is certain whatever vision made of it.
+      if (match.reason === "exact_sha256" || match.reason === "visual_pro_exact") exactProductIds.add(String(match.productId));
+    }
+    // The photographed colour leads the exact product's colour cards.
+    const leadColor = String(decision.best?.color || "").trim().toLowerCase();
+
+    const matchedIds = [...new Set(mergedMatches.map((item) => Number(item.productId)).filter((value) => Number.isFinite(value) && value > 0))];
     let products = matchedIds.length ? await queryProductsByIds(tenantId, matchedIds, pricingSettings) : [];
     products = matchedIds.length
       ? await scrubInactiveClassifications(await hydrateProductsWithImages(products, { compact: true }))
@@ -4441,19 +4465,27 @@ export const imageSearchProducts = async (req, res) => {
       const product = productsById.get(String(match.productId));
       if (!product) continue;
       const score = Math.max(0, Math.min(100, Math.round(Number(match.score || 0))));
-      const payload = {
-        ...slimProductForList(product),
-        confidence: score,
+      const isExact = exactProductIds.has(String(match.productId));
+      const base = {
+        confidence: isExact ? Math.max(score, 85) : score,
         score,
-        match_type: match.reason === "exact_sha256" || match.reason === "visual_pro_exact" || score >= 95 || (score >= 80 && String(match.reason || "").includes("known_model")) ? "exact" : "similar",
-        match_reason: match.reason || "",
-        matched_variant_id: match.variantId || null,
+        match_type: isExact ? "exact" : "similar",
+        match_reason: isExact ? decision.reason || match.reason || "" : match.reason || "",
         image_ranking_debug: match.scoreBreakdown || null,
       };
-      if (payload.match_type === "exact") {
-        exactMatches.push(payload);
-      } else {
-        similarMatches.push(payload);
+      if (!isExact) {
+        similarMatches.push({ ...slimProductForList(product), ...base, matched_variant_id: match.variantId || null });
+        continue;
+      }
+      // "Do you have this shoe?" is answered with every colour it comes in, the one in the photo first.
+      const colourCards = expandProductsToColorCards([product]).map(slimProductForList);
+      colourCards.sort((left, right) => {
+        const leftLead = leadColor && String(left.color_key || left.color || "").toLowerCase().includes(leadColor) ? 0 : 1;
+        const rightLead = leadColor && String(right.color_key || right.color || "").toLowerCase().includes(leadColor) ? 0 : 1;
+        return leftLead - rightLead;
+      });
+      for (const card of colourCards.length ? colourCards : [slimProductForList(product)]) {
+        exactMatches.push({ ...card, ...base });
       }
     }
 
@@ -4462,7 +4494,9 @@ export const imageSearchProducts = async (req, res) => {
     const inferredProductType = String(req.body?.product_type || req.body?.productType || req.body?.type || "").trim();
     const inferredBrand = String(req.body?.brand || "").trim();
 
-    if (!exactMatches.length && !similarMatches.length) {
+    // Nothing visual to go on: fall back to the catalogue, but only when vision actually read
+    // something. A blind reading used to search the file name and offer eight random shoes.
+    if (!exactMatches.length && !similarMatches.length && visualQuery) {
       const fallback = await queryProducts(
         tenantId,
         visualQuery,
@@ -4505,11 +4539,28 @@ export const imageSearchProducts = async (req, res) => {
 
     const topConfidence = exactMatches[0]?.confidence || similarMatches[0]?.confidence || 0;
     const confidence = Math.max(0, Math.min(100, Math.round(Number(topConfidence || 0))));
-    const message = confidence >= 80
+    const message = exactMatches.length
       ? "لقينا الموديل ده"
       : similarMatches.length
         ? "الموديل مش متوفر، بس دي أقرب موديلات شبهه"
         : "الموديل ده مش متوفر حاليًا";
+    const detected = understanding?.detected || {};
+    const visionStatus = !understanding
+      ? timings.vision?.status || "error"
+      : visionError
+        ? "unavailable"
+        : visualQueryFromUnderstanding(understanding)
+          ? "ok"
+          : "nothing_read";
+    timings.total_ms = Date.now() - startedAt;
+    console.log("[storefront-image-search] result", {
+      tenantId,
+      vision_status: visionStatus,
+      decision: decision.reason,
+      exact: exactMatches.length,
+      similar: similarMatches.length,
+      timings,
+    });
 
     return res.json({
       success: true,
@@ -4520,6 +4571,17 @@ export const imageSearchProducts = async (req, res) => {
       message,
       source: proMatches.length ? "visual_pro_plus_local_similarity" : imageMatches.length ? "local_visual_similarity" : exactMatches.length || similarMatches.length ? "metadata_fallback" : "image_search_empty",
       fallback_used: !mergedMatches.length,
+      // What the photo was read as, for the shopper ("looks like: grey Skechers running shoe")
+      // and for whoever debugs the next empty answer. Never the provider's error text.
+      vision: {
+        status: visionStatus,
+        brand: String(detected.brand_guess || "").slice(0, 60),
+        model: String(detected.model_guess || "").slice(0, 80),
+        product_type: String(detected.product_type || detected.shoe_type || "").slice(0, 60),
+        colors: Array.isArray(detected.main_colors) ? detected.main_colors.slice(0, 3) : [],
+      },
+      decision: decision.reason,
+      timings,
       visual_confidence: understanding?.confidence || 0,
       visual_attributes: proSearch.attributes || understanding?.detected || null,
       top_candidates: proSearch.topMatches || [],

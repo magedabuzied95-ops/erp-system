@@ -417,7 +417,17 @@
     "sizeChip": "Size {{size}}",
     "sizeRemove": "Remove size {{size}}",
     "sizeGridTitle": "Available in size {{size}}",
-    "sizeEmpty": "No styles in size {{size}} right now"
+    "sizeEmpty": "No styles in size {{size}} right now",
+    "bestSellersTitle": "Best sellers"
+  },
+  "voiceSearch": {
+    "listening": "Listening... speak now",
+    "transcribing": "Writing what you said...",
+    "stop": "Stop recording",
+    "micDenied": "Allow microphone access for this site in your browser settings and try again",
+    "noSpeech": "We didn't hear anything. Hold the phone closer and try again",
+    "noMic": "No working microphone found on this device",
+    "failed": "Voice search isn't available right now. Type what you're looking for"
   },
   "aiSupport": {
     "aria": "Smart store assistant",
@@ -489,7 +499,12 @@
     "sendPhotoHint": "You can send us the photo on WhatsApp, or leave your number and we will tell you as soon as it arrives",
     "sendOnWhatsapp": "Send the photo on WhatsApp",
     "requestModel": "Request this model",
-    "backToText": "Back to text search"
+    "backToText": "Back to text search",
+    "analyzingShort": "Reading the photo and checking our stock",
+    "lookedLike": "Looks like: {{what}}",
+    "exactColours": "This model, in every colour",
+    "photoTip": "Shoot the shoe from the side, in good light, filling most of the frame",
+    "tryAnother": "Try another photo"
   },
   "products": {
     "products": "Products",

@@ -108,13 +108,17 @@ import { CART_REPRICE_ENDPOINT, applyCartReprice, cartRepriceKey, cartRepriceVar
 import CartRepriceNotice from "./components/CartRepriceNotice";
 import { canIncreaseCartLine, cartFromStorageEvent, cartLineComparePrice, cartLineIssue, setCartLineQuantity } from "./lib/cartLine";
 import { productShareParamEntries } from "./lib/pdpSelection";
+import { startVoiceSearch } from "./lib/voiceSearch";
+import { buildTrendingSearches } from "./lib/trendingSearches";
+import { prepareSearchImage } from "./lib/searchImage";
+import { parseSearchQuery } from "./lib/searchAliases";
 import { applyProductImageFallback } from "./lib/productImageFallback";
 import { couponAutoApplyStep, deliveryQuoteRefreshDelayMs, fallbackPaymentMode, isEgyptMobile, normalizeEgyptMobile, shippingQuoteSettled } from "./lib/checkoutGuards";
 import { releaseBootLoader } from "./lib/bootLoader";
 import { useDialogFocus } from "./lib/useDialogFocus";
 import { formatSchoolBagCardSize, isSchoolBagProduct } from "./lib/schoolBagSize";
 import { localizeColorName, localizeHoursLine, localizeSizeLabel } from "./lib/displayCopy";
-import { storefrontCheckoutErrorCopy, visualSearchErrorKey } from "./lib/serverCopy";
+import { storefrontCheckoutErrorCopy, visualSearchErrorKey, visualSearchSubtitleKey } from "./lib/serverCopy";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import { attachSiteDesign, detachSiteDesign, refreshSiteDesign, useSiteDesign } from "./lib/siteDesign";
 import {
@@ -4949,6 +4953,9 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsTotal, setSuggestionsTotal] = useState(null);
+  const [voiceState, setVoiceState] = useState("idle");
+  const imageSearchRequestRef = useRef(0);
+  const voiceSessionRef = useRef(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -5114,11 +5121,30 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   // between visits.
   const [searchSize, setSearchSizeState] = useState(() => String(readJson(SEARCH_SIZE_KEY, "") || ""));
   const [searchSizeOptions, setSearchSizeOptions] = useState([]);
+  const [searchTrending, setSearchTrending] = useState([]);
   const setSearchSize = useCallback((value) => {
     const next = String(value || "").trim();
     setSearchSizeState(next);
     writeJson(SEARCH_SIZE_KEY, next);
   }, []);
+  // What a typed or spoken query asks the catalogue for: the name in the catalogue's spelling,
+  // plus colour / audience / size filters pulled out of the words. A size said out loud wins
+  // over the sheet's size chip.
+  const searchRequestParams = useCallback((term) => {
+    const parsed = parseSearchQuery(term);
+    const params = new URLSearchParams();
+    if (parsed.q) params.set("q", parsed.q);
+    if (parsed.color) params.set("color", parsed.color);
+    if (parsed.gender) params.set("gender", parsed.gender);
+    const size = parsed.size || searchSize;
+    if (size) {
+      params.set("size", size);
+      params.set("in_stock", "1");
+    }
+    // Nothing recognisable at all: search the words as they were typed.
+    if (![...params.keys()].length) params.set("q", String(term || "").trim());
+    return params;
+  }, [searchSize]);
 
   // "View all" grows the grid in place rather than navigating away, the way the
   // reference does it — leaving search to open a listing page throws away the
@@ -5172,6 +5198,28 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     loadInspirationBatch(0, menuTab, searchSize);
     return undefined;
   }, [mobileSearchOpen, searchOpen, menuTab, searchSize, loadInspirationBatch]);
+
+  // Trending = the audience's best sellers, one entry per model (lib/trendingSearches.js), in the
+  // chosen size when there is one. 96 cards, because the top 48 for men are 22 colours of one
+  // Jordan and 17 Crocs — five models in all.
+  useEffect(() => {
+    if (!mobileSearchOpen && !searchOpen) return undefined;
+    let cancelled = false;
+    cachedStorefrontGet(
+      buildStorefrontProductsRequestUrl({ gender: menuTab, size: searchSize || "", in_stock: 1, sort: "best_sellers", limit: 96 }),
+      { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS }
+    )
+      .then((data) => {
+        if (!cancelled) setSearchTrending(buildTrendingSearches(extractStorefrontProductsFromResponse(data)));
+      })
+      .catch(() => {
+        // The written list in the locale files stays as the fallback.
+        if (!cancelled) setSearchTrending([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mobileSearchOpen, searchOpen, menuTab, searchSize]);
 
   // The sizes the selected audience actually has in stock, from the facets
   // endpoint, so the picker never offers a size with nothing behind it.
@@ -5334,6 +5382,8 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       visualPreviewUrlRef.current = "";
     }
     selectedVisualImageRef.current = null;
+    // Closing the photo search must also drop an answer still on its way.
+    imageSearchRequestRef.current += 1;
     setVisualSearch({ active: false, loading: false, exactMatches: [], similarMatches: [], confidence: 0, message: "", error: "", previewUrl: "", fileName: "", fileType: "" });
     setImageSearchOpen(false);
   }, []);
@@ -5370,9 +5420,18 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     });
     const timer = setTimeout(() => {
       // The search endpoint honours size + in_stock, so a chosen size narrows the
-      // live results to models the shopper can actually buy in it.
-      const sizeQuery = searchSize ? `&size=${encodeURIComponent(searchSize)}&in_stock=1` : "";
-      api.get(`/storefront/products/search?q=${encodeURIComponent(normalizedSearch)}&limit=8${sizeQuery}`, { signal: controller.signal })
+      // live results to models the shopper can actually buy in it. Arabic names,
+      // colours, audience and a spoken "مقاس 42" are turned into the catalogue's
+      // spelling and filters first (lib/searchAliases.js).
+      const request = searchRequestParams(normalizedSearch);
+      request.set("limit", "8");
+      // Only filters and no name ("كوتشي اسود رجالي"): the listing endpoint answers those.
+      if (!request.has("q")) {
+        request.set("sort", "newest");
+        request.set("_last_piece_scope", "product");
+      }
+      const endpoint = request.has("q") ? "/storefront/products/search" : "/storefront/products";
+      api.get(`${endpoint}?${request.toString()}`, { signal: controller.signal })
         .then((data) => {
           if (cancelled) return;
           setSuggestions(data.products || []);
@@ -5394,7 +5453,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       controller.abort();
       clearTimeout(timer);
     };
-  }, [deferredSearch, searchSize, visualSearch.active]);
+  }, [deferredSearch, searchRequestParams, visualSearch.active]);
 
   const handleSearchChange = useCallback((value) => {
     setSearch(value);
@@ -5414,6 +5473,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   }, []);
 
   const closeSearch = useCallback(() => {
+    voiceSessionRef.current?.stop();
     setSearchOpen(false);
     setMobileSearchOpen(false);
     setActiveSearchIndex(-1);
@@ -5436,7 +5496,11 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
 
   // The results page reads ?size= too, so the size chosen in the sheet carries
   // through instead of silently widening back to every size.
-  const searchResultsUrl = (term) => appendProductUrlParams(`/products?q=${encodeURIComponent(term)}`, [["size", searchSize]]);
+  const searchResultsUrl = (term) => {
+    const params = searchRequestParams(term);
+    params.delete("in_stock");
+    return `/products?${params.toString()}`;
+  };
 
   const pickSearchTerm = (term) => {
     const value = String(term || "").trim();
@@ -5466,35 +5530,53 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     navigate(url);
   };
 
+  // A second tap stops listening early and still keeps what was said. See lib/voiceSearch.js for
+  // why iPhone records a clip instead of using the browser's recogniser.
   const handleVoiceSearch = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error(sfText("storefront.toasts.voiceUnsupported"));
+    if (voiceSessionRef.current) {
+      voiceSessionRef.current.stop();
       return;
     }
-    const recognition = new SpeechRecognition();
-    recognition.lang = "ar-EG";
-    recognition.interimResults = false;
-    recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript || "";
-      setSearch(transcript);
-      setSearchOpen(true);
-      setMobileSearchOpen(window.innerWidth < 768);
-    };
-    recognition.start();
+    setSearchOpen(true);
+    setMobileSearchOpen(window.innerWidth < 768);
+    if (visualSearch.active) clearVisualSearch();
+    voiceSessionRef.current = startVoiceSearch({
+      language: storefrontI18n.language || "ar",
+      onState: (state) => setVoiceState(state),
+      onTranscript: (text) => {
+        setSearch(text);
+        setActiveSearchIndex(-1);
+      },
+      onError: (key) => toast.error(sfText(key)),
+      onEnd: () => {
+        voiceSessionRef.current = null;
+        setVoiceState("idle");
+      },
+      transcribeClip: async (blob, type, language) => {
+        const formData = new FormData();
+        formData.append("audio", blob, type.includes("mp4") ? "voice.m4a" : "voice.webm");
+        formData.append("language", String(language || "").startsWith("en") ? "en" : "ar");
+        const data = await api.post("/storefront/voice-search", formData, { timeoutMs: 25000 });
+        return data?.text || "";
+      },
+    });
   };
 
   const handleImageSearch = async (event) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      selectedVisualImageRef.current = file;
-      const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-      if (!supportedTypes.has(file.type)) {
+    const picked = event.target.files?.[0];
+    event.target.value = "";
+    if (picked) {
+      voiceSessionRef.current?.stop();
+      let file;
+      try {
+        // Downscaled to a JPEG first: an iPhone HEIC used to be refused, a full-size photo took
+        // seconds to upload. See lib/searchImage.js.
+        file = await prepareSearchImage(picked);
+      } catch {
         toast.error(sfText("storefront.toasts.unsupportedImageType"));
-        selectedVisualImageRef.current = null;
-        event.target.value = "";
         return;
       }
+      selectedVisualImageRef.current = file;
       if (file.size > 8 * 1024 * 1024) {
         toast.error(sfText("storefront.toasts.imageTooLarge"));
         selectedVisualImageRef.current = null;
@@ -5527,8 +5609,12 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       formData.append("tenant_id", tenantId);
       formData.append("query", search.trim());
       const endpoint = "/storefront/image-search";
+      // A second photo picked while the first is still searching wins; the first answer is dropped.
+      imageSearchRequestRef.current += 1;
+      const requestId = imageSearchRequestRef.current;
       try {
         const data = await api.post(endpoint, formData, { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } });
+        if (requestId !== imageSearchRequestRef.current) return;
         const exactMatches = Array.isArray(data.exactMatches) ? data.exactMatches : [];
         const similarMatches = Array.isArray(data.similarMatches) ? data.similarMatches : Array.isArray(data.products) ? data.products : [];
         const combined = [...exactMatches, ...similarMatches];
@@ -5540,6 +5626,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
           similarMatches,
           confidence: Number(data.confidence || 0),
           message: data.message || "",
+          vision: data.vision || null,
           error: "",
           previewUrl,
           fileName: file.name,
@@ -5547,6 +5634,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         });
         setImageSearchOpen(true);
       } catch (error) {
+        if (requestId !== imageSearchRequestRef.current) return;
         // A copy key, not the server's Arabic text: the results panel reads it in the shopper's language.
         const message = visualSearchErrorKey(error);
         setSuggestions([]);
@@ -5567,7 +5655,6 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         setSearchLoading(false);
       }
     }
-    event.target.value = "";
   };
 
   const shareVisualSearchImage = useCallback(async () => {
@@ -5826,6 +5913,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               inspirationResetting={searchInspirationResetting}
               suggestionsTotal={suggestionsTotal}
               onClearRecentSearches={clearRecentSearches}
+              trendingModels={searchTrending}
               value={search}
               onChange={handleSearchChange}
               onSubmit={submit}
@@ -5845,6 +5933,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               onPickProduct={pickProduct}
               onQuickAdd={handleQuickSearchAdd}
               onVoice={handleVoiceSearch}
+              voiceState={voiceState}
               onImage={handleImageSearch}
               imageSearchOpen={imageSearchOpen}
               imageSearch={visualSearch}
@@ -5879,6 +5968,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               inspirationResetting={searchInspirationResetting}
               suggestionsTotal={suggestionsTotal}
               onClearRecentSearches={clearRecentSearches}
+              trendingModels={searchTrending}
         mobileOpen={mobileSearchOpen}
         setMobileOpen={setMobileSearchOpen}
         value={search}
@@ -5901,6 +5991,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         onPickProduct={pickProduct}
         onQuickAdd={handleQuickSearchAdd}
         onVoice={handleVoiceSearch}
+              voiceState={voiceState}
         onImage={handleImageSearch}
         imageSearchOpen={imageSearchOpen}
         imageSearch={visualSearch}
@@ -6062,6 +6153,7 @@ function PremiumSearch({
   onPickTerm,
   onPickProduct,
   onVoice,
+  voiceState = "idle",
   onImage,
   imageSearch = null,
   onShareImageOnWhatsApp = () => {},
@@ -6083,6 +6175,7 @@ function PremiumSearch({
   inspirationResetting = false,
   suggestionsTotal = null,
   onClearRecentSearches = () => {},
+  trendingModels = [],
 }) {
   const { t } = useTranslation();
   const inputRef = useRef(null);
@@ -6162,7 +6255,13 @@ function PremiumSearch({
             setActiveIndex(-1);
           }}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
+          placeholder={
+            voiceState === "listening"
+              ? t("storefront.voiceSearch.listening")
+              : voiceState === "transcribing"
+                ? t("storefront.voiceSearch.transcribing")
+                : placeholder
+          }
           className="sf-search-input"
           aria-label={t("storefront.search.aria")}
           role="combobox"
@@ -6179,8 +6278,15 @@ function PremiumSearch({
           </button>
         ) : null}
         <span className="sf-search-field-divider" aria-hidden="true" />
-        <button type="button" onClick={onVoice} className="sf-search-tool-button" aria-label={t("storefront.search.voice")} title={t("storefront.search.voice")}>
-          <Mic aria-hidden="true" strokeWidth={1.75} />
+        <button
+          type="button"
+          onClick={onVoice}
+          className={`sf-search-tool-button sf-search-voice${voiceState !== "idle" ? ` is-${voiceState}` : ""}`}
+          aria-label={voiceState === "listening" ? t("storefront.voiceSearch.stop") : t("storefront.search.voice")}
+          aria-pressed={voiceState === "listening"}
+          title={t("storefront.search.voice")}
+        >
+          {voiceState === "transcribing" ? <Loader2 aria-hidden="true" strokeWidth={1.75} className="animate-spin" /> : <Mic aria-hidden="true" strokeWidth={1.75} />}
         </button>
         <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-search-tool-button" aria-label={t("storefront.search.image")} title={t("storefront.search.image")}>
           <Camera aria-hidden="true" strokeWidth={1.75} />
@@ -6217,6 +6323,8 @@ function PremiumSearch({
         inspirationResetting={inspirationResetting}
         suggestionsTotal={suggestionsTotal}
         onClearRecentSearches={onClearRecentSearches}
+        trendingModels={trendingModels}
+        onImage={() => fileInputRef.current?.click()}
         onShareImageOnWhatsApp={onShareImageOnWhatsApp}
         onRequestVisualSearchSupply={onRequestVisualSearchSupply}
         onClearImageSearch={onClearImageSearch}
@@ -6280,6 +6388,8 @@ function SearchQuickSections({
   inspirationResetting = false,
   suggestionsTotal = null,
   onClearRecentSearches = () => {},
+  trendingModels = [],
+  onImage = () => {},
   onShareImageOnWhatsApp = () => {},
   onRequestVisualSearchSupply = () => {},
   onClearImageSearch = () => {},
@@ -6303,74 +6413,92 @@ function SearchQuickSections({
   const similarMatches = Array.isArray(imageSearch?.similarMatches) ? imageSearch.similarMatches : [];
   const hasImageSearch = Boolean(imageSearch?.active || imageSearch?.loading || imageSearch?.error || exactMatches.length || similarMatches.length);
   const imageResults = exactMatches.length ? exactMatches : similarMatches;
-  const imageTitle = imageSearch?.loading
-    ? sfText("storefront.visualSearch.searchingClosest")
-    : exactMatches.length && Number(imageSearch?.confidence || 0) >= 80
-      ? sfText("storefront.visualSearch.foundExact")
+  const imageLoading = Boolean(imageSearch?.loading);
+  const imageTitle = imageLoading
+    ? t("storefront.visualSearch.searchingClosest")
+    : exactMatches.length
+      ? t("storefront.visualSearch.foundExact")
       : similarMatches.length
-        ? sfText("storefront.visualSearch.notAvailableClosest")
+        ? t("storefront.visualSearch.notAvailableClosest")
         : imageSearch?.error
-          ? sfText("storefront.visualSearch.unavailable")
-          : sfText("storefront.visualSearch.modelUnavailable");
+          ? t("storefront.visualSearch.unavailable")
+          : t("storefront.visualSearch.modelUnavailable");
+  // What the photo was read as ("Skechers · running shoe · grey"), so a near miss explains itself.
+  const vision = imageSearch?.vision || null;
+  const visionRead = vision?.status === "ok"
+    ? [vision.brand, vision.model || vision.product_type, Array.isArray(vision.colors) ? vision.colors[0] : ""].filter(Boolean).join(" · ")
+    : "";
   return (
     <div className="sf-search-sections grid gap-3">
       {hasImageSearch ? (
-        <div className="sf-image-search-card sfx-surface p-3">
-          <div className="flex items-start gap-3">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden" style={{ border: "1px solid var(--m1h-line)", borderRadius: "var(--m1h-r-md)", background: "var(--m1h-plate)" }}>
-              {imageSearch?.previewUrl ? <img src={imageSearch.previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+        <div className="sf-visual" aria-busy={imageLoading}>
+          <div className="sf-visual-head">
+            <div className={`sf-visual-photo${imageLoading ? " is-scanning" : ""}`}>
+              {imageSearch?.previewUrl ? <img src={imageSearch.previewUrl} alt="" /> : null}
+              {imageLoading ? <span className="sf-visual-scanline" aria-hidden="true" /> : null}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="sfx-kicker" style={{ marginBottom: 0 }}>{sfText("storefront.visualSearch.title")}</div>
-              <h3 className="sfx-h3 mt-1">{imageTitle}</h3>
-              {!imageSearch?.loading && imageSearch?.message ? (
-                <p className="mt-1 mb-0 text-xs leading-5" style={{ color: "var(--m1h-text-2)" }}>{imageSearch.message}</p>
-              ) : null}
-              {Number.isFinite(Number(imageSearch?.confidence)) && Number(imageSearch?.confidence || 0) > 0 ? (
-                <span className="sfx-badge sfx-badge--warning mt-2">
-                  {sfText("storefront.visualSearch.confidence")} {Math.round(Number(imageSearch.confidence || 0))}%
-                </span>
+            <div className="sf-visual-copy">
+              <span className="sf-visual-kicker">{t("storefront.visualSearch.title")}</span>
+              <span className="sf-visual-title">{imageTitle}</span>
+              {imageLoading ? (
+                <span className="sf-visual-sub">{t("storefront.visualSearch.analyzingShort")}</span>
+              ) : visionRead ? (
+                <span className="sf-visual-sub" dir="auto">{t("storefront.visualSearch.lookedLike", { what: visionRead })}</span>
               ) : null}
             </div>
+            <button type="button" onClick={onClearImageSearch} className="sf-visual-close" aria-label={t("storefront.visualSearch.backToText")}>
+              <X aria-hidden="true" strokeWidth={2} />
+            </button>
           </div>
 
-          {imageSearch?.loading ? (
-            <div className="sfx-notice mt-3 items-center">
-              <Loader2 className="h-4 w-4 animate-spin" style={{ color: "var(--m1h-accent)" }} />
-              <span>{sfText("storefront.visualSearch.searchingClosest")}</span>
+          {imageLoading ? (
+            <div className="sf-visual-grid" aria-hidden="true">
+              {Array.from({ length: 6 }, (_, index) => <span key={index} className="sf-visual-tile sf-visual-tile--skeleton" />)}
             </div>
           ) : null}
 
-          {!imageSearch?.loading && imageResults.length ? (
-            <div className="mt-3 grid gap-1.5">
-              {exactMatches.length ? <span className="sfx-badge sfx-badge--success justify-self-start">{sfText("storefront.visualSearch.exactMatch")}</span> : null}
-              {imageResults.slice(0, 6).map((product, index) => (
-                <SearchResultRow
-                  key={`${product.id || product.product_id || index}-${product.match_type || "image"}`}
-                  product={product}
-                  active={false}
-                  onPickProduct={onPickProduct}
-                />
-              ))}
+          {!imageLoading && exactMatches.length ? (
+            <div className="sf-visual-group">
+              <span className="sf-visual-group-title">{t("storefront.visualSearch.exactColours")}</span>
+              <div className="sf-visual-grid">
+                {exactMatches.slice(0, 12).map((product, index) => (
+                  <VisualResultTile key={`exact-${product.card_id || product.id}-${index}`} product={product} onPickProduct={onPickProduct} />
+                ))}
+              </div>
             </div>
           ) : null}
 
-          {!imageSearch?.loading && !imageResults.length ? (
-            <div className="sfx-surface sfx-surface--soft mt-3 grid gap-2 p-3">
-              <p className="sfx-h3 m-0">{sfText("storefront.visualSearch.modelUnavailable")}</p>
-              <p className="m-0 text-xs leading-5" style={{ color: "var(--m1h-text-2)" }}>{sfText("storefront.visualSearch.sendPhotoHint")}</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <button type="button" onClick={onShareImageOnWhatsApp} className="sfx-btn sfx-btn--whatsapp sfx-btn--sm sfx-btn--block">
-                  {sfText("storefront.visualSearch.sendOnWhatsapp")}
+          {!imageLoading && similarMatches.length ? (
+            <div className="sf-visual-group">
+              {exactMatches.length ? <span className="sf-visual-group-title">{t("storefront.visualSearch.similarProducts")}</span> : null}
+              <div className="sf-visual-grid">
+                {similarMatches.slice(0, 12).map((product, index) => (
+                  <VisualResultTile key={`similar-${product.card_id || product.id}-${index}`} product={product} onPickProduct={onPickProduct} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {!imageLoading && !imageResults.length ? (
+            <div className="sf-search-empty-note">
+              <p>{imageSearch?.error ? t(visualSearchSubtitleKey(imageSearch)) : t("storefront.visualSearch.emptyHint")}</p>
+              <p className="sf-visual-tip">{t("storefront.visualSearch.photoTip")}</p>
+              <div className="sf-visual-actions">
+                <button type="button" onClick={onShareImageOnWhatsApp} className="sfx-btn sfx-btn--whatsapp sfx-btn--sm">
+                  {t("storefront.visualSearch.sendOnWhatsapp")}
                 </button>
-                <button type="button" onClick={onRequestVisualSearchSupply} className="sfx-btn sfx-btn--secondary sfx-btn--sm sfx-btn--block">
-                  {sfText("storefront.visualSearch.requestModel")}
+                <button type="button" onClick={onRequestVisualSearchSupply} className="sf-search-outline-btn">
+                  {t("storefront.visualSearch.requestModel")}
                 </button>
               </div>
-              <button type="button" onClick={onClearImageSearch} className="sfx-btn sfx-btn--ghost sfx-btn--sm sfx-btn--block">
-                {sfText("storefront.visualSearch.backToText")}
-              </button>
             </div>
+          ) : null}
+
+          {!imageLoading ? (
+            <button type="button" onClick={onImage} className="sf-search-submit-row">
+              <Camera aria-hidden="true" strokeWidth={1.75} />
+              <span className="min-w-0 flex-1 truncate">{t("storefront.visualSearch.tryAnother")}</span>
+            </button>
           ) : null}
         </div>
       ) : null}
@@ -6500,7 +6628,29 @@ function SearchQuickSections({
             </div>
           ) : null}
 
-          {trendingSearches.length ? (
+          {trendingModels.length ? (
+            <div className="sf-search-section">
+              <div className="sf-search-heading-row">
+                <span className="sf-search-heading">{t("storefront.search.bestSellersTitle")}</span>
+              </div>
+              <div className="sf-search-trend-row">
+                {trendingModels.map((item, index) => (
+                  <button
+                    key={item.term}
+                    type="button"
+                    onClick={() => onPickTerm(item.term)}
+                    className="sf-search-trend"
+                  >
+                    <span className="sf-search-trend-media">
+                      <img src={imageFor(displayImageForProduct(item.product))} alt="" loading="lazy" decoding="async" />
+                      {index < 3 ? <span className="sf-search-trend-rank">{index + 1}</span> : null}
+                    </span>
+                    <span dir="auto" className="sf-search-trend-name">{item.term}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : trendingSearches.length ? (
             <div className="sf-search-section">
               <div className="sf-search-heading">{t("storefront.search.trendingTitle")}</div>
               <div className="sf-search-pill-row">
@@ -6596,6 +6746,19 @@ const highlightSearchMatch = (text = "", query = "") => {
     </>
   );
 };
+
+function VisualResultTile({ product, onPickProduct }) {
+  const price = displaySellingPrice(product);
+  return (
+    <button type="button" onClick={() => onPickProduct(product)} className="sf-visual-tile">
+      <span className="sf-visual-tile-media">
+        <img src={imageFor(displayImageForProduct(product) || product.image_url)} alt="" loading="lazy" decoding="async" />
+      </span>
+      <span dir="auto" className="sf-visual-tile-name">{product.name}</span>
+      {price ? <span className="sf-visual-tile-price">{money(price)}</span> : null}
+    </button>
+  );
+}
 
 function SearchResultRow({ product, active, onPickProduct, query = "" }) {
   return (

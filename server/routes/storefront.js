@@ -76,6 +76,7 @@ import {
   storefrontRobotsHandler,
   storefrontSitemapHandler,
 } from "../services/storefrontSeoService.js";
+import { isVoiceClipMime, transcribeVoiceSearchClip, VOICE_SEARCH_MAX_BYTES } from "../utils/storefrontVoiceTranscription.js";
 import { storefrontProductSeoPageHandler } from "../services/storefrontProductSeoPageService.js";
 import { storefrontCategorySeoPageHandler } from "../services/storefrontCategorySeoPageService.js";
 
@@ -176,6 +177,36 @@ const passwordResetRequestRateLimit = createRequestRateLimit({
 });
 const passwordResetRequestIpRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 20, keysOf: (req) => [clientKeyWithTenant(req)] });
 const passwordResetRateLimit = createRequestRateLimit({ windowMs: 15 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
+// Every clip is a paid transcription with no login in front of it. A shopper searching by voice
+// speaks a handful of times; a script looping the endpoint is stopped at 30 clips per 10 minutes.
+const voiceSearchRateLimit = createRequestRateLimit({ windowMs: 10 * MINUTE_MS, max: 30, keysOf: (req) => [clientKeyWithTenant(req)] });
+const voiceSearchUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: VOICE_SEARCH_MAX_BYTES, files: 1 },
+  fileFilter: (_req, file, cb) => (isVoiceClipMime(file.mimetype) ? cb(null, true) : cb(new Error("Unsupported audio type"))),
+});
+const transcribeVoiceSearch = (req, res) => {
+  voiceSearchUpload.single("audio")(req, res, async (uploadError) => {
+    if (uploadError) {
+      return res.status(uploadError.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ success: false, error_code: "VOICE_CLIP_INVALID" });
+    }
+    if (!req.file?.buffer?.length) return res.status(400).json({ success: false, error_code: "VOICE_CLIP_REQUIRED" });
+    try {
+      const result = await transcribeVoiceSearchClip({
+        buffer: req.file.buffer,
+        mimeType: req.file.mimetype,
+        language: toText(req.body?.language),
+      });
+      // 503, not 500: "no provider here" is a steady state the storefront answers by falling back
+      // to the browser's own recogniser, not an outage to retry.
+      if (!result.available) return res.status(503).json({ success: false, error_code: "VOICE_UNAVAILABLE" });
+      return res.json({ success: true, text: result.text });
+    } catch (error) {
+      console.warn("[storefront-voice-search] transcription failed", { status: error?.status || null, message: error?.message || "" });
+      return res.status(502).json({ success: false, error_code: "VOICE_TRANSCRIPTION_FAILED" });
+    }
+  });
+};
 
 // Checkout creates an order and takes the stock at once, with no login. Every request counts
 // against a loose per-IP ceiling; placed orders count again per IP and per phone, so a customer
@@ -707,6 +738,7 @@ router.get("/products/facets", listProductFacets);
 router.get("/products/search", searchProducts);
 router.post("/products/visual-search", visualUpload, visualSearchProducts);
 router.post("/image-search", visualUpload, imageSearchProducts);
+router.post("/voice-search", voiceSearchRateLimit, transcribeVoiceSearch);
 router.get("/product/by-token/:token", getProductByToken);
 router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:id/pair", getProductPair);

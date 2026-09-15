@@ -201,8 +201,10 @@ test("the chosen size scopes the grid, the live results and the results page", (
   // The picker lists only sizes the audience has in stock, from the facets.
   assert.match(effect, /\/storefront\/products\/facets\?gender=/);
 
-  assert.match(storefrontSource, /products\/search\?q=\$\{encodeURIComponent\(normalizedSearch\)\}&limit=8\$\{sizeQuery\}/);
-  assert.match(storefrontSource, /const searchResultsUrl = \(term\) => appendProductUrlParams\(.*\[\["size", searchSize\]\]\);/);
+  // Live results and the results page both go through searchRequestParams, which carries the size.
+  assert.match(storefrontSource, /const size = parsed\.size \|\| searchSize;\s*if \(size\) \{\s*params\.set\("size", size\);\s*params\.set\("in_stock", "1"\);/);
+  assert.match(storefrontSource, /const request = searchRequestParams\(normalizedSearch\);/);
+  assert.match(storefrontSource, /const searchResultsUrl = \(term\) => \{\s*const params = searchRequestParams\(term\);/);
   // ?variant= outranks ?size= on the product page, so the card's variant is dropped.
   assert.match(storefrontSource, /\[\["variant", ""\], \["size", searchSize\]\]/);
 
