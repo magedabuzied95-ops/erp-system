@@ -105,43 +105,42 @@ export const issuePaymentProofLink = async ({ order = {}, client = db } = {}) =>
 
 /**
  * The card, as pure data so it can be tested without a gateway. `transfer` is loadTransferDetails().
- * Buttons that have nothing behind them are left out; WhatsApp shows at most three.
+ * Buttons that have nothing behind them are left out.
+ *
+ * One number takes both kinds of transfer: the shop's Vodafone Cash wallet is also its InstaPay
+ * number (owner, 2026-09-15). So the card shows that ONE number and says it works for InstaPay and
+ * Vodafone Cash alike, rather than a separate InstaPay handle the customer has to choose between.
  */
 export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer = {}, uploadUrl = "" } = {}) => {
   const fee = formatMoney(amount);
   const rest = Math.max(0, money(orderTotal(order) - money(amount)));
   const ref = orderRef(order);
   const instapayUrl = text(transfer.instapayUrl);
-  const instapayHandle = text(transfer.instapayHandle);
-  const vodafone = text(transfer.vodafone);
-  const hasInstapay = Boolean(instapayUrl || instapayHandle);
+  // The transfer number; the InstaPay handle only stands in when no wallet number is set.
+  const number = text(transfer.vodafone) || text(transfer.instapayHandle);
 
   // Evolution refuses more than TWO CTA buttons on a message ("Maximum of 2 CTA buttons allowed" —
   // INV-1652 went out as plain text because the card had three). The upload button always stays;
-  // the other slot is the quickest way to pay: open InstaPay when there is a payment link, else
-  // copy the Vodafone Cash number. Every value is also written in the body.
-  const payButton = instapayUrl
-    ? { type: "url", displayText: "ادفع بانستا باي", url: instapayUrl }
-    : vodafone
-      ? { type: "copy", displayText: "انسخ رقم فودافون كاش", copyCode: vodafone }
-      : instapayHandle ? { type: "copy", displayText: "انسخ حساب انستا باي", copyCode: instapayHandle } : null;
+  // the other slot copies the number (or opens InstaPay when a payment link is set and there is no
+  // number). The number is also written in the body.
+  const payButton = number
+    ? { type: "copy", displayText: "انسخ الرقم", copyCode: number }
+    : instapayUrl ? { type: "url", displayText: "ادفع بانستا باي", url: instapayUrl } : null;
   const buttons = [
     payButton,
     uploadUrl ? { type: "url", displayText: "ارفع صورة التحويل", url: uploadUrl } : null,
   ].filter(Boolean);
 
-  const via = hasInstapay && vodafone ? "بانستا باي أو فودافون كاش" : hasInstapay ? "بانستا باي" : vodafone ? "بفودافون كاش" : "";
   const title = "💳 دفع رسوم الشحن";
   const opening = `رسوم الشحن لطلبك${ref ? ` رقم ${ref}` : ""}: ${fee} جنيه${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
   const closing = "وأول ما نراجع التحويل هنأكد طلبك ونشحنه على طول ✅";
+  const payStep = number
+    ? `1️⃣ حوّل ${fee} جنيه على الرقم ده:\n📱 ${number}\nينفع تحوّل عليه بانستا باي أو فودافون كاش 👌`
+    : instapayUrl ? `1️⃣ حوّل ${fee} جنيه بانستا باي` : `1️⃣ حوّل ${fee} جنيه`;
 
-  const detailLines = [
-    instapayHandle ? `🏦 InstaPay: ${instapayHandle}` : "",
-    vodafone ? `📱 فودافون كاش: ${vodafone}` : "",
-  ].filter(Boolean);
   const body = [
     opening,
-    [`1️⃣ حوّل ${fee} جنيه${via ? ` ${via}` : ""}${detailLines.length ? ":" : ""}`, ...detailLines].join("\n"),
+    payStep,
     uploadUrl ? "2️⃣ اضغط «ارفع صورة التحويل» وابعت الصورة" : "2️⃣ ابعت صورة التحويل هنا",
     closing,
   ].join("\n\n");
@@ -150,11 +149,7 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
   const fallbackText = [
     title,
     opening,
-    [
-      `1️⃣ حوّل ${fee} جنيه${via ? ` ${via}` : ""}:`,
-      instapayUrl ? `🏦 InstaPay: ${instapayUrl}` : instapayHandle ? `🏦 InstaPay: ${instapayHandle}` : "",
-      vodafone ? `📱 فودافون كاش: ${vodafone}` : "",
-    ].filter(Boolean).join("\n"),
+    [payStep, !number && instapayUrl ? `🏦 ${instapayUrl}` : ""].filter(Boolean).join("\n"),
     uploadUrl ? `2️⃣ ارفع صورة التحويل من هنا:\n${uploadUrl}` : "2️⃣ ابعت صورة التحويل هنا",
     closing,
   ].join("\n\n");
@@ -449,7 +444,8 @@ const publicView = ({ order, advance, transfer, state }) => ({
   },
   methods: {
     instapay_url: text(transfer.instapayUrl),
-    instapay_handle: text(transfer.instapayHandle),
+    // The same number takes InstaPay and Vodafone Cash (see buildShippingFeePaymentCard).
+    instapay_handle: text(transfer.vodafone) || text(transfer.instapayHandle),
     vodafone_cash: text(transfer.vodafone),
   },
   submitted_method: text(order.shipping_payment_method),

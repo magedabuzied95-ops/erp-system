@@ -27,40 +27,37 @@ const order = { id: 41, public_order_number: "INV-1700", total_amount: 1940, cus
 const transfer = { instapayUrl: "https://ipn.eg/S/m1/instapay/abc", instapayHandle: "m1@instapay", vodafone: "01012345678" };
 const uploadUrl = "https://m1store.example/pay/ABCDEFGHIJKLMNOP";
 
-test("the card has at most two CTA buttons: a way to pay, and the upload link", () => {
+test("the card has at most two CTA buttons: copy the number, and the upload link", () => {
   // Evolution answers a third CTA with 400 "Maximum of 2 CTA buttons allowed" (INV-1652).
   const card = buildShippingFeePaymentCard({ order, amount: 90, transfer, uploadUrl });
   assert.deepEqual(card.buttons, [
-    { type: "url", displayText: "ادفع بانستا باي", url: transfer.instapayUrl },
+    { type: "copy", displayText: "انسخ الرقم", copyCode: "01012345678" },
     { type: "url", displayText: "ارفع صورة التحويل", url: uploadUrl },
   ]);
   // WhatsApp truncates a CTA label past 20 characters.
   for (const button of card.buttons) assert.ok([...button.displayText].length <= 20, button.displayText);
   assert.match(card.body, /رسوم الشحن لطلبك رقم INV-1700: 90 جنيه، والباقي 1,850 جنيه تدفعه عند الاستلام\./);
-  // The wallet details are written out, the upload link is not.
-  assert.match(card.body, /🏦 InstaPay: m1@instapay\n📱 فودافون كاش: 01012345678/);
   assert.doesNotMatch(card.body, /\/pay\//);
+  assert.match(read("../server/services/whatsappGatewayService.js"), /\.slice\(0, 2\);\s*if \(!safeButtons\.length\) throw gatewayError\("A CTA message needs/);
 });
 
-test("without an InstaPay link the Vodafone Cash number is the copy button", () => {
+test("one number, and the customer is told it takes InstaPay and Vodafone Cash alike", () => {
+  // Owner: the InstaPay number IS the Vodafone Cash number; no separate handle to choose between.
   const card = buildShippingFeePaymentCard({ order, amount: 90, transfer: { instapayHandle: "maged.helal@instapay", vodafone: "01024960585" }, uploadUrl });
-  assert.deepEqual(card.buttons, [
-    { type: "copy", displayText: "انسخ رقم فودافون كاش", copyCode: "01024960585" },
-    { type: "url", displayText: "ارفع صورة التحويل", url: uploadUrl },
-  ]);
+  assert.match(card.body, /1️⃣ حوّل 90 جنيه على الرقم ده:\n📱 01024960585\nينفع تحوّل عليه بانستا باي أو فودافون كاش/);
+  assert.doesNotMatch(card.body, /maged\.helal@instapay/);
+  assert.doesNotMatch(card.fallbackText, /maged\.helal@instapay/);
+  // No wallet number set: the InstaPay handle is the number to copy.
   const handleOnly = buildShippingFeePaymentCard({ order, amount: 90, transfer: { instapayHandle: "m1@instapay" }, uploadUrl });
-  assert.deepEqual(handleOnly.buttons.map((button) => button.type), ["copy", "url"]);
   assert.equal(handleOnly.buttons[0].copyCode, "m1@instapay");
-  assert.match(handleOnly.body, /حوّل 90 جنيه بانستا باي:\n/);
-  assert.match(read("../server/services/whatsappGatewayService.js"), /\.slice\(0, 2\);\s*if \(!safeButtons\.length\) throw gatewayError\("A CTA message needs/);
 });
 
 test("the text fallback spells out every value, so a card that will not render still says how to pay", () => {
   const card = buildShippingFeePaymentCard({ order, amount: 90, transfer, uploadUrl });
-  for (const value of [transfer.instapayUrl, "01012345678", uploadUrl, "90 جنيه"]) {
+  for (const value of ["01012345678", uploadUrl, "90 جنيه", "بانستا باي أو فودافون كاش"]) {
     assert.ok(card.fallbackText.includes(value), value);
   }
-  assert.deepEqual(card.transcriptButtons.map((button) => button.type), ["whatsapp_footer", "whatsapp_url_button", "whatsapp_url_button"]);
+  assert.deepEqual(card.transcriptButtons.map((button) => button.type), ["whatsapp_footer", "whatsapp_copy_button", "whatsapp_url_button"]);
 });
 
 test("the confirmation request stops listing wallet details when the card follows it", () => {
