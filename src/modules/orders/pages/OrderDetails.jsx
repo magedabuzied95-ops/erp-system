@@ -93,7 +93,8 @@ const whatsappConfirmationBadge = (order = {}) => {
       className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
     };
   }
-  if (order.whatsapp_confirmation_sent_at && String(order.status || "").toLowerCase() === "pending_confirmation") {
+  const delivered = [order.shipping_status, order.shipment_status].some((value) => String(value || "").toLowerCase() === "delivered");
+  if (!delivered && order.whatsapp_confirmation_sent_at && String(order.status || "").toLowerCase() === "pending_confirmation") {
     return {
       label: tt("orders.whatsapp.awaitingConfirmation"),
       className: "border-amber-400/25 bg-amber-400/10 text-amber-200",

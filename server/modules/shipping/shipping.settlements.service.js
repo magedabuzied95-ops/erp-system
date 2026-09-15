@@ -83,6 +83,19 @@ export const courierCollectibleAmount = (order = {}) => {
 
 // Runs inside the caller's transaction (webhook / manual refresh / backfill). Idempotent:
 // a second Delivered event for an already-collected order is a no-op.
+// A parcel in the customer's hands answers the confirmation question for good. Delivery only ever
+// wrote shipping_status, so an order that was never confirmed on WhatsApp (the early flow lost
+// many of those) kept `pending_confirmation` forever: the list said "بانتظار التأكيد" on a
+// delivered order and a later "تمام" from the same phone could land on it. Only the
+// pre-confirmation states move; anything else (returned, cancelled, a POS status) is left alone.
+export const DELIVERED_CLOSES_CONFIRMATION_STATUSES = ["pending_confirmation", "edit_requested"];
+export const DELIVERED_CLOSES_CONFIRMATION_SQL = (shippingStatusParam) => `CASE
+      WHEN ${shippingStatusParam}::text = 'delivered'
+        AND LOWER(COALESCE(status, '')) IN (${DELIVERED_CLOSES_CONFIRMATION_STATUSES.map((s) => `'${s}'`).join(", ")})
+      THEN 'delivered'
+      ELSE status
+    END`;
+
 export const markCourierCollected = async (client, order, { source = "bosta_webhook", at = null } = {}) => {
   if (!order?.id) return { applied: false, reason: "no_order" };
   if (order.courier_collected_at) return { applied: false, reason: "already_collected", amount: Number(order.courier_collected_amount || 0) };

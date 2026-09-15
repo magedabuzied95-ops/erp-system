@@ -85,6 +85,22 @@ test("a COD order whose confirmation request never left is visible, not hidden",
   assert.equal(state.key, "not_sent");
 });
 
+test("an old order the courier already delivered never reads as awaiting or not sent", () => {
+  assert.equal(getConfirmationState({ status: "pending_confirmation", shipping_status: "delivered", whatsapp_confirmation_sent_at: "2026-06-01T10:00:00Z" }), null);
+  assert.equal(getConfirmationState({ status: "pending_confirmation", shipment_status: "delivered" }), null);
+  // A real confirmation on a delivered order is still worth showing.
+  assert.equal(getConfirmationState({ status: "pending_confirmation", shipping_status: "delivered", whatsapp_confirmed_at: "2026-06-01T10:00:00Z" }).key, "confirmed");
+});
+
+test("delivery closes the confirmation stage in every server write that records it", () => {
+  const settlements = fs.readFileSync(new URL("../server/modules/shipping/shipping.settlements.service.js", import.meta.url), "utf8");
+  const shipping = fs.readFileSync(new URL("../server/modules/shipping/shipping.service.js", import.meta.url), "utf8");
+  const orders = fs.readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
+  assert.match(settlements, /DELIVERED_CLOSES_CONFIRMATION_STATUSES = \["pending_confirmation", "edit_requested"\]/);
+  assert.equal((shipping.match(/status = \$\{DELIVERED_CLOSES_CONFIRMATION_SQL\("\$2::varchar"\)\}/g) || []).length, 2, "Bosta refresh + webhook");
+  assert.match(orders, /status = \$\{DELIVERED_CLOSES_CONFIRMATION_SQL\("\$3::varchar"\)\}/);
+});
+
 test("orders outside the confirmation flow render nothing", () => {
   for (const status of ["pending", "shipped", "delivered", "returned", ""]) {
     assert.equal(getConfirmationState({ status }), null, `status ${status} should be silent`);

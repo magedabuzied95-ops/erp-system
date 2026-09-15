@@ -14,6 +14,7 @@ import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/tra
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
 import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
 import { notifyPaymentProofApproved } from "../modules/shipping/paymentProofLink.js";
+import { DELIVERED_CLOSES_CONFIRMATION_SQL } from "../modules/shipping/shipping.settlements.service.js";
 import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
@@ -7793,6 +7794,7 @@ export const updateOrderShipment = async (req, res) => {
       UPDATE orders
       SET shipping_provider = $1,
           shipping_provider_id = $2,
+          status = ${DELIVERED_CLOSES_CONFIRMATION_SQL("$3::varchar")},
           shipping_status = $3::varchar,
           shipment_status = $3::varchar,
           shipment_id = $4::varchar,

@@ -33,6 +33,10 @@ export const getConfirmationState = (order = {}) => {
       className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
     };
   }
+  // A delivered parcel settles the question: the early flow left many old orders in
+  // pending_confirmation after the courier handed them over, and "awaiting" on those is a lie.
+  const shipping = String(order?.shipping_status || order?.shipment_status || "").trim().toLowerCase();
+  if (status === "delivered" || shipping === "delivered") return null;
   if (order?.whatsapp_confirmation_sent_at && status === "pending_confirmation") {
     return {
       key: "awaiting",

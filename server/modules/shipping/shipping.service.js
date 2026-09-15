@@ -6,7 +6,7 @@ import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotifica
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
-import { ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
+import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
 import { bostaStateText, buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -1208,8 +1208,9 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
   const updated = await db.query(
     `
     UPDATE orders SET
-      shipping_status = $2,
-      shipment_status = $2,
+      status = ${DELIVERED_CLOSES_CONFIRMATION_SQL("$2::varchar")},
+      shipping_status = $2::varchar,
+      shipment_status = $2::varchar,
       tracking_number = COALESCE(NULLIF($3, ''), tracking_number),
       shipping_tracking_number = COALESCE(NULLIF($3, ''), shipping_tracking_number),
       shipment_id = COALESCE(NULLIF($3, ''), NULLIF($4, ''), shipment_id),
@@ -1381,8 +1382,9 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     const updated = await client.query(
       `
       UPDATE orders SET
-        shipping_status = $2,
-        shipment_status = $2,
+        status = ${DELIVERED_CLOSES_CONFIRMATION_SQL("$2::varchar")},
+        shipping_status = $2::varchar,
+        shipment_status = $2::varchar,
         shipping_provider_delivery_id = COALESCE(NULLIF($3, ''), shipping_provider_delivery_id),
         shipment_id = COALESCE(NULLIF($4, ''), NULLIF($3, ''), shipment_id),
         shipping_tracking_number = COALESCE(NULLIF($4, ''), shipping_tracking_number),
