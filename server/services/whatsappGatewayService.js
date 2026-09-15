@@ -5549,7 +5549,7 @@ export const extractWhatsappCallEvent = (payload = {}) => {
   };
 };
 
-const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
+export const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
   console.info("[whatsapp:call-event]", {
     call_id: call.callId,
     status: call.status,
@@ -5566,20 +5566,44 @@ const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
     return { event: "call", handled: false, reason: "duplicate_call_event" };
   }
   const tenantId = tenantIdForWhatsapp(payload || {});
-  const sessionId = normalizeWhatsappSessionId(chatJid, call.phone);
-  if (!tenantId || !sessionId) return { event: "call", handled: false, reason: "unresolved_conversation" };
+  if (!tenantId) return { event: "call", handled: false, reason: "unresolved_conversation" };
+  // A call rings from the caller's LID even when we have been talking to that customer on
+  // their number for months. Keying the row on the raw LID opened a second, nameless thread
+  // beside the real conversation — so resolve the LID to the phone we already know, exactly
+  // as an inbound message does, and let the call land in the thread it belongs to.
+  let callPhone = call.phone;
+  let replyJid = chatJid;
+  let identityReason = call.lid ? "lid_caller" : "phone_caller";
+  if (!callPhone && call.lid) {
+    const storedTarget = await resolveStoredLidReplyTarget({
+      tenantId,
+      remoteJid: chatJid,
+      ownerJids: ownerJidsFromPayload({ payload, data: payload?.data || {}, fromMe: false }),
+      base: {},
+    });
+    if (storedTarget?.resolvedNumber) {
+      callPhone = storedTarget.resolvedNumber;
+      replyJid = storedTarget.resolvedJid || `${storedTarget.resolvedNumber}@s.whatsapp.net`;
+      identityReason = storedTarget.reason || "lid_resolved";
+    }
+  }
+  const sessionId = normalizeWhatsappSessionId(replyJid, callPhone);
+  if (!sessionId) return { event: "call", handled: false, reason: "unresolved_conversation" };
   const label = call.isVideo ? "📞 مكالمة فيديو من العميل" : "📞 مكالمة من العميل";
   try {
     await upsertChannelConversationMapping({
       tenantId,
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       externalConversationId: sessionId,
-      externalCustomerId: call.phone || "",
+      externalCustomerId: callPhone || "",
+      // Only keys we actually resolved: the metadata merge is a jsonb `||`, so writing an
+      // empty phone here would blank the number on a thread that already knew it.
       metadata: {
-        phone: call.phone,
-        lid_jid: call.lid ? `${call.lid}@lid` : "",
+        ...(callPhone ? { phone: callPhone, resolved_phone: callPhone } : {}),
+        ...(call.lid ? { lid_jid: `${call.lid}@lid`, sender_lid: call.lid } : {}),
+        ...(call.instance ? { instance: call.instance } : {}),
         remote_jid: chatJid,
-        instance: call.instance,
+        resolved_reply_jid: replyJid,
         source: "evolution_api",
         last_message: label,
       },
@@ -5599,8 +5623,8 @@ const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
       insertSource: "whatsapp_provider_call",
       whatsappInstance: call.instance,
       remoteJid: chatJid,
-      resolvedReplyJid: chatJid,
-      resolvedPhone: call.phone,
+      resolvedReplyJid: replyJid,
+      resolvedPhone: callPhone,
     });
     return {
       event: "call",
@@ -5608,7 +5632,8 @@ const handleWhatsappCallEvent = async ({ payload = {}, call = {} } = {}) => {
       call_id: call.callId,
       status: call.status,
       is_video: call.isVideo === true,
-      phone: call.phone,
+      phone: callPhone,
+      identity_reason: identityReason,
       inbox: { saved: Boolean(row), session_id: sessionId },
     };
   } catch (error) {
