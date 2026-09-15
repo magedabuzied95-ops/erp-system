@@ -6530,7 +6530,11 @@ export const markOrderShippingFeePaid = async (req, res) => {
 export const requestOrderShippingFeePayment = async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    const result = await sendShippingFeePaymentRequest({ orderId: req.params.id, tenantId });
+    const result = await sendShippingFeePaymentRequest({
+      orderId: req.params.id,
+      tenantId,
+      amount: Number(req.body?.amount) || 0,
+    });
     return res.json({ success: true, ...result });
   } catch (error) {
     const status = error.status || 500;

@@ -647,7 +647,7 @@ export const answerTransferScreenshotInChat = async ({ phone = "" } = {}) => {
  * page — instead of waiting for the order confirmation to carry the card. Same card, same upload
  * link, so an uploaded screenshot lands on the order and reaches payment review like any other.
  */
-export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null } = {}) => {
+export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null, amount = 0 } = {}) => {
   const found = await db.query(
     `SELECT * FROM orders WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL) LIMIT 1`,
     [orderId, tenantId]
@@ -658,9 +658,20 @@ export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null }
   if (!phone) throw httpError(409, "NO_CUSTOMER_PHONE", "الأوردر ده مفيهوش رقم تليفون نبعتله.");
   const { loadCodPolicySettings } = await import("../../services/storefrontShippingService.js");
   const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
-  if (!advance.required) throw httpError(409, "PAYMENT_NOT_REQUIRED", "الأوردر ده مش محتاج تحويل مقدّم.");
-  if (advance.status === "paid") throw httpError(409, "ALREADY_PAID", "رسوم الشحن للأوردر ده اتأكدت خلاص.");
-  const card = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
+  // Staff may ask for a deposit the closing system does not demand — a big order, a new customer,
+  // a courier that will not carry that much cash. A typed amount is the decision; the policy only
+  // decides what the button offers by default.
+  const requested = money(amount);
+  const total = money(order.total_amount ?? order.total ?? order.total_price);
+  const owed = Math.max(0, money(total - money(order.paid_amount)));
+  if (requested > 0 && owed > 0 && requested - owed > 0.009) {
+    throw httpError(400, "AMOUNT_ABOVE_BALANCE", "المبلغ أكبر من المتبقي على الأوردر.");
+  }
+  const askedAmount = requested > 0 ? requested : advance.amount;
+  if (!(askedAmount > 0)) throw httpError(409, "PAYMENT_NOT_REQUIRED", "اكتب مبلغ الديبوزت الأول.");
+  if (requested <= 0 && advance.status === "paid") throw httpError(409, "ALREADY_PAID", "رسوم الشحن للأوردر ده اتأكدت خلاص.");
+  if (owed <= 0) throw httpError(409, "ORDER_SETTLED", "الأوردر ده مدفوع بالكامل.");
+  const card = await prepareShippingFeePaymentCard({ order, amount: askedAmount });
   if (!card) throw httpError(502, "CARD_UNAVAILABLE", "مش قادرين نجهّز كارت الدفع دلوقتي.");
   const queued = await queueShippingFeePaymentCard({
     order,
@@ -670,6 +681,6 @@ export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null }
     // Every manual ask is its own message: staff repeat it when the customer loses the first one.
     idempotencySuffix: `manual-${Date.now()}`,
   });
-  console.info("[payment-proof] deposit requested by staff", { orderId: order.id, amount: advance.amount, queued: queued?.queued !== false });
-  return { sent: queued?.queued !== false, amount: advance.amount, upload_url: card.uploadUrl, status: advance.status };
+  console.info("[payment-proof] deposit requested by staff", { orderId: order.id, amount: askedAmount, manual: requested > 0, queued: queued?.queued !== false });
+  return { sent: queued?.queued !== false, amount: askedAmount, upload_url: card.uploadUrl, status: advance.status };
 };

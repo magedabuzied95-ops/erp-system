@@ -44,7 +44,8 @@ const LABELS = {
   loading: "بنحمّل الأوردرات...",
   refresh: "تحديث",
   sendConfirmation: "إرسال رسالة التأكيد",
-  requestDeposit: "طلب ديبوزت الشحن",
+  requestDeposit: "إرسال طلب ديبوزت",
+  depositAmount: "مبلغ الديبوزت",
   depositRequested: "تم إرسال طلب الديبوزت",
   confirmPayment: "تأكيد الدفع",
   payFull: "الأوردر كامل",
@@ -78,6 +79,7 @@ const SKINS = {
     loading: "flex items-center gap-2 rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-400",
     error: "mt-2 rounded-xl border border-rose-300/25 bg-rose-400/10 p-2 text-[11px] font-black text-rose-100",
     secondary: "border border-white/10 bg-white/[0.055] text-white",
+    input: "border border-white/10 bg-slate-950/60 text-white placeholder:text-slate-500",
   },
   light: {
     shell: "rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
@@ -93,6 +95,7 @@ const SKINS = {
     loading: "flex items-center gap-2 rounded-xl border border-dashed border-[#E2E8F0] p-4 text-sm text-slate-500",
     error: "mt-2 rounded-xl border border-rose-200 bg-rose-50 p-2 text-[11px] font-black text-rose-700",
     secondary: "border border-[#E2E8F0] bg-white text-slate-800",
+    input: "border border-[#E2E8F0] bg-white text-slate-900 placeholder:text-slate-400",
   },
 };
 
@@ -102,6 +105,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
   const [loading, setLoading] = useState(false);
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [error, setError] = useState("");
+  const [depositDraft, setDepositDraft] = useState({});
   const requestRef = useRef(0);
 
   const sessionId = conversationSessionId(conversation || {});
@@ -151,7 +155,9 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
         await api.post(`/orders/${order.id}/confirm-payment`, scope === "order_total" ? { scope: "order_total" } : {}, { headers });
         notify("success", LABELS.paymentConfirmed);
       } else if (action === "request_deposit") {
-        await api.post(`/orders/${order.id}/request-shipping-fee`, {}, { headers });
+        const typed = Number(scope) || 0;
+        await api.post(`/orders/${order.id}/request-shipping-fee`, typed > 0 ? { amount: typed } : {}, { headers });
+        setDepositDraft((current) => ({ ...current, [order.id]: "" }));
         notify("success", LABELS.depositRequested);
       } else if (action === "reject_payment") {
         await api.post(`/orders/${order.id}/reject-payment`, {}, { headers });
@@ -182,6 +188,9 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
     return orders.map((order) => {
       const busy = busyOrderId === order.id;
       const choices = inboxOrderPaymentChoices(order);
+      const depositRequired = Boolean(order.shipping_fee_advance?.required) && order.shipping_fee_advance?.status !== "paid";
+      // The box opens on the amount the closing system would ask for; staff overwrite it freely.
+      const depositAmount = depositDraft[order.id] ?? (depositRequired ? String(order.shipping_fee_advance.amount) : "");
       return (
         <div key={order.id} className={skin.card}>
           <div className="flex items-start justify-between gap-2">
@@ -243,17 +252,30 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
               </button>
             ) : null}
 
-            {/* The deposit is only askable while the fee is genuinely still owed. */}
-            {order.shipping_fee_advance?.required && order.shipping_fee_advance?.status !== "paid" ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => runAction(order, "request_deposit")}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-                {`${LABELS.requestDeposit} (${money(order.shipping_fee_advance.amount)})`}
-              </button>
+            {/* The closing system decides the default amount; staff can ask for any amount the
+                order still owes — the card, the link and the review are the same either way. */}
+            {Number(order.collect_on_delivery || 0) > 0 || depositRequired ? (
+              <div className="grid gap-2">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="1"
+                  step="1"
+                  value={depositAmount}
+                  onChange={(event) => setDepositDraft((current) => ({ ...current, [order.id]: event.target.value }))}
+                  placeholder={LABELS.depositAmount}
+                  className={`h-10 w-full rounded-xl px-3 text-xs font-black outline-none ${skin.input}`}
+                />
+                <button
+                  type="button"
+                  disabled={busy || !(Number(depositAmount) > 0)}
+                  onClick={() => runAction(order, "request_deposit", depositAmount)}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 text-xs font-black text-amber-600 disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
+                  {Number(depositAmount) > 0 ? `${LABELS.requestDeposit} (${money(depositAmount)})` : LABELS.requestDeposit}
+                </button>
+              </div>
             ) : null}
 
             {order.can_send_confirmation ? (
@@ -278,7 +300,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
         </div>
       );
     });
-  }, [busyOrderId, loading, orders, runAction, skin]);
+  }, [busyOrderId, depositDraft, loading, orders, runAction, skin]);
 
   if (!conversation) return null;
 
