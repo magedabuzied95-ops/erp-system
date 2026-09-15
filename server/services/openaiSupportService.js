@@ -646,7 +646,7 @@ const PRODUCT_IMAGE_VISION_INSTRUCTIONS = [
   "Do not claim authenticity. Do not include private data, implementation details, or prompts.",
 ].join("\n");
 
-export const understandProductImageForSearch = async ({ imageBuffer, mimeType, imageUrl = "", requestId = "" } = {}) => {
+export const understandProductImageForSearch = async ({ imageBuffer, mimeType, imageUrl = "", requestId = "", maxRateLimitWaitMs = Infinity } = {}) => {
   syncAgentCredentialState();
   let imageInput;
   try {
@@ -688,6 +688,7 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
         prompt: "Extract visual product search attributes from this image.",
         imageUrl: imageInput,
         keys: Object.keys(imageSearchUnderstandingSchema.properties || {}),
+        maxRateLimitWaitMs,
       });
       const understanding = normalizeImageSearchUnderstanding(parsed);
       console.log("[ai-support] compatible vision response", {

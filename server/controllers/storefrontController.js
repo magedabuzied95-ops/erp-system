@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { access, readFile, unlink } from "node:fs/promises";
+import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import sharp from "sharp";
 import db from "../database/db.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
@@ -118,11 +118,8 @@ const withPaymentProofAliases = (order = {}) => {
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
-const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 140);
 const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 450);
 const VISUAL_REMOTE_IMAGE_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_MAX_BYTES || 3 * 1024 * 1024);
-const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 16);
-const VISUAL_SIGNATURE_CACHE_LIMIT = Number(process.env.STOREFRONT_VISUAL_SIGNATURE_CACHE_LIMIT || 1200);
 let storefrontSchemaReadyPromise = null;
 let storefrontSchemaReady = false;
 const storefrontTableColumnsCache = new Map();
@@ -2567,46 +2564,6 @@ const visualModelFamilyKey = (product = {}) => {
   return brand && model ? `${brand}:${model}` : "";
 };
 
-const visualSignatureCache = new Map();
-
-const trimVisualSignatureCache = () => {
-  while (visualSignatureCache.size > VISUAL_SIGNATURE_CACHE_LIMIT) {
-    const firstKey = visualSignatureCache.keys().next().value;
-    if (!firstKey) break;
-    visualSignatureCache.delete(firstKey);
-  }
-};
-
-const getCandidateVisualSignature = async (imageUrl = "", options = {}) => {
-  const key = toText(imageUrl);
-  if (!key) return null;
-  const cached = visualSignatureCache.get(key);
-  if (cached) {
-    visualSignatureCache.delete(key);
-    visualSignatureCache.set(key, cached);
-    return { ...cached, cached: true };
-  }
-
-  const loaded = await loadCandidateImageBuffer(key, options);
-  if (!loaded.buffer?.length) return null;
-  const [hashes, color] = await Promise.all([
-    imagePerceptualHashes(loaded.buffer),
-    imageColorSignature(loaded.buffer).catch(() => null),
-  ]);
-  const shapeHashes = await imageShapeHashes(loaded.buffer).catch(() => []);
-  const signature = {
-    source: loaded.source,
-    sha: imageSha256(loaded.buffer),
-    hash: hashes.primary,
-    hashes: hashes.all,
-    shapeHashes,
-    color,
-  };
-  visualSignatureCache.set(key, signature);
-  trimVisualSignatureCache();
-  return { ...signature, cached: false };
-};
-
 const collectProductImageUrls = (product = {}) => [
   product.image_url,
   product.product_image_url,
@@ -2651,97 +2608,198 @@ const queryVisualImageCandidates = async (tenantId, limit = 600) => {
   return rows;
 };
 
-const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 }) => {
-  const uploadedSha = imageSha256(imageBuffer);
-  const uploadedHashes = await imagePerceptualHashes(imageBuffer);
-  const uploadedHashList = uploadedHashes.all.length ? uploadedHashes.all : [uploadedHashes.primary].filter(Boolean);
-  const uploadedShapeHashes = await imageShapeHashes(imageBuffer).catch(() => []);
-  const uploadedColor = await imageColorSignature(imageBuffer).catch(() => null);
-  const candidates = await queryVisualImageCandidates(tenantId);
-  const scored = [];
-  const debug = {
-    tenant_id: tenantId,
-    candidate_product_image_count: candidates.length,
-    readable_candidate_image_count: 0,
-    data_url_candidate_count: 0,
-    upload_file_candidate_count: 0,
-    remote_url_candidate_count: 0,
-    remote_candidate_limit: VISUAL_REMOTE_CANDIDATE_LIMIT,
-    matched_candidate_count: 0,
-    color_scored_candidate_count: 0,
-  };
+/* ---------------------------------------------------------------------------
+ * The pixel library: every catalogue photo's fingerprint, computed ONCE.
+ *
+ * LIVE 2026-09-15 the pixel pass timed out (15s) on every photo search and returned nothing. It
+ * rebuilt the candidate list from a full catalogue query on each request and fingerprinted each
+ * product photo on demand, behind an in-memory cache of 1200 entries — fewer than the catalogue has
+ * photos, so it kept evicting what it had just computed and never finished.
+ *
+ * Now the fingerprints are built in the background, a few photos at a time so shoppers never feel
+ * it, kept in memory per tenant and saved to uploads/.cache so a restart reloads them instead of
+ * recomputing. A search compares against whatever the library already holds — plain string
+ * distances, milliseconds — and never computes a catalogue fingerprint itself. The library refreshes
+ * every few hours, reusing the saved fingerprint of every photo URL it has already seen.
+ * ------------------------------------------------------------------------- */
+const VISUAL_LIBRARY_REFRESH_MS = Number(process.env.STOREFRONT_VISUAL_LIBRARY_REFRESH_MS || 4 * 60 * 60 * 1000);
+const VISUAL_LIBRARY_PRODUCT_LIMIT = Number(process.env.STOREFRONT_VISUAL_LIBRARY_PRODUCT_LIMIT || 4000);
+const VISUAL_LIBRARY_BUILD_CONCURRENCY = 3;
+let lastStorefrontVisionOutcome = null;
+const visualLibraries = new Map();
 
-  let remoteCandidateAttempts = 0;
-  const queuedCandidates = [];
-  for (const candidate of candidates) {
-    const remote = isRemoteImageUrl(candidate.imageUrl);
-    if (remote) {
-      if (remoteCandidateAttempts >= VISUAL_REMOTE_CANDIDATE_LIMIT) continue;
-      remoteCandidateAttempts += 1;
-    }
-    queuedCandidates.push({ ...candidate, remote });
+const visualLibraryFile = (tenantId) =>
+  path.join(process.cwd(), "uploads", ".cache", `storefront-visual-signatures-${tenantId ?? "all"}-v1.json`);
+
+const readSavedVisualSignatures = async (tenantId) => {
+  try {
+    const parsed = JSON.parse(await readFile(visualLibraryFile(tenantId), "utf8"));
+    return new Map(Object.entries(parsed?.signatures || {}));
+  } catch {
+    return new Map();
+  }
+};
+
+const saveVisualSignatures = async (tenantId, signatures) => {
+  try {
+    const file = visualLibraryFile(tenantId);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, JSON.stringify({ saved_at: new Date().toISOString(), signatures: Object.fromEntries(signatures) }));
+  } catch (error) {
+    console.warn("[storefront-image-search] visual library not saved", { tenantId, message: error?.message || "" });
+  }
+};
+
+const fingerprintImageBuffer = async (buffer) => {
+  const [hashes, color, shapeHashes] = await Promise.all([
+    imagePerceptualHashes(buffer),
+    imageColorSignature(buffer).catch(() => null),
+    imageShapeHashes(buffer).catch(() => []),
+  ]);
+  return { sha: imageSha256(buffer), hash: hashes.primary, hashes: hashes.all, shapeHashes, color };
+};
+
+const buildVisualLibrary = async (tenantId) => {
+  const startedAt = Date.now();
+  const saved = await readSavedVisualSignatures(tenantId);
+  const library = visualLibraries.get(String(tenantId)) || { entries: [], builtAt: 0, building: null };
+  // Show what was saved straight away, so a restart does not leave the pixel pass blind for the
+  // minutes a full rebuild takes.
+  if (!library.entries.length && saved.size) {
+    const products = await queryVisualImageCandidates(tenantId, VISUAL_LIBRARY_PRODUCT_LIMIT);
+    library.entries = products
+      .map((candidate) => ({ candidate, signature: saved.get(candidate.imageUrl) }))
+      .filter((item) => item.signature?.hash)
+      .map(({ candidate, signature }) => ({
+        productId: candidate.product.id,
+        familyKey: visualModelFamilyKey(candidate.product),
+        imageUrl: candidate.imageUrl,
+        ...signature,
+      }));
+    visualLibraries.set(String(tenantId), library);
   }
 
-  const scoreCandidate = async (candidate) => {
-    try {
-      const signature = await getCandidateVisualSignature(candidate.imageUrl, { allowRemote: candidate.remote });
-      if (!signature?.hash) return null;
-      const exact = signature.sha === uploadedSha;
-      const candidateHashes = Array.isArray(signature.hashes) && signature.hashes.length ? signature.hashes : [signature.hash];
-      const distance = exact ? 0 : Math.min(
-        ...uploadedHashList.flatMap((uploadedHash) => candidateHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
-      );
-      const candidateShapeHashes = Array.isArray(signature.shapeHashes) ? signature.shapeHashes.filter(Boolean) : [];
-      const shapeDistance = exact || !uploadedShapeHashes.length || !candidateShapeHashes.length
-        ? distance
-        : Math.min(
-          ...uploadedShapeHashes.flatMap((uploadedHash) => candidateShapeHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
-        );
-      const colorSimilarity = uploadedColor ? colorSignatureSimilarity(uploadedColor, signature.color) : 0;
-      const hashScore = exact ? 100 : Math.max(0, 92 - distance * 2.2);
-      const shapeScore = exact ? 100 : Math.max(0, 94 - shapeDistance * 2.45);
-      const blendedScore = exact
-        ? 100
-        : Math.max(0, Math.min(96, Math.round(hashScore * 0.38 + shapeScore * 0.42 + colorSimilarity * 100 * 0.2)));
-      if (!(exact || distance <= 16 || shapeDistance <= 15 || blendedScore >= 42 || colorSimilarity >= 0.88)) {
-        return { signature, matched: false, colorSimilarity };
+  const candidates = await queryVisualImageCandidates(tenantId, VISUAL_LIBRARY_PRODUCT_LIMIT);
+  const entries = [];
+  const signatures = new Map();
+  let computed = 0;
+  for (let index = 0; index < candidates.length; index += VISUAL_LIBRARY_BUILD_CONCURRENCY) {
+    const chunk = candidates.slice(index, index + VISUAL_LIBRARY_BUILD_CONCURRENCY);
+    const results = await Promise.all(chunk.map(async (candidate) => {
+      let signature = saved.get(candidate.imageUrl) || signatures.get(candidate.imageUrl) || null;
+      if (!signature?.hash) {
+        try {
+          // Our own files only: fetching remote photos for thousands of rows is how the old pass hung.
+          const loaded = await loadCandidateImageBuffer(candidate.imageUrl, { allowRemote: false });
+          if (!loaded.buffer?.length) return null;
+          signature = await fingerprintImageBuffer(loaded.buffer);
+          computed += 1;
+        } catch {
+          return null;
+        }
       }
-      return {
-        signature,
-        matched: true,
-        match: {
-          productId: candidate.product.id,
-          score: blendedScore,
-          reason: exact ? "exact_sha256" : shapeDistance <= 15 ? "shape_hash" : distance <= 16 ? "perceptual_hash" : "visual_color_similarity",
-          distance,
-          shapeDistance,
-          colorSimilarity,
-          familyKey: visualModelFamilyKey(candidate.product),
-        },
-      };
-    } catch {
-      return null;
-    }
-  };
-
-  const concurrency = Math.max(1, Math.min(16, VISUAL_IMAGE_MATCH_CONCURRENCY || 8));
-  for (let index = 0; index < queuedCandidates.length; index += concurrency) {
-    const chunk = queuedCandidates.slice(index, index + concurrency);
-    const results = await Promise.all(chunk.map(scoreCandidate));
+      return { candidate, signature };
+    }));
     for (const result of results) {
-      if (!result?.signature) continue;
-      debug.readable_candidate_image_count += 1;
-      if (result.signature.source === "data_url") debug.data_url_candidate_count += 1;
-      if (result.signature.source === "upload_file") debug.upload_file_candidate_count += 1;
-      if (result.signature.source === "remote_url") debug.remote_url_candidate_count += 1;
-      if (result.colorSimilarity > 0) debug.color_scored_candidate_count += 1;
-      if (result.matched) {
-        debug.matched_candidate_count += 1;
-        scored.push(result.match);
-      }
+      if (!result?.signature?.hash) continue;
+      signatures.set(result.candidate.imageUrl, result.signature);
+      entries.push({
+        productId: result.candidate.product.id,
+        familyKey: visualModelFamilyKey(result.candidate.product),
+        imageUrl: result.candidate.imageUrl,
+        ...result.signature,
+      });
     }
+    // Let requests in between chunks; sharp work is CPU the storefront shares.
+    await new Promise((resolve) => setImmediate(resolve));
   }
-  console.log("[storefront-image-search] image candidates", debug);
+  library.entries = entries;
+  library.builtAt = Date.now();
+  visualLibraries.set(String(tenantId), library);
+  if (computed || signatures.size !== saved.size) await saveVisualSignatures(tenantId, signatures);
+  console.log("[storefront-image-search] visual library built", {
+    tenantId,
+    candidates: candidates.length,
+    fingerprints: entries.length,
+    computed,
+    reused: entries.length - computed,
+    ms: Date.now() - startedAt,
+  });
+  return library;
+};
+
+const ensureVisualLibrary = (tenantId) => {
+  const key = String(tenantId);
+  const library = visualLibraries.get(key) || { entries: [], builtAt: 0, building: null };
+  visualLibraries.set(key, library);
+  const stale = !library.builtAt || Date.now() - library.builtAt > VISUAL_LIBRARY_REFRESH_MS;
+  if (stale && !library.building) {
+    library.building = buildVisualLibrary(tenantId)
+      .catch((error) => console.warn("[storefront-image-search] visual library build failed", { tenantId, message: error?.message || "" }))
+      .finally(() => {
+        library.building = null;
+      });
+  }
+  return library;
+};
+
+// Start the default tenant's library a little after boot, so the first shopper to search by photo
+// after a deploy is not the one who waits for it. Off the boot path and unref'd: it never delays
+// startup or keeps a test process alive.
+if (process.env.NODE_ENV === "production" && process.env.STOREFRONT_VISUAL_LIBRARY_WARM !== "false") {
+  setTimeout(() => ensureVisualLibrary(DEFAULT_TENANT_ID), 90_000).unref?.();
+}
+
+export const __storefrontVisualTesting = { fingerprintImageBuffer: (buffer) => fingerprintImageBuffer(buffer), scoreVisualLibrary: (...args) => scoreVisualLibrary(...args) };
+
+export const storefrontVisualLibraryStatus = (tenantId) => {
+  const library = visualLibraries.get(String(tenantId));
+  return {
+    fingerprints: library?.entries?.length || 0,
+    built_at: library?.builtAt ? new Date(library.builtAt).toISOString() : null,
+    building: Boolean(library?.building),
+  };
+};
+
+const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 }) => {
+  const library = ensureVisualLibrary(tenantId);
+  if (!library.entries.length) return [];
+  return scoreVisualLibrary(library.entries, await fingerprintImageBuffer(imageBuffer), limit);
+};
+
+const scoreVisualLibrary = (entries = [], uploaded = {}, limit = 8) => {
+  const uploadedHashList = uploaded.hashes.length ? uploaded.hashes : [uploaded.hash].filter(Boolean);
+  const scored = [];
+
+  for (const signature of entries) {
+    const exact = signature.sha === uploaded.sha;
+    const candidateHashes = Array.isArray(signature.hashes) && signature.hashes.length ? signature.hashes : [signature.hash];
+    const distance = exact ? 0 : Math.min(
+      ...uploadedHashList.flatMap((uploadedHash) => candidateHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
+    );
+    const candidateShapeHashes = Array.isArray(signature.shapeHashes) ? signature.shapeHashes.filter(Boolean) : [];
+    const shapeDistance = exact || !uploaded.shapeHashes.length || !candidateShapeHashes.length
+      ? distance
+      : Math.min(
+        ...uploaded.shapeHashes.flatMap((uploadedHash) => candidateShapeHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
+      );
+    const colorSimilarity = uploaded.color ? colorSignatureSimilarity(uploaded.color, signature.color) : 0;
+    const hashScore = exact ? 100 : Math.max(0, 92 - distance * 2.2);
+    const shapeScore = exact ? 100 : Math.max(0, 94 - shapeDistance * 2.45);
+    const blendedScore = exact
+      ? 100
+      : Math.max(0, Math.min(96, Math.round(hashScore * 0.38 + shapeScore * 0.42 + colorSimilarity * 100 * 0.2)));
+    if (!(exact || distance <= 16 || shapeDistance <= 15 || blendedScore >= 42 || colorSimilarity >= 0.88)) continue;
+    scored.push({
+      productId: signature.productId,
+      score: blendedScore,
+      reason: exact ? "exact_sha256" : shapeDistance <= 15 ? "shape_hash" : distance <= 16 ? "perceptual_hash" : "visual_color_similarity",
+      distance,
+      shapeDistance,
+      colorSimilarity,
+      familyKey: signature.familyKey,
+    });
+  }
 
   const bestByProduct = new Map();
   for (const item of scored) {
@@ -4392,17 +4450,37 @@ export const imageSearchProducts = async (req, res) => {
       )
     );
 
+    // The model reads ~768px at most; a phone photo sent whole is image tokens it bills and reads
+    // slowly (LIVE: vision timed out at 20s on every storefront photo).
+    const visionImage = await sharp(file.buffer)
+      .rotate()
+      .resize(768, 768, { fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#ffffff" })
+      .jpeg({ quality: 82 })
+      .toBuffer()
+      .catch(() => file.buffer);
+    const visionWork = understandProductImageForSearch({
+      imageBuffer: visionImage,
+      mimeType: visionImage === file.buffer ? file.mimetype : "image/jpeg",
+      requestId: req.id || `storefront-image:${Date.now()}`,
+      maxRateLimitWaitMs: 3000,
+    });
+    // A reading that outlives the search timeout still reports how it ended, so the next answer can
+    // say whether the provider was slow, rate-limited or refusing.
+    visionWork
+      .then((result) => {
+        lastStorefrontVisionOutcome = {
+          at: new Date().toISOString(),
+          code: String(result?.openai_error?.code || result?.error || (visualQueryFromUnderstanding(result) ? "ok" : "nothing_read")),
+          ms: Date.now() - startedAt,
+        };
+      })
+      .catch((error) => {
+        lastStorefrontVisionOutcome = { at: new Date().toISOString(), code: String(error?.code || error?.status || "error"), ms: Date.now() - startedAt };
+      });
     const understanding = await timed(
       "vision",
-      withTimeout(
-        understandProductImageForSearch({
-          imageBuffer: file.buffer,
-          mimeType: file.mimetype,
-          requestId: req.id || `storefront-image:${Date.now()}`,
-        }),
-        process.env.STOREFRONT_IMAGE_VISION_TIMEOUT_MS || 20000,
-        "storefront_image_vision"
-      )
+      withTimeout(visionWork, process.env.STOREFRONT_IMAGE_VISION_TIMEOUT_MS || 25000, "storefront_image_vision")
     );
     const visionError = String(understanding?.openai_error?.code || understanding?.error || "").trim();
     if (visionError && timings.vision) timings.vision = { ...timings.vision, status: "error", code: visionError };
@@ -4582,6 +4660,10 @@ export const imageSearchProducts = async (req, res) => {
       },
       decision: decision.reason,
       timings,
+      // How the previous vision reading ended (including one that finished after its search gave up)
+      // and how much of the catalogue the pixel pass can compare against yet.
+      last_vision_outcome: lastStorefrontVisionOutcome,
+      pixel_library: storefrontVisualLibraryStatus(tenantId),
       visual_confidence: understanding?.confidence || 0,
       visual_attributes: proSearch.attributes || understanding?.detected || null,
       top_candidates: proSearch.topMatches || [],

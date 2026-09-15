@@ -77,6 +77,9 @@ export const requestCompatibleVisionJson = async ({
   keys = [],
   client = null,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  // A shopper waiting on a search cannot sit out a 30s "try again in" from a free tier; the
+  // storefront passes a small cap so a rate limit comes back as http_429 at once.
+  maxRateLimitWaitMs = Infinity,
 } = {}) => {
   const api = client || clientFor(provider);
   const body = {
@@ -106,7 +109,7 @@ export const requestCompatibleVisionJson = async ({
     // A hosted free tier answers a burst with 429 and says how long to wait. One patient retry;
     // anything longer than rateLimitWaitMs's cap is a real refusal and is reported as one.
     const waitMs = Number(error?.status) === 429 ? rateLimitWaitMs(error) : 0;
-    if (!waitMs) throw error;
+    if (!waitMs || waitMs > maxRateLimitWaitMs) throw error;
     await sleep(waitMs);
     completion = await call();
   }
