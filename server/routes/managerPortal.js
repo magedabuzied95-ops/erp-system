@@ -357,7 +357,7 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
     res.set("Cache-Control", "no-store, private");
     const manager = await loadVerifiedManager(req, res);
     if (!manager) return;
-    const result = await runPortalOrderAction({ actor: manager, surface: "manager_portal", orderId: req.params.orderId, action: req.params.action });
+    const result = await runPortalOrderAction({ actor: manager, surface: "manager_portal", orderId: req.params.orderId, action: req.params.action, input: req.body || {} });
     return res.json({ success: true, ...result });
   } catch (error) {
     if (!error.status || error.status >= 500) console.error("[manager-portal] online order action error", error);

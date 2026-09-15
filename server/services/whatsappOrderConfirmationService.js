@@ -23,6 +23,9 @@ import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
 import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount, orderConfirmationTranscriptButtons } from "../utils/orderConfirmationMessage.js";
 import { summariseItems } from "./whatsappTemplates.js";
+import { shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
+import { describeShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
+import { loadCodPolicySettings } from "./storefrontShippingService.js";
 import { releaseCouponForOrder } from "./couponsService.js";
 
 /*
@@ -753,7 +756,7 @@ const buildOrderConfirmationPublicUrl = (code = "") => {
 };
 // Two shapes of the same message. The buttons carry the actions, so the interactive body has no
 // link in it; the text fallback has no buttons, so it keeps the secure link as the way to act.
-const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", publicUrl = "", withLink = false, withActions = false } = {}) =>
+const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", publicUrl = "", withLink = false, withActions = false, shippingAdvance = null } = {}) =>
   buildCodOrderConfirmationMessage({
     customerName: firstName(customerName),
     confirmationLink: withLink ? publicUrl : "",
@@ -761,7 +764,22 @@ const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", p
     items: order?.items || [],
     invoiceUrl: order ? buildPublicInvoiceUrl(text(order.public_token) || orderNumber(order)) : "",
     withActions,
+    shippingAdvance,
   });
+
+// Outside the COD governorates (restricted closing system) the request also asks for the
+// shipping fee — unless it is already paid. Never blocks the send.
+const shippingFeeAdvanceForConfirmation = async (order = {}) => {
+  try {
+    const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
+    if (!advance.required || advance.status === "paid") return null;
+    const notice = await shippingFeeAdvanceNoticeForOrder(order);
+    return notice ? { notice, amount: advance.amount } : null;
+  } catch (error) {
+    console.warn("[whatsapp:order-confirmation] shipping advance skipped", { orderId: order?.id, message: error?.message });
+    return null;
+  }
+};
 
 const storeOrderConfirmationCode = async (client, { tenantId, orderId, action, expiresAt, code }) => {
   const codeHash = hashOrderConfirmationCode(code);
@@ -905,10 +923,12 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       orderId: current.id,
     });
     const confirmUrl = buildOrderConfirmationPublicUrl(confirmCode.code);
+    const shippingAdvance = await shippingFeeAdvanceForConfirmation(current);
     message = buildOrderConfirmationLinksMessage({
       order: current,
       customerName: current.customer_name,
       publicUrl: confirmUrl,
+      shippingAdvance,
     });
     if (!confirmUrl) {
       console.warn("[whatsapp:order-confirmation-link-build-warning]", {
@@ -947,6 +967,7 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
           publicUrl: confirmUrl,
           withLink: true,
           withActions: true,
+          shippingAdvance,
         }),
       },
       values: {
@@ -1006,6 +1027,7 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
         publicUrl: confirmUrl,
         withLink: true,
         withActions: true,
+        shippingAdvance,
       });
       deliveryMode = "link_text";
       result = await sendTextMessage({ phone, message });

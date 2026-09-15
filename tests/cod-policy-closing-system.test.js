@@ -117,3 +117,69 @@ test("checkout stores a shipping-fee transfer as unpaid with the goods left to c
   assert.match(source, /const codAmount = paymentMethod === "cod" \? total : isGatewayCheckout \? 0 : Math\.max\(0, roundMoney\(total - transferAmount\)\);/);
   assert.match(source, /if \(paymentMethod === "cod" && !codPolicy\.cod_allowed && !posOnlineOrder\)/);
 });
+
+// ---- staff + AI side (2026-09-15)
+import { describeShippingFeeAdvance } from "../server/modules/shipping/shippingFeeAdvance.js";
+import { buildShippingFeeAdvanceNotice, buildRestrictedCodFaqAnswer } from "../server/services/codPolicyReplyService.js";
+import { buildCodOrderConfirmationMessage } from "../server/utils/orderConfirmationMessage.js";
+import { portalOrderActionsFor, shippingFeeAdvanceState } from "../src/shared/components/portalOnlineOrders/portalOrderActions.js";
+import { runPortalOrderAction } from "../server/modules/shipping/shipping.portal.actions.js";
+
+test("an order's shipping-fee state: awaiting, under review, paid, not required", () => {
+  const base = { governorate: "Cairo", shipping_fee: 90, total_amount: 1940, paid_amount: 0 };
+  assert.equal(describeShippingFeeAdvance({ order: base, policy: restricted }).status, "awaiting_payment");
+  assert.equal(describeShippingFeeAdvance({ order: { ...base, transfer_proof_status: "pending" }, policy: restricted }).status, "awaiting_review");
+  assert.equal(describeShippingFeeAdvance({ order: { ...base, paid_amount: 90, transfer_proof_status: "approved" }, policy: restricted }).status, "paid");
+  assert.equal(describeShippingFeeAdvance({ order: { ...base, governorate: "دمياط" }, policy: restricted }).status, "not_required");
+  assert.equal(describeShippingFeeAdvance({ order: base, policy: { mode: "open" } }).required, false);
+});
+
+test("the customer is told the fee, the rest and where to transfer — and nothing under the open system", () => {
+  const notice = buildShippingFeeAdvanceNotice({ policy: restricted, governorate: "القاهرة", shippingFee: 90, orderTotal: 1940, transfer: { vodafone: "01012345678", instapay: "m1@instapay" } });
+  assert.match(notice, /دمياط/);
+  assert.match(notice, /90 جنيه/);
+  assert.match(notice, /1,850 جنيه/);
+  assert.match(notice, /01012345678/);
+  assert.match(notice, /m1@instapay/);
+  assert.equal(buildShippingFeeAdvanceNotice({ policy: { mode: "open" }, governorate: "القاهرة", shippingFee: 90, orderTotal: 1940 }), "");
+  assert.equal(buildShippingFeeAdvanceNotice({ policy: restricted, governorate: "دمياط", shippingFee: 45, orderTotal: 500 }), "");
+  assert.match(buildRestrictedCodFaqAnswer({ policy: restricted }), /لباقي المحافظات بتحوّل رسوم الشحن/);
+  assert.equal(buildRestrictedCodFaqAnswer({ policy: { mode: "open" } }), "");
+});
+
+test("the WhatsApp confirmation request carries the notice and collects only the rest", () => {
+  const order = { id: 1, invoice_number: "INV-9", total_amount: 1940, cod_amount: 1940, governorate: "القاهرة" };
+  const message = buildCodOrderConfirmationMessage({ order, shippingAdvance: { notice: "NOTICE-LINE", amount: 90 } });
+  assert.match(message, /مبلغ التحصيل: 1,850 جنيه/);
+  assert.match(message, /NOTICE-LINE/);
+  assert.match(buildCodOrderConfirmationMessage({ order }), /مبلغ التحصيل: 1,940 جنيه/);
+});
+
+test("the board offers تم دفع الشحن instead of the Bosta button while the fee is unpaid", () => {
+  const awaiting = { group: "confirmed", status: "confirmed", shipment: { provider: "bosta" }, money: { shipping_fee_advance: { required: true, status: "awaiting_payment", amount: 90 } } };
+  assert.deepEqual(portalOrderActionsFor(awaiting), ["shipping_fee_paid", "ready_to_ship"]);
+  const paid = { ...awaiting, money: { shipping_fee_advance: { required: true, status: "paid", amount: 90 } } };
+  assert.deepEqual(portalOrderActionsFor(paid), ["ready_to_ship", "create_shipment"]);
+  assert.equal(shippingFeeAdvanceState({ money: { shipping_fee_advance: { required: false } } }), null);
+});
+
+test("the portal action records the fee with the method staff picked", async () => {
+  const calls = [];
+  const order = { id: 5, group: "confirmed", status: "confirmed", order_number: "5", shipment: {}, customer: {} };
+  await runPortalOrderAction({
+    actor: { id: 1, tenant_id: 2, full_name: "Mona" },
+    surface: "manager_portal",
+    orderId: 5,
+    action: "shipping_fee_paid",
+    input: { method: "vodafone_cash" },
+    deps: {
+      loadOrder: async () => order,
+      markShippingFeePaid: async (args) => { calls.push(args); },
+      audit: async () => {},
+    },
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "vodafone_cash");
+  assert.equal(calls[0].tenantId, 2);
+  assert.equal(calls[0].actorName, "Mona");
+});

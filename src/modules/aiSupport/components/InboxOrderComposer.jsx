@@ -13,6 +13,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import toast from "react-hot-toast";
 import {
   CheckCircle2,
   CreditCard,
@@ -356,6 +357,8 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
           cost: Number(data?.shipping_cost || 0),
           source: clean(data?.source),
           freeShipping: Boolean(data?.free_shipping_applied),
+          // Restricted closing system: this customer transfers the shipping fee first.
+          advance: data?.shipping_fee_advance?.required ? data.shipping_fee_advance : null,
           loading: false,
         }))
         .catch(() => active && setQuotedShipping({ cost: null, source: "unavailable", freeShipping: false, loading: false }));
@@ -723,6 +726,27 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
             </div>
           </div>
 
+          {quotedShipping.advance ? (
+            <div className="ai-order__notice p-3" role="status">
+              <div className="font-black">{t("aiSupport.inbox.order.shippingFeeAdvance", { amount: money(quotedShipping.advance.amount) })}</div>
+              {quotedShipping.advance.notice ? (
+                <button
+                  type="button"
+                  className="ai-order__choice mt-2 px-3"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard?.writeText(quotedShipping.advance.notice);
+                      toast.success(t("aiSupport.inbox.order.shippingFeeAdvanceCopied"));
+                    } catch {
+                      toast.error(t("aiSupport.inbox.order.shippingFeeAdvanceCopyFailed"));
+                    }
+                  }}
+                >
+                  {t("aiSupport.inbox.order.shippingFeeAdvanceCopy")}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("aiSupport.inbox.order.orderNotes")} className="ai-order__field min-h-20 w-full p-3" />
           {!lines.length ? <div className="ai-order__notice p-3">{t("aiSupport.inbox.order.addAtLeastOne")}</div> : null}
           {!shippingComplete ? <div className="ai-order__notice p-3">{t("aiSupport.inbox.order.completeShippingShort")}</div> : null}

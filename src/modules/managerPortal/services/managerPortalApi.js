@@ -21,7 +21,7 @@ export const managerPortalApi = {
   onlineOrderEdit: (token, orderId, fields = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/edit`, { fields }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrderDelete: (token, orderId, reason = "") => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/delete`, { reason }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrdersPrintLabels: (token, orderIds = []) => api.post(`${tokenPath(token)}/online-orders/print-labels`, { order_ids: orderIds }, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
-  onlineOrderAction: (token, orderId, action) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, {}, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
+  onlineOrderAction: (token, orderId, action, input = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, input || {}, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
   stockAlerts: (token, options = {}) => api.get(`${tokenPath(token)}/stock-alerts`, options),
   daySummary: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/day-summary`, { ...options, params }),
   inventoryApprovals: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/inventory-approvals`, { ...options, params }),

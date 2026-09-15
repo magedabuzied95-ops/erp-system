@@ -919,7 +919,10 @@
       "createConfirmBody": "سيُرسل الأوردر إلى بوسطة ويُحصَّل {{amount}} من العميل عند الاستلام، وستصل للعميل رسالة واتساب بالشحنة.",
       "createConfirmYes": "نعم، أنشئ الشحنة",
       "cancel": "إلغاء",
-      "sendConfirmation": "إرسال رسالة التأكيد"
+      "sendConfirmation": "إرسال رسالة التأكيد",
+      "shippingFeePaid": "تم دفع الشحن",
+      "shippingFeeConfirmTitle": "العميل دفع الشحن ({{amount}})؟",
+      "shippingFeeConfirmBody": "اختار دفع إزاي. المبلغ هيتسجّل مدفوع، والمندوب هيحصّل الباقي بس."
     },
     "detail": {
       "orderStatus": "حالة الأوردر",
@@ -992,7 +995,8 @@
       "staff_ready_to_ship": "جهّزه للشحن: {{actor}}",
       "staff_shipment_created": "أنشأ شحنة بوسطة: {{actor}}",
       "staff_confirmation_sent": "أرسل رسالة التأكيد: {{actor}}",
-      "staff_edited": "عدّل بيانات الأوردر: {{actor}}"
+      "staff_edited": "عدّل بيانات الأوردر: {{actor}}",
+      "staff_shipping_fee_paid": "سجّل دفع الشحن: {{actor}}"
     },
     "providers": {
       "bosta": "بوسطة",
@@ -1006,7 +1010,8 @@
       "create_shipment": "تم إنشاء الشحنة مع بوسطة",
       "print_awb": "تم فتح البوليصة",
       "send_confirmation": "تم إرسال رسالة التأكيد للعميل على واتساب",
-      "send_confirmation_queued": "تم إدراج رسالة التأكيد في طابور الإرسال"
+      "send_confirmation_queued": "تم إدراج رسالة التأكيد في طابور الإرسال",
+      "shipping_fee_paid": "تم تسجيل دفع الشحن"
     },
     "actionErrors": {
       "generic": "تعذّر تنفيذ الإجراء",
@@ -1036,7 +1041,8 @@
       "ORDER_LOCKED": "لا يمكن تعديل أو حذف الأوردر في حالته الحالية",
       "NOTHING_TO_SAVE": "لا توجد تعديلات للحفظ",
       "CUSTOMER_NAME_REQUIRED": "اسم العميل مطلوب",
-      "CUSTOMER_PHONE_INVALID": "رقم الموبايل غير صحيح"
+      "CUSTOMER_PHONE_INVALID": "رقم الموبايل غير صحيح",
+      "NO_SHIPPING_FEE": "الأوردر ده مفيهوش رسوم شحن"
     },
     "access": {
       "title": "تجهيز أوردرات الشحن",
@@ -1086,6 +1092,12 @@
       "deleteReason": "سبب الحذف (اختياري)",
       "deleteConfirm": "حذف الأوردر",
       "deleted": "تم حذف الأوردر {{number}} ورجعت المنتجات للمخزون"
+    },
+    "shippingFee": {
+      "label": "رسوم الشحن مقدّم",
+      "awaiting": "مستني دفع الشحن {{amount}}",
+      "review": "تحويل الشحن مستني مراجعة",
+      "paid": "الشحن مدفوع"
     }
   },
   "walletTransfers": {
@@ -1153,5 +1165,25 @@
       "united_bank": "المصرف المتحد",
       "unknown": "غير معروف"
     }
+  },
+  "shippingFeeAdvance": {
+    "title": "رسوم الشحن مقدّم",
+    "status": {
+      "awaiting_payment": "المحافظة دي مش من محافظات الدفع عند الاستلام: لازم العميل يدفع الشحن {{amount}} قبل ما الأوردر يتشحن.",
+      "awaiting_review": "العميل رفع صورة تحويل الشحن ({{amount}}) — راجعها وأكّدها تحت عشان الأوردر يتشحن.",
+      "paid": "الشحن مدفوع ({{amount}}) — الأوردر جاهز يتشحن، والمندوب هيحصّل الباقي بس."
+    },
+    "markPaid": "تم دفع الشحن",
+    "method": "طريقة الدفع",
+    "methods": {
+      "vodafone_cash": "فودافون كاش",
+      "instapay": "إنستاباي",
+      "cash": "كاش"
+    },
+    "receiptOptional": "صورة التحويل (اختياري)",
+    "confirm": "تأكيد دفع {{amount}}",
+    "cancel": "إلغاء",
+    "recorded": "تم تسجيل دفع الشحن",
+    "failed": "تعذّر تسجيل دفع الشحن"
   }
 }

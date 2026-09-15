@@ -3,6 +3,7 @@
 import iconv from "iconv-lite";
 
 import db from "../database/db.js";
+import { restrictedCodFaqAnswer, shippingFeeAdvanceNoticeForAddress, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl, absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
@@ -19736,6 +19737,9 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   if (shippingText) successLines.push(`🚚 الشحن: ${shippingText} جنيه`);
   if (totalText) successLines.push(`💵 الإجمالي: ${totalText} جنيه`);
   if (invoiceUrl) successLines.push("", "تقدر تشوف فاتورتك من هنا 👇", invoiceUrl);
+  // Restricted closing system: outside the COD governorates the parcel waits for the fee.
+  const shippingAdvanceNotice = await shippingFeeAdvanceNoticeForOrder({ ...orderRow, governorate: orderRow.governorate || mergedInfo.governorate });
+  if (shippingAdvanceNotice) successLines.push("", shippingAdvanceNotice);
   successLines.push("", "هيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️", "", "شكراً لاختيارك M1 Store");
   const successText = successLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   if (isWhatsapp) await sendConfirmation(successText);
@@ -19909,8 +19913,11 @@ const answerFaqIfMatched = async ({ config, message } = {}) => {
     });
     return {};
   });
+  // The restricted closing system overrides the shop's COD wording: "متاح حسب المنطقة"
+  // would promise cash on delivery to a governorate that has to prepay its shipping.
+  const restrictedCodAnswer = faqIntent === "payment" ? await restrictedCodFaqAnswer() : "";
   const answers = {
-    payment: readableArabicSetting(settings.cod_availability_text) || "أيوه، متاح الدفع عند الاستلام حسب المنطقة وشركة الشحن.",
+    payment: restrictedCodAnswer || readableArabicSetting(settings.cod_availability_text) || "أيوه، متاح الدفع عند الاستلام حسب المنطقة وشركة الشحن.",
     delivery: readableArabicSetting(settings.delivery_policy_text) || "الشحن حسب المحافظة والمنطقة. ابعتلي عنوانك أأكدلك التكلفة.",
     exchange: readableArabicSetting(settings.exchange_return_policy_text) || "ينفع الاستبدال حسب سياسة المتجر وحالة المنتج.",
   };
@@ -22887,7 +22894,7 @@ const loadKnownSalesCustomerInfo = async ({ tenantId, channel = "", conversation
   };
 };
 
-const buildSalesOrderSummary = ({ productName = "", size = "", price = "", address = "" } = {}) =>
+const buildSalesOrderSummary = ({ productName = "", size = "", price = "", address = "", advanceNotice = "" } = {}) =>
   [
     "تمام",
     "",
@@ -22897,6 +22904,8 @@ const buildSalesOrderSummary = ({ productName = "", size = "", price = "", addre
     "",
     `الشحن إلى: ${address || "العنوان اللي بعتّه"}`,
     "",
+    advanceNotice,
+    advanceNotice ? " " : "",
     "أأكد الطلب؟",
   ].filter((line) => line !== "").join("\n");
 
@@ -23720,7 +23729,8 @@ const handleCheckoutDataIfMatched = async ({ config, message } = {}) => {
   const displayName = merged.customer_name || "\u0641\u0646\u062f\u0645";
   const replyText = stockConflict
     ? `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\n\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u2705\n\u0628\u0633 \u0638\u0647\u0631 \u062a\u0639\u0627\u0631\u0636 \u0641\u064a \u0627\u0644\u0645\u062e\u0632\u0648\u0646 \u0644\u0644\u0645\u0642\u0627\u0633 \u062f\u0647.\n\u0647\u0631\u0627\u062c\u0639 \u0627\u0644\u0637\u0644\u0628 \u0648\u0623\u0631\u062c\u0639\u0644\u0643 \u062d\u0627\u0644\u0627\u064b.`
-    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\n\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u0648\u0647\u0623\u0643\u062f \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0645\u0639\u0627\u0643.`;
+    : `\u062a\u0645\u0627\u0645 \u064a\u0627 ${displayName}\n\u0627\u0633\u062a\u0644\u0645\u062a \u0628\u064a\u0627\u0646\u0627\u062a\u0643 \u0648\u0647\u0623\u0643\u062f \u0627\u0644\u0623\u0648\u0631\u062f\u0631 \u0645\u0639\u0627\u0643.`
+      + await shippingFeeAdvanceNoticeForOrder(confirmed?.order || order).then((notice) => (notice ? `\n\n${notice}` : ""));
   const nextStage = stockConflict ? "stock_conflict" : "order_confirmed";
   const result = await sendCheckoutConfirmationMetaMessage({
     config,
@@ -23841,7 +23851,7 @@ const salesCloserV2MissingPrompt = (missing = []) => {
   return labels.length ? `\u062a\u0645\u0627\u0645\u060c \u0627\u0628\u0639\u062a\u0644\u064a ${labels.join(" \u0648 ")}.` : "";
 };
 
-const buildSalesCloserV2OrderSummary = ({ productName = "", size = "", price = "", address = "" } = {}) =>
+const buildSalesCloserV2OrderSummary = ({ productName = "", size = "", price = "", address = "", advanceNotice = "" } = {}) =>
   [
     "\u062a\u0645\u0627\u0645",
     "",
@@ -23850,6 +23860,8 @@ const buildSalesCloserV2OrderSummary = ({ productName = "", size = "", price = "
     price ? `\u0627\u0644\u0633\u0639\u0631: ${price}` : "",
     `\u0627\u0644\u0639\u0646\u0648\u0627\u0646: ${address || "\u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0644\u064a \u0628\u0639\u062a\u0647"}`,
     "",
+    advanceNotice,
+    advanceNotice ? " " : "",
     "\u0623\u0623\u0643\u062f \u0627\u0644\u0637\u0644\u0628\u061f",
   ].filter((line) => line !== "").join("\n");
 
@@ -24119,6 +24131,7 @@ const handleSalesCloserV2IfMatched = async ({ config, message } = {}) => {
       size: selectedSize,
       price: priceText,
       address: merged.customerAddress || merged.area,
+      advanceNotice: await shippingFeeAdvanceNoticeForAddress({ governorate: merged.governorate, subtotal: priceInfo?.selected_display_price }),
     }),
     detectedIntent: "sales_closer_v2_order_summary",
     metadata: {
@@ -24381,7 +24394,8 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
       await sendAndLogMetaText({
         config,
         message,
-        text: `تمام يا ${known.customerFirstName || "فندم"}\nعملتلك مسودة الطلب ✅\nهنتواصل معاك للتأكيد النهائي.`,
+        text: `تمام يا ${known.customerFirstName || "فندم"}\nعملتلك مسودة الطلب ✅\nهنتواصل معاك للتأكيد النهائي.`
+          + await shippingFeeAdvanceNoticeForOrder(draft?.order || {}).then((notice) => (notice ? `\n\n${notice}` : "")),
         detectedIntent: "sales_draft_order_created",
         metadata: { order_id: draft?.order?.id || null, buying_stage: "order_created" },
       });
@@ -24533,6 +24547,7 @@ const handleSalesBrainBuyingStageIfMatched = async ({ config, message } = {}) =>
       size: selectedSize,
       price: priceText,
       address: merged.customerAddress || merged.area,
+      advanceNotice: await shippingFeeAdvanceNoticeForAddress({ governorate: merged.governorate, subtotal: priceInfo?.selected_display_price }),
     }),
     detectedIntent: "sales_order_ready",
     metadata: {

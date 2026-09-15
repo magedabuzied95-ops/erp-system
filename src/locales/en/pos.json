@@ -773,7 +773,8 @@
       "repriced": "The total was priced from the website, so it differs from the till estimate",
       "whatsapp": "The confirmation message is on its way to the customer on WhatsApp",
       "done": "Done"
-    }
+    },
+    "shippingFeeAdvance": "This governorate is outside the cash-on-delivery list: ask the customer to transfer the {{amount}} shipping fee first. The order is recorded, but it will not ship until the fee is confirmed."
   },
   "offlineQueue": {
     "title": "Offline invoices",

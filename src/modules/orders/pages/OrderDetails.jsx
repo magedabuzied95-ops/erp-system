@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   ArrowLeft,
+  Banknote,
   Check,
   CheckCircle2,
   Copy,
@@ -410,6 +411,8 @@ function OrderDetails() {
   const [pdfFormat, setPdfFormat] = useState("a4");
   const [notes, setNotes] = useState("");
   const [reviewingPayment, setReviewingPayment] = useState(false);
+  // "تم دفع الشحن" (restricted closing system): how it was paid, and an optional receipt.
+  const [shippingFeeForm, setShippingFeeForm] = useState({ open: false, method: "vodafone_cash", file: null, saving: false });
   const [shipping, setShipping] = useState({
     provider: "",
     shipping_status: "pending",
@@ -808,6 +811,23 @@ function OrderDetails() {
         : (err?.responseBody?.message || err?.responseBody?.details?.message || err.message || "Bosta shipment action failed");
       setBostaActionError({ code, message });
       toast.error(message);
+    }
+  };
+
+  const handleShippingFeePaid = async () => {
+    if (shippingFeeForm.saving) return;
+    try {
+      setShippingFeeForm((current) => ({ ...current, saving: true }));
+      const body = new FormData();
+      body.append("method", shippingFeeForm.method);
+      if (shippingFeeForm.file) body.append("shipping_payment_screenshot", shippingFeeForm.file);
+      await api.post(`/orders/${order.id}/shipping-fee-paid`, body);
+      toast.success(t("orders.shippingFeeAdvance.recorded"));
+      setShippingFeeForm({ open: false, method: "vodafone_cash", file: null, saving: false });
+      await loadOrder();
+    } catch (err) {
+      toast.error(err?.responseBody?.message || err.message || t("orders.shippingFeeAdvance.failed"));
+      setShippingFeeForm((current) => ({ ...current, saving: false }));
     }
   };
 
@@ -1336,6 +1356,77 @@ function OrderDetails() {
                   </span>
                 ))}
               </div>
+            </div>
+          ) : null}
+
+          {order.shipping_fee_advance?.required ? (
+            <div className={`rounded-2xl border p-5 shadow-xl shadow-black/10 ${order.shipping_fee_advance.status === "paid" ? "border-emerald-500/25 bg-emerald-500/10" : "border-rose-500/25 bg-rose-500/10"}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="m1-section-title text-white">{t("orders.shippingFeeAdvance.title")}</h3>
+                  <p className="mt-1 text-sm font-semibold text-zinc-300">
+                    {t(`orders.shippingFeeAdvance.status.${order.shipping_fee_advance.status}`, { amount: formatCurrency(order.shipping_fee_advance.amount) })}
+                  </p>
+                </div>
+                <Banknote className={`h-6 w-6 shrink-0 ${order.shipping_fee_advance.status === "paid" ? "text-emerald-300" : "text-rose-300"}`} />
+              </div>
+              {order.shipping_fee_advance.status === "awaiting_payment" ? (
+                shippingFeeForm.open ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t("orders.shippingFeeAdvance.method")}>
+                      {["vodafone_cash", "instapay", "cash"].map((method) => (
+                        <button
+                          key={method}
+                          type="button"
+                          role="radio"
+                          aria-checked={shippingFeeForm.method === method}
+                          onClick={() => setShippingFeeForm((current) => ({ ...current, method }))}
+                          className={`h-[var(--control-height-md)] rounded-[var(--radius-control)] border px-2 text-sm font-black transition ${shippingFeeForm.method === method ? "border-primary bg-primary text-[var(--primary-contrast)]" : "border-white/10 bg-white/5 text-white hover:bg-white/10"}`}
+                        >
+                          {t(`orders.shippingFeeAdvance.methods.${method}`)}
+                        </button>
+                      ))}
+                    </div>
+                    <label className="block text-sm font-semibold text-zinc-300">
+                      <span className="mb-1 block">{t("orders.shippingFeeAdvance.receiptOptional")}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        onChange={(event) => setShippingFeeForm((current) => ({ ...current, file: event.target.files?.[0] || null }))}
+                        className="block w-full text-sm text-zinc-300 file:me-3 file:rounded-[var(--radius-control)] file:border-0 file:bg-white/10 file:px-3 file:py-2 file:font-semibold file:text-white"
+                      />
+                    </label>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={handleShippingFeePaid}
+                        disabled={shippingFeeForm.saving}
+                        className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
+                      >
+                        {shippingFeeForm.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                        {t("orders.shippingFeeAdvance.confirm", { amount: formatCurrency(order.shipping_fee_advance.amount) })}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShippingFeeForm({ open: false, method: "vodafone_cash", file: null, saving: false })}
+                        disabled={shippingFeeForm.saving}
+                        className="h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-sm font-black text-white disabled:opacity-50"
+                      >
+                        {t("orders.shippingFeeAdvance.cancel")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShippingFeeForm((current) => ({ ...current, open: true }))}
+                    className="mt-4 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
+                  >
+                    <Banknote className="h-4 w-4" />
+                    {t("orders.shippingFeeAdvance.markPaid")}
+                  </button>
+                )
+              ) : null}
             </div>
           ) : null}
 

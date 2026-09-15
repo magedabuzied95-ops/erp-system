@@ -18,7 +18,7 @@ export default function EmployeePortalOnlineOrders() {
 
   const loadList = useCallback((params) => getEmployeePortalOnlineOrders(token, params), [token]);
   // The server decides whether this employee may act (permissions.can_act on the list).
-  const runAction = useCallback((orderId, action) => runEmployeePortalOnlineOrderAction(token, orderId, action), [token]);
+  const runAction = useCallback((orderId, action, input) => runEmployeePortalOnlineOrderAction(token, orderId, action, input), [token]);
   const printLabels = useCallback((orderIds) => printEmployeePortalOnlineOrderLabels(token, orderIds), [token]);
   const loadDetail = useCallback(async (orderId) => {
     const response = await getEmployeePortalOnlineOrder(token, orderId);

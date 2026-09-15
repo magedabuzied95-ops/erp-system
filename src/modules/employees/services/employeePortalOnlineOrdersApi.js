@@ -9,8 +9,8 @@ export const getEmployeePortalOnlineOrders = (token, params = {}) =>
     suppressErrorStatuses: [404, 422],
   });
 
-export const runEmployeePortalOnlineOrderAction = (token, orderId, action) =>
-  api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, {}, {
+export const runEmployeePortalOnlineOrderAction = (token, orderId, action, input = {}) =>
+  api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, input || {}, {
     suppressErrorStatuses: [400, 403, 404, 409, 422, 502],
   });
 

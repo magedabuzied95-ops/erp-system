@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
 import { loadCodPolicySettings } from "../../services/storefrontShippingService.js";
-import { resolveCodPolicy, resolveGovernorateId } from "../../../shared/codPolicy.js";
+import { describeShippingFeeAdvance } from "./shippingFeeAdvance.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
@@ -824,21 +824,13 @@ export const resolveBostaCollection = ({ order = {}, override } = {}) => {
 // COD governorates the shipping fee has to be paid, and a transfer still waiting on
 // review is not paid yet.
 export const resolveShippingFeeGate = ({ order = {}, city = null, policy } = {}) => {
-  const shippingFee = Number(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? 0) || 0;
-  const paid = Number(order.paid_amount ?? 0) || 0;
-  const cod = resolveCodPolicy({
-    policy,
-    // The Bosta city is where the parcel actually goes; the typed governorate is next.
-    governorate: [city?.name_en, city?.name_ar, order.governorate].find((name) => resolveGovernorateId(name)) || order.governorate || "",
-    governorateId: order.governorate_id,
-    shippingFee,
-    orderTotal: Number(order.total_amount ?? order.total_price ?? order.total ?? 0),
-  });
-  if (cod.cod_allowed) return { blocked: false, shipping_fee: shippingFee };
-  const proofStatus = normalizeKey(order.transfer_proof_status);
-  const verified = !proofStatus || proofStatus === "approved";
-  const blocked = paid + 0.009 < cod.advance_amount || !verified;
-  return { blocked, shipping_fee: cod.advance_amount, paid_amount: paid, transfer_proof_status: proofStatus || null };
+  const advance = describeShippingFeeAdvance({ order, city, policy });
+  return {
+    blocked: advance.required && advance.status !== "paid",
+    shipping_fee: advance.amount,
+    paid_amount: advance.paid_amount,
+    transfer_proof_status: normalizeKey(order.transfer_proof_status) || null,
+  };
 };
 
 const shippingFeeNotPaidError = (gate = {}) => {

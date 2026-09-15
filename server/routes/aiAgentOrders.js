@@ -164,6 +164,9 @@ import {
 } from "../services/aiInboxQuickRepliesService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
 import { listChannelAccounts, setChannelAccountActive, syncEnvChannelAccounts, syncMetaChannelAccounts, upsertChannelAccount } from "../services/channelAccountsService.js";
+import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
+import { shippingFeeAdvanceNoticeFor } from "../services/codPolicyReplyService.js";
+import { resolveCodPolicy } from "../../shared/codPolicy.js";
 
 const router = express.Router();
 
@@ -5092,12 +5095,22 @@ router.get("/shipping-quote", protect, inboxReply(), async (req, res) => {
       shipping_district_id: req.query?.shipping_district_id || req.query?.district_id || "",
       net_subtotal: req.query?.net_subtotal || req.query?.subtotal || 0,
     });
+    // Restricted closing system: tell the agent, while the order is being built, that this
+    // customer transfers the shipping fee first — and hand them the sentence to send.
+    const netSubtotal = Number(req.query?.net_subtotal || req.query?.subtotal || 0) || 0;
+    const codPolicy = await loadCodPolicySettings().catch(() => undefined);
+    const cod = resolveCodPolicy({ policy: codPolicy, governorate: req.query?.governorate || "", shippingFee: shipping.cost, orderTotal: netSubtotal + (Number(shipping.cost) || 0) });
     return res.json({
       success: true,
       shipping_cost: shipping.cost,
       source: shipping.source,
       free_shipping_applied: shipping.free_shipping_applied,
       zone: shipping.zone,
+      shipping_fee_advance: {
+        required: !cod.cod_allowed,
+        amount: cod.cod_allowed ? 0 : cod.advance_amount,
+        notice: cod.cod_allowed ? "" : await shippingFeeAdvanceNoticeFor({ governorate: req.query?.governorate || "", shippingFee: shipping.cost, orderTotal: netSubtotal + (Number(shipping.cost) || 0) }),
+      },
     });
   } catch (error) {
     return sendError(res, error, "Failed to resolve shipping price");

@@ -17,6 +17,7 @@ import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getWebsiteSettings } from "./liveActivityService.js";
 import { resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
+import { restrictedCodFaqAnswer, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import {
   aiProductSqlExclusionClause,
   filterAiEligibleProducts,
@@ -1784,7 +1785,8 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
       const confirmed = await confirmAiOrder({ tenant_id: tenantId, conversation_id: conversationId });
       logSalesFlow("confirmed", { tenantId, conversationId, order_id: confirmed.order?.id });
       return withOrderSalesStage({
-        answer: `تم تأكيد الأوردر رقم ${displayPublicOrderNumber(confirmed.order) || confirmed.order.id}. الفريق هيتابع معاك قريب لتأكيد تفاصيل الشحن.`,
+        answer: `تم تأكيد الأوردر رقم ${displayPublicOrderNumber(confirmed.order) || confirmed.order.id}. الفريق هيتابع معاك قريب لتأكيد تفاصيل الشحن.`
+          + await shippingFeeAdvanceNoticeForOrder(confirmed.order).then((notice) => (notice ? `\n\n${notice}` : "")),
         confidence: 0.92,
         needs_human_support: false,
         sources_used: [],
@@ -1819,7 +1821,7 @@ export const buildAiOrderChatResponse = async ({ tenantId, message, metadata = {
   if (objection && product && confidence >= CONFIDENCE_THRESHOLD) {
     logSalesFlow("objection_handling", { tenantId, conversationId, objection, product_id: product.id });
     return withOrderSalesStage({
-      answer: buildObjectionAnswer({ objection, product, variant, settings }),
+      answer: (objection === "cod" && (await restrictedCodFaqAnswer())) || buildObjectionAnswer({ objection, product, variant, settings }),
       confidence,
       needs_human_support: false,
       sources_used: [`product_${product.id}`],

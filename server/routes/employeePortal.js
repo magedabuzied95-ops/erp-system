@@ -686,7 +686,7 @@ router.post("/:token/online-orders/:orderId/actions/:action", async (req, res) =
     if (!shippingAction && !(await employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }))) {
       return res.status(403).json({ success: false, code: "ONLINE_ORDERS_ACTIONS_DISABLED", message: "Not allowed to act on online orders" });
     }
-    const result = await runPortalOrderAction({ actor: employee, surface: "employee_portal", orderId: req.params.orderId, action: req.params.action });
+    const result = await runPortalOrderAction({ actor: employee, surface: "employee_portal", orderId: req.params.orderId, action: req.params.action, input: req.body || {} });
     return res.json({ success: true, ...result });
   } catch (error) {
     if (!error.status || error.status >= 500) console.error("[employee-portal] online order action error", error);

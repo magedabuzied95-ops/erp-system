@@ -557,6 +557,13 @@ export default function PosOnlineOrderModal({
                     <strong className="text-emerald-300">{formatCurrency(estimatedTotal)}</strong>
                   </div>
                 </div>
+                {/* Restricted closing system: the order is still taken as COD, but it will not ship
+                    until the fee is paid — the cashier tells the customer now. */}
+                {form.governorate && !quote.loading && quote.advance === "shipping_fee" && quote.cod_allowed === false && Number(quote.price) > 0 ? (
+                  <div className="mt-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs font-black leading-5 text-[var(--text)]" role="status">
+                    {t("pos.onlineOrder.shippingFeeAdvance", { amount: formatCurrency(quote.price) })}
+                  </div>
+                ) : null}
                 {/* The server prices the order from the website's canonical prices, not from the
                     POS cart, so the cashier is told up front that this figure can move. */}
                 <div className="mt-2 rounded-xl border border-amber-300/25 bg-amber-400/[0.08] p-2 text-[11px] font-bold text-amber-100">

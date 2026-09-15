@@ -813,7 +813,11 @@
       "shippingResetAuto": "Back to the automatic price",
       "shippingLoading": "Pricing shipping…",
       "shippingNeedsAddress": "Choose the governorate and area to price shipping",
-      "orderTotal": "Order total"
+      "orderTotal": "Order total",
+      "shippingFeeAdvance": "This customer is outside the cash-on-delivery governorates: they must transfer the {{amount}} shipping fee first, and the order will not ship until it is confirmed.",
+      "shippingFeeAdvanceCopy": "Copy the transfer message",
+      "shippingFeeAdvanceCopied": "Copied — paste it into the chat",
+      "shippingFeeAdvanceCopyFailed": "Copy failed"
     },
     "panel": {
       "noTranscript": "No transcript yet.",

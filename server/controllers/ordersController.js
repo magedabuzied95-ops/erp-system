@@ -11,6 +11,8 @@ import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
+import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
+import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
 import { getActiveLoyaltyRule } from "../utils/loyalty.js";
 import { ensureWalletSchema, recordWalletTransaction } from "../services/walletService.js";
@@ -6494,6 +6496,29 @@ export const sendOrderConfirmationWhatsapp = async (req, res) => {
   }
 };
 
+// "تم دفع الشحن": staff record the shipping fee a customer paid for an order with no
+// screenshot of its own (till, inbox, AI). An image is optional. Money only.
+export const markOrderShippingFeePaid = async (req, res) => {
+  try {
+    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const order = await markShippingFeePaid({
+      orderId: req.params.id,
+      tenantId,
+      method: req.body?.method,
+      reference: req.body?.reference,
+      proofPath: req.file ? `/uploads/payment-proofs/${req.file.filename}` : "",
+      actorName: String(req.user?.name || req.user?.full_name || req.user?.email || "").trim(),
+      userId: req.user?.id || null,
+      source: "orders",
+    });
+    return res.json({ success: true, order });
+  } catch (error) {
+    const status = error.status || 500;
+    if (status >= 500) console.error("[orders.shipping-fee-paid] failed", { orderId: req.params.id, message: error?.message });
+    return res.status(status).json({ success: false, code: error.code, message: error.message || "Failed to record the shipping payment" });
+  }
+};
+
 export const confirmShippingPayment = async (req, res) => {
   const client = await db.connect();
   try {
@@ -9702,7 +9727,9 @@ export const getSingleOrder = async (req, res) => {
     timeline.sort((a, b) => new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime());
 
     const normalizedItems = normalizeReturnedOrderItems(order, itemsResult.rows);
-    return res.status(200).json({ order: withPaymentProofAliases({ ...order, items: normalizedItems, audit_timeline: timeline }), items: normalizedItems, audit_timeline: timeline });
+    // Restricted closing system: must the shipping fee be paid before this order ships?
+    const shippingFeeAdvance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings().catch(() => undefined) });
+    return res.status(200).json({ order: withPaymentProofAliases({ ...order, items: normalizedItems, audit_timeline: timeline, shipping_fee_advance: shippingFeeAdvance }), items: normalizedItems, audit_timeline: timeline });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Server Error" });

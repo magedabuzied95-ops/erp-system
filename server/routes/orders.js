@@ -3,6 +3,7 @@ import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 
 import permit from "../middleware/permissionMiddleware.js";
+import paymentProofUpload from "../config/paymentProofUpload.js";
 import {
   cancelOrderBostaShipment,
   createOrderBostaShipment,
@@ -14,6 +15,7 @@ import {
   createReturn,
   archiveOrder,
   confirmShippingPayment,
+  markOrderShippingFeePaid,
   cancelOrder,
   deleteOrder,
   editOrder,
@@ -154,6 +156,17 @@ router.post(
   protect,
   permit("orders", "edit"),
   confirmShippingPayment
+);
+
+router.post(
+  "/:id/shipping-fee-paid",
+  protect,
+  permit("orders", "edit"),
+  (req, res, next) => paymentProofUpload.single("shipping_payment_screenshot")(req, res, (error) => {
+    if (error) return res.status(400).json({ success: false, code: "INVALID_PAYMENT_PROOF", message: "صورة التحويل لازم تكون PNG أو JPG أو WEBP" });
+    return next();
+  }),
+  markOrderShippingFeePaid
 );
 
 router.post(

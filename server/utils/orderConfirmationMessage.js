@@ -100,6 +100,8 @@ export const buildCodOrderConfirmationMessage = ({
   items = [],
   invoiceUrl = "",
   withActions = false,
+  // The restricted closing system: { notice, amount } when the shipping fee is prepaid.
+  shippingAdvance = null,
 } = {}) => {
   const name = clean(customerName) || "عميلنا";
   const link = shortenConfirmationLink(confirmationLink);
@@ -108,8 +110,12 @@ export const buildCodOrderConfirmationMessage = ({
   const orderRef = clean(
     source.public_order_number || source.display_order_number || source.invoice_number || source.order_number || source.id
   ).replace(/^#/, "");
+  const advanceAmount = Number(shippingAdvance?.amount) || 0;
+  const orderTotalAmount = Number(source.total_amount ?? source.total_price ?? source.total) || 0;
   const collect = formatAmount(
-    Number(source.cod_amount) > 0 ? source.cod_amount : (source.total_amount ?? source.total_price ?? source.total)
+    advanceAmount > 0 && orderTotalAmount > 0
+      ? Math.max(0, orderTotalAmount - Math.max(advanceAmount, Number(source.paid_amount) || 0))
+      : Number(source.cod_amount) > 0 ? source.cod_amount : (source.total_amount ?? source.total_price ?? source.total)
   );
   const products = productLines(items.length ? items : source.items || []);
   const address = addressLine(source);
@@ -126,6 +132,7 @@ export const buildCodOrderConfirmationMessage = ({
     "⏳ تم تسجيل طلبك بنجاح من M1 Store، وحالياً بإنتظار تأكيدك.",
     details && `📦 تفاصيل طلبك\n\n${details}`,
     invoiceUrl && `🧾 فاتورتك:\n${invoiceUrl}`,
+    shippingAdvance?.notice || "",
     // The buttons carry the actions, so the interactive body names none of them. Only the text
     // fallback spells them out - without buttons AND without this the customer has nothing to
     // press and nothing to type, and the keyword parser never gets a chance.

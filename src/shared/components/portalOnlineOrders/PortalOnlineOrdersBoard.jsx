@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  Banknote,
   Check,
   Clock,
   Copy,
@@ -29,7 +30,7 @@ import { resolveProductImageUrl, resolveShippingProofImageUrl } from "../../lib/
 import { buildStorefrontImageSrcSet } from "../../lib/storefrontImage";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
-import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor } from "./portalOrderActions";
+import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor, shippingFeeAdvanceState } from "./portalOrderActions";
 import { currentBuildId } from "../../lib/portalBuildUpdate";
 import { OrderDeleteSheet, OrderEditSheet, OrderManageMenu } from "./PortalOrderManage";
 
@@ -347,6 +348,18 @@ function ItemLine({ item, ui }) {
   );
 }
 
+// "مستني دفع الشحن" / "الشحن مدفوع" — only on an order the restricted closing system covers.
+function ShippingFeePill({ order, ui }) {
+  const fee = shippingFeeAdvanceState(order);
+  if (!fee) return null;
+  const key = fee.status === "paid" ? "paid" : fee.status === "awaiting_review" ? "review" : "awaiting";
+  return (
+    <TonePill tone={key === "paid" ? "success" : "danger"}>
+      {ui.tb(`shippingFee.${key}`, { amount: ui.money(fee.amount) })}
+    </TonePill>
+  );
+}
+
 function OrderCard({ order, ui, onOpen, selectable = false, selected = false, onToggleSelect, onManage = null }) {
   const confirmation = getConfirmationState(order);
   const items = Array.isArray(order.items) ? order.items : [];
@@ -393,6 +406,7 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
           <div className="flex min-w-0 flex-col items-end gap-1">
             <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{statusText}</TonePill>
             {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
+            <ShippingFeePill order={order} ui={ui} />
           </div>
           {/* The card's far corner (left in Arabic): edit / delete, manager portal only. */}
           {onManage && !selectable ? <OrderManageMenu order={order} ui={ui} onEdit={onManage.edit} onDelete={onManage.remove} /> : null}
@@ -488,8 +502,9 @@ function timelineLabel(event, ui) {
   return ui.tb(`timeline.${event.kind}`);
 }
 
-const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer };
-const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb" };
+const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer, shipping_fee_paid: Banknote };
+const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb", shipping_fee_paid: "actions.shippingFeePaid" };
+const SHIPPING_FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
 
 // Shipping the parcel and printing its airway bill have their own permission (every
 // employee has it); the rest of the flow needs can_act.
@@ -528,6 +543,22 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
               {ui.tb("actions.cancel")}
             </button>
           </div>
+        </div>
+      ) : state.confirming === "shipping_fee_paid" ? (
+        <div className="rounded-[var(--radius-control)] bg-warning-subtle p-3">
+          <div className="text-sm font-black text-text">{ui.tb("actions.shippingFeeConfirmTitle", { amount: ui.money(shippingFeeAdvanceState(order)?.amount) })}</div>
+          <div className="mt-1 text-xs font-bold leading-5 text-text">{ui.tb("actions.shippingFeeConfirmBody")}</div>
+          <div className="mt-2.5 grid grid-cols-3 gap-2">
+            {SHIPPING_FEE_METHODS.map((method) => (
+              <button key={method} type="button" disabled={busy} onClick={() => onAction("shipping_fee_paid", { method })} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-2 text-xs font-black text-primary-foreground disabled:opacity-60">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {ui.tb(`payment.${method}`)}
+              </button>
+            ))}
+          </div>
+          <button type="button" disabled={busy} onClick={onCancelConfirm} className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60">
+            {ui.tb("actions.cancel")}
+          </button>
         </div>
       ) : actions.length ? (
         <div className={`grid gap-2 ${actions.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -707,6 +738,12 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
               <MoneyRow label={ui.tb("detail.total")} value={ui.money(money.total)} strong />
               <MoneyRow label={ui.tb("detail.paid")} value={ui.money(money.paid)} />
               <MoneyRow label={ui.tb("detail.owed")} value={ui.money(money.owed)} />
+              {shippingFeeAdvanceState(order) ? (
+                <div className="mt-1.5 flex items-center justify-between gap-3">
+                  <span className="text-sm font-black text-text">{ui.tb("shippingFee.label")}</span>
+                  <ShippingFeePill order={order} ui={ui} />
+                </div>
+              ) : null}
               {Number(money.collect_on_delivery) > 0 ? (
                 <div className="mt-1.5 flex items-center justify-between gap-3 rounded-[var(--radius-control)] bg-warning-subtle px-3 py-2">
                   <span className="flex items-center gap-1.5 text-sm font-black text-text"><span className="h-2 w-2 rounded-full bg-warning" />{ui.tb("detail.collect")}</span>
@@ -931,7 +968,7 @@ export default function PortalOnlineOrdersBoard({
     return message ? `${ui.tb("actionErrors.generic")} — ${message}` : ui.tb("actionErrors.generic");
   }, [ui]);
 
-  const handleAction = useCallback(async (action) => {
+  const handleAction = useCallback(async (action, input = null) => {
     const current = selection;
     if (!current || !runActionRef.current || current.busy) return;
     const orderId = current.id;
@@ -941,11 +978,16 @@ export default function PortalOnlineOrdersBoard({
       patchSelection(orderId, { confirming: "create_shipment", actionError: "", notice: "" });
       return;
     }
+    // Money: the second tap names how the customer paid.
+    if (action === "shipping_fee_paid" && !input?.method) {
+      patchSelection(orderId, { confirming: "shipping_fee_paid", actionError: "", notice: "" });
+      return;
+    }
     // Opened before the request: a window opened after an await is a popup the browser blocks.
     const printWindow = action === "print_awb" ? window.open("", "_blank") : null;
     patchSelection(orderId, { busy: action, actionError: "", notice: "" });
     try {
-      const response = await runActionRef.current(orderId, action);
+      const response = await runActionRef.current(orderId, action, input || {});
       if (action === "print_awb") {
         openPdf(response?.pdf_base64, printWindow);
         patchSelection(orderId, { busy: "", confirming: "", notice: ui.tb("actionDone.print_awb") });

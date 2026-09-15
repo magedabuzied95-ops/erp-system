@@ -919,7 +919,10 @@
       "createConfirmBody": "The order goes to Bosta, the courier collects {{amount}} from the customer on delivery, and the customer gets a WhatsApp message about the shipment.",
       "createConfirmYes": "Yes, create it",
       "cancel": "Cancel",
-      "sendConfirmation": "Send confirmation message"
+      "sendConfirmation": "Send confirmation message",
+      "shippingFeePaid": "Shipping fee paid",
+      "shippingFeeConfirmTitle": "Did the customer pay the shipping fee ({{amount}})?",
+      "shippingFeeConfirmBody": "Pick how it was paid. The fee is recorded as paid and the courier collects only the rest."
     },
     "detail": {
       "orderStatus": "Order status",
@@ -992,7 +995,8 @@
       "staff_ready_to_ship": "Marked ready to ship by {{actor}}",
       "staff_shipment_created": "Bosta shipment created by {{actor}}",
       "staff_confirmation_sent": "Confirmation message sent by {{actor}}",
-      "staff_edited": "Order details edited by {{actor}}"
+      "staff_edited": "Order details edited by {{actor}}",
+      "staff_shipping_fee_paid": "Recorded the shipping fee: {{actor}}"
     },
     "providers": {
       "bosta": "Bosta",
@@ -1006,7 +1010,8 @@
       "create_shipment": "Bosta shipment created",
       "print_awb": "Airway bill opened",
       "send_confirmation": "Confirmation message sent to the customer on WhatsApp",
-      "send_confirmation_queued": "Confirmation message queued for sending"
+      "send_confirmation_queued": "Confirmation message queued for sending",
+      "shipping_fee_paid": "Shipping fee recorded as paid"
     },
     "actionErrors": {
       "generic": "Could not complete the action",
@@ -1036,7 +1041,8 @@
       "ORDER_LOCKED": "This order cannot be edited or deleted in its current status",
       "NOTHING_TO_SAVE": "Nothing to save",
       "CUSTOMER_NAME_REQUIRED": "Customer name is required",
-      "CUSTOMER_PHONE_INVALID": "The phone number is not valid"
+      "CUSTOMER_PHONE_INVALID": "The phone number is not valid",
+      "NO_SHIPPING_FEE": "This order has no shipping fee"
     },
     "access": {
       "title": "Handle shipping orders",
@@ -1086,6 +1092,12 @@
       "deleteReason": "Reason (optional)",
       "deleteConfirm": "Delete order",
       "deleted": "Order {{number}} deleted and its products returned to stock"
+    },
+    "shippingFee": {
+      "label": "Shipping fee in advance",
+      "awaiting": "Awaiting shipping fee {{amount}}",
+      "review": "Shipping transfer awaiting review",
+      "paid": "Shipping fee paid"
     }
   },
   "walletTransfers": {
@@ -1153,5 +1165,25 @@
       "united_bank": "United Bank",
       "unknown": "Unknown"
     }
+  },
+  "shippingFeeAdvance": {
+    "title": "Shipping fee in advance",
+    "status": {
+      "awaiting_payment": "This governorate is outside the cash-on-delivery list: the customer must pay the {{amount}} shipping fee before the order ships.",
+      "awaiting_review": "The customer uploaded a shipping transfer ({{amount}}) — review and confirm it below so the order can ship.",
+      "paid": "Shipping fee paid ({{amount}}) — the order can ship and the courier collects only the rest."
+    },
+    "markPaid": "Shipping fee paid",
+    "method": "Payment method",
+    "methods": {
+      "vodafone_cash": "Vodafone Cash",
+      "instapay": "InstaPay",
+      "cash": "Cash"
+    },
+    "receiptOptional": "Transfer receipt (optional)",
+    "confirm": "Confirm {{amount}} paid",
+    "cancel": "Cancel",
+    "recorded": "Shipping fee recorded as paid",
+    "failed": "Could not record the shipping payment"
   }
 }

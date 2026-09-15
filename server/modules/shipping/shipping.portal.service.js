@@ -1,6 +1,8 @@
 import db from "../../database/db.js";
 import { displayPublicOrderNumber } from "../../utils/publicOrderNumber.js";
 import { orderCodAmount, orderOwedAmount } from "./shipping.service.js";
+import { describeShippingFeeAdvance } from "./shippingFeeAdvance.js";
+import { loadCodPolicySettings } from "../../services/storefrontShippingService.js";
 import { buildPortalOnlineSql, loadColumns, tableExists } from "./onlineOrderSql.js";
 
 export { buildPortalOnlineSql };
@@ -218,7 +220,7 @@ export const portalOrderSourceKey = (order = {}) => {
 
 const joinAddress = (parts) => parts.map(text).filter(Boolean).join("، ");
 
-const shapeOrder = (order = {}, items = []) => {
+const shapeOrder = (order = {}, items = [], codPolicy = undefined) => {
   const total = number(order.total_amount ?? order.total ?? order.total_price);
   const subtotal = number(order.subtotal) || items.reduce((sum, item) => sum + number(item.line_total), 0);
   const shippingFee = number(order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost);
@@ -277,6 +279,8 @@ const shapeOrder = (order = {}, items = []) => {
       transfer_proof_status: text(order.transfer_proof_status),
       payment_proof_url: text(order.shipping_payment_screenshot),
       courier_collected_amount: order.courier_collected_at ? number(order.courier_collected_amount) : null,
+      // Restricted closing system: must the shipping fee be paid before the parcel leaves?
+      shipping_fee_advance: describeShippingFeeAdvance({ order, policy: codPolicy }),
     },
     shipment: {
       provider: text(order.shipping_provider || order.shipping_provider_id),
@@ -358,9 +362,12 @@ export const listPortalOnlineOrders = async ({ tenantId = null, query = {}, clie
   counts.all = PORTAL_ONLINE_GROUPS.reduce((sum, key) => sum + counts[key], 0);
 
   const rows = pageResult.rows.slice(0, PAGE_SIZE);
-  const itemsByOrder = await itemsForOrders(rows.map((row) => row.id), client);
+  const [itemsByOrder, codPolicy] = await Promise.all([
+    itemsForOrders(rows.map((row) => row.id), client),
+    loadCodPolicySettings().catch(() => undefined),
+  ]);
   return {
-    orders: rows.map((row) => shapeOrder(row, itemsByOrder.get(String(row.id)) || [])),
+    orders: rows.map((row) => shapeOrder(row, itemsByOrder.get(String(row.id)) || [], codPolicy)),
     counts,
     range,
     group,
@@ -392,6 +399,7 @@ const STAFF_TIMELINE_KINDS = {
   portal_edited: "staff_edited",
   portal_ready_to_ship: "staff_ready_to_ship",
   portal_bosta_created: "staff_shipment_created",
+  shipping_fee_paid: "staff_shipping_fee_paid",
 };
 
 const staffTimeline = (order = {}) =>
@@ -491,9 +499,12 @@ export const getPortalOnlineOrder = async ({ tenantId = null, orderId, client = 
   );
   const order = result.rows[0];
   if (!order) throw notFound();
-  const itemsByOrder = await itemsForOrders([order.id], client);
+  const [itemsByOrder, codPolicy] = await Promise.all([
+    itemsForOrders([order.id], client),
+    loadCodPolicySettings().catch(() => undefined),
+  ]);
   return {
-    ...shapeOrder(order, itemsByOrder.get(String(order.id)) || []),
+    ...shapeOrder(order, itemsByOrder.get(String(order.id)) || [], codPolicy),
     timeline: orderTimeline(order),
   };
 };

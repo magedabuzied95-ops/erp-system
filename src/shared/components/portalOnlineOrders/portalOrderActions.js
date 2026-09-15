@@ -10,7 +10,15 @@ const lower = (value = "") => text(value).toLowerCase();
 // canCreateBostaShipmentFor accepts; anything else is another courier's parcel.
 const BOSTA_BOOKABLE_PROVIDERS = new Set(["", "bosta", "manual", "in_store_delivery", "in-store-delivery", "store_pickup", "none", "null"]);
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid"];
+
+// The restricted closing system (server: shippingFeeAdvance.js). "awaiting" covers both a fee
+// nobody paid and a transfer screenshot nobody reviewed — neither lets the parcel leave.
+export const shippingFeeAdvanceState = (order = {}) => {
+  const advance = order.money?.shipping_fee_advance;
+  if (!advance?.required) return null;
+  return { status: text(advance.status), amount: Number(advance.amount) || 0, awaiting: text(advance.status) !== "paid" };
+};
 
 export const portalOrderActionsFor = (order = {}) => {
   const status = lower(order.status);
@@ -19,11 +27,15 @@ export const portalOrderActionsFor = (order = {}) => {
   const actions = [];
   // A new order can be confirmed by staff (usually after a call) or the customer can be
   // asked to confirm it on WhatsApp — the order page's "إرسال رسالة التأكيد".
+  const feeAwaiting = Boolean(shippingFeeAdvanceState(order)?.awaiting) && !hasParcel;
   if (order.group === "new") actions.push("confirm", "send_confirmation");
   if (order.group === "confirmed") {
     if (status !== "ready_to_ship") actions.push("ready_to_ship");
-    if (!hasParcel && BOSTA_BOOKABLE_PROVIDERS.has(provider)) actions.push("create_shipment");
+    // Outside the COD governorates the fee comes first; the server refuses the parcel until then.
+    if (feeAwaiting) actions.unshift("shipping_fee_paid");
+    else if (!hasParcel && BOSTA_BOOKABLE_PROVIDERS.has(provider)) actions.push("create_shipment");
   }
+  if (order.group === "new" && feeAwaiting) actions.push("shipping_fee_paid");
   if (hasParcel && provider === "bosta") actions.push("print_awb");
   return actions;
 };
@@ -41,6 +53,7 @@ export const PORTAL_ACTION_ERROR_CODES = [
   "BOSTA_ADDRESS_TOO_SHORT",
   "BOSTA_ZERO_COLLECTION",
   "SHIPPING_FEE_NOT_PAID",
+  "NO_SHIPPING_FEE",
   "BOSTA_NO_PRINTABLE_LABEL",
   "BOSTA_AWB_EMPTY",
   "ONLINE_ORDERS_ACTIONS_DISABLED",

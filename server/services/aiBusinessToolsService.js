@@ -1,3 +1,4 @@
+import { codPolicyFacts, restrictedCodFaqAnswer, shippingFeeAdvanceNoticeFor } from "./codPolicyReplyService.js";
 import db from "../database/db.js";
 import { getSetting } from "./settingsService.js";
 import { getAiAgentSettings } from "./aiSalesAgentService.js";
@@ -208,7 +209,10 @@ export const getShippingFacts = async ({ tenantId, governorate = "", city = "", 
     shipping_rules: {
       default_shipping_price: number(websiteSettings?.default_shipping_price ?? shippingZones?.defaultPrice ?? 0, 0),
       default_provider: text(shippingZones?.defaultProvider || ""),
-      cod_allowed: Boolean(websiteSettings?.allow_cod ?? true),
+      // Per governorate once a quote exists: the restricted closing system takes COD away outside its list.
+      cod_allowed: quote ? quote.cod_allowed !== false : Boolean(websiteSettings?.allow_cod ?? true),
+      cod_policy: quote?.cod_policy || null,
+      shipping_fee_advance_notice: quote && governorate ? await shippingFeeAdvanceNoticeFor({ governorate, shippingFee: quote.price, orderTotal: number(subtotal, 0) + number(quote.price, 0), compact: true }) : "",
       zones_count: asArray(shippingZones?.zones).length,
     },
     supported_areas: asArray(shippingZones?.zones).slice(0, 50).map((zone) => ({
@@ -248,7 +252,14 @@ export const getPolicyFacts = async ({ tenantId } = {}) => {
       getSetting("storefront.payment_methods.shipping_confirmation_amount", 75).catch(() => 75),
     ]),
   ]);
+  const [codPolicy, restrictedCodAnswer] = await Promise.all([
+    codPolicyFacts().catch(() => null),
+    restrictedCodFaqAnswer().catch(() => ""),
+  ]);
   const paymentRules = {
+    // First, so a prompt that trims payment_rules keeps the closing system.
+    cod_policy_text: restrictedCodAnswer,
+    cod_policy: codPolicy,
     cash_on_delivery_enabled: Boolean(codEnabled),
     payment_options: {
       vodafone_cash: {
@@ -273,7 +284,7 @@ export const getPolicyFacts = async ({ tenantId } = {}) => {
       ...paymentRules,
       payment_policy_text: text(websiteSettings.paymentPolicy || websiteSettings.payment_policy || ""),
       payment_methods_text: text(websiteSettings.paymentMethods || websiteSettings.payment_methods || ""),
-      cod_availability_text: text(agentSettings.cod_availability_text || ""),
+      cod_availability_text: restrictedCodAnswer || text(agentSettings.cod_availability_text || ""),
       delivery_policy_text: text(agentSettings.delivery_policy_text || ""),
     },
     shipping_policy_text: text(agentSettings.delivery_policy_text || websiteSettings.deliveryPolicy || websiteSettings.shipping_policy || ""),

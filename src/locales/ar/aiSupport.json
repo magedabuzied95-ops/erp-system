@@ -813,7 +813,11 @@
       "shippingResetAuto": "رجّع للسعر التلقائي",
       "shippingLoading": "بيحسب سعر الشحن…",
       "shippingNeedsAddress": "اختر المحافظة والمنطقة عشان يظهر سعر الشحن",
-      "orderTotal": "إجمالي الأوردر"
+      "orderTotal": "إجمالي الأوردر",
+      "shippingFeeAdvance": "العميل ده برّه محافظات الدفع عند الاستلام: لازم يحوّل الشحن {{amount}} الأول، والأوردر مش هيتشحن غير لما يتأكد.",
+      "shippingFeeAdvanceCopy": "نسخ رسالة التحويل للعميل",
+      "shippingFeeAdvanceCopied": "اتنسخت — الصقها في الشات",
+      "shippingFeeAdvanceCopyFailed": "النسخ مانجحش"
     },
     "panel": {
       "noTranscript": "لا يوجد سجل محادثة بعد.",

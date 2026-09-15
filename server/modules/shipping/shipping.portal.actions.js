@@ -4,6 +4,7 @@ import { recordEmployeePortalAudit } from "../../services/employeePayrollPortalS
 import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
+import { markShippingFeePaid } from "./shippingFeeAdvance.js";
 
 // The four things staff can DO from أوردرات الشحن: confirm → ready to ship → create the
 // Bosta parcel → print its airway bill. Every action first re-reads the order through
@@ -15,7 +16,7 @@ import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shippin
 // Bosta create with its duplicate guard and customer notification, the AWB fetch —
 // and records who pressed the button on the order timeline and in the portal audit log.
 
-export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb"];
+export const PORTAL_ORDER_ACTIONS = ["confirm", "send_confirmation", "ready_to_ship", "create_shipment", "print_awb", "shipping_fee_paid"];
 // Shipping the parcel and printing its airway bill are open to EVERY employee in the
 // employee portal (owner request 2026-09-10: whoever packs, ships). Confirming an
 // order stays with managers and the employees switched on.
@@ -97,6 +98,7 @@ const defaultDeps = {
   markReady: markReadyToShip,
   createShipment: createBostaShipmentForOrder,
   fetchLabels: fetchBostaShipmentLabels,
+  markShippingFeePaid,
   appendTimeline: (entry) => appendTimeline(db, entry),
   audit: recordEmployeePortalAudit,
 };
@@ -106,7 +108,7 @@ const defaultDeps = {
  * @param {object} args.actor   the employees row pressing the button ({ id, tenant_id, full_name })
  * @param {"employee_portal"|"manager_portal"} args.surface
  */
-export const runPortalOrderAction = async ({ actor = {}, surface = "employee_portal", orderId, action, deps: injected = {} } = {}) => {
+export const runPortalOrderAction = async ({ actor = {}, surface = "employee_portal", orderId, action, input = {}, deps: injected = {} } = {}) => {
   const deps = { ...defaultDeps, ...injected };
   const key = normalized(action);
   if (!PORTAL_ORDER_ACTIONS.includes(key)) throw actionError(400, "UNKNOWN_ACTION", "Unknown action");
@@ -165,6 +167,17 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
     await Promise.resolve()
       .then(() => deps.appendTimeline({ orderId: order.id, action: "portal_bosta_created", status: "shipment_created", actor: actorName, source: surface, label: "تم إنشاء شحنة بوسطة" }))
       .catch((error) => console.warn("[portal-order-action] timeline append failed", { orderId: order.id, message: error?.message }));
+  } else if (key === "shipping_fee_paid") {
+    // The restricted closing system: staff record the fee the customer transferred (or paid in
+    // cash) so the parcel may leave. Money only - the order stays where it is in the flow.
+    await deps.markShippingFeePaid({
+      orderId: order.id,
+      tenantId,
+      method: text(input?.method),
+      reference: text(input?.reference),
+      actorName,
+      source: surface,
+    });
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
       throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "This order has no shipment to print yet");

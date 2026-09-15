@@ -1876,7 +1876,7 @@ export default function ManagerPortal() {
     const response = await managerPortalApi.onlineOrder(token, orderId);
     return response?.order || null;
   }, [token]);
-  const runOnlineOrderAction = useCallback((orderId, action) => managerPortalApi.onlineOrderAction(token, orderId, action), [token]);
+  const runOnlineOrderAction = useCallback((orderId, action, input) => managerPortalApi.onlineOrderAction(token, orderId, action, input), [token]);
   const printOnlineOrderLabels = useCallback((orderIds) => managerPortalApi.onlineOrdersPrintLabels(token, orderIds), [token]);
   const editOnlineOrder = useCallback((orderId, fields) => managerPortalApi.onlineOrderEdit(token, orderId, fields), [token]);
   const deleteOnlineOrder = useCallback((orderId, reason) => managerPortalApi.onlineOrderDelete(token, orderId, reason), [token]);
