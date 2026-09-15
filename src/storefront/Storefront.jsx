@@ -3645,32 +3645,65 @@ function StorefrontWhatsAppFloat() {
   );
 }
 
+// A footer section: a tappable hairline row on phones, a plain column heading
+// from md up (the button stays in the markup but the panel is always shown).
+function FooterGroup({ id, as: Tag = "section", title, headingStyle, open, onToggle, children }) {
+  const panelId = `sf-footer-panel-${id}`;
+  return (
+    <Tag aria-label={Tag === "nav" ? title : undefined} className="sf-footer__group border-b md:border-b-0" style={{ borderColor: "var(--m1h-line)" }}>
+      <h3 className="font-semibold" style={headingStyle}>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => onToggle(id)}
+          className="sf-footer__toggle flex w-full items-center justify-between gap-3 py-4 text-start md:pointer-events-none md:cursor-default md:py-0"
+        >
+          <span>{title}</span>
+          <ChevronDown aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform duration-200 md:hidden ${open ? "rotate-180" : ""}`} />
+        </button>
+      </h3>
+      <div id={panelId} className={`sf-footer__panel pb-5 md:mt-4 md:block md:pb-0 ${open ? "block" : "hidden"}`}>
+        {children}
+      </div>
+    </Tag>
+  );
+}
+
 function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const importantLinks = [
-    { label: isRtl ? "الرئيسية" : "Home", to: "/" },
-    { label: isRtl ? "حسابي" : "My account", to: "/account" },
-    { label: isRtl ? "معلومات عنا" : "About us", to: "/" },
-    { label: isRtl ? "موقع العروض" : "Offers", to: "/offers" },
-    { label: isRtl ? "الشروط والأحكام" : "Terms & conditions", to: "/terms" },
-    // Both legal pages must be reachable from the storefront without an account:
-    // platform reviewers follow them from the site, not only from a portal field.
-    { label: isRtl ? "سياسة الخصوصية" : "Privacy policy", to: "/privacy" },
-    { label: isRtl ? "سياسة الاستبدال والاسترجاع" : "Returns & exchanges", to: "/returns" },
-    { label: isRtl ? "الأسئلة الشائعة" : "FAQ", to: "/faq" },
-  ];
+  // Grouped the way international shops group a footer: what to buy, and help
+  // after buying. "Home" and an "About us" that also pointed at "/" were
+  // dropped — the logo already goes home and the about text is its own section.
   const categoryLinks = [
     { label: isRtl ? "سنيكرز رجالي" : "Men's sneakers", to: "/men" },
     { label: isRtl ? "سنيكرز حريمي" : "Women's sneakers", to: "/women" },
     { label: isRtl ? "أحذية أطفال" : "Kids sneakers", to: "/kids" },
     { label: isRtl ? "شنط" : "Bags", to: "/bags" },
     { label: isRtl ? "ميرور أوريجنال" : "Mirror Original", to: "/products?quality=mirror_original" },
+    { label: isRtl ? "العروض" : "Offers", to: "/offers" },
+  ];
+  const helpLinks = [
+    { label: isRtl ? "تتبع طلبك" : "Track your order", to: "/track" },
+    { label: isRtl ? "الاستبدال والاسترجاع" : "Returns & exchanges", to: "/returns" },
+    { label: isRtl ? "الأسئلة الشائعة" : "FAQ", to: "/faq" },
+    { label: isRtl ? "حسابي" : "My account", to: "/account" },
+  ];
+  // Both legal pages must be reachable from the storefront without an account:
+  // platform reviewers follow them from the site, not only from a portal field.
+  // They sit in the copyright bar, small, as on most international shops.
+  const legalLinks = [
+    { label: isRtl ? "الشروط والأحكام" : "Terms & conditions", to: "/terms" },
+    { label: isRtl ? "سياسة الخصوصية" : "Privacy policy", to: "/privacy" },
   ];
   // Footer ink follows the Site Studio footer colours (--sf-footer-*, painted on
   // .sf-footer by index.css), never a Tailwind stone utility: those are
   // remapped to the ERP palette and their dark: twins never fire in the shop.
   const footerHeadingStyle = { fontSize: "var(--sfx-t-h3)", color: "var(--sf-footer-ink, var(--m1h-text))" };
   const footerMutedStyle = { color: "var(--sf-footer-ink, var(--m1h-text-2))", opacity: 0.78 };
+  // One section open at a time on phones; desktop ignores it (panels always shown).
+  const [openFooterGroup, setOpenFooterGroup] = useState("");
+  const toggleFooterGroup = (id) => setOpenFooterGroup((current) => (current === id ? "" : id));
   const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة من خدمة العملاء" : "Hi, I need customer support");
   const currentYear = new Date().getFullYear();
   const supportEmail = "support@m1store-egy.com";
@@ -3703,7 +3736,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   return (
     <footer data-testid="storefront-modern-footer" data-theme={themeTokens.resolvedMode || "light"} dir={isRtl ? "rtl" : "ltr"} className="sf-footer border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
       <div className="sfx-wrap pb-10 pt-10 md:pb-12 md:pt-14">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr]">
+        <div className="grid gap-8 md:grid-cols-2 md:gap-10 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr]">
           <div>
             <div className="relative h-16 w-16 md:h-20 md:w-20" aria-label="M1 Store">
               {/* Which artwork shows is decided by `.storefront-dark` in
@@ -3737,32 +3770,34 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
             </div>
           </div>
 
-          <div>
-            <h3 className="font-semibold" style={footerHeadingStyle}>{isRtl ? "معلومات عنا" : "About M1 Store"}</h3>
-            <p className="mt-4 text-sm leading-7" style={footerMutedStyle}>
-              {isRtl
-                ? "M1 Store متجر متخصص في الأحذية والسنيكرز والشنط المختارة بعناية. نهتم بالجودة، الراحة، التصميم العصري والسعر المناسب لتجد اختيارك المناسب لكل يوم."
-                : "M1 Store offers carefully selected sneakers, footwear and bags. We focus on quality, comfort, modern design and fair prices for every day."}
-            </p>
+          {/* Phones: one hairline row per section, closed until tapped
+              (Nike/Zara/H&M) — the open lists made the footer longer than the
+              page above it. Desktop: plain columns, always open. */}
+          <div className="sf-footer__groups border-t md:contents" style={{ borderColor: "var(--m1h-line)" }}>
+            <FooterGroup id="about" title={isRtl ? "معلومات عنا" : "About M1 Store"} headingStyle={footerHeadingStyle} open={openFooterGroup === "about"} onToggle={toggleFooterGroup}>
+              <p className="text-sm leading-7" style={footerMutedStyle}>
+                {isRtl
+                  ? "M1 Store متجر متخصص في الأحذية والسنيكرز والشنط المختارة بعناية. نهتم بالجودة، الراحة، التصميم العصري والسعر المناسب لتجد اختيارك المناسب لكل يوم."
+                  : "M1 Store offers carefully selected sneakers, footwear and bags. We focus on quality, comfort, modern design and fair prices for every day."}
+              </p>
+            </FooterGroup>
+
+            <FooterGroup id="shop" as="nav" title={isRtl ? "تسوق" : "Shop"} headingStyle={footerHeadingStyle} open={openFooterGroup === "shop"} onToggle={toggleFooterGroup}>
+              <ul className="grid gap-3">
+                {categoryLinks.map((link) => (
+                  <li key={link.label}><Link to={link.to} className="sf-footer__link text-sm font-medium transition" style={footerMutedStyle}>{link.label}</Link></li>
+                ))}
+              </ul>
+            </FooterGroup>
+
+            <FooterGroup id="help" as="nav" title={isRtl ? "المساعدة" : "Help"} headingStyle={footerHeadingStyle} open={openFooterGroup === "help"} onToggle={toggleFooterGroup}>
+              <ul className="grid gap-3">
+                {helpLinks.map((link) => (
+                  <li key={link.label}><Link to={link.to} className="sf-footer__link text-sm font-medium transition" style={footerMutedStyle}>{link.label}</Link></li>
+                ))}
+              </ul>
+            </FooterGroup>
           </div>
-
-          <nav aria-label={isRtl ? "الأقسام المميزة" : "Featured categories"}>
-            <h3 className="font-semibold" style={footerHeadingStyle}>{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
-            <div className="mt-4 grid gap-3">
-              {categoryLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-medium transition" style={footerMutedStyle}>{link.label}</Link>
-              ))}
-            </div>
-          </nav>
-
-          <nav aria-label={isRtl ? "روابط مهمة" : "Important links"}>
-            <h3 className="font-semibold" style={footerHeadingStyle}>{isRtl ? "روابط مهمة" : "Important links"}</h3>
-            <div className="mt-4 grid gap-3">
-              {importantLinks.map((link) => (
-                <Link key={link.label} to={link.to} className="sf-footer__link text-sm font-medium transition" style={footerMutedStyle}>{link.label}</Link>
-              ))}
-            </div>
-          </nav>
 
           {/* The newsletter sign-up was removed on request. It also never
               subscribed anyone: the form only raised a success toast, so every
@@ -3781,7 +3816,14 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
           in view (StorefrontWhatsAppFloat) instead of the bar reserving room. */}
       <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold">
         <div className="sfx-wrap flex flex-col-reverse items-center gap-4 md:flex-row md:justify-between">
-          <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
+          <div className="flex flex-col items-center gap-2 md:flex-row md:gap-5">
+            <span>{isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}</span>
+            <nav aria-label={isRtl ? "روابط قانونية" : "Legal"} className="flex items-center gap-4 font-medium">
+              {legalLinks.map((link) => (
+                <Link key={link.label} to={link.to} className="sf-footer__legal opacity-70 transition-opacity hover:opacity-100">{link.label}</Link>
+              ))}
+            </nav>
+          </div>
           <ul aria-label={isRtl ? "طرق الدفع" : "Payment methods"} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3" dir="ltr">
             {paymentMarks.map(({ label, mark }) => (
               <li key={label} title={label} aria-label={label} className="sf-footer__mark flex h-6 items-center opacity-70 transition-opacity hover:opacity-100">

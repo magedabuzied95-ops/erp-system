@@ -16,8 +16,15 @@ test("storefront home ends with the full legacy-inspired responsive footer", asy
   assert.match(lowerHome, /bg-\[#f5f3ef\]/);
   assert.match(lowerHome, /dark:bg-\[#080808\]/);
   assert.match(lowerHome, /معلومات عنا/);
-  assert.match(lowerHome, /أقسام مميزة/);
-  assert.match(lowerHome, /روابط مهمة/);
+  // Phones get closed accordion rows (Shop / Help), not two long open lists;
+  // the legal pages move to the copyright bar but stay linked.
+  assert.match(lowerHome, /function FooterGroup/);
+  assert.match(lowerHome, /aria-expanded=\{open\}/);
+  assert.match(lowerHome, /"تسوق"/);
+  assert.match(lowerHome, /"المساعدة"/);
+  assert.match(lowerHome, /to: "\/terms"/);
+  assert.match(lowerHome, /to: "\/privacy"/);
+  assert.doesNotMatch(lowerHome, /روابط مهمة|أقسام مميزة/);
   // The newsletter sign-up was removed on request. It never subscribed anyone
   // either — the form only raised a success toast, so every address typed into it
   // was discarded. Asserted as absent so it cannot come back by accident.
