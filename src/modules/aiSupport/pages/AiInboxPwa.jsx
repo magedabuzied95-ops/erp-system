@@ -8029,10 +8029,12 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 </div>
               </div>
               <div className="ai-pwa-header-actions relative flex shrink-0 items-center gap-2">
+                {/* On a phone the open thread keeps only the ⋯ menu: the theme
+                    switch lives on the list screen and fullscreen buys nothing. */}
                 <button
                   type="button"
                   onClick={togglePwaTheme}
-                  className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="ai-pwa-icon-button hidden md:inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                   aria-label={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
                   title={isDarkTheme ? t("aiSupport.inbox.pwa.lightMode") : t("aiSupport.inbox.pwa.darkMode")}
                 >
@@ -8041,7 +8043,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 <button
                   type="button"
                   onClick={() => setIsFullscreenConversation((current) => !current)}
-                  className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="ai-pwa-icon-button hidden md:inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                   aria-label={fullscreenConversation ? t("aiSupport.inbox.pwa.restoreLayout") : t("aiSupport.inbox.header.expandLayout")}
                   title={fullscreenConversation ? t("aiSupport.inbox.pwa.restoreLayout") : t("aiSupport.inbox.header.expandLayout")}
                 >
