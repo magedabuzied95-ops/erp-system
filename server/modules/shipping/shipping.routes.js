@@ -8,6 +8,10 @@ import {
   getShippingCenterSummaryController,
 } from "./shipping.center.controller.js";
 import {
+  cancelBostaPickupController,
+  createBostaPickupController,
+  getBostaPickupsController,
+  getBostaUnpaidCodController,
   getBostaProviderStatus,
   getShipmentNotificationSettings,
   getShippingCities,
@@ -52,6 +56,13 @@ router.get("/providers/bosta/status", protect, permit("settings", "view"), getBo
 router.post("/bosta/sync-locations", protect, permit("settings", "edit"), syncBostaLocationsController);
 router.post("/bosta/webhook", handleBostaWebhook);
 router.post("/bosta/webhook/test", protect, permit("settings", "view"), testBostaWebhook);
+
+// Pickup requests book a courier to the shop, so creating or cancelling one needs the
+// orders edit grant — the same people who create the shipments being picked up.
+router.get("/bosta/pickups", protect, permit("orders", "view"), getBostaPickupsController);
+router.post("/bosta/pickups", protect, permit("orders", "edit"), createBostaPickupController);
+router.delete("/bosta/pickups/:pickupId", protect, permit("orders", "edit"), cancelBostaPickupController);
+router.get("/bosta/unpaid-cod", protect, permit("orders", "view"), getBostaUnpaidCodController);
 
 // Courier COD money: what the courier collected at the door (step one, automatic)
 // and the bank transfers that settle it (step two, an operator act). Creating a

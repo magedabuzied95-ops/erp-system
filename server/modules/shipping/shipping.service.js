@@ -7,7 +7,11 @@ import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteS
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
-import { bostaStateText, buildBostaAddressLine, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
+import { bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
+
+// bosta.operations.js imports this module, so it is loaded lazily to keep the cycle out of
+// module evaluation.
+const bostaOperations = () => import("./bosta.operations.js");
 
 const text = (value = "") => String(value ?? "").trim();
 const nowIso = () => new Date().toISOString();
@@ -119,6 +123,19 @@ const pickFirst = (source = {}, keys = []) => {
   return "";
 };
 
+// Bosta's documented webhook carries `timeStamp` as epoch milliseconds (1689252908261);
+// read as text it landed in the timeline as a bare number no date formatter understands.
+const webhookTimeIso = (value) => {
+  if (value === undefined || value === null || value === "") return "";
+  const numeric = typeof value === "number" || /^\d{10,13}$/.test(String(value).trim()) ? Number(value) : NaN;
+  if (Number.isFinite(numeric)) {
+    const date = new Date(numeric < 1e12 ? numeric * 1000 : numeric);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+  }
+  const date = new Date(String(value));
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+};
+
 const extractBostaWebhook = (payload = {}) => {
   const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
   const delivery = payload?.delivery && typeof payload.delivery === "object" ? payload.delivery : {};
@@ -180,7 +197,7 @@ const extractBostaWebhook = (payload = {}) => {
     ])),
     eventId: text(pickFirst(source, ["eventId", "event_id", "id", "data.eventId", "data.event_id"])),
     eventType: text(pickFirst(source, ["event", "type", "eventType", "data.event", "data.type"])),
-    occurredAt: text(pickFirst(source, ["timestamp", "createdAt", "updatedAt", "data.timestamp", "data.updatedAt", "delivery.updatedAt"])) || nowIso(),
+    occurredAt: webhookTimeIso(pickFirst(source, ["timeStamp", "timestamp", "createdAt", "updatedAt", "data.timeStamp", "data.timestamp", "data.updatedAt", "delivery.updatedAt"])) || nowIso(),
   };
 };
 
@@ -344,6 +361,25 @@ export const ensureShippingSchema = async (client = db) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS cod_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   // NULL is "follow the shop default", which is why this is not a defaulted boolean.
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS allow_open_package BOOLEAN NULL`);
+  // What Bosta tells us beyond the state (see extractBostaInsights). All nullable with no
+  // default: this runs at boot, and a metadata-only ADD COLUMN is the only kind that
+  // cannot stall the orders table on a large production database.
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_exception_code INTEGER NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_exception_reason TEXT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_exception_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_attempts INTEGER NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_promise_date DATE NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_confirmed_delivery BOOLEAN NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_reported_cod NUMERIC(12,2) NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_shipment_fees NUMERIC(12,2) NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_courier_name TEXT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_courier_phone TEXT NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_details JSONB NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_details_synced_at TIMESTAMPTZ NULL`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS bosta_alerted_attempt INTEGER NULL`);
+  // The Bosta business id is not returned by any API-key call; it is learned once from a
+  // pickup request and kept here, so the unpaid-COD balance can be read afterwards.
+  await client.query(`ALTER TABLE IF EXISTS shipping_providers ADD COLUMN IF NOT EXISTS business_id TEXT NULL`);
   await ensureWhatsappShippingSchema(client);
   await client.query(`
     CREATE TABLE IF NOT EXISTS shipping_events (
@@ -572,7 +608,7 @@ export const saveBostaSettings = async ({ enabled, apiKey, apiBaseUrl, webhookSe
   }
 };
 
-const bostaConfig = async () => {
+export const bostaConfig = async () => {
   const provider = await getProvider(db, "bosta");
   return {
     enabled: Boolean(provider.is_enabled),
@@ -925,9 +961,11 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       console.error("[bosta] refusing to create a second delivery for an order that already has one", { orderId: order.id, ...existing });
       throw bostaShipmentExistsError({ trackingNumber: existing.trackingNumber, deliveryId: existing.deliveryId, status: existing.status });
     }
-    if (existing && options.replaceExisting && existing.deliveryId) {
+    if (existing && options.replaceExisting && (existing.trackingNumber || existing.deliveryId)) {
       console.log("[bosta] cancelling the existing delivery before re-issuing", { orderId: order.id, ...existing });
-      await createBostaClient(config).cancelDelivery(existing.deliveryId);
+      // Bosta's terminate route is keyed by tracking number; the delivery id is only the
+      // fallback for a row that somehow never got one.
+      await createBostaClient(config).cancelDelivery(existing.trackingNumber || existing.deliveryId);
     }
 
     const missing = [];
@@ -1204,6 +1242,16 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     throw error;
   }
   const status = response.status;
+  // The delivery view is the richest thing Bosta returns — fees, attempts, history.
+  const insights = extractBostaInsights(response.raw_response);
+  const operations = await bostaOperations();
+  // On hold, investigation, archived: real Bosta states with no ERP meaning. The details
+  // are still worth keeping, but the order's status is left exactly as it was.
+  if (!ERP_SHIPPING_STATUSES.has(status)) {
+    const kept = await operations.applyBostaInsights(db, orderId, insights);
+    console.warn("[bosta] refresh returned a state the ERP does not track; details stored, status untouched", { orderId, status });
+    return { ...response, status_tracked: false, order: kept || order };
+  }
   const timelineEvent = { at: nowIso(), action: "bosta_refresh_status", provider: "bosta", status };
   const updated = await db.query(
     `
@@ -1225,15 +1273,21 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     `,
     [orderId, status, response.tracking_number, response.provider_delivery_id, response.tracking_url, JSON.stringify(response.raw_response), JSON.stringify([timelineEvent])]
   );
-  let updatedOrder = updated.rows[0];
+  let updatedOrder = (await operations.applyBostaInsights(db, orderId, insights)) || updated.rows[0];
   if (status === "delivered") {
     await ensureCourierSettlementSchema();
     const collection = await markCourierCollected(db, updatedOrder, { source: "bosta_refresh_status" });
     if (collection.applied) updatedOrder = collection.order;
   }
-  sendShipmentNotificationForStatus(updatedOrder, status).catch((error) => {
-    console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status, message: error?.message || String(error) });
-  });
+  // The details were just read, so no second fetch; the customer message and the manager
+  // alerts follow from what is now on the order.
+  void operations.runAfterBostaEvent({
+    orderId: updatedOrder.id,
+    status,
+    hadException: insights.exception_code !== null,
+    detailsFresh: true,
+    notifyCustomer: (fresh) => sendShipmentNotificationForStatus(fresh, status),
+  }).catch((error) => console.warn("[bosta] refresh follow-up failed", { orderId, message: error?.message || String(error) }));
   void syncDeliveryOrderFavorite({ tenantId: updatedOrder?.tenant_id, order: updatedOrder, source: `bosta_refresh:${status}` });
   return { ...response, order: updatedOrder };
 };
@@ -1247,8 +1301,20 @@ export const cancelBostaShipmentForOrder = async (orderId) => {
     error.status = 404;
     throw error;
   }
-  const identifier = order.shipping_provider_delivery_id || order.shipment_id;
-  if (identifier) await createBostaClient(await bostaConfig()).cancelDelivery(identifier);
+  // The terminate route takes the tracking number. It used to send the delivery id to a
+  // route Bosta does not have, so the parcel stayed live at Bosta while the ERP said cancelled.
+  const identifier = order.shipping_tracking_number || order.tracking_number || order.shipment_id || order.shipping_provider_delivery_id;
+  if (identifier) {
+    try {
+      await createBostaClient(await bostaConfig()).cancelDelivery(identifier);
+    } catch (apiError) {
+      const error = new Error(text(apiError?.payload?.message) || apiError?.message || "Bosta refused to cancel the shipment");
+      error.status = apiError?.status >= 400 && apiError.status < 500 ? 400 : 502;
+      error.code = "BOSTA_CANCEL_FAILED";
+      error.payload = apiError?.payload;
+      throw error;
+    }
+  }
   const timelineEvent = { at: nowIso(), action: "bosta_cancel_delivery", provider: "bosta", status: "cancelled" };
   const updated = await db.query(
     `
@@ -1302,6 +1368,8 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
   console.log("[bosta-webhook]", safeJson(payload));
   const auth = req ? await verifyBostaWebhookAuth({ req, payload }) : { verified: true, mode: "internal" };
   const parsed = extractBostaWebhook(payload);
+  const insights = extractBostaInsights(payload);
+  const hadException = insights.exception_code !== null;
   // A callback we cannot map is still proof that Bosta is calling. This used to answer
   // 400 and throw *before* the shipping_events INSERT, so a rejected callback left no
   // row, no last_webhook_received_at, nothing in the drawer — "no events yet" could not
@@ -1366,6 +1434,9 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     // Bosta state means is how a wrong status becomes unfalsifiable from the UI.
     if (!parsed.status) {
       console.warn("[bosta-webhook] status not tracked by the ERP; recorded without touching the order", { orderId: order.id, raw_status: parsed.rawStatus, recorded_as: recordedStatus });
+      // The status stays untouched, but what Bosta said about the parcel is still kept.
+      const { applyBostaInsights } = await bostaOperations();
+      await applyBostaInsights(client, order.id, insights, { occurredAt: parsed.occurredAt || null });
       await client.query("COMMIT");
       return { success: true, recorded: true, applied: false, matched: true, duplicate, order_id: order.id, auth, parsed, reason: "status_not_tracked" };
     }
@@ -1399,7 +1470,10 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
       `,
       [order.id, parsed.status, parsed.deliveryId, parsed.trackingNumber, safeJson(payload), JSON.stringify([timelineEvent])]
     );
-    let updatedOrder = updated.rows[0];
+    const operations = await bostaOperations();
+    // Same transaction as the status: a failed-delivery order must never be visible
+    // without the reason it failed.
+    let updatedOrder = (await operations.applyBostaInsights(client, order.id, insights, { occurredAt: parsed.occurredAt || null })) || updated.rows[0];
     // Delivered means the courier took the customer's money at the door: close the
     // customer's balance and open the courier's. Same transaction as the status write
     // so a parcel can never be "delivered" and still "آجل" at the same time.
@@ -1408,9 +1482,15 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
       if (collection.applied) updatedOrder = collection.order;
     }
     await client.query("COMMIT");
-    sendShipmentNotificationForStatus(updatedOrder, parsed.status).catch((error) => {
-      console.warn("[whatsapp:shipment-notification-skipped]", { orderId: updatedOrder?.id, status: parsed.status, message: error?.message || String(error) });
-    });
+    // After the commit and never awaited: Bosta gets its 200 now. The follow-up fetches the
+    // delivery view first so the customer's message can name the courier, then tells the
+    // customer, then alerts the managers on a failed attempt or a COD difference.
+    void operations.runAfterBostaEvent({
+      orderId: updatedOrder.id,
+      status: parsed.status,
+      hadException,
+      notifyCustomer: (fresh) => sendShipmentNotificationForStatus(fresh, parsed.status),
+    }).catch((error) => console.warn("[bosta-webhook] follow-up failed", { orderId: updatedOrder?.id, message: error?.message || String(error) }));
     // Outside the transaction, like the notification above: the star is worth less
     // than the callback, and the callback is what settles the COD money.
     void syncDeliveryOrderFavorite({ tenantId: updatedOrder?.tenant_id, order: updatedOrder, source: `bosta_webhook:${parsed.status}` });

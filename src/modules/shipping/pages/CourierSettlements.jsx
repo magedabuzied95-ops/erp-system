@@ -101,6 +101,8 @@ export default function CourierSettlements() {
   const [form, setForm] = useState({ fees: "", net: "", settledAt: toDateInput(), reference: "", accountId: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [detailsId, setDetailsId] = useState(null);
+  // What Bosta itself says it holds and has not transferred — the check on our own figure.
+  const [bostaBalance, setBostaBalance] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,6 +123,9 @@ export default function CourierSettlements() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
+    api.get("/shipping/bosta/unpaid-cod").then(setBostaBalance).catch(() => setBostaBalance({ available: false, reason: "request_failed" }));
+  }, []);
+  useEffect(() => {
     // The receiving account list is a nicety; a missing grant must not break the page.
     api.get("/accounting/money-accounts").then((response) => {
       const list = Array.isArray(response?.accounts) ? response.accounts : Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : [];
@@ -130,7 +135,10 @@ export default function CourierSettlements() {
 
   const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.id)), [rows, selected]);
   const gross = useMemo(() => round2(selectedRows.reduce((sum, row) => sum + Number(row.collected_amount || 0), 0)), [selectedRows]);
-  const fees = round2(form.fees);
+  // Bosta's own per-parcel fees seed the field; typing a figure from the statement overrides it.
+  const bostaFees = useMemo(() => round2(selectedRows.reduce((sum, row) => sum + Number(row.shipment_fees || 0), 0)), [selectedRows]);
+  const feesPrefilled = form.fees === "" && bostaFees > 0;
+  const fees = feesPrefilled ? bostaFees : round2(form.fees);
   const expectedNet = round2(gross - fees);
   const net = form.net === "" ? expectedNet : round2(form.net);
   const mismatch = Math.abs(net - expectedNet) > 0.009;
@@ -210,6 +218,22 @@ export default function CourierSettlements() {
           <Kpi label={t("shipping.settlements.kpi.selected")} value={fmtMoney(gross)} sub={t("shipping.settlements.kpi.selectedCount", { count: selectedRows.length })} tone="text-primary" />
         </section>
 
+        {bostaBalance ? (
+          <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--text-tertiary)]">{t("shipping.settlements.bosta.unpaidTitle")}</div>
+                <p className="mt-1 text-xs font-semibold text-[var(--muted)]">
+                  {bostaBalance.available
+                    ? t("shipping.settlements.bosta.unpaidHint")
+                    : bostaBalance.reason === "business_id_unknown" ? t("shipping.settlements.bosta.unpaidUnknown") : t("shipping.settlements.bosta.unpaidUnavailable")}
+                </p>
+              </div>
+              {bostaBalance.available ? <div className="text-2xl font-black text-sky-200">{fmtMoney(bostaBalance.unpaid_cod)}</div> : null}
+            </div>
+          </section>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           {tabButton("pending", t("shipping.settlements.tabs.pending"))}
           {tabButton("settled", t("shipping.settlements.tabs.settled"))}
@@ -239,6 +263,7 @@ export default function CourierSettlements() {
                         <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.table.collectedAt")}</th>
                         <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.table.orderTotal")}</th>
                         <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.table.collected")}</th>
+                        <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.bosta.feesColumn")}</th>
                         {tab === "settled" ? <th className="px-3 py-3 text-start font-black">{t("shipping.settlements.table.settlement")}</th> : null}
                       </tr>
                     </thead>
@@ -252,10 +277,11 @@ export default function CourierSettlements() {
                           <td className="px-3 py-3 text-xs text-[var(--muted)]">{fmtDate(row.courier_collected_at)}</td>
                           <td className="px-3 py-3">{fmtMoney(row.order_total)}</td>
                           <td className="px-3 py-3 font-black text-amber-100">{fmtMoney(row.collected_amount)}</td>
+                          <td className="px-3 py-3 text-orange-200">{row.shipment_fees === null || row.shipment_fees === undefined ? "-" : fmtMoney(row.shipment_fees)}</td>
                           {tab === "settled" ? <td className="px-3 py-3"><button type="button" onClick={() => setDetailsId(row.courier_settlement_id)} className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-xs font-black hover:text-emerald-300">#{row.courier_settlement_id} · {fmtDate(row.courier_settled_at)}</button></td> : null}
                         </tr>
                       ))}
-                      {!rows.length ? <tr><td colSpan={8} className="px-4 py-16 text-center text-sm font-bold text-[var(--text-tertiary)]">{t("shipping.settlements.table.empty")}</td></tr> : null}
+                      {!rows.length ? <tr><td colSpan={9} className="px-4 py-16 text-center text-sm font-bold text-[var(--text-tertiary)]">{t("shipping.settlements.table.empty")}</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -270,7 +296,8 @@ export default function CourierSettlements() {
                   <div className="mt-1 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2 text-lg font-black text-amber-100">{fmtMoney(gross)}</div>
                 </label>
                 <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.form.fees")}
-                  <input type="number" min="0" step="0.01" value={form.fees} onChange={(event) => setForm((prev) => ({ ...prev, fees: event.target.value }))} className={`${inputClass} mt-1`} />
+                  <input type="number" min="0" step="0.01" value={form.fees} placeholder={feesPrefilled ? bostaFees.toFixed(2) : ""} onChange={(event) => setForm((prev) => ({ ...prev, fees: event.target.value }))} className={`${inputClass} mt-1`} />
+                  {feesPrefilled ? <div className="mt-1 text-xs font-bold text-[var(--muted)]">{t("shipping.settlements.bosta.feesPrefilled", { amount: fmtMoney(bostaFees) })}</div> : null}
                 </label>
                 <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.settlements.form.net")}
                   <input type="number" min="0" step="0.01" value={form.net} placeholder={expectedNet.toFixed(2)} onChange={(event) => setForm((prev) => ({ ...prev, net: event.target.value }))} className={`${inputClass} mt-1 ${mismatch ? "border-rose-400/60" : ""}`} />

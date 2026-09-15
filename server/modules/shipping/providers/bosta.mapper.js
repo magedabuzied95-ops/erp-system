@@ -1,3 +1,5 @@
+import { BOSTA_STATES, bostaExceptionReason, parseBostaPromiseDate } from "../../../../shared/bostaDeliveryInsights.js";
+
 const text = (value = "") => String(value ?? "").trim();
 
 const pick = (source = {}, keys = []) => {
@@ -111,32 +113,21 @@ const BOSTA_STATE_ALIASES = {
 // Bosta's webhook sends the state as a bare numeric code (`"state": 45`) next to a
 // human `description` ("Delivered"). Verified 2026-08-22 from a live callback for
 // INV-516: the ERP read "45", matched nothing, and the delivered parcel sat at
-// "في الطريق" until someone pressed تحديث الحالة. Codes from Bosta's delivery-states
-// table; anything unlisted falls through to the description text.
-export const BOSTA_STATE_CODES = {
-  10: "shipment_created", // Pickup requested
-  11: "shipment_created", // Waiting for route
-  20: "shipment_created", // Route assigned
-  21: "picked_up", // Picked up
-  22: "in_transit", // Received at warehouse
-  23: "in_transit", // In transit between hubs
-  24: "in_transit", // Received at destination hub
-  25: "in_transit", // Fulfilled
-  26: "in_transit", // Ready to pickup
-  30: "in_transit", // In transit
-  40: "out_for_delivery",
-  41: "out_for_delivery", // Out for delivery
-  45: "delivered", // Delivered
-  46: "returned", // Returned to business
-  47: "failed_delivery", // Exception
-  48: "cancelled", // Terminated
-  49: "cancelled", // Cancelled
-  50: "failed_delivery", // Lost / damaged
-};
+// "في الطريق" until someone pressed تحديث الحالة. The codes now come from Bosta's
+// official state table (shared/bostaDeliveryInsights.js) — the hand-written one invented
+// a code 50 and had 22–24 describing the wrong events. A state with no ERP meaning (on
+// hold, investigation, archived) is left out so it is recorded without moving the order.
+export const BOSTA_STATE_CODES = Object.fromEntries(
+  Object.entries(BOSTA_STATES).filter(([, state]) => state.erp).map(([code, state]) => [code, state.erp])
+);
 
 // `description` is the second argument so a numeric code the table does not know still
 // resolves from Bosta's own wording instead of being recorded as an opaque number.
 export const normalizeBostaStatus = (value, description = "") => {
+  // The delivery view sends `{code: 41, value: "Picked up"}` for a parcel that is out for
+  // delivery: the words say picked up, the code says heading to the customer. The code is
+  // Bosta's contract, so it wins whenever it is one the table knows.
+  if (value && typeof value === "object" && BOSTA_STATE_CODES[Number(value.code)]) return BOSTA_STATE_CODES[Number(value.code)];
   const key = bostaStateText(value).toLowerCase().replace(/[\s-]+/g, "_");
   if (!key) return description ? normalizeBostaStatus(description) : "";
   if (/^\d+$/.test(key)) {
@@ -218,6 +209,139 @@ export const normalizeBostaAwbResponse = (payload = {}) => {
   return { pdf_base64: buffer.toString("base64"), byte_length: buffer.length, error: "" };
 };
 
+const numberOrNull = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const next = Number(value);
+  return Number.isFinite(next) ? next : null;
+};
+
+const boolOrNull = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string") return ["true", "1", "yes"].includes(value.toLowerCase());
+  return Boolean(value);
+};
+
+const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== "");
+
+/*
+ * Everything worth keeping from a Bosta payload beyond the state, in one flat shape.
+ * Reads both of Bosta's two shapes: the webhook body (flat — numberOfAttempts,
+ * exceptionCode, deliveryPromiseDate, cod, isConfirmedDelivery) and the business delivery
+ * view (nested under `data` — shipmentFees, deliveryAttemptsLength, timeline, history).
+ * A field Bosta did not send stays null, so a later payload that lacks it can never erase
+ * what an earlier one carried.
+ */
+export const extractBostaInsights = (payload = {}) => {
+  const data = payload?.data && typeof payload.data === "object" && !Array.isArray(payload.data) ? payload.data : payload || {};
+  const exceptionCode = numberOrNull(firstDefined(data.exceptionCode, data.exception?.code, data.state?.exception?.code));
+  const rawReason = text(firstDefined(data.exceptionReason, data.exception?.reason, data.state?.exception?.reason));
+  const star = data.star && typeof data.star === "object" ? data.star : (data.starInfo && typeof data.starInfo === "object" ? data.starInfo : {});
+  const fees = numberOrNull(firstDefined(data.shipmentFees, data.pricing?.shipmentFees, data.pricing?.priceAfterVat));
+  const stateCode = numberOrNull(typeof data.state === "object" ? data.state?.code : data.state);
+  const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+  const nextStep = timeline.find((step) => step && step.done === false);
+  const history = Array.isArray(data.history)
+    ? data.history.slice(-30).map((entry) => ({ title: text(entry?.title), date: text(entry?.date), subs: Array.isArray(entry?.subs) ? entry.subs.slice(0, 6).map((sub) => ({ title: text(sub?.title), date: text(sub?.date) })) : [] }))
+    : [];
+  const orderType = typeof data.type === "object" ? text(data.type?.value) : text(data.type);
+  return {
+    state_code: stateCode,
+    exception_code: exceptionCode,
+    exception_reason: exceptionCode !== null || rawReason ? (bostaExceptionReason(exceptionCode, rawReason, "ar") || rawReason) : "",
+    exception_reason_raw: rawReason,
+    attempts: numberOrNull(firstDefined(data.numberOfAttempts, data.deliveryAttemptsLength, data.attemptsCount)),
+    promise_date: parseBostaPromiseDate(firstDefined(data.deliveryPromiseDate, data.promise?.date, data.sla?.e2eSla?.promiseDate)),
+    confirmed_delivery: boolOrNull(data.isConfirmedDelivery),
+    reported_cod: numberOrNull(data.cod),
+    shipment_fees: fees,
+    courier_name: text(firstDefined(star.name, star.firstName ? `${star.firstName} ${star.lastName || ""}` : "")),
+    courier_phone: text(star.phone),
+    order_type: orderType,
+    masked_state: text(data.maskedState),
+    next_action: text(nextStep?.nextAction || timeline.filter((step) => step?.done).pop()?.nextAction),
+    history,
+    // Whether this payload is the rich delivery view rather than a bare webhook, so the
+    // caller knows the details column may be replaced wholesale.
+    is_delivery_view: Boolean(history.length || timeline.length || fees !== null),
+  };
+};
+
+// Bosta's pricing calculator response is not documented, so every figure it might carry
+// is probed and the raw body kept for the screen when none of them is found.
+export const normalizeBostaFeeEstimate = (payload = {}) => {
+  const data = payload?.data ?? payload;
+  const candidates = [];
+  const walk = (node, depth = 0) => {
+    if (!node || typeof node !== "object" || depth > 4) return;
+    for (const key of ["shipmentFees", "priceAfterVat", "totalPrice", "total", "shippingFees", "shippingFee", "price", "priceBeforeVat"]) {
+      const value = numberOrNull(node[key]);
+      if (value !== null) candidates.push({ key, value });
+    }
+    for (const child of Array.isArray(node) ? node : Object.values(node)) walk(child, depth + 1);
+  };
+  walk(data);
+  const best = candidates[0] || null;
+  return { fees: best ? best.value : null, source_field: best ? best.key : "", raw: data };
+};
+
+export const normalizeBostaPickupLocations = (payload = {}) => {
+  const list = Array.isArray(payload?.data?.list) ? payload.data.list : (Array.isArray(payload?.data) ? payload.data : []);
+  return list.map((row) => ({
+    id: text(row?._id),
+    name: text(row?.locationName),
+    is_default: Boolean(row?.isDefault),
+    city: text(row?.address?.city?.name),
+    address: [row?.address?.firstLine, row?.address?.district?.name || row?.address?.district, row?.address?.city?.name].map((part) => text(typeof part === "object" ? "" : part)).filter(Boolean).join("، "),
+    contact_name: text(row?.contactPerson?.name),
+    contact_phone: text(row?.contactPerson?.phone),
+  })).filter((row) => row.id);
+};
+
+export const normalizeBostaPickup = (row = {}) => ({
+  id: text(row?._id),
+  puid: text(row?.puid),
+  state: text(row?.state),
+  scheduled_date: text(row?.scheduledDate),
+  time_slot: text(row?.scheduledTimeSlot),
+  location_name: text(row?.business?.locationName),
+  location_id: text(row?.businessLocationId),
+  business_id: text(row?.business?._id),
+  parcels: numberOrNull(row?.numberOfParcels) ?? (Array.isArray(row?.deliveries) ? row.deliveries.length : null),
+  courier_name: text(row?.star?.name),
+  courier_phone: text(row?.star?.phone),
+  created_at: text(row?.createdAt),
+  notes: text(row?.notes),
+});
+
+export const normalizeBostaPickups = (payload = {}) => {
+  const list = Array.isArray(payload?.data?.list) ? payload.data.list : (Array.isArray(payload?.data) ? payload.data : []);
+  return list.map(normalizeBostaPickup).filter((row) => row.id);
+};
+
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+
+/*
+ * Available pickup dates arrive as display strings with no year ("Mon, 25 Oct."). The
+ * year is the one that puts the date at or after `today`, so a December list that runs
+ * into January does not land eleven months in the past.
+ */
+export const normalizeBostaPickupDates = (payload = {}, today = new Date()) => {
+  const list = Array.isArray(payload?.data) ? payload.data : [];
+  const baseYear = today.getFullYear();
+  const todayKey = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  return list.map((label) => {
+    const raw = text(label);
+    const match = raw.match(/(\d{1,2})\s+([A-Za-z]{3})/);
+    if (!match) return null;
+    const day = Number(match[1]);
+    const month = MONTHS[match[2].toLowerCase()];
+    if (!month) return null;
+    let year = baseYear;
+    if (year * 10000 + month * 100 + day < todayKey) year += 1;
+    return { label: raw, date: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
+  }).filter(Boolean);
+};
+
 export const buildBostaAddressLine = (order = {}) => {
   const streetAddress = text(order.street_address || order.shipping_address_line || order.customer_address);
   const parts = [
@@ -289,5 +413,20 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
       ...(apartment ? { apartment } : {}),
     },
     businessReference: text(order.invoice_number || order.public_order_number || order.id),
+  };
+};
+
+/*
+ * What an edit pushed to an existing Bosta delivery may change: who receives it, where,
+ * and the courier notes. The COD is deliberately left out — money on a parcel already
+ * with the courier is changed on purpose from Bosta's own dashboard, never as a side
+ * effect of fixing a typo in the address.
+ */
+export const mapOrderToBostaDeliveryUpdatePayload = (args = {}) => {
+  const full = mapOrderToBostaDeliveryPayload(args);
+  return {
+    receiver: full.receiver,
+    dropOffAddress: full.dropOffAddress,
+    ...(full.notes ? { notes: full.notes } : {}),
   };
 };

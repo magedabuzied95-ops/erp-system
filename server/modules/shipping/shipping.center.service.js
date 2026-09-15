@@ -65,6 +65,11 @@ const buildWhere = (query = {}) => {
   if (query.branchId) addFilter(filters, params, "o.branch_id::text = ?", text(query.branchId));
   if (query.shippingStatus) addFilter(filters, params, "COALESCE(o.shipment_status, o.shipping_status, 'ready_to_ship') = ?", normalizeStatus(query.shippingStatus));
   if (query.paymentStatus) addFilter(filters, params, "COALESCE(o.payment_status, '') = ?", text(query.paymentStatus));
+  // "Needs action": Bosta reported a failed attempt and the parcel is still open — the list
+  // someone should be calling customers from today.
+  if (query.needsAction === "1" || query.needsAction === true) {
+    filters.push("o.bosta_exception_code IS NOT NULL AND COALESCE(o.shipment_status, o.shipping_status, '') NOT IN ('delivered', 'returned', 'cancelled')");
+  }
   // "COD" is any parcel the courier still has to bring money back from, not only the
   // ones whose payment_method happens to spell it out — that spelling is exactly what
   // shipments created from the AI inbox and the POS never carried.
@@ -130,6 +135,17 @@ const selectSql = `
     COALESCE(o.shipping_last_synced_at, o.last_shipping_sync_at) AS last_sync,
     o.shipping_label_url,
     o.tracking_url,
+    o.bosta_exception_code,
+    o.bosta_exception_reason,
+    o.bosta_exception_at,
+    o.bosta_attempts,
+    o.bosta_promise_date::text AS bosta_promise_date,
+    o.bosta_confirmed_delivery,
+    o.bosta_reported_cod,
+    o.bosta_shipment_fees,
+    o.bosta_courier_name,
+    o.bosta_courier_phone,
+    o.bosta_details,
     COALESCE(o.shipment_timeline, '[]'::jsonb) AS shipment_timeline,
     COALESCE(events.events, '[]'::jsonb) AS webhook_events
   FROM orders o
@@ -222,6 +238,8 @@ export const getShippingCenterSummary = async (query = {}) => {
       COALESCE((SELECT COUNT(*)::int FROM base WHERE normalized_status = 'delivered'), 0) AS delivered_count,
       COALESCE((SELECT COUNT(*)::int FROM base WHERE normalized_status = 'returned'), 0) AS returned_count,
       COALESCE((SELECT COUNT(*)::int FROM base WHERE normalized_status IN ('failed_delivery', 'failed')), 0) AS failed_count,
+      COALESCE((SELECT COUNT(*)::int FROM base WHERE bosta_exception_code IS NOT NULL AND normalized_status NOT IN ('delivered', 'returned', 'cancelled')), 0) AS needs_action_count,
+      COALESCE((SELECT SUM(bosta_shipment_fees)::numeric(12,2) FROM base), 0) AS bosta_fees_total,
       COALESCE((SELECT AVG(hours)::numeric(12,2) FROM delivery_windows), 0) AS average_delivery_hours,
       COALESCE((SELECT jsonb_agg(provider_counts) FROM provider_counts), '[]'::jsonb) AS orders_per_provider,
       COALESCE((SELECT jsonb_agg(city_counts) FROM city_counts), '[]'::jsonb) AS orders_per_city
@@ -241,6 +259,8 @@ export const getShippingCenterSummary = async (query = {}) => {
       delivery_success_rate: total ? Math.round((Number(row.delivered_count || 0) / total) * 1000) / 10 : 0,
       return_rate: total ? Math.round((Number(row.returned_count || 0) / total) * 1000) / 10 : 0,
       failed_rate: total ? Math.round((Number(row.failed_count || 0) / total) * 1000) / 10 : 0,
+      needs_action_count: Number(row.needs_action_count || 0),
+      bosta_fees_total: Number(row.bosta_fees_total || 0),
       average_delivery_hours: Number(row.average_delivery_hours || 0),
       orders_per_provider: row.orders_per_provider || [],
       orders_per_city: row.orders_per_city || [],

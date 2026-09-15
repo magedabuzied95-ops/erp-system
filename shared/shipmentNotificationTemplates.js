@@ -7,12 +7,13 @@
  * its own rendering rules is a preview that lies.
  */
 
-export const SHIPMENT_NOTIFICATION_TYPES = ["shipment_created", "shipped", "out_for_delivery", "delivered"];
+export const SHIPMENT_NOTIFICATION_TYPES = ["shipment_created", "shipped", "out_for_delivery", "delivery_failed", "delivered"];
 
 export const SHIPMENT_NOTIFICATION_LABELS = {
   shipment_created: { en: "Shipment created", ar: "تم إنشاء الشحنة" },
   shipped: { en: "Picked up / in transit", ar: "تم الاستلام / في الطريق" },
   out_for_delivery: { en: "Out for delivery", ar: "خارج للتسليم" },
+  delivery_failed: { en: "Delivery attempt failed", ar: "محاولة تسليم فشلت" },
   delivered: { en: "Delivered", ar: "تم التسليم" },
 };
 
@@ -21,6 +22,10 @@ export const SHIPMENT_NOTIFICATION_TRIGGERS = {
   shipment_created: { en: "The moment the shipment is created", ar: "لحظة إنشاء الشحنة" },
   shipped: { en: "When the courier picks the parcel up", ar: "عند استلام المندوب للشحنة" },
   out_for_delivery: { en: "When the parcel goes out for delivery", ar: "عند خروج الشحنة للتسليم" },
+  delivery_failed: {
+    en: "When Bosta reports a failed attempt the customer can fix (not home, not answering, unclear address, wrong number) — once per attempt",
+    ar: "لما بوسطة تبلّغ بمحاولة فشلت يقدر العميل يحلها (مش موجود، مبيردش، العنوان مش واضح، الرقم غلط) — مرة لكل محاولة",
+  },
   delivered: { en: "After the parcel is delivered", ar: "بعد تسليم الشحنة" },
 };
 
@@ -31,6 +36,11 @@ export const SHIPMENT_TEMPLATE_PLACEHOLDERS = [
   { token: "tracking_number", en: "Tracking number", ar: "رقم التتبع" },
   { token: "tracking_url", en: "Tracking link", ar: "رابط التتبع" },
   { token: "cod_amount", en: "Amount to collect", ar: "المبلغ المطلوب" },
+  { token: "courier_name", en: "Courier name", ar: "اسم المندوب" },
+  { token: "courier_phone", en: "Courier phone", ar: "رقم المندوب" },
+  { token: "promise_date", en: "Expected delivery date", ar: "ميعاد التسليم المتوقع" },
+  { token: "failure_reason", en: "Why delivery failed", ar: "سبب فشل التسليم" },
+  { token: "attempt_number", en: "Attempt number", ar: "رقم المحاولة" },
 ];
 
 export const SHIPMENT_NOTIFICATION_DEFAULTS = {
@@ -51,7 +61,8 @@ export const SHIPMENT_NOTIFICATION_DEFAULTS = {
 رقم الطلب: {{order_number}}
 شركة الشحن: {{provider}}
 رقم التتبع: {{tracking_number}}
-رابط التتبع: {{tracking_url}}`,
+رابط التتبع: {{tracking_url}}
+ميعاد التسليم المتوقع: {{promise_date}}`,
   },
   out_for_delivery: {
     enabled: true,
@@ -59,8 +70,19 @@ export const SHIPMENT_NOTIFICATION_DEFAULTS = {
 
 رقم الطلب: {{order_number}}
 المبلغ المطلوب: {{cod_amount}}
+المندوب: {{courier_name}}
+رقم المندوب: {{courier_phone}}
 
 نتمنى أن تكون متاحاً لاستلام الطلب.`,
+  },
+  delivery_failed: {
+    enabled: true,
+    template: `المندوب مقدرش يسلّم طلبك النهارده
+
+رقم الطلب: {{order_number}}
+السبب: {{failure_reason}}
+
+رد علينا هنا بميعاد مناسب أو بالعنوان أو الرقم الصح، وهنبلّغ بوسطة تحاول تاني.`,
   },
   delivered: {
     enabled: true,

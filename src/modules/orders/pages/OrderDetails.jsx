@@ -43,6 +43,7 @@ import OrdersShell from "../components/OrdersShell";
 import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
+import BostaShipmentInsights, { BostaFeeEstimate } from "../components/BostaShipmentInsights.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
 import useOrderPrintSheet from "../../../shared/components/print/useOrderPrintSheet";
 import { useInvoiceTemplate } from "../../../shared/hooks/useInvoiceTemplate";
@@ -1772,11 +1773,17 @@ function OrderDetails() {
                         {order.landmark ? <Info label={tt("orders.details.landmark")} value={order.landmark} /> : null}
                         <Info label={tt("orders.shipping.bostaInternalId")} value={shipping.shipping_provider_delivery_id || t("orders.fallback.notAvailable")} />
                         <Info label={tt("orders.shipping.bostaTrackingNumber")} value={shipping.tracking_number || shipping.shipment_id || t("orders.fallback.notAvailable")} />
-                        <Info label={tt("orders.shipping.labelLink")} value={shipping.shipping_label_url || t("orders.fallback.notAvailable")} />
                       </div>
-                      {shipping.shipping_label_url ? (
-                        <button type="button" onClick={() => window.open(shipping.shipping_label_url, "_blank", "noopener,noreferrer")} className="mt-3 h-[var(--control-height-md)] rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-3 text-xs font-black text-primary transition hover:bg-primary/20">{tt("orders.shipping.printLabel")}</button>
-                      ) : null}
+                      {/*
+                        Bosta's create reply carries no label link, so the old "رابط الملصق" field was
+                        empty on every order. The airway bill is printed from Bosta's AWB endpoint
+                        instead, alongside everything else Bosta reports about the parcel.
+                      */}
+                      <BostaShipmentInsights
+                        order={order}
+                        onOrderChange={(next) => setOrder((current) => normalizeOrder({ ...current, ...next }, { items: previewItems }))}
+                        onBeforePush={handleSaveShipping}
+                      />
                       {bostaActionError ? (
                         <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-bold leading-5 ${ bostaActionError.code === BOSTA_SUBSCRIPTION_REQUIRED_CODE ? "border-amber-300/35 bg-amber-400/10 text-amber-100" : "border-rose-300/30 bg-rose-400/10 text-rose-100" }`}>
                           <div className="flex flex-wrap items-center gap-2">
@@ -1916,6 +1923,9 @@ function OrderDetails() {
               ) : null}
               {!hasCreatedShipment && collectionPreview <= 0 ? (
                 <p className="text-[11px] leading-5 text-amber-200/80">{t("orders.shipping.courierCollectsNothing")}</p>
+              ) : null}
+              {!hasCreatedShipment && isBostaShippingProvider(shipping.provider) ? (
+                <BostaFeeEstimate orderId={order.id} codAmount={codOverrideProvided ? shipping.cod_amount : ""} />
               ) : null}
               {!hasCreatedShipment ? (
                 <button type="button" onClick={handleCreateShipment} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-zinc-950 transition hover:bg-primary">

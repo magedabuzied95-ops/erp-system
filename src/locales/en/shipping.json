@@ -61,7 +61,14 @@
       "timeline": "Shipping Timeline",
       "noTimeline": "No timeline events yet.",
       "webhookEvents": "Webhook Events",
-      "noWebhookEvents": "No webhook events received."
+      "noWebhookEvents": "No webhook events received.",
+      "bostaInsights": "What Bosta reported",
+      "failedReason": "Last failed attempt reason",
+      "attempts": "Attempts",
+      "promiseDate": "Expected delivery date",
+      "fees": "Bosta fees",
+      "courier": "Courier",
+      "reportedCod": "COD at Bosta"
     },
     "emptyRows": "No shipments match the current filters.",
     "settings": "Settings",
@@ -82,6 +89,32 @@
       "saveFailed": "Could not save the messages",
       "save": "Save",
       "cancel": "Cancel"
+    },
+    "needsAction": "Needs action",
+    "needsActionHint": "Parcels with a failed delivery attempt that are still open",
+    "bostaFeesTotal": "Bosta fees",
+    "attemptsShort": "Attempt {{attempt}}",
+    "pickups": {
+      "open": "Request pickup",
+      "title": "Bosta pickup requests",
+      "subtitle": "Book a Bosta courier to collect the ready parcels from the shop.",
+      "loading": "Loading from Bosta...",
+      "location": "Pickup location",
+      "date": "Day",
+      "parcels": "Number of parcels",
+      "readyParcels": "{{total}} parcels ready and waiting for pickup",
+      "notes": "Notes for the courier",
+      "submit": "Book pickup",
+      "created": "Bosta accepted the pickup request.",
+      "createFailed": "Bosta refused the pickup request.",
+      "recent": "Recent pickup requests",
+      "none": "No pickup requests yet.",
+      "cancel": "Cancel",
+      "cancelled": "Pickup request cancelled.",
+      "cancelFailed": "Could not cancel the pickup.",
+      "noLocations": "No pickup locations on the Bosta account. Add one from the Bosta dashboard first.",
+      "partError": "Part of Bosta's data did not load: {{message}}",
+      "close": "Close"
     }
   },
   "settlements": {
@@ -156,6 +189,14 @@
       "by": "By",
       "view": "Details",
       "close": "Close"
+    },
+    "bosta": {
+      "unpaidTitle": "Money held by Bosta, not transferred yet",
+      "unpaidHint": "This figure comes from Bosta itself; compare it with what we recorded as collected before settling.",
+      "unpaidUnknown": "Bosta's balance appears after the first pickup requested from the system (that is the only way Bosta reveals the account id).",
+      "unpaidUnavailable": "Could not read Bosta's balance right now.",
+      "feesColumn": "Bosta fees",
+      "feesPrefilled": "Fees were filled from Bosta's figures for the selected parcels ({{amount}}) — edit if the statement differs."
     }
   }
 }

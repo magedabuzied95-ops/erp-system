@@ -151,6 +151,10 @@ const collectionRowSql = `
     COALESCE(o.paid_amount, 0)::numeric AS paid_amount,
     o.courier_collected_at,
     COALESCE(o.courier_collected_amount, 0)::numeric AS collected_amount,
+    -- What Bosta charged for this parcel (from its delivery view), so a settlement can
+    -- start from Bosta's own fees instead of a number typed from a PDF.
+    o.bosta_shipment_fees AS shipment_fees,
+    o.bosta_reported_cod AS reported_cod,
     o.courier_settlement_id,
     o.courier_settled_at,
     o.created_at

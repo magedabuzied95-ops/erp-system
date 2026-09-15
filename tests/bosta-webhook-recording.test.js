@@ -43,12 +43,13 @@ test("the unhandled vocabulary is surfaced instead of being invisible", () => {
   assert.match(settingsCenterSource, /"Unmapped Bosta Statuses"/);
 });
 
-// A state Bosta really sends, in the shape it really sends it.
+// A state Bosta really sends, in the shape it really sends it. The delivery view labels
+// code 41 "Picked up" while the parcel is heading to the customer; the code is the contract.
 test("a known state still parses and would update", () => {
   const preview = previewBostaWebhookPayload({
     event: "delivery.status_changed",
     trackingNumber: "6809691515",
-    state: { code: 24, value: "Out for delivery" },
+    state: { code: 41, value: "Picked up" },
   });
   assert.equal(preview.parsed.status, "out_for_delivery");
   assert.equal(preview.would_update, true);
@@ -58,7 +59,7 @@ test("an unknown state parses as itself and would not update", () => {
   const preview = previewBostaWebhookPayload({
     event: "delivery.status_changed",
     trackingNumber: "6809691515",
-    state: { code: 30, value: "Rescheduled" },
+    state: { code: 999, value: "Rescheduled" },
   });
   assert.equal(preview.parsed.status, "");
   assert.equal(preview.parsed.rawStatus, "Rescheduled");

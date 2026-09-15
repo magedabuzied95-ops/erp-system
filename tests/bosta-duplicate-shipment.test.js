@@ -61,7 +61,7 @@ test("re-issuing is a single-order action, never a bulk one", () => {
 });
 
 test("re-issuing cancels the old parcel and names it in the timeline", () => {
-  assert.match(shippingServiceSource, /options\.replaceExisting[\s\S]{0,300}cancelDelivery\(existing\.deliveryId\)/);
+  assert.match(shippingServiceSource, /options\.replaceExisting[\s\S]{0,400}cancelDelivery\(existing\.trackingNumber \|\| existing\.deliveryId\)/);
   assert.match(shippingServiceSource, /replaced_delivery_id: existing\.deliveryId/);
   assert.match(shippingServiceSource, /replaced_tracking_number: existing\.trackingNumber/);
 });

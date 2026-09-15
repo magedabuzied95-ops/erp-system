@@ -20,6 +20,8 @@ import {
   Layers3,
   Loader2,
   MapPin,
+  PackagePlus,
+  Phone,
   PackageCheck,
   PanelRightClose,
   Printer,
@@ -168,6 +170,18 @@ function Select({ value, onChange, children }) {
   );
 }
 
+// The filter-bar Select sizes to its content; inside a form grid a field must fill its column.
+function FieldSelect({ value, onChange, children }) {
+  return (
+    <ThemedSelect
+      value={value}
+      onChange={onChange}
+      options={optionsFromChildren(children)}
+      triggerClassName="mt-1 h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-300/50"
+    />
+  );
+}
+
 function ShipmentDrawer({ order, onClose, onPrintLabel }) {
   const { t } = useTranslation();
   if (!order) return null;
@@ -208,6 +222,26 @@ function ShipmentDrawer({ order, onClose, onPrintLabel }) {
               </div>
             ))}
           </div>
+          {order.bosta_exception_reason || order.bosta_attempts !== null || order.bosta_shipment_fees !== null || order.bosta_courier_name ? (
+            <section className="mt-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card-soft)] p-4">
+              <div className="mb-3 flex items-center gap-2 text-sm font-black"><Truck className="h-4 w-4 text-primary" /> {t("shipping.center.drawer.bostaInsights")}</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  order.bosta_exception_reason ? [t("shipping.center.drawer.failedReason"), <span className="text-[var(--danger)]">{order.bosta_exception_reason}</span>] : null,
+                  order.bosta_attempts !== null && order.bosta_attempts !== undefined ? [t("shipping.center.drawer.attempts"), String(order.bosta_attempts)] : null,
+                  order.bosta_promise_date ? [t("shipping.center.drawer.promiseDate"), String(order.bosta_promise_date).slice(0, 10)] : null,
+                  order.bosta_shipment_fees !== null && order.bosta_shipment_fees !== undefined ? [t("shipping.center.drawer.fees"), fmtMoney(order.bosta_shipment_fees)] : null,
+                  order.bosta_reported_cod !== null && order.bosta_reported_cod !== undefined ? [t("shipping.center.drawer.reportedCod"), fmtMoney(order.bosta_reported_cod)] : null,
+                  order.bosta_courier_name ? [t("shipping.center.drawer.courier"), <span className="inline-flex flex-wrap items-center gap-2">{order.bosta_courier_name}{order.bosta_courier_phone ? <a href={`tel:${order.bosta_courier_phone}`} dir="ltr" className="inline-flex items-center gap-1 text-primary"><Phone className="h-3 w-3" />{order.bosta_courier_phone}</a> : null}</span>] : null,
+                ].filter(Boolean).map(([label, value]) => (
+                  <div key={label} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--text-tertiary)]">{label}</div>
+                    <div className="mt-1 break-words text-sm font-black text-[var(--text)]">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <section className="mt-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card-soft)] p-4">
             <div className="mb-2 flex items-center gap-2 text-sm font-black"><MapPin className="h-4 w-4 text-emerald-300" /> {t("shipping.center.drawer.address")}</div>
             <p className="text-sm font-semibold leading-6 text-[var(--text-secondary)]">{address || "-"}</p>
@@ -398,9 +432,149 @@ function NotificationSettingsModal({ open, onClose }) {
   );
 }
 
+/*
+ * Book a Bosta courier to the shop. Locations, available days and recent requests all come
+ * from Bosta; the parcel count defaults to the shipments created and not yet collected.
+ */
+function PickupRequestModal({ open, onClose }) {
+  const { t } = useTranslation();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ locationId: "", date: "", parcels: "", notes: "" });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await api.get("/shipping/bosta/pickups");
+      setData(result);
+      const defaultLocation = (result.locations || []).find((row) => row.is_default) || (result.locations || [])[0];
+      setForm((current) => ({
+        ...current,
+        locationId: current.locationId || defaultLocation?.id || "",
+        date: current.date || result.dates?.[0]?.date || todayInAppTimezone(),
+        parcels: current.parcels || (result.ready_parcels ? String(result.ready_parcels) : ""),
+      }));
+    } catch (error) {
+      toast.error(error.message || t("shipping.center.pickups.createFailed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    if (open) load();
+  }, [open, load]);
+
+  if (!open) return null;
+
+  const submit = async () => {
+    try {
+      setSaving(true);
+      await api.post("/shipping/bosta/pickups", { location_id: form.locationId, date: form.date, parcels: Number(form.parcels) || undefined, notes: form.notes });
+      toast.success(t("shipping.center.pickups.created"));
+      setForm((current) => ({ ...current, notes: "" }));
+      await load();
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error.message || t("shipping.center.pickups.createFailed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelPickup = async (pickupId) => {
+    try {
+      await api.delete(`/shipping/bosta/pickups/${encodeURIComponent(pickupId)}`);
+      toast.success(t("shipping.center.pickups.cancelled"));
+      await load();
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error.message || t("shipping.center.pickups.cancelFailed"));
+    }
+  };
+
+  const locations = data?.locations || [];
+  const dates = data?.dates || [];
+  const fieldClass = "h-[var(--control-height-md)] w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-bold text-[var(--text)] outline-none focus:border-emerald-300/50";
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="my-6 w-full max-w-2xl rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] p-5">
+          <div>
+            <h2 className="text-lg font-black">{t("shipping.center.pickups.title")}</h2>
+            <p className="mt-1 text-xs font-semibold leading-5 text-[var(--muted)]">{t("shipping.center.pickups.subtitle")}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label={t("shipping.center.pickups.close")} className="rounded-full border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text-secondary)] hover:bg-[var(--table-hover)]"><X className="h-4 w-4" /></button>
+        </header>
+        {loading && !data ? (
+          <div className="flex items-center justify-center gap-2 p-10 text-sm font-bold text-[var(--muted)]"><Loader2 className="h-4 w-4 animate-spin" /> {t("shipping.center.pickups.loading")}</div>
+        ) : (
+          <div className="space-y-5 p-5">
+            {(data?.errors || []).map((row) => (
+              <p key={row.part} className="rounded-[var(--radius-control)] border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-100">{t("shipping.center.pickups.partError", { message: row.message || row.part })}</p>
+            ))}
+            {locations.length ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-black text-[var(--text-tertiary)] sm:col-span-2">{t("shipping.center.pickups.location")}
+                  <FieldSelect value={form.locationId} onChange={(value) => setForm((current) => ({ ...current, locationId: value }))}>
+                    {locations.map((row) => <option key={row.id} value={row.id}>{[row.name, row.address].filter(Boolean).join(" — ")}</option>)}
+                  </FieldSelect>
+                </label>
+                <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.center.pickups.date")}
+                  {dates.length ? (
+                    <FieldSelect value={form.date} onChange={(value) => setForm((current) => ({ ...current, date: value }))}>
+                      {dates.map((row) => <option key={row.date} value={row.date}>{row.label}</option>)}
+                    </FieldSelect>
+                  ) : (
+                    <input type="date" value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} className={`${fieldClass} mt-1`} />
+                  )}
+                </label>
+                <label className="block text-xs font-black text-[var(--text-tertiary)]">{t("shipping.center.pickups.parcels")}
+                  <input type="number" min="1" value={form.parcels} onChange={(event) => setForm((current) => ({ ...current, parcels: event.target.value }))} className={`${fieldClass} mt-1`} />
+                </label>
+                {data?.ready_parcels ? <p className="text-xs font-bold text-[var(--muted)] sm:col-span-2">{t("shipping.center.pickups.readyParcels", { total: data.ready_parcels })}</p> : null}
+                <label className="block text-xs font-black text-[var(--text-tertiary)] sm:col-span-2">{t("shipping.center.pickups.notes")}
+                  <input value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className={`${fieldClass} mt-1`} />
+                </label>
+                <div className="sm:col-span-2">
+                  <button type="button" onClick={submit} disabled={saving || !form.locationId || !form.date} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackagePlus className="h-4 w-4" />} {t("shipping.center.pickups.submit")}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card-soft)] px-3 py-3 text-sm font-bold text-[var(--muted)]">{t("shipping.center.pickups.noLocations")}</p>
+            )}
+            <section>
+              <h3 className="mb-2 text-sm font-black">{t("shipping.center.pickups.recent")}</h3>
+              {(data?.pickups || []).length ? (
+                <div className="space-y-2">
+                  {data.pickups.map((row) => (
+                    <div key={row.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card-soft)] px-3 py-2">
+                      <div className="min-w-0 text-xs font-bold">
+                        <div className="text-sm font-black text-[var(--text)]">{row.scheduled_date || "-"} · {row.state || "-"}</div>
+                        <div className="mt-0.5 text-[var(--muted)]">{[row.location_name, row.parcels ? `#${row.parcels}` : "", row.puid].filter(Boolean).join(" · ")}</div>
+                        {row.courier_name ? <div className="mt-0.5 text-[var(--text-secondary)]">{row.courier_name}{row.courier_phone ? <a href={`tel:${row.courier_phone}`} dir="ltr" className="ms-2 text-primary">{row.courier_phone}</a> : null}</div> : null}
+                      </div>
+                      {["requested", "route assigned"].includes(String(row.state || "").toLowerCase()) ? (
+                        <button type="button" onClick={() => cancelPickup(row.id)} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-black text-[var(--danger)] hover:bg-[var(--table-hover)]">{t("shipping.center.pickups.cancel")}</button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm font-bold text-[var(--text-tertiary)]">{t("shipping.center.pickups.none")}</p>}
+            </section>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ShippingCenter() {
   const { t } = useTranslation();
-  const [filters, setFilters] = useState({ provider: "", branchId: "", shippingStatus: "", paymentStatus: "", paymentType: "", dateFrom: "", dateTo: "", search: "" });
+  const [filters, setFilters] = useState({ provider: "", branchId: "", shippingStatus: "", paymentStatus: "", paymentType: "", dateFrom: "", dateTo: "", search: "", needsAction: "" });
+  const [pickupsOpen, setPickupsOpen] = useState(false);
   const [view, setView] = useState("table");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [data, setData] = useState({ orders: [], total: 0, summary: { statuses: {}, analytics: {} }, meta: { providers: [], branches: [], statuses: [] } });
@@ -547,6 +721,7 @@ export default function ShippingCenter() {
             <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.tableView")}</button>
             <button onClick={() => setView("board")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "board" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.boardView")}</button>
             <button onClick={load} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-black text-[var(--text)]"><RefreshCw className="h-4 w-4" /> {t("shipping.center.refresh")}</button>
+            <button type="button" onClick={() => setPickupsOpen(true)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] px-4 py-2 text-sm font-black text-[var(--text)] hover:border-[var(--border-strong)] hover:bg-[var(--table-hover)]"><PackagePlus className="h-4 w-4" /> {t("shipping.center.pickups.open")}</button>
             <Link to="/operations/shipping/settlements" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-emerald-300/40 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 hover:bg-emerald-400/20"><Landmark className="h-4 w-4" /> {t("shipping.settlements.title")}</Link>
             <button
               type="button"
@@ -562,6 +737,25 @@ export default function ShippingCenter() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-8">
           {STATUSES.map((status) => <KpiCard key={status} label={statusLabel(status)} value={data.summary?.statuses?.[status] || 0} active={filters.shippingStatus === status} onClick={() => setFilter("shippingStatus", filters.shippingStatus === status ? "" : status)} />)}
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setFilter("needsAction", filters.needsAction ? "" : "1")}
+            title={t("shipping.center.needsActionHint")}
+            className={`flex items-center justify-between gap-3 rounded-[var(--radius-control)] border p-4 text-start transition ${filters.needsAction ? "border-[color-mix(in_srgb,var(--danger)_45%,var(--border))] bg-[var(--danger-soft)]" : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--table-hover)]"}`}
+          >
+            <span>
+              <span className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--danger)]"><AlertTriangle className="h-4 w-4" /> {t("shipping.center.needsAction")}</span>
+              <span className="mt-1 block text-xs font-semibold text-[var(--muted)]">{t("shipping.center.needsActionHint")}</span>
+            </span>
+            <span className="text-3xl font-black text-[var(--text)]">{Number(analytics.needs_action_count || 0).toLocaleString()}</span>
+          </button>
+          <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--text-tertiary)]">{t("shipping.center.bostaFeesTotal")}</div>
+            <div className="mt-2 text-2xl font-black text-orange-200">{fmtMoney(analytics.bosta_fees_total)}</div>
+          </div>
         </section>
 
         <section className="grid gap-3 lg:grid-cols-5">
@@ -619,7 +813,14 @@ export default function ShippingCenter() {
                         <td className="px-3 py-3 text-[var(--text-secondary)]">{order.city || "-"}</td>
                         <td className="px-3 py-3"><span className="rounded-full border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-xs font-black">{PROVIDER_LABELS[order.shipping_provider_id] || order.shipping_provider_id}</span></td>
                         <td className="px-3 py-3 font-mono text-xs text-primary">{order.tracking_number || "-"}</td>
-                        <td className="px-3 py-3"><StatusBadge status={order.shipment_status} /></td>
+                        <td className="px-3 py-3">
+                          <StatusBadge status={order.shipment_status} />
+                          {order.bosta_exception_reason && !["delivered", "returned"].includes(order.shipment_status) ? (
+                            <div className="mt-1 max-w-[14rem] truncate text-[11px] font-bold text-[var(--danger)]" title={order.bosta_exception_reason}>
+                              {order.bosta_attempts ? `${t("shipping.center.attemptsShort", { attempt: order.bosta_attempts })} · ` : ""}{order.bosta_exception_reason}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="px-3 py-3 font-bold text-amber-100">{fmtMoney(codOf(order))}</td>
                         <td className="px-3 py-3 font-bold text-[var(--text)]">{fmtMoney(order.order_total)}</td>
                         <td className="px-3 py-3 text-xs text-[var(--muted)]">{fmtDate(order.created_at)}</td>
@@ -656,6 +857,7 @@ export default function ShippingCenter() {
       </div>
       <ShipmentDrawer order={drawerOrder} onClose={() => setDrawerOrder(null)} onPrintLabel={(id) => printLabels([id])} />
       <NotificationSettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <PickupRequestModal open={pickupsOpen} onClose={() => setPickupsOpen(false)} />
     </main>
   );
 }

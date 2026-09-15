@@ -7,7 +7,10 @@ import paymentProofUpload from "../config/paymentProofUpload.js";
 import {
   cancelOrderBostaShipment,
   createOrderBostaShipment,
+  estimateOrderBostaFees,
+  pushOrderBostaUpdate,
   refreshOrderBostaShipment,
+  syncOrderBostaDetails,
 } from "../modules/shipping/shipping.controller.js";
 
 import {
@@ -209,6 +212,27 @@ router.post(
   protect,
   permit("orders", "edit"),
   cancelOrderBostaShipment
+);
+
+router.post(
+  "/:id/shipping/bosta/details",
+  protect,
+  permit("orders", "view"),
+  syncOrderBostaDetails
+);
+
+router.get(
+  "/:id/shipping/bosta/estimate",
+  protect,
+  permit("orders", "view"),
+  estimateOrderBostaFees
+);
+
+router.post(
+  "/:id/shipping/bosta/update",
+  protect,
+  permit("orders", "edit"),
+  pushOrderBostaUpdate
 );
 
 router.patch(

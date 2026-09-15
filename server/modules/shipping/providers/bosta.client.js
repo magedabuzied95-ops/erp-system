@@ -90,20 +90,56 @@ export const createBostaClient = ({ apiKey, apiBaseUrl } = {}) => {
       const template = path("BOSTA_DELIVERY_STATUS_PATH", "/deliveries/business/{id}");
       return jsonRequest(url(template.replace("{id}", encodeURIComponent(identifier))), { apiKey: token });
     },
-    cancelDelivery: async (identifier) => {
+    // `POST /deliveries/{id}/cancel` is not a Bosta route — probed 2026-09-16 it answers
+    // "Cannot GET/POST" before any auth check. Every cancel the ERP ever sent died there,
+    // and the order was still marked cancelled locally while the parcel stayed live at
+    // Bosta. The official spec's route is DELETE …/business/{trackingNumber}/terminate.
+    cancelDelivery: async (trackingNumber) => {
       requireApiKey();
-      const template = path("BOSTA_CANCEL_DELIVERY_PATH", "/deliveries/{id}/cancel");
-      return jsonRequest(url(template.replace("{id}", encodeURIComponent(identifier))), { apiKey: token, method: "POST", body: {} });
+      const template = path("BOSTA_CANCEL_DELIVERY_PATH", "/deliveries/business/{id}/terminate");
+      return jsonRequest(url(template.replace("{id}", encodeURIComponent(trackingNumber))), { apiKey: token, method: "DELETE" });
     },
-    // TODO(bosta): add pricing endpoint once commercial pricing rules are finalized.
-    getPricing: async () => {
-      throw new Error("Bosta pricing integration is not implemented yet");
+    // Only receiver, address and notes are ever sent — see mapOrderToBostaDeliveryUpdatePayload.
+    updateDelivery: async (trackingNumber, body = {}) => {
+      requireApiKey();
+      return jsonRequest(url(`/deliveries/business/${encodeURIComponent(trackingNumber)}`), { apiKey: token, method: "PUT", body });
     },
-    // TODO(bosta): add pickup request endpoint and branch-origin validation.
-    createPickupRequest: async () => {
-      throw new Error("Bosta pickup request integration is not implemented yet");
+    // Query names from the official spec: dropOffCity / pickupCity are English city names.
+    getShippingFeeEstimate: async ({ dropOffCity = "", pickupCity = "", cod = 0, type = "SEND", size = "Normal" } = {}) => {
+      requireApiKey();
+      const query = new URLSearchParams();
+      if (dropOffCity) query.set("dropOffCity", dropOffCity);
+      if (pickupCity) query.set("pickupCity", pickupCity);
+      query.set("cod", String(Math.max(0, Number(cod) || 0)));
+      query.set("type", type);
+      query.set("size", size);
+      return jsonRequest(`${url("/pricing/shipment/calculator")}?${query.toString()}`, { apiKey: token });
     },
-    // TODO(bosta): add webhook signature verification and delivery status handlers.
-    verifyWebhook: () => false,
+    listPickupLocations: async () => {
+      requireApiKey();
+      return jsonRequest(url("/pickup-locations"), { apiKey: token });
+    },
+    listPickups: async ({ page = 1, limit = 20 } = {}) => {
+      requireApiKey();
+      return jsonRequest(`${url("/pickups")}?page=${Number(page) || 1}&limit=${Number(limit) || 20}&sortBy=-updatedAt`, { apiKey: token });
+    },
+    availablePickupDates: async (days = 7) => {
+      requireApiKey();
+      return jsonRequest(`${url("/pickups/available-dates")}?days=${Number(days) || 7}`, { apiKey: token });
+    },
+    createPickup: async (body = {}) => {
+      requireApiKey();
+      return jsonRequest(url("/pickups"), { apiKey: token, method: "POST", body });
+    },
+    deletePickup: async (pickupId) => {
+      requireApiKey();
+      return jsonRequest(url(`/pickups/${encodeURIComponent(pickupId)}`), { apiKey: token, method: "DELETE" });
+    },
+    // The COD Bosta has collected and not yet transferred. Needs the business id, which
+    // no API-key call returns directly — the service discovers it from a pickup request.
+    getUnpaidCod: async (businessId) => {
+      requireApiKey();
+      return jsonRequest(url(`/businesses/${encodeURIComponent(businessId)}/transactions`), { apiKey: token });
+    },
   };
 };

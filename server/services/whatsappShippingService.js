@@ -6,6 +6,7 @@ import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
 import { getSetting } from "./settingsService.js";
 import { normalizeShipmentNotificationConfig, renderShipmentTemplate } from "../../shared/shipmentNotificationTemplates.js";
+import { bostaCustomerFailureReason } from "../../shared/bostaDeliveryInsights.js";
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 
@@ -30,6 +31,9 @@ export const ensureWhatsappShippingSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_shipped_sent_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_out_for_delivery_sent_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivered_sent_at TIMESTAMPTZ NULL`);
+      // Not a once-only timestamp like the others: a parcel can fail on three separate
+      // days, and each attempt deserves its own message. This holds the last attempt told.
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS whatsapp_delivery_failed_attempt INTEGER NULL`);
     };
     if (clientOrPool !== db) return run();
     schemaReadyPromise = run().catch((error) => {
@@ -65,10 +69,38 @@ const NOTIFICATIONS = {
     column: "whatsapp_delivered_sent_at",
     log: "[whatsapp:shipment-delivered]",
   },
+  /*
+   * Only for a reason the customer can act on by replying. A refusal, a cancellation the
+   * shop asked for, or a hub problem is never something to message the customer about,
+   * and those codes carry no customer wording, so shouldSend refuses them.
+   */
+  delivery_failed: {
+    column: "whatsapp_delivery_failed_attempt",
+    log: "[whatsapp:shipment-delivery-failed]",
+    shouldSend: (order) => Boolean(bostaCustomerFailureReason(order.bosta_exception_code)),
+    skipReason: "reason_not_customer_actionable",
+    // Claimed per attempt: the column holds the last attempt the customer was told about.
+    claim: (order) => ({
+      set: "whatsapp_delivery_failed_attempt = $2",
+      where: "COALESCE(whatsapp_delivery_failed_attempt, 0) < $2",
+      params: [Math.max(1, Number(order.bosta_attempts || 0) || 1)],
+    }),
+  },
 };
 
 export const loadShipmentNotificationSettings = async () =>
   normalizeShipmentNotificationConfig(await getSetting("orders.shipment_notifications", undefined));
+
+// A DATE column arrives as a Date at local midnight (the process runs on Cairo time), so
+// the calendar day is read from local fields — toISOString() would roll it back a day.
+const promiseDateText = (value) => {
+  if (!value) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${String(value.getDate()).padStart(2, "0")}/${String(value.getMonth() + 1).padStart(2, "0")}/${value.getFullYear()}`;
+  }
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : "";
+};
 
 /*
  * The values behind the placeholders. A field with nothing in it renders empty, and
@@ -87,6 +119,11 @@ export const shipmentTemplateValues = async (order = {}) => {
     tracking_number: text(order.shipping_tracking_number || order.tracking_number),
     tracking_url: text(order.tracking_url),
     cod_amount: collectible > 0 ? `${collectible.toLocaleString("en-US")} ${symbol}`.trim() : "",
+    courier_name: text(order.bosta_courier_name),
+    courier_phone: text(order.bosta_courier_phone),
+    promise_date: promiseDateText(order.bosta_promise_date),
+    failure_reason: bostaCustomerFailureReason(order.bosta_exception_code),
+    attempt_number: Number(order.bosta_attempts || 0) > 0 ? String(order.bosta_attempts) : "",
   };
 };
 
@@ -114,8 +151,18 @@ const sendShippingNotification = async (order = {}, type) => {
   if (reason) return { sent: false, reason };
 
   try {
+    const custom = config.claim ? config.claim(current) : null;
     const claim = await db.query(
+      custom
+        ? `
+      UPDATE orders
+      SET ${custom.set},
+          updated_at = NOW()
+      WHERE id = $1
+        AND ${custom.where}
+      RETURNING *
       `
+        : `
       UPDATE orders
       SET ${config.column} = COALESCE(${config.column}, NOW()),
           updated_at = NOW()
@@ -123,7 +170,7 @@ const sendShippingNotification = async (order = {}, type) => {
         AND ${config.column} IS NULL
       RETURNING *
       `,
-      [current.id]
+      custom ? [current.id, ...custom.params] : [current.id]
     );
     const claimed = claim.rows[0] || null;
     if (!claimed) return { sent: false, reason: "already_sent" };
@@ -151,9 +198,13 @@ const sendShippingNotification = async (order = {}, type) => {
      * above already happened, so the queue's idempotency key is the second of two guards rather
      * than the only one.
      */
+    // A per-attempt message needs a per-attempt idempotency key, or the queue would take
+    // the second failed day for a duplicate of the first.
+    const idempotencySuffix = type === "delivery_failed" ? `attempt_${Number(claimed.whatsapp_delivery_failed_attempt || 1)}` : "";
     const queued = await queueWhatsappAutomation({
       tenantId: claimed.tenant_id || order?.tenant_id || 0,
       automationType: type,
+      idempotencySuffix,
       customerId: claimed?.customer_id || null,
       orderId: claimed.id,
       invoiceNumber: invoiceNumber(claimed),
@@ -278,6 +329,7 @@ export const sendShipmentCreated = (order = {}) => sendShippingNotification(orde
 export const sendShipmentShipped = (order = {}) => sendShippingNotification(order, "shipped");
 export const sendShipmentOutForDelivery = (order = {}) => sendShippingNotification(order, "out_for_delivery");
 export const sendShipmentDelivered = (order = {}) => sendShippingNotification(order, "delivered");
+export const sendShipmentDeliveryFailed = (order = {}) => sendShippingNotification(order, "delivery_failed");
 
 export const sendShipmentNotificationForStatus = (order = {}, status = "") => {
   const normalized = text(status || order.shipment_status || order.shipping_status).toLowerCase().replace(/[\s-]+/g, "_");
@@ -304,6 +356,7 @@ export const sendShipmentNotificationForStatus = (order = {}, status = "") => {
   if (["shipped", "in_transit", "picked_up", "picked"].includes(normalized)) return sendShipmentShipped(order);
   if (normalized === "out_for_delivery") return sendShipmentOutForDelivery(order);
   if (normalized === "delivered") return sendShipmentDelivered(order);
+  if (normalized === "failed_delivery") return sendShipmentDeliveryFailed(order);
   return Promise.resolve({ sent: false, reason: "status_not_notifiable" });
 };
 
@@ -312,5 +365,6 @@ export default {
   sendShipmentShipped,
   sendShipmentOutForDelivery,
   sendShipmentDelivered,
+  sendShipmentDeliveryFailed,
   sendShipmentNotificationForStatus,
 };

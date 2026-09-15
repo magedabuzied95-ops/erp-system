@@ -199,3 +199,83 @@ export const testBostaWebhook = async (req, res) => {
     return sendError(res, error, "Failed to process Bosta test webhook");
   }
 };
+
+// ---- Bosta extras: details, fee estimate, address push, pickups, unpaid COD ----------
+
+const bostaOperations = () => import("./bosta.operations.js");
+const actorNameOf = (req) => String(req.user?.name || req.user?.username || req.user?.email || "").trim();
+
+export const syncOrderBostaDetails = async (req, res) => {
+  try {
+    const { syncBostaDeliveryDetails } = await bostaOperations();
+    const result = await syncBostaDeliveryDetails(req.params.id, { force: true });
+    return res.json({ success: true, order: result.order });
+  } catch (error) {
+    return sendError(res, error, "Failed to load Bosta shipment details");
+  }
+};
+
+export const estimateOrderBostaFees = async (req, res) => {
+  try {
+    const { estimateBostaShippingFees } = await bostaOperations();
+    const estimate = await estimateBostaShippingFees({ orderId: req.params.id, codAmount: req.query?.cod ?? null });
+    return res.json({ success: true, estimate });
+  } catch (error) {
+    return sendError(res, error, "Failed to estimate Bosta shipping fees");
+  }
+};
+
+export const pushOrderBostaUpdate = async (req, res) => {
+  try {
+    const { pushOrderUpdateToBosta } = await bostaOperations();
+    return res.json(await pushOrderUpdateToBosta(req.params.id, { actorName: actorNameOf(req) }));
+  } catch (error) {
+    return sendError(res, error, "Failed to update the Bosta shipment");
+  }
+};
+
+export const getBostaPickupsController = async (_req, res) => {
+  try {
+    const { getBostaPickupOverview } = await bostaOperations();
+    return res.json({ success: true, ...(await getBostaPickupOverview()) });
+  } catch (error) {
+    return sendError(res, error, "Failed to load Bosta pickups");
+  }
+};
+
+export const createBostaPickupController = async (req, res) => {
+  try {
+    const { createBostaPickup } = await bostaOperations();
+    const body = req.body || {};
+    const result = await createBostaPickup({
+      locationId: body.location_id ?? body.locationId,
+      date: body.date,
+      parcels: body.parcels,
+      notes: body.notes,
+      contactName: body.contact_name ?? body.contactName,
+      contactPhone: body.contact_phone ?? body.contactPhone,
+      actorName: actorNameOf(req),
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to request a Bosta pickup");
+  }
+};
+
+export const cancelBostaPickupController = async (req, res) => {
+  try {
+    const { cancelBostaPickup } = await bostaOperations();
+    return res.json(await cancelBostaPickup(req.params.pickupId));
+  } catch (error) {
+    return sendError(res, error, "Failed to cancel the Bosta pickup");
+  }
+};
+
+export const getBostaUnpaidCodController = async (_req, res) => {
+  try {
+    const { getBostaUnpaidCod } = await bostaOperations();
+    return res.json({ success: true, ...(await getBostaUnpaidCod()) });
+  } catch (error) {
+    return sendError(res, error, "Failed to read the Bosta COD balance");
+  }
+};
