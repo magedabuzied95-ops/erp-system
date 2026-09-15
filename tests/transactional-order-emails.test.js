@@ -173,3 +173,21 @@ test('the redesigned customer email carries the order tracker, product details a
   assert.ok(html.includes("https://wa.me/201024960585"));
   assert.doesNotMatch(html, /Bag <b>unsafe/);
 });
+
+test("the footer shows social icons as hosted PNGs, not text or SVG", async () => {
+  const { customerEmailFooter } = await import("../server/services/transactionalEmail/customerEmailDesign.js");
+  const footer = customerEmailFooter({
+    iconBaseUrl: "https://m1store-egy.com/",
+    whatsappUrl: "https://wa.me/201024960585",
+    socialLinks: [{ label: "Facebook", url: "https://facebook.com/m1" }, { label: "Instagram", url: "https://instagram.com/m1" }, { label: "TikTok", url: "" }],
+  });
+  for (const key of ["facebook", "instagram", "whatsapp"]) {
+    assert.ok(footer.includes(`https://m1store-egy.com/email-icons/${key}.png`), key);
+  }
+  assert.ok(!footer.includes("tiktok.png"), "a network with no link gets no icon");
+  assert.ok(!footer.includes("<svg"));
+  const fs = await import("node:fs");
+  for (const key of ["facebook", "instagram", "whatsapp", "tiktok"]) {
+    assert.ok(fs.existsSync(new URL(`../public/email-icons/${key}.png`, import.meta.url)), `${key}.png is published by the storefront`);
+  }
+});

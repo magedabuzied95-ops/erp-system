@@ -212,13 +212,25 @@ export const customerEmailHeader = ({ logoUrl = "" } = {}) => {
 // Quiet, like the header: text links on one line, the support address on its own line, the legal
 // note small. Every Latin run (the store name, the address, the year) sits in its own ltr span —
 // dropped bare into an Arabic sentence it reorders the sentence around it (owner screenshot, 2026-09-15).
-export const customerEmailFooter = ({ supportEmail = "support@m1store-egy.com", socialLinks = [], whatsappUrl = "" } = {}) => {
-  const links = [
+// Icons are PNGs served by the storefront (public/email-icons, 96px drawn at 36px): Gmail and
+// Outlook drop inline SVG, and an icon font never loads in an email.
+const SOCIAL_ICONS = new Set(["facebook", "instagram", "whatsapp", "tiktok"]);
+
+export const customerEmailFooter = ({ supportEmail = "support@m1store-egy.com", socialLinks = [], whatsappUrl = "", iconBaseUrl = "" } = {}) => {
+  const items = [
     ...socialLinks.filter((item) => safeUrl(item?.url)),
     ...(safeUrl(whatsappUrl) ? [{ label: "WhatsApp", url: whatsappUrl }] : []),
-  ]
-    .map((item) => `<a href="${escapeHtml(item.url)}" dir="ltr" style="color:#e9c55a;font:700 13px/1 ${FONT};text-decoration:none">${escapeHtml(item.label)}</a>`)
-    .join(`<span style="color:#55524c;font:400 13px/1 ${FONT}">&nbsp;&nbsp;·&nbsp;&nbsp;</span>`);
+  ];
+  const iconBase = safeUrl(iconBaseUrl).replace(/\/+$/, "");
+  const links = items
+    .map((item) => {
+      const key = String(item.label || "").toLowerCase();
+      const icon = iconBase && SOCIAL_ICONS.has(key)
+        ? `<img src="${escapeHtml(`${iconBase}/email-icons/${key}.png`)}" width="36" height="36" alt="${escapeHtml(item.label)}" style="display:block;width:36px;height:36px;border:0">`
+        : `<span style="color:#e9c55a;font:700 13px/36px ${FONT}">${escapeHtml(item.label)}</span>`;
+      return `<a href="${escapeHtml(item.url)}" style="display:inline-block;margin:0 7px;text-decoration:none;vertical-align:middle">${icon}</a>`;
+    })
+    .join("");
   const year = new Date().getFullYear();
   return `<tr><td bgcolor="#101010" style="padding:30px 32px 28px;background:#101010;text-align:center" dir="rtl">
     ${links ? `<div style="line-height:1">${links}</div>` : ""}

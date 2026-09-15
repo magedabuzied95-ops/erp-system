@@ -155,6 +155,7 @@ const loadOrderEmailData = async (job) => {
       supportEmail: text(process.env.SUPPORT_EMAIL || "support@m1store-egy.com"),
       // The same contact details the storefront header shows, from Settings → Storefront.
       whatsappUrl: whatsappHref(contact.whatsappUrl || contact.whatsappPhone),
+      iconBaseUrl: appUrl,
       phone: text(contact.phone),
       socialLinks: [
         { label: "Facebook", url: text(contact.facebook || process.env.STORE_FACEBOOK_URL) },
