@@ -774,7 +774,8 @@
       "whatsapp": "The confirmation message is on its way to the customer on WhatsApp",
       "done": "Done"
     },
-    "shippingFeeAdvance": "This governorate is outside the cash-on-delivery list: ask the customer to transfer the {{amount}} shipping fee first. The order is recorded, but it will not ship until the fee is confirmed."
+    "shippingFeeAdvance": "This governorate is outside the cash-on-delivery list: ask the customer to transfer the {{amount}} shipping fee first. The order is recorded, but it will not ship until the fee is confirmed.",
+    "notOnWhatsapp": "⚠️ This number has no WhatsApp, so the order confirmation will not reach the customer. Ask for their WhatsApp number."
   },
   "offlineQueue": {
     "title": "Offline invoices",

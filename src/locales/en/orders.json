@@ -1042,7 +1042,8 @@
       "NOTHING_TO_SAVE": "Nothing to save",
       "CUSTOMER_NAME_REQUIRED": "Customer name is required",
       "CUSTOMER_PHONE_INVALID": "The phone number is not valid",
-      "NO_SHIPPING_FEE": "This order has no shipping fee"
+      "NO_SHIPPING_FEE": "This order has no shipping fee",
+      "CUSTOMER_NOT_ON_WHATSAPP": "The customer's number has no WhatsApp — check the number and edit it"
     },
     "access": {
       "title": "Handle shipping orders",

@@ -11,6 +11,7 @@ import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
 import { adjustVariantStock, recordInventoryMovement } from "../services/inventoryService.js";
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
+import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
 import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
 import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
@@ -6409,6 +6410,7 @@ const ORDER_CONFIRMATION_SEND_FAILURE_MESSAGES = {
   order_already_dispatched: "الطلب خرج للشحن بالفعل، لا يمكن طلب تأكيده من العميل",
   status_not_confirmable: "حالة الطلب لا تسمح بطلب تأكيد من العميل",
   gateway_error: "تعذر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل.",
+  not_on_whatsapp: WHATSAPP_NUMBER_MISSING_MESSAGE,
 };
 
 const orderConfirmationSendFailureMessage = (reason) =>
@@ -6461,11 +6463,12 @@ export const sendOrderConfirmationWhatsapp = async (req, res) => {
         code: gatewayError?.code || "",
         status: gatewayError?.status || "",
       });
+      const reason = isWhatsappNumberMissingError(gatewayError) ? "not_on_whatsapp" : "gateway_error";
       return res.status(400).json({
         success: false,
         sent: false,
-        reason: "gateway_error",
-        message: orderConfirmationSendFailureMessage("gateway_error"),
+        reason,
+        message: orderConfirmationSendFailureMessage(reason),
         error: gatewayError?.message || String(gatewayError),
       });
     }

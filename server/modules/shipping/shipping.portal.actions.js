@@ -5,6 +5,7 @@ import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
 import { markShippingFeePaid } from "./shippingFeeAdvance.js";
+import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js";
 
 // The four things staff can DO from أوردرات الشحن: confirm → ready to ship → create the
 // Bosta parcel → print its airway bill. Every action first re-reads the order through
@@ -132,6 +133,7 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
       sent = await deps.sendConfirmation(order.id);
     } catch (error) {
       // 409, not 5xx: a 5xx reaches the browser as an opaque CORS error.
+      if (isWhatsappNumberMissingError(error)) throw actionError(409, "CUSTOMER_NOT_ON_WHATSAPP", "The customer's number has no WhatsApp account");
       throw actionError(409, "WHATSAPP_GATEWAY_ERROR", error?.message || "WhatsApp gateway refused the message");
     }
     // Queued IS success: the outbound queue paces and retries it.

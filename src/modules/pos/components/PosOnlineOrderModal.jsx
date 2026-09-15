@@ -59,7 +59,7 @@ const composeAddressLine = (form) => [
 const customerPhoneOf = (customer = {}) =>
   text(customer?.phone || customer?.mobile || customer?.whatsapp || "");
 
-function Field({ label, value, onChange, error = "", required = false, placeholder = "", type = "text", dir, multiline = false }) {
+function Field({ label, value, onChange, error = "", hint = "", required = false, placeholder = "", type = "text", dir, multiline = false }) {
   const className = `w-full rounded-xl border bg-[var(--surface-soft)] px-3 text-sm text-[var(--text)] outline-none transition focus:border-[var(--primary)] ${
     error ? "border-rose-400/60" : "border-[var(--border)]"
   } ${multiline ? "py-2" : "h-11"}`;
@@ -75,6 +75,7 @@ function Field({ label, value, onChange, error = "", required = false, placehold
         <input type={type} dir={dir} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} className={className} />
       )}
       {error ? <span className="mt-1 block text-[11px] font-bold text-rose-300">{error}</span> : null}
+      {!error && hint ? <span className="mt-1 block text-[11px] font-bold text-amber-300" role="status">{hint}</span> : null}
     </label>
   );
 }
@@ -128,6 +129,9 @@ export default function PosOnlineOrderModal({
   const [errors, setErrors] = useState({});
   const [bosta, setBosta] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
   const [quote, setQuote] = useState(normalizeShippingQuote());
+  // Warns, never blocks: the order confirmation goes out on WhatsApp, and a number with no account
+  // there (INV-1625) only surfaced when the send failed. Same check the website runs at checkout.
+  const [whatsappCheck, setWhatsappCheck] = useState({ phone: "", exists: null });
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [created, setCreated] = useState(null);
@@ -375,9 +379,28 @@ export default function PosOnlineOrderModal({
     }
   }, [bostaMode, branchId, customer, form, items, onCreated, posLabel, posSubtotal, quote, salesEmployeeId, sellerName, sellerUserId, validate]);
 
+  useEffect(() => {
+    const phone = form.primary_phone.replace(/\s/g, "");
+    if (!EGYPT_MOBILE.test(phone)) {
+      setWhatsappCheck({ phone: "", exists: null });
+      return undefined;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      api.get(`/storefront/checkout/whatsapp-check?phone=${encodeURIComponent(phone)}`, { suppressErrorStatuses: [400, 404, 429, 500] })
+        .then((data) => active && setWhatsappCheck({ phone, exists: data?.exists === false ? false : data?.exists === true ? true : null }))
+        .catch(() => active && setWhatsappCheck({ phone, exists: null }));
+    }, 450);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [form.primary_phone]);
+
   if (!open || typeof document === "undefined") return null;
 
   const estimatedTotal = Number(posSubtotal || 0) + Number(quote.price || 0);
+
   // The POS is often run fullscreen; a body-mounted portal would render behind the fullscreen
   // element and simply not be visible.
   const portalTarget = document.fullscreenElement || document.body;
@@ -467,7 +490,7 @@ export default function PosOnlineOrderModal({
                 <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-[var(--muted)]">{posLabel("sections.customer", "بيانات العميل")}</div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={posLabel("fields.fullName", "الاسم بالكامل")} required value={form.full_name} onChange={(value) => setField("full_name", value)} error={errors.full_name} />
-                  <Field label={posLabel("fields.phone", "رقم الموبايل")} required dir="ltr" value={form.primary_phone} onChange={(value) => setField("primary_phone", value)} error={errors.primary_phone} placeholder="01xxxxxxxxx" />
+                  <Field label={posLabel("fields.phone", "رقم الموبايل")} required dir="ltr" value={form.primary_phone} onChange={(value) => setField("primary_phone", value)} error={errors.primary_phone} hint={whatsappCheck.exists === false && whatsappCheck.phone === form.primary_phone.replace(/\s/g, "") ? t("pos.onlineOrder.notOnWhatsapp") : ""} placeholder="01xxxxxxxxx" />
                   <Field label={posLabel("fields.secondaryPhone", "موبايل تاني (اختياري)")} dir="ltr" value={form.secondary_phone} onChange={(value) => setField("secondary_phone", value)} error={errors.secondary_phone} placeholder="01xxxxxxxxx" />
                   <Field label={posLabel("fields.email", "البريد الإلكتروني")} type="email" dir="ltr" value={form.email} onChange={(value) => setField("email", value)} error={errors.email} />
                 </div>
