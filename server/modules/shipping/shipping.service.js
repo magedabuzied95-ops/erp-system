@@ -791,8 +791,12 @@ export const orderOwedAmount = (order = {}) => {
 // actually point at zeroes the collection.
 export const orderCodAmount = (order = {}) => {
   const explicit = Number(order.cod_amount || 0);
-  if (explicit > 0) return Math.round(explicit * 100) / 100;
   const owed = orderOwedAmount(order);
+  // A stored amount is capped at what is still owed: an invoice edit that lowered the total
+  // (INV-1616: 2 pieces → 1) left cod_amount at the old 2,400 while only 1,200 was owed, and
+  // both the courier and the customer's confirmation message were told 2,400.
+  const totalKnown = Number(order.total_amount ?? order.total_price ?? order.total ?? 0) > 0;
+  if (explicit > 0) return Math.round((totalKnown ? Math.min(explicit, owed) : explicit) * 100) / 100;
   if (owed <= 0) return 0;
   if (isCodPayment(order.payment_method) || isCodPayment(order.payment_status)) return owed;
   // A part payment already on the record — an Instapay deposit, prepaid shipping —

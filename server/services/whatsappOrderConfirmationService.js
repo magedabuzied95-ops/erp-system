@@ -21,7 +21,7 @@ import {
 } from "../../shared/whatsappAutomationDefaults.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply, appendManualAiSupportReply, markAiSupportConversationEscalated } from "./aiSupportLogService.js";
-import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, formatAmount, orderConfirmationTranscriptButtons } from "../utils/orderConfirmationMessage.js";
+import { buildCodOrderConfirmationMessage, buildOrderConfirmedMessage, addressLine, collectOnDeliveryAmount, formatAmount, orderConfirmationTranscriptButtons } from "../utils/orderConfirmationMessage.js";
 import { summariseItems } from "./whatsappTemplates.js";
 import { shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import { describeShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
@@ -843,7 +843,7 @@ const orderConfirmationActionLabel = (action = "") => {
 export const orderConfirmationTemplateValues = (order = {}) => ({
   customer_name: firstName(order?.customer_name) || "عميلنا",
   order_number: orderNumber(order),
-  cod_amount: formatAmount(order?.total_amount ?? order?.total) || "0",
+  cod_amount: formatAmount(collectOnDeliveryAmount(order || {})) || "0",
   items_summary: summariseItems(order?.items || []),
   address: addressLine(order),
   invoice_url: buildPublicInvoiceUrl(text(order?.public_token) || orderNumber(order)),

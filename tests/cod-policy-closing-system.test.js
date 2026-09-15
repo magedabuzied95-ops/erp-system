@@ -200,3 +200,20 @@ test("the typed COD reply in the AI settings no longer decides the answer", asyn
   const order = fs.readFileSync(new URL("../server/services/aiAgentOrderService.js", import.meta.url), "utf8");
   assert.match(order, /answer: objection === "cod" \? await codFaqAnswer\(\)/);
 });
+
+// ---- INV-1616: an invoice edit lowered the total but cod_amount kept the old figure
+import { orderCodAmount } from "../server/modules/shipping/shipping.service.js";
+import { collectOnDeliveryAmount } from "../server/utils/orderConfirmationMessage.js";
+
+test("a stale cod_amount never makes the courier or the customer message ask for more than is owed", () => {
+  const edited = { payment_method: "credit_sale", total_amount: 1290, paid_amount: 90, cod_amount: 2400, invoice_number: "INV-1616" };
+  assert.equal(orderCodAmount(edited), 1200);
+  assert.equal(collectOnDeliveryAmount(edited), 1200);
+  assert.match(buildCodOrderConfirmationMessage({ order: edited }), /مبلغ التحصيل: 1,200 جنيه/);
+});
+
+test("the invoice edit re-prices a stored collection amount with the new total", async () => {
+  const fs = await import("node:fs");
+  const source = fs.readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
+  assert.match(source, /cod_amount = CASE WHEN COALESCE\(cod_amount, 0\) > 0 THEN GREATEST\(\$5::numeric - \$6::numeric, 0\) ELSE cod_amount END/);
+});

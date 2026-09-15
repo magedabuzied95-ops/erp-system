@@ -7240,6 +7240,9 @@ export const editOrder = async (req, res) => {
           paid_amount = $6,
           change_amount = GREATEST($6::numeric - $5::numeric, 0),
           remaining_amount = GREATEST($5::numeric - $6::numeric, 0),
+          -- A stored collection amount follows the new total, or the courier and the
+          -- confirmation message keep the pre-edit figure (INV-1616).
+          cod_amount = CASE WHEN COALESCE(cod_amount, 0) > 0 THEN GREATEST($5::numeric - $6::numeric, 0) ELSE cod_amount END,
           payment_method = COALESCE($7::text, payment_method),
           payment_status = COALESCE($8::text, payment_status),
           status = COALESCE($9::text, status),

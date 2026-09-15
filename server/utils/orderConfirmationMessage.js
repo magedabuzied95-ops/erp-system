@@ -93,6 +93,16 @@ export const addressLine = (order = {}) => {
   return parts.join(" - ");
 };
 
+// What the courier will collect, as the customer is told it: never more than is still owed
+// (total - paid), and a stored cod_amount only ever lowers it. Mirrors orderCodAmount.
+export const collectOnDeliveryAmount = (order = {}) => {
+  const total = Number(order.total_amount ?? order.total_price ?? order.total) || 0;
+  const owed = Math.max(0, total - (Number(order.paid_amount) || 0));
+  const stored = Number(order.cod_amount) || 0;
+  if (stored > 0) return total > 0 ? Math.min(stored, owed) : stored;
+  return owed;
+};
+
 export const buildCodOrderConfirmationMessage = ({
   customerName = "عميلنا",
   confirmationLink = "",
@@ -115,7 +125,7 @@ export const buildCodOrderConfirmationMessage = ({
   const collect = formatAmount(
     advanceAmount > 0 && orderTotalAmount > 0
       ? Math.max(0, orderTotalAmount - Math.max(advanceAmount, Number(source.paid_amount) || 0))
-      : Number(source.cod_amount) > 0 ? source.cod_amount : (source.total_amount ?? source.total_price ?? source.total)
+      : collectOnDeliveryAmount(source)
   );
   const products = productLines(items.length ? items : source.items || []);
   const address = addressLine(source);
