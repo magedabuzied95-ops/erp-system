@@ -54,7 +54,9 @@ test("customer confirmation is responsive, branded and contains no raw unsafe HT
   assert.match(rendered.subject, /WEB-701/);
   assert.match(rendered.html, /viewport/);
   assert.match(rendered.html, /M1 Store/);
-  assert.match(rendered.html, /CHANGE YOUR LIFE/);
+  // Header and footer carry no repeated wordmark or tagline: the logo says it.
+  assert.doesNotMatch(rendered.html, /CHANGE YOUR LIFE/);
+  assert.ok(rendered.html.includes('<div style="margin-top:6px;font:400 11px/1.6 Tahoma, Arial, \'Segoe UI\', sans-serif;color:#55524c" dir="ltr">©'), "the copyright line keeps its Latin run left-to-right");
   assert.match(rendered.html, /linear-gradient\(#101010,#101010\)/);
   // The header is the logo alone on the brand black (the logo carries the name and tagline).
   assert.match(rendered.html, /border-radius:42px/);

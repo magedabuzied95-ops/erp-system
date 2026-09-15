@@ -209,16 +209,23 @@ export const customerEmailHeader = ({ logoUrl = "" } = {}) => {
   <tr><td height="3" bgcolor="${C.gold}" style="height:3px;line-height:3px;font-size:0;background:${C.gold}">&nbsp;</td></tr>`;
 };
 
-export const customerEmailFooter = ({ supportEmail = "support@m1store-egy.com", socialLinks = [] } = {}) => {
-  const social = socialLinks
-    .filter((item) => safeUrl(item?.url))
-    .map((item) => `<a href="${escapeHtml(item.url)}" style="display:inline-block;margin:0 6px;padding:7px 14px;border:1px solid #3a3a3a;border-radius:999px;color:#e9c55a;font:700 12px/1 ${FONT};text-decoration:none">${escapeHtml(item.label)}</a>`)
-    .join("");
-  return `<tr><td bgcolor="#101010" style="padding:28px 32px;background:#101010;text-align:center">
-    <div style="font:700 15px/1.4 ${FONT};color:#ffffff">M1 Store</div>
-    <div style="margin-top:4px;font:400 11px/1.6 ${FONT};color:#bfae7a;letter-spacing:1.5px">CHANGE YOUR LIFE</div>
-    ${social ? `<div style="margin-top:16px">${social}</div>` : ""}
-    <div style="margin-top:16px;font:400 12px/1.8 ${FONT};color:#a9a69f">للدعم: <a href="mailto:${escapeHtml(supportEmail)}" style="color:#e9c55a;text-decoration:none">${escapeHtml(supportEmail)}</a></div>
-    <div style="margin-top:10px;font:400 11px/1.8 ${FONT};color:#77746d">وصلتك الرسالة دي لأنك عملت طلب من M1 Store. مش بنطلب منك أي بيانات دفع بالإيميل.</div>
+// Quiet, like the header: text links on one line, the support address on its own line, the legal
+// note small. Every Latin run (the store name, the address, the year) sits in its own ltr span —
+// dropped bare into an Arabic sentence it reorders the sentence around it (owner screenshot, 2026-09-15).
+export const customerEmailFooter = ({ supportEmail = "support@m1store-egy.com", socialLinks = [], whatsappUrl = "" } = {}) => {
+  const links = [
+    ...socialLinks.filter((item) => safeUrl(item?.url)),
+    ...(safeUrl(whatsappUrl) ? [{ label: "WhatsApp", url: whatsappUrl }] : []),
+  ]
+    .map((item) => `<a href="${escapeHtml(item.url)}" dir="ltr" style="color:#e9c55a;font:700 13px/1 ${FONT};text-decoration:none">${escapeHtml(item.label)}</a>`)
+    .join(`<span style="color:#55524c;font:400 13px/1 ${FONT}">&nbsp;&nbsp;·&nbsp;&nbsp;</span>`);
+  const year = new Date().getFullYear();
+  return `<tr><td bgcolor="#101010" style="padding:30px 32px 28px;background:#101010;text-align:center" dir="rtl">
+    ${links ? `<div style="line-height:1">${links}</div>` : ""}
+    <div style="margin:${links ? "20px" : "0"} auto 0;width:40px;height:1px;background:#3a3222;font-size:0;line-height:0">&nbsp;</div>
+    <div style="margin-top:18px;font:400 12px/1.6 ${FONT};color:#9f9b92">عندك سؤال؟ ابعتلنا على</div>
+    <div style="margin-top:2px"><a href="mailto:${escapeHtml(supportEmail)}" dir="ltr" style="color:#e9c55a;font:400 13px/1.6 ${FONT};text-decoration:none">${escapeHtml(supportEmail)}</a></div>
+    <div style="margin-top:18px;font:400 11px/1.9 ${FONT};color:#6f6c65">وصلتك الرسالة دي لأنك عملت طلب من متجرنا، ومش هنطلب منك أي بيانات دفع بالإيميل.</div>
+    <div style="margin-top:6px;font:400 11px/1.6 ${FONT};color:#55524c" dir="ltr">© ${year} M1 Store</div>
   </td></tr>`;
 };
