@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { resolveCodPolicy, resolveGovernorateId, normalizeCodPolicy } from "../shared/codPolicy.js";
-import { resolveShippingFeeGate } from "../server/modules/shipping/shipping.service.js";
 import { applyTransferPaymentConfirmation } from "../server/modules/walletTransfers/transferPaymentConfirmation.js";
 
 const restricted = { mode: "restricted", governorates: ["damietta"] };
@@ -53,24 +52,6 @@ test("nothing to prepay (free shipping) leaves cash on delivery available", () =
 test("an unknown governorate fails closed", () => {
   const cod = resolveCodPolicy({ policy: restricted, governorate: "somewhere", shippingFee: 60, orderTotal: 500 });
   assert.equal(cod.cod_allowed, false);
-});
-
-test("the shipment gate blocks an unpaid shipping fee outside the COD list, whatever the channel", () => {
-  const order = { governorate: "القاهرة", shipping_fee: 90, total_amount: 1940, paid_amount: 0, payment_method: "cash_on_delivery" };
-  assert.equal(resolveShippingFeeGate({ order, policy: restricted }).blocked, true);
-  assert.equal(resolveShippingFeeGate({ order, policy: { mode: "open" } }).blocked, false);
-  assert.equal(resolveShippingFeeGate({ order: { ...order, governorate: "دمياط" }, policy: restricted }).blocked, false);
-});
-
-test("a shipping-fee transfer still waiting on review does not open the gate; an approved one does", () => {
-  const order = { governorate: "Cairo", shipping_fee: 90, total_amount: 1940, paid_amount: 90, payment_method: "instapay", transfer_proof_status: "pending" };
-  assert.equal(resolveShippingFeeGate({ order, policy: restricted }).blocked, true);
-  assert.equal(resolveShippingFeeGate({ order: { ...order, transfer_proof_status: "approved" }, policy: restricted }).blocked, false);
-});
-
-test("the Bosta city name is enough when the order has no governorate text", () => {
-  const order = { shipping_fee: 45, total_amount: 500, paid_amount: 0, payment_method: "cod" };
-  assert.equal(resolveShippingFeeGate({ order, city: { name_en: "Damietta" }, policy: restricted }).blocked, false);
 });
 
 const fakeClient = () => {

@@ -1,8 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import db from "../../database/db.js";
 import { getSetting, setSetting } from "../../services/settingsService.js";
-import { loadCodPolicySettings } from "../../services/storefrontShippingService.js";
-import { describeShippingFeeAdvance } from "./shippingFeeAdvance.js";
 import { buildPackingDescription, packingDetailsEnabled, stampPackingQrOnAirwayBill } from "./packingSlip.js";
 import { ensureWhatsappShippingSchema, sendShipmentCreated, sendShipmentNotificationForStatus } from "../../services/whatsappShippingService.js";
 import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteService.js";
@@ -22,7 +20,6 @@ const BOSTA_NOT_CONFIGURED_MESSAGE = "لم يتم إنشاء أي شحنة عل�
 const BOSTA_DISABLED_MESSAGE = "تكامل بوسطة معطّل في إعدادات الشحن. فعّله أولاً قبل إنشاء الشحنات.";
 const BOSTA_NO_LABEL_MESSAGE = "مفيش شحنة على بوسطة للطلبات المختارة، فمافيش ملصق يتطبع. أنشئ الشحنة الأول ثم اطبع الملصق.";
 const BOSTA_ZERO_COLLECTION_MESSAGE = "الطلب لسه عليه مبلغ متبقّي، لكن طريقة الدفع مسجّلة كمدفوعة مسبقاً — فالشحنة هتروح لبوسطة بتحصيل صفر. صحّح بيانات الدفع أو اكتب مبلغ التحصيل في تبويب التكاليف قبل إنشاء الشحنة.";
-const SHIPPING_FEE_NOT_PAID_MESSAGE = "نظام تقفيل الأوردر المقفول شغّال: المحافظة دي مش من محافظات الدفع عند الاستلام، فلازم رسوم الشحن تتدفع ويتأكد التحويل قبل إنشاء الشحنة. أكّد دفع الشحن من صفحة الأوردر الأول.";
 const BOSTA_SHIPMENT_EXISTS_MESSAGE = "الطلب ده عنده شحنة قايمة على بوسطة بالفعل. إنشاء شحنة تانية مش بيعدّل القديمة — بوسطة بتطلّع طرد جديد مستقل، والمندوب يبقى معاه اتنين. لو عايز تعيد إنشاءها، ألغِ الشحنة الحالية الأول.";
 
 // Turning the integration off has to actually stop new deliveries, otherwise the
@@ -824,28 +821,6 @@ export const resolveBostaCollection = ({ order = {}, override } = {}) => {
   return { amount: 0, owed, source: "prepaid_method", blocked: true, reason: "unpaid_order_marked_prepaid" };
 };
 
-// The restricted closing system, enforced where the parcel leaves so it holds for
-// every channel: the storefront, the till, the inbox and the AI drafts. Outside the
-// COD governorates the shipping fee has to be paid, and a transfer still waiting on
-// review is not paid yet.
-export const resolveShippingFeeGate = ({ order = {}, city = null, policy } = {}) => {
-  const advance = describeShippingFeeAdvance({ order, city, policy });
-  return {
-    blocked: advance.required && advance.status !== "paid",
-    shipping_fee: advance.amount,
-    paid_amount: advance.paid_amount,
-    transfer_proof_status: normalizeKey(order.transfer_proof_status) || null,
-  };
-};
-
-const shippingFeeNotPaidError = (gate = {}) => {
-  const error = new Error(`${SHIPPING_FEE_NOT_PAID_MESSAGE} (${gate.shipping_fee} ج.م)`);
-  error.status = 409;
-  error.code = "SHIPPING_FEE_NOT_PAID";
-  error.payload = { shipping_fee: gate.shipping_fee, paid_amount: gate.paid_amount, transfer_proof_status: gate.transfer_proof_status };
-  return error;
-};
-
 const bostaZeroCollectionError = (collection = {}) => {
   const error = new Error(BOSTA_ZERO_COLLECTION_MESSAGE);
   error.status = 409;
@@ -973,12 +948,6 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       error.status = 400;
       error.code = "BOSTA_ADDRESS_TOO_SHORT";
       throw error;
-    }
-
-    const shippingFeeGate = resolveShippingFeeGate({ order, city, policy: await loadCodPolicySettings() });
-    if (shippingFeeGate.blocked) {
-      console.error("[bosta] refusing to ship before the shipping fee is paid (restricted closing system)", { orderId: order.id, governorate: order.governorate, ...shippingFeeGate });
-      throw shippingFeeNotPaidError(shippingFeeGate);
     }
 
     const collection = resolveBostaCollection({ order, override: options.codAmount });
