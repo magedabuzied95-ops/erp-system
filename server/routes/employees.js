@@ -16,6 +16,7 @@ import {
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { employeeCanActOnOnlineOrders, setEmployeeOnlineOrdersAccess } from "../modules/shipping/shipping.portal.access.js";
 import { employeePortalInboxEnabled, setEmployeePortalInboxAccess } from "../modules/aiInboxPortal/portalInboxAccess.js";
+import { invalidatePortalInboxPushRecipients } from "../modules/aiInboxPortal/portalInboxPush.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
@@ -330,6 +331,7 @@ router.patch("/:employeeId/portal-inbox-access", protect, permit("employees", "e
       tenantId: req.user?.tenant_id || req.user?.tenantId || null,
       enabled: req.body?.enabled === true,
     });
+    invalidatePortalInboxPushRecipients();
     return res.json({ success: true, ...result });
   } catch (error) {
     console.error("[employees] portal inbox access update error", error);

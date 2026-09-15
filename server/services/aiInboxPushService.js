@@ -389,6 +389,12 @@ export const notifyAiInboxInboundMessage = async ({ tenantId = null, sessionId =
   const body = messagePreview(message);
   const conversationId = text(sessionId || message.session_id || message.conversation_id);
 
+  // الرسائل in the employee portal rings through the portal's own subscription.
+  // After the dedupe above, so a replayed message buzzes nobody twice.
+  import("../modules/aiInboxPortal/portalInboxPush.js")
+    .then(({ notifyPortalInboxEmployees }) => notifyPortalInboxEmployees({ tenantId: resolvedTenantId, sessionId: conversationId, message, channel: resolvedChannel }))
+    .catch((error) => console.warn("[portal-inbox-push:failed]", { message: error?.message || String(error) }));
+
   return sendToInboxSubscriptions({
     tenantId: resolvedTenantId,
     excludeUserId: null,

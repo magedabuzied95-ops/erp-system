@@ -172,3 +172,60 @@ test("wiring: boundary mounted before the routes, login refuses the role, portal
   assert.match(pwa, /isSocialMode && !portalMode \?/);
   assert.match(pwa, /onReplyComment=\{portalMode \? null : sendLeadCommentReply\}/);
 });
+
+import {
+  buildPortalInboxPush,
+  invalidatePortalInboxPushRecipients,
+  isCommentThreadMessage,
+  notifyPortalInboxEmployees,
+} from "../server/modules/aiInboxPortal/portalInboxPush.js";
+
+test("push: a customer message rings each switched-on employee in their portal; comments never do", async () => {
+  invalidatePortalInboxPushRecipients();
+  const queries = [];
+  const client = {
+    query: async (sql, params) => {
+      queries.push({ sql, params });
+      if (sql.includes("information_schema.columns")) return { rows: [{ "?column?": 1 }] };
+      return { rows: [{ id: "8", tenant_id: "1", employee_portal_token: "abc123" }] };
+    },
+  };
+  const sends = [];
+  const send = async (args) => { sends.push(args); return { sent: 1 }; };
+  const message = { id: 91, sender_type: "customer", customer_name: "Hana", customer_message: "عندك مقاس 42؟" };
+
+  const result = await notifyPortalInboxEmployees({ tenantId: 1, sessionId: "whatsapp:2010", message, channel: "whatsapp", client, send });
+  assert.equal(result.sent, 1);
+  assert.equal(sends[0].employeeId, 8);
+  assert.equal(sends[0].persist, false, "a chat message must not fill the portal bell list");
+  assert.equal(sends[0].url, "/employee-app/abc123/inbox/whatsapp%3A2010");
+  assert.match(sends[0].tag, /^[A-Za-z0-9_-]{1,32}$/, "the tag becomes the push Topic header");
+  assert.equal(sends[0].title, "Hana · واتساب");
+  const listQuery = queries.find(({ sql }) => sql.includes("portal_inbox_enabled = TRUE"));
+  assert.match(listQuery.sql, /tenant_id = \$1::bigint/);
+
+  sends.length = 0;
+  for (const [sessionId, extra] of [
+    ["facebook_post:123_456", {}],
+    ["social_comment:instagram:77", {}],
+    ["facebook_messenger:1", { comment_id: "c1" }],
+    ["facebook_messenger:1", { thread_kind: "comment" }],
+  ]) {
+    const skipped = await notifyPortalInboxEmployees({ tenantId: 1, sessionId, message: { ...message, ...extra }, client, send });
+    assert.equal(skipped.reason, "comment", sessionId);
+  }
+  assert.equal(sends.length, 0);
+  assert.equal((await notifyPortalInboxEmployees({ tenantId: null, sessionId: "whatsapp:1", message, client, send })).reason, "no-tenant");
+  assert.equal(isCommentThreadMessage({ sessionId: "instagram:55", message }), false);
+  assert.equal(buildPortalInboxPush({ employee: { employee_portal_token: "t" }, sessionId: "", message: {} }).body, "رسالة جديدة");
+});
+
+test("push wiring: the inbox push hands off to the portal after its dedupe; the admin toggle refreshes recipients", () => {
+  const service = source("../server/services/aiInboxPushService.js");
+  const dedupeAt = service.indexOf("if (alreadyPushed(dedupeKey))");
+  const portalAt = service.indexOf("notifyPortalInboxEmployees(");
+  assert.ok(dedupeAt > 0 && portalAt > dedupeAt, "portal push must come after the duplicate guard");
+  const routes = source("../server/routes/employees.js");
+  const block = routes.slice(routes.indexOf('router.patch("/:employeeId/portal-inbox-access"'));
+  assert.ok(block.indexOf("invalidatePortalInboxPushRecipients()") > 0);
+});
