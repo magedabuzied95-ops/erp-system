@@ -16,12 +16,18 @@ test("the employee portal home and the shipping page run in Arabic", () => {
   assert.match(shipping, /= useEmployeePortalArabic\(\);/);
 });
 
-test("الشحن sits in the bottom bar between المهام and الطلبات and opens its own page", () => {
+// 2026-09-15: الرسائل took الطلبات's slot, right after الشحن (owner request); الطلبات
+// stays reachable from its badge on the home.
+test("الشحن sits in the bottom bar after المهام, then الرسائل where الطلبات was, each opening its own page", () => {
   const home = read("../src/modules/employees/pages/EmployeePayrollPortal.jsx");
   const tabs = home.slice(home.indexOf("const mobileTabs = ["), home.indexOf("];", home.indexOf("const mobileTabs = [")));
-  const order = ["\"tasks\"", "ONLINE_ORDERS_NAV_KEY", "\"requests\""].map((token) => tabs.indexOf(token));
-  assert.ok(order.every((index) => index > 0) && order[0] < order[1] && order[1] < order[2], `order was ${order}`);
-  assert.match(home, /onClick=\{\(\) => \(key === ONLINE_ORDERS_NAV_KEY \? openOnlineOrdersPage\(\) : setActiveTab\(key\)\)\}/);
+  const order = ["\"tasks\"", "ONLINE_ORDERS_NAV_KEY", "INBOX_NAV_KEY", "\"display-refill\""].map((token) => tabs.indexOf(token));
+  assert.ok(order.every((index) => index > 0) && order.every((index, i) => i === 0 || order[i - 1] < index), `order was ${order}`);
+  assert.doesNotMatch(tabs, /"requests"/, "الطلبات left the bottom bar");
+  assert.match(home, /\{ key: "requests", count: badgeCounts\.pendingNotifications/, "الطلبات is still reachable from the home");
+  assert.match(tabs, /\.\.\.\(inboxEnabled \? \[\[INBOX_NAV_KEY/, "only switched-on employees get الرسائل");
+  assert.match(home, /onClick=\{\(\) => \(key === ONLINE_ORDERS_NAV_KEY \? openOnlineOrdersPage\(\) : key === INBOX_NAV_KEY \? navigate\(/);
+  assert.doesNotMatch(home, /employee-inbox-link/, "no second الرسائل entry on the home");
   assert.doesNotMatch(home, /employee-online-orders-link/, "the home no longer carries a second entry");
 });
 

@@ -87,6 +87,9 @@ import "./EmployeePayrollPortal.m1.css";
 // employee-facing salary surface until it is ready to be enabled again.
 const EMPLOYEE_PORTAL_SALARY_ENABLED = false;
 const ONLINE_ORDERS_NAV_KEY = "online-orders";
+const INBOX_NAV_KEY = "inbox";
+// Written out so Tailwind generates each class.
+const NAV_GRID_COLUMNS = { 5: "grid-cols-5", 6: "grid-cols-6", 7: "grid-cols-7", 8: "grid-cols-8" };
 
 // الشحن opens in the app, instantly (2026-09-11). It used to be a full page load because
 // navigate() "changed the URL but left the home mounted" — that was the home's endless
@@ -2220,7 +2223,9 @@ export default function EmployeePayrollPortal() {
     // Its own page, not an in-page tab: the bar navigates there (owner request
     // 2026-09-10: between المهام and الطلبات).
     [ONLINE_ORDERS_NAV_KEY, i18n.t("orders.portalBoard.navLabel"), Truck],
-    ["requests", text.requestsTab, MessageCircle],
+    // الرسائل took الطلبات's slot (owner request 2026-09-15); الطلبات stays reachable
+    // from its badge on the home. Only switched-on employees get الرسائل.
+    ...(inboxEnabled ? [[INBOX_NAV_KEY, portalT("employeePortal.messages.entry"), MessageCircle]] : []),
     ["display-refill", ui("displayRefillTab"), AlertTriangle],
     ["display-audit", "تمم العرض", CheckCircle2],
     ["attendance", text.attendanceTab, CalendarDays],
@@ -3936,19 +3941,6 @@ export default function EmployeePayrollPortal() {
                 <span>{text.inventoryTab}</span>
               </a>
 
-              {inboxEnabled ? (
-                <button
-                  type="button"
-                  data-testid="employee-inbox-link"
-                  onPointerEnter={() => { void import("./EmployeePortalInbox"); }}
-                  onClick={() => navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inbox`)}
-                  className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  <span>{portalT("employeePortal.messages.entry")}</span>
-                </button>
-              ) : null}
-
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {[
                   { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
@@ -4476,14 +4468,14 @@ export default function EmployeePayrollPortal() {
               />
             ) : null}
 
-            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${EMPLOYEE_PORTAL_SALARY_ENABLED ? "grid-cols-8" : "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${NAV_GRID_COLUMNS[mobileTabs.length] || "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
                   type="button"
                   data-testid={`employee-nav-${key}`}
-                  onPointerEnter={key === ONLINE_ORDERS_NAV_KEY ? () => preloadOnlineOrdersPage().catch(() => {}) : undefined}
-                  onClick={() => (key === ONLINE_ORDERS_NAV_KEY ? openOnlineOrdersPage() : setActiveTab(key))}
+                  onPointerEnter={key === ONLINE_ORDERS_NAV_KEY ? () => preloadOnlineOrdersPage().catch(() => {}) : key === INBOX_NAV_KEY ? () => { void import("./EmployeePortalInbox"); } : undefined}
+                  onClick={() => (key === ONLINE_ORDERS_NAV_KEY ? openOnlineOrdersPage() : key === INBOX_NAV_KEY ? navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inbox`) : setActiveTab(key))}
                   className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-control)] px-1 py-1.5 text-[10px] font-black leading-tight ${activeTab === key ? "bg-slate-950/95 text-white shadow-sm" : "text-slate-500"}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
