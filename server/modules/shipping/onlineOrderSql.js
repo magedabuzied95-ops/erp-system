@@ -9,6 +9,29 @@ const ONLINE_ORIGINS = ["website", "storefront", "web", "online", "web_chat", "w
 // A courier value that means "no courier": the shop's own default, or a pickup.
 const NO_COURIER_PROVIDERS = ["", "manual", "in_store_delivery", "none", "pickup", "store_pickup"];
 
+// The same definition for one row already in hand (the invoice edit), so it never drifts
+// from the SQL below.
+export const isOnlineShippingOrder = (order = {}) => {
+  const lower = (value) => String(value ?? "").trim().toLowerCase();
+  return ONLINE_ORIGINS.includes(lower(order.source))
+    || ONLINE_ORIGINS.includes(lower(order.channel))
+    || (order.origin_surface !== undefined && order.origin_surface !== null)
+    || (order.ai_agent_conversation_id !== undefined && order.ai_agent_conversation_id !== null)
+    || (order.shipping_provider !== undefined && !NO_COURIER_PROVIDERS.includes(lower(order.shipping_provider)))
+    || Boolean(String(order.shipping_tracking_number || order.tracking_number || "").trim());
+};
+
+// What an online order's unpaid balance is, when an edit leaves one: cash on delivery,
+// never customer debt (آجل) or an employee advance.
+const COD_KEYS = new Set(["cod", "cash_on_delivery"]);
+export const editedOnlineOrderPaymentMethod = ({ order = {}, requestedMethod = "" } = {}) => {
+  const requested = String(requestedMethod || "").trim().toLowerCase();
+  if (!["credit_sale", "deferred_sale", "deferred", "due_sale", "due"].includes(requested)) return "";
+  const original = String(order.payment_method || "").trim().toLowerCase();
+  if (original && !["credit_sale", "deferred_sale", "deferred", "due_sale", "due", "mixed", "split"].includes(original)) return original;
+  return COD_KEYS.has(original) ? original : "cash_on_delivery";
+};
+
 const sqlList = (values) => values.map((value) => `'${value}'`).join(", ");
 const normalizedSql = (expr) => `LOWER(REPLACE(REPLACE(TRIM(COALESCE(${expr}, '')), ' ', '_'), '-', '_'))`;
 

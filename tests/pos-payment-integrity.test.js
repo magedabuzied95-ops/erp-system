@@ -81,9 +81,10 @@ test("POS invoice edit can be saved آجل with the remainder carried as custome
   assert.doesNotMatch(ordersControllerSource, /Additional payment must equal the amount due now/);
   assert.match(ordersControllerSource, /const deferredEditAmount = normalizeInvoiceMoney\(Math\.max\(0, amountDueNow - additionalPaidAmount\)\)/);
   // Debt nobody is on the hook for is not a deferred invoice.
-  assert.match(ordersControllerSource, /deferredEditAmount > 0\.009 && !resolvedCustomerId/);
+  // An online order's balance is the courier's to collect (INV-1616), so both rules skip it.
+  assert.match(ordersControllerSource, /deferredEditAmount > 0\.009 && !resolvedCustomerId && !onlineOrderEdit/);
   // A deferred invoice for an employee-customer is a سلفة, exactly as on the sale path.
-  assert.match(ordersControllerSource, /deferredEditAmount > 0\.009 && \(resolvedCustomerId \|\| orderResult\.rows\[0\]\.customer_id\)/);
+  assert.match(ordersControllerSource, /deferredEditAmount > 0\.009 && !onlineOrderEdit && \(resolvedCustomerId \|\| orderResult\.rows\[0\]\.customer_id\)/);
   assert.match(ordersControllerSource, /settleOrderAsEmployeeAdvance\(client, \{[\s\S]*reason: "order-edit"/);
   // Revenue is credited with what actually arrived, or the entry cannot balance.
   assert.match(ordersControllerSource, /amount: breakdownTotal,\s*\r?\n\s*paymentBreakdown: normalizedBreakdown,/);

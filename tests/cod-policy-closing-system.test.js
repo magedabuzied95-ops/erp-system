@@ -217,3 +217,16 @@ test("the invoice edit re-prices a stored collection amount with the new total",
   const source = fs.readFileSync(new URL("../server/controllers/ordersController.js", import.meta.url), "utf8");
   assert.match(source, /cod_amount = CASE WHEN COALESCE\(cod_amount, 0\) > 0 THEN GREATEST\(\$5::numeric - \$6::numeric, 0\) ELSE cod_amount END/);
 });
+
+// ---- INV-1616: آجل chosen on the till must not turn an online order into a credit sale
+import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../server/modules/shipping/onlineOrderSql.js";
+
+test("an edited online order keeps its own payment method instead of becoming آجل", () => {
+  const website = { source: "website", channel: "storefront", payment_method: "instapay" };
+  assert.equal(isOnlineShippingOrder(website), true);
+  assert.equal(editedOnlineOrderPaymentMethod({ order: website, requestedMethod: "credit_sale" }), "instapay");
+  assert.equal(editedOnlineOrderPaymentMethod({ order: { ...website, payment_method: "credit_sale" }, requestedMethod: "credit_sale" }), "cash_on_delivery");
+  assert.equal(editedOnlineOrderPaymentMethod({ order: website, requestedMethod: "cash" }), "", "a real payment method is left alone");
+  assert.equal(isOnlineShippingOrder({ source: "pos", channel: "pos", shipping_provider: "in_store_delivery" }), false, "a till sale can still go on credit");
+  assert.equal(isOnlineShippingOrder({ source: "pos", shipping_provider: "bosta" }), true);
+});

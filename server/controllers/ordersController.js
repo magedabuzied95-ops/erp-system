@@ -12,6 +12,7 @@ import { adjustVariantStock, recordInventoryMovement } from "../services/invento
 import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, logAccountingAudit, postSaleEntry, postReturnEntry, postWalletLiabilityEntry, recordCashDrawerEvent, recordFinancialAccountActivity, resolveFinancialAccountForPayment, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
+import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
 import { getActiveLoyaltyRule } from "../utils/loyalty.js";
@@ -7104,7 +7105,14 @@ export const editOrder = async (req, res) => {
         edit_additional_payment: true,
       })),
     ];
-    const storedEditPaymentMethod = deriveStoredPaymentMethod({
+    // An online / shipping order's balance is collected by the courier. Picking آجل on the
+    // till to leave the remainder open turned INV-1616 (an InstaPay website order) into a
+    // credit sale; it keeps its own method instead (owner decision 2026-09-15).
+    const onlineOrderEdit = isOnlineShippingOrder(loaded.order);
+    const keptOnlinePaymentMethod = onlineOrderEdit
+      ? editedOnlineOrderPaymentMethod({ order: loaded.order, requestedMethod: req.body.payment_method })
+      : "";
+    const storedEditPaymentMethod = keptOnlinePaymentMethod || deriveStoredPaymentMethod({
       requestedMethod: req.body.payment_method || loaded.order.payment_method,
       paymentBreakdown: editPaymentBreakdown,
     });
@@ -7129,7 +7137,8 @@ export const editOrder = async (req, res) => {
 
     // Same rule the sale path enforces: debt with nobody to collect it from is not a
     // deferred invoice, it is a hole in the books.
-    if (deferredEditAmount > 0.009 && !resolvedCustomerId) {
+    // An online order's balance is the courier's to collect, not debt, so it needs no account.
+    if (deferredEditAmount > 0.009 && !resolvedCustomerId && !onlineOrderEdit) {
       await client.query("ROLLBACK");
       return res.status(400).json({
         success: false,
@@ -7284,7 +7293,7 @@ export const editOrder = async (req, res) => {
         totalValue,
         paidValue,
         storedEditPaymentMethod || null,
-        req.body.payment_status || null,
+        keptOnlinePaymentMethod ? (paidValue >= totalValue - 0.009 ? "paid" : paidValue > 0.009 ? "partially_paid" : "unpaid") : (req.body.payment_status || null),
         resolveEditedOrderStatus(req.body.status, { treatPendingAsPayment: true }),
         resolvedCustomerId,
         resolvedCustomerName,
@@ -7369,7 +7378,7 @@ export const editOrder = async (req, res) => {
         );
         Object.assign(orderResult.rows[0], refreshed.rows[0] || {});
       }
-    } else if (deferredEditAmount > 0.009 && (resolvedCustomerId || orderResult.rows[0].customer_id)) {
+    } else if (deferredEditAmount > 0.009 && !onlineOrderEdit && (resolvedCustomerId || orderResult.rows[0].customer_id)) {
       // An edit that newly defers money follows the same rule the sale path follows:
       // a deferred invoice for a customer who IS an employee is a سلفة, not customer
       // debt. No-op for every ordinary customer — the service returns null when the
