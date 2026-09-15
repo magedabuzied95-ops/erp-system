@@ -4,7 +4,9 @@ import { processOrderLoyalty } from "../../services/loyaltyService.js";
 // Vodafone Cash SMS matching the order by itself. Both land here so the order ends in
 // the same state and earns loyalty the same way. The caller owns the transaction
 // (loyalty runs in a savepoint) and has already decided the transfer is real.
-export const applyTransferPaymentConfirmation = async (client, { order, tenantId = null, loyaltyTenantId = null, userId = null, logTag = "orders.confirm-payment" } = {}) => {
+// `fullOrder`: staff checked the screenshot and it covers the whole order, even though the customer
+// uploaded it where the shipping-fee deposit goes (INV-1637) — nothing is left for the courier.
+export const applyTransferPaymentConfirmation = async (client, { order, tenantId = null, loyaltyTenantId = null, userId = null, logTag = "orders.confirm-payment", fullOrder = false } = {}) => {
   const paymentMethod = String(order.payment_method || "").trim().toLowerCase();
   const totalAmount = Number(order.total_amount ?? order.total ?? order.total_price ?? 0);
   const shippingAmount = Number(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? 0);
@@ -14,7 +16,9 @@ export const applyTransferPaymentConfirmation = async (client, { order, tenantId
   // The restricted closing system: the customer transferred the shipping fee and
   // the courier collects the goods (cod_amount). Approving it is not a full payment.
   const isShippingAdvanceTransfer = !isCodShippingOnlyTransfer && codAmount > 0 && codAmount < totalAmount;
-  const nextPaidAmount = isCodShippingOnlyTransfer
+  const nextPaidAmount = fullOrder
+    ? Math.max(totalAmount, existingPaidAmount)
+    : isCodShippingOnlyTransfer
     ? Math.min(totalAmount, Math.max(existingPaidAmount, shippingAmount))
     : isShippingAdvanceTransfer
       ? Math.min(totalAmount, Math.max(existingPaidAmount, totalAmount - codAmount))

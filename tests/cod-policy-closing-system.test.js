@@ -77,6 +77,17 @@ test("approving a shipping-fee transfer is a part payment, not the whole order",
   assert.match(update.sql, /cod_amount = GREATEST/);
 });
 
+test("a screenshot in the shipping-fee slot can be approved as the whole order (INV-1637)", async () => {
+  const client = fakeClient();
+  await applyTransferPaymentConfirmation(client, {
+    order: { id: 1637, payment_method: "instapay", total_amount: 440, shipping_fee: 90, paid_amount: 90, cod_amount: 350 },
+    fullOrder: true,
+  });
+  const update = client.calls.find((call) => /UPDATE orders/.test(call.sql));
+  assert.equal(update.params[3], "paid");
+  assert.equal(update.params[4], 440);
+});
+
 test("approving a full transfer still pays the whole order", async () => {
   const client = fakeClient();
   await applyTransferPaymentConfirmation(client, {

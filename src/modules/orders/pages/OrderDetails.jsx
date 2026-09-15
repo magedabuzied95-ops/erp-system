@@ -305,7 +305,10 @@ const buildOrderFinancials = (order = {}, items = []) => {
   const grandTotal = backendTotal || Math.max(0, productTotal + shipping);
   const shippingPaidSeparately = hasPrepaidShipping(order) && shipping > 0;
   const paidAmount = toMoneyNumber(order.paid_amount, 0);
-  const remainingOnDelivery = shippingPaidSeparately ? productTotal : Math.max(0, grandTotal - paidAmount);
+  // A prepaid-shipping order that was then paid in full owes nothing at the door (INV-1637).
+  const remainingOnDelivery = shippingPaidSeparately
+    ? Math.min(productTotal, Math.max(0, grandTotal - paidAmount))
+    : Math.max(0, grandTotal - paidAmount);
 
   return {
     subtotal,
@@ -832,10 +835,10 @@ function OrderDetails() {
     }
   };
 
-  const handleShippingPaymentReview = async (action) => {
+  const handleShippingPaymentReview = async (action, { scope = "" } = {}) => {
     try {
       setReviewingPayment(true);
-      await api.post(`/orders/${order.id}/${action === "confirm" ? "confirm-payment" : "reject-payment"}`, {});
+      await api.post(`/orders/${order.id}/${action === "confirm" ? "confirm-payment" : "reject-payment"}`, scope ? { scope } : {});
       toast.success(action === "confirm" ? t("orders.payment.confirmed") : t("orders.payment.rejected"));
       await loadOrder();
     } catch (err) {
@@ -1509,13 +1512,24 @@ function OrderDetails() {
 
               {isAwaitingPaymentVerification ? (
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {/* A screenshot uploaded in the shipping-fee slot can still pay the whole order (INV-1637). */}
+                  {hasCodRemaining ? (
+                    <button
+                      type="button"
+                      onClick={() => handleShippingPaymentReview("confirm", { scope: "order_total" })}
+                      disabled={reviewingPayment || !canReviewShippingProof}
+                      className="min-h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-4 py-2 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-950/20 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
+                    >
+                      {t("orders.payment.confirmFullOrder", { amount: formatCurrency(financials.grandTotal) })}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => handleShippingPaymentReview("confirm")}
                     disabled={reviewingPayment || !canReviewShippingProof}
                     className="h-[var(--control-height-md)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-950/20 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {t("orders.payment.confirm")}
+                    {hasCodRemaining ? t("orders.payment.confirmShippingOnly") : t("orders.payment.confirm")}
                   </button>
                   <button
                     type="button"

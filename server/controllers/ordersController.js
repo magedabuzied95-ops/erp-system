@@ -6562,6 +6562,7 @@ export const confirmShippingPayment = async (req, res) => {
       tenantId,
       loyaltyTenantId: effectiveTenantId,
       userId: req.user?.id || null,
+      fullOrder: req.body?.scope === "order_total",
     });
     await client.query("COMMIT");
     notifyPaymentProofApproved(confirmation.order).catch(() => {});
@@ -7288,6 +7289,10 @@ export const editOrder = async (req, res) => {
           salesperson_fixed_mode = $32,
           salesperson_excluded_product_ids = $33::jsonb,
           salesperson_excluded_category_ids = $34::jsonb,
+          -- Money the cashier records on the edit settles a transfer screenshot still waiting on
+          -- review; left 'pending', the order kept asking for its shipping fee and the confirmation
+          -- message kept the pre-payment collection (INV-1637).
+          transfer_proof_status = CASE WHEN $35::boolean AND LOWER(COALESCE(transfer_proof_status, '')) = 'pending' THEN 'approved' ELSE transfer_proof_status END,
           updated_at = NOW()
       WHERE id = $14
       RETURNING *
@@ -7338,6 +7343,7 @@ export const editOrder = async (req, res) => {
         resolvedEditFixedMode,
         JSON.stringify(resolvedEditExcludedProductIds),
         JSON.stringify(resolvedEditExcludedCategoryIds),
+        collectedNowAmount > 0.009,
       ]
     );
     // Land the re-priced coupon on the order and move its redemption to the new figures. If the edit

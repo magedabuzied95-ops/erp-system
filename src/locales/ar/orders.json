@@ -227,6 +227,8 @@
     "proofAlt": "إثبات الدفع",
     "noProof": "لا يوجد إثبات",
     "confirm": "تأكيد",
+    "confirmFullOrder": "تأكيد — الأوردر مدفوع كامل ({{amount}})",
+    "confirmShippingOnly": "تأكيد الشحن بس",
     "reject": "رفض",
     "confirmPay": "تأكيد الدفع",
     "rejectPay": "رفض الدفع",

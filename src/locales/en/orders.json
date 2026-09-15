@@ -227,6 +227,8 @@
     "proofAlt": "Payment proof",
     "noProof": "No proof",
     "confirm": "Confirm",
+    "confirmFullOrder": "Confirm — whole order paid ({{amount}})",
+    "confirmShippingOnly": "Confirm shipping only",
     "reject": "Reject",
     "confirmPay": "Confirm pay",
     "rejectPay": "Reject pay",
