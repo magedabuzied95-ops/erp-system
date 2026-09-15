@@ -199,6 +199,16 @@ export const renderCustomerOrderEmailBody = ({ order = {}, items = [], links = {
   </table>`;
 };
 
+// One mark, centred, on the brand black. The logo already carries "STORE · CHANGE YOUR LIFE", so the
+// old header's wordmark, tagline, rule and "EST. 2021 / DAMIETTA" said everything twice (owner, 2026-09-15).
+export const customerEmailHeader = ({ logoUrl = "" } = {}) => {
+  const logo = safeUrl(logoUrl)
+    ? `<img src="${escapeHtml(logoUrl)}" width="84" height="84" alt="M1 Store" style="display:block;margin:0 auto;width:84px;height:84px;border-radius:42px;border:0;background:#101010">`
+    : `<div style="font:700 22px/1.2 ${FONT};color:#e9c55a;letter-spacing:6px">M1 STORE</div>`;
+  return `<tr><td bgcolor="#101010" align="center" style="padding:30px 24px 26px;background:#101010;background-image:linear-gradient(#101010,#101010);text-align:center">${logo}</td></tr>
+  <tr><td height="3" bgcolor="${C.gold}" style="height:3px;line-height:3px;font-size:0;background:${C.gold}">&nbsp;</td></tr>`;
+};
+
 export const customerEmailFooter = ({ supportEmail = "support@m1store-egy.com", socialLinks = [] } = {}) => {
   const social = socialLinks
     .filter((item) => safeUrl(item?.url))

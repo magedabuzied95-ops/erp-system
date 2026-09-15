@@ -1,5 +1,5 @@
 import { emailButton, emailFooter, emailHeader, emailLayout, orderSummary, paymentPanel, productRows } from "./components.js";
-import { customerEmailFooter, renderCustomerOrderEmailBody } from "./customerEmailDesign.js";
+import { customerEmailFooter, customerEmailHeader, renderCustomerOrderEmailBody } from "./customerEmailDesign.js";
 import { deliveryLabel, escapeHtml, formatCurrency, formatOrderDate, paymentLabel, statusLabel } from "./helpers.js";
 
 const infoCell = (label, value) => `<td style="padding:10px;border:1px solid #e8e3da;border-radius:8px"><div style="color:#77736b;font:11px Arial,sans-serif">${escapeHtml(label)}</div><div style="margin-top:4px;font:700 13px/1.5 Arial,sans-serif">${escapeHtml(value || "-")}</div></td>`;
@@ -24,7 +24,7 @@ export const renderCustomerOrderConfirmation = (data = {}) => {
       payment?.kind === "cod" ? `المطلوب عند الاستلام: ${formatCurrency(payment.collect)}.` : "",
       links.track ? `تتبع الطلب: ${links.track}` : "",
     ].filter(Boolean).join("\n"),
-    html: emailLayout({ preheader: payment?.kind === "advance_required" ? `طلبك ${number} اتسجّل — مستنيين تحويل رسوم الشحن` : `تم استلام طلبك ${number} — هتوصلك رسالة تأكيد على واتساب`, header: emailHeader(brand), body, footer: customerEmailFooter(brand) }),
+    html: emailLayout({ preheader: payment?.kind === "advance_required" ? `طلبك ${number} اتسجّل — مستنيين تحويل رسوم الشحن` : `تم استلام طلبك ${number} — هتوصلك رسالة تأكيد على واتساب`, header: customerEmailHeader(brand), body, footer: customerEmailFooter(brand) }),
   };
 };
 
