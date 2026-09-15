@@ -181,6 +181,28 @@ export const prepareShippingFeePaymentCard = async ({ order = {}, amount = 0 } =
   }
 };
 
+/**
+ * For a WhatsApp message that confirms an order: the closing-system notice, and the card that
+ * follows it. With a card the notice only names the amount; without one (nothing owed, or the link
+ * could not be issued) it keeps the wallet details, exactly as before. Never throws.
+ */
+export const shippingFeeNoticeWithPaymentCard = async (order = {}) => {
+  const { shippingFeeAdvanceNoticeForOrder } = await import("../../services/codPolicyReplyService.js");
+  let card = null;
+  try {
+    if (order?.id) {
+      const { loadCodPolicySettings } = await import("../../services/storefrontShippingService.js");
+      const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
+      if (advance.required && advance.status !== "paid") card = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
+    }
+  } catch (error) {
+    console.warn("[payment-proof] card check failed", { orderId: order?.id, message: error?.message || String(error) });
+  }
+  const notice = await shippingFeeAdvanceNoticeForOrder(order, { paymentCardFollows: Boolean(card) });
+  // A notice that came back empty means nothing is owed after all: no card either.
+  return { notice, card: notice ? card : null };
+};
+
 /* ------------------------------------------------------ WhatsApp plumbing */
 
 const appendSystemTranscript = async ({ tenantId, phone, message, source, buttons = [], result = null, customerName = "" }) => {

@@ -119,6 +119,21 @@ test("a card that will not render goes out as its text fallback", async () => {
   assert.equal(result.delivery_mode, "link_text");
 });
 
+test("the WhatsApp sales flow's order confirmation is followed by the card too", async () => {
+  // INV-1646: the customer ordered through the WhatsApp sales flow (address link), got
+  // "✅ تم تأكيد طلبك بنجاح" with the old wallet lines, and no card — only the POS request had one.
+  const meta = read("../server/services/metaIntegrationService.js");
+  const at = meta.indexOf("const successLines = [\"✅ تم تأكيد طلبك بنجاح\"");
+  assert.ok(at > 0);
+  const block = meta.slice(at, at + 2500);
+  assert.match(block, /isWhatsapp\s*\? await shippingFeeNoticeWithPaymentCard\(advanceOrder\)/);
+  assert.match(block, /await sendConfirmation\(successText\);\s*if \(shippingFeeCard\) \{/);
+  assert.match(block, /queueShippingFeePaymentCard\(\{/);
+  // Nothing owed: no notice and no card.
+  const { shippingFeeNoticeWithPaymentCard } = await import("../server/modules/shipping/paymentProofLink.js");
+  assert.equal(typeof shippingFeeNoticeWithPaymentCard, "function");
+});
+
 test("wiring: queue types, Evolution copy buttons, the public route, the webhook and the wallet matcher", () => {
   assert.equal(WHATSAPP_AUTOMATION_TYPES.shipping_fee_payment_card, "transactional");
   assert.equal(WHATSAPP_AUTOMATION_TYPES.payment_proof_received, "transactional");

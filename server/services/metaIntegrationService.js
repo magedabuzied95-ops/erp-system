@@ -4,6 +4,7 @@ import iconv from "iconv-lite";
 
 import db from "../database/db.js";
 import { codFaqAnswer, shippingFeeAdvanceNoticeForAddress, shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
+import { queueShippingFeePaymentCard, shippingFeeNoticeWithPaymentCard } from "../modules/shipping/paymentProofLink.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getMetaWebhookUrl, getPublicBackendUrl, absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
@@ -19737,12 +19738,28 @@ export const completeSocialCommentOrderFromAddressRequest = async ({
   if (shippingText) successLines.push(`🚚 الشحن: ${shippingText} جنيه`);
   if (totalText) successLines.push(`💵 الإجمالي: ${totalText} جنيه`);
   if (invoiceUrl) successLines.push("", "تقدر تشوف فاتورتك من هنا 👇", invoiceUrl);
-  // Restricted closing system: outside the COD governorates the parcel waits for the fee.
-  const shippingAdvanceNotice = await shippingFeeAdvanceNoticeForOrder({ ...orderRow, governorate: orderRow.governorate || mergedInfo.governorate });
+  // Restricted closing system: outside the COD governorates the parcel waits for the fee. On
+  // WhatsApp the fee is paid from its own card (pay buttons + the screenshot upload link) sent
+  // right after this message; Messenger and Instagram have no copy button, so they keep the text.
+  const advanceOrder = { ...orderRow, governorate: orderRow.governorate || mergedInfo.governorate };
+  const { notice: shippingAdvanceNotice, card: shippingFeeCard } = isWhatsapp
+    ? await shippingFeeNoticeWithPaymentCard(advanceOrder)
+    : { notice: await shippingFeeAdvanceNoticeForOrder(advanceOrder), card: null };
   if (shippingAdvanceNotice) successLines.push("", shippingAdvanceNotice);
   successLines.push("", "هيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️", "", "شكراً لاختيارك M1 Store");
   const successText = successLines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (isWhatsapp) await sendConfirmation(successText);
+  if (isWhatsapp) {
+    await sendConfirmation(successText);
+    if (shippingFeeCard) {
+      const { normalizeEgyptPhone } = await import("./whatsappGatewayService.js");
+      await queueShippingFeePaymentCard({
+        order: advanceOrder,
+        card: shippingFeeCard,
+        phone: normalizeEgyptPhone(orderRow.customer_phone || "") || normalizeEgyptPhone(senderId),
+        tenantId,
+      });
+    }
+  }
   // ONE text for every channel. This branch kept its own inline copy, so the invoice added to
   // successText reached WhatsApp and nothing else — INV-1246 confirmed on Instagram with the old
   // wording while the WhatsApp order beside it carried its invoice and total.
