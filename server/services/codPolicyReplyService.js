@@ -41,7 +41,12 @@ export const loadTransferDetails = async () => {
   ]);
   const vodafone = [vodafoneA, vodafoneB].map(text).find((value) => !PLACEHOLDER_NUMBERS.has(value)) || "";
   const instapay = [instapayUrl, instapayHandleA, instapayHandleB].map(text).find((value) => !PLACEHOLDER_HANDLES.has(value)) || "";
-  return { vodafone, instapay };
+  // The payment card needs the two apart: a link becomes a button that opens InstaPay, a handle
+  // can only be copied.
+  const link = text(instapayUrl);
+  const instapayUrlOnly = /^https?:\/\//i.test(link) ? link : "";
+  const instapayHandle = [instapayHandleA, instapayHandleB].map(text).find((value) => !PLACEHOLDER_HANDLES.has(value)) || "";
+  return { vodafone, instapay, instapayUrl: instapayUrlOnly, instapayHandle };
 };
 
 export const transferDetailLines = ({ vodafone = "", instapay = "" } = {}) => [
@@ -53,7 +58,7 @@ export const transferDetailLines = ({ vodafone = "", instapay = "" } = {}) => [
  * Pure wording, so it can be tested without settings. `policy` is the loaded
  * { mode, governorates }; returns "" when nothing has to be prepaid.
  */
-export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, transfer = {}, compact = false } = {}) => {
+export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, transfer = {}, compact = false, paymentCardFollows = false } = {}) => {
   const cod = resolveCodPolicy({ policy, governorate, governorateId, shippingFee, orderTotal });
   if (cod.cod_allowed) return "";
   const fee = formatMoney(cod.advance_amount);
@@ -63,19 +68,23 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
   if (compact) {
     return `💳 رسوم الشحن ${fee} جنيه تتحوّل مقدّم قبل الشحن${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : ""}.`;
   }
+  const headline = `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن طلبك${where ? ` ${toPlace(where)}` : ""} لازم تحوّل رسوم الشحن ${fee} جنيه الأول${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
+  // The WhatsApp confirmation request is followed by its own payment card (pay buttons + the
+  // screenshot upload link), so the request itself only says what is owed and points at it.
+  if (paymentCardFollows) return `${headline}\n👇 طرق الدفع ورفع صورة التحويل في الرسالة اللي جاية.`;
   return [
-    `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن طلبك${where ? ` ${toPlace(where)}` : ""} لازم تحوّل رسوم الشحن ${fee} جنيه الأول${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`,
+    headline,
     ...transferDetailLines(transfer),
     "📸 ابعت صورة التحويل هنا وهنأكد الطلب ونشحنه على طول.",
   ].join("\n");
 };
 
-export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false } = {}) => {
+export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false } = {}) => {
   try {
     const policy = await loadCodPolicySettings();
     if (normalizeCodPolicy(policy).mode !== "restricted") return "";
-    const transfer = compact ? {} : await loadTransferDetails();
-    return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact });
+    const transfer = compact || paymentCardFollows ? {} : await loadTransferDetails();
+    return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact, paymentCardFollows });
   } catch (error) {
     console.warn("[cod-policy-reply] notice skipped", { message: error?.message || String(error) });
     return "";

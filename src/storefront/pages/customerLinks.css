@@ -1,5 +1,6 @@
 /* ============================================================================
-   Customer link pages — /c/:code (order confirmation) and /addr/:code (address).
+   Customer link pages — /c/:code (order confirmation), /addr/:code (address) and
+   /pay/:code (shipping-fee transfer screenshot).
    ----------------------------------------------------------------------------
    Both pages open from a WhatsApp/Instagram link and usually render OUTSIDE the
    storefront shell (App.jsx routes), so the root is `.sfx-scope` with the shop's
@@ -455,4 +456,93 @@
   font-size: var(--m1h-t-xs);
   line-height: 1.6;
   text-align: center;
+}
+
+/* ------------------------------------------------------- payment proof (/pay) */
+
+.sfl .sfl-pay-summary {
+  display: grid;
+  gap: var(--m1h-s3);
+  margin: 0;
+}
+
+.sfl .sfl-pay-summary > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--m1h-s3);
+}
+
+.sfl .sfl-pay-summary dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sfl .sfl-pay-methods {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: var(--m1h-s3);
+}
+
+.sfl .sfl-pay-method {
+  display: flex;
+  min-height: var(--sfx-control-h);
+  align-items: center;
+  justify-content: center;
+  gap: var(--m1h-s2);
+  padding: var(--m1h-s3);
+  border: 1px solid var(--m1h-line) !important;
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-surface) !important;
+  color: var(--m1h-text) !important;
+  -webkit-text-fill-color: currentColor;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sfl .sfl-pay-method > svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--m1h-accent);
+}
+
+.sfl .sfl-pay-method.is-selected {
+  border-color: var(--m1h-accent) !important;
+  background: var(--m1h-accent-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--m1h-accent);
+}
+
+.sfl .sfl-pay-method:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+.sfl .sfl-pay-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.sfl .sfl-pay-file-input {
+  display: none;
+}
+
+.sfl .sfl-pay-preview {
+  display: grid;
+  max-width: 100%;
+  max-height: 360px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate) !important;
+}
+
+.sfl .sfl-pay-preview img {
+  max-width: 100%;
+  max-height: 360px;
+  object-fit: contain;
 }

@@ -61,7 +61,8 @@ test("both inboxes refetch a loaded thread the server says changed", () => {
 
 test("the bubble draws the reply buttons", () => {
   const bubble = read("src/modules/aiSupport/components/TranscriptMessage.jsx");
-  assert.match(bubble, /action\?\.type === "whatsapp_reply_button"/);
+  assert.match(bubble, /WHATSAPP_BUBBLE_BUTTON_TYPES = new Set\(\["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button"\]\)/);
+  assert.match(bubble, /WHATSAPP_BUBBLE_BUTTON_TYPES\.has\(action\?\.type\)/);
   assert.match(bubble, /<ReplyButtons buttons=\{replyButtons\} skin=\{skin\} \/>/);
 });
 

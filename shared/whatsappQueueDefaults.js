@@ -49,6 +49,10 @@ export const WHATSAPP_QUEUE_CATEGORIES = Object.freeze(["transactional", "engage
 export const WHATSAPP_AUTOMATION_TYPES = Object.freeze({
   order_confirmation: "transactional",
   payment_review: "transactional",
+  // The shipping-fee card under a confirmation request, and the "we got your screenshot" reply.
+  shipping_fee_payment_card: "transactional",
+  payment_proof_received: "transactional",
+  payment_proof_approved: "transactional",
   invoice_receipt: "engagement",
   shipment_created: "transactional",
   shipped: "transactional",
@@ -63,6 +67,9 @@ export const WHATSAPP_AUTOMATION_TYPES = Object.freeze({
 export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
   order_confirmation: { en: "Order confirmation", ar: "تأكيد الطلب" },
   payment_review: { en: "Payment review", ar: "مراجعة الدفع" },
+  shipping_fee_payment_card: { en: "Shipping fee payment card", ar: "كارت دفع رسوم الشحن" },
+  payment_proof_received: { en: "Transfer screenshot received", ar: "استلام صورة التحويل" },
+  payment_proof_approved: { en: "Shipping transfer approved", ar: "تأكيد تحويل الشحن" },
   invoice_receipt: { en: "Invoice receipt + review ask", ar: "الفاتورة وطلب التقييم" },
   shipment_created: { en: "Shipment created", ar: "تم إنشاء الشحنة" },
   shipped: { en: "Shipped", ar: "تم الشحن" },

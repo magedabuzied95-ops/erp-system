@@ -13,6 +13,7 @@ import { createJournalEntry, ensureAccountingSchema, getCurrentCashDrawerShift, 
 import { applyTransferPaymentConfirmation } from "../modules/walletTransfers/transferPaymentConfirmation.js";
 import { isWhatsappNumberMissingError, WHATSAPP_NUMBER_MISSING_MESSAGE } from "../utils/whatsappNotOnNumber.js";
 import { describeShippingFeeAdvance, markShippingFeePaid } from "../modules/shipping/shippingFeeAdvance.js";
+import { notifyPaymentProofApproved } from "../modules/shipping/paymentProofLink.js";
 import { editedOnlineOrderPaymentMethod, isOnlineShippingOrder } from "../modules/shipping/onlineOrderSql.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
 import { ensureLoyaltySchema, processOrderLoyalty, resolveOrCreateCustomerAccount, reverseOrderLoyalty, reverseOrderLoyaltyForReturn } from "../services/loyaltyService.js";
@@ -6515,6 +6516,7 @@ export const markOrderShippingFeePaid = async (req, res) => {
       userId: req.user?.id || null,
       source: "orders",
     });
+    notifyPaymentProofApproved(order).catch(() => {});
     return res.json({ success: true, order });
   } catch (error) {
     const status = error.status || 500;
@@ -6561,6 +6563,7 @@ export const confirmShippingPayment = async (req, res) => {
       userId: req.user?.id || null,
     });
     await client.query("COMMIT");
+    notifyPaymentProofApproved(confirmation.order).catch(() => {});
     return res.json({ success: true, order: confirmation.order, loyalty: confirmation.loyalty, warning: confirmation.warning });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});

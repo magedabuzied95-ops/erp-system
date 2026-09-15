@@ -2420,6 +2420,54 @@ export const sendCtaUrlMessage = async ({ phone, title = "", text: bodyText = ""
   });
 };
 
+/*
+ * Up to three call-to-action buttons on one message: `url` opens a page, `copy` puts a value on
+ * the customer's clipboard. The shipping-fee payment card uses it (pay by InstaPay / copy the
+ * Vodafone Cash number / upload the transfer screenshot). CTAs cannot share a message with reply
+ * buttons, which is why the card is its own message under the confirmation request.
+ *
+ * Evolution only: a Cloud session message carries a single cta_url and no copy button at all, so
+ * the Cloud transport refuses and the caller sends fallbackText, which spells everything out.
+ */
+export const sendCtaButtonsMessage = async ({ phone, title = "", text: bodyText = "", footer = "", buttons = [], fallbackText = "" } = {}) => {
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone) throw gatewayError("A valid WhatsApp phone number is required", "WHATSAPP_PHONE_REQUIRED", 400);
+  const safeButtons = (Array.isArray(buttons) ? buttons : [])
+    .map((button) => {
+      const displayText = text(button?.displayText);
+      const type = text(button?.type).toLowerCase();
+      if (!displayText) return null;
+      if (type === "url" && text(button?.url)) return { type: "url", displayText, url: text(button.url) };
+      if (type === "copy" && text(button?.copyCode)) return { type: "copy", displayText, copyCode: text(button.copyCode) };
+      return null;
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+  if (!safeButtons.length) throw gatewayError("A CTA message needs at least one url or copy button", "WHATSAPP_CTA_INCOMPLETE", 400);
+  if (isCloudTransport()) throw gatewayError("Copy buttons are not available on the Cloud transport", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  if (provider() !== "evolution") throw gatewayError("CTA buttons are only supported on the Evolution provider", "WHATSAPP_BUTTONS_UNSUPPORTED", 409);
+  const current = requireEvolutionConfig();
+  const payload = {
+    number: normalizedPhone,
+    title: text(title),
+    description: text(bodyText),
+    footer: text(footer),
+    buttons: safeButtons,
+  };
+  const endpoint = `/message/sendButtons/${encodeURIComponent(current.instanceName)}`;
+  const logBase = { order_id: null, phoneSuffix: normalizedPhone.slice(-4), buttonIds: safeButtons.map((button) => `cta_${button.type}`) };
+  return sendEvolutionButtonsMessage({
+    current,
+    endpoint,
+    requestBody: JSON.stringify(payload),
+    requestTimeoutMs: 9000,
+    logBase,
+    phone: normalizedPhone,
+    fallbackOnNotDelivered: async () =>
+      sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(bodyText) }),
+  });
+};
+
 
 // A product carousel: shared body text, then swipeable cards each with an image, a caption and
 // one URL button. Proven live on 2.4.0 (2026-08-26): renders like the courier-style card lists.

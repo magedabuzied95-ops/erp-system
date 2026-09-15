@@ -5,6 +5,7 @@ import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
 import { markShippingFeePaid } from "./shippingFeeAdvance.js";
+import { notifyPaymentProofApproved } from "./paymentProofLink.js";
 import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js";
 
 // The four things staff can DO from أوردرات الشحن: confirm → ready to ship → create the
@@ -172,7 +173,7 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
   } else if (key === "shipping_fee_paid") {
     // The restricted closing system: staff record the fee the customer transferred (or paid in
     // cash) so the parcel may leave. Money only - the order stays where it is in the flow.
-    await deps.markShippingFeePaid({
+    const paid = await deps.markShippingFeePaid({
       orderId: order.id,
       tenantId,
       method: text(input?.method),
@@ -180,6 +181,8 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
       actorName,
       source: surface,
     });
+    // Only a transfer uploaded through the payment card is answered; anything else stays silent.
+    if (paid) notifyPaymentProofApproved(paid).catch(() => {});
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
       throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "This order has no shipment to print yet");

@@ -655,20 +655,29 @@ function QuotedMessage({ quoted = null, skin, customerName = "" }) {
 
 // The reply buttons a WhatsApp prompt went out with, drawn the way the customer's app draws them:
 // full-width rows under the body, split by hairlines. Inert here — only the customer can press them.
+// Reply buttons, and the CTA buttons of the shipping-fee payment card (open a link / copy a value).
+const WHATSAPP_BUBBLE_BUTTON_TYPES = new Set(["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button"]);
+const WHATSAPP_BUTTON_ICONS = { whatsapp_url_button: ExternalLink, whatsapp_copy_button: Copy };
+
 function ReplyButtons({ buttons = [], skin }) {
   if (!buttons.length) return null;
   return (
     <div className="-mx-2.5 -mb-1.5 mt-1.5">
-      {buttons.map((button, index) => (
-        <div
-          key={`${button.id || ""}:${index}`}
-          dir="auto"
-          style={{ color: skin.link, borderTop: `1px solid ${skin.meta}` }}
-          className="px-2.5 py-2 text-center text-[13.5px] font-semibold leading-5"
-        >
-          {button.title}
-        </div>
-      ))}
+      {buttons.map((button, index) => {
+        const Icon = WHATSAPP_BUTTON_ICONS[button.type];
+        return (
+          <div
+            key={`${button.id || button.value || ""}:${index}`}
+            dir="auto"
+            title={button.value || undefined}
+            style={{ color: skin.link, borderTop: `1px solid ${skin.meta}` }}
+            className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-center text-[13.5px] font-semibold leading-5"
+          >
+            {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
+            {button.title}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1095,7 +1104,7 @@ function TranscriptMessage({
           : "";
   const AuthorIcon = isAi ? Bot : isInternalNote ? Info : UserCheck;
   const replyButtons = asArray(message.suggested_actions).filter(
-    (action) => action?.type === "whatsapp_reply_button" && clean(action.title)
+    (action) => WHATSAPP_BUBBLE_BUTTON_TYPES.has(action?.type) && clean(action.title)
   );
   const footerText = clean(asArray(message.suggested_actions).find((action) => action?.type === "whatsapp_footer")?.title);
   const correctReply = isAi && onOpenCorrection && message.message_type !== "comment_suggestion" ? (

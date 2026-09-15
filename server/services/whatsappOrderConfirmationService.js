@@ -27,6 +27,8 @@ import { shippingFeeAdvanceNoticeForOrder } from "./codPolicyReplyService.js";
 import { describeShippingFeeAdvance } from "../modules/shipping/shippingFeeAdvance.js";
 import { loadCodPolicySettings } from "./storefrontShippingService.js";
 import { releaseCouponForOrder } from "./couponsService.js";
+import { orderLinkSecret } from "../utils/orderLinkSecret.js";
+import { PAYMENT_PROOF_CODE_ACTION, prepareShippingFeePaymentCard, queueShippingFeePaymentCard } from "../modules/shipping/paymentProofLink.js";
 
 /*
  * The shop's master switch for one automatic message (see shared/whatsappAutomationDefaults.js).
@@ -732,18 +734,7 @@ const loadConfirmationOrder = async ({ orderId = "", phone = "" } = {}) => {
   return loadLatestOrderByPhone(phone);
 };
 
-const orderConfirmationSecret = () =>
-  text(
-    process.env.ORDER_CONFIRMATION_LINK_SECRET ||
-      process.env.WHATSAPP_ORDER_CONFIRMATION_SECRET ||
-      process.env.JWT_SECRET ||
-      process.env.APP_SECRET ||
-      process.env.SECRET_KEY ||
-      process.env.SESSION_SECRET,
-    ""
-  ) || "order-confirmation-local-secret";
-
-const hashOrderConfirmationCode = (code = "") => createHmac("sha256", orderConfirmationSecret()).update(text(code)).digest("hex");
+const hashOrderConfirmationCode = (code = "") => createHmac("sha256", orderLinkSecret()).update(text(code)).digest("hex");
 // Every character drawn uniformly from the alphabet; the old base64url slice dropped "-"/"_" and
 // padded the gap with "A", which made short codes more likely than they looked.
 export const generateOrderConfirmationCode = () =>
@@ -831,12 +822,17 @@ const buildOrderConfirmationLinksMessage = ({ order = null, customerName = "", p
 
 // Outside the COD governorates (restricted closing system) the request also asks for the
 // shipping fee — unless it is already paid. Never blocks the send.
+//
+// When the payment card can be prepared (pay buttons + the screenshot upload link) the request
+// only names the amount and points at the card that follows it; otherwise the wallet details stay
+// in the request's own body, as before.
 const shippingFeeAdvanceForConfirmation = async (order = {}) => {
   try {
     const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
     if (!advance.required || advance.status === "paid") return null;
-    const notice = await shippingFeeAdvanceNoticeForOrder(order);
-    return notice ? { notice, amount: advance.amount } : null;
+    const paymentCard = await prepareShippingFeePaymentCard({ order, amount: advance.amount });
+    const notice = await shippingFeeAdvanceNoticeForOrder(order, { paymentCardFollows: Boolean(paymentCard) });
+    return notice ? { notice, amount: advance.amount, paymentCard } : null;
   } catch (error) {
     console.warn("[whatsapp:order-confirmation] shipping advance skipped", { orderId: order?.id, message: error?.message });
     return null;
@@ -979,6 +975,8 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
     order_id: current.id,
     phoneSuffix: phone.slice(-4),
   });
+  // The shipping-fee card that follows the request on the direct (unqueued) path.
+  let directPaymentCard = null;
   try {
     const confirmCode = await issueOrderConfirmationCode({
       tenantId: messageTenantId,
@@ -986,6 +984,7 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
     });
     const confirmUrl = buildOrderConfirmationPublicUrl(confirmCode.code);
     const shippingAdvance = await shippingFeeAdvanceForConfirmation(current);
+    directPaymentCard = shippingAdvance?.paymentCard || null;
     message = buildOrderConfirmationLinksMessage({
       order: current,
       customerName: current.customer_name,
@@ -1053,6 +1052,10 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       directSend: null,
     });
     if (queued.queued || queued.duplicate) {
+      if (directPaymentCard) {
+        await queueShippingFeePaymentCard({ order: current, card: directPaymentCard, phone, tenantId: messageTenantId, idempotencySuffix: isManualSend ? `manual-${Date.now()}` : "" });
+        directPaymentCard = null;
+      }
       console.info("[whatsapp:order-confirmation-queued]", {
         order_id: current.id,
         order_number: orderRef,
@@ -1168,6 +1171,9 @@ export const sendOrderConfirmation = async (order = {}, options = {}) => {
       phoneSuffix: phone.slice(-4),
       message: persistError?.message || String(persistError),
     });
+  }
+  if (directPaymentCard) {
+    await queueShippingFeePaymentCard({ order: current, card: directPaymentCard, phone, tenantId: messageTenantId, idempotencySuffix: isManualSend ? `manual-${Date.now()}` : "" });
   }
   console.info("[whatsapp:order-confirmation-sent]", {
     orderId: current.id,
@@ -2023,10 +2029,12 @@ export const consumeOrderConfirmationLink = async ({ code = "", action = "", ipA
       SELECT *
       FROM order_confirmation_codes
       WHERE code_hash = $1
+        -- A payment-proof upload code may only upload; it must never confirm or cancel an order.
+        AND action <> $2
       LIMIT 1
       FOR UPDATE
       `,
-      params: [codeHash],
+      params: [codeHash, PAYMENT_PROOF_CODE_ACTION],
       orderId: null,
       tokenCode: safeCode,
       action: text(action),

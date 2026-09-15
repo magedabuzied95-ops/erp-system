@@ -626,6 +626,21 @@ router.post("/webhook", async (req, res) => {
         reason: normalized.reason || "",
       });
     }
+    // ── A transfer screenshot sent in the chat ─────────────────────────────────────────────────
+    // A customer whose order is waiting on its shipping-fee transfer and sends a photo is sending
+    // the screenshot. Nothing reads a picture in the chat, and the visual search would answer it
+    // with shoes — so it is answered with the upload link that attaches it to the order. Anyone
+    // else's photo goes on exactly as before.
+    const inboundIsImage = normalized.media_type === "image"
+      || (Array.isArray(normalized.visualAttachments) && normalized.visualAttachments.some((item) => String(item?.type || item?.media_type || "").toLowerCase() === "image"));
+    if (!normalized.fromMe && inboundIsImage && normalized.inbox?.duplicate !== true) {
+      const { answerTransferScreenshotInChat } = await import("../modules/shipping/paymentProofLink.js");
+      const screenshot = await answerTransferScreenshotInChat({ phone: normalized.phone || normalized.resolvedPhone || "" });
+      if (screenshot.handled) {
+        return res.status(200).json({ success: true, received: true, handled: true, reason: screenshot.reason });
+      }
+    }
+
     // ── Deterministic sales flow ───────────────────────────────────────────────────────────────
     // The same colour → size → summary → confirm → address path Messenger and Instagram run. It
     // gets first refusal on a colour-card tap and on the replies that follow one, and returns

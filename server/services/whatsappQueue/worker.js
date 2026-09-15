@@ -170,6 +170,27 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
     }
   }
 
+  if (kind === "cta_buttons") {
+    // The shipping-fee payment card. Its fallback spells out the wallet number, the InstaPay link
+    // and the upload link, so a card that will not render still tells the customer how to pay.
+    try {
+      return await gateway.sendCtaButtonsMessage({
+        phone,
+        title: text(send.title),
+        text: body,
+        footer: text(send.footer),
+        buttons: Array.isArray(send.buttons) ? send.buttons : [],
+        fallbackText: text(send.fallbackText) || body,
+      });
+    } catch (ctaError) {
+      logLifecycle("cta-buttons-unavailable", { id: row.id, automation_type: row.automation_type, error: ctaError?.message || String(ctaError) });
+      const textResult = await gateway.sendTextMessage({ phone, message: text(send.fallbackText) || body, instance });
+      return textResult && typeof textResult === "object"
+        ? { ...textResult, delivery_mode: "link_text" }
+        : { delivery_mode: "link_text" };
+    }
+  }
+
   if (kind === "carousel") {
     return gateway.sendCartCarouselMessage({
       phone,
