@@ -142,6 +142,7 @@ import {
   markAiSupportConversationEscalated,
   markAiSupportConversationRead,
   markAiSupportConversationUnread,
+  deleteAiSupportConversation,
   markAllAiSupportConversationsRead,
   updateAiSupportConversationAiEnabled,
   updateAiSupportConversationState,
@@ -4371,6 +4372,32 @@ const handleMarkAllConversationsRead = async (req, res) => {
     });
   }
 };
+
+router.delete("/conversations/:conversationId", protect, inboxReply(), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = decodeRouteId(envText(req.params.conversationId));
+    const result = await deleteAiSupportConversation({
+      tenantId,
+      sessionId: conversationId,
+      channel: req.body?.channel || req.query?.channel || "",
+    });
+    console.log("[ai-inbox][delete-conversation]", {
+      tenant_id: tenantId,
+      conversation_id: result.session_id,
+      user_id: req.user?.id || null,
+    });
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", {
+      tenant_id: tenantId,
+      session_id: result.session_id,
+      reason: "conversation_deleted",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to delete conversation");
+  }
+});
 
 router.post("/conversations/read-all", protect, inboxReply(), handleMarkAllConversationsRead);
 router.post("/inbox/read-all", protect, inboxReply(), handleMarkAllConversationsRead);

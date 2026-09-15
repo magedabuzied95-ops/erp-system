@@ -213,7 +213,7 @@ export const readThread = async (adapter, ns, conversationKey) => {
   return { messages: record.messages, cachedAt: record.cachedAt || 0 };
 };
 
-const removeThread = async (adapter, ns, conversationKey) => {
+export const removeThread = async (adapter, ns, conversationKey) => {
   await adapter.delete(threadKey(ns, conversationKey));
   const index = await readThreadIndex(adapter, ns);
   const next = index.filter((entry) => entry.key !== clean(conversationKey));

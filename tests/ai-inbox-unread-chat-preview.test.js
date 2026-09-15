@@ -93,7 +93,8 @@ test("the default list view keeps its exact WHERE clause", () => {
   assert.equal(clause("", "m.created_at"), "");
   assert.ok(clause("unread", "m.created_at").startsWith("COALESCE(("));
   assert.ok(clause("read", "m.created_at").startsWith("NOT COALESCE(("));
-  assert.match(agentSource, /\[\.\.\.clauses, readFilterClauseSql\([^)]+\)\]\.filter\(Boolean\)\.join\(" AND "\)/);
+  // The deleted-conversation clause rides in the same array; it is a column compare, not a subquery.
+  assert.match(agentSource, /\[\.\.\.clauses, readFilterClauseSql\([^)]+\), deletedConversationClauseSql\([^)]+\)\]\.filter\(Boolean\)\.join\(" AND "\)/);
 });
 
 test("a read-filtered page is never written to or served from the channel cache", () => {

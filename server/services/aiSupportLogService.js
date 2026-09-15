@@ -1712,6 +1712,58 @@ export const markAiSupportConversationUnread = async ({
   };
 };
 
+// Delete a conversation from the inbox. A soft delete on purpose: the WhatsApp and
+// Meta syncs rebuild sessions and re-import history from the provider, so removing
+// rows would only bring the thread straight back. deleted_at hides it from the list
+// and cuts its transcript until the customer writes again (see loadAiInbox).
+// Orders, customers and analytics that reference the messages are untouched.
+export const deleteAiSupportConversation = async ({
+  tenantId,
+  sessionId,
+  channel = "",
+} = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  const safeSessionId = toText(sessionId);
+  if (!safeTenantId || !safeSessionId) {
+    throw Object.assign(new Error("tenant_id and conversation id are required"), { status: 400 });
+  }
+  const conversationReference = parseConversationReference({ sessionId: safeSessionId, channel: normalizeConversationChannel(channel) });
+  const sessionCandidates = [...new Set([conversationReference.sessionId, ...conversationReference.lookupSessionIds, safeSessionId].filter(Boolean))];
+
+  const sessionResult = await db.query(
+    `
+    UPDATE ai_support_sessions
+    SET deleted_at = NOW(),
+        read_at = NOW(),
+        manually_unread = FALSE
+    WHERE tenant_id = $1::bigint
+      AND session_id = ANY($2::text[])
+    RETURNING session_id, deleted_at
+    `,
+    [safeTenantId, sessionCandidates]
+  );
+  if (!sessionResult.rows.length) {
+    throw Object.assign(new Error("Conversation was not found"), { status: 404 });
+  }
+  // Read on both tables, or a deleted thread would keep counting in the unread badge.
+  await db.query(
+    `
+    UPDATE ai_channel_conversations
+    SET read_at = NOW(),
+        manually_unread = FALSE
+    WHERE tenant_id = $1::bigint
+      AND external_conversation_id = ANY($2::text[])
+    `,
+    [safeTenantId, sessionCandidates]
+  );
+
+  return {
+    session_id: sessionResult.rows[0].session_id,
+    deleted_at: sessionResult.rows[0].deleted_at,
+    deleted: true,
+  };
+};
+
 // Mark every conversation in the tenant (optionally scoped to one channel) as read.
 export const markAllAiSupportConversationsRead = async ({
   tenantId,

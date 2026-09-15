@@ -601,6 +601,11 @@ export const ensureAiSalesAgentSchema = async (clientOrPool = db) => {
       // and may take it back; NULL means a human did, and nothing but a human clears
       // it. Lives beside is_favorite so the pair can never exist half-migrated.
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS auto_favorite_order_id BIGINT NULL`);
+      // Staff deleted the conversation from the inbox. Nothing is destroyed: the
+      // Evolution/Meta syncs would rebuild the rows anyway. The thread stays out of
+      // the list, and its transcript starts after this moment, until the customer
+      // writes again. Nullable, no default — metadata-only on a hot table.
+      await clientOrPool.query(`ALTER TABLE IF EXISTS ai_support_sessions ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ NULL`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS detected_intent TEXT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS intent_confidence NUMERIC(5,2)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS ai_conversations ADD COLUMN IF NOT EXISTS sentiment TEXT`);
@@ -2085,6 +2090,19 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
         return `AND created_at < $${params.length}`;
       })()
     : "";
+  // After a delete the thread restarts empty: history the syncs re-import is older
+  // than deleted_at and stays out of the transcript.
+  const deletedAtResult = await db.query(
+    `SELECT deleted_at FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 AND deleted_at IS NOT NULL LIMIT 1`,
+    [tenantId, safeConversationId]
+  );
+  const deletedAt = deletedAtResult.rows[0]?.deleted_at || null;
+  const deletedClause = deletedAt
+    ? (() => {
+      params.push(deletedAt);
+      return `AND created_at > $${params.length}::timestamptz`;
+    })()
+    : "";
   const inboxBaseStartedAt = Date.now();
   const result = await db.query(
     `
@@ -2099,6 +2117,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
       WHERE tenant_id = $1
         AND session_id = $2
         ${beforeClause}
+        ${deletedClause}
     ), paged_messages AS (
       SELECT *
       FROM ranked_messages
@@ -2130,8 +2149,9 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     FROM ai_support_messages
     WHERE tenant_id = $1
       AND session_id = $2
+      ${deletedAt ? "AND created_at > $3::timestamptz" : ""}
     `,
-    [tenantId, safeConversationId]
+    deletedAt ? [tenantId, safeConversationId, deletedAt] : [tenantId, safeConversationId]
   );
   // Retroactive source-comment preview: DMs stored before we stamped context at send time have empty
   // post/comment columns, but the private-reply body still carries the comment_id. If that comment was
@@ -2569,6 +2589,12 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     const keysIdx = `$${params.length}`;
     clauses.push(`(s.session_id = ANY(${keysIdx}::text[]) OR c.external_conversation_id = ANY(${keysIdx}::text[]) OR c.external_customer_id = ANY(${keysIdx}::text[]))`);
   }
+  // A deleted conversation leaves the list until the thread moves again. Only real
+  // message activity counts — s.updated_at is bumped by the delete itself and by
+  // every sync. Targeted lookups skip it: send/reply routes must still resolve the id.
+  const deletedConversationClauseSql = (latestMessageAtSql) => (sessionKeyList.length
+    ? ""
+    : `(s.deleted_at IS NULL OR COALESCE(${latestMessageAtSql}, c.last_message_at) > s.deleted_at)`);
 
   const summaryActivitySql = "COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at)";
   const cursorActivityAt = text(beforeActivityAt);
@@ -2733,7 +2759,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ORDER BY comment_msg.created_at DESC, comment_msg.id DESC
       LIMIT 1
     ) cm ON TRUE
-    WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at")].filter(Boolean).join(" AND ")}
+    WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at"), deletedConversationClauseSql("m.latest_message_created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
       CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
@@ -3183,7 +3209,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       WHERE tenant_id = $1
       GROUP BY session_id
     ) f ON f.session_id = s.session_id
-    WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.created_at")].filter(Boolean).join(" AND ")}
+    WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.created_at"), deletedConversationClauseSql("m.created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
       CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
       COALESCE(m.created_at, c.last_message_at, s.updated_at) DESC,

@@ -61,6 +61,7 @@ import {
   Sparkles,
   Tag,
   Timer,
+  Trash2,
   Truck,
   User,
   UserCheck,
@@ -1770,7 +1771,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, presence = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -1943,6 +1944,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
               >
                 <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
               </button>
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete(item);
+                  }}
+                  className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
+                  aria-label={t("aiSupport.inbox.ui.deleteConversation")}
+                  title={t("aiSupport.inbox.ui.deleteConversation")}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
               <span className="text-[11px] font-bold text-slate-500">{lastActivity}</span>
             </div>
           </div>
@@ -2243,7 +2258,7 @@ function InboxChannelSidebar({
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, presence = "", accountLabel = "", onSelect, onOpenCustomer360, onToggleFavorite, onToggleRead, onDelete }) {
   const { t } = useTranslation();
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
@@ -2389,6 +2404,20 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
               >
                 <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-current text-amber-300" : "text-slate-500"}`} />
               </button>
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete(item);
+                  }}
+                  className="inline-flex h-5 items-center justify-center rounded-md px-1 text-slate-500 transition hover:bg-white/10 hover:text-rose-300"
+                  aria-label={t("aiSupport.inbox.ui.deleteConversation")}
+                  title={t("aiSupport.inbox.ui.deleteConversation")}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
               <span className="text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
             </div>
           </div>
@@ -6195,6 +6224,37 @@ export default function AiInbox({ reviewerMode = false }) {
       setToast({ tone: "rose", text: err?.message || "فشل تحديد المحادثة كغير مقروءة." });
     }
   }, [api, headers, patchConversation, setToast, tenantId]);
+  // Delete from the inbox. The server keeps the rows (the syncs would rebuild them)
+  // and hides the thread until the customer writes again; the cached window is
+  // dropped too, or it would be merged back into that next thread.
+  const deleteConversation = useCallback(async (item) => {
+    const sessionId = clean(item?.session_id || item?.conversation_id || "");
+    const itemKey = clean(item?.conversation_key || sessionId);
+    if (!sessionId || !itemKey) return;
+    if (!window.confirm(t("aiSupport.inbox.ui.deleteConversationConfirm", { name: customerDisplayName(item) }))) return;
+    const channel = clean(item?.channel || item?.source || "");
+    const isTarget = (conversation) =>
+      clean(conversation?.conversation_key) === itemKey || clean(conversation?.session_id) === sessionId;
+    let removed = [];
+    setInbox((current) => {
+      const list = asArray(current.conversations);
+      removed = list.filter(isTarget);
+      return { ...current, conversations: list.filter((conversation) => !isTarget(conversation)) };
+    });
+    if (selectedSessionIdRef.current === itemKey || selectedSessionIdRef.current === sessionId) setSelectedSessionId("");
+    try {
+      await api.delete(aiInboxConversationEndpoint(sessionId, ""), {
+        body: { tenant_id: tenantId, channel },
+        headers,
+        perfComponent: "AiInbox.deleteConversation",
+      });
+      void inboxCache.forgetThread(conversationKey(item));
+      setToast({ tone: "emerald", text: t("aiSupport.inbox.ui.deleteConversationDone") });
+    } catch (err) {
+      if (removed.length) setInbox((current) => ({ ...current, conversations: [...asArray(current.conversations), ...removed] }));
+      setToast({ tone: "rose", text: err?.message || t("aiSupport.inbox.ui.deleteConversationFailed") });
+    }
+  }, [api, headers, setToast, t, tenantId]);
   const markAllConversationsRead = useCallback(async () => {
     const readAt = new Date().toISOString();
     const previousConversations = asArray(inbox?.conversations);
@@ -9506,6 +9566,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                            onSelect={handleSelectConversation}
 	                            onToggleFavorite={toggleConversationFavorite}
 	                            onToggleRead={toggleConversationRead}
+	                            onDelete={canReply ? deleteConversation : undefined}
 	                          />
 	                        );
 	                      })}
@@ -10376,6 +10437,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	                              onOpenCustomer360={openCustomerDrawer}
 	                              onToggleFavorite={toggleConversationFavorite}
 	                              onToggleRead={toggleConversationRead}
+	                              onDelete={canReply ? deleteConversation : undefined}
 	                            />
                         );
                       })}

@@ -32,6 +32,7 @@ import {
   Sparkles,
   Star,
   Tag,
+  Trash2,
   Mail as MailIcon,
   Sun,
   Moon,
@@ -2190,7 +2191,7 @@ const reportDeadAvatar = (conversation, url) => {
   api.post(aiInboxConversationEndpoint(target, "/refresh-avatar"), { channel }).catch(() => {});
 };
 
-function ConversationListItem({ conversation, active, accountLabel = "", onSelect, onToggleFavorite, onToggleRead }) {
+function ConversationListItem({ conversation, active, accountLabel = "", onSelect, onToggleFavorite, onToggleRead, onDelete }) {
   const { t, i18n } = useTranslation();
   const [, forceAvatarFallback] = useState(0);
   const isSocialComment = isSocialCommentThread(conversation);
@@ -2345,6 +2346,22 @@ function ConversationListItem({ conversation, active, accountLabel = "", onSelec
                   title={isFavorite ? t("aiSupport.inbox.pwa.removeFavorite") : t("aiSupport.inbox.pwa.addFavorite")}
                 >
                   <Star className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
+                </button>
+              ) : null}
+              {onDelete ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDelete(conversation);
+                  }}
+                  className={`inline-flex h-7 w-7 items-center justify-center rounded-full transition ${
+                    active ? "text-slate-300 hover:bg-white/10" : "text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  }`}
+                  aria-label={t("aiSupport.inbox.ui.deleteConversation")}
+                  title={t("aiSupport.inbox.ui.deleteConversation")}
+                >
+                  <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
             </div>
@@ -3814,6 +3831,42 @@ export default function AiInboxPwa({ portal = null } = {}) {
       toast.error(err?.message || t("aiSupport.inbox.pwa.markUnreadFailed"));
     }
   }, [headers, patchConversation, t, tenantId]);
+
+  // Delete from the inbox. The server keeps the rows (the syncs would rebuild them)
+  // and hides the thread until the customer writes again; the cached window is
+  // dropped too, or it would be merged back into that next thread.
+  const deleteConversation = useCallback(async (item) => {
+    const identifiers = conversationIdentifiers(item || {});
+    const sessionId = clean(identifiers.sessionId || item?.session_id || "");
+    if (!sessionId) return;
+    if (!window.confirm(t("aiSupport.inbox.ui.deleteConversationConfirm", { name: conversationName(item) }))) return;
+    const channel = clean(item?.channel || item?.source || "");
+    const cacheKey = conversationKey(item || {});
+    const isTarget = (conversation) => {
+      const other = conversationIdentifiers(conversation);
+      return (identifiers.conversationKey && other.conversationKey === identifiers.conversationKey) || other.sessionId === sessionId;
+    };
+    let removed = [];
+    setConversations((current) => {
+      removed = current.filter(isTarget);
+      return current.filter((conversation) => !isTarget(conversation));
+    });
+    if (selectedConversationRef.current && isTarget(selectedConversationRef.current)) {
+      updateUrlState({ nextConversationId: "", replace: true });
+    }
+    try {
+      await api.delete(aiInboxConversationEndpoint(sessionId, ""), {
+        body: { tenant_id: tenantId, channel },
+        headers,
+        perfComponent: "AiInboxPwa.deleteConversation",
+      });
+      if (cacheKey) void inboxCache.forgetThread(cacheKey);
+      toast.success(t("aiSupport.inbox.ui.deleteConversationDone"));
+    } catch (err) {
+      if (removed.length) setConversations((current) => sortConversationsByActivity([...current, ...removed]));
+      toast.error(err?.message || t("aiSupport.inbox.ui.deleteConversationFailed"));
+    }
+  }, [headers, t, tenantId, updateUrlState]);
 
   // The product sheet used to await the WHOLE catalog before it rendered a single
   // row, on every open. It now paints the persisted snapshot first (no network at
@@ -8264,6 +8317,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                         onSelect={openConversation}
                         onToggleFavorite={toggleConversationFavorite}
                         onToggleRead={toggleConversationRead}
+                        onDelete={canReply ? deleteConversation : undefined}
                       />
                     </div>
                   );

@@ -125,6 +125,21 @@ export const replaceThreadNow = (conversationKey, messages) =>
     return store.replaceThread(getAdapter(), ns, conversationKey, messages);
   }, false);
 
+// A conversation deleted from the inbox. Its cached window is history the server no
+// longer shows; left here it would be merged back in when the customer writes again.
+export const forgetThread = (conversationKey) =>
+  guard("forgetThread", async () => {
+    const ns = resolveNamespace();
+    if (!ns || !conversationKey) return false;
+    const pending = timers.get(`thread:${conversationKey}`);
+    if (pending) {
+      clearTimeout(pending);
+      timers.delete(`thread:${conversationKey}`);
+    }
+    await store.removeThread(getAdapter(), ns, conversationKey);
+    return true;
+  }, false);
+
 export const primeThread = (conversationKey) =>
   guard("readThread", async () => {
     const ns = resolveNamespace();
@@ -196,6 +211,7 @@ export default {
   orderMessages,
   reconcileWithServerPage,
   replaceThreadNow,
+  forgetThread,
   saveThread,
   saveThreadNow,
   saveLastThread,
