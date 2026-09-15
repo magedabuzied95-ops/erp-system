@@ -44,7 +44,7 @@ import {
   Footprints,
   Gem,
   Heart,
-  ImagePlus,
+  Camera,
   Loader2,
   Menu,
   MessageCircle,
@@ -2423,6 +2423,7 @@ const getStatusLabels = () => {
   return Array.isArray(labels) && labels.length ? labels : ["Order received", "Preparing", "Shipped", "On the way", "Delivered"];
 };
 const SEARCH_RECENT_KEY = "storefront.search.recent";
+const SEARCH_SIZE_KEY = "storefront.search.size";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
   return Array.isArray(values) && values.length ? values : ["ابحث عن Jordan 4...", "ابحث عن Sneakers...", "ابحث بالمقاس 42...", "ابحث باسم البراند...", "ابحث بـ SKU..."];
@@ -4904,6 +4905,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   const [logoStatus, setLogoStatus] = useState("loading");
   const [search, setSearch] = useState("");
   const [suggestions, setSuggestions] = useState([]);
+  const [suggestionsTotal, setSuggestionsTotal] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -5061,6 +5063,19 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   const [searchInspirationOffset, setSearchInspirationOffset] = useState(0);
   const [searchInspirationHasMore, setSearchInspirationHasMore] = useState(false);
   const [searchInspirationLoading, setSearchInspirationLoading] = useState(false);
+  const [searchInspirationResetting, setSearchInspirationResetting] = useState(false);
+  const [searchInspirationTotal, setSearchInspirationTotal] = useState(null);
+  const inspirationRequestRef = useRef(0);
+  // The shopper's size scopes the whole sheet: the grid, the live results and
+  // the results page. Remembered, because a shopper's size does not change
+  // between visits.
+  const [searchSize, setSearchSizeState] = useState(() => String(readJson(SEARCH_SIZE_KEY, "") || ""));
+  const [searchSizeOptions, setSearchSizeOptions] = useState([]);
+  const setSearchSize = useCallback((value) => {
+    const next = String(value || "").trim();
+    setSearchSizeState(next);
+    writeJson(SEARCH_SIZE_KEY, next);
+  }, []);
 
   // "View all" grows the grid in place rather than navigating away, the way the
   // reference does it — leaving search to open a listing page throws away the
@@ -5069,13 +5084,18 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
   // — page=2 comes back reporting page 1 with the same first product — while
   // offset genuinely moves the window. "skip" is ignored too. Verified against
   // the live API rather than assumed from the parameter names it accepts.
-  const loadInspirationBatch = useCallback((offset, audience) => {
+  const loadInspirationBatch = useCallback((offset, audience, size = "") => {
+    // Tapping 42 then 43 quickly must not append 42's page under 43's grid.
+    const requestId = inspirationRequestRef.current + 1;
+    inspirationRequestRef.current = requestId;
     setSearchInspirationLoading(true);
+    setSearchInspirationResetting(offset <= 0);
     return cachedStorefrontGet(
-      buildStorefrontProductsRequestUrl({ limit: INSPIRATION_PAGE_SIZE, offset, gender: audience || "", in_stock: 1 }),
+      buildStorefrontProductsRequestUrl({ limit: INSPIRATION_PAGE_SIZE, offset, gender: audience || "", size: size || "", in_stock: 1 }),
       { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS }
     )
       .then((data) => {
+        if (requestId !== inspirationRequestRef.current) return;
         const products = extractStorefrontProductsFromResponse(data);
         setSearchInspiration((current) => (offset <= 0 ? products : [...current, ...products]));
         const reported = data?.hasMore ?? data?.has_more;
@@ -5083,23 +5103,62 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
           reported === undefined ? products.length >= INSPIRATION_PAGE_SIZE : Boolean(reported)
         );
         setSearchInspirationOffset(offset + products.length);
+        const total = Number(data?.total ?? data?.total_count);
+        setSearchInspirationTotal(Number.isFinite(total) ? total : null);
       })
       .catch(() => {
+        if (requestId !== inspirationRequestRef.current) return;
         // A grid of pictures is decoration around the search field; if it cannot
         // load, the field still works and the section simply does not render.
+        if (offset <= 0) setSearchInspiration([]);
         setSearchInspirationHasMore(false);
+        setSearchInspirationTotal(null);
       })
-      .finally(() => setSearchInspirationLoading(false));
+      .finally(() => {
+        if (requestId !== inspirationRequestRef.current) return;
+        setSearchInspirationLoading(false);
+        setSearchInspirationResetting(false);
+      });
   }, []);
 
-  // Refetches from the top whenever the audience tab changes, so the grid shows
-  // the audience that is selected rather than whatever loaded first. Repeat
-  // opens are free: cachedStorefrontGet answers the same URL from memory.
+  // Refetches from the top whenever the audience tab or the size changes, so the
+  // grid shows what is selected rather than whatever loaded first. Repeat opens
+  // are free: cachedStorefrontGet answers the same URL from memory.
   useEffect(() => {
     if (!mobileSearchOpen && !searchOpen) return undefined;
-    loadInspirationBatch(0, menuTab);
+    loadInspirationBatch(0, menuTab, searchSize);
     return undefined;
-  }, [mobileSearchOpen, searchOpen, menuTab, loadInspirationBatch]);
+  }, [mobileSearchOpen, searchOpen, menuTab, searchSize, loadInspirationBatch]);
+
+  // The sizes the selected audience actually has in stock, from the facets
+  // endpoint, so the picker never offers a size with nothing behind it.
+  // Numeric only: non-numeric values ("مقاس واحد", "18-inch") are reported by
+  // the facets but do not round-trip through the size filter (see useOfferSizes).
+  useEffect(() => {
+    if (!mobileSearchOpen && !searchOpen) return undefined;
+    let cancelled = false;
+    cachedStorefrontGet(`/storefront/products/facets?gender=${encodeURIComponent(menuTab)}&in_stock=1`, { ttlMs: STOREFRONT_PRODUCTS_CACHE_TTL_MS })
+      .then((data) => {
+        if (cancelled) return;
+        const raw = Array.isArray(data?.facets?.sizes) ? data.facets.sizes : Array.isArray(data?.sizes) ? data.sizes : [];
+        const options = raw
+          .map((entry) => ({ value: String(entry?.value ?? "").trim(), count: Number(entry?.count || 0) }))
+          .filter((entry) => /^\d{1,3}(\.5)?$/.test(entry.value) && entry.count > 0)
+          .sort((a, b) => Number(a.value) - Number(b.value));
+        setSearchSizeOptions(options);
+        // A remembered 43 is meaningless on the kids tab; drop it rather than
+        // show an empty grid under a size the tab does not list.
+        if (options.length) {
+          setSearchSizeState((current) => (current && !options.some((option) => option.value === current) ? "" : current));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSearchSizeOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mobileSearchOpen, searchOpen, menuTab]);
   const menuIsSignedIn = Boolean(String(customerAuth?.token || "").trim());
   const menuAccountTitle = menuIsSignedIn ? t("storefront.header.accountTitle") : t("storefront.header.signInTitle");
   const menuAccountSubtitle = menuIsSignedIn
@@ -5254,12 +5313,21 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       if (!cancelled) setSearchLoading(true);
     });
     const timer = setTimeout(() => {
-      api.get(`/storefront/products/search?q=${encodeURIComponent(normalizedSearch)}&limit=8`, { signal: controller.signal })
+      // The search endpoint honours size + in_stock, so a chosen size narrows the
+      // live results to models the shopper can actually buy in it.
+      const sizeQuery = searchSize ? `&size=${encodeURIComponent(searchSize)}&in_stock=1` : "";
+      api.get(`/storefront/products/search?q=${encodeURIComponent(normalizedSearch)}&limit=8${sizeQuery}`, { signal: controller.signal })
         .then((data) => {
-          if (!cancelled) setSuggestions(data.products || []);
+          if (cancelled) return;
+          setSuggestions(data.products || []);
+          const total = Number(data?.total ?? data?.total_count);
+          setSuggestionsTotal(Number.isFinite(total) ? total : null);
         })
         .catch((error) => {
-          if (!cancelled && error?.cause?.name !== "AbortError") setSuggestions([]);
+          if (!cancelled && error?.cause?.name !== "AbortError") {
+            setSuggestions([]);
+            setSuggestionsTotal(null);
+          }
         })
         .finally(() => {
           if (!cancelled) setSearchLoading(false);
@@ -5270,7 +5338,7 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
       controller.abort();
       clearTimeout(timer);
     };
-  }, [deferredSearch, visualSearch.active]);
+  }, [deferredSearch, searchSize, visualSearch.active]);
 
   const handleSearchChange = useCallback((value) => {
     setSearch(value);
@@ -5307,8 +5375,12 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     if (!term) return;
     rememberSearch(term);
     closeSearch();
-    navigate(`/products?q=${encodeURIComponent(term)}`);
+    navigate(searchResultsUrl(term));
   };
+
+  // The results page reads ?size= too, so the size chosen in the sheet carries
+  // through instead of silently widening back to every size.
+  const searchResultsUrl = (term) => appendProductUrlParams(`/products?q=${encodeURIComponent(term)}`, [["size", searchSize]]);
 
   const pickSearchTerm = (term) => {
     const value = String(term || "").trim();
@@ -5316,15 +5388,26 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
     setSearch(value);
     rememberSearch(value);
     closeSearch();
-    navigate(`/products?q=${encodeURIComponent(value)}`);
+    navigate(searchResultsUrl(value));
   };
+
+  const clearRecentSearches = useCallback(() => {
+    setRecentSearches([]);
+    writeJson(SEARCH_RECENT_KEY, []);
+  }, []);
 
   const pickProduct = (product, options = {}) => {
     if (!product?.id) return;
     rememberSearch(product.name || search);
     closeSearch();
     if (!options.keepQuery) setSearch("");
-    navigate(productUrl(product));
+    // With a size chosen, the product page opens on that size in the card's
+    // colour. The card's variant id would pin whatever size it happened to be,
+    // and ?variant= outranks ?size=, so it is dropped.
+    const url = searchSize && Array.isArray(product.sizes) && product.sizes.map(String).includes(searchSize)
+      ? appendProductUrlParams(productUrl(product), [["variant", ""], ["size", searchSize]])
+      : productUrl(product);
+    navigate(url);
   };
 
   const handleVoiceSearch = () => {
@@ -5676,10 +5759,17 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
               inspiration={searchInspiration}
               inspirationHasMore={searchInspirationHasMore}
               inspirationLoading={searchInspirationLoading}
-              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset, menuTab)}
+              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset, menuTab, searchSize)}
               audienceTabs={menuTabs}
               audienceTab={menuTab}
               onPickAudience={setMenuTab}
+              sizeOptions={searchSizeOptions}
+              selectedSize={searchSize}
+              onPickSize={setSearchSize}
+              inspirationTotal={searchInspirationTotal}
+              inspirationResetting={searchInspirationResetting}
+              suggestionsTotal={suggestionsTotal}
+              onClearRecentSearches={clearRecentSearches}
               value={search}
               onChange={handleSearchChange}
               onSubmit={submit}
@@ -5722,10 +5812,17 @@ function Header({ cartCount, wishlistCount = 0, customerAuth = {}, onCart, onAdd
         inspiration={searchInspiration}
               inspirationHasMore={searchInspirationHasMore}
               inspirationLoading={searchInspirationLoading}
-              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset, menuTab)}
+              onLoadMoreInspiration={() => loadInspirationBatch(searchInspirationOffset, menuTab, searchSize)}
         audienceTabs={menuTabs}
         audienceTab={menuTab}
         onPickAudience={setMenuTab}
+              sizeOptions={searchSizeOptions}
+              selectedSize={searchSize}
+              onPickSize={setSearchSize}
+              inspirationTotal={searchInspirationTotal}
+              inspirationResetting={searchInspirationResetting}
+              suggestionsTotal={suggestionsTotal}
+              onClearRecentSearches={clearRecentSearches}
         mobileOpen={mobileSearchOpen}
         setMobileOpen={setMobileSearchOpen}
         value={search}
@@ -5913,6 +6010,13 @@ function PremiumSearch({
   audienceTabs = [],
   audienceTab = "",
   onPickAudience = () => {},
+  sizeOptions = [],
+  selectedSize = "",
+  onPickSize = () => {},
+  inspirationTotal = null,
+  inspirationResetting = false,
+  suggestionsTotal = null,
+  onClearRecentSearches = () => {},
 }) {
   const { t } = useTranslation();
   const inputRef = useRef(null);
@@ -5959,15 +6063,30 @@ function PremiumSearch({
     }
   };
 
+  const clearQuery = () => {
+    onChange("");
+    setActiveIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  // One flex row in reading order — search glyph, size scope, the text, clear,
+  // then the voice and photo tools — so it mirrors itself in Arabic instead of
+  // pinning icons to physical left/right the way the absolute layout did.
   const searchInput = (
-    <form onSubmit={onSubmit} className="relative">
-      {/* A pill field (the sfx-input--pill look): field ground, site hairline,
-          gold focus ring. Colours come from the tokens, not utilities. */}
-      <div
-        className="sf-search-input-shell group relative overflow-hidden border transition duration-300"
-        style={{ borderRadius: "var(--m1h-r-pill)", borderColor: "var(--m1h-line)", background: "var(--sfx-field)" }}
-      >
-        <Search className="pointer-events-none absolute right-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2" style={{ color: "var(--m1h-accent)" }} />
+    <form onSubmit={onSubmit} className="sf-search-form" role="search">
+      <div className="sf-search-field">
+        <Search className="sf-search-field-icon" aria-hidden="true" strokeWidth={1.75} />
+        {selectedSize ? (
+          <button
+            type="button"
+            className="sf-search-scope"
+            onClick={() => onPickSize("")}
+            aria-label={t("storefront.search.sizeRemove", { size: selectedSize })}
+          >
+            <span>{t("storefront.search.sizeChip", { size: selectedSize })}</span>
+            <X aria-hidden="true" strokeWidth={2} />
+          </button>
+        ) : null}
         <input
           ref={inputRef}
           value={value}
@@ -5978,21 +6097,29 @@ function PremiumSearch({
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="sf-search-input relative z-10 h-12 w-full bg-transparent pr-12 pl-24 text-base font-medium outline-none"
-          style={{ color: "var(--m1h-text)" }}
+          className="sf-search-input"
           aria-label={t("storefront.search.aria")}
           role="combobox"
           aria-expanded={Boolean(open || mobileOpen)}
+          enterKeyHint="search"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
         />
-        <div className="absolute left-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5">
-          <button type="button" onClick={onVoice} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full transition" style={{ background: "var(--sfx-panel)", color: "var(--m1h-text-2)" }} aria-label={t("storefront.search.voice")}>
-            <Mic className="h-4 w-4" />
+        {value ? (
+          <button type="button" onClick={clearQuery} className="sf-search-clear" aria-label={t("storefront.search.clear")}>
+            <X aria-hidden="true" strokeWidth={2.25} />
           </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full transition" style={{ background: "var(--sfx-panel)", color: "var(--m1h-text-2)" }} aria-label={t("storefront.search.image")}>
-            <ImagePlus className="h-4 w-4" />
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onImage} />
-        </div>
+        ) : null}
+        <span className="sf-search-field-divider" aria-hidden="true" />
+        <button type="button" onClick={onVoice} className="sf-search-tool-button" aria-label={t("storefront.search.voice")} title={t("storefront.search.voice")}>
+          <Mic aria-hidden="true" strokeWidth={1.75} />
+        </button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-search-tool-button" aria-label={t("storefront.search.image")} title={t("storefront.search.image")}>
+          <Camera aria-hidden="true" strokeWidth={1.75} />
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onImage} />
       </div>
     </form>
   );
@@ -6017,6 +6144,13 @@ function PremiumSearch({
         audienceTabs={audienceTabs}
         audienceTab={audienceTab}
         onPickAudience={onPickAudience}
+        sizeOptions={sizeOptions}
+        selectedSize={selectedSize}
+        onPickSize={onPickSize}
+        inspirationTotal={inspirationTotal}
+        inspirationResetting={inspirationResetting}
+        suggestionsTotal={suggestionsTotal}
+        onClearRecentSearches={onClearRecentSearches}
         onShareImageOnWhatsApp={onShareImageOnWhatsApp}
         onRequestVisualSearchSupply={onRequestVisualSearchSupply}
         onClearImageSearch={onClearImageSearch}
@@ -6029,10 +6163,12 @@ function PremiumSearch({
     return (
       <div className="sf-mobile-search-sheet fixed inset-0 z-[100] p-4 pt-[calc(1rem+env(safe-area-inset-top))] md:hidden" style={{ background: "var(--m1h-bg)", color: "var(--m1h-text)" }}>
         <div className="mx-auto flex h-full max-w-xl flex-col">
-          <div className="sticky top-0 z-10 flex items-center gap-2 pb-4">
+          <div className="sf-search-sheet-bar sticky top-0 z-10 flex items-center gap-3">
             <div className="min-w-0 flex-1">{searchInput}</div>
-            <button type="button" onClick={onClose} className="sfx-icon-btn grid h-11 w-11 shrink-0 place-items-center rounded-full border" style={{ borderColor: "var(--m1h-line)", background: "var(--m1h-surface)", color: "var(--m1h-text)" }} aria-label={sfText("storefront.search.close")}>
-              <X className="h-5 w-5" />
+            {/* Named by its visible word; an aria-label here would make voice
+                control users say a name they cannot see. */}
+            <button type="button" onClick={onClose} className="sf-search-cancel">
+              {t("storefront.search.cancel")}
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
@@ -6070,12 +6206,33 @@ function SearchQuickSections({
   audienceTabs = [],
   audienceTab = "",
   onPickAudience = () => {},
+  recentSearches = [],
+  sizeOptions = [],
+  selectedSize = "",
+  onPickSize = () => {},
+  inspirationTotal = null,
+  inspirationResetting = false,
+  suggestionsTotal = null,
+  onClearRecentSearches = () => {},
   onShareImageOnWhatsApp = () => {},
   onRequestVisualSearchSupply = () => {},
   onClearImageSearch = () => {},
 }) {
   const { t } = useTranslation();
   const query = value.trim();
+  const sizeRowRef = useRef(null);
+  // A remembered 44 sits off-screen in a row that starts at 32; bring the chosen
+  // chip into view. scrollBy on the row itself, never scrollIntoView, which also
+  // scrolls the sheet and the page. The rect delta works in RTL and LTR alike.
+  useEffect(() => {
+    const row = sizeRowRef.current;
+    const chip = row?.querySelector(".sf-search-size.is-active");
+    if (!row || !chip || typeof row.scrollBy !== "function") return;
+    const rowRect = row.getBoundingClientRect();
+    const chipRect = chip.getBoundingClientRect();
+    if (chipRect.left >= rowRect.left && chipRect.right <= rowRect.right) return;
+    row.scrollBy({ left: chipRect.left + chipRect.width / 2 - (rowRect.left + rowRect.width / 2), behavior: "smooth" });
+  }, [selectedSize, sizeOptions]);
   const exactMatches = Array.isArray(imageSearch?.exactMatches) ? imageSearch.exactMatches : [];
   const similarMatches = Array.isArray(imageSearch?.similarMatches) ? imageSearch.similarMatches : [];
   const hasImageSearch = Boolean(imageSearch?.active || imageSearch?.loading || imageSearch?.error || exactMatches.length || similarMatches.length);
@@ -6090,7 +6247,7 @@ function SearchQuickSections({
           ? sfText("storefront.visualSearch.unavailable")
           : sfText("storefront.visualSearch.modelUnavailable");
   return (
-    <div className="grid gap-3">
+    <div className="sf-search-sections grid gap-3">
       {hasImageSearch ? (
         <div className="sf-image-search-card sfx-surface p-3">
           <div className="flex items-start gap-3">
@@ -6153,25 +6310,47 @@ function SearchQuickSections({
       ) : null}
 
       {query ? (
-        <div>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-semibold" style={{ color: "var(--m1h-text-3)" }}>{t("storefront.search.smartResults")}</span>
-            {loading ? <span className="sfx-badge sfx-badge--accent">{t("storefront.search.searching")}</span> : null}
+        <div className="sf-search-results">
+          <div className="sf-search-heading-row">
+            <span className="sf-search-heading">
+              {t("storefront.search.resultsTitle")}
+              {!loading && suggestionsTotal ? <span className="sf-search-count">{t("storefront.search.modelCount", { total: suggestionsTotal })}</span> : null}
+            </span>
+            {loading ? <Loader2 className="sf-search-spinner" aria-label={t("storefront.search.searching")} /> : null}
           </div>
-          <div className="grid gap-1.5">
-              {suggestions.length ? suggestions.map((product, index) => (
+          {suggestions.length ? (
+            <div className="sf-search-result-list">
+              {suggestions.map((product, index) => (
                 <SearchResultRow
-                  key={product.id}
+                  key={product.card_id || `${product.id}-${index}`}
                   product={product}
+                  query={query}
                   active={activeIndex === index}
                   onPickProduct={onPickProduct}
                 />
-              )) : (
-                <button type="button" onClick={() => onPickTerm(query)} className="p-4 text-start text-sm font-semibold" style={{ border: "1px dashed var(--m1h-line)", borderRadius: "var(--m1h-r-md)", color: "var(--m1h-text-2)" }}>
-                {t("storefront.search.searchFor")} "{query}"
+              ))}
+            </div>
+          ) : loading ? (
+            <div className="sf-search-result-list" aria-hidden="true">
+              {[0, 1, 2].map((item) => <div key={item} className="sf-search-result-skeleton" />)}
+            </div>
+          ) : query.length < 2 ? null : (
+            <div className="sf-search-empty-note">
+              <p>{t("storefront.search.noResults", { query })}</p>
+              {selectedSize ? (
+                <button type="button" onClick={() => onPickSize("")} className="sf-search-outline-btn">
+                  {t("storefront.search.searchAllSizes")}
                 </button>
-              )}
-          </div>
+              ) : null}
+            </div>
+          )}
+          <button type="button" onClick={() => onPickTerm(query)} className="sf-search-submit-row">
+            <Search aria-hidden="true" strokeWidth={1.75} />
+            <span className="min-w-0 flex-1 truncate">
+              {suggestions.length ? t("storefront.search.viewAllResults") : `${t("storefront.search.searchFor")} "${query}"`}
+            </span>
+            <ChevronRight className="sf-search-submit-chevron" aria-hidden="true" strokeWidth={1.75} />
+          </button>
         </div>
       ) : null}
 
@@ -6198,6 +6377,63 @@ function SearchQuickSections({
             </div>
           ) : null}
 
+          {/* The size row scopes the grid below: pick 42 and every photo is a
+              model that is in stock in 42. */}
+          {sizeOptions.length ? (
+            <div className="sf-search-section">
+              <div className="sf-search-heading-row">
+                <span className="sf-search-heading">{t("storefront.search.sizeTitle")}</span>
+                {selectedSize ? (
+                  <button type="button" onClick={() => onPickSize("")} className="sf-search-viewall">
+                    {t("storefront.search.sizeReset")}
+                  </button>
+                ) : null}
+              </div>
+              <div ref={sizeRowRef} className="sf-search-size-row" role="radiogroup" aria-label={t("storefront.search.sizeTitle")}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!selectedSize}
+                  onClick={() => onPickSize("")}
+                  className={`sf-search-size sf-search-size--all${!selectedSize ? " is-active" : ""}`}
+                >
+                  {t("storefront.search.sizeAll")}
+                </button>
+                {sizeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selectedSize === option.value}
+                    onClick={() => onPickSize(selectedSize === option.value ? "" : option.value)}
+                    className={`sf-search-size${selectedSize === option.value ? " is-active" : ""}`}
+                  >
+                    {option.value}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {recentSearches.length ? (
+            <div className="sf-search-section">
+              <div className="sf-search-heading-row">
+                <span className="sf-search-heading">{t("storefront.search.recentTitle")}</span>
+                <button type="button" onClick={onClearRecentSearches} className="sf-search-viewall">
+                  {t("storefront.search.clearRecent")}
+                </button>
+              </div>
+              <div className="sf-search-pill-row sf-search-pill-row--flush">
+                {recentSearches.map((term) => (
+                  <button key={term} type="button" onClick={() => onPickTerm(term)} className="sf-search-pill sf-search-pill--recent">
+                    <Clock3 aria-hidden="true" strokeWidth={1.75} />
+                    {term}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {trendingSearches.length ? (
             <div className="sf-search-section">
               <div className="sf-search-heading">{t("storefront.search.trendingTitle")}</div>
@@ -6211,12 +6447,35 @@ function SearchQuickSections({
             </div>
           ) : null}
 
+          {!inspiration.length && inspirationLoading ? (
+            <div className="sf-search-section" aria-hidden="true">
+              <div className="sf-search-grid sf-search-grid--skeleton">
+                {Array.from({ length: 9 }, (_, index) => <span key={index} className="sf-search-tile sf-search-tile--skeleton" />)}
+              </div>
+            </div>
+          ) : null}
+
+          {selectedSize && !inspiration.length && !inspirationLoading ? (
+            <div className="sf-search-section">
+              <div className="sf-search-empty-note">
+                <p>{t("storefront.search.sizeEmpty", { size: selectedSize })}</p>
+                <button type="button" onClick={() => onPickSize("")} className="sf-search-outline-btn">
+                  {t("storefront.search.searchAllSizes")}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {inspiration.length ? (
             <div className="sf-search-section">
               <div className="sf-search-heading-row">
-                <span className="sf-search-heading">{t("storefront.search.inspirationTitle")}</span>
+                <span className="sf-search-heading">
+                  {selectedSize ? t("storefront.search.sizeGridTitle", { size: selectedSize }) : t("storefront.search.inspirationTitle")}
+                  {selectedSize && inspirationTotal ? <span className="sf-search-count">{t("storefront.search.modelCount", { total: inspirationTotal })}</span> : null}
+                </span>
+                {inspirationResetting ? <Loader2 className="sf-search-spinner" aria-hidden="true" /> : null}
               </div>
-              <div className="sf-search-grid">
+              <div className={`sf-search-grid${inspirationResetting ? " is-refreshing" : ""}`} aria-busy={inspirationResetting}>
                 {inspiration.map((product, index) => (
                   <button
                     // Colour cards share their parent product id, so the id alone
@@ -6255,7 +6514,24 @@ function SearchQuickSections({
     </div>
   );
 }
-function SearchResultRow({ product, active, onPickProduct }) {
+// The typed text is bolded inside the name, the way every serious store search
+// shows why a row matched. Case-insensitive, first occurrence only.
+const highlightSearchMatch = (text = "", query = "") => {
+  const source = String(text || "");
+  const needle = String(query || "").trim();
+  if (!needle) return source;
+  const index = source.toLocaleLowerCase().indexOf(needle.toLocaleLowerCase());
+  if (index < 0) return source;
+  return (
+    <>
+      {source.slice(0, index)}
+      <mark className="sf-search-mark">{source.slice(index, index + needle.length)}</mark>
+      {source.slice(index + needle.length)}
+    </>
+  );
+};
+
+function SearchResultRow({ product, active, onPickProduct, query = "" }) {
   return (
     <button
       type="button"
@@ -6268,9 +6544,10 @@ function SearchResultRow({ product, active, onPickProduct }) {
         color: "var(--m1h-text)",
       }}
     >
-      <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 object-cover" style={{ borderRadius: "var(--m1h-r-sm)", background: "var(--m1h-plate)" }} loading="lazy" />
+      <img src={imageFor(displayImageForProduct(product) || product.image_url)} alt="" className="h-14 w-14 object-contain" style={{ borderRadius: "var(--m1h-r-sm)", background: "#ffffff" }} loading="lazy" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{product.name}</div>
+        {/* dir="auto": an English name in the Arabic sheet truncates at its own end, not its start. */}
+        <div dir="auto" className="truncate text-sm font-semibold" style={{ textAlign: "match-parent" }}>{highlightSearchMatch(product.name, query)}</div>
         <div className="truncate text-xs" style={{ color: "var(--m1h-text-3)" }}>
           {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "Browse items"}
         </div>

@@ -399,7 +399,22 @@
         "Air Jordan"
       ]
     },
-    "inspirationTitle": "Get inspired"
+    "inspirationTitle": "Get inspired",
+    "cancel": "Cancel",
+    "clear": "Clear search",
+    "clearRecent": "Clear",
+    "resultsTitle": "Results",
+    "modelCount": "{{total}} styles",
+    "viewAllResults": "View all results",
+    "noResults": "No results for \"{{query}}\"",
+    "searchAllSizes": "Show all sizes",
+    "sizeTitle": "Your size",
+    "sizeAll": "All",
+    "sizeReset": "Reset",
+    "sizeChip": "Size {{size}}",
+    "sizeRemove": "Remove size {{size}}",
+    "sizeGridTitle": "Available in size {{size}}",
+    "sizeEmpty": "No styles in size {{size}} right now"
   },
   "aiSupport": {
     "aria": "Smart store assistant",

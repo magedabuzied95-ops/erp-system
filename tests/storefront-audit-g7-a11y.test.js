@@ -114,7 +114,8 @@ test("#71 the thumbnail label exists in both storefront locales", () => {
 
 test("#72 the phone search sheet close button has a name", () => {
   const source = read("src/storefront/Storefront.jsx");
-  assert.match(source, /<button type="button" onClick=\{onClose\} className="sfx-icon-btn grid h-11 w-11[^>]*aria-label=\{sfText\("storefront\.search\.close"\)\}>/);
+  // A visible "Cancel" word names it now, so no aria-label that would differ from it.
+  assert.match(source, /<button type="button" onClick=\{onClose\} className="sf-search-cancel">\s*\{t\("storefront\.search\.cancel"\)\}\s*<\/button>/);
 });
 
 test("#73 the checkout location picker hands focus back to its trigger", () => {

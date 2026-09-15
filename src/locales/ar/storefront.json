@@ -131,7 +131,22 @@
         "Air Jordan"
       ]
     },
-    "inspirationTitle": "استلهم إطلالتك"
+    "inspirationTitle": "استلهم إطلالتك",
+    "cancel": "إلغاء",
+    "clear": "مسح البحث",
+    "clearRecent": "مسح",
+    "resultsTitle": "النتائج",
+    "modelCount": "{{total}} موديل",
+    "viewAllResults": "عرض كل النتائج",
+    "noResults": "لا توجد نتائج لـ \"{{query}}\"",
+    "searchAllSizes": "عرض كل المقاسات",
+    "sizeTitle": "مقاسك",
+    "sizeAll": "الكل",
+    "sizeReset": "إعادة ضبط",
+    "sizeChip": "مقاس {{size}}",
+    "sizeRemove": "إلغاء مقاس {{size}}",
+    "sizeGridTitle": "متاح بمقاس {{size}}",
+    "sizeEmpty": "لا توجد موديلات متاحة بمقاس {{size}} حاليًا"
   },
   "aiSupport": {
     "aria": "مساعد المتجر الذكي",

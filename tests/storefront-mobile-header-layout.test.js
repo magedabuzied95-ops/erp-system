@@ -152,7 +152,7 @@ test("the search empty state is trending pills and a grid, not stacked menus", (
   // Full class attributes, not bare names: each of these is a prefix of any
   // renamed variant, so a substring match still passes on markup that is gone.
   assert.match(emptyState, /className="sf-search-pill-row"/);
-  assert.match(emptyState, /className="sf-search-grid"/);
+  assert.match(emptyState, /className=\{`sf-search-grid\$\{inspirationResetting/);
   assert.match(emptyState, /sf-search-tab\$\{/);
   // The three stacked cards asked the shopper to read a menu before typing.
   assert.doesNotMatch(emptyState, /<SearchQuickCard/);
@@ -182,7 +182,35 @@ test("the audience tab filters the grid", () => {
   // `gender` is the parameter this endpoint filters audiences on — verified
   // against the live API: men 624, women 725, kids 496 of 1522.
   assert.match(effect, /gender:/);
-  assert.match(effect, /loadInspirationBatch\(0, menuTab\)/, "changing tab restarts from the top");
+  assert.match(effect, /loadInspirationBatch\(0, menuTab, searchSize\)/, "changing tab or size restarts from the top");
+});
+
+test("the chosen size scopes the grid, the live results and the results page", () => {
+  const effect = storefrontSource.slice(
+    storefrontSource.indexOf("The inspiration grid loads only once search is opened"),
+    storefrontSource.indexOf("const menuIsSignedIn")
+  );
+  const params = effect.slice(
+    effect.indexOf("buildStorefrontProductsRequestUrl({"),
+    effect.indexOf("}", effect.indexOf("buildStorefrontProductsRequestUrl({"))
+  );
+  assert.match(params, /\bsize: size/, "the grid request carries the size");
+  assert.match(effect, /\[mobileSearchOpen, searchOpen, menuTab, searchSize, loadInspirationBatch\]/);
+  // A stale page for the previous size must not land under the new one.
+  assert.match(effect, /requestId !== inspirationRequestRef\.current/);
+  // The picker lists only sizes the audience has in stock, from the facets.
+  assert.match(effect, /\/storefront\/products\/facets\?gender=/);
+
+  assert.match(storefrontSource, /products\/search\?q=\$\{encodeURIComponent\(normalizedSearch\)\}&limit=8\$\{sizeQuery\}/);
+  assert.match(storefrontSource, /const searchResultsUrl = \(term\) => appendProductUrlParams\(.*\[\["size", searchSize\]\]\);/);
+  // ?variant= outranks ?size= on the product page, so the card's variant is dropped.
+  assert.match(storefrontSource, /\[\["variant", ""\], \["size", searchSize\]\]/);
+
+  const emptyState = storefrontSource.slice(
+    storefrontSource.indexOf("The empty state follows the reference"),
+    storefrontSource.indexOf("function SearchResultRow")
+  );
+  assert.match(emptyState, /className="sf-search-size-row" role="radiogroup"/);
 });
 
 test("the bottom nav is gone and its reserved space with it", () => {

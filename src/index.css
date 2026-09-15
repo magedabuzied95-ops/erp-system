@@ -7920,36 +7920,341 @@ body.storefront-shell:not(.storefront-dark) .sf-buy-now:disabled {
     color: inherit !important;
   }
 
-  /* A bare line, not a pill: no border, no fill, no ring, 16px like theirs. */
-  .storefront-shell .sf-mobile-search-sheet .sf-search-input-shell {
-    background: transparent !important;
-    background-image: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    overflow: visible !important;
+}
+
+/* ============================================================================
+   SEARCH FIELD — one filled capsule for the sheet and the desktop dropdown
+   ----------------------------------------------------------------------------
+   Reading order, not physical sides: glyph, size scope, text, clear, divider,
+   voice, photo. 16px text so iOS does not zoom the page on focus. The ring is
+   the accent on focus-within, so tapping the voice button keeps it lit.
+   ========================================================================== */
+@layer components {
+  .storefront-shell .sf-search-sheet-bar {
+    padding: 0.25rem 1rem 0.875rem;
+    background: var(--m1h-surface);
   }
 
-  .storefront-shell .sf-mobile-search-sheet .sf-search-input-shell > .pointer-events-none.absolute.inset-0 {
-    display: none !important;
+  .storefront-shell .sf-search-field {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 48px;
+    padding-inline: 0.875rem 0.375rem;
+    border: 1px solid var(--m1h-line-soft, var(--m1h-line));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--m1h-text) 5%, var(--m1h-surface));
+    color: var(--m1h-text);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
   }
 
-  .storefront-shell .sf-mobile-search-sheet .sf-search-input {
-    height: 40px !important;
-    font-size: 16px !important;
-    font-weight: 400 !important;
-    color: inherit !important;
+  .storefront-shell .sf-search-field:focus-within {
+    border-color: var(--m1h-accent);
+    background: var(--m1h-surface);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--m1h-accent) 18%, transparent);
   }
 
-  /* The voice and image controls stay — they are real features here, not
-     decoration — but as plain glyphs rather than filled chips. */
-  .storefront-shell .sf-mobile-search-sheet .sf-search-tool-button {
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    color: inherit !important;
+  .storefront-shell .sf-search-field-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    color: var(--m1h-text-2);
+  }
+
+  .storefront-shell .sf-search-field:focus-within .sf-search-field-icon {
+    color: var(--m1h-accent);
+  }
+
+  .storefront-shell .sf-search-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0 0.25rem;
+    border: 0;
+    background: transparent;
+    color: var(--m1h-text);
+    font-size: 16px;
+    font-weight: 400;
+    outline: none;
+    box-shadow: none;
+  }
+
+  .storefront-shell .sf-search-input::placeholder {
+    color: var(--m1h-text-3);
+    opacity: 1;
+  }
+
+  .storefront-shell .sf-search-scope {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: 28px;
+    padding-inline: 0.625rem 0.5rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--m1h-text);
+    color: var(--m1h-surface);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .storefront-shell .sf-search-scope svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .storefront-shell .sf-search-clear {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--m1h-text-3);
+    color: var(--m1h-surface);
+  }
+
+  .storefront-shell .sf-search-clear svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .storefront-shell .sf-search-field-divider {
+    flex: 0 0 auto;
+    width: 1px;
+    height: 22px;
+    margin-inline: 0.25rem 0.125rem;
+    background: var(--m1h-line);
+  }
+
+  .storefront-shell .sf-search-tool-button {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--m1h-text-2);
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+
+  .storefront-shell .sf-search-tool-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .storefront-shell .sf-search-tool-button:active {
+    background: color-mix(in srgb, var(--m1h-text) 10%, transparent);
+    color: var(--m1h-text);
+  }
+
+  .storefront-shell .sf-search-cancel {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.125rem;
+    border: 0;
+    background: transparent;
+    color: var(--m1h-text);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  /* Size picker: square-ish chips that read as sizes, not as search terms. */
+  .storefront-shell .sf-search-size-row {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 0.25rem;
+    min-width: 0;
+    /* Full-bleed like the grid: chips scroll out from under the gutter. */
+    max-width: none;
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    scroll-padding-inline: 1rem;
+  }
+
+  .storefront-shell .sf-search-size-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .storefront-shell .sf-search-size {
+    flex: 0 0 auto;
+    min-width: 48px;
+    height: 44px;
+    padding: 0 0.75rem;
+    border: 1px solid var(--m1h-line);
+    border-radius: var(--m1h-r-md, 10px);
+    background: var(--m1h-surface);
+    color: var(--m1h-text);
+    font-size: 15px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  }
+
+  .storefront-shell .sf-search-size.is-active {
+    border-color: var(--m1h-text);
+    background: var(--m1h-text);
+    color: var(--m1h-surface);
+    font-weight: 600;
+  }
+
+  .storefront-shell .sf-search-heading-row .sf-search-heading {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .storefront-shell .sf-search-count {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--m1h-text-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .storefront-shell .sf-search-spinner {
+    width: 16px;
+    height: 16px;
+    color: var(--m1h-text-3);
+    animation: spin 0.9s linear infinite;
+  }
+
+  .storefront-shell .sf-search-pill-row--flush {
+    margin-top: 0;
+  }
+
+  .storefront-shell .sf-search-pill--recent {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .storefront-shell .sf-search-pill--recent svg {
+    width: 14px;
+    height: 14px;
     opacity: 0.55;
   }
+
+  .storefront-shell .sf-search-grid.is-refreshing {
+    opacity: 0.45;
+    transition: opacity 160ms ease;
+  }
+
+  .storefront-shell .sf-search-tile--skeleton {
+    display: block;
+    background: color-mix(in srgb, var(--m1h-text) 6%, var(--m1h-surface));
+    animation: sfSearchPulse 1.2s ease-in-out infinite;
+  }
+
+  .storefront-shell .sf-search-empty-note {
+    display: grid;
+    justify-items: center;
+    gap: 0.75rem;
+    padding: 1.5rem 1rem;
+    border: 1px dashed var(--m1h-line);
+    border-radius: var(--m1h-r-md, 10px);
+    text-align: center;
+  }
+
+  .storefront-shell .sf-search-empty-note p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--m1h-text-2);
+  }
+
+  .storefront-shell .sf-search-outline-btn {
+    height: 38px;
+    padding: 0 1rem;
+    border: 1px solid var(--m1h-text);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--m1h-text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* Typed results */
+  /* minmax(0, 1fr), not the implicit auto track: a long product name in a
+     truncating row otherwise sizes the track to the whole name and pushes the
+     results off a 375px screen. */
+  .storefront-shell .sf-search-sections {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .storefront-shell .sf-search-results {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+    min-width: 0;
+    padding-inline: 1rem;
+  }
+
+  .storefront-shell .sf-search-result-list {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .storefront-shell .sf-search-results .sf-search-heading-row {
+    margin-bottom: 0.25rem;
+  }
+
+  .storefront-shell .sf-search-result-list {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .storefront-shell .sf-search-result-skeleton {
+    height: 78px;
+    border-radius: var(--m1h-r-md, 10px);
+    background: color-mix(in srgb, var(--m1h-text) 6%, var(--m1h-surface));
+    animation: sfSearchPulse 1.2s ease-in-out infinite;
+  }
+
+  .storefront-shell .sf-search-mark {
+    background: transparent;
+    color: inherit;
+    font-weight: 800;
+  }
+
+  .storefront-shell .sf-search-submit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 0.875rem;
+    border: 1px solid var(--m1h-line);
+    border-radius: var(--m1h-r-md, 10px);
+    background: transparent;
+    color: var(--m1h-text);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: start;
+  }
+
+  .storefront-shell .sf-search-submit-row > svg {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+  }
+
+  [dir="rtl"] .storefront-shell .sf-search-submit-chevron,
+  .storefront-shell[dir="rtl"] .sf-search-submit-chevron,
+  .storefront-shell [dir="rtl"] .sf-search-submit-chevron {
+    transform: scaleX(-1);
+  }
+}
+
+@keyframes sfSearchPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 
 
