@@ -2521,7 +2521,7 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
   const endpoint = `/message/sendCarousel/${encodeURIComponent(current.instanceName)}`;
   const requestBody = JSON.stringify({ number: normalizedPhone, body: text(body), cards: normalizedCards });
   const logBase = { order_id: null, phoneSuffix: normalizedPhone.slice(-4), buttonIds: ["carousel"] };
-  return sendEvolutionButtonsMessage({
+  const send = () => sendEvolutionButtonsMessage({
     current,
     endpoint,
     requestBody,
@@ -2531,7 +2531,32 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
     fallbackOnNotDelivered: async () =>
       sendTextMessage({ phone: normalizedPhone, message: text(fallbackText) || text(body) }),
   });
+  try {
+    return await send();
+  } catch (error) {
+    if (!isEvolutionImageFetchNetworkError(error)) throw error;
+    // Evolution downloads every card photo before it sends anything, so a DNS/connect failure on
+    // that download means nothing reached the customer — one retry is safe. 2026-09-15: a 20s DNS
+    // blip turned a 22-colour carousel into 22 loose photos.
+    console.warn("[evolution:carousel-retry] card image fetch hit a network error; retrying once", {
+      ...logBase,
+      response_raw: truncateText(error?.responseRaw || "", 300),
+    });
+    await new Promise((resolve) => setTimeout(resolve, CAROUSEL_NETWORK_RETRY_DELAY_MS));
+    return send();
+  }
 };
+
+const CAROUSEL_NETWORK_RETRY_DELAY_MS = 2500;
+const EVOLUTION_FETCH_NETWORK_ERROR = /\b(EAI_AGAIN|ENOTFOUND|ECONNREFUSED|ECONNRESET|EHOSTUNREACH|ENETUNREACH)\b/;
+
+// Only a failure Evolution reports back (a real HTTP answer) whose text is a network error on its
+// own outbound fetch. A timeout on OUR request is never retried: the carousel may already be out.
+export const isEvolutionImageFetchNetworkError = (error) =>
+  Boolean(error) &&
+  error.code === "EVOLUTION_API_ERROR" &&
+  Number(error.status) >= 500 &&
+  EVOLUTION_FETCH_NETWORK_ERROR.test(String(error.responseRaw || error.message || ""));
 
 export const buildOrderConfirmationMessage = (order = {}) => {
   const customerName = text(order.customer_name || order.customerName || order.name, "عميلنا");
