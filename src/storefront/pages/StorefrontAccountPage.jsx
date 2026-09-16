@@ -39,6 +39,7 @@ import {
 } from "../lib/storefrontCustomerAuth";
 import { storefrontAuthErrorCopy, trackingStageKey } from "../lib/serverCopy";
 import { localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
+import AccountReviewsCard from "../components/AccountReviewsCard";
 import "./account.css";
 
 // A failed auth request in the shopper's language: the server's code picks the copy, never its message.
@@ -1194,6 +1195,8 @@ function StorefrontAccountPageContent({
 
         <div className="sfa-grid">
           <div className="sfa-main">
+            {/* Rendered only when something is waiting to be rated. */}
+            <AccountReviewsCard signedIn={Boolean(account)} />
             <section id="sfa-orders" className="sfx-surface sfa-card">
               <SectionHead Icon={ShoppingBag} title={sfText("storefront.account.myOrders", "طلباتي")} subtitle={sfText("storefront.account.ordersHint")} count={orders.length || null} />
               {!account && loading ? (

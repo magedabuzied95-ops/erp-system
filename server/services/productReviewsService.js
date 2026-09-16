@@ -16,8 +16,12 @@
  * counts published rows alone, so a moderation queue is never a live rating.
  */
 
+import { createHmac } from "node:crypto";
+
 import db from "../database/db.js";
+import { generateOrderLinkCode, orderLinkSecret } from "../utils/orderLinkSecret.js";
 import { getPhoneSearchVariants, normalizePhone } from "../utils/phoneSearch.js";
+import { resolvePublicAppUrl } from "../utils/whatsapp.js";
 
 export const REVIEW_STATUSES = Object.freeze(["pending", "published", "rejected"]);
 export const REVIEW_BODY_MAX = 2000;
@@ -102,12 +106,15 @@ export const ensureProductReviewsSchema = async (client = db) => {
  */
 export const listReviewableItems = async (
   tenantId,
-  { phone = "", productId = 0, limit = 50, includeReviewed = false, client = db } = {}
+  { phone = "", productId = 0, orderId = 0, limit = 50, includeReviewed = false, client = db } = {}
 ) => {
   const variants = getPhoneSearchVariants(phone);
   if (!positiveInt(tenantId) || !variants.length) return [];
   await ensureProductReviewsSchema(client);
   const wantedProduct = positiveInt(productId);
+  // One row per (order, product) — the unit a review is written for. An order holding the same
+  // shoe in two sizes is one purchase to review, not two; its sizes and colours are listed
+  // together, and the first variant stands for the line.
   const { rows } = await client.query(
     `
     SELECT
@@ -116,15 +123,22 @@ export const listReviewableItems = async (
       -- shopper is ever shown (/track, the account page), with the row id as the last resort.
       COALESCE(NULLIF(o.display_order_number, ''), NULLIF(o.public_order_number, ''), o.id::text) AS order_number,
       oi.product_id       AS product_id,
-      oi.variant_id       AS variant_id,
-      oi.size             AS size,
-      oi.color            AS color,
+      MIN(oi.variant_id)  AS variant_id,
+      string_agg(DISTINCT NULLIF(oi.size, ''), ', ')  AS size,
+      string_agg(DISTINCT NULLIF(oi.color, ''), ', ') AS color,
       p.name              AS product_name,
       p.slug              AS product_slug,
+      COALESCE(
+        MIN(NULLIF(oi.variant_image, '')), MIN(NULLIF(oi.product_image, '')), MIN(NULLIF(oi.image_url, '')),
+        NULLIF(p.thumbnail_url, ''), NULLIF(p.image_url, '')
+      )                   AS product_image,
       delivery.delivered_at AS delivered_at,
       pr.id               AS review_id,
       pr.status           AS review_status,
-      pr.rating           AS review_rating
+      pr.rating           AS review_rating,
+      -- pr.id is grouped and is the table's key, so the rest of the row may be read as is.
+      pr.body             AS review_body,
+      pr.images           AS review_images
     FROM orders o
     JOIN order_items oi ON oi.order_id = o.id
     JOIN products p ON p.id = oi.product_id
@@ -143,10 +157,11 @@ export const listReviewableItems = async (
       AND COALESCE(oi.quantity, 0) - COALESCE(oi.returned_quantity, 0) > 0
       AND ($6::boolean OR pr.id IS NULL)
       AND ($4::bigint = 0 OR oi.product_id = $4::bigint)
-    GROUP BY o.id, o.display_order_number, o.public_order_number, oi.product_id, oi.variant_id,
-             oi.size, oi.color, p.name, p.slug, delivery.delivered_at,
+      AND ($7::bigint = 0 OR o.id = $7::bigint)
+    GROUP BY o.id, o.display_order_number, o.public_order_number, oi.product_id,
+             p.name, p.slug, p.thumbnail_url, p.image_url, delivery.delivered_at,
              pr.id, pr.status, pr.rating
-    ORDER BY delivery.delivered_at DESC
+    ORDER BY delivery.delivered_at DESC, MIN(oi.id)
     LIMIT $5
     `,
     [
@@ -156,9 +171,145 @@ export const listReviewableItems = async (
       wantedProduct,
       Math.min(REVIEW_PAGE_MAX, Math.max(1, Number(limit) || 50)),
       Boolean(includeReviewed),
+      positiveInt(orderId),
     ]
   );
   return rows;
+};
+
+/* ------------------------------------------------------------ review link
+ *
+ * The link a customer taps in the WhatsApp message (/review/:code). Asking someone to sign in
+ * with a one-time code before they may say "the shoes were great" loses most of the reviews, so
+ * the code IS the credential — exactly like the shipping-fee upload link (/pay/:code). It lives in
+ * the same order_confirmation_codes table under its own action and its own HMAC namespace, so a
+ * review code can never confirm, cancel or pay anything, and those codes can never write a
+ * review. All a review code can do is write a review for a product in ITS order, and the phone
+ * the eligibility is checked against is the order's own.
+ */
+export const REVIEW_LINK_ACTION = "product_review";
+// Long enough to cover a slow reply to the message; the review window itself is REVIEW_WINDOW_DAYS.
+const REVIEW_LINK_TTL_DAYS = Math.max(1, Number(process.env.REVIEW_LINK_TTL_DAYS || 45) || 45);
+const REVIEW_LINK_REUSE_MIN_MS = 7 * 24 * 60 * 60 * 1000;
+
+export const hashReviewLinkCode = (code = "") =>
+  createHmac("sha256", orderLinkSecret()).update(`${REVIEW_LINK_ACTION}:${text(code)}`).digest("hex");
+
+export const reviewLinkPublicUrl = (code = "") => {
+  const safeCode = text(code);
+  if (!safeCode) return "";
+  return `${text(resolvePublicAppUrl()).replace(/\/+$/, "")}/review/${encodeURIComponent(safeCode)}`;
+};
+
+// One live link per order, handed out again while it has a week left, so the account page and a
+// WhatsApp message sent the same day point at the same code.
+export const issueReviewLink = async ({ tenantId, orderId, client = db } = {}) => {
+  const tenant = positiveInt(tenantId);
+  const order = positiveInt(orderId);
+  if (!tenant || !order) throw err("order is required", 400, "ORDER_REQUIRED");
+  const existing = await client.query(
+    `SELECT code, expires_at FROM order_confirmation_codes WHERE tenant_id = $1 AND order_id = $2 AND action = $3 LIMIT 1`,
+    [tenant, order, REVIEW_LINK_ACTION]
+  );
+  const row = existing.rows[0];
+  if (row?.code && new Date(row.expires_at).getTime() - Date.now() > REVIEW_LINK_REUSE_MIN_MS) {
+    return { code: row.code, url: reviewLinkPublicUrl(row.code), expiresAt: row.expires_at };
+  }
+  const code = generateOrderLinkCode();
+  const expiresAt = new Date(Date.now() + REVIEW_LINK_TTL_DAYS * 24 * 60 * 60 * 1000);
+  await client.query(
+    `
+    INSERT INTO order_confirmation_codes (tenant_id, order_id, action, code, code_hash, expires_at, used_at, created_at, updated_at)
+    VALUES ($1, $2, $3, $4, $5, $6, NULL, NOW(), NOW())
+    ON CONFLICT (tenant_id, order_id, action)
+    DO UPDATE SET code = EXCLUDED.code, code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at,
+                  used_at = NULL, used_action = NULL, used_order_status = NULL, updated_at = NOW()
+    `,
+    [tenant, order, REVIEW_LINK_ACTION, code, hashReviewLinkCode(code), expiresAt]
+  );
+  return { code, url: reviewLinkPublicUrl(code), expiresAt };
+};
+
+// The order a code stands for. Matched by hash AND action, so a /pay/ or /c/ code is simply
+// unknown here. Unknown and expired are told apart because the page says different things.
+const resolveReviewLinkOrder = async (code = "", { client = db } = {}) => {
+  const safeCode = text(code);
+  if (!/^[A-Za-z0-9]{16}$/.test(safeCode)) throw err("Unknown review link", 404, "REVIEW_LINK_NOT_FOUND");
+  const { rows } = await client.query(
+    `
+    SELECT c.tenant_id, c.order_id, c.expires_at, o.customer_phone, o.customer_name,
+           COALESCE(NULLIF(o.display_order_number, ''), NULLIF(o.public_order_number, ''), o.id::text) AS order_number
+    FROM order_confirmation_codes c
+    JOIN orders o ON o.id = c.order_id
+    WHERE c.code_hash = $1 AND c.action = $2
+    LIMIT 1
+    `,
+    [hashReviewLinkCode(safeCode), REVIEW_LINK_ACTION]
+  );
+  const row = rows[0];
+  if (!row) throw err("Unknown review link", 404, "REVIEW_LINK_NOT_FOUND");
+  if (new Date(row.expires_at).getTime() <= Date.now()) throw err("This review link has expired", 410, "REVIEW_LINK_EXPIRED");
+  return row;
+};
+
+const firstName = (name = "") => text(name).split(/\s+/).filter(Boolean)[0] || "";
+
+const linkItemView = (item = {}) => ({
+  product_id: Number(item.product_id),
+  product_name: item.product_name,
+  product_slug: item.product_slug,
+  product_image: item.product_image || "",
+  size: item.size || "",
+  color: item.color || "",
+  // The customer's own words and photo count come back so an edit starts from what they wrote;
+  // this page is reached only with their order's code.
+  review: item.review_id
+    ? {
+      id: Number(item.review_id),
+      status: item.review_status,
+      rating: item.review_rating,
+      body: item.review_body || "",
+      photo_count: Array.isArray(item.review_images) ? item.review_images.length : 0,
+    }
+    : null,
+});
+
+/* What /review/:code shows: the order's products, each with the review already written for it. */
+export const loadReviewLinkPage = async ({ code, client = db } = {}) => {
+  const order = await resolveReviewLinkOrder(code, { client });
+  const items = await listReviewableItems(order.tenant_id, {
+    phone: order.customer_phone,
+    orderId: order.order_id,
+    includeReviewed: true,
+    client,
+  });
+  return {
+    order_number: order.order_number,
+    // A first name to greet with; the surname never leaves the server on this page either.
+    customer_first_name: firstName(order.customer_name),
+    items: items.map(linkItemView),
+  };
+};
+
+export const submitReviewLink = async ({ code, productId, rating, body = "", images = [], client = db } = {}) => {
+  const order = await resolveReviewLinkOrder(code, { client });
+  const review = await createReview({
+    tenantId: order.tenant_id,
+    orderId: order.order_id,
+    productId,
+    phone: order.customer_phone,
+    customerName: order.customer_name || "",
+    rating,
+    body,
+    images,
+    client,
+  });
+  await client.query(
+    `UPDATE order_confirmation_codes SET used_at = COALESCE(used_at, NOW()), used_action = 'review', updated_at = NOW()
+     WHERE tenant_id = $1 AND order_id = $2 AND action = $3`,
+    [order.tenant_id, order.order_id, REVIEW_LINK_ACTION]
+  );
+  return { id: Number(review.id), product_id: Number(review.product_id), rating: review.rating, status: review.status };
 };
 
 /*
@@ -206,7 +357,9 @@ export const createReview = async ({
     ON CONFLICT (tenant_id, order_id, product_id) DO UPDATE SET
       rating = EXCLUDED.rating,
       body = EXCLUDED.body,
-      images = EXCLUDED.images,
+      -- An edit that brings no photos keeps the ones already there: changing the stars must not
+      -- quietly delete the pictures. New photos replace the old set, and the page says so.
+      images = CASE WHEN jsonb_array_length(EXCLUDED.images) = 0 THEN product_reviews.images ELSE EXCLUDED.images END,
       -- An edit re-enters the queue: the text a manager approved is not the text that stands.
       status = 'pending',
       moderated_by = NULL,

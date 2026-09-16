@@ -1,0 +1,167 @@
+/*
+ * /review/:code — the review link. Built on the link pages' primitives (customerLinks.css,
+ * sfx-* from the site skin); only what a review needs beyond them lives here: the product row,
+ * the star picker, the text box and the photo tray. --m1h-* tokens only, so the page follows
+ * the shop's theme and Site Studio's colours.
+ */
+
+.sfl .sfrl-card {
+  display: grid;
+  gap: var(--m1h-s4);
+}
+
+.sfl .sfrl-product {
+  display: flex;
+  align-items: center;
+  gap: var(--m1h-s3);
+  min-width: 0;
+}
+
+.sfl .sfrl-product__image {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--m1h-r-md);
+  object-fit: cover;
+  background: var(--m1h-plate);
+  border: 1px solid var(--m1h-line);
+}
+
+.sfl .sfrl-product__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sfl .sfrl-product__text .sfx-h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---- stars ---- */
+
+.sfl .sfrl-stars {
+  display: flex;
+  justify-content: center;
+  gap: var(--m1h-s1);
+  /* Stars are read 1 → 5 from the left in every language, like every rating on the web. */
+  direction: ltr;
+}
+
+.sfl .sfrl-star {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--m1h-r-pill);
+  background: none;
+  color: var(--m1h-line);
+  cursor: pointer;
+  transition: transform 140ms var(--m1h-ease), color 140ms var(--m1h-ease);
+}
+
+.sfl .sfrl-star svg {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.sfl .sfrl-star.is-on {
+  color: var(--m1h-accent);
+}
+
+.sfl .sfrl-star.is-on svg {
+  fill: var(--m1h-accent);
+}
+
+.sfl .sfrl-star:active {
+  transform: scale(0.9);
+}
+
+.sfl .sfrl-star:focus-visible {
+  outline: 2px solid var(--m1h-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sfl .sfrl-star { transition: none; }
+}
+
+/* ---- text ---- */
+
+.sfl .sfrl-textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: var(--m1h-s3);
+  resize: vertical;
+  font: inherit;
+  /* 16px stops iOS zooming the page when the box is focused. */
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--m1h-text);
+  background: var(--m1h-surface);
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-md);
+}
+
+.sfl .sfrl-textarea:focus {
+  outline: none;
+  border-color: var(--m1h-accent);
+}
+
+.sfl .sfrl-textarea::placeholder {
+  color: var(--m1h-text-3);
+}
+
+/* ---- photos ---- */
+
+.sfl .sfrl-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--m1h-s2);
+}
+
+.sfl .sfrl-photo {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--m1h-r-md);
+  overflow: hidden;
+  border: 1px solid var(--m1h-line);
+}
+
+.sfl .sfrl-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sfl .sfrl-photo__remove {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--m1h-r-pill);
+  /* Always a dark chip over a photo, whatever the theme. */
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sfl .sfrl-photo__remove svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sfl .sfrl-edit {
+  justify-self: start;
+  margin-top: var(--m1h-s1);
+}

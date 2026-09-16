@@ -245,6 +245,7 @@ const DataDeletionPage = lazy(() => importWithChunkRetry(() => import("./storefr
 const OrderConfirmationActionPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/OrderConfirmationActionPage.jsx")).then((module) => ({ default: module.OrderConfirmationActionPage })));
 const CustomerAddressPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/CustomerAddressPage.jsx")).then((module) => ({ default: module.CustomerAddressPage })));
 const PaymentProofPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/PaymentProofPage.jsx")).then((module) => ({ default: module.PaymentProofPage })));
+const ProductReviewLinkPage = lazy(() => importWithChunkRetry(() => import("./storefront/pages/ProductReviewLinkPage.jsx")).then((module) => ({ default: module.ProductReviewLinkPage })));
 
 const Workspace = lazy(() => import("./modules/saas/pages/Workspace"));
 
@@ -584,6 +585,15 @@ function App() {
         element={
           <Suspense fallback={<RouteSkeleton />}>
             <PaymentProofPage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/review/:code"
+        element={
+          <Suspense fallback={<RouteSkeleton />}>
+            <ProductReviewLinkPage />
           </Suspense>
         }
       />

@@ -674,6 +674,7 @@ const { default: publicInvoiceRoutes } = await import("./routes/publicInvoices.j
 const { default: publicOrderConfirmationRoutes } = await import("./routes/publicOrderConfirmation.js");
 const { default: publicAddressRequestRoutes } = await import("./routes/publicAddressRequest.js");
 const { default: publicPaymentProofRoutes } = await import("./routes/publicPaymentProof.js");
+const { default: publicProductReviewRoutes } = await import("./routes/publicProductReview.js");
 const { default: publicProductsRoutes } = await import("./routes/publicProducts.js");
 const { default: publicPackingRoutes } = await import("./routes/publicPacking.js");
 const { default: metaCatalogFeedRoutes } = await import("./routes/metaCatalogFeed.js");
@@ -1933,6 +1934,7 @@ app.use("/api/public/invoice-template", publicInvoiceTemplateRouter);
 app.use("/api/public/order-confirmation", publicOrderConfirmationRoutes);
 app.use("/api/public/address-request", publicAddressRequestRoutes);
 app.use("/api/public/payment-proof", publicPaymentProofRoutes);
+app.use("/api/public/product-review", publicProductReviewRoutes);
 app.use("/api/public/products", publicProductsRoutes);
 app.use("/api/public/packing", publicPackingRoutes);
 app.use("/feeds", googleMerchantFeedRoutes);

@@ -996,3 +996,56 @@ body.storefront-shell .sfa-address svg {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--m1h-s2);
 }
+
+/* ---------------------------------------------------- rate your purchases */
+
+.sfa-review-list {
+  display: grid;
+  gap: var(--m1h-s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sfa-review-row {
+  display: flex;
+  align-items: center;
+  gap: var(--m1h-s3);
+  min-width: 0;
+  padding: var(--m1h-s2);
+  border-radius: var(--m1h-r-md);
+  background: var(--sfx-surface-2);
+}
+
+.sfa-review-row__image {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--m1h-r-sm);
+  object-fit: cover;
+  background: var(--m1h-plate);
+}
+
+.sfa-review-row__text {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sfa-review-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--m1h-text);
+}
+
+.sfa-review-row__meta {
+  font-size: var(--m1h-t-xs);
+  color: var(--m1h-text-3);
+}
+
+.sfa-review-row .sfx-btn {
+  flex: 0 0 auto;
+}

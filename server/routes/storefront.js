@@ -61,12 +61,11 @@ import { createIntent as createRestockIntent, listIntents as listRestockIntents,
 import { listPriceAlertFollowIds, listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
 import {
   REVIEW_PAGE_DEFAULT,
-  createReview,
   getProductRatingSummary,
+  issueReviewLink,
   listPublishedReviews,
   listReviewableItems,
 } from "../services/productReviewsService.js";
-import reviewPhotoUpload from "../config/reviewPhotoUpload.js";
 import { canonicalPhoneKey, normalizePhone } from "../utils/phoneSearch.js";
 import {
   isAllowedMetaRelayOrigin,
@@ -934,56 +933,36 @@ router.get("/products/:productId/reviews", async (req, res) => {
     return res.status(500).json({ success: false, message: error?.message || "Failed to load reviews" });
   }
 });
-// What this customer is allowed to review right now: delivered order lines with no review yet.
-// The account page lists them; the review form asks for one product.
+/*
+ * What this signed-in customer can still review: delivered purchases with no review yet, one row
+ * per (order, product), each carrying its order's review link. The account page sends the
+ * customer to that link, so there is exactly one place a review is written — /review/:code —
+ * whether the customer came from their account or from the WhatsApp message.
+ */
 router.get("/reviewable", ...storefrontCustomerAuthRequired, async (req, res) => {
   try {
-    const items = await listReviewableItems(publicTenantId(req), {
-      phone: req.storefrontCustomer?.phone,
-      productId: Number(req.query?.product_id) || 0,
-    });
-    return res.json({ success: true, items });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error?.message || "Failed" });
-  }
-});
-const reviewPhotos = (req, res, next) => {
-  reviewPhotoUpload.array("photos")(req, res, (error) => {
-    if (!error) return next();
-    const tooLarge = error.code === "LIMIT_FILE_SIZE";
-    const tooMany = error.code === "LIMIT_UNEXPECTED_FILE";
-    return res.status(tooLarge ? 413 : 400).json({
-      success: false,
-      error_code: tooLarge ? "REVIEW_PHOTO_TOO_LARGE" : tooMany ? "REVIEW_PHOTO_TOO_MANY" : "REVIEW_PHOTO_INVALID",
-    });
-  });
-};
-router.post("/reviews", ...storefrontCustomerAuthRequired, reviewPhotos, async (req, res) => {
-  try {
-    // Saved under /uploads, so the stored path is relative and the resolver makes it absolute
-    // against the API origin — a /uploads path on the shop origin answers the app's HTML.
-    const photos = (Array.isArray(req.files) ? req.files : []).map((file) => `/uploads/reviews/${file.filename}`);
-    const review = await createReview({
-      tenantId: publicTenantId(req),
-      orderId: req.body?.order_id ?? req.body?.orderId,
-      productId: req.body?.product_id ?? req.body?.productId,
-      customerId: req.storefrontCustomer?.customer_id || null,
-      phone: req.storefrontCustomer?.phone,
-      customerName: req.body?.customer_name || req.storefrontCustomer?.name || "",
-      rating: req.body?.rating,
-      body: req.body?.body ?? req.body?.review ?? "",
-      images: photos,
-    });
+    const tenantId = publicTenantId(req);
+    const items = await listReviewableItems(tenantId, { phone: req.storefrontCustomer?.phone });
+    const links = new Map();
+    for (const orderId of new Set(items.map((item) => Number(item.order_id)))) {
+      links.set(orderId, (await issueReviewLink({ tenantId, orderId })).url);
+    }
     return res.json({
       success: true,
-      // The shopper is told the truth: it is in, and a human reads it before it appears.
-      status: review.status,
-      review: { id: review.id, product_id: review.product_id, rating: review.rating, status: review.status },
+      items: items.map((item) => ({
+        order_id: Number(item.order_id),
+        order_number: item.order_number,
+        product_id: Number(item.product_id),
+        product_name: item.product_name,
+        product_image: item.product_image || "",
+        size: item.size || "",
+        color: item.color || "",
+        delivered_at: item.delivered_at,
+        review_url: links.get(Number(item.order_id)) || "",
+      })),
     });
   } catch (error) {
-    return res
-      .status(error?.status || 500)
-      .json({ success: false, error_code: error?.code || "", message: error?.message || "Failed to save the review" });
+    return res.status(500).json({ success: false, message: error?.message || "Failed" });
   }
 });
 // Price Drop Alert ("نبّهني لو السعر نزل"). The follow stores the price the customer saw; the

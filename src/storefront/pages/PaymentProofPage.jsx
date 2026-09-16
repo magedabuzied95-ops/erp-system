@@ -17,6 +17,7 @@ import {
 import { api } from "../../shared/api/api";
 import { sfText } from "../lib/sfText";
 import { releaseBootLoader } from "../lib/bootLoader";
+import { prepareImageUpload } from "../lib/prepareImageUpload";
 import i18n, { normalizeLanguage } from "../../i18n/i18n";
 import { releaseStorefrontColorScheme, setStorefrontColorScheme } from "../../theme/documentColorScheme";
 // Renders outside the storefront shell (App.jsx), like /addr/:code and /c/:code, so the page brings
@@ -41,35 +42,8 @@ const formatMoney = (value) => {
   return amount.toLocaleString("en-US", { minimumFractionDigits: hasPiastres ? 2 : 0, maximumFractionDigits: hasPiastres ? 2 : 0 });
 };
 
-const ACCEPTED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-// Phone photos can be 5-12MB and HEIC; the server takes PNG/JPG/WEBP up to 10MB. Anything else is
-// redrawn as a JPEG no wider than this, which keeps a screenshot perfectly readable.
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
-const MAX_EDGE = 2000;
-
-const prepareUpload = (file) => new Promise((resolve) => {
-  if (!file) return resolve(null);
-  if (ACCEPTED_TYPES.has(file.type) && file.size <= MAX_UPLOAD_BYTES) return resolve(file);
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  image.onload = () => {
-    const scale = Math.min(1, MAX_EDGE / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      URL.revokeObjectURL(url);
-      resolve(blob ? new File([blob], "transfer.jpg", { type: "image/jpeg" }) : file);
-    }, "image/jpeg", 0.85);
-  };
-  // Undecodable here: send it as it is and let the server say what is wrong with it.
-  image.onerror = () => {
-    URL.revokeObjectURL(url);
-    resolve(file);
-  };
-  image.src = url;
-});
+// The server takes PNG/JPG/WEBP up to 10MB; a phone photo is redrawn to fit (shared helper).
+const prepareUpload = (file) => prepareImageUpload(file, { fileName: "transfer.jpg" });
 
 const copyToClipboard = async (value) => {
   try {

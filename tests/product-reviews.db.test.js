@@ -49,13 +49,14 @@ if (!ready) {
   const { default: db } = await import("../server/database/db.js");
   const reviews = await import("../server/services/productReviewsService.js");
 
-  // The four tables the eligibility query reads, shadowed. Only the columns it actually uses.
-  await db.query(`CREATE TABLE products (id BIGINT PRIMARY KEY, name TEXT, slug TEXT)`);
+  // The tables the eligibility query and the review link read, shadowed. Only the columns used.
+  await db.query(`CREATE TABLE products (id BIGINT PRIMARY KEY, name TEXT, slug TEXT, image_url TEXT, thumbnail_url TEXT)`);
   await db.query(`
     CREATE TABLE orders (
       id BIGINT PRIMARY KEY,
       tenant_id BIGINT,
       customer_phone TEXT,
+      customer_name TEXT,
       display_order_number TEXT,
       public_order_number TEXT
     )`);
@@ -68,7 +69,27 @@ if (!ready) {
       quantity INT,
       returned_quantity INT,
       size TEXT,
-      color TEXT
+      color TEXT,
+      variant_image TEXT,
+      product_image TEXT,
+      image_url TEXT
+    )`);
+  // Same shape as production's (whatsappOrderConfirmationService), shared by /c/, /pay/ and /review/.
+  await db.query(`
+    CREATE TABLE order_confirmation_codes (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL,
+      order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      action VARCHAR(20) NOT NULL DEFAULT 'entry',
+      code VARCHAR(16) NOT NULL UNIQUE,
+      code_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at TIMESTAMPTZ NULL,
+      used_action TEXT NULL,
+      used_order_status TEXT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (tenant_id, order_id, action)
     )`);
   await db.query(`
     CREATE TABLE shipping_events (
@@ -263,6 +284,103 @@ if (!ready) {
     const cleared = await reviews.replyToReview({ tenantId: TENANT, reviewId: review.id, body: "  " });
     assert.equal(cleared.reply_body, null);
     assert.equal(cleared.reply_at, null);
+  });
+
+  test("one shoe bought in two sizes is one purchase to review", async () => {
+    await seedDeliveredOrder({ id: 110, productId: 8 });
+    await db.query(
+      `INSERT INTO order_items (order_id, product_id, variant_id, quantity, returned_quantity, size, color)
+       VALUES (110, 8, 1110, 1, 0, '44', 'Black')`
+    );
+    const lines = (await reviews.listReviewableItems(TENANT, { phone: BUYER, orderId: 110 }));
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].size, "43, 44");
+    assert.equal(lines[0].color, "Black, White & Black");
+  });
+
+  test("a review link opens its own order without a login, and writes as that order's phone", async () => {
+    await db.query(`UPDATE orders SET customer_name = 'Maged Abu Zied' WHERE id = 110`);
+    const link = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 });
+    assert.match(link.code, /^[A-Za-z0-9]{16}$/);
+    assert.match(link.url, /\/review\/[A-Za-z0-9]{16}$/);
+    // Handed out again while it has time left: the message and the account page share it.
+    assert.equal((await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 })).code, link.code);
+
+    const page = await reviews.loadReviewLinkPage({ code: link.code });
+    assert.equal(page.order_number, "M1-110");
+    assert.equal(page.customer_first_name, "Maged", "a first name to greet with, never the surname");
+    assert.deepEqual(page.items.map((item) => item.product_id), [8]);
+    assert.equal(page.items[0].review, null);
+
+    const written = await reviews.submitReviewLink({ code: link.code, productId: 8, rating: 4, body: "حلو" });
+    assert.equal(written.status, "pending");
+    const { rows } = await db.query(`SELECT phone, customer_name, order_id FROM product_reviews WHERE id = $1`, [written.id]);
+    assert.equal(rows[0].customer_name, "Maged Abu Zied");
+    assert.equal(Number(rows[0].order_id), 110);
+
+    const again = await reviews.loadReviewLinkPage({ code: link.code });
+    assert.deepEqual(again.items[0].review, { id: written.id, status: "pending", rating: 4, body: "حلو", photo_count: 0 });
+  });
+
+  test("an edit starts from what was written, and changing the stars keeps the photos", async () => {
+    const link = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 });
+    await reviews.submitReviewLink({
+      code: link.code,
+      productId: 8,
+      rating: 4,
+      body: "حلو",
+      images: ["/uploads/reviews/one.jpg", "/uploads/reviews/two.jpg"],
+    });
+    const page = await reviews.loadReviewLinkPage({ code: link.code });
+    assert.equal(page.items[0].review.body, "حلو", "the edit form opens on the customer's own words");
+    assert.equal(page.items[0].review.photo_count, 2);
+
+    // Only the stars change: the photos must survive.
+    await reviews.submitReviewLink({ code: link.code, productId: 8, rating: 5, body: "حلو" });
+    const kept = await db.query(`SELECT rating, images FROM product_reviews WHERE order_id = 110 AND product_id = 8`);
+    assert.equal(kept.rows[0].rating, 5);
+    assert.deepEqual(kept.rows[0].images, ["/uploads/reviews/one.jpg", "/uploads/reviews/two.jpg"]);
+
+    // New photos replace the old set.
+    await reviews.submitReviewLink({ code: link.code, productId: 8, rating: 5, body: "حلو", images: ["/uploads/reviews/three.jpg"] });
+    const replaced = await db.query(`SELECT images FROM product_reviews WHERE order_id = 110 AND product_id = 8`);
+    assert.deepEqual(replaced.rows[0].images, ["/uploads/reviews/three.jpg"]);
+  });
+
+  test("a review link reaches only its own order's products", async () => {
+    const link = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 });
+    // Product 7 was bought by this phone — in order 101, not in the order this code belongs to.
+    await assert.rejects(
+      () => reviews.submitReviewLink({ code: link.code, productId: 7, rating: 5 }),
+      (error) => error.code === "NOT_ELIGIBLE"
+    );
+  });
+
+  test("an unknown, a malformed, another action's, and an expired code are all refused", async () => {
+    await assert.rejects(() => reviews.loadReviewLinkPage({ code: "AAAAAAAAAAAAAAAA" }), (e) => e.status === 404);
+    await assert.rejects(() => reviews.loadReviewLinkPage({ code: "../../etc" }), (e) => e.status === 404);
+
+    // A row under another action whose hash would match: the namespaced HMAC already makes this
+    // impossible for a real /pay/ code, and the action filter refuses it even if it happened.
+    await db.query(
+      `INSERT INTO order_confirmation_codes (tenant_id, order_id, action, code, code_hash, expires_at)
+       VALUES ($1, 110, 'payment_proof', 'PayCode000000001', $2, NOW() + INTERVAL '1 day')`,
+      [TENANT, reviews.hashReviewLinkCode("PayCode000000001")]
+    );
+    await assert.rejects(() => reviews.loadReviewLinkPage({ code: "PayCode000000001" }), (e) => e.status === 404);
+
+    const link = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 });
+    await db.query(
+      `UPDATE order_confirmation_codes SET expires_at = NOW() - INTERVAL '1 minute' WHERE order_id = 110 AND action = $1`,
+      [reviews.REVIEW_LINK_ACTION]
+    );
+    await assert.rejects(() => reviews.loadReviewLinkPage({ code: link.code }), (e) => e.status === 410 && e.code === "REVIEW_LINK_EXPIRED");
+    await assert.rejects(() => reviews.submitReviewLink({ code: link.code, productId: 8, rating: 5 }), (e) => e.status === 410);
+
+    // An expired code is replaced, not handed out again.
+    const fresh = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 });
+    assert.notEqual(fresh.code, link.code);
+    assert.equal((await reviews.loadReviewLinkPage({ code: fresh.code })).order_number, "M1-110");
   });
 
   test.after(async () => {
