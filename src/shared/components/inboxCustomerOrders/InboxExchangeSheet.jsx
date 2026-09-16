@@ -12,6 +12,7 @@ import { ArrowLeftRight, Loader2, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "../../api/api";
 import { formatCurrency } from "../../lib/currency";
+import { resolveProductImageUrl } from "../../lib/imageUrls";
 import { previewExchangeMoney } from "./exchangePreview";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -57,14 +58,12 @@ const lineKey = (line = {}) =>
 export default function InboxExchangeSheet({
   open,
   order = null,
-  tone = "dark",
   headers = undefined,
   picks = null,
   onRequestPick = null,
   onClose = null,
   onDone = null,
 }) {
-  const dark = tone !== "light";
   const [selection, setSelection] = useState({});
   const [replacement, setReplacement] = useState([]);
   // What the courier collects on top of any price difference. A number, never "": the
@@ -159,24 +158,20 @@ export default function InboxExchangeSheet({
     }
   };
 
-  const shell = dark
-    ? "border-white/10 bg-slate-950 text-white"
-    : "border-[#E2E8F0] bg-white text-slate-900";
-  const card = dark ? "border-white/10 bg-white/[0.04]" : "border-[#E2E8F0] bg-slate-50";
-  const muted = dark ? "text-slate-400" : "text-slate-500";
+  // Theme tokens only: the sheet follows the app's light/dark choice instead of carrying
+  // its own palette (an amber-100 label on a light chip was unreadable).
+  const shell = "border-border bg-surface text-text";
+  const card = "border-border bg-surface-soft";
+  const muted = "text-text-muted";
   const chip = (active) =>
-    active
-      ? "border-amber-300/40 bg-amber-400/15 text-amber-100"
-      : dark
-        ? "border-white/10 bg-white/[0.04] text-slate-300"
-        : "border-[#E2E8F0] bg-white text-slate-600";
+    active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-surface text-text-muted";
 
   // Portalled: the panel lives inside scrolling drawers, and a sheet nested there would
   // share their stacking context instead of covering the page.
   const sheet = (
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" dir="rtl">
       <div className={`flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border sm:rounded-3xl ${shell}`}>
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div className="inline-flex items-center gap-2 text-sm font-black">
             <ArrowLeftRight className="h-4 w-4" />
             {LABELS.title} · {text(order.invoice_number)}
@@ -195,7 +190,7 @@ export default function InboxExchangeSheet({
                 return (
                   <div key={item.id} className={`flex items-center gap-3 rounded-2xl border p-2 ${card}`}>
                     {item.image_url ? (
-                      <img src={item.image_url} alt="" className="h-12 w-12 rounded-xl object-cover" />
+                      <img src={resolveProductImageUrl(item.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
                     ) : null}
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-black">{item.product_name}</div>
@@ -229,7 +224,7 @@ export default function InboxExchangeSheet({
             <div className="space-y-2">
               {replacement.map((line) => (
                 <div key={lineKey(line)} className={`flex items-center gap-3 rounded-2xl border p-2 ${card}`}>
-                  {line.image_url ? <img src={line.image_url} alt="" className="h-12 w-12 rounded-xl object-cover" /> : null}
+                  {line.image_url ? <img src={resolveProductImageUrl(line.image_url)} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" /> : null}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-black">{line.product_name}</div>
                     <div className={`truncate text-xs ${muted}`}>
@@ -310,15 +305,15 @@ export default function InboxExchangeSheet({
           </section>
 
           <p className={`text-[11px] ${muted}`}>{LABELS.note}</p>
-          {error ? <div className="rounded-xl border border-rose-300/25 bg-rose-400/10 p-2 text-[11px] font-black text-rose-100">{error}</div> : null}
+          {error ? <div className={`rounded-xl border p-2 text-[11px] font-black text-danger ${card}`} role="alert">{error}</div> : null}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-white/10 p-4">
+        <div className="flex items-center gap-2 border-t border-border p-4">
           <button
             type="button"
             disabled={busy || !returning.length || !replacement.length}
             onClick={submit}
-            className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
+            className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-black text-primary-foreground disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowLeftRight className="h-4 w-4" />}
             {busy ? LABELS.submitting : LABELS.submit}

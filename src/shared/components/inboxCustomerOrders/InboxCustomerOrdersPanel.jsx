@@ -437,7 +437,6 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
       <InboxExchangeSheet
         open={Boolean(exchangeOrder)}
         order={exchangeOrder}
-        tone={tone}
         headers={headers}
         picks={picks}
         onRequestPick={onRequestPick}

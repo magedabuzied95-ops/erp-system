@@ -46,7 +46,7 @@ export const projectInboxConversationOrderItem = (item = {}) => {
     product_name: text(item.product_name),
     color: text(item.color || item.variant_color),
     size: text(item.size || item.variant_size),
-    image_url: text(item.image_url || item.product_image || item.image),
+    image_url: text(item.image_url || item.variant_image || item.product_image || item.image),
     quantity: sold,
     returned_quantity: returned,
     returnable_quantity: Math.max(0, sold - returned),
