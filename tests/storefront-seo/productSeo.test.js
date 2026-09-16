@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   PRODUCT_SCHEMA_COLOR_MAX,
   PRODUCT_SCHEMA_IMAGE_MAX,
+  PRODUCT_SCHEMA_REVIEW_MAX,
   buildProductSeo,
   isValidGtin,
 } from "../../src/shared/lib/productSeo.js";
@@ -330,4 +331,95 @@ test("the breadcrumb climbs through a section page Google is allowed to index", 
   const bare = buildProductSeo({ ...baseProduct, gender: "", product_type: "" });
   assert.equal(bare.breadcrumbJsonLd.itemListElement[1].item, "https://m1store-egy.com/products");
   assert.equal(listingSeoHead({ path: "/products", params: { category: "8" } }).robots, "noindex,follow");
+});
+
+// --- the stars: aggregateRating and review, only from published reviews the page shows ---
+
+const publishedReviews = {
+  summary: { review_count: 5, rating_average: 4.4 },
+  reviews: [
+    { rating: 3, customer_name: "Omar H.", body: "كويس للسعر ده", created_at: "2026-09-16T22:30:00.000Z" },
+    { rating: 5, customer_name: "Nour", body: "", created_at: "2026-09-15T10:00:00.000Z" },
+  ],
+};
+
+test("no published review, no rating in the schema", () => {
+  for (const reviews of [null, {}, { summary: { review_count: 0, rating_average: 0 } }, { summary: null, reviews: [] }]) {
+    const seo = buildProductSeo(baseProduct, { reviews });
+    assert.equal("aggregateRating" in seo.productJsonLd, false);
+    assert.equal("review" in seo.productJsonLd, false);
+  }
+});
+
+test("published reviews put the stars in the Product schema", () => {
+  const { productJsonLd } = buildProductSeo(baseProduct, { reviews: publishedReviews });
+  assert.deepEqual(productJsonLd.aggregateRating, {
+    "@type": "AggregateRating",
+    ratingValue: 4.4,
+    reviewCount: 5,
+    bestRating: 5,
+    worstRating: 1,
+  });
+  assert.equal(productJsonLd.review.length, 2);
+  assert.deepEqual(productJsonLd.review[0], {
+    "@type": "Review",
+    reviewRating: { "@type": "Rating", ratingValue: 3, bestRating: 5, worstRating: 1 },
+    author: { "@type": "Person", name: "Omar H." },
+    // 22:30 UTC on the 16th is already the 17th in Cairo.
+    datePublished: "2026-09-17",
+    reviewBody: "كويس للسعر ده",
+  });
+  assert.equal("reviewBody" in productJsonLd.review[1], false, "a stars-only review has no empty body");
+});
+
+test("the average is rounded to one decimal and the review list is capped", () => {
+  const many = {
+    summary: { review_count: 40, rating_average: 4.6667 },
+    reviews: Array.from({ length: 12 }, (unused, index) => ({ rating: 5, customer_name: `R${index}`, created_at: "2026-09-10" })),
+  };
+  const { productJsonLd } = buildProductSeo(baseProduct, { reviews: many });
+  assert.equal(productJsonLd.aggregateRating.ratingValue, 4.7);
+  assert.equal(productJsonLd.review.length, PRODUCT_SCHEMA_REVIEW_MAX);
+});
+
+test("an impossible average or rating never reaches the schema", () => {
+  assert.equal("aggregateRating" in buildProductSeo(baseProduct, { reviews: { summary: { review_count: 3, rating_average: 7 } } }).productJsonLd, false);
+  const { productJsonLd } = buildProductSeo(baseProduct, {
+    reviews: { summary: { review_count: 2, rating_average: 4 }, reviews: [{ rating: 0 }, { rating: 9 }, { rating: 4, customer_name: "" }] },
+  });
+  assert.equal(productJsonLd.review.length, 1);
+  assert.equal(productJsonLd.review[0].author.name, "عميل");
+});
+
+test("the server-rendered page carries the stars from its own review read", async () => {
+  const { createStorefrontProductSeoPageHandler, loadProductSeoExtras } = await import("../../server/services/storefrontProductSeoPageService.js");
+  const extras = await loadProductSeoExtras(baseProduct, {
+    loadMerchantPolicies: async () => null,
+    loadOgImage: async () => null,
+    loadReviews: async () => publishedReviews,
+  });
+  assert.deepEqual(extras.review_seo, publishedReviews);
+
+  const handler = createStorefrontProductSeoPageHandler({
+    loadProduct: async () => ({ status: 200, product: baseProduct }),
+    loadShell: async () => "<html><head><title>x</title></head><body></body></html>",
+    loadExtras: async () => extras,
+  });
+  let sent = "";
+  const res = { set() { return this; }, status() { return this; }, send(body) { sent = body; return this; } };
+  await handler({ params: { identifier: baseProduct.slug }, query: {} }, res, (error) => { throw error; });
+  const jsonLd = JSON.parse(sent.match(/data-m1-product-seo="product">([^<]*)<\/script>/)[1]);
+  assert.equal(jsonLd.aggregateRating.reviewCount, 5);
+  assert.equal(jsonLd.review.length, 2);
+});
+
+test("a review read that fails leaves the page without stars, and the rest intact", async () => {
+  const { loadProductSeoExtras } = await import("../../server/services/storefrontProductSeoPageService.js");
+  const extras = await loadProductSeoExtras(baseProduct, {
+    loadMerchantPolicies: async () => ({ shippingDetails: [{}], returnPolicy: {} }),
+    loadOgImage: async () => ({ url: "https://x/og.jpg" }),
+    loadReviews: async () => { throw new Error("db down"); },
+  });
+  assert.equal("review_seo" in extras, false);
+  assert.equal(extras.og_image_url, "https://x/og.jpg");
 });

@@ -1,4 +1,4 @@
-import { buildProductSeo, STOREFRONT_ORIGIN } from "../../src/shared/lib/productSeo.js";
+import { buildProductSeo, PRODUCT_SCHEMA_REVIEW_MAX, STOREFRONT_ORIGIN } from "../../src/shared/lib/productSeo.js";
 
 const API_ORIGIN = String(process.env.PUBLIC_API_URL || process.env.API_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/, "");
 
@@ -184,23 +184,42 @@ const defaultLoadOgImage = async ({ product }) => {
   return generateProductOgImage({ product, req });
 };
 
+// The same two reads the product page makes for its reviews section — the summary and the newest
+// published reviews — so the stars in the schema are the stars on the page.
+const defaultLoadReviews = async ({ product }) => {
+  const productId = Number(product?.id);
+  if (!Number.isFinite(productId) || productId <= 0) return null;
+  const { getProductRatingSummary, listPublishedReviews } = await import("./productReviewsService.js");
+  const tenantId = Number(process.env.STOREFRONT_TENANT_ID || 1);
+  const [summaries, reviews] = await Promise.all([
+    getProductRatingSummary(tenantId, [productId]),
+    listPublishedReviews(tenantId, productId, { limit: PRODUCT_SCHEMA_REVIEW_MAX }),
+  ]);
+  const summary = summaries.get(productId);
+  return summary ? { summary, reviews } : null;
+};
+
 export const loadProductSeoExtras = async (
   product = {},
   {
     productPrice = 0,
     loadMerchantPolicies = defaultLoadMerchantPolicies,
     loadOgImage = defaultLoadOgImage,
+    loadReviews = defaultLoadReviews,
     timeoutMs = SEO_EXTRAS_TIMEOUT_MS,
   } = {}
 ) => {
-  const [policies, ogImage] = await Promise.allSettled([
+  const [policies, ogImage, reviews] = await Promise.allSettled([
     withSeoDataTimeout(Promise.resolve().then(() => loadMerchantPolicies({ product, productPrice })), timeoutMs, "merchant_policies"),
     withSeoDataTimeout(Promise.resolve().then(() => loadOgImage({ product })), timeoutMs, "og_image"),
+    withSeoDataTimeout(Promise.resolve().then(() => loadReviews({ product })), timeoutMs, "reviews"),
   ]);
   const extras = {};
   if (policies.status === "fulfilled" && policies.value) extras.merchant_policies = policies.value;
   if (ogImage.status === "fulfilled" && ogImage.value?.url) extras.og_image_url = ogImage.value.url;
-  [policies, ogImage].forEach((result) => {
+  // Missing reviews are not an error: no rating is published, which is the page's truth too.
+  if (reviews.status === "fulfilled" && reviews.value) extras.review_seo = reviews.value;
+  [policies, ogImage, reviews].forEach((result) => {
     if (result.status === "rejected") {
       console.warn("[storefront-seo] product extras unavailable", {
         product_id: product?.id,
@@ -369,7 +388,7 @@ export const createStorefrontProductSeoPageHandler = ({
     const extras = await loadExtras(product, { productPrice }).catch(() => ({}));
     const html = injectProductSeoIntoHtml(
       await loadShell(),
-      makeProductSeoImagesAbsolute(buildProductSeo({ ...product, ...extras }, { color, variant }))
+      makeProductSeoImagesAbsolute(buildProductSeo({ ...product, ...extras }, { color, variant, reviews: extras.review_seo }))
     );
     return sendSeoHtml(res, html, { cacheable: true });
   } catch (error) {

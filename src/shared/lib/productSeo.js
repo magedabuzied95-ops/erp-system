@@ -165,7 +165,53 @@ const variantById = (variants = [], variantId = "") => {
   return match ? [match] : null;
 };
 
-export const buildProductSeo = (product = {}, { color = "", variant = "" } = {}) => {
+/*
+ * The stars Google may show under the link.
+ *
+ * Built only from published reviews (the caller passes what the product page itself shows) and
+ * only when there is at least one: a Product schema claiming a rating the page does not display
+ * is exactly what Google's review-snippet policy penalises. `review` carries the newest few,
+ * which are the first ones the page lists, so every review in the schema is visible on the page.
+ */
+export const PRODUCT_SCHEMA_REVIEW_MAX = 5;
+
+const ratingNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 5 ? parsed : 0;
+};
+
+export const buildReviewSchema = ({ summary = null, reviews = [] } = {}) => {
+  const reviewCount = Math.max(0, Math.round(Number(summary?.review_count) || 0));
+  const average = ratingNumber(summary?.rating_average);
+  if (!reviewCount || !average) return {};
+  const items = (Array.isArray(reviews) ? reviews : [])
+    .filter((review) => ratingNumber(review?.rating))
+    .slice(0, PRODUCT_SCHEMA_REVIEW_MAX)
+    .map((review) => {
+      const published = toDateKeyInAppTimezone(review.created_at || "");
+      const body = text(review.body);
+      return {
+        "@type": "Review",
+        reviewRating: { "@type": "Rating", ratingValue: ratingNumber(review.rating), bestRating: 5, worstRating: 1 },
+        // The masked name the page prints ("Maged A."), never the stored full name.
+        author: { "@type": "Person", name: text(review.customer_name) || "عميل" },
+        ...(published ? { datePublished: published } : {}),
+        ...(body ? { reviewBody: body } : {}),
+      };
+    });
+  return {
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: Math.round(average * 10) / 10,
+      reviewCount,
+      bestRating: 5,
+      worstRating: 1,
+    },
+    ...(items.length ? { review: items } : {}),
+  };
+};
+
+export const buildProductSeo = (product = {}, { color = "", variant = "", reviews = null } = {}) => {
   const name = text(product.name || product.title);
   const brand = text(product.brand_name || product.brand || product.product_brand);
   const category = text(product.category || product.category_name || product.product_type);
@@ -265,6 +311,7 @@ export const buildProductSeo = (product = {}, { color = "", variant = "" } = {})
     ...(category ? { category } : {}),
     ...(keywords.length ? { keywords: keywords.join(", ") } : {}),
     offers,
+    ...buildReviewSchema(reviews || {}),
   };
   const breadcrumbCategory = seoCategoryForProduct(product);
   const categoryName = breadcrumbCategory?.h1 || category || "المنتجات";

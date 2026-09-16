@@ -92,3 +92,16 @@ test("a published review shows a first name and an initial, never the full name"
   assert.equal(publicReviewerName(""), "عميل");
   assert.equal(publicReviewerName("   "), "عميل");
 });
+
+test("the product page hands its loaded reviews to the schema it rewrites", async () => {
+  // The server-rendered page carries the stars; the page's own schema rewrite must carry them too,
+  // or hydration strips them from what Google renders.
+  const { readFile } = await import("node:fs/promises");
+  const pdp = await readFile(new URL("../src/storefront/pages/StorefrontProductDetailPage.jsx", import.meta.url), "utf8");
+  assert.match(pdp, /<ProductReviews productId=\{product\.id\} onLoaded=\{setReviewSeo\} \/>/);
+  assert.match(pdp, /applyProductSeo\(product, \{ reviews: pageReviewSeo \}\)/);
+  // ...and only for the product they belong to.
+  assert.match(pdp, /String\(reviewSeo\.productId\) === String\(product\.id\)/);
+  const section = await readFile(new URL("../src/storefront/components/ProductReviews.jsx", import.meta.url), "utf8");
+  assert.match(section, /if \(!offset\) onLoadedRef\.current\?\.\(\{ productId, summary: data\?\.summary \|\| null, reviews: page \}\)/);
+});

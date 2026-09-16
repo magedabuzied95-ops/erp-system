@@ -79,10 +79,12 @@ export const clearProductSeo = () => {
     .forEach((node) => node.remove());
 };
 
-export const applyProductSeo = (product = {}) => {
+// options.reviews: { summary, reviews } from the product page's own reviews section, so the stars in
+// the schema are exactly the stars the page shows (see buildReviewSchema).
+export const applyProductSeo = (product = {}, options = {}) => {
   if (typeof document === "undefined") return null;
   if (!productHasCompleteMerchantPolicies(product)) return null;
-  const seo = buildProductSeo(product);
+  const seo = buildProductSeo(product, { reviews: options.reviews || null });
   document.title = seo.title;
   setMetaTag('meta[name="description"]', { name: "description", content: seo.description });
   setMetaTag('meta[name="robots"]', { name: "robots", content: seo.robots });

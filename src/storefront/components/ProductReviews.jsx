@@ -10,7 +10,7 @@
  * greyed-out five stars reads as a bad product, which is the opposite of the truth.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BadgeCheck, Loader2, Star } from "lucide-react";
 
 import { api } from "../../shared/api/api";
@@ -108,11 +108,13 @@ const ReviewCard = ({ review }) => {
   );
 };
 
-const ProductReviews = ({ productId, summary: summaryFromParent = null, sectionId = "sf-product-reviews" }) => {
+const ProductReviews = ({ productId, summary: summaryFromParent = null, sectionId = "sf-product-reviews", onLoaded = null }) => {
   const [summary, setSummary] = useState(() => normalizeRatingSummary(summaryFromParent));
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadedAll, setLoadedAll] = useState(false);
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
 
   const load = useCallback(
     async (offset = 0) => {
@@ -127,6 +129,8 @@ const ProductReviews = ({ productId, summary: summaryFromParent = null, sectionI
         setSummary(normalizeRatingSummary(data?.summary));
         setReviews((current) => (offset ? [...current, ...page] : page));
         if (page.length < REVIEWS_PAGE) setLoadedAll(true);
+        // The first page is what the product schema may quote: the newest reviews, on screen.
+        if (!offset) onLoadedRef.current?.({ productId, summary: data?.summary || null, reviews: page });
       } catch {
         // A product page is not worth breaking over its reviews: the section simply stays empty.
         setLoadedAll(true);

@@ -540,11 +540,16 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const descriptionBlocks = useMemo(() => parseProductDescription(descriptionParagraphs.join("\n")), [descriptionParagraphs]);
   const inWishlist = Boolean(product) && isInWishlist(wishlist, product);
 
+  // What the reviews section below loaded, tagged with its product so a rating can never follow
+  // the shopper to the next product. The schema is rewritten with it: the server-rendered page
+  // carries the stars, and this rewrite must not drop them.
+  const [reviewSeo, setReviewSeo] = useState(null);
+  const pageReviewSeo = reviewSeo && product && String(reviewSeo.productId) === String(product.id) ? reviewSeo : null;
   useEffect(() => {
     if (!product) return undefined;
-    applyProductSeo(product);
+    applyProductSeo(product, { reviews: pageReviewSeo });
     return undefined;
-  }, [product]);
+  }, [product, pageReviewSeo]);
   useEffect(() => () => clearProductSeo(), []);
   const selectVariant = (candidate, options = {}) => {
     if (!candidate) return;
@@ -1089,7 +1094,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         ) : null}
         {/* What other buyers said, above the "you may also like" rails: a shopper deciding on
             THIS product should not have to scroll past other products to reach it. */}
-        <ProductReviews productId={product.id} />
+        <ProductReviews productId={product.id} onLoaded={setReviewSeo} />
         <RelatedProducts currentProduct={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         <RecentProductsSection currentId={product.id} recent={recent} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
       </div>
