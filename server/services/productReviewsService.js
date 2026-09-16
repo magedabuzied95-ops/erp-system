@@ -271,6 +271,19 @@ export const getProductRatingSummary = async (tenantId, productIds = [], { clien
   );
 };
 
+/*
+ * The name under a published review. A customer writing about a pair of shoes did not agree to
+ * publish their full name on a page the whole internet reads, so the surname is reduced to an
+ * initial — "محمد عبد الله" is shown as "محمد ع." — and someone who left no name is a customer.
+ * The ERP queue still reads the full row: a manager judging a one-star has to be able to call.
+ */
+export const publicReviewerName = (value = "", fallback = "عميل") => {
+  const parts = text(value).split(/\s+/).filter(Boolean);
+  if (!parts.length) return fallback;
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${[...parts[1]][0]}.`;
+};
+
 /* The page of reviews under a product. Phone numbers never leave this function. */
 export const listPublishedReviews = async (
   tenantId,
@@ -295,7 +308,7 @@ export const listPublishedReviews = async (
       Math.max(0, Number(offset) || 0),
     ]
   );
-  return rows;
+  return rows.map((row) => ({ ...row, customer_name: publicReviewerName(row.customer_name) }));
 };
 
 /* The ERP queue. Unlike the storefront read, this one carries the phone: a manager judging a

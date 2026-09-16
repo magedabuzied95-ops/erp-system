@@ -47,6 +47,7 @@ import { buildCrocsStorefrontSizeOptions, isCrocsProduct } from "../../shared/li
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
 import { trackGa4ViewItem } from "../lib/ga4Events";
 import DeliveryEstimate from "../components/DeliveryEstimate";
+import ProductReviews from "../components/ProductReviews";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 import { productSelectionSearchKey, resolveRequestedVariant, soldOutColorKeyToKeep } from "../lib/pdpSelection";
 import { CompareToggleButton } from "../components/StorefrontCompare";
@@ -1086,6 +1087,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           </section>
         ) : null}
+        {/* What other buyers said, above the "you may also like" rails: a shopper deciding on
+            THIS product should not have to scroll past other products to reach it. */}
+        <ProductReviews productId={product.id} />
         <RelatedProducts currentProduct={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         <RecentProductsSection currentId={product.id} recent={recent} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
       </div>

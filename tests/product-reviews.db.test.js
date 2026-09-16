@@ -189,6 +189,8 @@ if (!ready) {
     assert.equal(published.length, 1);
     assert.equal(published[0].customer_name, "Maged");
     assert.equal("phone" in published[0], false, "a public row never carries the customer's phone");
+    // The queue a manager reads keeps the whole name; the public page does not.
+    assert.equal(pending[0].customer_name, "Maged");
 
     const summary = (await reviews.getProductRatingSummary(TENANT, [7])).get(7);
     assert.equal(summary.review_count, 1);

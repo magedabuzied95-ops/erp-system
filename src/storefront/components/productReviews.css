@@ -1,0 +1,321 @@
+/*
+ * Reviews, in the homepage look the rest of the shop wears: --m1h-* tokens only, so the section
+ * follows Site Studio's colours and the visitor's theme without knowing either.
+ *
+ * The star is drawn as two stacked copies clipped by a width, which is what lets 4.5 show half
+ * a star at any font size; an SVG half-star icon would need one asset per fraction.
+ */
+
+.sfr {
+  display: grid;
+  gap: var(--m1h-s5);
+}
+
+/* ---- stars ---- */
+
+.sfr-stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  line-height: 0;
+}
+
+.sfr-stars__slot {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.sfr-stars__ghost,
+.sfr-stars__on {
+  display: block;
+  stroke-width: 1.5;
+}
+
+.sfr-stars__ghost {
+  color: var(--m1h-line);
+  fill: none;
+}
+
+.sfr-stars__fill {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.sfr-stars__on {
+  color: var(--m1h-accent);
+  fill: var(--m1h-accent);
+}
+
+/* ---- the one-line rating beside the price ---- */
+
+.sfr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m1h-s2);
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--m1h-t-sm);
+  color: var(--m1h-text-2);
+}
+
+.sfr-badge__average {
+  font-weight: 700;
+  color: var(--m1h-text);
+}
+
+.sfr-badge:hover .sfr-badge__count {
+  text-decoration: underline;
+}
+
+/* ---- the summary block ---- */
+
+.sfr-summary {
+  display: grid;
+  gap: var(--m1h-s5);
+  align-items: center;
+  padding: var(--m1h-s5);
+  background: var(--m1h-surface);
+  border: 1px solid var(--m1h-line-soft);
+  border-radius: var(--m1h-r-lg);
+}
+
+/* One column on a phone; the score beside the bars once there is room for both. */
+@media (min-width: 640px) {
+  .sfr-summary {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    gap: var(--m1h-s8);
+  }
+}
+
+.sfr-summary__score {
+  display: grid;
+  justify-items: center;
+  gap: var(--m1h-s1);
+}
+
+.sfr-summary__average {
+  font-size: var(--m1h-t-hero);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--m1h-text);
+}
+
+.sfr-summary__count {
+  font-size: var(--m1h-t-sm);
+  color: var(--m1h-text-3);
+}
+
+.sfr-summary__bars {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.sfr-bar {
+  display: grid;
+  /* The label and the count are fixed columns so the tracks all start and end together; a
+     track sized by 1fr alone would jitter as the counts change width. */
+  grid-template-columns: 2.6rem minmax(0, 1fr) 2.2rem;
+  align-items: center;
+  gap: var(--m1h-s2);
+  font-size: var(--m1h-t-xs);
+  color: var(--m1h-text-2);
+}
+
+.sfr-bar__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: flex-end;
+}
+
+.sfr-bar__star {
+  width: 11px;
+  height: 11px;
+  color: var(--m1h-accent);
+  fill: var(--m1h-accent);
+}
+
+.sfr-bar__track {
+  position: relative;
+  height: 7px;
+  min-width: 0;
+  background: var(--m1h-line-soft);
+  border-radius: var(--m1h-r-pill);
+  overflow: hidden;
+}
+
+.sfr-bar__fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: var(--m1h-accent);
+  border-radius: var(--m1h-r-pill);
+  transition: width 260ms var(--m1h-ease);
+}
+
+.sfr-bar__count {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  color: var(--m1h-text-3);
+}
+
+/* ---- one review ---- */
+
+.sfr-list {
+  display: grid;
+  gap: var(--m1h-s4);
+}
+
+.sfr-card {
+  display: grid;
+  gap: var(--m1h-s2);
+  padding: var(--m1h-s4) 0;
+  border-top: 1px solid var(--m1h-line-soft);
+}
+
+.sfr-list > .sfr-card:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.sfr-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--m1h-s2);
+}
+
+.sfr-card__name {
+  font-weight: 700;
+  font-size: var(--m1h-t-sm);
+  color: var(--m1h-text);
+}
+
+.sfr-card__verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--m1h-t-xs);
+  color: var(--m1h-text-3);
+}
+
+.sfr-card__verified-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--m1h-accent);
+}
+
+.sfr-card__bought,
+.sfr-card__body {
+  margin: 0;
+  font-size: var(--m1h-t-sm);
+  color: var(--m1h-text-2);
+}
+
+.sfr-card__bought {
+  font-size: var(--m1h-t-xs);
+  color: var(--m1h-text-3);
+}
+
+.sfr-card__body {
+  line-height: 1.7;
+  color: var(--m1h-text);
+  /* A review is the customer's own writing: keep their line breaks, wrap a pasted url. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.sfr-card__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--m1h-s2);
+}
+
+.sfr-card__photo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--m1h-r-md);
+  overflow: hidden;
+  border: 1px solid var(--m1h-line-soft);
+}
+
+.sfr-card__photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sfr-card__reply {
+  display: grid;
+  gap: 2px;
+  padding: var(--m1h-s3);
+  border-radius: var(--m1h-r-md);
+  background: var(--m1h-plate);
+  font-size: var(--m1h-t-sm);
+  /* The shop answering is a different voice from the customer; the rule marks who is speaking. */
+  border-inline-start: 3px solid var(--m1h-accent);
+}
+
+.sfr-card__reply p {
+  margin: 0;
+  color: var(--m1h-text-2);
+  white-space: pre-wrap;
+}
+
+/* ---- states ---- */
+
+.sfr-empty,
+.sfr-loading {
+  margin: 0;
+  font-size: var(--m1h-t-sm);
+  color: var(--m1h-text-3);
+}
+
+.sfr-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m1h-s2);
+}
+
+.sfr-loading__icon {
+  width: 14px;
+  height: 14px;
+  animation: sfr-spin 900ms linear infinite;
+}
+
+@keyframes sfr-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sfr-loading__icon { animation: none; }
+  .sfr-bar__fill { transition: none; }
+}
+
+.sfr-more {
+  justify-self: start;
+  padding: var(--m1h-s2) var(--m1h-s4);
+  font: inherit;
+  font-size: var(--m1h-t-sm);
+  color: var(--m1h-text);
+  background: none;
+  border: 1px solid var(--m1h-line);
+  border-radius: var(--m1h-r-pill);
+  cursor: pointer;
+}
+
+.sfr-more:hover {
+  border-color: var(--m1h-text);
+}

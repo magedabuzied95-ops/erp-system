@@ -1144,6 +1144,13 @@
   "reviews": {
     "title": "Customer reviews",
     "verifiedCustomer": "Verified customer",
+    "verifiedPurchase": "Verified purchase",
+    "countShort": "reviews",
+    "bought": "Bought",
+    "replyFrom": "Store reply",
+    "empty": "No reviews yet. The first one will come from the first customer who receives it.",
+    "loading": "Loading reviews...",
+    "more": "See more reviews",
     "items": {
       "quality": "The material is excellent and delivery was fast.",
       "size": "The size was accurate and support helped me.",
