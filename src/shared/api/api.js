@@ -20,7 +20,9 @@ const isProtectedRequest = (endpoint = "") => {
     "/auth/login",
     "/health",
     "/api/health",
-  ].some((publicPath) => path === publicPath || path.startsWith(`${publicPath}?`));
+  ].some((publicPath) => path === publicPath || path.startsWith(`${publicPath}?`))
+    // Sign-in steps (MFA code, enrolment, expired-password change) carry their own step token.
+    && !path.startsWith("/auth/login/");
 };
 
 const notifyAuthExpired = (requestUrl, method) => {

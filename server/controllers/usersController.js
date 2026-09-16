@@ -3,6 +3,9 @@ import bcrypt from "bcryptjs";
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { stripSensitiveUserFields } from "../utils/sanitizeUser.js";
+import { recordSecurityEvent } from "../modules/security/securityAudit.js";
+import { passwordPolicyErrorResponse } from "../modules/security/passwordPolicy.js";
+import { BCRYPT_COST, checkNewStaffPassword, clearMfa, loadStaffSecurityRow } from "../modules/security/staffAuthSecurity.js";
 
 const parseBooleanValue = (value) => {
   if (value === true || value === 1) return true;
@@ -413,6 +416,12 @@ async (req, res) => {
       });
     }
 
+    const createVerdict = await checkNewStaffPassword(password, { email, name });
+    if (!createVerdict.valid) {
+      logUsersValidationFailure("create", req, "password_policy", { errors: createVerdict.errors });
+      return res.status(400).json(passwordPolicyErrorResponse(createVerdict));
+    }
+
     const exists =
       await db.query(
 
@@ -448,7 +457,7 @@ async (req, res) => {
     const hashedPassword =
       await bcrypt.hash(
         password,
-        10
+        BCRYPT_COST
       );
 
     const resolvedRole = await resolveRoleById(roleId, { action: "create" });
@@ -487,6 +496,11 @@ async (req, res) => {
       insertValues.push(true);
     }
 
+    if (userColumns.has("password_changed_at")) {
+      insertColumns.push("password_changed_at");
+      insertValues.push(new Date());
+    }
+
     if (hasLegacyRoleColumn) {
       insertColumns.push("role");
       insertValues.push(resolvedRole.slug || resolvedRole.name || null);
@@ -515,6 +529,14 @@ async (req, res) => {
 
         insertValues
       );
+
+    await recordSecurityEvent({
+      req,
+      eventType: "user_created",
+      userId: user.rows[0]?.id ?? null,
+      tenantId,
+      details: { role_id: resolvedRole.id, role: resolvedRole.slug || resolvedRole.name || null },
+    });
 
     console.log("[users] create destination", {
       table: "users",
@@ -623,6 +645,14 @@ async (req, res) => {
       params
     );
 
+    await recordSecurityEvent({
+      req,
+      eventType: "user_role_changed",
+      userId: Number(id) || null,
+      tenantId,
+      details: { role_id: roleSafety.resolvedNextRole.id, role: roleSafety.resolvedNextRole.slug || roleSafety.resolvedNextRole.name || null },
+    });
+
     res.status(200).json({
 
       success: true,
@@ -696,6 +726,14 @@ async (req, res) => {
       params
     );
 
+    await recordSecurityEvent({
+      req,
+      eventType: "user_updated",
+      userId: Number(id) || null,
+      tenantId,
+      details: { role_id: updated.rows[0]?.role_id ?? null },
+    });
+
     res.status(200).json({
       success: true,
       message: "User Updated Successfully",
@@ -744,8 +782,26 @@ async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(nextPassword, 10);
-    const setClause = passwordColumns.map((column, index) => `${column} = $${index + 1}`).join(", ");
+    const targetForPolicy = await db.query("SELECT email, name FROM users WHERE id = $1 LIMIT 1", [id]).catch(() => ({ rows: [] }));
+    const resetVerdict = await checkNewStaffPassword(nextPassword, targetForPolicy.rows[0] || {});
+    if (!resetVerdict.valid) {
+      logUsersValidationFailure("password", req, "password_policy", { targetUserId: id, errors: resetVerdict.errors });
+      return res.status(400).json(passwordPolicyErrorResponse(resetVerdict));
+    }
+
+    const hashedPassword = await bcrypt.hash(nextPassword, BCRYPT_COST);
+    // A password set by an admin for someone else is temporary: that user must replace it (when
+    // rotation is enforced), the rotation clock restarts and their open sessions end.
+    const resettingSomeoneElse = String(req.user?.id) !== String(id);
+    const securityAssignments = [
+      userColumns.has("password_changed_at") ? "password_changed_at = NOW()" : null,
+      userColumns.has("must_change_password") ? `must_change_password = ${resettingSomeoneElse ? "TRUE" : "FALSE"}` : null,
+      userColumns.has("token_version") ? "token_version = COALESCE(token_version, 0) + 1" : null,
+    ].filter(Boolean);
+    const setClause = [
+      ...passwordColumns.map((column, index) => `${column} = $${index + 1}`),
+      ...securityAssignments,
+    ].join(", ");
     const whereClause = isSuperAdminUser(req.user) || tenantId === null
       ? `WHERE id = $${passwordColumns.length + 1}`
       : `WHERE id = $${passwordColumns.length + 1} AND tenant_id = $${passwordColumns.length + 2}`;
@@ -762,6 +818,13 @@ async (req, res) => {
       `,
       params
     );
+
+    await recordSecurityEvent({
+      req,
+      eventType: "password_reset_by_admin",
+      userId: Number(id) || null,
+      tenantId,
+    });
 
     res.status(200).json({
       success: true,
@@ -820,6 +883,13 @@ async (req, res) => {
       `,
       params
     );
+
+    await recordSecurityEvent({
+      req,
+      eventType: nextStatus ? "user_enabled" : "user_disabled",
+      userId: Number(id) || null,
+      tenantId,
+    });
 
     res.status(200).json({
       success: true,
@@ -892,6 +962,13 @@ async (req, res) => {
       params
     );
 
+    await recordSecurityEvent({
+      req,
+      eventType: "user_deleted",
+      userId: Number(targetUserId) || null,
+      tenantId,
+    });
+
     res.status(200).json({
 
       success: true,
@@ -911,5 +988,26 @@ async (req, res) => {
       message:
         "Failed To Delete User"
     });
+  }
+};
+
+/* ======================================================
+   RESET USER MFA (admin) - for a lost phone; the user re-enrols at next login
+====================================================== */
+
+export const resetUserMfa = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const target = await getUserById(id, isSuperAdminUser(req.user) || tenantId === null ? null : tenantId, { includeRole: false });
+    if (!target) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    const row = await loadStaffSecurityRow(target.id);
+    await clearMfa({ req, targetRow: row, actorUserId: req.user?.id ?? null, eventType: "mfa_reset_by_admin" });
+    return res.status(200).json({ success: true, message: "MFA reset" });
+  } catch (error) {
+    console.error("[users] MFA reset failed", { targetUserId: req.params.id, message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "Failed To Reset MFA" });
   }
 };

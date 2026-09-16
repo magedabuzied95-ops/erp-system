@@ -1,6 +1,6 @@
 import express from "express";
 
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import {
   createUser,
@@ -10,6 +10,7 @@ import {
   updateUserPassword,
   updateUserRole,
   updateUserStatus,
+  resetUserMfa,
 } from "../controllers/usersController.js";
 
 const router = express.Router();
@@ -30,5 +31,7 @@ router.put("/:id/role", protect, permit("users", "edit"), updateUserRole);
 router.patch("/:id/role", protect, permit("users", "edit"), updateUserRole);
 router.patch("/:id/status", protect, permit("users", "edit"), updateUserStatus);
 router.delete("/:id", protect, permit("users", "delete"), deleteUser);
+// Clearing another account's second factor is an administrator-only action.
+router.post("/:id/mfa/reset", protect, requireAdmin, resetUserMfa);
 
 export default router;

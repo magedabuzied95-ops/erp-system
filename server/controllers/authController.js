@@ -9,6 +9,27 @@ import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staf
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
 import { isPortalInboxRole } from "../modules/aiInboxPortal/portalInboxAccess.js";
+import { recordSecurityEvent } from "../modules/security/securityAudit.js";
+import { passwordPolicyErrorResponse } from "../modules/security/passwordPolicy.js";
+import {
+  BCRYPT_COST,
+  STEP_TOKEN_TYPES,
+  checkNewStaffPassword,
+  assessLoginPassword,
+  changeOwnPassword,
+  clearMfa,
+  confirmMfaEnrollment,
+  getStaffSecurityPolicy,
+  loadStaffSecurityRow,
+  publicMfaStatus,
+  readStepToken,
+  regenerateRecoveryCodes,
+  signStepToken,
+  startMfaEnrollment,
+  stepTokenStillValid,
+  userRequiresMfa,
+  verifyMfaForLogin,
+} from "../modules/security/staffAuthSecurity.js";
 
 // Boot runs this before listen(); login used to run it again on EVERY sign-in, and each run is two
 // ALTER TABLE users, which lock the table every authenticated request reads.
@@ -163,6 +184,9 @@ const generateToken = (user) => {
       role: user.role,
       tenant_id: user.tenant_id ?? null,
       is_super_admin: Boolean(user.is_super_admin),
+      // Session generation: a password change or MFA change bumps users.token_version and every
+      // older token stops passing protect().
+      tv: Number(user.token_version || 0),
     },
     process.env.JWT_SECRET || "SECRET_KEY",
     { expiresIn }
@@ -222,7 +246,12 @@ export const register = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const registerVerdict = await checkNewStaffPassword(password, { email, name });
+    if (!registerVerdict.valid) {
+      return res.status(400).json(passwordPolicyErrorResponse(registerVerdict));
+    }
+
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_COST);
     const roleResult = await db.query(
       `
       SELECT id, name
@@ -310,6 +339,7 @@ export const login = async (req, res) => {
     const lockedFor = failureKey ? staffLoginFailuresByEmail.retryAfterSeconds(failureKey) : 0;
     if (lockedFor > 0) {
       console.warn("[auth] login refused: account temporarily locked", { retryAfterSeconds: lockedFor });
+      await recordSecurityEvent({ req, eventType: "login", outcome: "locked", details: { email: String(email).trim().toLowerCase() } });
       return sendTooManyAttempts(res, lockedFor);
     }
 
@@ -374,6 +404,7 @@ export const login = async (req, res) => {
         tenantId,
       });
       if (failureKey) staffLoginFailuresByEmail.hit(failureKey);
+      await recordSecurityEvent({ req, eventType: "login", outcome: "failure", details: { reason_code: "unknown_user", email: String(email).trim().toLowerCase() } });
       return res.status(400).json({
         success: false,
         message: "Invalid Email Or Password",
@@ -435,6 +466,14 @@ export const login = async (req, res) => {
         tenantId,
       });
       if (failureKey) staffLoginFailuresByEmail.hit(failureKey);
+      await recordSecurityEvent({
+        req,
+        eventType: "login",
+        outcome: "failure",
+        userId: result.rows.length === 1 ? result.rows[0].id : null,
+        tenantId: result.rows.length === 1 ? result.rows[0].tenant_id : null,
+        details: { reason_code: "wrong_password", email: String(email).trim().toLowerCase() },
+      });
       return res.status(400).json({
         success: false,
         message: "Invalid Email Or Password",
@@ -465,99 +504,379 @@ export const login = async (req, res) => {
     if (failureKey) staffLoginFailuresByEmail.reset(failureKey);
     const permissions = await getUserPermissions(user.id, user.tenant_id);
 
-    try {
-      await db.query(
-        `
-        UPDATE users
-        SET last_login_at = NOW()
-        WHERE id = $1
-        `,
-        [user.id]
-      );
-    } catch (loginUpdateError) {
-      if (loginUpdateError.code !== "42703") {
-        throw loginUpdateError;
+    // Password policy and MFA steps. The temporary Meta reviewer account keeps its own time-boxed
+    // flow and is never an Amazon user.
+    let passwordStatus = null;
+    if (!isMetaReviewerRole(getRoleName(user))) {
+      const securityRow = await loadStaffSecurityRow(user.id);
+      const assessment = await assessLoginPassword(securityRow, password);
+      passwordStatus = assessment.status;
+      const auditBase = { req, userId: user.id, tenantId: user.tenant_id, actorUserId: user.id };
+
+      if (assessment.mustChangeNow) {
+        await recordSecurityEvent({ ...auditBase, eventType: "login", outcome: "password_change_required", details: { reasons: passwordStatus.reasons.join(",") } });
+        return res.status(200).json({
+          success: true,
+          step: "password_change_required",
+          challenge_token: signStepToken(STEP_TOKEN_TYPES.PASSWORD_CHANGE, securityRow, 15 * 60),
+          password_status: passwordStatus,
+        });
       }
+
+      if (securityRow.mfa_enabled === true) {
+        await recordSecurityEvent({ ...auditBase, eventType: "login", outcome: "mfa_challenge_issued" });
+        return res.status(200).json({
+          success: true,
+          step: "mfa_required",
+          challenge_token: signStepToken(STEP_TOKEN_TYPES.MFA_CHALLENGE, securityRow, 5 * 60),
+        });
+      }
+
+      if (assessment.policy.mfaRequired && userRequiresMfa(user, permissions)) {
+        await recordSecurityEvent({ ...auditBase, eventType: "login", outcome: "mfa_enrollment_required" });
+        return res.status(200).json({
+          success: true,
+          step: "mfa_enrollment_required",
+          challenge_token: signStepToken(STEP_TOKEN_TYPES.MFA_ENROLL, securityRow, 15 * 60),
+        });
+      }
+      user.token_version = securityRow.token_version;
     }
 
-    const token = generateToken({
-      id: user.id,
-      role: getRoleName(user),
-      tenant_id: user.tenant_id,
-      is_super_admin: Boolean(user.is_super_admin),
-      account_expires_at: user.account_expires_at || null,
-    });
-
-    const tenantBranding = user.tenant_id
-      ? await db.query(
-          `
-          SELECT
-            t.id,
-            t.slug,
-            COALESCE(NULLIF(TRIM(t.company_name), ''), NULLIF(TRIM(c.company_name), ''), NULLIF(TRIM(t.name), ''), 'MONE') AS company_name,
-            COALESCE(NULLIF(TRIM(t.company_logo_url), ''), NULLIF(TRIM(c.logo_url), ''), '') AS company_logo_url,
-            COALESCE(NULLIF(TRIM(t.favicon_url), ''), NULLIF(TRIM(c.favicon_url), ''), '') AS favicon_url
-          FROM tenants t
-          LEFT JOIN company_profiles c ON c.tenant_id = t.id
-          WHERE t.id = $1
-          LIMIT 1
-          `,
-          [user.tenant_id]
-        ).catch(() => ({ rows: [] }))
-      : { rows: [] };
-    const tenant = tenantBranding.rows[0]
-      ? {
-          id: tenantBranding.rows[0].id,
-          slug: tenantBranding.rows[0].slug,
-          name: tenantBranding.rows[0].company_name,
-          companyName: tenantBranding.rows[0].company_name,
-          company_logo_url: tenantBranding.rows[0].company_logo_url || "",
-          companyLogoUrl: tenantBranding.rows[0].company_logo_url || "",
-          favicon_url: tenantBranding.rows[0].favicon_url || "",
-          faviconUrl: tenantBranding.rows[0].favicon_url || "",
-        }
-      : null;
-
-    if (!isMetaReviewerRole(getRoleName(user))) void (async () => {
-      try {
-        await ensureStaffTasksSchema();
-        const employee = await resolveEmployeeForUser(user, user.tenant_id);
-        if (employee?.id) {
-          await sendLoginTaskDigestIfNeeded(user.id, employee.id, user.tenant_id);
-        }
-      } catch (digestError) {
-        console.warn("[auth] staff task login digest skipped", digestError.message);
-      }
-    })();
-
-    const presentedRole = reviewerPresentation(getRoleName(user));
-    return res.status(200).json({
-      success: true,
-      message: "Login Successful",
-      token,
-      tenant,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: presentedRole.role,
-        role_name: presentedRole.role_name,
-        account_mode: presentedRole.account_mode,
-        tenant_id: user.tenant_id,
-        company_name: tenant?.companyName || "",
-        company_logo_url: tenant?.companyLogoUrl || "",
-        favicon_url: tenant?.faviconUrl || "",
-        is_super_admin: Boolean(user.is_super_admin),
-        permissions,
-        account_expires_at: user.account_expires_at || null,
-      },
-    });
+    return await finishStaffLogin(req, res, user, { permissions, passwordStatus, mfaMethod: null });
   } catch (error) {
     console.log(error);
     return res.status(500).json({
       success: false,
       message: "Failed To Login",
     });
+  }
+};
+
+// Issues the session once every step (password, policy, MFA) has passed.
+const finishStaffLogin = async (req, res, user, { permissions, passwordStatus = null, mfaMethod = null, extra = {} }) => {
+  try {
+    await db.query(
+      `
+      UPDATE users
+      SET last_login_at = NOW()
+      WHERE id = $1
+      `,
+      [user.id]
+    );
+  } catch (loginUpdateError) {
+    if (loginUpdateError.code !== "42703") {
+      throw loginUpdateError;
+    }
+  }
+
+  const token = generateToken({
+    id: user.id,
+    role: getRoleName(user),
+    tenant_id: user.tenant_id,
+    is_super_admin: Boolean(user.is_super_admin),
+    account_expires_at: user.account_expires_at || null,
+    token_version: user.token_version,
+  });
+
+  const tenantBranding = user.tenant_id
+    ? await db.query(
+        `
+        SELECT
+          t.id,
+          t.slug,
+          COALESCE(NULLIF(TRIM(t.company_name), ''), NULLIF(TRIM(c.company_name), ''), NULLIF(TRIM(t.name), ''), 'MONE') AS company_name,
+          COALESCE(NULLIF(TRIM(t.company_logo_url), ''), NULLIF(TRIM(c.logo_url), ''), '') AS company_logo_url,
+          COALESCE(NULLIF(TRIM(t.favicon_url), ''), NULLIF(TRIM(c.favicon_url), ''), '') AS favicon_url
+        FROM tenants t
+        LEFT JOIN company_profiles c ON c.tenant_id = t.id
+        WHERE t.id = $1
+        LIMIT 1
+        `,
+        [user.tenant_id]
+      ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+  const tenant = tenantBranding.rows[0]
+    ? {
+        id: tenantBranding.rows[0].id,
+        slug: tenantBranding.rows[0].slug,
+        name: tenantBranding.rows[0].company_name,
+        companyName: tenantBranding.rows[0].company_name,
+        company_logo_url: tenantBranding.rows[0].company_logo_url || "",
+        companyLogoUrl: tenantBranding.rows[0].company_logo_url || "",
+        favicon_url: tenantBranding.rows[0].favicon_url || "",
+        faviconUrl: tenantBranding.rows[0].favicon_url || "",
+      }
+    : null;
+
+  if (!isMetaReviewerRole(getRoleName(user))) void (async () => {
+    try {
+      await ensureStaffTasksSchema();
+      const employee = await resolveEmployeeForUser(user, user.tenant_id);
+      if (employee?.id) {
+        await sendLoginTaskDigestIfNeeded(user.id, employee.id, user.tenant_id);
+      }
+    } catch (digestError) {
+      console.warn("[auth] staff task login digest skipped", digestError.message);
+    }
+  })();
+
+  await recordSecurityEvent({
+    req,
+    eventType: "login",
+    outcome: "success",
+    userId: user.id,
+    tenantId: user.tenant_id,
+    actorUserId: user.id,
+    details: { mfa: mfaMethod || "none" },
+  });
+
+  const presentedRole = reviewerPresentation(getRoleName(user));
+  return res.status(200).json({
+    success: true,
+    message: "Login Successful",
+    token,
+    tenant,
+    password_status: passwordStatus,
+    ...extra,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: presentedRole.role,
+      role_name: presentedRole.role_name,
+      account_mode: presentedRole.account_mode,
+      tenant_id: user.tenant_id,
+      company_name: tenant?.companyName || "",
+      company_logo_url: tenant?.companyLogoUrl || "",
+      favicon_url: tenant?.faviconUrl || "",
+      is_super_admin: Boolean(user.is_super_admin),
+      permissions,
+      account_expires_at: user.account_expires_at || null,
+    },
+  });
+};
+
+const stepError = (res, result) => {
+  if (result.status === 429) return sendTooManyAttempts(res, result.retryAfter);
+  return res.status(result.status || 400).json({
+    success: false,
+    code: result.code,
+    message: result.message,
+    ...(result.errors ? { errors: result.errors } : {}),
+  });
+};
+
+const INVALID_STEP = { success: false, code: "STEP_EXPIRED", message: "انتهت صلاحية الخطوة، سجّل الدخول مرة أخرى" };
+
+const loadStepRow = async (req, types) => {
+  const decoded = readStepToken(req.body?.challenge_token, types);
+  if (!decoded) return null;
+  const row = await loadStaffSecurityRow(decoded.uid);
+  return stepTokenStillValid(decoded, row) ? row : null;
+};
+
+// POST /api/auth/login/mfa
+export const verifyLoginMfa = async (req, res) => {
+  try {
+    const row = await loadStepRow(req, [STEP_TOKEN_TYPES.MFA_CHALLENGE]);
+    if (!row) return res.status(401).json(INVALID_STEP);
+    const result = await verifyMfaForLogin({ req, row, code: req.body?.code });
+    if (!result.ok) return stepError(res, result);
+    const permissions = await getUserPermissions(row.id, row.tenant_id);
+    return await finishStaffLogin(req, res, row, {
+      permissions,
+      mfaMethod: result.method,
+      extra: result.method === "recovery_code" ? { recovery_codes_remaining: result.recoveryCodesRemaining } : {},
+    });
+  } catch (error) {
+    console.error("[auth] MFA login step failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "Failed To Login" });
+  }
+};
+
+// POST /api/auth/login/mfa-enroll/start
+export const startLoginMfaEnrollment = async (req, res) => {
+  try {
+    const row = await loadStepRow(req, [STEP_TOKEN_TYPES.MFA_ENROLL]);
+    if (!row) return res.status(401).json(INVALID_STEP);
+    return res.json({ success: true, ...(await startMfaEnrollment(row)) });
+  } catch (error) {
+    console.error("[auth] MFA enrolment start failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر بدء التفعيل" });
+  }
+};
+
+// POST /api/auth/login/mfa-enroll/confirm - enrolling proves possession, so it completes the login.
+export const confirmLoginMfaEnrollment = async (req, res) => {
+  try {
+    const row = await loadStepRow(req, [STEP_TOKEN_TYPES.MFA_ENROLL]);
+    if (!row) return res.status(401).json(INVALID_STEP);
+    const result = await confirmMfaEnrollment({ req, row, code: req.body?.code });
+    if (!result.ok) return stepError(res, result);
+    const fresh = await loadStaffSecurityRow(row.id);
+    const permissions = await getUserPermissions(fresh.id, fresh.tenant_id);
+    return await finishStaffLogin(req, res, fresh, {
+      permissions,
+      mfaMethod: "totp_enrollment",
+      extra: { recovery_codes: result.recoveryCodes },
+    });
+  } catch (error) {
+    console.error("[auth] MFA enrolment confirm failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر تأكيد التفعيل" });
+  }
+};
+
+// POST /api/auth/login/password-change - the user signs in again with the new password afterwards.
+export const changeExpiredPassword = async (req, res) => {
+  try {
+    const row = await loadStepRow(req, [STEP_TOKEN_TYPES.PASSWORD_CHANGE]);
+    if (!row) return res.status(401).json(INVALID_STEP);
+    const result = await changeOwnPassword({
+      req,
+      row,
+      currentPassword: req.body?.current_password,
+      newPassword: req.body?.new_password,
+    });
+    if (!result.ok) return stepError(res, result);
+    return res.json({ success: true, step: "password_changed", message: "تم تغيير كلمة المرور، سجّل الدخول بالكلمة الجديدة" });
+  } catch (error) {
+    console.error("[auth] expired password change failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر تغيير كلمة المرور" });
+  }
+};
+
+// ---------------------------------------------------------------- signed-in self-service
+
+const sessionTokenFor = async (userId) => {
+  const row = await loadStaffSecurityRow(userId);
+  return generateToken({
+    id: row.id,
+    role: getRoleName(row),
+    tenant_id: row.tenant_id,
+    is_super_admin: Boolean(row.is_super_admin),
+    account_expires_at: row.account_expires_at || null,
+    token_version: row.token_version,
+  });
+};
+
+// GET /api/auth/security
+export const getMySecurity = async (req, res) => {
+  try {
+    const row = await loadStaffSecurityRow(req.user.id);
+    const policy = await getStaffSecurityPolicy();
+    const permissions = await getUserPermissions(row.id, row.tenant_id);
+    const { status } = await assessLoginPassword(row, undefined);
+    return res.json({
+      success: true,
+      mfa: publicMfaStatus(row),
+      mfa_required_for_you: policy.mfaRequired && userRequiresMfa(row, permissions),
+      mfa_applies_to_you: userRequiresMfa(row, permissions),
+      password: {
+        changed_at: row.password_changed_at || null,
+        expires_at: status.expires_at,
+        days_left: status.days_left,
+        must_change: status.must_change,
+      },
+      policy: {
+        min_length: 12,
+        requires: ["upper", "lower", "digit", "special"],
+        max_age_days: policy.passwordMaxAgeDays,
+        enforce_password_rotation: policy.enforcePasswordRotation,
+        mfa_required: policy.mfaRequired,
+      },
+    });
+  } catch (error) {
+    console.error("[auth] security status failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر تحميل إعدادات الأمان" });
+  }
+};
+
+// POST /api/auth/password - keeps this session (new token), ends every other one.
+export const changeMyPassword = async (req, res) => {
+  try {
+    const row = await loadStaffSecurityRow(req.user.id);
+    const result = await changeOwnPassword({
+      req,
+      row,
+      currentPassword: req.body?.current_password,
+      newPassword: req.body?.new_password,
+    });
+    if (!result.ok) return stepError(res, result);
+    return res.json({ success: true, token: await sessionTokenFor(row.id), message: "تم تغيير كلمة المرور" });
+  } catch (error) {
+    console.error("[auth] password change failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر تغيير كلمة المرور" });
+  }
+};
+
+// POST /api/auth/mfa/enroll/start
+export const startMyMfaEnrollment = async (req, res) => {
+  try {
+    const row = await loadStaffSecurityRow(req.user.id);
+    if (row.mfa_enabled === true) {
+      return res.status(409).json({ success: false, code: "MFA_ALREADY_ENABLED", message: "التحقق الثنائي مفعّل بالفعل" });
+    }
+    return res.json({ success: true, ...(await startMfaEnrollment(row)) });
+  } catch (error) {
+    console.error("[auth] MFA enrolment start failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر بدء التفعيل" });
+  }
+};
+
+// POST /api/auth/mfa/enroll/confirm
+export const confirmMyMfaEnrollment = async (req, res) => {
+  try {
+    const row = await loadStaffSecurityRow(req.user.id);
+    if (row.mfa_enabled === true) {
+      return res.status(409).json({ success: false, code: "MFA_ALREADY_ENABLED", message: "التحقق الثنائي مفعّل بالفعل" });
+    }
+    const result = await confirmMfaEnrollment({ req, row, code: req.body?.code });
+    if (!result.ok) return stepError(res, result);
+    return res.json({ success: true, recovery_codes: result.recoveryCodes, token: await sessionTokenFor(row.id) });
+  } catch (error) {
+    console.error("[auth] MFA enrolment confirm failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر تأكيد التفعيل" });
+  }
+};
+
+const verifyPasswordAndCode = async (req, row) => {
+  if (!row?.password || !(await bcrypt.compare(String(req.body?.password || ""), row.password))) {
+    await recordSecurityEvent({ req, eventType: "mfa_sensitive_action", outcome: "failure", userId: row?.id, tenantId: row?.tenant_id, details: { reason_code: "password_wrong" } });
+    return { ok: false, status: 400, code: "CURRENT_PASSWORD_WRONG", message: "كلمة المرور غير صحيحة" };
+  }
+  return verifyMfaForLogin({ req, row, code: req.body?.code });
+};
+
+// POST /api/auth/mfa/disable - needs the password AND a current code; refused while MFA is required.
+export const disableMyMfa = async (req, res) => {
+  try {
+    const row = await loadStaffSecurityRow(req.user.id);
+    const policy = await getStaffSecurityPolicy();
+    const permissions = await getUserPermissions(row.id, row.tenant_id);
+    if (policy.mfaRequired && userRequiresMfa(row, permissions)) {
+      return res.status(403).json({ success: false, code: "MFA_REQUIRED", message: "التحقق الثنائي إلزامي لحسابك ولا يمكن إيقافه" });
+    }
+    const check = await verifyPasswordAndCode(req, row);
+    if (!check.ok) return stepError(res, check);
+    await clearMfa({ req, targetRow: row, actorUserId: row.id, eventType: "mfa_disabled" });
+    return res.json({ success: true, token: await sessionTokenFor(row.id) });
+  } catch (error) {
+    console.error("[auth] MFA disable failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر إيقاف التحقق الثنائي" });
+  }
+};
+
+// POST /api/auth/mfa/recovery-codes
+export const regenerateMyRecoveryCodes = async (req, res) => {
+  try {
+    const row = await loadStaffSecurityRow(req.user.id);
+    const check = await verifyPasswordAndCode(req, row);
+    if (!check.ok) return stepError(res, check);
+    return res.json({ success: true, recovery_codes: await regenerateRecoveryCodes({ req, row }) });
+  } catch (error) {
+    console.error("[auth] recovery code regeneration failed", { message: error?.message || String(error) });
+    return res.status(500).json({ success: false, message: "تعذر إنشاء أكواد جديدة" });
   }
 };
 

@@ -98,7 +98,7 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
       body: {
         name: "Test User",
         email: "test.user@example.com",
-        password: "Secret123!",
+        password: "Secret-Pass-123!",
         role_id: 12,
       },
       user: {
@@ -122,7 +122,7 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
     assert.ok(insertQuery, "expected insert query to run");
     assert.equal(insertQuery.params[3], 12);
     assert.match(String(insertQuery.params[4] || ""), /^\$2[aby]\$/);
-    assert.notEqual(insertQuery.params[4], "Secret123!");
+    assert.notEqual(insertQuery.params[4], "Secret-Pass-123!");
   } finally {
     db.query = originalQuery;
   }
@@ -195,7 +195,7 @@ test("createUser resolves a global role by numeric id for tenant-scoped requests
       body: {
         name: "Tenant User",
         email: "tenant.user@example.com",
-        password: "Secret123!",
+        password: "Secret-Pass-123!",
         role_id: 1,
       },
       user: {

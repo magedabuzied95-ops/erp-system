@@ -35,6 +35,19 @@ test("created user can log in immediately with the same email and password", asy
   const query = async (sql, params = []) => {
     const text = normalizeSql(sql);
 
+    // Staff security row (password policy + MFA state) read after the password matches.
+    if (text.includes("u.mfa_recovery_codes_hash") && text.includes("WHERE u.id = $1")) {
+      const found = state.users.find((item) => Number(item.id) === Number(params[0]));
+      return {
+        rows: found
+          ? [{ ...found, role_name: found.role_name || found.role || "user", mfa_enabled: found.mfa_enabled ?? null, token_version: found.token_version ?? null }]
+          : [],
+      };
+    }
+    if (text.startsWith("INSERT INTO security_audit_events") || text.includes("system_settings")) {
+      return { rows: [], rowCount: 0 };
+    }
+
     if (text.includes("information_schema.columns") && text.includes("table_name = 'users'") && text.includes("column_name = 'last_login_at'")) {
       return { rows: [{ column_name: "last_login_at", data_type: "timestamp without time zone", is_nullable: "YES" }] };
     }
@@ -257,7 +270,7 @@ test("created user can log in immediately with the same email and password", asy
       body: {
         name: "New User",
         email: "new.user@example.com",
-        password: "Secret123!",
+        password: "Secret-Pass-123!",
         role_id: 12,
       },
       user: {
@@ -272,7 +285,7 @@ test("created user can log in immediately with the same email and password", asy
     const createRes = makeResponse();
     await createUser(createReq, createRes);
     assert.equal(createRes.statusCode, 201);
-    const seededPassword = await bcrypt.hash("Secret123!", 10);
+    const seededPassword = await bcrypt.hash("Secret-Pass-123!", 10);
     const createdUser = state.users.find((user) => String(user.email || "").toLowerCase() === "new.user@example.com");
     if (createdUser) {
       createdUser.password ??= seededPassword;
@@ -299,12 +312,12 @@ test("created user can log in immediately with the same email and password", asy
     assert.equal(state.users[0].tenant_id, 7);
     assert.equal(state.users[0].is_active, true);
     assert.ok(state.users[0].password);
-    assert.notEqual(state.users[0].password, "Secret123!");
+    assert.notEqual(state.users[0].password, "Secret-Pass-123!");
 
     const loginReq = {
       body: {
         email: "new.user@example.com",
-        password: "Secret123!",
+        password: "Secret-Pass-123!",
         workspace: "acme",
         tenant_slug: "acme",
       },
@@ -342,6 +355,19 @@ test("create user persists to users table, GET /api/users returns it, and login 
 
   const query = async (sql, params = []) => {
     const text = normalizeSql(sql);
+
+    // Staff security row (password policy + MFA state) read after the password matches.
+    if (text.includes("u.mfa_recovery_codes_hash") && text.includes("WHERE u.id = $1")) {
+      const found = state.users.find((item) => Number(item.id) === Number(params[0]));
+      return {
+        rows: found
+          ? [{ ...found, role_name: found.role_name || found.role || "user", mfa_enabled: found.mfa_enabled ?? null, token_version: found.token_version ?? null }]
+          : [],
+      };
+    }
+    if (text.startsWith("INSERT INTO security_audit_events") || text.includes("system_settings")) {
+      return { rows: [], rowCount: 0 };
+    }
 
     if (text.includes("information_schema.columns") && text.includes("table_name = 'users'") && text.includes("column_name = 'last_login_at'")) {
       return { rows: [{ column_name: "last_login_at", data_type: "timestamp without time zone", is_nullable: "YES" }] };
@@ -561,7 +587,7 @@ test("create user persists to users table, GET /api/users returns it, and login 
       body: {
         name: "New User",
         email: "new.user@example.com",
-        password: "Secret123!",
+        password: "Secret-Pass-123!",
         role_id: 12,
       },
       user: {
@@ -576,7 +602,7 @@ test("create user persists to users table, GET /api/users returns it, and login 
     const createRes = makeResponse();
     await createUser(createReq, createRes);
     assert.equal(createRes.statusCode, 201);
-    const seededPassword = await bcrypt.hash("Secret123!", 10);
+    const seededPassword = await bcrypt.hash("Secret-Pass-123!", 10);
     const createdUser = state.users.find((user) => String(user.email || "").toLowerCase() === "new.user@example.com");
     if (createdUser) {
       createdUser.password ??= seededPassword;
@@ -623,7 +649,7 @@ test("create user persists to users table, GET /api/users returns it, and login 
     const loginReq = {
       body: {
         email: "new.user@example.com",
-        password: "Secret123!",
+        password: "Secret-Pass-123!",
         workspace: "acme",
         tenant_slug: "acme",
       },

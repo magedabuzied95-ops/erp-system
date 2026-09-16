@@ -88,6 +88,10 @@ export const protect = async (
         if (databaseUser?.is_active === false) {
           return res.status(403).json({ message: "Account disabled" });
         }
+        // A password or MFA change bumps token_version; tokens minted before it are dead.
+        if (Number(databaseUser?.token_version || 0) !== Number(decoded?.tv || 0)) {
+          return res.status(401).json({ code: "SESSION_REVOKED", message: "Session expired, please sign in again" });
+        }
         const effectiveRole = databaseUser?.role || databaseUser?.role_name || decoded?.role;
         if (isMetaReviewerRole(effectiveRole) && (!databaseUser?.account_expires_at || metaReviewerAccountExpired(databaseUser.account_expires_at))) {
           return res.status(403).json({ message: "Temporary review account expired" });
@@ -102,13 +106,14 @@ export const protect = async (
             : decoded;
         req.tenantId = req.user?.tenant_id ?? req.user?.tenantId ?? null;
         req.tenant = req.tenantId ? { id: req.tenantId } : undefined;
-      } catch {
+      } catch (lookupError) {
         if (isMetaReviewerRole(decoded?.role)) {
           return res.status(401).json({ message: "Review account could not be verified" });
         }
-        req.user = decoded;
-        req.tenantId = req.user?.tenant_id ?? req.user?.tenantId ?? null;
-        req.tenant = req.tenantId ? { id: req.tenantId } : undefined;
+        // This used to fall back to the token's own claims, so a disabled or revoked account kept
+        // working whenever the lookup failed. Fail closed; 503 so the client does not sign out.
+        console.error("[auth] user lookup failed", { message: lookupError?.message || String(lookupError) });
+        return res.status(503).json({ message: "Authentication temporarily unavailable" });
       }
 
       console.log("[auth] user available", {

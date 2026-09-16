@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { AlertTriangle, BadgePlus, CircleX, PencilLine, RefreshCw, ShieldCheck, ShieldAlert, Trash2, UsersRound } from "lucide-react";
+import { AlertTriangle, BadgePlus, CircleX, KeyRound, PencilLine, RefreshCw, ShieldCheck, ShieldAlert, Trash2, UsersRound } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
@@ -295,7 +295,7 @@ function UsersPage() {
       toast.success(t("access.users.toasts.passwordUpdated"));
     } catch (err) {
       console.log(err);
-      toast.error(t("access.users.toasts.passwordUpdateUnavailable"));
+      toast.error(err?.responseBody?.code === "PASSWORD_POLICY" ? err.message : t("access.users.toasts.passwordUpdateUnavailable"));
     } finally {
       setActionBusyId(null);
     }
@@ -355,18 +355,30 @@ function UsersPage() {
         password,
         role_id: numericSelectedRoleId,
       };
-      console.log("USERS_CREATE_PAYLOAD", payload);
       await api.post("/users", payload);
       setUsers(next);
       toast.success(t("access.users.toasts.userCreated"));
-    } catch (err) {
-      console.log(err);
-      toast.error(t("access.users.toasts.createUnavailable"));
-      } finally {
       setName("");
       setEmail("");
       setPassword("");
       setSelectedRoleId(String(roleOptions[0]?.id || ""));
+    } catch (err) {
+      console.log(err?.message);
+      // A policy refusal keeps the form filled so only the password needs fixing.
+      toast.error(err?.responseBody?.code === "PASSWORD_POLICY" ? err.message : t("access.users.toasts.createUnavailable"));
+    }
+  };
+
+  const resetUserMfa = async (user) => {
+    if (!user || !window.confirm(t("access.security.resetMfaConfirm"))) return;
+    setActionBusyId(user.id);
+    try {
+      await api.post(`/users/${user.id}/mfa/reset`, {});
+      toast.success(t("access.security.resetMfaDone"));
+    } catch (err) {
+      toast.error(err?.message || t("access.security.unknown"));
+    } finally {
+      setActionBusyId(null);
     }
   };
 
@@ -450,6 +462,7 @@ function UsersPage() {
               <Field label={t("access.users.name")} value={name} onChange={setName} placeholder={t("access.users.fullName")} />
               <Field label={t("access.users.email")} value={email} onChange={setEmail} placeholder="user@company.com" />
               <Field label={t("access.users.password")} value={password} onChange={setPassword} placeholder={t("access.users.initialPassword")} type="password" />
+              <p className="-mt-1 text-xs text-white/60">{t("access.security.passwordHint")}</p>
               <Select label={t("access.users.role")} value={selectedRoleId} onChange={setSelectedRoleId} options={roleOptions} />
               <Can permission="users.create">
                 <button
@@ -551,6 +564,15 @@ function UsersPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => resetUserMfa(user)}
+                        disabled={actionBusyId === user.id}
+                        className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        {t("access.security.resetMfa")}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => deleteUser(user)}
                         disabled={actionBusyId === user.id}
                         className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50"
@@ -595,6 +617,7 @@ function UsersPage() {
           <div className="space-y-3">
             <Field label={t("access.users.newPassword")} value={newPassword} onChange={setNewPassword} placeholder={t("access.users.newPassword")} type="password" />
             <Field label={t("access.users.confirmPassword")} value={confirmPassword} onChange={setConfirmPassword} placeholder={t("access.users.confirmPassword")} type="password" />
+            <p className="text-xs text-white/60">{t("access.security.passwordHint")}</p>
           </div>
           <div className="mt-5 flex items-center justify-end gap-2">
             <button type="button" onClick={closePasswordModal} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">

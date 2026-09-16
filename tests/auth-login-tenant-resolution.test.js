@@ -28,6 +28,19 @@ const makeLoginDbStub = ({ tenants = [], users = [], queries = [] } = {}) => {
 
   const query = async (sql, params = []) => {
     const text = normalizeSql(sql);
+
+    // Staff security row (password policy + MFA state) read after the password matches.
+    if (text.includes("u.mfa_recovery_codes_hash") && text.includes("WHERE u.id = $1")) {
+      const found = state.users.find((item) => Number(item.id) === Number(params[0]));
+      return {
+        rows: found
+          ? [{ ...found, role_name: found.role_name || found.role || "user", mfa_enabled: found.mfa_enabled ?? null, token_version: found.token_version ?? null }]
+          : [],
+      };
+    }
+    if (text.startsWith("INSERT INTO security_audit_events") || text.includes("system_settings")) {
+      return { rows: [], rowCount: 0 };
+    }
     queries.push(text);
 
     if (text.includes("information_schema.columns") && text.includes("table_name = 'users'") && text.includes("column_name = 'last_login_at'")) {

@@ -216,6 +216,7 @@ const CouponsManager = lazy(() => import("./modules/coupons/pages/CouponsManager
 const Users = lazy(() => import("./modules/permissions/pages/Users"));
 const Roles = lazy(() => import("./modules/permissions/pages/Roles"));
 const Permissions = lazy(() => import("./modules/permissions/pages/Permissions"));
+const AccountSecurity = lazy(() => import("./modules/security/AccountSecurity"));
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
@@ -2048,6 +2049,16 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["users.view"]}>
               <Users />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Every signed-in user manages their own password and two-factor here. */}
+        <Route
+          path="settings/account-security"
+          element={
+            <ProtectedRoute>
+              <AccountSecurity />
             </ProtectedRoute>
           }
         />

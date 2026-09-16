@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShoppingBag, Store, Sun, User, X } from "lucide-react";
+import { Bell, Boxes, ChevronDown, CircleDollarSign, ClipboardList, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShieldCheck, ShoppingBag, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken, isCashierUser } from "../auth/authStorage";
@@ -634,6 +634,23 @@ function MainLayout() {
     navigate("/login");
   };
 
+  // Set at sign-in when the password is weak or close to its 365-day expiry.
+  const [passwordNotice, setPasswordNotice] = useState(() => {
+    try {
+      return sessionStorage.getItem("m1-password-notice") || "";
+    } catch {
+      return "";
+    }
+  });
+  const dismissPasswordNotice = () => {
+    try {
+      sessionStorage.removeItem("m1-password-notice");
+    } catch {
+      // Banner only.
+    }
+    setPasswordNotice("");
+  };
+
   if (isPosActive) {
     return (
       <NotificationSoundProvider>
@@ -866,7 +883,15 @@ function MainLayout() {
           </nav>
         </div>
 
-        <div className="mt-2 border-t border-[var(--border)] pt-2">
+        <div className="mt-2 space-y-2 border-t border-[var(--border)] pt-2">
+          <NavLink
+            to="/settings/account-security"
+            title={sidebarCompact ? t("access.security.navLink") : undefined}
+            className={["flex w-full items-center justify-center rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] text-sm font-bold text-[var(--text)]", sidebarCompact ? "h-[var(--control-height-md)] px-2" : "gap-2 px-3 py-2"].join(" ")}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            {sidebarCompact ? null : t("access.security.navLink")}
+          </NavLink>
           <button
             type="button"
             onClick={handleLogout}
@@ -1004,6 +1029,19 @@ function MainLayout() {
           <div className={isAiInboxWorkspace
             ? "m1-shell-content w-full max-w-none flex-1 overflow-hidden p-0"
             : "m1-shell-content w-full max-w-none flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6 xl:p-8 2xl:p-10"}>
+            {passwordNotice && !isAiInboxWorkspace && location.pathname !== "/settings/account-security" ? (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-card)] border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-[var(--text)]">
+                <span>{passwordNotice === "weak" ? t("access.security.weakPasswordBanner") : t("access.security.expirySoonBanner")}</span>
+                <span className="flex items-center gap-2">
+                  <NavLink to="/settings/account-security" className="rounded-[var(--radius-control)] bg-[var(--primary)] px-3 py-1.5 text-xs font-black text-white">
+                    {t("access.security.changePassword")}
+                  </NavLink>
+                  <button type="button" onClick={dismissPasswordNotice} aria-label="dismiss" className="rounded-[var(--radius-control)] px-2 py-1 text-[var(--muted)]">
+                    <X className="h-4 w-4" />
+                  </button>
+                </span>
+              </div>
+            ) : null}
             <Outlet />
           </div>
         </div>

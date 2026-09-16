@@ -6,6 +6,10 @@ const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "set
 const ADMIN_ROLES = ["admin", "super_admin", "super admin", "superadmin"];
 const CORE_PERMISSIONS = [
   ["dashboard", "view"],
+  // Amazon Information (SP-API). Only roles explicitly granted these may reach it, and
+  // requireAmazonAccess() additionally demands MFA. Admin roles receive them automatically.
+  ["amazon", "view"],
+  ["amazon", "manage"],
   ["ai_inbox_messenger", "view"],
   ["ai_inbox_messenger", "reply"],
   ["ai_inbox_instagram", "view"],

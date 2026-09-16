@@ -664,6 +664,8 @@ const { default: variantRoutes } = await import("./routes/variantRoutes.js");
 const { default: customerRoutes } = await import("./routes/customers.js");
 const { default: supplierRoutes } = await import("./routes/suppliers.js");
 const { default: usersRoutes } = await import("./routes/users.routes.js");
+const { default: securityRoutes } = await import("./routes/security.routes.js");
+const { ensureStaffSecuritySchema } = await import("./modules/security/staffSecuritySchema.js");
 const { default: brandsRoutes } = await import("./routes/brands.js");
 const { default: manufacturersRoutes } = await import("./routes/manufacturers.js");
 const { default: purchaseRoutes } = await import("./routes/purchases.js");
@@ -1951,6 +1953,7 @@ console.log("Product classifications routes registered");
 app.use("/api/customers", customerRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/security", securityRoutes);
 app.use("/api/brands", brandsRoutes);
 app.use("/api/manufacturers", manufacturersRoutes);
 app.use("/api/purchases", purchaseRoutes);
@@ -2569,6 +2572,9 @@ const bootstrapStartup = async () => {
   try {
     assertProductionJwtSecret();
     await db.query("SELECT 1");
+    // Password-policy / MFA columns and the security audit table. Boot-only, metadata-only DDL.
+    await ensureStaffSecuritySchema(db);
+    console.log("[server] staff security schema ensured");
     await ensureNotificationsSchema(db);
     await ensureWebsiteSettingsSchema(db);
     await ensureSystemSettingsSchema(db);

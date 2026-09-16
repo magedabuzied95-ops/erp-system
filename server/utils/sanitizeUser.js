@@ -7,6 +7,7 @@ const SENSITIVE_USER_FIELDS = Object.freeze([
   "password_digest",
   "mfa_secret",
   "mfa_secret_encrypted",
+  "mfa_pending_secret_encrypted",
   "mfa_recovery_codes",
   "mfa_recovery_codes_hash",
 ]);
