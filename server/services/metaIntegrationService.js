@@ -10626,6 +10626,7 @@ export const completeMetaOAuthCallback = async ({ code = "", state = "", error =
   );
   const stateRow = stateResult.rows[0];
   if (!stateRow) {
+    console.warn("[meta-oauth] meta_oauth_callback_invalid_state", { state_present: Boolean(stateToken) });
     return callbackHtml({ origin, payload: { success: false, status: "invalid_state", message: "Meta OAuth state is invalid or expired." } });
   }
   try {
@@ -10665,6 +10666,12 @@ export const completeMetaOAuthCallback = async ({ code = "", state = "", error =
     }
     return callbackHtml({ origin, payload: { success: true, status: "pages_ready", message: "Choose a Facebook Page to complete setup.", page_count: pages.length } });
   } catch (callbackError) {
+    // The popup is the only other place this reason shows up; keep it in the log too.
+    console.error("[meta-oauth] meta_oauth_callback_failed", {
+      tenant_id: stateRow.tenant_id,
+      message: callbackError?.message || String(callbackError),
+      status: callbackError?.status || null,
+    });
     await db.query(
       `UPDATE meta_oauth_states SET status = 'failed', error_message = $2, updated_at = NOW() WHERE id = $1`,
       [stateRow.id, callbackError?.message || "Meta OAuth callback failed"]
