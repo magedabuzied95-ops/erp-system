@@ -59,6 +59,14 @@ import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAu
 import { hasStorefrontCustomerToken, readOtpVerifiedStorefrontPhone, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { createIntent as createRestockIntent, listIntents as listRestockIntents, cancelIntent as cancelRestockIntent } from "../services/restockIntentService.js";
 import { listPriceAlertFollowIds, listPriceAlertsForCustomer, loadPriceDropConfig, setPriceAlertFollow } from "../services/storefrontPriceDropAlertService.js";
+import {
+  REVIEW_PAGE_DEFAULT,
+  createReview,
+  getProductRatingSummary,
+  listPublishedReviews,
+  listReviewableItems,
+} from "../services/productReviewsService.js";
+import reviewPhotoUpload from "../config/reviewPhotoUpload.js";
 import { canonicalPhoneKey, normalizePhone } from "../utils/phoneSearch.js";
 import {
   isAllowedMetaRelayOrigin,
@@ -898,6 +906,85 @@ router.delete("/restock-intents/:id", ...storefrontCustomerAuthRequired, async (
     const cancelled = await cancelRestockIntent(publicTenantId(req), Number(req.params.id), { actorPhone: req.storefrontCustomer?.phone });
     res.json({ success: Boolean(cancelled), cancelled: Boolean(cancelled) });
   } catch (e) { res.status(500).json({ success: false, message: e?.message || "Failed" }); }
+});
+/*
+ * Product reviews.
+ *
+ * The read is public and carries no identity: a name, stars, words and photos. The write is
+ * behind the customer token, and eligibility is re-decided from the order book inside
+ * createReview — a POST naming an order this phone never placed is refused there, not here.
+ * Everything written lands as `pending`; the rating on the page counts published rows only.
+ */
+router.get("/products/:productId/reviews", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const productId = Number(req.params.productId);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).json({ success: false, message: "product_id is required" });
+    }
+    const limit = Number(req.query?.limit) || REVIEW_PAGE_DEFAULT;
+    const offset = Number(req.query?.offset) || 0;
+    const [reviews, summaries] = await Promise.all([
+      listPublishedReviews(tenantId, productId, { limit, offset }),
+      getProductRatingSummary(tenantId, [productId]),
+    ]);
+    const summary = summaries.get(productId) || { review_count: 0, rating_average: null, distribution: {} };
+    return res.json({ success: true, summary, reviews });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error?.message || "Failed to load reviews" });
+  }
+});
+// What this customer is allowed to review right now: delivered order lines with no review yet.
+// The account page lists them; the review form asks for one product.
+router.get("/reviewable", ...storefrontCustomerAuthRequired, async (req, res) => {
+  try {
+    const items = await listReviewableItems(publicTenantId(req), {
+      phone: req.storefrontCustomer?.phone,
+      productId: Number(req.query?.product_id) || 0,
+    });
+    return res.json({ success: true, items });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error?.message || "Failed" });
+  }
+});
+const reviewPhotos = (req, res, next) => {
+  reviewPhotoUpload.array("photos")(req, res, (error) => {
+    if (!error) return next();
+    const tooLarge = error.code === "LIMIT_FILE_SIZE";
+    const tooMany = error.code === "LIMIT_UNEXPECTED_FILE";
+    return res.status(tooLarge ? 413 : 400).json({
+      success: false,
+      error_code: tooLarge ? "REVIEW_PHOTO_TOO_LARGE" : tooMany ? "REVIEW_PHOTO_TOO_MANY" : "REVIEW_PHOTO_INVALID",
+    });
+  });
+};
+router.post("/reviews", ...storefrontCustomerAuthRequired, reviewPhotos, async (req, res) => {
+  try {
+    // Saved under /uploads, so the stored path is relative and the resolver makes it absolute
+    // against the API origin — a /uploads path on the shop origin answers the app's HTML.
+    const photos = (Array.isArray(req.files) ? req.files : []).map((file) => `/uploads/reviews/${file.filename}`);
+    const review = await createReview({
+      tenantId: publicTenantId(req),
+      orderId: req.body?.order_id ?? req.body?.orderId,
+      productId: req.body?.product_id ?? req.body?.productId,
+      customerId: req.storefrontCustomer?.customer_id || null,
+      phone: req.storefrontCustomer?.phone,
+      customerName: req.body?.customer_name || req.storefrontCustomer?.name || "",
+      rating: req.body?.rating,
+      body: req.body?.body ?? req.body?.review ?? "",
+      images: photos,
+    });
+    return res.json({
+      success: true,
+      // The shopper is told the truth: it is in, and a human reads it before it appears.
+      status: review.status,
+      review: { id: review.id, product_id: review.product_id, rating: review.rating, status: review.status },
+    });
+  } catch (error) {
+    return res
+      .status(error?.status || 500)
+      .json({ success: false, error_code: error?.code || "", message: error?.message || "Failed to save the review" });
+  }
 });
 // Price Drop Alert ("نبّهني لو السعر نزل"). The follow stores the price the customer saw; the
 // background tick (storefrontPriceDropAlertService) decides when it has dropped and tells them.

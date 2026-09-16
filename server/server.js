@@ -775,6 +775,7 @@ const { ensureRestockIntentSchema } = await import("./services/restockIntentServ
 const { ensureRestockNotificationSchema } = await import("./services/restockNotificationService.js");
 const { ensureMessageDeliverySchema } = await import("./services/messageDeliveryReconciliationService.js");
 const { ensureInboundIntakeSchema } = await import("./services/aiInboundIntakeService.js");
+const { ensureProductReviewsSchema } = await import("./services/productReviewsService.js");
 // Surveillance Center. The API is mounted and the Dahua provider is registered,
 // but the only TRANSPORT attached is the simulated device — and only outside
 // production, behind an explicit flag. Nothing in this build can reach real
@@ -2590,6 +2591,12 @@ const bootstrapStartup = async () => {
     console.log("[server] message delivery reconciliation schema ensured");
     await ensureInboundIntakeSchema(db);
     console.log("[server] inbound intake schema ensured");
+    // Product reviews. A brand-new table plus its indexes: no hot table is touched, nothing is
+    // backfilled, and zero rows means every product page renders exactly as it does today. It
+    // belongs at boot rather than in a runtime ensure, which does not run in production at all
+    // (the social-comment columns were lost that way).
+    await ensureProductReviewsSchema(db);
+    console.log("[server] product reviews schema ensured");
     // DDL only. No backfill, no UPDATE, no role grants — a failure here would
     // process.exit(1) the whole backend, so this stays incapable of colliding
     // with existing data.
