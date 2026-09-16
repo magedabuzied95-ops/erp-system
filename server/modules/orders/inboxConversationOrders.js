@@ -66,7 +66,9 @@ export const projectInboxConversationOrder = ({ order = {}, policy = null, items
   const advance = describeShippingFeeAdvance({ order, policy });
   const storedCod = money(order.cod_amount);
   const owed = Math.max(0, money(total - paid));
-  const collectOnDelivery = storedCod > 0 ? Math.min(storedCod, owed) : owed;
+  const closed = ORDER_CLOSED_TO_EXCHANGE.has(text(order.status).toLowerCase());
+  // A cancelled order is not going anywhere: nothing is collected and no deposit is asked.
+  const collectOnDelivery = closed ? 0 : storedCod > 0 ? Math.min(storedCod, owed) : owed;
   const proofStatus = text(order.transfer_proof_status).toLowerCase();
   const status = text(order.status).toLowerCase();
   return {
@@ -84,7 +86,8 @@ export const projectInboxConversationOrder = ({ order = {}, policy = null, items
     transfer_proof_status: proofStatus,
     has_payment_proof: Boolean(text(order.shipping_payment_screenshot)),
     awaiting_payment_review: proofStatus === "pending" && Boolean(text(order.shipping_payment_screenshot)),
-    shipping_fee_advance: advance,
+    shipping_fee_advance: closed ? { ...advance, required: false } : advance,
+    is_closed: closed,
     tracking_number: text(order.tracking_number),
     shipment_status: text(order.shipment_status || order.shipping_status),
     customer_confirmed_at: order.customer_confirmed_at || null,

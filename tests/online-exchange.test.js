@@ -57,6 +57,15 @@ test("the sheet's preview and the server's settlement agree on what is collected
   const server = settleExchangeMoney({ credit: preview.credit, newOrderTotal: preview.new_total });
   assert.equal(preview.collect_on_delivery, server.collect_on_delivery);
   assert.equal(preview.remaining_credit, server.remaining_credit);
+
+  // Same size swap with a 70 EGP exchange fee: the courier collects the fee and only that.
+  const feeOnly = previewExchangeMoney({
+    returning: [{ unit_price: 1340, selected: 1 }],
+    replacement: [{ price: 1340, quantity: 1 }],
+    shippingCost: 70,
+  });
+  assert.equal(feeOnly.collect_on_delivery, 70);
+  assert.equal(settleExchangeMoney({ credit: 1340, newOrderTotal: feeOnly.new_total }).collect_on_delivery, 70);
 });
 
 test("the parcel tells the courier what he is taking back", () => {

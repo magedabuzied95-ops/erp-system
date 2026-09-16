@@ -28,7 +28,8 @@ const LABELS = {
   newTotal: "إجمالي البديل",
   collect: "المندوب هيحصّل",
   refundToWallet: "هيتحط رصيد للعميل",
-  freeShipping: "شحن مجاني للاستبدال",
+  shippingFee: "مصاريف شحن الاستبدال",
+  shippingFeeHint: "المندوب بيحصّل فرق السعر + المبلغ ده. سيبه 0 لو الشحن مجاني.",
   reason: "سبب الاستبدال",
   submit: "تنفيذ الاستبدال",
   submitting: "بننفّذ...",
@@ -66,7 +67,9 @@ export default function InboxExchangeSheet({
   const dark = tone !== "light";
   const [selection, setSelection] = useState({});
   const [replacement, setReplacement] = useState([]);
-  const [freeShipping, setFreeShipping] = useState(true);
+  // What the courier collects on top of any price difference. A number, never "": the
+  // app's focus handler makes the 0 replaceable, and 0 is the shop saying "free".
+  const [shippingFee, setShippingFee] = useState(0);
   const [reason, setReason] = useState(REASONS[0]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -76,7 +79,7 @@ export default function InboxExchangeSheet({
     if (!open) return;
     setSelection({});
     setReplacement([]);
-    setFreeShipping(true);
+    setShippingFee(0);
     setReason(REASONS[0]);
     setError("");
     consumedBatchRef.current = "";
@@ -113,8 +116,8 @@ export default function InboxExchangeSheet({
     [returnable, selection]
   );
   const preview = useMemo(
-    () => previewExchangeMoney({ returning, replacement, shippingCost: freeShipping ? 0 : Number(order?.shipping_fee || 0) }),
-    [returning, replacement, freeShipping, order]
+    () => previewExchangeMoney({ returning, replacement, shippingCost: Math.max(0, Number(shippingFee) || 0) }),
+    [returning, replacement, shippingFee]
   );
 
   if (!open || !order) return null;
@@ -142,8 +145,9 @@ export default function InboxExchangeSheet({
             size: line.size,
             quantity: line.quantity,
           })),
-          // Explicit 0 is the shop deciding, not a missing figure: absent means "quote it".
-          ...(freeShipping ? { shipping_cost: 0 } : {}),
+          // Always explicit: 0 is the shop deciding "free", any other figure is the fee the
+          // courier collects. Leaving it out would quote the zone price instead.
+          shipping_cost: Math.max(0, Number(shippingFee) || 0),
         },
       }, { headers });
       onDone?.(response);
@@ -272,9 +276,18 @@ export default function InboxExchangeSheet({
             ))}
           </section>
 
-          <label className={`flex items-center gap-2 rounded-2xl border p-3 text-xs font-black ${card}`}>
-            <input type="checkbox" checked={freeShipping} onChange={(event) => setFreeShipping(event.target.checked)} />
-            {LABELS.freeShipping}
+          <label className={`grid gap-2 rounded-2xl border p-3 text-xs font-black ${card}`}>
+            {LABELS.shippingFee}
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="1"
+              value={shippingFee}
+              onChange={(event) => setShippingFee(event.target.value === "" ? 0 : Number(event.target.value))}
+              className={`h-[var(--control-height-md)] w-full rounded-xl border px-3 text-sm font-black outline-none ${card}`}
+            />
+            <span className={`text-[11px] font-bold ${muted}`}>{LABELS.shippingFeeHint}</span>
           </label>
 
           <section className={`grid grid-cols-3 gap-2 rounded-2xl border p-3 ${card}`}>

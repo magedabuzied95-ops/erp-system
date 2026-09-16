@@ -316,7 +316,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
 
             {/* The closing system decides the default amount; staff can ask for any amount the
                 order still owes — the card, the link and the review are the same either way. */}
-            {Number(order.collect_on_delivery || 0) > 0 || depositRequired || order.has_payment_proof ? (
+            {!order.is_closed && (Number(order.collect_on_delivery || 0) > 0 || depositRequired || order.has_payment_proof) ? (
               <div className="grid gap-2">
                 <input
                   type="number"
