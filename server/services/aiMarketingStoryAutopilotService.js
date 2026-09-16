@@ -975,10 +975,14 @@ export const runStoryAutopilotScan = async () => {
   if (autopilotScanRunning) return { skipped: true, reason: "already_running" };
   autopilotScanRunning = true;
   let lockAcquired = false;
+  let lockClient = null;
   const totals = { tenants: 0, published: 0, failed: 0 };
   try {
     await ensureStoryAutopilotSchema();
-    const lock = await db.query("SELECT pg_try_advisory_lock($1) AS locked", [AUTOPILOT_ADVISORY_LOCK]);
+    // A session lock belongs to the connection that took it: lock and unlock on
+    // one pinned client, or the unlock lands elsewhere and the lock leaks.
+    lockClient = await db.connect();
+    const lock = await lockClient.query("SELECT pg_try_advisory_lock($1) AS locked", [AUTOPILOT_ADVISORY_LOCK]);
     lockAcquired = Boolean(lock.rows[0]?.locked);
     if (!lockAcquired) return { skipped: true, reason: "lock_busy" };
 
@@ -1003,11 +1007,12 @@ export const runStoryAutopilotScan = async () => {
   } finally {
     if (lockAcquired) {
       try {
-        await db.query("SELECT pg_advisory_unlock($1)", [AUTOPILOT_ADVISORY_LOCK]);
+        await lockClient.query("SELECT pg_advisory_unlock($1)", [AUTOPILOT_ADVISORY_LOCK]);
       } catch (unlockError) {
         console.warn("[story-autopilot] advisory unlock failed", unlockError?.message || unlockError);
       }
     }
+    lockClient?.release();
     autopilotScanRunning = false;
   }
 };

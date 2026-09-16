@@ -1529,10 +1529,14 @@ export const runAiMarketingAutomationBackgroundScan = async () => {
   if (aiMarketingAutomationRunnerRunning) return { skipped: true, reason: "already_running" };
   aiMarketingAutomationRunnerRunning = true;
   let lockAcquired = false;
+  let lockClient = null;
   const totals = { tenants: 0, packs: 0, published: 0, failures: 0 };
   try {
     await ensureMarketingSchema();
-    const lockResult = await db.query("SELECT pg_try_advisory_lock($1) AS locked", [74017101]);
+    // A session lock belongs to the connection that took it: lock and unlock on
+    // one pinned client, or the unlock lands elsewhere and the lock leaks.
+    lockClient = await db.connect();
+    const lockResult = await lockClient.query("SELECT pg_try_advisory_lock($1) AS locked", [74017101]);
     lockAcquired = Boolean(lockResult.rows[0]?.locked);
     if (!lockAcquired) {
       await writeAutomationLog({
@@ -1633,11 +1637,12 @@ export const runAiMarketingAutomationBackgroundScan = async () => {
   } finally {
     if (lockAcquired) {
       try {
-        await db.query("SELECT pg_advisory_unlock($1)", [74017101]);
+        await lockClient.query("SELECT pg_advisory_unlock($1)", [74017101]);
       } catch (unlockError) {
         console.warn("[ai-marketing-runner] advisory unlock failed", unlockError?.message || unlockError);
       }
     }
+    lockClient?.release();
     aiMarketingAutomationRunnerRunning = false;
   }
 };

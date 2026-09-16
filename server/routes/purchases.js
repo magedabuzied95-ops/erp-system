@@ -386,11 +386,15 @@ const safeCreateIndex = async (client, sql, label) => {
   console.time(timerLabel);
   let savepoint = false;
   try {
-    try {
-      await client.query("SAVEPOINT purchase_index_check");
-      savepoint = true;
-    } catch {
-      savepoint = false;
+    // A savepoint only means something inside a transaction; on the pool every
+    // statement auto-commits and SAVEPOINT just errors (25P01) in the DB log.
+    if (client !== pool) {
+      try {
+        await client.query("SAVEPOINT purchase_index_check");
+        savepoint = true;
+      } catch {
+        savepoint = false;
+      }
     }
     await client.query(sql);
     if (savepoint) await client.query("RELEASE SAVEPOINT purchase_index_check");
@@ -420,15 +424,22 @@ const ensurePurchaseDeleteIndexes = async (client) => {
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_products_tenant_id_id ON products (tenant_id, id)", "products tenant id");
 };
 
+// Legacy tables some installs never had — indexing a missing relation only
+// fills the DB log with 42P01 on every boot.
+const safeCreateIndexIfTable = async (client, table, sql, label) => {
+  const { rows } = await client.query("SELECT to_regclass($1) IS NOT NULL AS present", [table]);
+  if (rows[0]?.present) await safeCreateIndex(client, sql, label);
+};
+
 const ensurePurchaseCreateIndexes = async (client) => {
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_products_id ON products (id)", "products id");
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_product_variants_id ON product_variants (id)", "product_variants id");
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_product_variants_product_color_size ON product_variants (product_id, color, size)", "product_variants product color size");
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchases_id ON purchases (id)", "purchases id");
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)", "purchase_items purchase_id");
-  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_stock_movements_reference ON stock_movements (reference_type, reference_id)", "stock_movements reference");
+  await safeCreateIndexIfTable(client, "stock_movements", "CREATE INDEX IF NOT EXISTS idx_stock_movements_reference ON stock_movements (reference_type, reference_id)", "stock_movements reference");
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_inventory_movements_reference ON inventory_movements (reference_type, reference_id)", "inventory_movements reference");
-  await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_supplier_transactions_reference_id ON supplier_transactions (reference_id)", "supplier_transactions reference_id");
+  await safeCreateIndexIfTable(client, "supplier_transactions", "CREATE INDEX IF NOT EXISTS idx_supplier_transactions_reference_id ON supplier_transactions (reference_id)", "supplier_transactions reference_id");
   await safeCreateIndex(client, "CREATE INDEX IF NOT EXISTS idx_financial_account_entries_source ON financial_account_entries (source_type, source_id)", "financial account entries source");
 };
 

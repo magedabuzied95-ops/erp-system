@@ -1246,8 +1246,16 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
 
 export const runDueSocialPublisherPublishes = async () => {
   await ensureMarketingSchema();
-  const lockResult = await db.query("SELECT pg_try_advisory_lock($1) AS locked", [SOCIAL_PUBLISHER_SCHEDULER_LOCK_KEY]);
-  const lockAcquired = Boolean(lockResult.rows[0]?.locked);
+  // A session lock belongs to the connection that took it: lock and unlock on
+  // one pinned client, or the unlock lands elsewhere and the lock leaks.
+  const lockClient = await db.connect();
+  let lockAcquired = false;
+  try {
+    const lockResult = await lockClient.query("SELECT pg_try_advisory_lock($1) AS locked", [SOCIAL_PUBLISHER_SCHEDULER_LOCK_KEY]);
+    lockAcquired = Boolean(lockResult.rows[0]?.locked);
+  } finally {
+    if (!lockAcquired) lockClient.release();
+  }
   if (!lockAcquired) {
     return { skipped: true, reason: "lock_busy", published: 0, failed: 0, due: 0 };
   }
@@ -1310,10 +1318,11 @@ export const runDueSocialPublisherPublishes = async () => {
     };
   } finally {
     try {
-      await db.query("SELECT pg_advisory_unlock($1)", [SOCIAL_PUBLISHER_SCHEDULER_LOCK_KEY]);
+      await lockClient.query("SELECT pg_advisory_unlock($1)", [SOCIAL_PUBLISHER_SCHEDULER_LOCK_KEY]);
     } catch (unlockError) {
       console.warn("[social-publisher-scheduler] advisory unlock failed", unlockError?.message || unlockError);
     }
+    lockClient.release();
   }
 };
 

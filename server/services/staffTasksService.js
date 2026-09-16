@@ -1666,7 +1666,7 @@ export const getStaffTaskTemplateCompliance = async ({ tenantId = null, branchId
     WHERE t.template_id IS NOT NULL
       AND ($1::bigint IS NULL OR t.tenant_id = $1::bigint)
       AND ($2::bigint IS NULL OR t.branch_id = $2::bigint OR t.branch_id IS NULL)
-      AND COALESCE(t.assigned_date, t.created_at::date) >= (CURRENT_DATE - ($3::int - 1))
+      AND t.assigned_date >= (CURRENT_DATE - ($3::int - 1))
     GROUP BY t.template_id
     `,
     [numberOrNull(tenantId), numberOrNull(branchId), window]
