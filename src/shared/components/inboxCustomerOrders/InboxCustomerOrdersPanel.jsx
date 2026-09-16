@@ -30,9 +30,16 @@ export const inboxOrderPaymentChoices = (order = {}) => {
   // A screenshot dropped in the shipping-fee slot can still pay the whole order, so staff say
   // which one it is instead of the amount being guessed from where it was uploaded.
   if (advanceAmount > 0 && advanceAmount < total) {
+    // What was asked for comes first: pressing the wrong one marks a 200 EGP deposit as a paid
+    // order and the courier collects nothing (INV-1583).
     return [
-      { key: "order_total", labelKey: "payFull", amount: total, tone: "emerald" },
-      { key: "shipping_only", labelKey: "payShipping", amount: advanceAmount, tone: "cyan" },
+      {
+        key: "deposit",
+        labelKey: Number(order.shipping_fee_advance?.requested_deposit || 0) > 0 ? "payDeposit" : "payShipping",
+        amount: advanceAmount,
+        tone: "emerald",
+      },
+      { key: "order_total", labelKey: "payFull", amount: total, tone: "cyan" },
     ];
   }
   return [{ key: "order_total", labelKey: "payFull", amount: total || advanceAmount, tone: "emerald" }];
@@ -50,6 +57,8 @@ const LABELS = {
   confirmPayment: "تأكيد الدفع",
   payFull: "الأوردر كامل",
   payShipping: "الشحن بس",
+  payDeposit: "الديبوزت بس",
+  fixPaidAmount: "تصحيح: العميل دفع",
   rejectPayment: "رفض التحويل",
   awaitingReview: "تحويل مستني المراجعة",
   paid: "مدفوع",
@@ -144,7 +153,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
     load();
   }, [load]);
 
-  const runAction = useCallback(async (order, action, scope = "") => {
+  const runAction = useCallback(async (order, action, scope = "", amount = 0) => {
     if (!order?.id || busyOrderId) return;
     setBusyOrderId(order.id);
     try {
@@ -152,7 +161,13 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
         await api.post(`/orders/${order.id}/send-confirmation`, {}, { headers });
         notify("success", LABELS.confirmationSent);
       } else if (action === "confirm_payment") {
-        await api.post(`/orders/${order.id}/confirm-payment`, scope === "order_total" ? { scope: "order_total" } : {}, { headers });
+        const typedAmount = Number(amount) || 0;
+        const payload = scope === "order_total"
+          ? { scope: "order_total" }
+          : typedAmount > 0
+            ? { scope: "deposit", amount: typedAmount }
+            : {};
+        await api.post(`/orders/${order.id}/confirm-payment`, payload, { headers });
         notify("success", LABELS.paymentConfirmed);
       } else if (action === "request_deposit") {
         const typed = Number(scope) || 0;
@@ -228,7 +243,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
                 key={choice.key}
                 type="button"
                 disabled={busy}
-                onClick={() => runAction(order, "confirm_payment", choice.key)}
+                onClick={() => runAction(order, "confirm_payment", choice.key, choice.key === "deposit" ? choice.amount : 0)}
                 className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black disabled:opacity-50 ${
                   choice.tone === "emerald"
                     ? "bg-emerald-400 text-slate-950"
@@ -254,7 +269,7 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
 
             {/* The closing system decides the default amount; staff can ask for any amount the
                 order still owes — the card, the link and the review are the same either way. */}
-            {Number(order.collect_on_delivery || 0) > 0 || depositRequired ? (
+            {Number(order.collect_on_delivery || 0) > 0 || depositRequired || order.has_payment_proof ? (
               <div className="grid gap-2">
                 <input
                   type="number"
@@ -275,6 +290,19 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
                   {Number(depositAmount) > 0 ? `${LABELS.requestDeposit} (${money(depositAmount)})` : LABELS.requestDeposit}
                 </button>
+                {/* The same box repairs the books: a screenshot approved as the whole order is
+                    re-stated at what the customer actually transferred. */}
+                {order.has_payment_proof && Number(depositAmount) > 0 && Math.abs(Number(depositAmount) - Number(order.paid_amount || 0)) > 0.009 ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => runAction(order, "confirm_payment", "deposit", depositAmount)}
+                    className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black disabled:opacity-50 ${skin.secondary}`}
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {`${LABELS.fixPaidAmount} ${money(depositAmount)}`}
+                  </button>
+                ) : null}
               </div>
             ) : null}
 

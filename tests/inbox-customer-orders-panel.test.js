@@ -109,3 +109,37 @@ test("the whole-order choice still overrides a deposit ask", async () => {
   assert.equal(update.params[4], 3600);
   assert.equal(update.params[3], "paid");
 });
+
+test("a stated amount repairs an approval that read a deposit as the whole order", async () => {
+  const calls = [];
+  const client = {
+    query: async (sql, params = []) => {
+      calls.push({ sql, params });
+      if (/UPDATE orders/.test(sql)) return { rows: [{ id: params[0], tenant_id: null, payment_status: params[3], paid_amount: params[4] }] };
+      return { rows: [] };
+    },
+  };
+  // INV-1583 after the wrong press: 3600 recorded, 200 actually transferred.
+  await applyTransferPaymentConfirmation(client, {
+    order: depositOrder({ paid_amount: 3600, payment_status: "paid", transfer_proof_status: "approved", timeline: [] }),
+    paidAmount: 200,
+  });
+  const update = calls.find((call) => /UPDATE orders/.test(call.sql));
+  assert.equal(update.params[4], 200);
+  assert.equal(update.params[3], "partially_paid");
+});
+
+test("a stated amount never exceeds the order", async () => {
+  const calls = [];
+  const client = {
+    query: async (sql, params = []) => {
+      calls.push({ sql, params });
+      if (/UPDATE orders/.test(sql)) return { rows: [{ id: params[0], tenant_id: null, payment_status: params[3], paid_amount: params[4] }] };
+      return { rows: [] };
+    },
+  };
+  await applyTransferPaymentConfirmation(client, { order: depositOrder(), paidAmount: 99999 });
+  const update = calls.find((call) => /UPDATE orders/.test(call.sql));
+  assert.equal(update.params[4], 3600);
+  assert.equal(update.params[3], "paid");
+});

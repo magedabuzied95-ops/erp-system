@@ -6580,6 +6580,9 @@ export const confirmShippingPayment = async (req, res) => {
       loyaltyTenantId: effectiveTenantId,
       userId: req.user?.id || null,
       fullOrder: req.body?.scope === "order_total",
+      // "deposit": staff say how much the screenshot really carried, so a wrong approval can be
+      // put right without an invoice edit.
+      paidAmount: req.body?.scope === "deposit" ? Number(req.body?.amount) || 0 : 0,
     });
     await client.query("COMMIT");
     notifyPaymentProofApproved(confirmation.order).catch(() => {});

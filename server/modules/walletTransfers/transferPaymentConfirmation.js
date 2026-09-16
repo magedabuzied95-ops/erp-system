@@ -7,7 +7,7 @@ import { requestedDepositAmount } from "../shipping/shippingFeeAdvance.js";
 // (loyalty runs in a savepoint) and has already decided the transfer is real.
 // `fullOrder`: staff checked the screenshot and it covers the whole order, even though the customer
 // uploaded it where the shipping-fee deposit goes (INV-1637) — nothing is left for the courier.
-export const applyTransferPaymentConfirmation = async (client, { order, tenantId = null, loyaltyTenantId = null, userId = null, logTag = "orders.confirm-payment", fullOrder = false } = {}) => {
+export const applyTransferPaymentConfirmation = async (client, { order, tenantId = null, loyaltyTenantId = null, userId = null, logTag = "orders.confirm-payment", fullOrder = false, paidAmount = 0 } = {}) => {
   const paymentMethod = String(order.payment_method || "").trim().toLowerCase();
   const totalAmount = Number(order.total_amount ?? order.total ?? order.total_price ?? 0);
   const shippingAmount = Number(order.shipping_fee ?? order.delivery_fee ?? order.service_fee ?? 0);
@@ -20,7 +20,12 @@ export const applyTransferPaymentConfirmation = async (client, { order, tenantId
   // A deposit staff asked for is a part payment of a known size: approving it pays exactly that
   // much, and the courier collects the rest.
   const requestedDeposit = requestedDepositAmount(order);
-  const nextPaidAmount = fullOrder
+  // An amount staff typed is the last word, downwards too: it repairs an approval that read the
+  // screenshot as the whole order when only a deposit was transferred (INV-1583).
+  const statedAmount = Math.max(0, Math.round((Number(paidAmount) || 0) * 100) / 100);
+  const nextPaidAmount = statedAmount > 0
+    ? Math.min(totalAmount || statedAmount, statedAmount)
+    : fullOrder
     ? Math.max(totalAmount, existingPaidAmount)
     : requestedDeposit > 0 && requestedDeposit < totalAmount
       ? Math.min(totalAmount, Math.max(existingPaidAmount, requestedDeposit))
