@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildProductSeo } from "../../src/shared/lib/productSeo.js";
+import {
+  PRODUCT_SCHEMA_COLOR_MAX,
+  PRODUCT_SCHEMA_IMAGE_MAX,
+  buildProductSeo,
+  isValidGtin,
+} from "../../src/shared/lib/productSeo.js";
+import { listingSeoHead, seoCategoryByKey } from "../../src/shared/lib/categorySeo.js";
 import {
   injectProductSeoIntoHtml,
   makeProductSeoImagesAbsolute,
@@ -211,4 +217,117 @@ test("?variant= narrows the offer to that exact size", () => {
   const unknown = buildProductSeo(product, { color: "Mint", variant: "999" });
   assert.equal(unknown.productJsonLd.offers.price, "650.00");
   assert.equal(unknown.productJsonLd.offers.url, "https://m1store-egy.com/product/nike-air-force-1-sneakers?color=Mint");
+});
+
+// --- what the crawler was actually being handed (production, nike-air-jordan-1-low) ---
+
+test("the drawn share card stays the og:image and never becomes the product's photograph", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    og_image_url: "https://api.m1store-egy.com/uploads/og/products/25-card.jpg",
+    gallery_images: ["https://images.example/two.jpg"],
+  });
+  assert.equal(seo.image, "https://api.m1store-egy.com/uploads/og/products/25-card.jpg");
+  assert.deepEqual(seo.productJsonLd.image, [
+    "https://images.example/nike.webp",
+    "https://images.example/two.jpg",
+  ]);
+});
+
+test("a product whose only picture is the share card still shows Google something", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    image_url: "",
+    gallery_images: [],
+    og_image_url: "https://api.m1store-egy.com/uploads/og/products/25-card.jpg",
+  });
+  assert.deepEqual(seo.productJsonLd.image, ["https://api.m1store-egy.com/uploads/og/products/25-card.jpg"]);
+});
+
+test("twenty-five photographs are published as the first ten", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    gallery_images: Array.from({ length: 25 }, (unused, index) => `https://images.example/g${index}.jpg`),
+  });
+  assert.equal(seo.productJsonLd.image.length, PRODUCT_SCHEMA_IMAGE_MAX);
+  assert.equal(seo.productJsonLd.image[0], "https://images.example/nike.webp");
+});
+
+test("hand-typed colour names are cleaned and spelt once", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    variants: [
+      { id: 1, color: "White & #Black", size: "41", stock: 2, final_price: 650 },
+      { id: 2, color: "Black & White* Warke", size: "42", stock: 2, final_price: 650 },
+      { id: 3, color: "WHite & Colors", size: "43", stock: 2, final_price: 650 },
+      { id: 4, color: "white & black", size: "44", stock: 2, final_price: 650 },
+    ],
+  });
+  assert.equal(seo.productJsonLd.color, "White & Black, Black & White Warke, White & Colors");
+});
+
+test("a product sold in more colours than the schema carries is capped, not dumped", () => {
+  const seo = buildProductSeo({
+    ...baseProduct,
+    variants: Array.from({ length: 23 }, (unused, index) => ({
+      id: index + 1,
+      color: `Colour ${index}`,
+      size: "41",
+      stock: 2,
+      final_price: 650,
+    })),
+  });
+  assert.equal(seo.productJsonLd.color.split(", ").length, PRODUCT_SCHEMA_COLOR_MAX);
+});
+
+test("only a barcode that passes the GTIN checksum is published as one", () => {
+  // The Air Jordan's barcode in production: twelve digits, generated in house, check digit 3
+  // where a real UPC would carry 6.
+  assert.equal(isValidGtin("606577986623"), false);
+  assert.equal("gtin" in buildProductSeo({ ...baseProduct, barcode: "606577986623" }).productJsonLd, false);
+  assert.equal(buildProductSeo({ ...baseProduct, barcode: "4006381333931" }).productJsonLd.gtin, "4006381333931");
+});
+
+test("a named colour's own barcode is the one the offer publishes", () => {
+  const product = {
+    ...baseProduct,
+    barcode: "4006381333931",
+    variants: [
+      { id: 1, color: "Mint", size: "40", stock: 2, final_price: 650, barcode: "5060337502115" },
+      { id: 2, color: "Pink", size: "41", stock: 2, final_price: 650 },
+    ],
+  };
+  assert.equal(buildProductSeo(product, { color: "Mint" }).productJsonLd.gtin, "5060337502115");
+  assert.equal(buildProductSeo(product, { color: "Pink" }).productJsonLd.gtin, "4006381333931");
+});
+
+test("priceValidUntil is a real sale end or nothing at all", () => {
+  assert.equal("priceValidUntil" in buildProductSeo(baseProduct).productJsonLd.offers, false);
+  assert.equal(
+    buildProductSeo({ ...baseProduct, sale_end_at: "2026-09-30" }).productJsonLd.offers.priceValidUntil,
+    "2026-09-30"
+  );
+  // 22:00 UTC is already the small hours of the next day in Cairo, where the sale is running:
+  // dating it off the UTC calendar would end the price a day early.
+  assert.equal(
+    buildProductSeo({ ...baseProduct, sale_end_at: "2026-09-30T22:00:00.000Z" }).productJsonLd.offers.priceValidUntil,
+    "2026-10-01"
+  );
+});
+
+test("the breadcrumb climbs through a section page Google is allowed to index", () => {
+  const bag = buildProductSeo({ ...baseProduct, gender: "women", product_type: "bags" });
+  assert.equal(bag.breadcrumbJsonLd.itemListElement[1].item, "https://m1store-egy.com/bags");
+  assert.equal(bag.breadcrumbJsonLd.itemListElement[1].name, seoCategoryByKey("bags").h1);
+
+  // Sneakers have no section of their own, so the shopper's own aisle is the rung.
+  const sneaker = buildProductSeo({ ...baseProduct, gender: "men", product_type: "sneakers" });
+  assert.equal(sneaker.breadcrumbJsonLd.itemListElement[1].item, "https://m1store-egy.com/men");
+  assert.equal(sneaker.breadcrumbJsonLd.itemListElement[1].name, seoCategoryByKey("men").h1);
+
+  // Neither, and the rung is the bare listing -- never the ?category= facet this product's
+  // category_id used to build, which the storefront itself marks noindex.
+  const bare = buildProductSeo({ ...baseProduct, gender: "", product_type: "" });
+  assert.equal(bare.breadcrumbJsonLd.itemListElement[1].item, "https://m1store-egy.com/products");
+  assert.equal(listingSeoHead({ path: "/products", params: { category: "8" } }).robots, "noindex,follow");
 });

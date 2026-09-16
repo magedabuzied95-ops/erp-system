@@ -174,7 +174,12 @@ test("#55 the product page handler merges merchant policies and the share card i
   const jsonLd = JSON.parse(/data-m1-product-seo="product">([\s\S]*?)<\/script>/.exec(res.body)[1]);
   assert.deepEqual(jsonLd.offers.shippingDetails, policies.shippingDetails);
   assert.deepEqual(jsonLd.offers.hasMerchantReturnPolicy, policies.returnPolicy);
-  assert.ok(jsonLd.image.includes("https://api.m1store-egy.com/uploads/og/products/7-abc.jpg"));
+  // The card the extras drew is what a pasted link shows. It is a composite with the price and
+  // the store name rendered over the photo, so it is the og:image and NOT Product.image, which
+  // Google presents as the product itself.
+  assert.match(res.body, /property="og:image" content="https:\/\/api\.m1store-egy\.com\/uploads\/og\/products\/7-abc\.jpg"/);
+  assert.equal(jsonLd.image.includes("https://api.m1store-egy.com/uploads/og/products/7-abc.jpg"), false);
+  assert.ok(jsonLd.image.length > 0, "the schema still carries the shop's own photographs");
 });
 
 test("#55 a failing or slow extra drops only that piece", async () => {

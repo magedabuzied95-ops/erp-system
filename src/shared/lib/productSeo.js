@@ -1,8 +1,16 @@
+import { SEO_CATEGORY_DEFINITIONS } from "./categorySeo.js";
+import { toDateKeyInAppTimezone } from "./appTimezone.js";
+
 export const STOREFRONT_ORIGIN = "https://m1store-egy.com";
 export const STORE_NAME = "M1 Store";
 export const PRODUCT_SEO_LOCALE = "ar_EG";
 export const PRODUCT_SEO_LOCALE_ALTERNATE = "en_US";
 export const PRODUCT_TITLE_MAX = 70;
+// A product page that lists every photograph it owns published 25 urls for one sneaker.
+// Google reads the first images; the rest are weight on every crawl of every product.
+export const PRODUCT_SCHEMA_IMAGE_MAX = 10;
+// 23 hand-typed colour names in one string is not a colour, it is a dump of the variant table.
+export const PRODUCT_SCHEMA_COLOR_MAX = 12;
 
 const text = (value = "") => String(value ?? "").replace(/\s+/g, " ").trim();
 const number = (value) => {
@@ -17,6 +25,73 @@ const mediaUrl = (entry) => {
   if (typeof entry === "string") return text(entry);
   if (!entry || typeof entry !== "object") return "";
   return text(entry.url || entry.image_url || entry.imageUrl || entry.secure_url || entry.src || entry.path);
+};
+
+/*
+ * Colour names are typed by hand in the catalogue, so one colourway reaches the schema as
+ * "White & #Black", "Black & White* Warke" and "WHite & Colors". A shopper reading the page
+ * skips the noise; Google stores the string. This strips the stray marks, repairs the
+ * shift-key spellings (WHite -> White) and leaves the wording itself alone -- the merchant's
+ * own colour names are not ours to rewrite.
+ */
+export const cleanColorLabel = (value = "") =>
+  text(value)
+    .replace(/[#*]+/g, " ")
+    .replace(/\s*&\s*/g, " & ")
+    .replace(/^[\s&]+|[\s&]+$/g, "")
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) => (/^[A-Z]{2,}[a-z]/.test(word) ? `${word[0]}${word.slice(1).toLowerCase()}` : word))
+    .join(" ");
+
+// "White & Black" and "WHite & Black" are one colour; the cleaned spelling that arrived first wins.
+const uniqueColorLabels = (values = []) => {
+  const byKey = new Map();
+  values.map(cleanColorLabel).filter(Boolean).forEach((label) => {
+    const key = label.toLowerCase();
+    if (!byKey.has(key)) byKey.set(key, label);
+  });
+  return [...byKey.values()];
+};
+
+/*
+ * The catalogue's barcodes are generated in house, so most of them are not GTINs at all --
+ * 606577986623 on the Air Jordan fails its own check digit. A wrong gtin is worse than none:
+ * it matches the page to somebody else's article in the Merchant Center. Only a barcode that
+ * passes the GTIN-8/12/13/14 checksum is published.
+ */
+export const isValidGtin = (value = "") => {
+  const digits = text(value);
+  if (!/^\d+$/.test(digits) || ![8, 12, 13, 14].includes(digits.length)) return false;
+  const values = [...digits].map(Number);
+  const checkDigit = values.pop();
+  const sum = values.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0);
+  return (10 - (sum % 10)) % 10 === checkDigit;
+};
+
+/*
+ * priceValidUntil reads as "this price is guaranteed until". Validators ask for it and the
+ * usual answer is a year from today, which is a promise the shop never made. Only a real sale
+ * window sets one, on the store's calendar -- a UTC slice dates a Cairo evening a day early.
+ */
+const priceValidUntilFor = (product = {}) =>
+  toDateKeyInAppTimezone(product.sale_end_at || product.saleEndAt || product.sale_ends_at || "") || "";
+
+/*
+ * The breadcrumb's middle step used to be /products?category=8: a facet url, and every facet
+ * url on this storefront is noindex (listingSeoHead). A breadcrumb pointing at a page Google is
+ * told not to index is a dead rung. Each product belongs to a real section page instead --
+ * /bags, /crocs, /slippers by type, otherwise /men, /women, /kids by gender. The Arabic h1 is
+ * the label, like the rest of the crawler-facing copy.
+ */
+export const seoCategoryForProduct = (product = {}) => {
+  const productType = text(product.product_type || product.productType).toLowerCase();
+  const gender = text(product.gender).toLowerCase();
+  const byType = productType
+    && SEO_CATEGORY_DEFINITIONS.find((item) => item.apiFilters?.product_type === productType);
+  if (byType) return byType;
+  return (gender
+    && SEO_CATEGORY_DEFINITIONS.find((item) => item.apiFilters?.gender === gender && !item.largeSizes)) || null;
 };
 
 export const productCanonicalUrl = (product = {}) => {
@@ -108,12 +183,21 @@ export const buildProductSeo = (product = {}, { color = "", variant = "" } = {})
   const selectedColor = colorVariants ? text(colorVariants[0].color || colorVariants[0].color_name) : "";
   const selectedVariantId = colorVariants && colorVariants.length === 1 && text(variant) ? text(colorVariants[0].id) : "";
   const variants = colorVariants || allVariants;
-  const images = unique([
-    ...(colorVariants ? colorVariants.map((variant) => mediaUrl(variant.image_url || variant.image)) : []),
-    product.og_image_url,
+  // The photographs the shop actually took, the named colour's first.
+  const catalogImages = unique([
+    ...(colorVariants ? colorVariants.map((variant) => variant.image_url || variant.image) : []),
     product.image_url,
     ...(Array.isArray(product.gallery_images) ? product.gallery_images : []),
   ].map(mediaUrl));
+  /*
+   * og_image_url is a drawn 1200x630 card: the photo with the price, the brand and the store
+   * name rendered over it. That is the right picture for a link pasted into WhatsApp and the
+   * wrong one for Product.image, which Google shows AS the product -- its own guidance rules
+   * out images with overlaid text and logos. So the card leads the social meta below and the
+   * schema lists the plain photographs, capped.
+   */
+  const images = unique([mediaUrl(product.og_image_url), ...catalogImages]);
+  const schemaImages = (catalogImages.length ? catalogImages : images).slice(0, PRODUCT_SCHEMA_IMAGE_MAX);
   const sellableVariants = variants.filter((variant) => Number(variant.stock || 0) > 0);
   const available = variants.length
     ? sellableVariants.length > 0
@@ -149,12 +233,22 @@ export const buildProductSeo = (product = {}, { color = "", variant = "" } = {})
     ...offerBase,
     price: Number((prices[0] || fallbackPrice) || 0).toFixed(2),
   };
+  const priceValidUntil = priceValidUntilFor(product);
+  if (priceValidUntil) offers.priceValidUntil = priceValidUntil;
   const merchantPolicies = product.merchant_policies || product.merchantPolicies || {};
   const shippingDetails = Array.isArray(merchantPolicies.shippingDetails) ? merchantPolicies.shippingDetails : [];
   if (shippingDetails.length) offers.shippingDetails = shippingDetails;
   if (merchantPolicies.returnPolicy) offers.hasMerchantReturnPolicy = merchantPolicies.returnPolicy;
-  const colors = unique(variants.map((variant) => text(variant.color || variant.color_name)));
+  const colors = uniqueColorLabels(variants.map((variant) => variant.color || variant.color_name))
+    .slice(0, PRODUCT_SCHEMA_COLOR_MAX);
   const sku = text(product.sku || product.product_code || product.id);
+  // A colour's own barcode when the link named one, the product's otherwise; neither is
+  // published unless it survives isValidGtin.
+  const gtin = [
+    ...(colorVariants ? colorVariants.map((variant) => variant.gtin || variant.barcode) : []),
+    product.gtin,
+    product.barcode,
+  ].map(text).find(isValidGtin) || "";
   const keywords = splitProductKeywords(product.seo_keywords);
 
   const productJsonLd = {
@@ -162,8 +256,9 @@ export const buildProductSeo = (product = {}, { color = "", variant = "" } = {})
     "@type": "Product",
     name,
     description,
-    image: images,
+    image: schemaImages,
     ...(sku ? { sku } : {}),
+    ...(gtin ? { gtin } : {}),
     ...(brand ? { brand: { "@type": "Brand", name: brand } } : {}),
     url,
     ...(colors.length ? { color: colors.join(", ") } : {}),
@@ -171,8 +266,9 @@ export const buildProductSeo = (product = {}, { color = "", variant = "" } = {})
     ...(keywords.length ? { keywords: keywords.join(", ") } : {}),
     offers,
   };
-  const categoryName = category || "المنتجات";
-  const categoryUrl = `${STOREFRONT_ORIGIN}/products${product.category_id ? `?category=${encodeURIComponent(product.category_id)}` : ""}`;
+  const breadcrumbCategory = seoCategoryForProduct(product);
+  const categoryName = breadcrumbCategory?.h1 || category || "المنتجات";
+  const categoryUrl = `${STOREFRONT_ORIGIN}${breadcrumbCategory ? breadcrumbCategory.path : "/products"}`;
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",

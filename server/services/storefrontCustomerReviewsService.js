@@ -1,4 +1,5 @@
 import { parseLegacyDeliveryRange, normalizeShippingPolicyZone } from "../../src/shared/lib/merchantPolicies.js";
+import { isValidGtin } from "../../src/shared/lib/productSeo.js";
 import { resolveZoneHandlingTime } from "../../src/shared/lib/shippingHandlingSettings.js";
 import { getSetting } from "./settingsService.js";
 import { loadShippingZones } from "./storefrontShippingService.js";
@@ -21,15 +22,10 @@ const weekdayByCode = {
 export const isValidCustomerReviewEmail = (value = "") =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(value).toLowerCase());
 
-export const isValidGtin = (value = "") => {
-  const raw = text(value);
-  const digits = raw.replace(/\D/g, "");
-  if (![8, 12, 13, 14].includes(digits.length) || digits !== raw) return false;
-  const values = [...digits].map(Number);
-  const checkDigit = values.pop();
-  const sum = values.reverse().reduce((total, digit, index) => total + digit * (index % 2 === 0 ? 3 : 1), 0);
-  return (10 - (sum % 10)) % 10 === checkDigit;
-};
+// One checksum for the whole shop: the Product schema publishes a gtin under the same rule
+// this opt-in payload sends one under. Re-exported because callers (and the tests) have always
+// imported it from here.
+export { isValidGtin };
 
 const cairoDateParts = (value) => {
   const date = value instanceof Date ? value : new Date(value);
