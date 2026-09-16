@@ -257,6 +257,7 @@
     "sellerTitle": "Seller ID (merchant token)",
     "sellerSubtitle": "Needed to read listing issues. Seller Central → Settings → Account Info → Merchant Token. It is not a password.",
     "sellerLabel": "Seller ID",
-    "sellerSaved": "Seller ID saved"
+    "sellerSaved": "Seller ID saved",
+    "sellerPlaceholder": "Example: A1B2C3D4E5F6G7"
   }
 }

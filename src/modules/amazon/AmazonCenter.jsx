@@ -633,7 +633,7 @@ export function AmazonSettingsPanel() {
       </Card>
 
       <Card title={t("amazon.settings.sellerTitle")} subtitle={t("amazon.settings.sellerSubtitle")}>
-        <Input value={sellerId} disabled={!manage} onChange={(event) => setSellerId(event.target.value.toUpperCase())} placeholder="A1B2C3D4E5F6G7" label={t("amazon.settings.sellerLabel")} />
+        <Input value={sellerId} disabled={!manage} onChange={(event) => setSellerId(event.target.value.toUpperCase())} placeholder={t("amazon.settings.sellerPlaceholder")} label={t("amazon.settings.sellerLabel")} />
         {manage ? <div className="mt-3"><Button variant="primary" loading={savingSeller} onClick={saveSeller}>{t("amazon.common.save")}</Button></div> : null}
       </Card>
     </div>

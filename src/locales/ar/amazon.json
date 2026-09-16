@@ -257,6 +257,7 @@
     "sellerTitle": "Seller ID (رمز التاجر)",
     "sellerSubtitle": "مطلوب لقراءة مشاكل العروض. من Seller Central ← Settings ← Account Info ← Merchant Token. هذا ليس كلمة مرور.",
     "sellerLabel": "معرّف البائع",
-    "sellerSaved": "تم حفظ Seller ID"
+    "sellerSaved": "تم حفظ Seller ID",
+    "sellerPlaceholder": "مثال: A1B2C3D4E5F6G7"
   }
 }
