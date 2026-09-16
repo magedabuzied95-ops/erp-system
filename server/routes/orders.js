@@ -13,6 +13,7 @@ import {
   syncOrderBostaDetails,
 } from "../modules/shipping/shipping.controller.js";
 import { createOnlineExchangeController } from "../modules/orders/onlineExchange.js";
+import { blockMarketplaceOrderMutations } from "../modules/amazon/amazonOrderGuards.js";
 
 import {
   createOrder,
@@ -44,6 +45,9 @@ import {
 } from "../controllers/ordersController.js";
 
 const router = express.Router();
+
+// Amazon orders are managed in Seller Central: every write under /:id is refused for them.
+router.use("/:id", blockMarketplaceOrderMutations());
 
 /* ======================================================
    CREATE ORDER

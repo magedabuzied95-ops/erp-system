@@ -62,6 +62,7 @@ import {
 } from "../services/employeeAdvanceSalesService.js";
 import { getShippingProvider, normalizeShippingProviderKey } from "../services/shippingProviders/index.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+import { isExternalMarketplaceOrder, lookupOrderOrigin, marketplaceOrderLockedError } from "../modules/amazon/amazonOrderGuards.js";
 
 const POS_CHECKOUT_DEBUG = ["1", "true", "yes", "on"].includes(String(process.env.POS_CHECKOUT_DEBUG || "").trim().toLowerCase());
 const POS_DEBUG = POS_CHECKOUT_DEBUG || ["1", "true", "yes", "on"].includes(String(process.env.POS_DEBUG || "").trim().toLowerCase());
@@ -9143,6 +9144,14 @@ export const createReturn = async (req, res) => {
         success: false,
         message: "Order and return items are required",
       });
+    }
+
+    // Amazon handles returns for its own orders; restocking here would invent inventory.
+    const returnOrigin = await lookupOrderOrigin(orderId, { database: client });
+    if (returnOrigin && isExternalMarketplaceOrder(returnOrigin)) {
+      await client.query("ROLLBACK");
+      const lockedError = marketplaceOrderLockedError();
+      return res.status(409).json({ success: false, code: lockedError.code, message: lockedError.message });
     }
 
     if (!items.some((item) => Number(item?.quantity || 0) > 0)) {

@@ -667,6 +667,10 @@ const { default: supplierRoutes } = await import("./routes/suppliers.js");
 const { default: usersRoutes } = await import("./routes/users.routes.js");
 const { default: securityRoutes } = await import("./routes/security.routes.js");
 const { ensureStaffSecuritySchema } = await import("./modules/security/staffSecuritySchema.js");
+const { default: amazonRoutes } = await import("./modules/amazon/amazon.routes.js");
+const { ensureAmazonSchema } = await import("./modules/amazon/amazonSchema.js");
+const { closeAbandonedRuns: closeAbandonedAmazonRuns } = await import("./modules/amazon/amazonSyncRuns.js");
+const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.js");
 const { default: brandsRoutes } = await import("./routes/brands.js");
 const { default: manufacturersRoutes } = await import("./routes/manufacturers.js");
 const { default: purchaseRoutes } = await import("./routes/purchases.js");
@@ -1959,6 +1963,8 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/security", securityRoutes);
+// Amazon SP-API (read-only). Every route requires amazon.view/manage + MFA.
+app.use("/api/amazon", amazonRoutes);
 app.use("/api/brands", brandsRoutes);
 app.use("/api/manufacturers", manufacturersRoutes);
 app.use("/api/purchases", purchaseRoutes);
@@ -2397,6 +2403,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       startAiMarketingAutomationRunner();
       startStoryAutopilotRunner();
       startSocialCommentJobWorker();
+      startAmazonScheduler({ register: (interval) => backgroundIntervals.add(interval) });
 
       const safeRunDueStoryPublishes = () => {
         void runDueStoryPublishes().catch((error) => {
@@ -2588,6 +2595,11 @@ const bootstrapStartup = async () => {
     // Password-policy / MFA columns and the security audit table. Boot-only, metadata-only DDL.
     await ensureStaffSecuritySchema(db);
     console.log("[server] staff security schema ensured");
+    // Amazon tables are new and self-contained: a failure disables the Amazon module only.
+    await ensureAmazonSchema(db)
+      .then(() => closeAbandonedAmazonRuns())
+      .then(() => console.log("[server] amazon schema ensured"))
+      .catch((error) => console.error("[server] amazon schema failed; Amazon integration disabled", { message: error?.message || String(error) }));
     await ensureNotificationsSchema(db);
     await ensureWebsiteSettingsSchema(db);
     await ensureSystemSettingsSchema(db);

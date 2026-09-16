@@ -5,6 +5,7 @@ import access from "../../locales/ar/access.json";
 import accounting from "../../locales/ar/accounting.json";
 import aiStudio from "../../locales/ar/aiStudio.json";
 import aiSupport from "../../locales/ar/aiSupport.json";
+import amazon from "../../locales/ar/amazon.json";
 import analytics from "../../locales/ar/analytics.json";
 import attendance from "../../locales/ar/attendance.json";
 import branches from "../../locales/ar/branches.json";
@@ -40,6 +41,7 @@ export default {
   "accounting": accounting,
   "aiStudio": aiStudio,
   "aiSupport": aiSupport,
+  "amazon": amazon,
   "analytics": analytics,
   "attendance": attendance,
   "branches": branches,

@@ -218,6 +218,8 @@ const Users = lazy(() => import("./modules/permissions/pages/Users"));
 const Roles = lazy(() => import("./modules/permissions/pages/Roles"));
 const Permissions = lazy(() => import("./modules/permissions/pages/Permissions"));
 const AccountSecurity = lazy(() => import("./modules/security/AccountSecurity"));
+const AmazonCenter = lazy(() => import("./modules/amazon/AmazonCenter"));
+const AmazonIntegrationSettings = lazy(() => import("./modules/amazon/AmazonCenter").then((module) => ({ default: module.AmazonIntegrationSettingsPage })));
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
@@ -2069,6 +2071,32 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["users.view"]}>
               <Users />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Amazon SP-API (read-only). The API additionally requires MFA for every call. */}
+        <Route
+          path="amazon"
+          element={
+            <ProtectedRoute requiredPermissions={["amazon.view"]}>
+              <AmazonCenter />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="amazon/:tab"
+          element={
+            <ProtectedRoute requiredPermissions={["amazon.view"]}>
+              <AmazonCenter />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="settings/integrations/amazon"
+          element={
+            <ProtectedRoute requiredPermissions={["amazon.view"]}>
+              <AmazonIntegrationSettings />
             </ProtectedRoute>
           }
         />

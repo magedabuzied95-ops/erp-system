@@ -11,6 +11,7 @@ const CHANNEL_PREFIXES = {
   facebook: "FB",
   fb: "FB",
   whatsapp: "WA",
+  amazon: "AMZ",
 };
 
 const cleanText = (value = "") => String(value ?? "").trim();

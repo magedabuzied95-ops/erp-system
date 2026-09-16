@@ -912,7 +912,8 @@
     "surveillanceVideo": "Video Settings",
     "surveillanceMotion": "Motion Settings",
     "surveillanceAudit": "Audit Log",
-    "invoiceStudio": "Invoice Studio"
+    "invoiceStudio": "Invoice Studio",
+    "amazon": "Amazon"
   },
   "language": {
     "label": "Language",

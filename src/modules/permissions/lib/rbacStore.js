@@ -42,6 +42,7 @@ import {
   Activity,
   Network,
   ScrollText,
+  ShoppingBasket,
 } from "lucide-react";
 
 import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage.js";
@@ -112,10 +113,14 @@ export const MODULES = [
   { key: "surveillance.storage", label: "Surveillance Storage" },
   { key: "surveillance.network", label: "Surveillance Network" },
   { key: "surveillance.admin", label: "Surveillance Admin" },
+  // Amazon SP-API. view = read Amazon pages; manage = sync, SKU mapping, settings.
+  // The API also requires MFA for both. Granted to admin roles only by default.
+  { key: "amazon", label: "Amazon" },
 ];
 
 export const MODULE_ACTIONS = Object.freeze({
   dashboard: ["view"],
+  amazon: ["view", "manage"],
   products: ["view", "create", "edit", "delete", "view_cost", "barcode_shop"],
   pos: ["view", "create", "sell", "edit", "edit_old", "override_seller", "scan_product_qr"],
   "pos.expenses": ["create", "view_shift_total"],
@@ -495,6 +500,13 @@ const RAW_SIDEBAR_SECTIONS = [
     title: "AI Studio",
     items: [
       { label: "AI Studio", to: "/ai-studio", permission: "settings.view", icon: Sparkles, adminOnly: true },
+    ],
+  },
+  {
+    title: "Amazon",
+    items: [
+      // ONE row: orders, SKU mapping, listings, inventory, pricing, logs and settings are tabs on the page.
+      { label: "Amazon", to: "/amazon", permission: "amazon.view", icon: ShoppingBasket, keywords: "amazon seller central sp-api marketplace amazon.eg orders listings sku أمازون" },
     ],
   },
   {

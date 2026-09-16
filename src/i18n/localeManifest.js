@@ -77,6 +77,7 @@ export const RESOURCE_BRANCHES = [
   { branch: "print", file: "print" },
   { branch: "sales", file: "sales" },
   { branch: "surveillance", file: "surveillance" },
+  { branch: "amazon", file: "amazon" },
 ];
 
 /**

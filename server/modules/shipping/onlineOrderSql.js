@@ -5,7 +5,10 @@ import db from "../../database/db.js";
 // out) all read it from here, so an order can never be counted in both places or in
 // neither. No heavy imports on purpose: dashboardAnalyticsService pulls this in.
 
-const ONLINE_ORIGINS = ["website", "storefront", "web", "online", "web_chat", "whatsapp", "instagram", "facebook", "messenger", "tiktok"];
+const ONLINE_ORIGINS = ["website", "storefront", "web", "online", "web_chat", "whatsapp", "instagram", "facebook", "messenger", "tiktok", "amazon"];
+// Orders another marketplace fulfils and settles (Amazon): online for the money views, but
+// never on the shipping board - the shop does not confirm, pack or hand them to Bosta here.
+export const EXTERNAL_MARKETPLACE_ORIGINS = ["amazon"];
 // A courier value that means "no courier": the shop's own default, or a pickup.
 const NO_COURIER_PROVIDERS = ["", "manual", "in_store_delivery", "none", "pickup", "store_pickup"];
 
@@ -115,6 +118,8 @@ export const buildPortalOnlineSql = (columns) => {
   if (has("is_personal_transaction")) liveParts.push("o.is_personal_transaction IS DISTINCT FROM TRUE");
   // An AI draft is a conversation that might become an order, not an order.
   liveParts.push(`${statusExpr} <> 'ai_draft'`);
+  if (has("source")) liveParts.push(`LOWER(COALESCE(o.source, '')) NOT IN (${sqlList(EXTERNAL_MARKETPLACE_ORIGINS)})`);
+  if (has("channel")) liveParts.push(`LOWER(COALESCE(o.channel, '')) NOT IN (${sqlList(EXTERNAL_MARKETPLACE_ORIGINS)})`);
 
   return { onlineExpr, groupExpr, liveExpr: liveParts.join(" AND "), trackingExpr };
 };

@@ -8,6 +8,7 @@ import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
 import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
+import { isExternalMarketplaceOrder, marketplaceOrderLockedError } from "../amazon/amazonOrderGuards.js";
 import { bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 // bosta.operations.js imports this module, so it is loaded lazily to keep the cycle out of
@@ -958,6 +959,8 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
     await client.query("BEGIN");
     const context = await loadOrderShipmentContext(client, orderId);
     const { order, items, city, zone, district } = context;
+    // Amazon ships (or tells the seller how to ship) its own orders; never book a courier here.
+    if (isExternalMarketplaceOrder(order)) throw marketplaceOrderLockedError();
     const config = await bostaConfig();
     if (!config.enabled) {
       console.error("[bosta] refusing to create a shipment while the integration is disabled", { orderId: order.id });

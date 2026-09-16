@@ -17,9 +17,11 @@ const SECTION_TITLE_KEYS = {
   "AI Studio": "sidebar.aiStudio",
   "Marketing": "sidebar.marketing",
   "Surveillance Center": "sidebar.surveillanceCenter",
+  Amazon: "sidebar.amazon",
 };
 
 const ITEM_LABEL_KEYS = {
+  Amazon: "sidebar.amazon",
   Dashboard: "sidebar.dashboard",
   Notifications: "sidebar.notifications",
   Workspace: "sidebar.workspace",
