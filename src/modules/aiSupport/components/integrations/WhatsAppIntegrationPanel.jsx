@@ -99,11 +99,17 @@ export default function WhatsAppIntegrationPanel({ headers, onStatusChange }) {
       );
       if (!mountedRef.current) return;
       const state = clean(payload?.connection?.state) || "unknown";
+      const connected = payload?.connection?.connected === true;
+      // A connected number with no webhook hears nothing, so that is a failure
+      // worth showing even though the registration itself succeeded.
+      const webhookWired = payload?.webhook?.wired !== false;
       setInstanceResult({
-        ok: payload?.connection?.connected === true,
-        text: payload?.connection?.connected === true
-          ? t("aiSupport.integrations.whatsapp.instances.added")
-          : `${t("aiSupport.integrations.whatsapp.instances.addedNotConnected")} (${state})`,
+        ok: connected && webhookWired,
+        text: !webhookWired
+          ? `${t("aiSupport.integrations.whatsapp.instances.webhookFailed")}${clean(payload?.webhook?.error) ? ` (${clean(payload.webhook.error)})` : ""}`
+          : connected
+            ? t("aiSupport.integrations.whatsapp.instances.added")
+            : `${t("aiSupport.integrations.whatsapp.instances.addedNotConnected")} (${state})`,
       });
       setNewInstance({ instance: "", displayName: "" });
       await load({ silent: true });

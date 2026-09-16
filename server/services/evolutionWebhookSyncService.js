@@ -15,10 +15,12 @@ const isLocalEvolutionApiUrl = (value = "") => {
   }
 };
 
-const config = () => {
+// A second WhatsApp number is a second Evolution instance, so a caller may name
+// the instance it means; only the startup sync falls back to the env default.
+const config = (instanceOverride = "") => {
   const apiUrl = normalizeBaseUrl(process.env.EVOLUTION_API_URL);
   const apiKey = trim(process.env.EVOLUTION_API_KEY);
-  const instanceName = trim(process.env.EVOLUTION_INSTANCE_NAME);
+  const instanceName = trim(instanceOverride) || trim(process.env.EVOLUTION_INSTANCE_NAME);
   const publicUrl = normalizeBaseUrl(process.env.WEBHOOK_PUBLIC_URL);
   return {
     apiUrl,
@@ -488,12 +490,16 @@ const updateWebhookByRecordId = async ({ current, webhookRecord, desiredUrl }) =
   }
 
   const error = new Error("Unable to update Evolution webhook");
-  error.recreateInstruction = `If Evolution rejects the webhook update routes, recreate qr-test2 after setting WEBHOOK_GLOBAL_URL=${desiredUrl} and restart the instance/container.`;
+  error.recreateInstruction = `If Evolution rejects the webhook update routes, recreate ${current.instanceName} after setting WEBHOOK_GLOBAL_URL=${desiredUrl} and restart the instance/container.`;
   return { response: null, path: updateEndpoint, webhookId, error };
 };
 
-export const syncEvolutionWebhookOnStartup = async () => {
-  const current = config();
+// Points ONE instance's webhook at our backend and proves it persisted. A number
+// whose webhook is unset is connected to WhatsApp and invisible to the ERP, so
+// registering a new number runs this instead of leaving it to be done by hand in
+// the Evolution manager.
+export const syncEvolutionWebhookForInstance = async (instanceName = "") => {
+  const current = config(instanceName);
   console.log("[evolution-webhook-sync:start]", {
     has_api_url: Boolean(current.apiUrl),
     has_api_key: Boolean(current.apiKey),
@@ -647,3 +653,6 @@ export const syncEvolutionWebhookOnStartup = async () => {
     throw error;
   }
 };
+
+// Boot still syncs the default number, and nothing else: server.js calls this one.
+export const syncEvolutionWebhookOnStartup = () => syncEvolutionWebhookForInstance();

@@ -167,6 +167,7 @@ import {
 } from "../services/aiInboxQuickRepliesService.js";
 import { sendTelegramMedia, sendTelegramText, TELEGRAM_CHANNEL } from "../services/telegramBotService.js";
 import { listChannelAccounts, setChannelAccountActive, syncEnvChannelAccounts, syncMetaChannelAccounts, upsertChannelAccount } from "../services/channelAccountsService.js";
+import { syncEvolutionWebhookForInstance } from "../services/evolutionWebhookSyncService.js";
 import { loadCodPolicySettings } from "../services/storefrontShippingService.js";
 import { shippingFeeAdvanceNoticeFor } from "../services/codPolicyReplyService.js";
 import { resolveCodPolicy } from "../../shared/codPolicy.js";
@@ -2586,18 +2587,39 @@ router.post("/channel-accounts", protect, permit("settings", "edit"), async (req
       state: "unreachable",
       error: error?.message || String(error),
     }));
+    // A registered number whose webhook still points nowhere is connected to
+    // WhatsApp and invisible to us: every inbound message is delivered to the
+    // gateway and dropped. Point it at our backend here, with the gateway API
+    // key that never leaves the server, instead of leaving it as a step to
+    // remember by hand in the Evolution manager. Non-fatal: the number is
+    // registered either way, and the response says whether it can hear.
+    const webhook = await syncEvolutionWebhookForInstance(instance).then(
+      (result) => ({
+        wired: result?.matched === true || result?.updated === true,
+        skipped_reason: result?.skipped === true ? result?.reason || "unknown" : "",
+        error: result?.error || "",
+      }),
+      (error) => ({ wired: false, skipped_reason: "", error: error?.message || String(error) })
+    );
     const account = await upsertChannelAccount({
       tenantId,
       platform: "whatsapp",
       externalAccountId: instance,
       displayName: envText(req.body?.display_name) || instance,
       provider: "evolution",
-      metadata: { source: "manual", registered_state: status?.state || "unknown" },
+      metadata: { source: "manual", registered_state: status?.state || "unknown", webhook_wired: webhook.wired },
+    });
+    console.info("[ai-agent] channel account webhook wiring", {
+      instance,
+      wired: webhook.wired,
+      skippedReason: webhook.skipped_reason,
+      error: webhook.error,
     });
     return res.json({
       success: true,
       account,
       connection: { configured: status?.configured === true, connected: status?.connected === true, state: status?.state || "unknown", error: status?.error || "" },
+      webhook,
     });
   } catch (error) {
     console.error("[ai-agent] channel account register failed", { message: error?.message || "unknown" });

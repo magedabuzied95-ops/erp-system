@@ -2090,6 +2090,7 @@
         "add": "Add number",
         "added": "Number registered and connected.",
         "addedNotConnected": "Number registered but not connected yet",
+        "webhookFailed": "Number registered, but pointing its webhook at the ERP failed — it will not receive any message",
         "addFailed": "Could not register the number",
         "updateFailed": "Could not update the number",
         "empty": "No numbers registered besides the default one.",
