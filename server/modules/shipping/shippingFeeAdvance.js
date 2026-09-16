@@ -19,6 +19,25 @@ const orderGovernorate = (order = {}, city = null) =>
   [city?.name_en, city?.name_ar, order.shipping_city_name_en, order.shipping_city_name_ar, order.governorate]
     .find((name) => resolveGovernorateId(name)) || text(order.governorate);
 
+export const DEPOSIT_REQUEST_TIMELINE_ACTION = "deposit_requested";
+
+/**
+ * A deposit staff asked for by hand, kept on the order's timeline so it needs no column of its
+ * own (production takes no runtime DDL). The newest ask wins, and anything already paid retires
+ * it — the closing system never demanded this money, a person did.
+ */
+export const requestedDepositAmount = (order = {}) => {
+  const timeline = Array.isArray(order.timeline) ? order.timeline : [];
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index] || {};
+    if (text(entry.action) !== DEPOSIT_REQUEST_TIMELINE_ACTION) continue;
+    const asked = money(entry.amount);
+    const total = orderTotal(order);
+    return total > 0 ? Math.min(asked, total) : asked;
+  }
+  return 0;
+};
+
 /**
  * status: "not_required" | "awaiting_payment" | "awaiting_review" | "paid"
  * `awaiting_review` is a transfer the customer says they made (a screenshot) that no
@@ -33,13 +52,17 @@ export const describeShippingFeeAdvance = ({ order = {}, city = null, policy } =
     shippingFee,
     orderTotal: orderTotal(order),
   });
-  if (cod.cod_allowed) return { required: false, status: "not_required", amount: 0, paid_amount: money(order.paid_amount) };
   const paid = money(order.paid_amount);
+  const deposit = requestedDepositAmount(order);
+  // The policy asks for the shipping fee; a person can ask for more (or ask at all, under the
+  // open system). Whichever is larger is what this order owes before it moves.
+  const amount = Math.max(cod.cod_allowed ? 0 : cod.advance_amount, deposit);
+  if (!(amount > 0)) return { required: false, status: "not_required", amount: 0, paid_amount: paid };
   const proofStatus = text(order.transfer_proof_status).toLowerCase();
   const verified = !proofStatus || proofStatus === "approved";
-  const covered = paid + 0.009 >= cod.advance_amount;
+  const covered = paid + 0.009 >= amount;
   const status = covered && verified ? "paid" : proofStatus === "pending" ? "awaiting_review" : "awaiting_payment";
-  return { required: true, status, amount: cod.advance_amount, paid_amount: paid };
+  return { required: true, status, amount, paid_amount: paid, requested_deposit: deposit };
 };
 
 const httpError = (status, code, message) => Object.assign(new Error(message), { status, code });

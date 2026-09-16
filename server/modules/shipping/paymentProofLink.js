@@ -4,7 +4,7 @@ import db from "../../database/db.js";
 import { generateOrderLinkCode, orderLinkSecret } from "../../utils/orderLinkSecret.js";
 import { resolvePublicAppUrl } from "../../utils/whatsapp.js";
 import { emitToRooms } from "../../utils/socket.js";
-import { describeShippingFeeAdvance } from "./shippingFeeAdvance.js";
+import { describeShippingFeeAdvance, DEPOSIT_REQUEST_TIMELINE_ACTION } from "./shippingFeeAdvance.js";
 
 /*
  * The shipping-fee payment card and the page it links to.
@@ -673,6 +673,28 @@ export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null, 
   if (owed <= 0) throw httpError(409, "ORDER_SETTLED", "الأوردر ده مدفوع بالكامل.");
   const card = await prepareShippingFeePaymentCard({ order, amount: askedAmount });
   if (!card) throw httpError(502, "CARD_UNAVAILABLE", "مش قادرين نجهّز كارت الدفع دلوقتي.");
+  // The ask is written onto the order before the card goes out: the upload page, the payment
+  // review and the courier's collection all read it from there (INV-1583 asked for a deposit the
+  // order knew nothing about, so /pay told the customer he owed 0).
+  if (requested > 0) {
+    await db.query(
+      `
+      UPDATE orders
+      SET timeline = COALESCE(timeline, '[]'::jsonb) || $2::jsonb,
+          transfer_proof_status = CASE WHEN LOWER(COALESCE(transfer_proof_status, '')) = 'rejected' THEN NULL ELSE transfer_proof_status END,
+          updated_at = NOW()
+      WHERE id = $1
+      `,
+      [order.id, JSON.stringify([{
+        action: DEPOSIT_REQUEST_TIMELINE_ACTION,
+        status: text(order.status),
+        source: "staff",
+        label: "طلب ديبوزت من العميل",
+        amount: askedAmount,
+        at: new Date().toISOString(),
+      }])]
+    );
+  }
   const queued = await queueShippingFeePaymentCard({
     order,
     card,

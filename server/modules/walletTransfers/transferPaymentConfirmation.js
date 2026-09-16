@@ -1,4 +1,5 @@
 import { processOrderLoyalty } from "../../services/loyaltyService.js";
+import { requestedDepositAmount } from "../shipping/shippingFeeAdvance.js";
 
 // Approving a transfer is one act whoever does it: a person on the order page, or the
 // Vodafone Cash SMS matching the order by itself. Both land here so the order ends in
@@ -16,9 +17,14 @@ export const applyTransferPaymentConfirmation = async (client, { order, tenantId
   // The restricted closing system: the customer transferred the shipping fee and
   // the courier collects the goods (cod_amount). Approving it is not a full payment.
   const isShippingAdvanceTransfer = !isCodShippingOnlyTransfer && codAmount > 0 && codAmount < totalAmount;
+  // A deposit staff asked for is a part payment of a known size: approving it pays exactly that
+  // much, and the courier collects the rest.
+  const requestedDeposit = requestedDepositAmount(order);
   const nextPaidAmount = fullOrder
     ? Math.max(totalAmount, existingPaidAmount)
-    : isCodShippingOnlyTransfer
+    : requestedDeposit > 0 && requestedDeposit < totalAmount
+      ? Math.min(totalAmount, Math.max(existingPaidAmount, requestedDeposit))
+      : isCodShippingOnlyTransfer
     ? Math.min(totalAmount, Math.max(existingPaidAmount, shippingAmount))
     : isShippingAdvanceTransfer
       ? Math.min(totalAmount, Math.max(existingPaidAmount, totalAmount - codAmount))
