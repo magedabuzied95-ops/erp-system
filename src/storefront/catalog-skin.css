@@ -606,6 +606,24 @@ body.storefront-shell .sfx-facet__title {
   color: var(--m1h-text) !important;
 }
 
+/* The per-page picker sits in the toolbar row beside the result count, so it is
+   sized to that line rather than to a full-width facet control. */
+:is(body.storefront-shell, .sfx-scope) .sfx-select--sm {
+  min-height: 36px;
+}
+
+:is(body.storefront-shell, .sfx-scope) .sfx-select--sm .sfx-select__control {
+  min-height: 34px;
+  padding-inline: 12px 32px;
+  font-size: 13px;
+}
+
+.sfx-select--sm .sfx-select__icon {
+  inset-inline-end: 10px;
+  width: 14px;
+  height: 14px;
+}
+
 .sfx-select__icon {
   position: absolute;
   inset-inline-end: 12px;
@@ -722,12 +740,6 @@ body.storefront-shell .sfx-page[aria-current] {
 body.storefront-shell .sfx-page.is-disabled {
   cursor: default;
   opacity: 0.35;
-}
-
-body.storefront-shell .sfx-page--sm {
-  min-width: 36px;
-  height: 34px;
-  font-size: 13px;
 }
 
 .sfx-page__gap {

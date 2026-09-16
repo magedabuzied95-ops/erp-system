@@ -41,3 +41,17 @@ export const listingPageOutOfRange = ({ page = 1, pageSize = 24, total = 0, sett
   if (!settled || error || !(Number(total) > 0)) return false;
   return Number(page) > Math.max(1, Math.ceil(Number(total) / Math.max(1, Number(pageSize) || 1)));
 };
+
+// How many cards a page carries is the customer's own choice, so it outlives the
+// URL it was made on. A link that carries per_page still wins, so a shared page
+// reproduces itself exactly; a bare listing (a nav link, a section page) restores
+// the last size this device picked instead of snapping back to the default.
+export const LISTING_PAGE_SIZE_STORAGE_KEY = "m1-storefront-per-page";
+
+export const listingPageSize = ({ urlValue = "", storedValue = "", options = [], fallback = 24 } = {}) => {
+  const offered = (value) => {
+    const parsed = Number.parseInt(String(value ?? "").trim(), 10);
+    return options.includes(parsed) ? parsed : 0;
+  };
+  return offered(urlValue) || offered(storedValue) || fallback;
+};

@@ -560,6 +560,7 @@
     "productCount": "{{count}} product",
     "showingRange": "Showing {{from}}-{{to}} of {{count}} results",
     "perPage": "Products per page",
+    "perPageOption": "{{size}} per page",
     "emptyTitle": "No products found",
     "emptyText": "Try another search or category",
     "sizeWithValue": "Size {{size}}",

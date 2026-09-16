@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { cutStorefrontProductsPage, findClassificationFilterOption } from "../server/controllers/storefrontController.js";
 import { getCache, getOrSetCacheSWR, invalidateCachePattern, markCachePatternStale, onCacheInvalidatePattern, setCache } from "../server/services/cacheService.js";
-import { hasStorefrontHomeContent, keepHomeFilterRowWhenEmpty, listingPageOutOfRange, nextHomeFilterRowAudience, persistedStorefrontHomeData } from "../src/storefront/lib/listingHomeState.js";
+import { hasStorefrontHomeContent, keepHomeFilterRowWhenEmpty, listingPageOutOfRange, listingPageSize, nextHomeFilterRowAudience, persistedStorefrontHomeData } from "../src/storefront/lib/listingHomeState.js";
 import { homeFilterRowHref } from "../shared/siteDesign.js";
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
@@ -240,4 +240,30 @@ test("#92 a failed home refresh keeps a painted hero; a day-old bootstrap copy i
   const hook = block(storefront, "const useStorefrontHome = () => {");
   assert.match(hook, /setState\(\(current\) => \(hasStorefrontHomeContent\(current\)\s*\? \{ \.\.\.current, loading: false \}/);
   assert.match(storefront, /return persistedStorefrontHomeData\(JSON\.parse\(window\.localStorage\.getItem\(STOREFRONT_HOME_PERSISTED_CACHE_KEY\)/);
+});
+
+// #93 ------------------------------------------------------------------------
+test("#93 the page size the customer picked answers for a listing whose URL carries none", () => {
+  const options = [12, 24, 36, 48];
+  const pick = (urlValue, storedValue) => listingPageSize({ urlValue, storedValue, options, fallback: 24 });
+  assert.equal(pick("48", ""), 48, "a shared link reproduces its own page");
+  assert.equal(pick("", "48"), 48, "a bare section page keeps the size this device chose");
+  assert.equal(pick("12", "48"), 12, "the link outranks the device");
+  assert.equal(pick("", ""), 24, "a crawler has no storage, so it reads the SEO page size");
+  assert.equal(pick("", "40"), 24, "a size we no longer offer is not honoured");
+  assert.equal(pick("nonsense", "36"), 36);
+  assert.equal(listingPageSize(), 24);
+  // The pick is stored before the URL changes: choosing 24 back deletes per_page,
+  // and only a stored 24 stops the old 48 from answering for the bare URL left.
+  assert.match(listing, /const choosePageSize = \(nextSize\) => \{\s*const size = normalizePageSize\(nextSize\);\s*setStoredPageSize\(String\(size\)\);\s*writeStoredPageSize\(size\);\s*navigate\(pageSizeUrl\(size\)\);/);
+  assert.match(listing, /urlValue: params\.get\("per_page"\) \|\| params\.get\("perPage"\),\s*storedValue: storedPageSize,/);
+  // It is drawn once, in the toolbar beside the count, not at the far end of the grid.
+  assert.equal(listing.split("PAGE_SIZE_OPTIONS.map(").length - 1, 1);
+  assert.match(listing, /onChange=\{\(event\) => choosePageSize\(event\.target\.value\)\}/);
+  assert.equal(arLocale.products.perPageOption, "{{size}} في الصفحة");
+  assert.ok(enLocale.products.perPageOption);
+  // One bottom padding, not two: the listing reserved room for a mobile bar the
+  // shop does not have, and the pagination row reserved it a second time.
+  assert.ok(!listing.includes("pb-24 sm:pb-4"));
+  assert.ok(!listing.includes("--mobile-bottom-nav-height"));
 });

@@ -301,6 +301,7 @@
     "productCount": "{{count}} منتج",
     "showingRange": "عرض {{from}}-{{to}} من {{count}} نتيجة",
     "perPage": "عدد المنتجات في الصفحة",
+    "perPageOption": "{{size}} في الصفحة",
     "emptyTitle": "لا توجد منتجات",
     "emptyText": "جرب بحث أو قسم مختلف",
     "sizeWithValue": "مقاس {{size}}",

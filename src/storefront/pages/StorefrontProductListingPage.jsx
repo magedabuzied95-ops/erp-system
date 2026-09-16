@@ -38,7 +38,7 @@ import {
 } from "../Storefront";
 import { crocsSizeAliases, resolveCrocsEuSize } from "../../shared/lib/crocsSizes";
 import { resolveProductImageUrl } from "../../shared/lib/imageUrls";
-import { listingPageOutOfRange } from "../lib/listingHomeState.js";
+import { LISTING_PAGE_SIZE_STORAGE_KEY, listingPageOutOfRange, listingPageSize } from "../lib/listingHomeState.js";
 import { localizeBrandLabel, localizeColorName, localizeSizeLabel } from "../lib/displayCopy";
 import { useDialogFocus } from "../lib/useDialogFocus";
 import { storefrontColorKey } from "../../../shared/storefrontColorKey.js";
@@ -64,7 +64,28 @@ const FILTER_DEBOUNCE_MS = 120;
 const SEO_PAGE_SIZE = 24;
 // The customer picks how many cards a page carries, and the choice rides in the
 // URL so a shared or bookmarked link reproduces the exact page it was copied from.
+// It is also kept on the device, so walking into a section that has no per_page of
+// its own does not quietly put the customer back on 24.
 const PAGE_SIZE_OPTIONS = [12, 24, 36, 48];
+
+// A browser with storage shut off (private mode, a locked-down webview) simply has
+// no remembered size; it must never take the listing down with it.
+const readStoredPageSize = () => {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(LISTING_PAGE_SIZE_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+const writeStoredPageSize = (size) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LISTING_PAGE_SIZE_STORAGE_KEY, String(size));
+  } catch {
+    /* storage is unavailable; the URL still carries the choice for this visit */
+  }
+};
 
 // The arrow keeps its place at both ends of the range instead of disappearing,
 // so the row does not shift under the cursor between page 1 and page 2.
@@ -553,7 +574,15 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const [params, setParams] = useSearchParams();
   const seoCategory = useMemo(() => localizeSeoCategory(seoCategoryByPath(location.pathname), lang), [location.pathname, lang]);
   const page = Math.max(1, Number.parseInt(params.get("page") || "1", 10) || 1);
-  const pageSize = normalizePageSize(params.get("per_page") || params.get("perPage"));
+  // A crawler has no localStorage, so it always reads the SEO default and the
+  // canonical stays the one page Google indexes.
+  const [storedPageSize, setStoredPageSize] = useState(readStoredPageSize);
+  const pageSize = listingPageSize({
+    urlValue: params.get("per_page") || params.get("perPage"),
+    storedValue: storedPageSize,
+    options: PAGE_SIZE_OPTIONS,
+    fallback: SEO_PAGE_SIZE,
+  });
   const q = params.get("q") || "";
   const category = params.get("category") || "";
   const brand = params.get("brand") || "";
@@ -847,6 +876,15 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     else next.set("per_page", String(normalizePageSize(nextSize)));
     next.delete("perPage");
     return `${listingPagePath}${next.toString() ? `?${next.toString()}` : ""}`;
+  };
+  // The device remembers the pick before the URL changes: choosing 24 back drops
+  // per_page from the link, and only a stored 24 stops the old 48 from answering
+  // for the bare URL that is left.
+  const choosePageSize = (nextSize) => {
+    const size = normalizePageSize(nextSize);
+    setStoredPageSize(String(size));
+    writeStoredPageSize(size);
+    navigate(pageSizeUrl(size));
   };
 
   // A ?page= past the end (the catalogue shrank, or an old shared link) has no
@@ -1275,7 +1313,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   }, [catalogProducts.length, gender, category, brand, productType, grade, color, size, selectedSizes, inStock, saleView, lastSizes, q, hasActiveCatalogFilters, orderedFilteredProducts, offerStoryQuery]);
 
   return (
-    <section className="sf-product-listing-page sfx-listing sfx-wrap pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-4 md:py-8">
+    <section className="sf-product-listing-page sfx-listing sfx-wrap pb-[calc(env(safe-area-inset-bottom)+2.25rem)] pt-4 md:py-8">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <p className="sf-catalog-eyebrow sfx-eyebrow">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
@@ -1309,6 +1347,26 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
             {t("storefront.filters.filters", "الفلاتر")}
             {activeFilterCount ? <span className="sfx-btn__count">{activeFilterCount}</span> : null}
           </button>
+          {/* The size lives here, beside the count it explains, rather than at the
+              far end of the grid where the customer only found it after scrolling
+              past everything the wrong page size had already made them scroll. */}
+          {totalProducts > PAGE_SIZE_OPTIONS[0] ? (
+            <label className="sfx-select sfx-select--sm">
+              <select
+                value={pageSize}
+                onChange={(event) => choosePageSize(event.target.value)}
+                className="sfx-select__control"
+                aria-label={t("storefront.products.perPage", "عدد المنتجات في الصفحة")}
+              >
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size}>
+                    {t("storefront.products.perPageOption", "{{size}} في الصفحة", { size })}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="sfx-select__icon" aria-hidden="true" />
+            </label>
+          ) : null}
         </div>
       </div>
 
@@ -1446,7 +1504,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                 saleModeEnabled={saleModeEnabled}
                 revealAll
               />
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3 pb-24 sm:pb-4">
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                 {totalPages > 1 ? (
                   <nav aria-label={lang === "en" ? "Product pages" : "صفحات المنتجات"} className="flex flex-wrap items-center justify-center gap-2">
                     <PaginationArrow to={page > 1 ? pageUrl(page - 1) : null} rel="prev" label={lang === "en" ? "Previous page" : "الصفحة السابقة"} lang={lang} direction="prev" />
@@ -1461,23 +1519,6 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
                     })}
                     <PaginationArrow to={page < totalPages ? pageUrl(page + 1) : null} rel="next" label={lang === "en" ? "Next page" : "الصفحة التالية"} lang={lang} direction="next" />
                   </nav>
-                ) : null}
-                {totalProducts > PAGE_SIZE_OPTIONS[0] ? (
-                  <div className="flex items-center gap-2">
-                    <span className="sf-catalog-pagesize-label sfx-muted">{t("storefront.products.perPage", "عدد المنتجات في الصفحة")}</span>
-                    <div className="flex items-center gap-1.5">
-                      {PAGE_SIZE_OPTIONS.map((size) => (
-                        <Link
-                          key={size}
-                          to={pageSizeUrl(size)}
-                          aria-current={size === pageSize ? "true" : undefined}
-                          className="sfx-page sfx-page--sm"
-                        >
-                          {size}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
                 ) : null}
               </div>
               {seoCategory ? (
