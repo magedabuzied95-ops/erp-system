@@ -7299,7 +7299,7 @@ const repairMetaConfigFromMarketingSettings = async ({ tenantId } = {}) => {
         messenger_enabled, instagram_enabled, instagram_dm_enabled,
         token_expires_at, status, updated_at
       )
-      VALUES ($1,$2,'','',$3,$4,'',$5,FALSE,FALSE,FALSE,TRUE,TRUE,$6,$6,$7::timestamp,'active',NOW())
+      VALUES ($1,$2,'','',$3,$4,'',$5,FALSE,FALSE,FALSE,TRUE,TRUE,$6,$6,$7::timestamptz,'active',NOW())
       ON CONFLICT (tenant_id, facebook_page_id) DO UPDATE SET
         page_access_token_encrypted = EXCLUDED.page_access_token_encrypted,
         instagram_business_account_id = EXCLUDED.instagram_business_account_id,
@@ -10569,7 +10569,7 @@ export const startMetaOAuth = async ({ tenantId, userId = null, req = null } = {
   await db.query(
     `
     INSERT INTO meta_oauth_states (tenant_id, user_id, state_token, status, expires_at)
-    VALUES ($1,$2,$3,'started',$4::timestamp)
+    VALUES ($1,$2,$3,'started',$4::timestamptz)
     `,
     [numberOrNull(tenantId), numberOrNull(userId), state, minutesFromNow(15)]
   );
@@ -10820,7 +10820,7 @@ export const selectMetaOAuthPage = async ({ tenantId, userId = null, pageId = ""
       long_lived_user_token, page_access_token, token_expires_at, token_status,
       token_last_validated_at, is_connected, next_refresh_check_at, updated_at
     )
-    VALUES ($1,'meta',$2,$3,$4,$5,$4,$6::timestamp,'active',CURRENT_TIMESTAMP,TRUE,CURRENT_TIMESTAMP + INTERVAL '24 hours',CURRENT_TIMESTAMP)
+    VALUES ($1,'meta',$2,$3,$4,$5,$4,$6::timestamptz,'active',CURRENT_TIMESTAMP,TRUE,CURRENT_TIMESTAMP + INTERVAL '24 hours',CURRENT_TIMESTAMP)
     ON CONFLICT (tenant_id) DO UPDATE SET
       provider = 'meta',
       page_id = EXCLUDED.page_id,
@@ -11200,7 +11200,7 @@ export const saveInstagramBusinessAccessToken = async ({ tenantId, accessToken =
     SET instagram_business_account_id = $2,
         instagram_username = $3,
         instagram_access_token_encrypted = $4,
-        instagram_token_expires_at = $5::timestamp,
+        instagram_token_expires_at = $5::timestamptz,
         instagram_token_status = 'active',
         instagram_token_last_validated_at = NOW(),
         instagram_webhook_subscribed = $6,
