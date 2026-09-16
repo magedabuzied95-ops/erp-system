@@ -281,3 +281,32 @@ test("login without tenant returns workspace required when email exists in multi
   assert.equal(res.payload?.success, false);
   assert.match(String(res.payload?.message || ""), /workspace/i);
 });
+
+test("five wrong passwords lock the staff account even for the right password", async () => {
+  const password = "Correct-Horse-9!";
+  const hashedPassword = await bcrypt.hash(password, 4);
+  const tenants = [{ id: 4, slug: "lock", name: "Lock Workspace", status: "active" }];
+  const users = [{ id: 71, tenant_id: 4, name: "Lock Target", email: "lockout-target@example.com", password: hashedPassword, role: "admin" }];
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const res = await runLogin({ tenants, users, body: { email: "lockout-target@example.com", password: "wrong-password" } });
+    assert.equal(res.statusCode, 400);
+  }
+
+  const locked = await runLogin({ tenants, users, body: { email: "LOCKOUT-target@example.com", password } });
+  assert.equal(locked.statusCode, 429);
+  assert.equal(locked.payload.error, "RATE_LIMITED");
+  assert.ok(!locked.payload.token);
+});
+
+test("a successful staff login never returns the password hash", async () => {
+  const password = "Correct-Horse-9!";
+  const hashedPassword = await bcrypt.hash(password, 4);
+  const res = await runLogin({
+    tenants: [{ id: 5, slug: "nohash", name: "No Hash", status: "active" }],
+    users: [{ id: 72, tenant_id: 5, name: "No Hash", email: "nohash@example.com", password: hashedPassword, role: "admin" }],
+    body: { email: "nohash@example.com", password },
+  });
+  assert.equal(res.statusCode, 200);
+  assert.ok(!JSON.stringify(res.payload).includes(hashedPassword));
+});

@@ -1,6 +1,7 @@
 import express from "express";
 import { login, me, register } from "../controllers/authController.js";
 import { protect, requireAdmin } from "../middleware/authMiddleware.js";
+import { staffLoginIpRateLimit } from "../utils/staffLoginThrottle.js";
 
 const router = express.Router();
 
@@ -8,7 +9,7 @@ const router = express.Router();
 // open route let anyone on the internet mint an Admin account. Only an
 // administrator may create accounts through it.
 router.post("/register", protect, requireAdmin, register);
-router.post("/login", login);
+router.post("/login", staffLoginIpRateLimit, login);
 router.get("/me", protect, me);
 
 export default router;

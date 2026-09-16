@@ -2554,9 +2554,20 @@ const bootstrapServer = ({ skipStartupSyncs = false } = {}) =>
     });
   });
 
+// Two dozen call sites still read `process.env.JWT_SECRET || "<literal>"`. In production a missing
+// or placeholder secret would let anyone sign an admin token, so refuse to boot instead.
+const assertProductionJwtSecret = () => {
+  if (process.env.NODE_ENV !== "production") return;
+  const secret = String(process.env.JWT_SECRET || "");
+  if (secret.length < 32 || ["SECRET_KEY", "secret", "changeme", "change-me"].includes(secret)) {
+    throw new Error("JWT_SECRET is missing or too weak (need >= 32 chars) — refusing to start in production");
+  }
+};
+
 const bootstrapStartup = async () => {
   globalThis.__SCHEMA_STARTUP_RUNNING = true;
   try {
+    assertProductionJwtSecret();
     await db.query("SELECT 1");
     await ensureNotificationsSchema(db);
     await ensureWebsiteSettingsSchema(db);

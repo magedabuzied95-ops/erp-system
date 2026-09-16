@@ -1,6 +1,9 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import db from "../database/db.js";
+import { sendTooManyAttempts } from "../utils/requestRateLimit.js";
+import { stripSensitiveUserFields } from "../utils/sanitizeUser.js";
+import { staffLoginEmailKey, staffLoginFailuresByEmail } from "../utils/staffLoginThrottle.js";
 import { sendLoginTaskDigestIfNeeded } from "../services/staffTaskEmailNotificationService.js";
 import { ensureStaffTasksSchema, resolveEmployeeForUser } from "../services/staffTasksService.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
@@ -303,6 +306,13 @@ export const login = async (req, res) => {
       });
     }
 
+    const failureKey = staffLoginEmailKey(email);
+    const lockedFor = failureKey ? staffLoginFailuresByEmail.retryAfterSeconds(failureKey) : 0;
+    if (lockedFor > 0) {
+      console.warn("[auth] login refused: account temporarily locked", { retryAfterSeconds: lockedFor });
+      return sendTooManyAttempts(res, lockedFor);
+    }
+
     const tenantId = await resolveLoginTenantId(req);
     const userColumns = await getUsersColumnNames();
     const passwordColumns = getReadablePasswordColumns(userColumns);
@@ -324,7 +334,6 @@ export const login = async (req, res) => {
           CASE WHEN u.tenant_id = $2 THEN 0 ELSE 1 END,
           u.id ASC
         `;
-      console.log("[auth] login exact tenant SQL", exactTenantSql);
       result = await db.query(
         exactTenantSql,
         [email.trim(), tenantId]
@@ -353,7 +362,6 @@ export const login = async (req, res) => {
           CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END,
           u.id ASC
         `;
-      console.log("[auth] login fallback SQL", fallbackSql);
       result = await db.query(
         fallbackSql,
         [email.trim()]
@@ -365,6 +373,7 @@ export const login = async (req, res) => {
         emailProvided: true,
         tenantId,
       });
+      if (failureKey) staffLoginFailuresByEmail.hit(failureKey);
       return res.status(400).json({
         success: false,
         message: "Invalid Email Or Password",
@@ -425,6 +434,7 @@ export const login = async (req, res) => {
         emailProvided: true,
         tenantId,
       });
+      if (failureKey) staffLoginFailuresByEmail.hit(failureKey);
       return res.status(400).json({
         success: false,
         message: "Invalid Email Or Password",
@@ -452,6 +462,7 @@ export const login = async (req, res) => {
       return res.status(403).json({ success: false, message: "Temporary review account expired or is not configured." });
     }
 
+    if (failureKey) staffLoginFailuresByEmail.reset(failureKey);
     const permissions = await getUserPermissions(user.id, user.tenant_id);
 
     try {
@@ -546,7 +557,6 @@ export const login = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed To Login",
-      error: error.message,
     });
   }
 };
@@ -614,7 +624,7 @@ export const me = async (req, res) => {
         }
       : null;
 
-    const currentUser = current.rows[0];
+    const currentUser = stripSensitiveUserFields(current.rows[0]);
     const reviewerAccount = isMetaReviewerRole(currentUser?.role || currentUser?.role_name);
     const safeReviewerUser = reviewerAccount
       ? {

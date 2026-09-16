@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { stripSensitiveUserFields } from "../utils/sanitizeUser.js";
 
 const parseBooleanValue = (value) => {
   if (value === true || value === 1) return true;
@@ -630,7 +631,7 @@ async (req, res) => {
         "Role Updated Successfully",
 
       user:
-      updated.rows[0]
+      stripSensitiveUserFields(updated.rows[0])
     });
 
   } catch (error) {
@@ -698,7 +699,7 @@ async (req, res) => {
     res.status(200).json({
       success: true,
       message: "User Updated Successfully",
-      user: updated.rows[0] || null,
+      user: stripSensitiveUserFields(updated.rows[0]) || null,
     });
   } catch (error) {
     console.error("[users] update failed", {
@@ -823,7 +824,7 @@ async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Status Updated Successfully",
-      user: updated.rows[0] || null,
+      user: stripSensitiveUserFields(updated.rows[0]) || null,
     });
   } catch (error) {
     console.error("[users] update status failed", {

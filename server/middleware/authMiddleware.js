@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import db from "../database/db.js";
+import { stripSensitiveUserFields } from "../utils/sanitizeUser.js";
 import { ensureDefaultTenantAndBackfillUsers } from "../utils/tenantBootstrap.js";
 import { isMetaReviewerRole, metaReviewerAccountExpired } from "../services/metaReviewerAccessService.js";
 
@@ -77,7 +78,7 @@ export const protect = async (
           [decoded.id]
         );
 
-        const databaseUser = userResult.rows[0];
+        const databaseUser = stripSensitiveUserFields(userResult.rows[0]);
         if (!databaseUser) {
           // A deleted account's token used to keep working on its signed claims.
           return res.status(401).json({
