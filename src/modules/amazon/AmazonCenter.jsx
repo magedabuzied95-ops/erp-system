@@ -37,7 +37,7 @@ const PAGE_SIZE = 50;
 
 const useLocale = () => {
   const { i18n } = useTranslation();
-  return i18n.language === "ar" ? "ar-EG" : "en-GB";
+  return i18n.language === "ar" ? "ar-EG-u-nu-latn" : "en-GB";
 };
 
 const canManageAmazon = () => hasPermission("amazon.manage");
