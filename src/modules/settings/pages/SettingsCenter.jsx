@@ -980,7 +980,7 @@ function SettingsCenterContent({ debugMode = false }) {
               {shouldShowPreviewPanel ? (
                 <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
               ) : null}
-              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-[var(--primary-contrast)]">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
+              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-[var(--primary-contrast)]">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات المتجر" : ui.save)}</button>
             </div>
           </div>
         </header>
@@ -1134,7 +1134,7 @@ function SettingsCenterContent({ debugMode = false }) {
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button type="button" onClick={discard} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
-              <button type="button" onClick={save} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
+              <button type="button" onClick={save} disabled={saving} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات المتجر" : ui.save)}</button>
             </div>
           </div>
         </div>
