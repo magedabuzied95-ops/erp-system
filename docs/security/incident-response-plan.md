@@ -4,8 +4,8 @@
 |---|---|
 | Organization | M One Shoes Store (https://www.m1store-egy.com) |
 | Scope | The M1 ERP system, its production server, its integrations, and all **Amazon Information** (data obtained through the Amazon Selling Partner API) |
-| Document owner | Security Incident Lead (see §3) |
-| Version | 1.0 |
+| Document owner | Maged Abuzied, Security Incident Lead (see §3) |
+| Version | 1.1 |
 | Effective date | 2026-09-16 |
 | Review cycle | At least every **6 months**, and after every Severity 1–2 incident |
 | Next scheduled review | **2027-03-16** |
@@ -29,17 +29,38 @@ The plan covers:
 
 ## 3. Roles and responsibilities
 
-The organization is small, so one person may hold more than one role. Each role has a named primary and a backup. Fill in the names below and keep them current at every review.
+M One Shoes Store is an owner-operated business, so one person holds every incident role. The assignments below are reviewed at every plan review (§9).
 
-| Role | Primary | Backup | Responsibilities |
-|---|---|---|---|
-| **Security Incident Lead (SIL)** | Owner — _name / phone / email_ | _Name / phone_ | Declares incidents, sets severity, coordinates the response, **owns external notifications including the notice to Amazon**, and approves closure |
-| **Technical Responder** | _Name / phone_ | _Name / phone_ | Server, Docker, database and application investigation; containment; eradication; recovery |
-| **Credentials Custodian** | Owner | _Name / phone_ | Rotates and revokes keys and tokens (Amazon LWA/SP-API, AWS, DB, JWT, SSH), and records every rotation |
-| **Communications / Records** | _Name / phone_ | Owner | Keeps the incident log, drafts notifications, and preserves evidence |
-| **All staff** | — | — | Report any suspected incident **immediately** (see §5) and never try to investigate alone |
+### 3.1 Assignments
 
-Escalation contacts: hosting provider (Contabo support), Cloudflare, Vercel, and the application developer.
+| Role | Assigned to | Responsibilities |
+|---|---|---|
+| **Security Incident Lead (SIL)** | Maged Abuzied | Declares incidents, sets severity, coordinates the whole response, **sends every external notification, including the notice to Amazon at security@amazon.com within 24 hours**, and approves closure |
+| **Technical Responder** | Maged Abuzied | Server, Docker, database and application investigation; evidence preservation; containment; eradication; recovery |
+| **Business / Management Contact** | Maged Abuzied | Business decisions during an incident (for example taking services offline or suspending the Amazon integration), approval of customer and authority notifications, and the post-incident review |
+| **Credentials Custodian** | Maged Abuzied (as SIL) | Rotates and revokes keys and tokens (Amazon LWA/SP-API, AWS, database, JWT, SSH) and records every rotation |
+| **Communications / Records** | Maged Abuzied (as SIL) | Keeps the incident record (§10), drafts notifications, and keeps evidence |
+| **All staff** | Every employee and contractor | Report any suspected incident **immediately** to the SIL (§3.2) and never try to investigate or "clean up" alone |
+
+**Backup:** there is no second internal responder. If the SIL cannot be reached, staff keep reporting through the contact channels in §3.2 until they get an answer. The SIL uses the external escalation contacts in §3.3 for hands-on help. The 24-hour Amazon notification deadline still applies.
+
+### 3.2 Incident contact (all roles)
+
+| Field | Value | Source |
+|---|---|---|
+| Name | Maged Abuzied | Owner |
+| Email | support@m1store-egy.com | The organization's published support address (legal pages and storefront); mail is received through Cloudflare Email Routing |
+| Phone / WhatsApp | +20 100 065 9301 | The organization's published store line (`storefront.contact_phone`) |
+
+### 3.3 External escalation contacts
+
+| Party | How to reach | When |
+|---|---|---|
+| **Amazon (Amazon Information incidents)** | **security@amazon.com** | Within 24 hours of detection (§7.1) |
+| Hosting provider (Contabo) | Support ticket from the Contabo customer control panel; the VNC console is the out-of-band server access | Server compromise, outage, or a snapshot needed for evidence |
+| Cloudflare | Cloudflare dashboard (DNS, proxy, WAF, Email Routing) | Blocking attack traffic at the edge, DNS or email tampering |
+| Vercel | Vercel dashboard (ERP frontend hosting) | Frontend compromise or a malicious deployment |
+| Amazon Seller Central / Developer Central | Seller Central → Apps & Services → Manage Your Apps; Developer Central for LWA credentials | Revoking the SP-API authorization and rotating the LWA client secret (§6.5) |
 
 ## 4. What counts as a security incident
 
@@ -71,7 +92,7 @@ A security incident is any actual or reasonably suspected event that compromises
 **Detection sources**
 
 - **Security audit log** (`security_audit_events` table, `GET /api/security/audit-events`): logins, failed logins, account lockouts, MFA events, password and role changes, and Amazon data access.
-- **SSH and system**: `/var/log/auth.log`, `journalctl -u ssh`, and auditd (`ausearch -k <key>`).
+- **SSH and system**: `/var/log/auth.log`, `journalctl -u ssh`, and auditd records (`grep key= /var/log/audit/audit.log*`; keys are listed in §4).
 - **Fail2Ban**: `/var/log/fail2ban.log` and `fail2ban-client status sshd` / `recidive`.
 - **Firewall**: `/var/log/ufw.log`, and the `DOCKER-USER` drop counters.
 - **IDS**: Suricata `/var/log/suricata/fast.log` and `eve.json`.
@@ -81,7 +102,7 @@ A security incident is any actual or reasonably suspected event that compromises
 
 **Reporting**
 
-Anyone who suspects an incident must tell the Security Incident Lead **immediately**, by phone or WhatsApp. They must not delete anything, must not "clean up", and must not discuss it outside the response team. The time the incident was first detected is recorded as **T0**, and all notification deadlines run from T0.
+Anyone who suspects an incident must tell the Security Incident Lead **immediately**, by phone or WhatsApp on +20 100 065 9301 or by email to support@m1store-egy.com (§3.2). They must not delete anything, must not "clean up", and must not discuss it outside the response team. The time the incident was first detected is recorded as **T0**, and all notification deadlines run from T0.
 
 ## 6. Response procedure
 
@@ -93,7 +114,7 @@ Anyone who suspects an incident must tell the Security Incident Lead **immediate
 
 ### 6.2 Evidence preservation (before changing anything, where safe)
 
-- Copy the relevant logs to `/root/incident-<YYYYMMDD>-<id>/` (mode 700): auth.log, ufw.log, fail2ban.log, Suricata eve.json/fast.log, ClamAV scan logs, `ausearch` output, `docker logs erp-backend`, and an export of `security_audit_events` for the period.
+- Copy the relevant logs to `/root/incident-<YYYYMMDD>-<id>/` (mode 700): auth.log, ufw.log, fail2ban.log, Suricata eve.json/fast.log, ClamAV scan logs, audit records (`grep key= /var/log/audit/audit.log*`), `docker logs erp-backend`, and an export of `security_audit_events` for the period.
 - Record `ss -tulpn`, `docker ps`, `ufw status verbose`, `iptables-save`, `last -a`, and the running processes.
 - Record SHA-256 hashes of the collected files. Keep a chain-of-custody note: who collected what, and when.
 - If a disk or VM snapshot is needed, take it through the Contabo panel before eradication.
@@ -161,7 +182,7 @@ Summary: <what happened>
 Amazon Information involved: <types, approx. records, time range>
 Status: <contained / under investigation>
 Actions taken: <containment, credentials rotated/revoked>
-Contact: <name>, <email>, <phone>
+Contact: Maged Abuzied (Security Incident Lead), support@m1store-egy.com, +20 100 065 9301
 Next update: <time>
 ```
 
@@ -212,5 +233,6 @@ Closed by / date:
 
 | Date | Reviewer | Changes |
 |---|---|---|
-| 2026-09-16 | Security Incident Lead | Initial version |
+| 2026-09-16 | Maged Abuzied (SIL) | 1.0 — initial version |
+| 2026-09-16 | Maged Abuzied (SIL) | 1.1 — named every role (§3), added contact and escalation details |
 | _2027-03-16_ | | _Scheduled 6-month review_ |
