@@ -256,7 +256,7 @@
     "writeNotImplemented": "غير متاح بعد",
     "sellerTitle": "Seller ID (رمز التاجر)",
     "sellerSubtitle": "مطلوب لقراءة مشاكل العروض. من Seller Central ← Settings ← Account Info ← Merchant Token. هذا ليس كلمة مرور.",
-    "sellerLabel": "Seller ID",
+    "sellerLabel": "معرّف البائع",
     "sellerSaved": "تم حفظ Seller ID"
   }
 }

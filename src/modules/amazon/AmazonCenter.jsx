@@ -236,7 +236,7 @@ function OrdersTab() {
               columns={[
                 { key: "seller_sku", label: t("amazon.common.sellerSku") },
                 { key: "title", label: t("amazon.common.title"), render: (item) => (
-                  <span className="inline-flex items-center gap-1">{item.title || "—"}{item.amazon_url ? <a href={item.amazon_url} target="_blank" rel="noreferrer noopener" aria-label="Amazon"><ExternalLink size={13} /></a> : null}</span>
+                  <span className="inline-flex items-center gap-1">{item.title || "—"}{item.amazon_url ? <a href={item.amazon_url} target="_blank" rel="noreferrer noopener" aria-label={t("amazon.title")}><ExternalLink size={13} /></a> : null}</span>
                 ) },
                 { key: "m1", label: t("amazon.common.m1Item"), render: (item) => (item.mapped_variant_id ? `${item.product_name || ""} · ${[item.color, item.size].filter(Boolean).join(" / ")} (${item.m1_sku || ""})` : <StatusBadge tone="warning">{t("amazon.mappingStatus.unmapped")}</StatusBadge>) },
                 { key: "quantity_ordered", label: t("amazon.orders.quantity"), numeric: true, render: (item) => `${item.quantity_ordered} / ${item.quantity_fulfilled}` },
@@ -578,7 +578,7 @@ export function AmazonSettingsPanel() {
   };
 
   const row = (label, value) => (
-    <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2 text-sm last:border-0">
+    <div key={label} className="flex items-center justify-between gap-3 border-b border-[var(--border)] py-2 text-sm last:border-0">
       <span className="text-[var(--muted)]">{label}</span>
       <span className="text-end font-semibold">{value}</span>
     </div>
