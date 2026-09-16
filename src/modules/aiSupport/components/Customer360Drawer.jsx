@@ -202,6 +202,9 @@ export default function Customer360Drawer({
   onRequestRestockPick = null,
   onClearRestockPick = null,
   restockPick = null,
+  // Same borrowed picker, for the replacement on an exchange.
+  onRequestExchangePick = null,
+  exchangePicks = null,
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -544,6 +547,8 @@ export default function Customer360Drawer({
                 <InboxCustomerOrdersPanel
                   conversation={conversation}
                   tone="light"
+                  picks={exchangePicks}
+                  onRequestPick={onRequestExchangePick}
                   onNotice={onOrderNotice}
                 />
               ) : null}

@@ -30,6 +30,32 @@ test("the confirmation message is offered while the order is still open, never a
   assert.equal(projectInboxConversationOrder({ order: { ...base, status: "pending", tracking_number: "1234567" }, policy: restricted }).can_send_confirmation, false);
 });
 
+test("the swap, the parcel and the label are each offered exactly when they apply", () => {
+  const items = [{ id: 7, product_name: "Lacoste", quantity: 1, returned_quantity: 0, total_amount: 1250, unit_price: 1250, variant_id: 9 }];
+  const project = (order) => projectInboxConversationOrder({ order: { id: 6, customer_id: 42, governorate: "الجيزة", total_amount: 1250, ...order }, policy: restricted, items });
+
+  // Nothing to swap while the goods are still in the shop, and nothing to swap without a
+  // customer to hold the credit.
+  assert.equal(project({ status: "confirmed" }).can_exchange, false);
+  assert.equal(project({ status: "delivered" }).can_exchange, true);
+  assert.equal(projectInboxConversationOrder({ order: { id: 6, customer_id: null, status: "delivered" }, policy: restricted, items }).can_exchange, false);
+  // Every line already returned leaves nothing to exchange.
+  assert.equal(
+    projectInboxConversationOrder({ order: { id: 6, customer_id: 42, status: "delivered" }, policy: restricted, items: [{ ...items[0], returned_quantity: 1 }] }).can_exchange,
+    false
+  );
+
+  // One parcel per order: a draft gets no courier, and a booked order gets the label instead.
+  assert.equal(project({ status: "ai_draft" }).can_create_shipment, false);
+  assert.equal(project({ status: "confirmed" }).can_create_shipment, true);
+  assert.equal(project({ status: "confirmed", tracking_number: "6473852793" }).can_create_shipment, false);
+  assert.equal(project({ status: "confirmed", tracking_number: "6473852793" }).can_print_label, true);
+  assert.equal(project({ status: "confirmed" }).can_print_label, false);
+
+  // The lines travel with the card, so the exchange sheet needs no second request.
+  assert.equal(project({ status: "delivered" }).items[0].returnable_quantity, 1);
+});
+
 test("the deposit ask is only live while the fee is genuinely owed", () => {
   const owed = projectInboxConversationOrder({
     order: { id: 4, governorate: "القاهرة", total_amount: 1940, shipping_fee: 90, paid_amount: 0, cod_amount: 1850 },

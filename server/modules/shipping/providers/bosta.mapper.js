@@ -359,7 +359,14 @@ export const buildBostaAddressLine = (order = {}) => {
 // That fits the evidence exactly: shipping_events has never held a single row since the
 // integration went live. Sent only when a full URL could be built — a half-formed
 // callback is worse than none, because it looks configured.
-export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "", description = "" }) => {
+// Bosta's own order types. An exchange is ONE parcel that travels both ways: the courier
+// hands over the replacement and carries the returned piece back on the same visit, so the
+// customer is never left waiting for a second van - and we never ship the replacement
+// before the old piece is in the courier's hands.
+export const BOSTA_DELIVERY_TYPE_SEND = 10;
+export const BOSTA_DELIVERY_TYPE_EXCHANGE = 30;
+
+export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = {}, zone = {}, district = {}, codAmount = 0, allowOpenPackage = null, webhookUrl = "", description = "", exchange = null }) => {
   const names = text(order.customer_name || order.full_name || "Online Customer").split(/\s+/);
   const firstName = names.shift() || "Customer";
   const lastName = names.join(" ") || firstName;
@@ -375,9 +382,23 @@ export const mapOrderToBostaDeliveryPayload = ({ order = {}, items = [], city = 
   const phone = text(order.customer_phone || order.phone || order.primary_phone);
   // The courier's fallback when the first number does not answer. Never the same number twice.
   const secondPhone = text(order.customer_secondary_phone || order.secondary_phone);
+  // What comes BACK on an exchange: Bosta prices and tracks the return leg from its own
+  // specs, so an exchange with no returnSpecs is just an expensive delivery.
+  const returnItemsCount = Math.max(1, Number(exchange?.items_count || 0) || 1);
+  const returnDescription = text(exchange?.description) || "Exchanged item";
   return {
-    type: 10,
+    type: exchange ? BOSTA_DELIVERY_TYPE_EXCHANGE : BOSTA_DELIVERY_TYPE_SEND,
     cod: Math.max(0, Number(codAmount || 0)),
+    ...(exchange
+      ? {
+          returnSpecs: {
+            packageType: "Parcel",
+            size: "MEDIUM",
+            packageDetails: { itemsCount: returnItemsCount, description: returnDescription },
+          },
+          returnNotes: text(exchange.notes) || `استبدال: ${returnDescription}`,
+        }
+      : {}),
     ...(text(webhookUrl) ? { webHook: text(webhookUrl) } : {}),
     // Bosta keeps its own per-account default for this, so the flag is sent only
     // when the shop has actually decided. Omitting it is not the same as false.

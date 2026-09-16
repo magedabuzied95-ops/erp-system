@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Banknote, CheckCircle2, Loader2, RefreshCw, Send, ShoppingBag, XCircle } from "lucide-react";
+import { ArrowLeftRight, Banknote, CheckCircle2, Loader2, Printer, RefreshCw, Send, ShoppingBag, Truck, XCircle } from "lucide-react";
 
 import { api } from "../../api/api";
 import { formatCurrency } from "../../lib/currency";
+import InboxExchangeSheet from "./InboxExchangeSheet";
 
 // The customer's real orders inside the inbox: the confirmation message and the payment review
 // are the two things staff used to leave the conversation for. Both surfaces (desktop + PWA)
@@ -69,7 +70,16 @@ const LABELS = {
   paymentRejected: "تم رفض التحويل",
   failed: "الإجراء فشل",
   nothingToCollect: "مفيش مبلغ عند الاستلام",
+  exchange: "استبدال",
+  createShipment: "إنشاء شحنة بوسطه",
+  createExchangeShipment: "إنشاء شحنة استبدال",
+  shipmentCreated: "تم إنشاء الشحنة",
+  printLabel: "طباعة البوليصة",
+  labelFailed: "تعذر تجهيز البوليصة",
+  exchangeDone: "تم إنشاء الاستبدال",
+  exchangeBadge: "أوردر استبدال",
 };
+
 
 // Customer360Drawer is a white surface; the inbox rail is a dark one. Same panel, two skins —
 // a dark card dropped on the white drawer reads as ink on ink.
@@ -108,13 +118,14 @@ const SKINS = {
   },
 };
 
-export default function InboxCustomerOrdersPanel({ conversation = null, headers = undefined, tone = "dark", onNotice = null }) {
+export default function InboxCustomerOrdersPanel({ conversation = null, headers = undefined, tone = "dark", onNotice = null, picks = null, onRequestPick = null }) {
   const skin = SKINS[tone] || SKINS.dark;
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyOrderId, setBusyOrderId] = useState(null);
   const [error, setError] = useState("");
   const [depositDraft, setDepositDraft] = useState({});
+  const [exchangeOrder, setExchangeOrder] = useState(null);
   const requestRef = useRef(0);
 
   const sessionId = conversationSessionId(conversation || {});
@@ -177,6 +188,9 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
       } else if (action === "reject_payment") {
         await api.post(`/orders/${order.id}/reject-payment`, {}, { headers });
         notify("success", LABELS.paymentRejected);
+      } else if (action === "create_shipment") {
+        const response = await api.post(`/orders/${order.id}/shipping/bosta/create`, {}, { headers });
+        notify("success", `${LABELS.shipmentCreated} ${response?.tracking_number || response?.order?.tracking_number || ""}`.trim());
       }
       await load();
     } catch (err) {
@@ -187,6 +201,34 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
       setBusyOrderId(null);
     }
   }, [busyOrderId, headers, load, notify]);
+
+  // The tab is claimed inside the click, before the round trip: a window opened after an
+  // await has no user gesture behind it and the pop-up blocker eats it.
+  const printLabel = useCallback(async (order) => {
+    if (!order?.id || busyOrderId) return;
+    const printWindow = window.open("", "_blank");
+    setBusyOrderId(order.id);
+    try {
+      const result = await api.post("/shipping/center/bulk", {
+        action: "print_labels",
+        order_ids: [order.id],
+        send_to_inbox: true,
+      }, { headers });
+      if (!result?.pdf_base64) throw new Error(LABELS.labelFailed);
+      const bytes = Uint8Array.from(atob(result.pdf_base64), (character) => character.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      if (printWindow && !printWindow.closed) printWindow.location.href = url;
+      else window.open(url, "_blank");
+      window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } catch (err) {
+      if (printWindow && !printWindow.closed) printWindow.close();
+      const message = err?.responseBody?.message || err?.message || LABELS.labelFailed;
+      setError(message);
+      notify("error", message);
+    } finally {
+      setBusyOrderId(null);
+    }
+  }, [busyOrderId, headers, notify]);
 
   const body = useMemo(() => {
     if (loading && !orders.length) {
@@ -213,6 +255,11 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
               <div className={skin.invoice}>{order.invoice_number}</div>
               <div className={skin.muted}>{order.status || ""}</div>
             </div>
+            {order.is_exchange ? (
+              <span className="shrink-0 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2 py-1 text-[10px] font-black text-cyan-100">
+                {LABELS.exchangeBadge}
+              </span>
+            ) : null}
             {order.awaiting_payment_review ? (
               <span className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-1 text-[10px] font-black text-amber-100">
                 {LABELS.awaitingReview}
@@ -324,11 +371,47 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
                 {LABELS.confirmationSent}
               </div>
             ) : null}
+
+            {order.can_create_shipment ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => runAction(order, "create_shipment")}
+                className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black disabled:opacity-50 ${skin.secondary}`}
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
+                {order.is_exchange ? LABELS.createExchangeShipment : LABELS.createShipment}
+              </button>
+            ) : null}
+
+            {order.can_print_label ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => printLabel(order)}
+                className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3 text-xs font-black disabled:opacity-50 ${skin.secondary}`}
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                {`${LABELS.printLabel} · ${order.tracking_number}`}
+              </button>
+            ) : null}
+
+            {order.can_exchange ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setExchangeOrder(order)}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-3 text-xs font-black text-cyan-600 disabled:opacity-50"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+                {LABELS.exchange}
+              </button>
+            ) : null}
           </div>
         </div>
       );
     });
-  }, [busyOrderId, depositDraft, loading, orders, runAction, skin]);
+  }, [busyOrderId, depositDraft, loading, orders, printLabel, runAction, skin]);
 
   if (!conversation) return null;
 
@@ -351,6 +434,19 @@ export default function InboxCustomerOrdersPanel({ conversation = null, headers 
       </div>
       {error ? <div className={skin.error}>{error}</div> : null}
       <div className="mt-3 space-y-3">{body}</div>
+      <InboxExchangeSheet
+        open={Boolean(exchangeOrder)}
+        order={exchangeOrder}
+        tone={tone}
+        headers={headers}
+        picks={picks}
+        onRequestPick={onRequestPick}
+        onClose={() => setExchangeOrder(null)}
+        onDone={(result) => {
+          notify("success", `${LABELS.exchangeDone} ${result?.order?.invoice_number || ""}`.trim());
+          load();
+        }}
+      />
     </div>
   );
 }

@@ -4242,6 +4242,8 @@ function RightToolsTabsPanel({
   activeTab,
   onTabChange,
   inboxHeaders = undefined,
+  exchangePicks = null,
+  onRequestExchangePick = null,
   conversation,
   channelStatus = {},
   loading = false,
@@ -4362,6 +4364,8 @@ function RightToolsTabsPanel({
             <InboxCustomerOrdersPanel
               conversation={conversation}
               headers={inboxHeaders}
+              picks={exchangePicks}
+              onRequestPick={onRequestExchangePick}
               onNotice={(tone, message) => (tone === "error" ? toast.error(message) : toast.success(message))}
             />
             <RecommendationsPanel
@@ -4544,11 +4548,15 @@ export default function AiInbox({ reviewerMode = false }) {
   // Phase 11.2 — inline edit buffer for the AI suggestion (separate from the manual composer).
   const [aiSuggestionEditText, setAiSuggestionEditText] = useState("");
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
-  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false, restockMode: false });
+  const [productCardPickerConfig, setProductCardPickerConfig] = useState({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false, restockMode: false, exchangeMode: false });
   // The card chosen for a back-in-stock request, handed to Customer360Drawer.
   const [restockPick, setRestockPick] = useState(null);
   // Models picked for the order composer cart, handed over once and then cleared.
   const [composerPicks, setComposerPicks] = useState(null);
+  // The exchange sheet gets its OWN pick state: sharing the composer's would leave a
+  // consumed batch behind, and the next order composed in this thread would silently
+  // start with the exchange's replacement already in the cart.
+  const [exchangePicks, setExchangePicks] = useState(null);
   const [productCardSending, setProductCardSending] = useState(false);
   const [assignNameDraft, setAssignNameDraft] = useState({ sessionId: "", value: "" });
   const [leadAssignEmployeeId, setLeadAssignEmployeeId] = useState("");
@@ -6815,10 +6823,12 @@ export default function AiInbox({ reviewerMode = false }) {
       // restockMode: each pick names a variant to watch for a back-in-stock
       // request; the drawer creates one request per picked line.
       restockMode: Boolean(options.restockMode),
+      // exchangeMode: the picked model is the REPLACEMENT on an exchange sheet.
+      exchangeMode: Boolean(options.exchangeMode),
     });
   }, []);
   const closeProductCardPicker = useCallback(() => {
-    setProductCardPickerConfig({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false });
+    setProductCardPickerConfig({ open: false, orderMode: false, sizeMode: false, allowMultiple: false, selectMode: false, restockMode: false, exchangeMode: false });
   }, []);
   // Phase 11.2 — "Change Product": pick a real catalog product to attach to the suggestion (does NOT send).
   const normalizeChosenSuggestionCard = (c = {}) => ({
@@ -6845,6 +6855,13 @@ export default function AiInbox({ reviewerMode = false }) {
       // Each hand-over carries a batch id: the composer appends a batch once and
       // never has to clear this shared state (clearing it raced the append).
       setComposerPicks({ batch: `${picked.length}:${picked.map((card) => `${card.product_id}-${card.variant_id || ""}-${card.color}-${card.size}`).join("|")}:${performance.now()}`, cards: picked });
+      closeProductCardPicker();
+      return Promise.resolve();
+    }
+    if (productCardPickerConfig.exchangeMode) {
+      // Same hand-over shape as the order composer, into the exchange sheet's own state.
+      const picked = asArray(cards).map(normalizeChosenSuggestionCard).filter((card) => card.product_id);
+      if (picked.length) setExchangePicks({ batch: `${picked.length}:${performance.now()}`, cards: picked });
       closeProductCardPicker();
       return Promise.resolve();
     }
@@ -9345,7 +9362,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onSubmitLink={sendAvailableBySizeLink}
         sizeMode={productCardPickerConfig.sizeMode}
         allowMultiple={productCardPickerConfig.allowMultiple}
-        orderMode={productCardPickerConfig.orderMode}
+        orderMode={productCardPickerConfig.orderMode || productCardPickerConfig.exchangeMode}
         restockMode={productCardPickerConfig.restockMode}
         mode="desktopInbox"
         portalTarget={fullscreenOverlayTarget}
@@ -9913,6 +9930,8 @@ export default function AiInbox({ reviewerMode = false }) {
                     profileDebugging={profileDebugging}
                     onResetAiState={resetAiState}
                     resettingAiState={resettingAiState}
+                    exchangePicks={exchangePicks}
+                    onRequestExchangePick={() => openProductCardPicker({ exchangeMode: true, allowMultiple: true })}
                     />
                   </div>
                 ) : null}
@@ -9933,6 +9952,8 @@ export default function AiInbox({ reviewerMode = false }) {
         portalTarget={fullscreenOverlayTarget}
         restockPick={restockPick}
         onRequestRestockPick={() => openProductCardPicker({ restockMode: true, allowMultiple: true })}
+        exchangePicks={exchangePicks}
+        onRequestExchangePick={() => openProductCardPicker({ exchangeMode: true, allowMultiple: true })}
         onClearRestockPick={() => setRestockPick(null)}
       />
       <InboxOrderComposer

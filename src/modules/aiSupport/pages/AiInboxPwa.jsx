@@ -3564,11 +3564,15 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const [productSending, setProductSending] = useState(false);
   // orderMode: picked models go into the order composer's cart instead of being
   // sent to the customer.
-  const [availableBySizePickerConfig, setAvailableBySizePickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: false, restockMode: false });
+  const [availableBySizePickerConfig, setAvailableBySizePickerConfig] = useState({ open: false, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: false, restockMode: false, exchangeMode: false });
   const [composerPicks, setComposerPicks] = useState(null);
   // A batch of variants to watch for a back-in-stock request, handed to the
   // Customer 360 drawer.
   const [restockPick, setRestockPick] = useState(null);
+  // The exchange sheet gets its OWN pick state: sharing the composer's would leave a
+  // consumed batch behind, and the next order composed in this thread would silently
+  // start with the exchange's replacement already in the cart.
+  const [exchangePicks, setExchangePicks] = useState(null);
   const [availableBySizeSending, setAvailableBySizeSending] = useState(false);
   const [productLoading, setProductLoading] = useState(false);
   const [products, setProducts] = useState([]);
@@ -6646,8 +6650,14 @@ export default function AiInboxPwa({ portal = null } = {}) {
     setAvailableBySizePickerConfig({ open: true, sizeMode: false, allowMultiple: true, orderMode: false, selectMode: false, restockMode: true });
   }, []);
 
+  // The replacement on an exchange is picked exactly like a sale line - colour and size
+  // and all - so it borrows the order picker and lands in its own state.
+  const openExchangePicker = useCallback(() => {
+    setAvailableBySizePickerConfig({ open: true, sizeMode: false, allowMultiple: true, orderMode: true, selectMode: false, restockMode: false, exchangeMode: true });
+  }, []);
+
   const closeAvailableBySizePicker = useCallback(() => {
-    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: false, restockMode: false });
+    setAvailableBySizePickerConfig({ open: false, sizeMode: false, allowMultiple: false, orderMode: false, selectMode: false, restockMode: false, exchangeMode: false });
   }, []);
 
   // The picker does NOT always carry a variant_id — the multi-select path builds
@@ -6684,6 +6694,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
       closeAvailableBySizePicker();
       return Promise.resolve();
     }
+    if (availableBySizePickerConfig.exchangeMode) {
+      if (picked.length) setExchangePicks({ batch: `${picked.length}:${performance.now()}`, cards: picked });
+      closeAvailableBySizePicker();
+      return Promise.resolve();
+    }
     // "Change product" on a suggestion resolves ONE identity and never sends.
     if (availableBySizePickerConfig.selectMode) {
       const [first] = picked;
@@ -6700,7 +6715,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
     });
     closeAvailableBySizePicker();
     return Promise.resolve();
-  }, [availableBySizePickerConfig.restockMode, availableBySizePickerConfig.selectMode, closeAvailableBySizePicker]);
+  }, [availableBySizePickerConfig.exchangeMode, availableBySizePickerConfig.restockMode, availableBySizePickerConfig.selectMode, closeAvailableBySizePicker]);
 
   const sendAvailableBySizeCards = useCallback(
     async ({ message = "" } = {}) => {
@@ -8684,6 +8699,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
           restockPick={restockPick}
           onRequestRestockPick={openRestockPicker}
           onClearRestockPick={() => setRestockPick(null)}
+          exchangePicks={exchangePicks}
+          onRequestExchangePick={openExchangePicker}
         />
       </div>
     </div>

@@ -12,6 +12,7 @@ import {
   refreshOrderBostaShipment,
   syncOrderBostaDetails,
 } from "../modules/shipping/shipping.controller.js";
+import { createOnlineExchangeController } from "../modules/orders/onlineExchange.js";
 
 import {
   createOrder,
@@ -290,6 +291,15 @@ router.post(
   protect,
   permit("orders", "create"),
   returnOrder
+);
+
+// An exchange writes a return AND a new invoice, so it sits behind the same grant as
+// creating either of them on its own.
+router.post(
+  "/:id/exchange",
+  protect,
+  permit("orders", "create"),
+  createOnlineExchangeController
 );
 
 /* ======================================================

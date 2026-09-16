@@ -184,10 +184,14 @@ const normalizeMoneyPaymentMethod = (value) => {
   return key || "cash";
 };
 
-const RETURN_REFUND_METHODS = new Set(["cash", "vodafone_cash", "instapay"]);
+// "wallet" is the online refund: no drawer, no money account - the shop owes the
+// customer store credit instead. It is what an exchange arranged from the AI Inbox
+// uses, where nobody is standing at a till to hand cash over.
+const RETURN_REFUND_METHODS = new Set(["cash", "vodafone_cash", "instapay", "wallet"]);
 
 const normalizeReturnRefundMethod = (value = "") => {
   const method = normalizeMoneyPaymentMethod(value);
+  if (method === "customer_wallet") return "wallet";
   if (RETURN_REFUND_METHODS.has(method)) return method;
   return "";
 };
@@ -227,6 +231,7 @@ const returnRefundMethodLabel = (value = "") => {
   if (method === "cash") return "نقدي";
   if (method === "vodafone_cash") return "Vodafone Cash";
   if (method === "instapay") return "InstaPay";
+  if (method === "wallet") return "رصيد المحفظة";
   return "";
 };
 
@@ -356,6 +361,10 @@ const ensureReturnRefundFunding = async (client, { routeName, orderId = null, te
     error.code = "INVALID_RETURN_REFUND_METHOD";
     throw error;
   }
+
+  // Store credit moves no money: there is nothing to take out of a drawer and no
+  // financial account to debit, so a wallet refund must not ask for either.
+  if (method === "wallet") return { method, shift: null, financialAccountId: null };
 
   if (method === "cash") {
     const shift = await getCurrentCashDrawerShift(client, { tenantId, userId, branchId });
@@ -8593,6 +8602,11 @@ export const returnOrder = async (req, res) => {
       reasons: [reason, ...(Array.isArray(req.body.items) ? req.body.items.map((item) => item?.reason) : [])],
     });
     const shouldRestock = disposition === "restock";
+    // An online exchange is agreed while the piece is still in the customer's hands: the
+    // courier collects it on the same trip that delivers the replacement. The return is
+    // recorded now - the money and the invoice must not wait - but the shelf only gets the
+    // piece back when Bosta says it arrived, so nothing sellable is invented in between.
+    const deferRestock = shouldRestock && (req.body.defer_restock === true || req.body.deferRestock === true);
     const refundFunding = await ensureReturnRefundFunding(client, {
       routeName,
       orderId: loaded.order.id,
@@ -8602,13 +8616,17 @@ export const returnOrder = async (req, res) => {
       refundMethod,
     });
     const originalOrderShiftId = loaded.order.shift_id || null;
-    const refundShiftId = await resolveReturnRefundShiftId(client, {
-      tenantId,
-      branchId: loaded.order.branch_id || null,
-      userId: req.user?.id || null,
-      refundFunding,
-      originalOrderShiftId,
-    });
+    // Store credit belongs to no drawer. Borrowing whichever shift the staff member
+    // happens to have open would put an online exchange into that day's till figures.
+    const refundShiftId = refundMethod === "wallet"
+      ? originalOrderShiftId
+      : await resolveReturnRefundShiftId(client, {
+          tenantId,
+          branchId: loaded.order.branch_id || null,
+          userId: req.user?.id || null,
+          refundFunding,
+          originalOrderShiftId,
+        });
     const returnResult = await client.query(
       `
       INSERT INTO returns (tenant_id, order_id, return_number, status, reason, restock, disposition, refund_amount, created_by, shift_id, cashier_user_id)
@@ -8662,6 +8680,7 @@ export const returnOrder = async (req, res) => {
           mode,
           refund_method: refundMethod,
           disposition,
+          ...(deferRestock ? { pending_restock: true, restock_received_at: null } : {}),
         }),
       ]
     );
@@ -8691,7 +8710,9 @@ export const returnOrder = async (req, res) => {
       );
       await client.query(`UPDATE order_items SET returned_quantity = COALESCE(returned_quantity, 0) + $1 WHERE id = $2`, [quantity, original.id]);
 
-      if (shouldRestock) {
+      if (shouldRestock && deferRestock) {
+        // Nothing to post: the cost stays where the sale put it until the piece is back.
+      } else if (shouldRestock) {
         const stockLine = await resolveOrderLineStock(client, { tenantId, item: original, allowArchived: true });
         returnCogsTotal += Number(stockLine.costPrice || 0) * Number(quantity || 0);
         await applyStockDelta(client, {
@@ -8812,7 +8833,10 @@ export const returnOrder = async (req, res) => {
       }
     }
 
-    try {
+    // A wallet refund's money leg is the liability entry above (returns outward debited,
+    // the customer's credit owed). Posting a return entry too would credit the e-wallet
+    // CASH account for money that never moved and book the same refund twice.
+    if (refundMethod !== "wallet") try {
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "return_accounting:before", returnId: returnRow.id });
       await postReturnEntry(client, {
         tenantId,
@@ -8833,7 +8857,11 @@ export const returnOrder = async (req, res) => {
       console.error("[orders] return accounting fallback", accountingError.message);
     }
 
-    if (refundMethod === "cash") {
+    // Store credit never touches a drawer or a money account: the wallet transaction and
+    // the liability entry are the whole record of it.
+    if (refundMethod === "wallet") {
+      logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "wallet_refund:no_money_movement", returnId: returnRow.id });
+    } else if (refundMethod === "cash") {
       logReturnFlowStep(routeName, { orderId: loaded.order.id, tenantId, step: "cash_drawer_event:before", returnId: returnRow.id, shiftId: refundShiftId });
       await recordCashDrawerEvent(client, {
         tenantId,

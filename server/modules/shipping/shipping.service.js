@@ -7,6 +7,7 @@ import { syncDeliveryOrderFavorite } from "../../services/deliveryOrderFavoriteS
 import { getPublicBackendUrl } from "../../utils/publicUrl.js";
 import { createBostaClient } from "./providers/bosta.client.js";
 import { DELIVERED_CLOSES_CONFIRMATION_SQL, ensureCourierSettlementSchema, markCourierCollected } from "./shipping.settlements.service.js";
+import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
 import { bostaStateText, buildBostaAddressLine, extractBostaInsights, mapOrderToBostaDeliveryPayload, normalizeBostaAwbResponse, normalizeBostaDeliveryResponse, normalizeBostaMasterLocations, normalizeBostaStatus } from "./providers/bosta.mapper.js";
 
 // bosta.operations.js imports this module, so it is loaded lazily to keep the cycle out of
@@ -845,6 +846,20 @@ export const orderCodAmount = (order = {}) => {
 // two are told apart here rather than at the courier's door. `override` is the
 // operator deciding on the order screen — including an explicit 0, which is how a
 // genuinely prepaid parcel with an unrecorded payment gets out.
+/*
+ * A delivered EXCHANGE parcel means the courier handed over the replacement and took the
+ * old piece back, so that piece is now ours again and may go on the shelf. Nothing else
+ * puts it there: the return was recorded when the exchange was arranged, deliberately
+ * without a stock movement, because a customer can still refuse to hand the piece over.
+ * Idempotent - the return row remembers that it has been received.
+ */
+export const settleExchangeReturnOnDelivery = async (order = {}, { source = "bosta" } = {}) => {
+  const exchange = exchangeParcelContextOf(order);
+  if (!exchange?.return_id) return { restocked: false, reason: "not_an_exchange" };
+  const { receiveExchangeReturn } = await import("../orders/onlineExchange.js");
+  return receiveExchangeReturn({ tenantId: order.tenant_id ?? null, returnId: exchange.return_id, source });
+};
+
 export const resolveBostaCollection = ({ order = {}, override } = {}) => {
   const owed = orderOwedAmount(order);
   const overrideProvided = override !== undefined && override !== null && String(override).trim() !== "" && Number.isFinite(Number(override));
@@ -1006,11 +1021,15 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
         console.warn("[bosta] detailed description skipped", { orderId: order.id, message: descriptionError?.message });
       }
     }
-    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl(), description });
+    // An exchange order ships as ONE two-way parcel: the replacement out, the returned
+    // piece back on the same visit. Anything else and the courier arrives with no
+    // instruction to collect, which is how a shop ends up chasing its own stock.
+    const exchange = exchangeParcelContextOf(order);
+    const deliveryPayload = mapOrderToBostaDeliveryPayload({ order, items, city, zone, district, codAmount: collection.amount, allowOpenPackage, webhookUrl: await bostaWebhookCallbackUrl(), description, exchange });
     // Redacted: the callback carries the webhook secret in its query string, and this
     // line goes to the container log verbatim.
     console.log("[bosta-create-payload]", JSON.stringify(redactBostaPayload(deliveryPayload)));
-    console.log("[bosta] creating delivery", { orderId: order.id, city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id, cod: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage });
+    console.log("[bosta] creating delivery", { orderId: order.id, exchange: Boolean(exchange), city: city.provider_city_id, zone: zone.provider_zone_id, district: district.provider_district_id, cod: collection.amount, cod_source: collection.source, allow_open_package: allowOpenPackage });
     let rawBostaResponse;
     try {
       rawBostaResponse = await bosta.createDelivery(deliveryPayload);
@@ -1050,6 +1069,7 @@ export const createBostaShipmentForOrder = async (orderId, options = {}) => {
       cod_amount: collection.amount,
       cod_source: collection.source,
       allow_open_package: allowOpenPackage,
+      ...(exchange ? { exchange_return_id: exchange.return_id || null, exchange_items_count: exchange.items_count } : {}),
       // The overwritten parcel stays named here, so a replacement is never a tracking
       // number that simply vanished from the order.
       ...(existing ? { replaced_delivery_id: existing.deliveryId, replaced_tracking_number: existing.trackingNumber } : {}),
@@ -1289,6 +1309,10 @@ export const refreshBostaShipmentForOrder = async (orderId) => {
     notifyCustomer: (fresh) => sendShipmentNotificationForStatus(fresh, status),
   }).catch((error) => console.warn("[bosta] refresh follow-up failed", { orderId, message: error?.message || String(error) }));
   void syncDeliveryOrderFavorite({ tenantId: updatedOrder?.tenant_id, order: updatedOrder, source: `bosta_refresh:${status}` });
+  if (status === "delivered") {
+    void settleExchangeReturnOnDelivery(updatedOrder, { source: "bosta_refresh" })
+      .catch((error) => console.warn("[bosta] exchange restock failed", { orderId, message: error?.message || String(error) }));
+  }
   return { ...response, order: updatedOrder };
 };
 
@@ -1494,6 +1518,10 @@ export const processBostaWebhook = async ({ req, payload = {} } = {}) => {
     // Outside the transaction, like the notification above: the star is worth less
     // than the callback, and the callback is what settles the COD money.
     void syncDeliveryOrderFavorite({ tenantId: updatedOrder?.tenant_id, order: updatedOrder, source: `bosta_webhook:${parsed.status}` });
+    if (parsed.status === "delivered") {
+      void settleExchangeReturnOnDelivery(updatedOrder, { source: "bosta_webhook" })
+        .catch((error) => console.warn("[bosta-webhook] exchange restock failed", { orderId: updatedOrder?.id, message: error?.message || String(error) }));
+    }
     return { success: true, recorded: true, applied: true, matched: true, duplicate: false, order_id: order.id, auth, parsed, order: updatedOrder };
   } catch (error) {
     await client.query("ROLLBACK");
