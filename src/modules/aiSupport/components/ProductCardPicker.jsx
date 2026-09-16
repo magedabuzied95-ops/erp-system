@@ -12,6 +12,7 @@ import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pi
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
 import { MAX_BATCH_PRODUCTS } from "../lib/productSelection.js";
+import { resolveSelectedCards, resolveSubmitBatch } from "../lib/pickerSelection.js";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
 import { collectProductManufacturerIds, matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
@@ -1067,15 +1068,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return new Set(activeSizes.filter((size) => !inStock.has(lower(size))));
   }, [activeSizes, restockMode, selectedColor, selectedProduct]);
   const activePrice = Number(activeCard?.price || 0);
-  const selectedProducts = useMemo(() => {
-    if (allowMultiple && selectedProductIds.length) {
-      // Prefer the retained card snapshot (survives search/filter); fall back to the live product if still visible.
-      return selectedProductIds
-        .map((id) => selectedCardsById[id] || visibleProducts.find((product) => String(product.product_id || product.id || "") === String(id)))
-        .filter(Boolean);
-    }
-    return selectedProduct ? [selectedProduct] : [];
-  }, [allowMultiple, selectedCardsById, selectedProduct, selectedProductIds, visibleProducts]);
+  // Always CARDS, never raw catalogue rows — see lib/pickerSelection.js for why.
+  // Nothing ticked = empty, so the count badge and the confirm label stop claiming a
+  // selection; submitSelection then falls back to the card open in the chooser.
+  const selectedProducts = useMemo(
+    () =>
+      resolveSelectedCards({
+        allowMultiple,
+        selectedProductIds,
+        selectedCardsById,
+        findProduct: (id) => visibleProducts.find((item) => String(item.product_id || item.id || "") === String(id)) || null,
+        toCard: (product) => buildProductCardPayload(product, findMatchingVariant(product, "", "", restockMode)),
+      }),
+    [allowMultiple, restockMode, selectedCardsById, selectedProductIds, visibleProducts]
+  );
 
   useEffect(() => {
     if (!open || !sizeMode) return;
@@ -1128,6 +1134,39 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSelectedCardsById((m) => ({ ...m, [productId]: card }));
   }, [activeVariant, allowMultiple, selectedProductId, selectedProductIds, t]);
 
+  // Tapping a product tile OPENS it: it becomes the one the colour/size chooser edits,
+  // and in multi-select it joins the batch. The tile used to call toggleProductSelection,
+  // so tapping an already-ticked product REMOVED it — there was no way back into a product
+  // to fix its colour/size once a second one had been ticked, and every line after the
+  // first silently kept its first variant. The checkbox is now the only control that
+  // removes a product. Re-opening a ticked product restores the colour and size it was
+  // ticked with, so switching between the batch's products never rewrites their choices.
+  const openProductForPreview = useCallback((product) => {
+    const productId = String(product.product_id || product.id || "");
+    setSelectedProductId(productId);
+    const stored = selectedCardsById[productId];
+    if (stored) {
+      setSelectedColor(clean(stored.color));
+      setSelectedSize(clean(stored.size));
+    }
+    // On the phone the chooser starts collapsed, so a tap used to change nothing visible
+    // and the colour/size never got picked at all.
+    setPreviewCollapsed(false);
+    if (!allowMultiple) {
+      setSelectedProductIds([]);
+      setSelectedCardsById({});
+      return;
+    }
+    if (selectedProductIds.includes(productId)) return;
+    if (selectedProductIds.length >= MAX_BATCH_PRODUCTS) {
+      setError(t("aiSupport.inbox.picker.maxBatchReached", { count: MAX_BATCH_PRODUCTS }));
+      return;
+    }
+    const card = buildProductCardPayload(product, findMatchingVariant(product, "", "", restockMode));
+    setSelectedProductIds((cur) => [...cur, productId]);
+    setSelectedCardsById((m) => ({ ...m, [productId]: card }));
+  }, [allowMultiple, restockMode, selectedCardsById, selectedProductIds, t]);
+
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
       const exists = current.some((item) => item.key === card.key);
@@ -1158,7 +1197,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     // Phase 13.4 — batch send: submit the ORDERED multi-selection when present (manual multi-select), else the
     // single active card. Nothing reached the provider before this explicit click. The parent returns per-card
     // results; on partial failure we KEEP ONLY the failed cards selected (successful ones are removed).
-    const batch = allowMultiple && selectedProducts.length ? selectedProducts : (activeCard ? [activeCard] : []);
+    const batch = resolveSubmitBatch({ allowMultiple, selectedCards: selectedProducts, activeCard });
     if (!batch.length || submitting) return;
     setSubmitting(true);
     setError("");
@@ -1647,19 +1686,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                       );
                     }
                     return (
+                      <div key={`${product.product_id || product.id}`} className="relative">
                       <button
-                        key={`${product.product_id || product.id}`}
                         type="button"
-                        onClick={() => toggleProductSelection(product)}
-                        className={`relative flex items-start gap-3 rounded-2xl border p-2.5 text-start transition ${
+                        onClick={() => openProductForPreview(product)}
+                        className={`ai-picker-tile flex w-full items-start gap-3 rounded-2xl border p-2.5 text-start transition ${
                           isActive ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
                         }`}
                       >
-                        {allowMultiple ? (
-                          <span className={`absolute left-2 top-2 inline-flex h-5 w-5 items-center justify-center rounded-full border ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}>
-                            {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
-                          </span>
-                        ) : null}
                         {previewImage ? (
                           <HoverZoomImage src={previewImage} alt={product.name || t("aiSupport.inbox.picker.product")} className="h-16 w-16 shrink-0 rounded-xl object-cover" />
                         ) : (
@@ -1692,6 +1726,18 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           </div>
                         </div>
                       </button>
+                      {allowMultiple ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleProductSelection(product)}
+                          aria-pressed={isSelected}
+                          aria-label={isSelected ? t("aiSupport.inbox.picker.removeFromSelection") : t("aiSupport.inbox.picker.addToSelection")}
+                          className={`absolute left-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-full border transition ${isSelected ? "border-cyan-300 bg-cyan-300 text-slate-950" : inlineFullscreenMode ? "border-slate-200 bg-white text-slate-400" : "border-white/20 bg-black/40 text-white/60"}`}
+                        >
+                          {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+                        </button>
+                      ) : null}
+                      </div>
                     );
                   })}
                   {visibleProducts.length > visibleLimit ? (

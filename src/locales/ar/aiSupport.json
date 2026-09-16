@@ -1783,7 +1783,9 @@
       "maxBatchReached": "الحد الأقصى {{count}} منتجات في الإرسال الواحد",
       "catalogLoadFailed": "تعذر تحميل كتالوج المنتجات",
       "productSendFailed": "تعذر إرسال المنتج",
-      "linkSendFailed": "تعذر إرسال الرابط"
+      "linkSendFailed": "تعذر إرسال الرابط",
+      "addToSelection": "إضافة للاختيار",
+      "removeFromSelection": "إزالة من الاختيار"
     },
     "message": {
       "pinnedMessages": "الرسائل المثبتة",

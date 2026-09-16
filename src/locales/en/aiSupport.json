@@ -1775,7 +1775,9 @@
       "maxBatchReached": "A maximum of {{count}} products can be sent at once",
       "catalogLoadFailed": "Unable to load the product catalogue",
       "productSendFailed": "Unable to send the product",
-      "linkSendFailed": "Unable to send the link"
+      "linkSendFailed": "Unable to send the link",
+      "addToSelection": "Add to selection",
+      "removeFromSelection": "Remove from selection"
     },
     "message": {
       "pinnedMessages": "Pinned messages",

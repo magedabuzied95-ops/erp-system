@@ -151,29 +151,34 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.ai-inbox-product-picker-desktop__product-grid > button {
+.ai-inbox-product-picker-desktop__product-grid > button,
+.ai-inbox-product-picker-desktop__product-grid > div > .ai-picker-tile {
   border-color: var(--picker-border) !important;
   background: var(--picker-surface) !important;
   color: var(--picker-text) !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
-.ai-inbox-product-picker-desktop__product-grid > button:hover {
+.ai-inbox-product-picker-desktop__product-grid > button:hover,
+.ai-inbox-product-picker-desktop__product-grid > div > .ai-picker-tile:hover {
   border-color: var(--picker-accent-border) !important;
   background: color-mix(in srgb, var(--picker-surface) 94%, var(--picker-accent) 6%) !important;
 }
 
-.ai-inbox-product-picker-desktop__product-grid > button[class*="border-cyan"] {
+.ai-inbox-product-picker-desktop__product-grid > button[class*="border-cyan"],
+.ai-inbox-product-picker-desktop__product-grid > div > .ai-picker-tile[class*="border-cyan"] {
   border-color: var(--picker-accent) !important;
   background: var(--picker-accent-soft) !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
-.ai-inbox-product-picker-desktop__product-grid > button :where(.text-white, .text-slate-300) {
+.ai-inbox-product-picker-desktop__product-grid > button :where(.text-white, .text-slate-300),
+.ai-inbox-product-picker-desktop__product-grid > div > .ai-picker-tile :where(.text-white, .text-slate-300) {
   color: var(--picker-text) !important;
 }
 
-.ai-inbox-product-picker-desktop__product-grid > button :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+.ai-inbox-product-picker-desktop__product-grid > button :where(.text-slate-400, .text-slate-500, .text-slate-600),
+.ai-inbox-product-picker-desktop__product-grid > div > .ai-picker-tile :where(.text-slate-400, .text-slate-500, .text-slate-600) {
   color: var(--picker-muted) !important;
 }
 
