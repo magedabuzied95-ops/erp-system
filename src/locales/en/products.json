@@ -1118,5 +1118,43 @@
     "purging": "Deleting…",
     "done": "Product permanently removed from the database.",
     "doneWithPurchases": "Product permanently removed. {{total}} purchase invoice(s) updated."
+  },
+  "reviews": {
+    "nav": "Reviews",
+    "title": "Customer reviews",
+    "description": "Every review written by a customer who received their order waits here until you publish it. Only published reviews appear on the product page and in Google.",
+    "status": {
+      "pending": "Pending",
+      "published": "Published",
+      "rejected": "Rejected"
+    },
+    "empty": {
+      "pending": "No reviews waiting for moderation.",
+      "published": "No published reviews yet.",
+      "rejected": "No rejected reviews."
+    },
+    "loading": "Loading reviews...",
+    "loadFailed": "Could not load reviews",
+    "saveFailed": "Could not save the change",
+    "noName": "Customer",
+    "order": "Order",
+    "viewOnSite": "Open on the site",
+    "starsOnly": "Stars only, no comment.",
+    "publish": "Publish",
+    "reject": "Reject",
+    "unpublish": "Unpublish",
+    "backToQueue": "Back to pending",
+    "reply": "Reply",
+    "editReply": "Edit reply",
+    "yourReply": "Store reply",
+    "replyPlaceholder": "Your reply appears under the review on the site. Leave it empty to remove the reply.",
+    "saveReply": "Save reply",
+    "cancel": "Cancel",
+    "toast": {
+      "published": "Review published",
+      "rejected": "Review rejected",
+      "pending": "Moved back to pending",
+      "reply": "Reply saved"
+    }
   }
 }

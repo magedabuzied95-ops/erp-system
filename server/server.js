@@ -654,6 +654,7 @@ const { default: metaReviewerInboxRoutes } = await import("./routes/metaReviewer
 const { default: metaReviewerApiBoundary } = await import("./middleware/metaReviewerBoundary.js");
 const { default: portalInboxApiBoundary } = await import("./modules/aiInboxPortal/portalInboxBoundary.js");
 const { default: productsRoutes } = await import("./routes/products.js");
+const { default: productReviewsRoutes } = await import("./routes/productReviews.js");
 const { default: ordersRoutes } = await import("./routes/orders.js");
 const { default: posRoutes } = await import("./routes/pos.js");
 const { default: paymobRoutes } = await import("./routes/paymob.js");
@@ -1920,6 +1921,7 @@ app.use(portalInboxApiBoundary);
 app.use("/api/auth", authRoutes);
 app.use("/api/meta-reviewer/inbox", metaReviewerInboxRoutes);
 app.use("/api/products", productsRoutes);
+app.use("/api/product-reviews", productReviewsRoutes);
 app.use("/api/variants", variantRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/variants-inventory", variantsInventoryRoutes);

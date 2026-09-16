@@ -58,6 +58,7 @@ const ProductEdit = lazy(() => import("./modules/products/pages/ProductEdit"));
 const Categories = lazy(() => import("./modules/products/pages/Categories"));
 const ProductClassifications = lazy(() => import("./modules/products/pages/ProductClassifications"));
 const Brands = lazy(() => import("./modules/products/pages/Brands"));
+const ProductReviewsModeration = lazy(() => import("./modules/products/pages/ProductReviews"));
 const Manufacturers = lazy(() => import("./modules/products/pages/Manufacturers"));
 const Units = lazy(() => import("./modules/products/pages/Units"));
 const Variants = lazy(() => import("./modules/products/pages/Variants"));
@@ -1194,6 +1195,15 @@ function App() {
         <Route
           path="products/brands"
           element={<Brands />}
+        />
+
+        <Route
+          path="products/reviews"
+          element={
+            <ProtectedRoute requiredPermissions={["products.view"]}>
+              <ProductReviewsModeration />
+            </ProtectedRoute>
+          }
         />
 
         <Route

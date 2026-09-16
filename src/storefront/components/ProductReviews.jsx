@@ -86,7 +86,9 @@ const ReviewCard = ({ review }) => {
           {sfText("storefront.reviews.bought", "اشترى")}: {bought}
         </p>
       ) : null}
-      {review.body ? <p className="sfr-card__body">{review.body}</p> : null}
+      {/* dir="auto": the customer's own language decides the direction, so an English review
+          on the Arabic page (or the reverse) keeps its punctuation where it belongs. */}
+      {review.body ? <p dir="auto" className="sfr-card__body">{review.body}</p> : null}
       {photos.length ? (
         <div className="sfr-card__photos">
           {photos.map((photo) => (
@@ -99,7 +101,7 @@ const ReviewCard = ({ review }) => {
       {review.reply_body ? (
         <div className="sfr-card__reply">
           <strong>{sfText("storefront.reviews.replyFrom", "رد المتجر")}</strong>
-          <p>{review.reply_body}</p>
+          <p dir="auto">{review.reply_body}</p>
         </div>
       ) : null}
     </article>

@@ -42,6 +42,7 @@ const EXACT_ROUTE_TITLES = Object.freeze({
   "/products/categories": "Product Categories",
   "/products/classifications": "Product Classifications",
   "/products/brands": "Brands",
+  "/products/reviews": "Product Reviews",
   "/products/manufacturers": "Manufacturers",
   "/products/units": "Product Units",
   "/products/variants": "Product Variants",

@@ -12,6 +12,7 @@ import {
   ListChecks,
   PackagePlus,
   Printer,
+  Star,
 } from "lucide-react";
 import { ResponsiveTabs } from "../../../shared/components/mobile/ResponsiveMobile";
 import "./ProductsShell.m1.css";
@@ -30,6 +31,7 @@ export default function ProductsShell({
     { to: "/products/categories", label: t("sidebar.categories"), icon: Layers3 },
     { to: "/products/classifications", label: t("products.classifications.title"), icon: LayoutGrid },
     { to: "/products/brands", label: t("sidebar.brands"), icon: Building2 },
+    { to: "/products/reviews", label: t("products.reviews.nav"), icon: Star },
     { to: "/products/manufacturers", label: t("sidebar.manufacturers"), icon: Factory },
     { to: "/products/units", label: t("sidebar.units"), icon: Boxes },
     { to: "/products/variants", label: t("sidebar.variants"), icon: BarChart3 },

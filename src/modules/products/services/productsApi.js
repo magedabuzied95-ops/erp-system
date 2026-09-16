@@ -498,6 +498,16 @@ export const getProductPurgePreview = async (id) => api.get(`/products/${id}/pur
 export const purgeProductFromDatabase = async (id, confirm) =>
   api.delete(`/products/${id}/purge`, { body: { confirm }, timeoutMs: 120000 });
 
+// Product reviews moderation (/products/reviews).
+export const getProductReviews = async ({ status = "pending", limit = 50, offset = 0 } = {}) =>
+  api.get("/product-reviews", { params: { status, limit, offset } });
+
+export const setProductReviewStatus = async (id, status, note = "") =>
+  api.post(`/product-reviews/${id}/status`, { status, note });
+
+export const replyToProductReview = async (id, body) =>
+  api.post(`/product-reviews/${id}/reply`, { body });
+
 export const getBrands = async () => unwrapArray(await api.get("/brands"));
 
 export const createBrand = async (body) => unwrapItem(await api.post("/brands", body));

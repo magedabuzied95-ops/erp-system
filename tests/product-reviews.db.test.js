@@ -183,8 +183,11 @@ if (!ready) {
     assert.equal(pending.length, 1);
     assert.equal(pending[0].product_name, "Nike Air Force 1");
     assert.equal(pending[0].order_number, "M1-101");
+    // The queue page's tabs: every status present, zero included.
+    assert.deepEqual(await reviews.getReviewCounts(TENANT), { pending: 1, published: 0, rejected: 0 });
 
     await reviews.moderateReview({ tenantId: TENANT, reviewId: pending[0].id, status: "published", actorId: 4 });
+    assert.deepEqual(await reviews.getReviewCounts(TENANT), { pending: 0, published: 1, rejected: 0 });
     const published = await reviews.listPublishedReviews(TENANT, 7);
     assert.equal(published.length, 1);
     assert.equal(published[0].customer_name, "Maged");

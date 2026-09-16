@@ -323,7 +323,9 @@ export const listReviewsForModeration = async (
   const { rows } = await client.query(
     `
     SELECT pr.*, p.name AS product_name, p.slug AS product_slug,
-           COALESCE(NULLIF(o.display_order_number, ''), NULLIF(o.public_order_number, ''), o.id::text) AS order_number
+           -- The review keeps its own order_id, so a number survives even an order that was
+           -- deleted after the review was written.
+           COALESCE(NULLIF(o.display_order_number, ''), NULLIF(o.public_order_number, ''), pr.order_id::text) AS order_number
     FROM product_reviews pr
     JOIN products p ON p.id = pr.product_id
     LEFT JOIN orders o ON o.id = pr.order_id
@@ -334,6 +336,22 @@ export const listReviewsForModeration = async (
     [positiveInt(tenantId), wanted, Math.min(REVIEW_PAGE_MAX, Math.max(1, Number(limit) || 50)), Math.max(0, Number(offset) || 0)]
   );
   return rows;
+};
+
+/* The three tab counts on the moderation page. Every status is present, zero or not, so the
+ * page never has to guess whether a missing key means "none" or "not loaded". */
+export const getReviewCounts = async (tenantId, { client = db } = {}) => {
+  const counts = Object.fromEntries(REVIEW_STATUSES.map((status) => [status, 0]));
+  if (!positiveInt(tenantId)) return counts;
+  await ensureProductReviewsSchema(client);
+  const { rows } = await client.query(
+    `SELECT status, COUNT(*)::int AS n FROM product_reviews WHERE tenant_id = $1 GROUP BY status`,
+    [positiveInt(tenantId)]
+  );
+  rows.forEach((row) => {
+    if (row.status in counts) counts[row.status] = row.n;
+  });
+  return counts;
 };
 
 export const moderateReview = async ({ tenantId, reviewId, status, note = "", actorId = null, client = db } = {}) => {
