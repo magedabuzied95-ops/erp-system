@@ -55,6 +55,9 @@ const toastAuthError = (error, fallbackKey) => {
  */
 
 const STOREFRONT_PROFILE_KEY = "storefront.profile";
+// The checkout fills itself from the last order placed on this device. Signing out has to
+// take that with it, or the next person to use the browser is handed someone's home address.
+const STOREFRONT_LAST_CHECKOUT_KEY = "storefront.checkout.lastDetails";
 const ORDERS_PREVIEW_COUNT = 5;
 const WISHLIST_PREVIEW_COUNT = 4;
 
@@ -131,6 +134,7 @@ const clearAccountIdentityStorage = () => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(STOREFRONT_PROFILE_KEY);
+    window.localStorage.removeItem(STOREFRONT_LAST_CHECKOUT_KEY);
   } catch {
     // Ignore storage errors.
   }

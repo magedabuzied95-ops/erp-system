@@ -2035,6 +2035,7 @@ const cleanupStorefrontStorage = () => {
     [
       RECENT_KEY,
       PROFILE_KEY,
+      LAST_CHECKOUT_KEY,
     ].forEach((key) => window.localStorage.removeItem(key));
     Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index)).filter(Boolean).forEach((key) => {
       if (STOREFRONT_CACHE_PREFIXES.some((prefix) => key === prefix || key.startsWith(`${prefix}.`) || key.startsWith(`${prefix}:`))) {
@@ -2385,6 +2386,46 @@ const CHECKOUT_ADDRESS_FIELDS = [
 // their name and phone before the address restore answers, so only an edit to
 // one of THESE means "don't overwrite what I wrote".
 const CHECKOUT_PLACE_FIELDS = CHECKOUT_ADDRESS_FIELDS.filter((key) => key !== "full_name" && key !== "primary_phone");
+
+// The details of the last order placed from THIS browser. A customer who bought
+// before should never type their name, phone and address again, and the saved
+// addresses that come from the server only reach a signed-in customer — a guest
+// asking for them by phone number would be asking for a stranger's home address.
+// So the snapshot lives in this device's own storage: written once an order goes
+// through, read back on the next checkout, cleared when the customer signs out.
+const LAST_CHECKOUT_KEY = "storefront.checkout.lastDetails";
+// Old enough and the address is probably not where they live any more; they get an
+// empty form rather than a wrong one silently pre-filled.
+const LAST_CHECKOUT_MAX_AGE_MS = 180 * 24 * 60 * 60 * 1000;
+const LAST_CHECKOUT_EXTRA_FIELDS = ["email", "secondary_phone", "city", "area", "zone", "district"];
+
+const readLastCheckoutDetails = () => {
+  const saved = readStorefrontStorage(LAST_CHECKOUT_KEY, null);
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return null;
+  const savedAt = Number(saved.saved_at || 0);
+  if (!savedAt || Date.now() - savedAt > LAST_CHECKOUT_MAX_AGE_MS) return null;
+  return saved;
+};
+
+const writeLastCheckoutDetails = (form = {}, overrides = {}) => {
+  const snapshot = { saved_at: Date.now() };
+  [...CHECKOUT_ADDRESS_FIELDS, ...LAST_CHECKOUT_EXTRA_FIELDS].forEach((key) => {
+    snapshot[key] = String(form[key] ?? "").trim();
+  });
+  Object.entries(overrides).forEach(([key, value]) => {
+    snapshot[key] = String(value ?? "").trim();
+  });
+  writeStorefrontStorage(LAST_CHECKOUT_KEY, snapshot);
+};
+
+const clearLastCheckoutDetails = () => {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(LAST_CHECKOUT_KEY);
+  } catch {
+    // Ignore storage access errors.
+  }
+};
 
 // The store's WhatsApp number lives in the public settings, not in the build.
 // VITE_WHATSAPP_PHONE was never defined for any deploy, so every WhatsApp entry
@@ -8030,11 +8071,15 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   const { t } = useTranslation();
   const navigate = useNavigate();
   const checkoutLanguage = normalizeLanguage(i18n.language);
+  // What this browser typed the last time it bought something. The contact fields are
+  // seeded from it right here so the form is filled on the very first paint; the address
+  // needs the ids replayed into the pickers, so it goes through the restore below.
+  const [deviceCheckoutDetails] = useState(() => readLastCheckoutDetails());
   const [form, setForm] = useState({
-    full_name: profile.full_name || "",
-    primary_phone: profile.primary_phone || "",
-    email: profile.email || profile.customer_email || "",
-    secondary_phone: "",
+    full_name: profile.full_name || deviceCheckoutDetails?.full_name || "",
+    primary_phone: profile.primary_phone || deviceCheckoutDetails?.primary_phone || "",
+    email: profile.email || profile.customer_email || deviceCheckoutDetails?.email || "",
+    secondary_phone: deviceCheckoutDetails?.secondary_phone || "",
     governorate_id: "",
     governorate: "",
     city_id: "",
@@ -8091,6 +8136,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   const [bostaLocations, setBostaLocations] = useState({ cities: [], zones: [], districts: [], loadingCities: false, loadingZones: false, loadingDistricts: false });
   const editedCheckoutFieldsRef = useRef(new Set());
   const latestAddressLookupsRef = useRef(new Set());
+  // The last-order address of this device is replayed once per visit to the page.
+  const deviceAddressRestoredRef = useRef(false);
+  const bostaCitiesProbedRef = useRef(false);
   const latestAddressRestoreTokenRef = useRef(0);
   const couponValidationKeyRef = useRef("");
   const metaCheckoutSentRef = useRef(false);
@@ -8761,6 +8809,43 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
     };
   }, [form.primary_phone, profile.email, profile.customer_email]);
 
+  // Bosta's city list is fetched once on mount. Until that request has answered there is
+  // nothing to select, so the device restore below waits for it rather than replaying an
+  // id into an empty picker — which the staged cascade would read as "not ready" and drop.
+  useEffect(() => {
+    if (bostaLocations.loadingCities) bostaCitiesProbedRef.current = true;
+  }, [bostaLocations.loadingCities]);
+
+  // The address of the last order placed from this browser, filled in before the customer
+  // types anything. It is never forced: a field they have already edited stays theirs, and
+  // a signed-in customer's server-side saved address arrives through the same restore and
+  // replaces this one, because nothing here counts as a manual edit.
+  useEffect(() => {
+    if (deviceAddressRestoredRef.current) return;
+    const saved = deviceCheckoutDetails;
+    if (!saved) return;
+    const hasPlace = CHECKOUT_PLACE_FIELDS.some((key) => String(saved[key] || "").trim());
+    if (!hasPlace) {
+      deviceAddressRestoredRef.current = true;
+      return;
+    }
+    // A signed-in customer's addresses come from the server and are the better source: they
+    // follow them to any device. The device copy only fills the gap the server leaves a guest,
+    // so it steps aside once those answer, and never interrupts a restore already in flight.
+    if (savedAddresses.length) {
+      deviceAddressRestoredRef.current = true;
+      return;
+    }
+    if (latestAddressRestore.status === "restoring") return;
+    // A Bosta address is only restorable once its governorate exists in the picker. A store
+    // without Bosta (the request answered with no cities) restores the text address as it is.
+    if (String(saved.shipping_city_id || "").trim() && !bostaCityOptions.length) {
+      if (!bostaCitiesProbedRef.current || bostaLocations.loadingCities) return;
+    }
+    deviceAddressRestoredRef.current = true;
+    restoreAddressCandidate(saved, { lookupKey: "device:last-order" });
+  }, [bostaCityOptions, bostaLocations.loadingCities, deviceCheckoutDetails, latestAddressRestore.status, savedAddresses]);
+
   const chooseSavedAddress = (value) => {
     setSelectedSavedAddress(value);
     if (value === "new") {
@@ -8899,6 +8984,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
     console.info("[checkout:last-address-restore-skipped]", { reason: "user_requested_new_address" });
     latestAddressRestoreTokenRef.current += 1;
     latestAddressLookupsRef.current.clear();
+    // They said this is not where the order goes, so the device stops offering it —
+    // the next order they place writes the new one in its place.
+    deviceAddressRestoredRef.current = true;
+    clearLastCheckoutDetails();
     editedCheckoutFieldsRef.current = new Set();
     setLatestAddressApplied(false);
     setLatestAddressRestore({ token: latestAddressRestoreTokenRef.current, candidate: null, status: "idle", stage: "idle" });
@@ -9375,6 +9464,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       if (data.order?.invoice_number && data.order.invoice_number !== publicNumber) {
         safeSetSessionStorage(`storefront.order.${data.order.invoice_number}`, receiptPayload, { maxBytes: 24 * 1024 });
       }
+      // Everything this order was delivered to, kept on this device so the next checkout
+      // is already filled in — the ids included, or the pickers would have nothing to select.
+      writeLastCheckoutDetails(form, { primary_phone: cleanPhone, email: form.email.trim().toLowerCase() });
       setProfile({
         full_name: form.full_name,
         primary_phone: cleanPhone,
