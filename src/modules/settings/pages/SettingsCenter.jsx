@@ -1405,6 +1405,15 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
+      {/* Listed here by hand for the same reason as the two sections above: this component, not
+          SETTINGS_SECTIONS, is what the storefront category renders. */}
+      <VisualSection icon={Package} title={t("settings.storefront.reviewRequestTitle", "Product review requests")} description={t("settings.storefront.reviewRequestHint", "A WhatsApp message some days after delivery, with a button to rate what the customer bought.")}>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {renderField(setting("storefront.product_review_request.enabled"), true)}
+          {renderField(setting("storefront.product_review_request.delay_days"), true)}
+        </div>
+      </VisualSection>
+
       <VisualSection icon={Globe2} title="SEO" description={t("settings.storefront.seoHint")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.seo_title"), true)}

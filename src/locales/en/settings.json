@@ -163,7 +163,9 @@
       "bundleTitle": "Pairs well with",
       "bundleHint": "Suggest a second product under the buy buttons, with a discount when both are bought together. Pin a specific pair from the product edit page.",
       "priceDropTitle": "Price drop alerts",
-      "priceDropHint": "Customers follow a product from its page or the wishlist and get a website notification when the price drops, plus WhatsApp if you switch it on."
+      "priceDropHint": "Customers follow a product from its page or the wishlist and get a website notification when the price drops, plus WhatsApp if you switch it on.",
+      "reviewRequestTitle": "Product review requests",
+      "reviewRequestHint": "A WhatsApp message some days after delivery, with a button to rate what the customer bought. Reviews wait for you in Products → Reviews."
     },
     "payments": {
       "title": "Payment and transfer settings",
