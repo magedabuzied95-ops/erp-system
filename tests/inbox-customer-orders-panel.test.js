@@ -38,6 +38,10 @@ test("the swap, the parcel and the label are each offered exactly when they appl
   // customer to hold the credit.
   assert.equal(project({ status: "confirmed" }).can_exchange, false);
   assert.equal(project({ status: "delivered" }).can_exchange, true);
+  // INV-1469: Bosta delivered it while the order still read edit_requested.
+  assert.equal(project({ status: "edit_requested", shipment_status: "delivered" }).can_exchange, true);
+  // A cancelled order stays closed whatever the courier's last word was.
+  assert.equal(project({ status: "cancelled", shipment_status: "delivered" }).can_exchange, false);
   assert.equal(projectInboxConversationOrder({ order: { id: 6, customer_id: null, status: "delivered" }, policy: restricted, items }).can_exchange, false);
   // Every line already returned leaves nothing to exchange.
   assert.equal(

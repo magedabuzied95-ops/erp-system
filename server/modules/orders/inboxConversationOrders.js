@@ -18,6 +18,16 @@ const ORDER_OPEN_TO_CONFIRMATION = new Set(["", "pending", "new", "created", "dr
 // there is nothing for the courier to swap on an order still sitting in the shop, and a
 // cancelled or fully returned one has nothing left to give back.
 const ORDER_OPEN_TO_EXCHANGE = new Set(["shipped", "out_for_delivery", "delivered", "completed", "partially_returned"]);
+const ORDER_CLOSED_TO_EXCHANGE = new Set(["cancelled", "canceled", "returned", "deleted"]);
+
+// The courier's word counts as much as the order's: INV-1469 was delivered by Bosta while
+// its status still read edit_requested, and the customer who had it in hand got no button.
+export const orderReachedCustomer = (order = {}) => {
+  const status = text(order.status).toLowerCase();
+  if (ORDER_CLOSED_TO_EXCHANGE.has(status)) return false;
+  const shipment = text(order.shipment_status || order.shipping_status).toLowerCase();
+  return ORDER_OPEN_TO_EXCHANGE.has(status) || ORDER_OPEN_TO_EXCHANGE.has(shipment);
+};
 
 // A parcel is booked for an order the shop has agreed to send. Offering it on a draft is
 // how a half-written order ends up with a courier standing at the door.
@@ -88,7 +98,7 @@ export const projectInboxConversationOrder = ({ order = {}, policy = null, items
     // The replacement order of an exchange is not itself exchangeable until it lands, and
     // an order with every line already returned has nothing left to swap.
     can_exchange:
-      ORDER_OPEN_TO_EXCHANGE.has(status)
+      orderReachedCustomer(order)
       && Boolean(order.customer_id)
       && (Array.isArray(items) ? items : []).some((item) => Number(item.quantity || 0) - Number(item.returned_quantity || 0) > 0),
   };

@@ -25,17 +25,11 @@ import { adjustVariantStock } from "../../services/inventoryService.js";
 import { recordWalletTransaction } from "../../services/walletService.js";
 import { postWalletLiabilityEntry } from "../../services/accountingService.js";
 import { getTenantId } from "../../utils/requestScope.js";
+import { orderReachedCustomer } from "./inboxConversationOrders.js";
 export { describeExchangeReturnParcel, exchangeParcelContextOf } from "./exchangeParcel.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const money = (value) => Math.round((Number(value) || 0) * 100) / 100;
-
-// An order whose goods never left the shop cannot be exchanged: there is nothing for the
-// courier to collect. Anything that reached the customer - or is on its way to them - can.
-const EXCHANGEABLE_STATUSES = new Set([
-  "confirmed", "processing", "ready", "ready_to_ship", "shipped", "out_for_delivery",
-  "delivered", "completed", "partially_returned",
-]);
 
 const invalid = (message, code = "EXCHANGE_INVALID", status = 400) =>
   Object.assign(new Error(message), { status, code });
@@ -113,8 +107,9 @@ const loadExchangeOriginal = async (client, { tenantId, orderId }) => {
   );
   const order = orderResult.rows[0];
   if (!order) throw invalid("الأوردر مش موجود", "EXCHANGE_ORDER_NOT_FOUND", 404);
-  const status = text(order.status).toLowerCase();
-  if (!EXCHANGEABLE_STATUSES.has(status)) {
+  // An order whose goods never left the shop has nothing for the courier to collect.
+  // The same rule the panel uses to show the button, so the two can never disagree.
+  if (!orderReachedCustomer(order)) {
     throw invalid("الأوردر ده لسه ما وصلش العميل، مش هينفع استبدال", "EXCHANGE_ORDER_NOT_DELIVERED");
   }
   const items = (await client.query(`SELECT * FROM order_items WHERE order_id = $1 ORDER BY id ASC`, [order.id])).rows;
