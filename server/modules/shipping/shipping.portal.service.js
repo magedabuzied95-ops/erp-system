@@ -400,6 +400,7 @@ const STAFF_TIMELINE_KINDS = {
   portal_ready_to_ship: "staff_ready_to_ship",
   portal_bosta_created: "staff_shipment_created",
   shipping_fee_paid: "staff_shipping_fee_paid",
+  order_paid_in_full: "staff_order_paid_in_full",
 };
 
 const staffTimeline = (order = {}) =>

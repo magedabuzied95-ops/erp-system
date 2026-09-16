@@ -923,7 +923,11 @@
       "sendConfirmation": "إرسال رسالة التأكيد",
       "shippingFeePaid": "تم دفع الشحن",
       "shippingFeeConfirmTitle": "العميل دفع الشحن ({{amount}})؟",
-      "shippingFeeConfirmBody": "اختار دفع إزاي. المبلغ هيتسجّل مدفوع، والمندوب هيحصّل الباقي بس."
+      "shippingFeeConfirmBody": "اختار دفع إزاي. المبلغ هيتسجّل مدفوع، والمندوب هيحصّل الباقي بس.",
+      "feeScopeShipping": "رسوم الشحن بس",
+      "feeScopeOrder": "كامل الأوردر",
+      "orderPaidConfirmTitle": "العميل دفع الأوردر كله ({{amount}})؟",
+      "orderPaidConfirmBody": "اختار دفع إزاي. الأوردر كله هيتسجّل مدفوع، والمندوب مش هيحصّل حاجة."
     },
     "detail": {
       "orderStatus": "حالة الأوردر",
@@ -997,7 +1001,8 @@
       "staff_shipment_created": "أنشأ شحنة بوسطة: {{actor}}",
       "staff_confirmation_sent": "أرسل رسالة التأكيد: {{actor}}",
       "staff_edited": "عدّل بيانات الأوردر: {{actor}}",
-      "staff_shipping_fee_paid": "سجّل دفع الشحن: {{actor}}"
+      "staff_shipping_fee_paid": "سجّل دفع الشحن: {{actor}}",
+      "staff_order_paid_in_full": "سجّل دفع الأوردر كامل: {{actor}}"
     },
     "providers": {
       "bosta": "بوسطة",
@@ -1012,7 +1017,8 @@
       "print_awb": "تم فتح البوليصة",
       "send_confirmation": "تم إرسال رسالة التأكيد للعميل على واتساب",
       "send_confirmation_queued": "تم إدراج رسالة التأكيد في طابور الإرسال",
-      "shipping_fee_paid": "تم تسجيل دفع الشحن"
+      "shipping_fee_paid": "تم تسجيل دفع الشحن",
+      "order_paid_in_full": "تم تسجيل دفع الأوردر كامل"
     },
     "actionErrors": {
       "generic": "تعذّر تنفيذ الإجراء",
@@ -1039,6 +1045,7 @@
       "CONFIRMATION_NOT_SENT": "تعذّر إرسال رسالة التأكيد",
       "WHATSAPP_GATEWAY_ERROR": "تعذّر الإرسال عبر واتساب. تأكد أن رقم المتجر متصل.",
       "ORDER_HAS_SHIPMENT": "الأوردر عليه شحنة بوسطة — لا يمكن تعديله أو حذفه من هنا",
+      "FULL_PAYMENT_AFTER_SHIPMENT": "الشحنة اتعملت على بوسطة بالمبلغ القديم — الغي الشحنة الأول وبعدين سجّل دفع الأوردر كامل",
       "ORDER_LOCKED": "لا يمكن تعديل أو حذف الأوردر في حالته الحالية",
       "NOTHING_TO_SAVE": "لا توجد تعديلات للحفظ",
       "CUSTOMER_NAME_REQUIRED": "اسم العميل مطلوب",

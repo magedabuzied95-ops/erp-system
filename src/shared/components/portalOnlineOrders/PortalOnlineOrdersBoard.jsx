@@ -511,6 +511,12 @@ const SHIPPING_FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
 const SHIP_ACTIONS = new Set(["create_shipment", "print_awb"]);
 
 function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canAct = false, canShip = false }) {
+  // The money step asks what the transfer covered: the shipping fee, or the whole order
+  // (INV-1637 — the full price uploaded into the deposit slot).
+  const [feeScope, setFeeScope] = useState("shipping_fee");
+  useEffect(() => {
+    if (state.confirming !== "shipping_fee_paid") setFeeScope("shipping_fee");
+  }, [state.confirming, order?.id]);
   const actions = portalOrderActionsFor(order).filter((action) => (SHIP_ACTIONS.has(action) ? canShip : canAct));
   if (!actions.length && !state.notice && !state.actionError) return null;
   const busy = Boolean(state.busy);
@@ -546,11 +552,34 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
         </div>
       ) : state.confirming === "shipping_fee_paid" ? (
         <div className="rounded-[var(--radius-control)] bg-warning-subtle p-3">
-          <div className="text-sm font-black text-text">{ui.tb("actions.shippingFeeConfirmTitle", { amount: ui.money(shippingFeeAdvanceState(order)?.amount) })}</div>
-          <div className="mt-1 text-xs font-bold leading-5 text-text">{ui.tb("actions.shippingFeeConfirmBody")}</div>
+          <div className="mb-2.5 grid grid-cols-2 gap-1 rounded-[var(--radius-control)] bg-surface p-1" role="radiogroup">
+            {[
+              ["shipping_fee", "actions.feeScopeShipping", shippingFeeAdvanceState(order)?.amount],
+              ["order_total", "actions.feeScopeOrder", order.money?.total],
+            ].map(([scope, label, amount]) => (
+              <button
+                key={scope}
+                type="button"
+                role="radio"
+                aria-checked={feeScope === scope}
+                disabled={busy}
+                onClick={() => setFeeScope(scope)}
+                className={`flex min-h-[var(--control-height-lg)] flex-col items-center justify-center rounded-[var(--radius-control)] px-2 text-xs font-black disabled:opacity-60 ${feeScope === scope ? "bg-primary text-primary-foreground" : "text-text"}`}
+              >
+                <span>{ui.tb(label)}</span>
+                <span className="text-[11px] font-bold opacity-80">{ui.money(amount)}</span>
+              </button>
+            ))}
+          </div>
+          <div className="text-sm font-black text-text">
+            {feeScope === "order_total"
+              ? ui.tb("actions.orderPaidConfirmTitle", { amount: ui.money(order.money?.total) })
+              : ui.tb("actions.shippingFeeConfirmTitle", { amount: ui.money(shippingFeeAdvanceState(order)?.amount) })}
+          </div>
+          <div className="mt-1 text-xs font-bold leading-5 text-text">{ui.tb(feeScope === "order_total" ? "actions.orderPaidConfirmBody" : "actions.shippingFeeConfirmBody")}</div>
           <div className="mt-2.5 grid grid-cols-3 gap-2">
             {SHIPPING_FEE_METHODS.map((method) => (
-              <button key={method} type="button" disabled={busy} onClick={() => onAction("shipping_fee_paid", { method })} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-2 text-xs font-black text-primary-foreground disabled:opacity-60">
+              <button key={method} type="button" disabled={busy} onClick={() => onAction("shipping_fee_paid", feeScope === "order_total" ? { method, scope: "order_total" } : { method })} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-2 text-xs font-black text-primary-foreground disabled:opacity-60">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {ui.tb(`payment.${method}`)}
               </button>
@@ -995,7 +1024,7 @@ export default function PortalOnlineOrdersBoard({
       }
       const nextOrder = response?.order || null;
       setSelection((existing) => (existing && existing.id === orderId
-        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: ui.tb(action === "send_confirmation" && response?.queued ? "actionDone.send_confirmation_queued" : `actionDone.${action}`) }
+        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: ui.tb(action === "send_confirmation" && response?.queued ? "actionDone.send_confirmation_queued" : action === "shipping_fee_paid" && input?.scope === "order_total" ? "actionDone.order_paid_in_full" : `actionDone.${action}`) }
         : existing));
       if (nextOrder) {
         setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(orderId) ? { ...row, ...nextOrder } : row)) }));

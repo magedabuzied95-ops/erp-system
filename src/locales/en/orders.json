@@ -923,7 +923,11 @@
       "sendConfirmation": "Send confirmation message",
       "shippingFeePaid": "Shipping fee paid",
       "shippingFeeConfirmTitle": "Did the customer pay the shipping fee ({{amount}})?",
-      "shippingFeeConfirmBody": "Pick how it was paid. The fee is recorded as paid and the courier collects only the rest."
+      "shippingFeeConfirmBody": "Pick how it was paid. The fee is recorded as paid and the courier collects only the rest.",
+      "feeScopeShipping": "Shipping fee only",
+      "feeScopeOrder": "Whole order",
+      "orderPaidConfirmTitle": "Did the customer pay the whole order ({{amount}})?",
+      "orderPaidConfirmBody": "Pick how it was paid. The whole order is recorded as paid and the courier collects nothing."
     },
     "detail": {
       "orderStatus": "Order status",
@@ -997,7 +1001,8 @@
       "staff_shipment_created": "Bosta shipment created by {{actor}}",
       "staff_confirmation_sent": "Confirmation message sent by {{actor}}",
       "staff_edited": "Order details edited by {{actor}}",
-      "staff_shipping_fee_paid": "Recorded the shipping fee: {{actor}}"
+      "staff_shipping_fee_paid": "Recorded the shipping fee: {{actor}}",
+      "staff_order_paid_in_full": "Recorded the whole order as paid: {{actor}}"
     },
     "providers": {
       "bosta": "Bosta",
@@ -1012,7 +1017,8 @@
       "print_awb": "Airway bill opened",
       "send_confirmation": "Confirmation message sent to the customer on WhatsApp",
       "send_confirmation_queued": "Confirmation message queued for sending",
-      "shipping_fee_paid": "Shipping fee recorded as paid"
+      "shipping_fee_paid": "Shipping fee recorded as paid",
+      "order_paid_in_full": "Whole order recorded as paid"
     },
     "actionErrors": {
       "generic": "Could not complete the action",
@@ -1039,6 +1045,7 @@
       "CONFIRMATION_NOT_SENT": "Could not send the confirmation message",
       "WHATSAPP_GATEWAY_ERROR": "WhatsApp refused the message. Check that the shop number is connected.",
       "ORDER_HAS_SHIPMENT": "This order has a Bosta shipment — it cannot be edited or deleted here",
+      "FULL_PAYMENT_AFTER_SHIPMENT": "The Bosta parcel was booked with the old amount — cancel it first, then record the whole order as paid",
       "ORDER_LOCKED": "This order cannot be edited or deleted in its current status",
       "NOTHING_TO_SAVE": "Nothing to save",
       "CUSTOMER_NAME_REQUIRED": "Customer name is required",

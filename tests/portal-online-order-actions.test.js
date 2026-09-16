@@ -242,3 +242,38 @@ test("two creates racing cannot both pass the existing-parcel check", () => {
   const loader = source.slice(source.indexOf("const loadOrderShipmentContext"), source.indexOf("export const createBostaShipmentForOrder"));
   assert.match(loader, /FROM orders WHERE id = \$1 LIMIT 1 FOR UPDATE/);
 });
+
+// INV-1637 on the board: the whole price transferred into the shipping-deposit slot.
+test("the money step can record the whole order as paid, not just the shipping fee", async () => {
+  const feeCalls = [];
+  const fullCalls = [];
+  const order = orderIn("confirmed", { money: { shipping_fee_advance: { required: true, status: "awaiting_review", amount: 90 } } });
+  const { deps } = makeDeps(order, {
+    markShippingFeePaid: async (args) => { feeCalls.push(args); return null; },
+    markOrderPaidInFull: async (args) => { fullCalls.push(args); return null; },
+  });
+  await runPortalOrderAction({ actor, surface: "manager_portal", orderId: 77, action: "shipping_fee_paid", input: { method: "vodafone_cash", scope: "order_total" }, deps });
+  assert.deepEqual(fullCalls, [{ orderId: 77, tenantId: 3, method: "vodafone_cash", actorName: "Omar", source: "manager_portal" }]);
+  assert.equal(feeCalls.length, 0, "a whole-order payment never goes through the fee-only path");
+
+  await runPortalOrderAction({ actor, orderId: 77, action: "shipping_fee_paid", input: { method: "cash" }, deps });
+  assert.equal(feeCalls.length, 1, "without a scope it stays the shipping fee");
+  assert.equal(fullCalls.length, 1);
+});
+
+test("the whole order cannot be marked paid once Bosta is booked for the old amount", async () => {
+  const fullCalls = [];
+  const order = orderIn("shipping", { shipment: { provider: "bosta", tracking_number: "123" } });
+  const { deps } = makeDeps(order, { markOrderPaidInFull: async (args) => { fullCalls.push(args); } });
+  await assert.rejects(
+    runPortalOrderAction({ actor, orderId: 77, action: "shipping_fee_paid", input: { method: "cash", scope: "order_total" }, deps }),
+    { status: 409, code: "FULL_PAYMENT_AFTER_SHIPMENT" }
+  );
+  assert.equal(fullCalls.length, 0);
+});
+
+test("the board offers both amounts and sends the whole-order scope", () => {
+  const source = readFileSync(new URL("../src/shared/components/portalOnlineOrders/PortalOnlineOrdersBoard.jsx", import.meta.url), "utf8");
+  assert.match(source, /"actions\.feeScopeOrder"/);
+  assert.match(source, /\{ method, scope: "order_total" \}/);
+});

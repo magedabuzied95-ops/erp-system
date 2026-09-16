@@ -5,6 +5,7 @@ import { canCreateBostaShipmentFor } from "./shipping.center.service.js";
 import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
 import { markShippingFeePaid } from "./shippingFeeAdvance.js";
+import { markOrderPaidInFull } from "./markOrderPaidInFull.js";
 import { notifyPaymentProofApproved } from "./paymentProofLink.js";
 import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js";
 
@@ -101,6 +102,7 @@ const defaultDeps = {
   createShipment: createBostaShipmentForOrder,
   fetchLabels: fetchBostaShipmentLabels,
   markShippingFeePaid,
+  markOrderPaidInFull,
   appendTimeline: (entry) => appendTimeline(db, entry),
   audit: recordEmployeePortalAudit,
 };
@@ -173,14 +175,22 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
   } else if (key === "shipping_fee_paid") {
     // The restricted closing system: staff record the fee the customer transferred (or paid in
     // cash) so the parcel may leave. Money only - the order stays where it is in the flow.
-    const paid = await deps.markShippingFeePaid({
-      orderId: order.id,
-      tenantId,
-      method: text(input?.method),
-      reference: text(input?.reference),
-      actorName,
-      source: surface,
-    });
+    // scope "order_total": the transfer covered the whole order (INV-1637), so the courier
+    // collects nothing. Only before a parcel exists — Bosta keeps the amount it was booked with.
+    const wholeOrder = text(input?.scope) === "order_total";
+    if (wholeOrder && (order.shipment?.tracking_number || order.shipment?.delivery_id)) {
+      throw actionError(409, "FULL_PAYMENT_AFTER_SHIPMENT", "The courier is already booked for the old amount");
+    }
+    const paid = wholeOrder
+      ? await deps.markOrderPaidInFull({ orderId: order.id, tenantId, method: text(input?.method), actorName, source: surface })
+      : await deps.markShippingFeePaid({
+        orderId: order.id,
+        tenantId,
+        method: text(input?.method),
+        reference: text(input?.reference),
+        actorName,
+        source: surface,
+      });
     // Only a transfer uploaded through the payment card is answered; anything else stays silent.
     if (paid) notifyPaymentProofApproved(paid).catch(() => {});
   } else if (key === "print_awb") {
