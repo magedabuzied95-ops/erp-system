@@ -1,0 +1,102 @@
+services:
+  erp-postgres:
+    image: postgres:17
+    container_name: erp-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${ERP_POSTGRES_DB}
+      POSTGRES_USER: ${ERP_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${ERP_POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${ERP_POSTGRES_PORT}:5432"
+    volumes:
+      - erp_postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+
+  erp-redis:
+    image: redis:7
+    container_name: erp-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ERP_REDIS_PORT}:6379"
+    volumes:
+      - erp_redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  erp-backend:
+    build:
+      context: /opt/apps/erp-system
+      dockerfile: Dockerfile.backend
+    container_name: erp-backend
+    restart: unless-stopped
+    env_file:
+      - /opt/erp/backend/.env
+    environment:
+      GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    ports:
+      - "127.0.0.1:8000:8000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - /opt/erp/uploads:/app/uploads
+    depends_on:
+      - erp-postgres
+      - erp-redis
+  erp-artwork:
+    build:
+      context: /opt/apps/erp-system
+      dockerfile: server/artwork-service/Dockerfile
+    container_name: erp-artwork
+    restart: unless-stopped
+    environment:
+      HF_HOME: /models
+      SD_THREADS: "5"
+      SD_MODEL: Lykon/dreamshaper-8
+      SD_CONTROLNET: lllyasviel/control_v11p_sd15_lineart
+      SD_LCM_LORA: latent-consistency/lcm-lora-sdv1-5
+    ports:
+      - "127.0.0.1:8010:8000"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    volumes:
+      - erp_artwork_models:/models
+    mem_limit: 7g
+    # Equal to mem_limit: no swap. It once parked 3.8 GB of an idle model in
+    # swap (97% full) and kept it there for days.
+    memswap_limit: 7g
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # Open-weights text model for product descriptions, SEO metadata and social
+  # captions (no OpenAI subscription). One request at a time on the CPU; the
+  # model stays loaded for 30 min between edits.
+  erp-ollama:
+    image: ollama/ollama:latest
+    container_name: erp-ollama
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: 1
+      OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_NUM_THREADS: "4"
+    volumes:
+      - erp_ollama_models:/root/.ollama
+    mem_limit: 5g
+
+volumes:
+  erp_postgres_data:
+  erp_redis_data:
+  erp_artwork_models:
+  erp_ollama_models:
