@@ -55,6 +55,7 @@ if (!ready) {
     CREATE TABLE orders (
       id BIGINT PRIMARY KEY,
       tenant_id BIGINT,
+      customer_id BIGINT,
       customer_phone TEXT,
       customer_name TEXT,
       display_order_number TEXT,
@@ -381,6 +382,75 @@ if (!ready) {
     const fresh = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 110 });
     assert.notEqual(fresh.code, link.code);
     assert.equal((await reviews.loadReviewLinkPage({ code: fresh.code })).order_number, "M1-110");
+  });
+
+  // --- the WhatsApp ask a few days after delivery ---
+
+  const requests = await import("../server/services/productReviewRequestService.js");
+  await requests.ensureReviewRequestSchema(db);
+
+  const recordingQueue = () => {
+    const calls = [];
+    const queue = async (payload) => {
+      calls.push(payload);
+      return { queued: true, id: calls.length };
+    };
+    return { calls, queue };
+  };
+
+  test("only orders inside the window are due: never last year's, never yesterday's", async () => {
+    await seedDeliveredOrder({ id: 201, productId: 7, daysAgo: 4 });
+    await seedDeliveredOrder({ id: 202, productId: 7, daysAgo: 1 });
+    await seedDeliveredOrder({ id: 203, productId: 7, daysAgo: 3 + requests.REVIEW_REQUEST_WINDOW_DAYS + 2 });
+    const due = (await requests.findDueOrders({ delayDays: 3, limit: 500 })).map((row) => Number(row.order_id));
+    assert.equal(due.includes(201), true, "delivered four days ago, asked after three");
+    assert.equal(due.includes(202), false, "too soon: they have barely opened the box");
+    assert.equal(due.includes(203), false, "switching the feature on must not reach back to old orders");
+    assert.equal(due.includes(102), false, "never delivered");
+  });
+
+  test("an order is asked once, with its own review link, and names its product", async () => {
+    const { calls, queue } = recordingQueue();
+    await db.query(`UPDATE orders SET customer_name = 'Maged Abu Zied' WHERE id = 201`);
+    const first = await requests.requestReviewForOrder({ order_id: 201, tenant_id: TENANT, customer_phone: BUYER, customer_name: "Maged Abu Zied" }, { queue });
+    assert.equal(first.sent, true);
+    assert.equal(calls.length, 1);
+    const payload = calls[0];
+    assert.equal(payload.automationType, "product_review_request");
+    assert.equal(payload.orderId, 201);
+    assert.equal(payload.send.kind, "cta_url");
+    const link = await reviews.issueReviewLink({ tenantId: TENANT, orderId: 201 });
+    assert.equal(payload.send.url, link.url, "the button opens this order's review page");
+    assert.match(payload.fallbackBody, /Maged/);
+    assert.match(payload.fallbackBody, /Nike Air Force 1/);
+
+    const again = await requests.requestReviewForOrder({ order_id: 201, tenant_id: TENANT, customer_phone: BUYER }, { queue });
+    assert.deepEqual(again, { sent: false, reason: "already_claimed" });
+    assert.equal(calls.length, 1, "send-once");
+    assert.equal((await requests.findDueOrders({ delayDays: 3, limit: 500 })).some((row) => Number(row.order_id) === 201), false);
+    const { rows } = await db.query(`SELECT status FROM product_review_requests WHERE order_id = 201`);
+    assert.equal(rows[0].status, "queued");
+  });
+
+  test("nothing left to review means nothing is sent", async () => {
+    const { calls, queue } = recordingQueue();
+    // Order 107 came back in full; order 101's only product is already reviewed.
+    for (const orderId of [107, 101]) {
+      const result = await requests.requestReviewForOrder({ order_id: orderId, tenant_id: TENANT, customer_phone: BUYER }, { queue });
+      assert.deepEqual(result, { sent: false, reason: "nothing_to_review" });
+    }
+    assert.equal(calls.length, 0);
+  });
+
+  test("a queue that fails marks the order failed rather than retrying it into a second message", async () => {
+    await seedDeliveredOrder({ id: 204, productId: 8, daysAgo: 4 });
+    const result = await requests.requestReviewForOrder(
+      { order_id: 204, tenant_id: TENANT, customer_phone: BUYER },
+      { queue: async () => { throw new Error("queue down"); } }
+    );
+    assert.equal(result.sent, false);
+    const { rows } = await db.query(`SELECT status, detail FROM product_review_requests WHERE order_id = 204`);
+    assert.deepEqual(rows[0], { status: "failed", detail: "queue down" });
   });
 
   test.after(async () => {

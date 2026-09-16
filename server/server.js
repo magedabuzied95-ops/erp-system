@@ -780,6 +780,7 @@ const { ensureRestockNotificationSchema } = await import("./services/restockNoti
 const { ensureMessageDeliverySchema } = await import("./services/messageDeliveryReconciliationService.js");
 const { ensureInboundIntakeSchema } = await import("./services/aiInboundIntakeService.js");
 const { ensureProductReviewsSchema } = await import("./services/productReviewsService.js");
+const { ensureReviewRequestSchema, runProductReviewRequestTick } = await import("./services/productReviewRequestService.js");
 // Surveillance Center. The API is mounted and the Dahua provider is registered,
 // but the only TRANSPORT attached is the simulated device — and only outside
 // production, behind an explicit flag. Nothing in this build can reach real
@@ -2472,6 +2473,14 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       backgroundIntervals.add(abandonedCartInterval);
       // Price Drop Alert: compares followed products' storefront price with the price the customer
       // followed at. No-op while storefront.price_drop_alert.enabled is off; WhatsApp has its own switch.
+      // Product review request: "رأيك في طلبك؟" a few days after delivery. No-op while
+      // storefront.product_review_request.enabled is off (the default).
+      const reviewRequestInterval = setInterval(() => {
+        void runProductReviewRequestTick().catch((error) => {
+          console.error("[server] product review request tick error", { message: error?.message || String(error) });
+        });
+      }, 15 * 60 * 1000);
+      backgroundIntervals.add(reviewRequestInterval);
       const priceDropInterval = setInterval(() => {
         void runPriceDropAlertTick().catch((error) => {
           console.error("[server] price drop alert tick error", { message: error?.message || String(error) });
@@ -2617,6 +2626,8 @@ const bootstrapStartup = async () => {
     // belongs at boot rather than in a runtime ensure, which does not run in production at all
     // (the social-comment columns were lost that way).
     await ensureProductReviewsSchema(db);
+    // Same shape: one new table, no foreign keys, no backfill.
+    await ensureReviewRequestSchema(db);
     console.log("[server] product reviews schema ensured");
     // DDL only. No backfill, no UPDATE, no role grants — a failure here would
     // process.exit(1) the whole backend, so this stays incapable of colliding

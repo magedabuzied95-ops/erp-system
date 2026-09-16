@@ -105,3 +105,27 @@ test("the product page hands its loaded reviews to the schema it rewrites", asyn
   const section = await readFile(new URL("../src/storefront/components/ProductReviews.jsx", import.meta.url), "utf8");
   assert.match(section, /if \(!offset\) onLoadedRef\.current\?\.\(\{ productId, summary: data\?\.summary \|\| null, reviews: page \}\)/);
 });
+
+test("the review request names one product, counts several, and carries the link", async () => {
+  const { buildReviewRequestMessage } = await import("../server/services/productReviewRequestService.js");
+  const one = buildReviewRequestMessage({ customerName: "Maged Abu Zied", productNames: ["Nike Air Force 1"], url: "https://m1store-egy.com/review/abc" });
+  assert.match(one.body, /^أهلاً يا Maged/);
+  assert.match(one.body, /Nike Air Force 1/);
+  assert.doesNotMatch(one.body, /Abu Zied/, "a first name to greet with, nothing more");
+  assert.equal(one.url, "https://m1store-egy.com/review/abc");
+  assert.match(one.fallbackText, /https:\/\/m1store-egy\.com\/review\/abc$/, "a text-only fallback still has the link");
+
+  const many = buildReviewRequestMessage({ customerName: "", productNames: ["A", "B", "C"], url: "u" });
+  assert.match(many.body, /^أهلاً بيك/);
+  assert.match(many.body, /\(3\)/);
+  assert.doesNotMatch(many.body, /A|B|C/);
+});
+
+test("the review request is registered with the queue and ships switched off", async () => {
+  const { WHATSAPP_AUTOMATION_TYPES, WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS } = await import("../shared/whatsappQueueDefaults.js");
+  const { getSettingDefinition } = await import("../shared/settingsRegistry.js");
+  assert.equal(WHATSAPP_AUTOMATION_TYPES.product_review_request, "engagement");
+  assert.ok(WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS.product_review_request < 24 * 60, "a missed day is not sent late");
+  assert.equal(getSettingDefinition("storefront.product_review_request.enabled").defaultValue, false);
+  assert.equal(getSettingDefinition("storefront.product_review_request.delay_days").defaultValue, 3);
+});

@@ -61,6 +61,7 @@ server/services/*
 !server/services/invoiceTemplateService.js
 !server/services/abandonedCartReminderService.js
 !server/services/productReviewsService.js
+!server/services/productReviewRequestService.js
 !server/services/storefrontPriceDropAlertService.js
 # Reporting & Analytics Center v2. `server/services/*` above ignores the whole
 # directory, so the analytics package needs its directory un-ignored before its
@@ -125,6 +126,7 @@ server/services/*
 !server/services/invoiceTemplateService.js
 !server/services/abandonedCartReminderService.js
 !server/services/productReviewsService.js
+!server/services/productReviewRequestService.js
 !server/services/storefrontPriceDropAlertService.js
 !server/services/storefrontDeliveryEstimateService.js
 !server/services/socialCommentModerationService.js

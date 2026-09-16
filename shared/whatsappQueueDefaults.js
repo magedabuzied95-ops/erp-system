@@ -63,6 +63,8 @@ export const WHATSAPP_AUTOMATION_TYPES = Object.freeze({
   thank_you: "engagement",
   abandoned_cart: "engagement",
   price_drop_alert: "engagement",
+  // "How was it?" a few days after delivery, with a button to /review/:code.
+  product_review_request: "engagement",
 });
 
 export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
@@ -81,6 +83,7 @@ export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
   thank_you: { en: "Thank you", ar: "رسالة شكر" },
   abandoned_cart: { en: "Abandoned cart", ar: "السلة المتروكة" },
   price_drop_alert: { en: "Price drop alert", ar: "تنبيه نزول السعر" },
+  product_review_request: { en: "Product review request", ar: "طلب تقييم المنتجات" },
 });
 
 /* Every placeholder the queue understands. Existing templates already use the {{token}} form. */
@@ -100,6 +103,7 @@ export const WHATSAPP_QUEUE_PLACEHOLDERS = Object.freeze([
   { token: "old_price", en: "Old price", ar: "السعر القديم" },
   { token: "new_price", en: "New price", ar: "السعر الجديد" },
   { token: "product_url", en: "Product link", ar: "رابط المنتج" },
+  { token: "review_url", en: "Product review link", ar: "رابط تقييم المنتجات" },
 ]);
 
 export const WHATSAPP_QUEUE_DEFAULTS = Object.freeze({
@@ -170,6 +174,8 @@ export const WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS = Object.freeze({
   abandoned_cart: 360,
   // Held to 10:00 through quiet hours; past lunch the same day it is still news, the next day it is not.
   price_drop_alert: 480,
+  // Same quiet-hours hold; a review ask that missed its day is simply not sent.
+  product_review_request: 480,
 });
 
 /*
