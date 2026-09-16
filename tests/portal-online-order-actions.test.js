@@ -277,3 +277,10 @@ test("the board offers both amounts and sends the whole-order scope", () => {
   assert.match(source, /"actions\.feeScopeOrder"/);
   assert.match(source, /\{ method, scope: "order_total" \}/);
 });
+
+// The method buttons pass { method } — a wrapper that dropped it reopened the same panel forever.
+test("the action bar hands the chosen payment method through to the request", () => {
+  const source = readFileSync(new URL("../src/shared/components/portalOnlineOrders/PortalOnlineOrdersBoard.jsx", import.meta.url), "utf8");
+  assert.match(source, /onAction=\{\(action, input\) => void handleAction\(action, input\)\}/);
+  assert.doesNotMatch(source, /onAction=\{\(action\) => void handleAction\(action\)\}/);
+});

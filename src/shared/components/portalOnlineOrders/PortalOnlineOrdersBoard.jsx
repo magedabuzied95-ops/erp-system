@@ -1413,7 +1413,7 @@ export default function PortalOnlineOrdersBoard({
           onRetry={() => void loadSelection(selection.order)}
           canAct={canAct}
           canShip={canShip}
-          onAction={(action) => void handleAction(action)}
+          onAction={(action, input) => void handleAction(action, input)}
           onCancelConfirm={() => patchSelection(selection.id, { confirming: "" })}
         />
       ) : null}
