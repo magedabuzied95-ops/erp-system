@@ -9947,6 +9947,10 @@ export default function AiInbox({ reviewerMode = false }) {
         onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
         customer={customerDrawer.customer}
         customerId={customerDrawer.customerId}
+        // Without the conversation the drawer's orders tab is history only: no استبدال,
+        // no parcel, no payment review - the same actions the PWA drawer already has.
+        conversation={selectedConversation}
+        onOrderNotice={(tone, message) => setToast({ tone: tone === "error" ? "rose" : "emerald", text: message })}
         context={customerDrawer.context}
         title={t("aiSupport.inbox.ui.customer360")}
         portalTarget={fullscreenOverlayTarget}

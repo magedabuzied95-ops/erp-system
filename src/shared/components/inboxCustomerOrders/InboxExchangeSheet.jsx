@@ -7,6 +7,7 @@
  * decides what the courier collects, so the number shown here is never what is charged.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeftRight, Loader2, Minus, Plus, Trash2, X } from "lucide-react";
 
 import { api } from "../../api/api";
@@ -166,7 +167,9 @@ export default function InboxExchangeSheet({
         ? "border-white/10 bg-white/[0.04] text-slate-300"
         : "border-[#E2E8F0] bg-white text-slate-600";
 
-  return (
+  // Portalled: the panel lives inside scrolling drawers, and a sheet nested there would
+  // share their stacking context instead of covering the page.
+  const sheet = (
     <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" dir="rtl">
       <div className={`flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border sm:rounded-3xl ${shell}`}>
         <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4">
@@ -314,4 +317,6 @@ export default function InboxExchangeSheet({
       </div>
     </div>
   );
+
+  return typeof document === "undefined" ? sheet : createPortal(sheet, document.body);
 }
