@@ -6,6 +6,7 @@ import db from "../database/db.js";
 import { adjustVariantStock } from "../services/inventoryService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
 import { sendManagerInvoiceCreatedPush } from "../services/managerPortalPushService.js";
+import { notifyEmployeesOfNewWebOrder } from "../modules/shipping/portalNewOrderPush.js";
 import { syncDeliveryOrderFavorite } from "../services/deliveryOrderFavoriteService.js";
 import { rematchWalletTransfersForOrder } from "../modules/walletTransfers/walletTransfers.service.js";
 import {
@@ -6447,6 +6448,16 @@ export const createWebsiteOrder = async (req, res) => {
       orderId: order?.id,
       message: error?.message || String(error),
     }));
+    // Only a customer's own website checkout rings the employee portal; a POS
+    // online order was typed by staff who already know about it.
+    if (!posOnlineOrder) {
+      void notifyEmployeesOfNewWebOrder({
+        order: { ...order, tenant_id: tenantId, customer_name: checkout.full_name, total_amount: total },
+      }).catch((error) => console.warn("[portal-new-order-push] storefront skipped", {
+        orderId: order?.id,
+        message: error?.message || String(error),
+      }));
+    }
     // Website and POS-online orders both land here. `shipping_method` decides it:
     // a store-pickup order never stars anything.
     void syncDeliveryOrderFavorite({
