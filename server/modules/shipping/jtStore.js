@@ -106,11 +106,11 @@ export const applyJtCallbackEvent = async (event, database = db, environment = "
       VALUES ($1, $2, $3, $4) ON CONFLICT (event_key) DO NOTHING RETURNING id`,
     [shipment.id, event.eventKey, event.scanType, event.eventTime]);
     if (!inserted.rows.length) { await client.query("COMMIT"); return { found: true, duplicate: true }; }
-    const update = await client.query(`UPDATE jt_shipments SET bill_code = COALESCE(bill_code, NULLIF($2, '')),
-        jt_order_status = $3, shipping_status = $4, last_event_time = $5,
+    const update = await client.query(`UPDATE jt_shipments SET bill_code = COALESCE(bill_code, NULLIF($2::varchar, '')),
+        jt_order_status = $3::varchar, shipping_status = $4::varchar, last_event_time = $5::timestamp,
         last_callback_at = CURRENT_TIMESTAMP,
-        cancelled_at = CASE WHEN $4 = 'cancelled' THEN CURRENT_TIMESTAMP ELSE cancelled_at END,
-        updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND (last_event_time IS NULL OR last_event_time <= $5)`,
+        cancelled_at = CASE WHEN $4::varchar = 'cancelled' THEN CURRENT_TIMESTAMP ELSE cancelled_at END,
+        updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND (last_event_time IS NULL OR last_event_time <= $5::timestamp)`,
       [shipment.id, event.billCode, event.scanType, event.shippingStatus, event.eventTime]);
     if (update.rowCount > 0) {
       if (environment === "production" && shipment.order_id) {
