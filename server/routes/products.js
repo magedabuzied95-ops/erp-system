@@ -3,6 +3,7 @@ import db from "../database/db.js";
 import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import { previewProductPurge, purgeProduct } from "../controllers/productPurgeController.js";
+import { getProductLifecycle, getProductLifecycleEvents } from "../controllers/productLifecycleController.js";
 import {
   createProduct,
   createVariant,
@@ -199,6 +200,8 @@ router.get("/color-names", protect, permit("products", "view"), getProductColorN
 router.get("/by-size", protect, permit("products", "view"), getProductsBySize);
 router.get("/:id/full", protect, permit("products", "view"), getProductFull);
 router.get("/:id/color-usage", protect, permit("products", "view"), getProductColorUsage);
+router.get("/:id/lifecycle", protect, permit("products", "view"), getProductLifecycle);
+router.get("/:id/lifecycle/events", protect, permit("products", "view"), getProductLifecycleEvents);
 router.get("/qr/:token", protect, permit("products", "view"), getProductByQrToken);
 // A local open model on the CPU needs longer than the 60 s global request
 // window. No callback: the global timeout handler stays registered and fires at

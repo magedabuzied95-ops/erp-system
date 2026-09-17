@@ -495,6 +495,27 @@ export const deleteProduct = async (id) => api.delete(`/products/${id}`);
  */
 export const getProductPurgePreview = async (id) => api.get(`/products/${id}/purge-preview`, { timeoutMs: 60000 });
 
+/**
+ * The product history dialog: header, per colour/size rows and the first page of
+ * the timeline. `getProductLifecycleEvents` pages the timeline on its own.
+ * Filters: kind (created,purchase,sale,movement), color, size, limit, offset.
+ */
+const lifecycleQuery = (filters = {}) => {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === "") return;
+    params.set(key, Array.isArray(value) ? value.join(",") : String(value));
+  });
+  const text = params.toString();
+  return text ? `?${text}` : "";
+};
+
+export const getProductLifecycle = async (id, filters = {}) =>
+  api.get(`/products/${encodeURIComponent(id)}/lifecycle${lifecycleQuery(filters)}`, { timeoutMs: 30000 });
+
+export const getProductLifecycleEvents = async (id, filters = {}) =>
+  api.get(`/products/${encodeURIComponent(id)}/lifecycle/events${lifecycleQuery(filters)}`, { timeoutMs: 30000 });
+
 export const purgeProductFromDatabase = async (id, confirm) =>
   api.delete(`/products/${id}/purge`, { body: { confirm }, timeoutMs: 120000 });
 

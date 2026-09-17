@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Link, useNavigate } from "react-router-dom";
@@ -42,6 +42,7 @@ import { canViewCostPrices, hasPermission } from "../../permissions/lib/rbacStor
 
 import ProductsShell from "../components/ProductsShell";
 import PurgeProductDialog from "../components/PurgeProductDialog";
+import ProductLifecycleDialog from "../components/ProductLifecycleDialog";
 import { addProductsToPrintList } from "../lib/productPrintList";
 
 import { useProductClassifications } from "../hooks/useProductClassifications";
@@ -1212,7 +1213,35 @@ function ColorPreviewImage({ src, alt }) {
   );
 }
 
+// The thumbnail sits inside the row button that opens the product, so it cannot be a
+// <button> itself; it opens the history dialog and stops the row from seeing the click.
+const ProductHistoryContext = createContext(null);
+
+const historyTriggerProps = (openHistory, row, label) =>
+  openHistory
+    ? {
+        role: "button",
+        tabIndex: 0,
+        "aria-label": label,
+        title: label,
+        onClick: (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openHistory(row);
+        },
+        onKeyDown: (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          event.stopPropagation();
+          openHistory(row);
+        },
+      }
+    : {};
+
 const ProductThumbnail = memo(function ProductThumbnail({ row }) {
+  const { t } = useTranslation();
+  const openHistory = useContext(ProductHistoryContext);
+  const historyProps = historyTriggerProps(openHistory, row, t("products.lifecycle.open"));
   const src = getProductThumbnail(row);
   const [colorPreviews, setColorPreviews] = useState(() => getProductColorPreviews(row));
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -1282,7 +1311,7 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
 
   if (!src) {
     return (
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
+      <div {...historyProps} className="flex h-20 w-20 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-card)] border border-border bg-surface-soft text-text-muted">
         <Package2 size={26} />
       </div>
     );
@@ -1295,8 +1324,9 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
   if (loadFailed) {
     return (
       <div
+        {...historyProps}
         title={`الصورة غير موجودة على السيرفر: ${src}`}
-        className="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
+        className="flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[var(--radius-card)] border border-red-300/30 bg-red-500/10 text-red-200"
       >
         <ImageOff size={22} />
         <span className="text-[8px] font-black leading-none">مفقودة</span>
@@ -1314,7 +1344,9 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
         onError={() => setLoadFailed(true)}
         onMouseEnter={showColorPreviews}
         onMouseLeave={hideColorPreviews}
-        className="h-20 w-20 shrink-0 cursor-zoom-in rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
+        {...historyProps}
+        onClick={historyProps.onClick ? (event) => { hideColorPreviews(); historyProps.onClick(event); } : undefined}
+        className="h-20 w-20 shrink-0 cursor-pointer rounded-[var(--radius-card)] border border-border bg-surface-soft object-cover"
       />
       {previewPosition && typeof document !== "undefined" ? createPortal(
         <div
@@ -2007,6 +2039,9 @@ function ProductsList() {
   const [priceEditorProduct, setPriceEditorProduct] = useState(null);
   const [statusActionProduct, setStatusActionProduct] = useState(null);
   const [purgeTargetProduct, setPurgeTargetProduct] = useState(null);
+  const [historyProduct, setHistoryProduct] = useState(null);
+  const openProductHistory = useCallback((row) => setHistoryProduct(row || null), []);
+  const closeProductHistory = useCallback(() => setHistoryProduct(null), []);
   const [marketingEditorOpen, setMarketingEditorOpen] = useState(false);
   const [marketingEditorPost, setMarketingEditorPost] = useState(null);
   const [marketingSaving, setMarketingSaving] = useState(false);
@@ -3173,6 +3208,7 @@ function ProductsList() {
   };
 
   return (
+    <ProductHistoryContext.Provider value={openProductHistory}>
     <ProductsShell
       title={t("products.title")}
       description={t("products.description")}
@@ -3893,6 +3929,10 @@ function ProductsList() {
         </div>
       ) : null}
 
+      {historyProduct ? (
+        <ProductLifecycleDialog product={historyProduct} onClose={closeProductHistory} />
+      ) : null}
+
       {purgeTargetProduct && canPurgeProducts ? (
         <PurgeProductDialog
           product={purgeTargetProduct}
@@ -3937,6 +3977,7 @@ function ProductsList() {
         t={t}
       />
     </ProductsShell>
+    </ProductHistoryContext.Provider>
   );
 }
 

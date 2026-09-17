@@ -421,6 +421,39 @@ const toPriceValue = (value, { nullable = false } = {}) => {
   return parsed;
 };
 
+// product_variants has no created_by, so the lifecycle dialog reads who added a
+// colour/size from this row. A savepoint keeps a failed audit insert from
+// aborting the product save's transaction.
+const insertVariantsCreatedAuditLog = async (client, { tenantId, userId, productId, variants = [] }) => {
+  const rows = (Array.isArray(variants) ? variants : []).filter((row) => Number(row?.id) > 0);
+  if (!rows.length || !userId) return;
+  try {
+    if (!(await tableExists(client, "audit_logs"))) return;
+    await client.query("SAVEPOINT variants_created_audit");
+    try {
+      await client.query(
+        `INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details)
+         VALUES ($1, $2, 'product.variants_created', 'product', $3, $4::jsonb)`,
+        [
+          tenantId || null,
+          userId,
+          productId,
+          JSON.stringify({
+            variant_ids: rows.map((row) => Number(row.id)),
+            variants: rows.map((row) => ({ id: Number(row.id), color: row.color || "", size: row.size || "" })),
+          }),
+        ]
+      );
+      await client.query("RELEASE SAVEPOINT variants_created_audit");
+    } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT variants_created_audit");
+      throw error;
+    }
+  } catch (error) {
+    console.warn("[products:variants-created] audit log skipped", { productId, message: error.message });
+  }
+};
+
 const insertProductPriceAuditLog = async (client, { tenantId, userId, productId, details }) => {
   try {
     if (!(await tableExists(client, "audit_logs"))) return;
@@ -2856,7 +2889,7 @@ const assertVariantSkuBarcodeAvailableFromContext = (context, { productId, varia
   });
 };
 
-const insertProductVariant = async (client, { productId, tenantId, variant, skuPrefix = "", reservedSkus = new Set(), saveContext = null }) => {
+const insertProductVariant = async (client, { productId, tenantId, variant, userId = null, skuPrefix = "", reservedSkus = new Set(), saveContext = null }) => {
   if (!tenantId) {
     throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
   }
@@ -2946,6 +2979,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
   // The row now exists, so later variants in this same save must see it as an owner —
   // the query-per-variant version saw it because it re-read the table each time.
   if (saveContext) registerCreatedVariant(saveContext, { variant: createdVariant, productId });
+  await insertVariantsCreatedAuditLog(client, { tenantId, userId, productId, variants: [createdVariant] });
   console.log("[product-save] persisted variant image", {
     productId,
     variantId: createdVariant.id,
@@ -5849,6 +5883,12 @@ export const createProduct = async (req, res) => {
       tenantId,
       productId,
       variants: preparedVariants,
+    });
+    await insertVariantsCreatedAuditLog(client, {
+      tenantId,
+      userId: req.user?.id ?? null,
+      productId,
+      variants: insertedVariants,
     });
     console.log("[pricing-sync] calling from product create", {
       productId,
