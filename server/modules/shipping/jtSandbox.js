@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 // This module is deliberately sandbox-only. No caller can supply a base URL.
 const BASE_URL = "https://demoopenapi.jtjms-eg.com/webopenplatformapi/api";
+const PRODUCTION_URL = "https://openapi.jtjms-eg.com/webopenplatformapi/api";
 const PATHS = Object.freeze({
   create: "/order/addOrder",
   query: "/order/getOrders",
@@ -37,13 +38,19 @@ export const jtBusinessDigest = ({ customerCode, customerPassword, privateKey })
 // still sent as a separate millisecond header. This was verified against demo.
 export const jtHeaderDigest = (bizContent, privateKey) => digest(`${bizContent}${privateKey}`);
 
-export const jtSandboxRequest = async (operation, fields, { env = process.env, fetchImpl = fetch } = {}) => {
-  const config = jtSandboxConfig(env);
+export const jtSignedRequest = async (operation, fields, { config, baseUrl = BASE_URL, fetchImpl = fetch } = {}) => {
+  if (![BASE_URL, PRODUCTION_URL].includes(baseUrl)) throw Object.assign(new Error("J&T host is not allowed"), { status: 400, code: "JT_UNSAFE_HOST" });
+  if (baseUrl === PRODUCTION_URL && config?.environment !== "production") throw Object.assign(new Error("J&T production is locked"), { status: 503, code: "JT_PRODUCTION_LOCKED" });
+  if (!config?.apiAccount || !config?.privateKey) throw Object.assign(new Error("J&T credentials missing"), { status: 503, code: "JT_NOT_CONFIGURED" });
   const path = PATHS[operation];
   if (!path) throw Object.assign(new Error("Unsupported J&T operation"), { status: 400, code: "JT_INVALID_OPERATION" });
   const bizContent = JSON.stringify(fields);
   const timestamp = String(Date.now());
-  const response = await fetchImpl(`${BASE_URL}${path}`, {
+  let response;
+  const maxAttempts = ["query", "trace", "label"].includes(operation) ? 2 : 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      response = await fetchImpl(`${baseUrl}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -53,7 +60,14 @@ export const jtSandboxRequest = async (operation, fields, { env = process.env, f
     },
     body: new URLSearchParams({ bizContent }),
     signal: AbortSignal.timeout(30000),
-  });
+      });
+    } catch (cause) {
+      if (attempt < maxAttempts) continue;
+      throw Object.assign(new Error("J&T network request failed"), { status: 502, code: "JT_NETWORK_ERROR", ambiguous: operation === "create", cause });
+    }
+    if (response.status >= 500 && attempt < maxAttempts) continue;
+    break;
+  }
   const raw = await response.text();
   let result;
   try { result = JSON.parse(raw); } catch { result = null; }
@@ -70,6 +84,9 @@ export const jtSandboxRequest = async (operation, fields, { env = process.env, f
   }
   return { httpStatus: response.status, code: clean(result.code), msg: clean(result.msg), data: result.data };
 };
+
+export const jtSandboxRequest = (operation, fields, { env = process.env, fetchImpl = fetch } = {}) =>
+  jtSignedRequest(operation, fields, { config: jtSandboxConfig(env), baseUrl: BASE_URL, fetchImpl });
 
 export const jtSandboxFields = (config) => ({
   customerCode: config.customerCode,

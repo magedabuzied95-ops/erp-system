@@ -43,6 +43,7 @@ import OrdersShell from "../components/OrdersShell";
 import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
+import JtShippingPanel from "../components/JtShippingPanel.jsx";
 import { IdentityAlertCard } from "../components/IdentityAlert.jsx";
 import BostaShipmentInsights, { BostaFeeEstimate } from "../components/BostaShipmentInsights.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
@@ -1961,6 +1962,7 @@ function OrderDetails() {
               ) : null}
             </div>
 
+            <JtShippingPanel orderId={order.id} />
             <details className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
               <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">{t("orders.shipping.timeline", "Shipment timeline")}</summary>
               <div className="mt-3 grid gap-2 border-t border-white/10 pt-3">

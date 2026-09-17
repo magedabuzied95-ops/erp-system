@@ -1,7 +1,8 @@
 import express from "express";
-import { protect } from "../../middleware/authMiddleware.js";
+import { protect, requireAdmin } from "../../middleware/authMiddleware.js";
 import permit from "../../middleware/permissionMiddleware.js";
 import { jtSandboxCancel, jtSandboxCreate, jtSandboxLabel, jtSandboxQuery, jtSandboxStatus, jtSandboxTrace } from "./jtSandbox.controller.js";
+import { handleJtCallback } from "./jtCallback.controller.js";
 import {
   bulkShippingCenterActionController,
   getShippingCenter,
@@ -36,12 +37,14 @@ import {
 
 const router = express.Router();
 
-router.get("/jt/sandbox/status", protect, permit("settings", "view"), jtSandboxStatus);
-router.post("/jt/sandbox/orders", protect, permit("settings", "edit"), jtSandboxCreate);
-router.post("/jt/sandbox/orders/query", protect, permit("settings", "view"), jtSandboxQuery);
-router.post("/jt/sandbox/orders/cancel", protect, permit("settings", "edit"), jtSandboxCancel);
-router.post("/jt/sandbox/trace", protect, permit("settings", "view"), jtSandboxTrace);
-router.post("/jt/sandbox/label", protect, permit("settings", "view"), jtSandboxLabel);
+router.post("/jt/callback", express.urlencoded({ extended: false, limit: "64kb" }), handleJtCallback);
+
+router.get("/jt/sandbox/status", protect, requireAdmin, jtSandboxStatus);
+router.post("/jt/sandbox/orders", protect, requireAdmin, jtSandboxCreate);
+router.post("/jt/sandbox/orders/query", protect, requireAdmin, jtSandboxQuery);
+router.post("/jt/sandbox/orders/cancel", protect, requireAdmin, jtSandboxCancel);
+router.post("/jt/sandbox/trace", protect, requireAdmin, jtSandboxTrace);
+router.post("/jt/sandbox/label", protect, requireAdmin, jtSandboxLabel);
 
 router.get("/center", protect, permit("orders", "view"), getShippingCenter);
 router.get("/center/summary", protect, permit("orders", "view"), getShippingCenterSummaryController);

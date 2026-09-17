@@ -1,6 +1,6 @@
 import express from "express";
 
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, requireAdmin } from "../middleware/authMiddleware.js";
 
 import permit from "../middleware/permissionMiddleware.js";
 import paymentProofUpload from "../config/paymentProofUpload.js";
@@ -14,6 +14,8 @@ import {
 } from "../modules/shipping/shipping.controller.js";
 import { createOnlineExchangeController } from "../modules/orders/onlineExchange.js";
 import { blockMarketplaceOrderMutations } from "../modules/amazon/amazonOrderGuards.js";
+import { getOrderJtStatus, createOrderJtShipment, queryOrderJtShipment, trackOrderJtShipment, printOrderJtLabel, cancelOrderJtShipment } from "../modules/shipping/jtAdmin.controller.js";
+import { createRequestRateLimit } from "../utils/requestRateLimit.js";
 import {
   getOrderIdentityAlertLevelsController,
   getOrderIdentityAlertsController,
@@ -50,6 +52,14 @@ import {
 } from "../controllers/ordersController.js";
 
 const router = express.Router();
+const jtAdminLimit = createRequestRateLimit({ windowMs: 60_000, max: 20, keysOf: (req) => [`jt-admin:${req.user?.id || req.ip}`] });
+
+router.get("/:id/shipping/jt", protect, requireAdmin, jtAdminLimit, getOrderJtStatus);
+router.post("/:id/shipping/jt/create", protect, requireAdmin, jtAdminLimit, createOrderJtShipment);
+router.post("/:id/shipping/jt/query", protect, requireAdmin, jtAdminLimit, queryOrderJtShipment);
+router.post("/:id/shipping/jt/track", protect, requireAdmin, jtAdminLimit, trackOrderJtShipment);
+router.post("/:id/shipping/jt/label", protect, requireAdmin, jtAdminLimit, printOrderJtLabel);
+router.post("/:id/shipping/jt/cancel", protect, requireAdmin, jtAdminLimit, cancelOrderJtShipment);
 
 // Amazon orders are managed in Seller Central: every write under /:id is refused for them.
 router.use("/:id", blockMarketplaceOrderMutations());

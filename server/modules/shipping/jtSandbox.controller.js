@@ -1,4 +1,5 @@
 import { jtSandboxConfig, jtSandboxFields, jtSandboxId, jtSandboxRequest } from "./jtSandbox.js";
+import { markJtSandboxCancelled, recordJtSandboxCreate } from "./jtStore.js";
 
 const text = (value) => String(value ?? "").trim();
 const validId = (value) => /^[A-Za-z0-9_-]{1,50}$/.test(text(value));
@@ -38,6 +39,7 @@ export const jtSandboxCreate = run(async (_req, res) => {
     totalQuantity: 1,
     operateType: 1,
   });
+  await recordJtSandboxCreate({ txlogisticId, billCode: result.data?.billCode, sortingCode: result.data?.sortingCode });
   return res.json({ success: true, mode: "sandbox", code: result.code, msg: result.msg, txlogisticId: result.data?.txlogisticId || txlogisticId, billCode: result.data?.billCode || null, sortingCode: result.data?.sortingCode || null });
 });
 
@@ -50,6 +52,7 @@ export const jtSandboxQuery = run(async (req, res) => {
 export const jtSandboxCancel = run(async (req, res) => {
   if (!/^M1SB\d{13}[A-F0-9]{8}$/.test(text(req.body?.txlogisticId))) return res.status(400).json({ success: false, code: "JT_NOT_OUR_SANDBOX_ID" });
   const result = await jtSandboxRequest("cancel", { txlogisticId: text(req.body.txlogisticId), orderType: 2, reason: "Sandbox test cancellation", ...jtSandboxFields(jtSandboxConfig()) });
+  await markJtSandboxCancelled(text(req.body.txlogisticId));
   return res.json({ success: true, mode: "sandbox", code: result.code, msg: result.msg, data: result.data });
 });
 
