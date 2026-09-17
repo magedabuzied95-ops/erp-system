@@ -4,6 +4,7 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
+import { countedLatePermissions, loadAttendancePolicy, resolveLateDay } from "../utils/attendancePolicy.js";
 import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
@@ -362,8 +363,11 @@ const calculateApprovedOvertimePayrollImpactForEmployee = async ({
   }
 };
 
-const loadApprovedLatePermissionMap = async ({ tenantId = null, employeeId, periodStart, periodEnd } = {}) => {
+// Every approved permission from the first of the period's month, in request
+// order, so the monthly quota counts the ones granted before the period began.
+const loadApprovedLatePermissions = async ({ tenantId = null, employeeId, periodStart, periodEnd } = {}) => {
   try {
+    const monthStart = `${dateKey(periodStart).slice(0, 7)}-01`;
     const result = await db.query(
       `
       SELECT request_date, COALESCE(amount, 0)::numeric AS allowed_minutes
@@ -373,22 +377,25 @@ const loadApprovedLatePermissionMap = async ({ tenantId = null, employeeId, peri
         AND LOWER(COALESCE(request_type, '')) IN ('late_permission', 'late', 'lateness_permission')
         AND LOWER(COALESCE(status, 'pending')) = 'approved'
         AND request_date BETWEEN $3::date AND $4::date
+        -- The branch opener may never be excused for lateness.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM employee_shift_schedules ss
+          WHERE ss.employee_id::text = employee_portal_requests.employee_id::text
+            AND ss.work_date = employee_portal_requests.request_date
+            AND ss.shift_type = 'opening'
+            AND LOWER(COALESCE(ss.status, 'scheduled')) <> 'cancelled'
+        )
       ORDER BY request_date ASC, id ASC
       `,
-      [tenantId, employeeId, periodStart, periodEnd]
+      [tenantId, employeeId, monthStart, periodEnd]
     );
-    const permissionByDate = new Map();
-    result.rows.forEach((row) => {
-      const key = dateKey(row.request_date);
-      if (!key) return;
-      const minutes = toNumber(row.allowed_minutes);
-      const previous = permissionByDate.get(key);
-      permissionByDate.set(key, previous === undefined ? minutes : Math.max(previous, minutes));
-    });
-    return permissionByDate;
+    return result.rows
+      .map((row) => ({ date: dateKey(row.request_date), minutes: toNumber(row.allowed_minutes) }))
+      .filter((row) => row.date);
   } catch (error) {
     console.warn("[payroll] late permissions skipped", error.message);
-    return new Map();
+    return [];
   }
 };
 
@@ -809,12 +816,14 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const lateEnabled = employee.late_deduction_enabled !== false;
   const earlyEnabled = employee.early_leave_deduction_enabled !== false;
 
-  const [holidayDates, leaveDates, vacationDates, latePermissionByDate] = await Promise.all([
+  const [holidayDates, leaveDates, vacationDates, approvedLatePermissions, policy] = await Promise.all([
     safeDateSetFromTable({ tableName: "holidays", dateColumn: "holiday_date", tenantId, periodStart, periodEnd }),
     safeDateSetFromTable({ tableName: "employee_leaves", dateColumn: "leave_date", startColumn: "start_date", endColumn: "end_date", tenantId, employeeId, periodStart, periodEnd, statusValues: ["approved"] }),
     safeDateSetFromTable({ tableName: "employee_vacations", dateColumn: "vacation_date", startColumn: "start_date", endColumn: "end_date", tenantId, employeeId, periodStart, periodEnd, statusValues: ["approved"] }),
-    loadApprovedLatePermissionMap({ tenantId, employeeId, periodStart, periodEnd }),
+    loadApprovedLatePermissions({ tenantId, employeeId, periodStart, periodEnd }),
+    loadAttendancePolicy(db, tenantId ?? employee?.tenant_id ?? null),
   ]);
+  const latePermissionByDate = countedLatePermissions(approvedLatePermissions, policy);
 
   const periodDates = eachDateKey(periodStart, periodEnd);
   const approvedExcludedDates = new Set([...holidayDates, ...leaveDates, ...vacationDates].filter((item) => periodDates.includes(item)));
@@ -850,6 +859,15 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
         END
       ))::numeric AS work_minutes,
       MAX(COALESCE(late_minutes, 0))::numeric AS late_minutes,
+      -- late_minutes is stored net of the shift's own allowance; the policy
+      -- threshold is measured from the shift start, so add it back.
+      MAX(CASE
+        WHEN COALESCE(late_minutes, 0) > 0
+          THEN COALESCE(late_minutes, 0) + COALESCE((
+            SELECT s.allowed_late_minutes FROM employee_shifts s WHERE s.id = attendance_logs.shift_id
+          ), 0)
+        ELSE 0
+      END)::numeric AS late_from_start_minutes,
       MAX(COALESCE(early_leave_minutes, 0))::numeric AS early_leave_minutes,
       MIN(COALESCE(check_in_at, check_in)) AS first_check_in,
       MAX(COALESCE(check_out_at, check_out)) AS last_check_out
@@ -889,6 +907,9 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   let earlyLeaveHours = 0;
   let attendedDays = 0;
   let approvedLatePermissionMinutes = 0;
+  let latePenaltyDays = 0;
+  let latePenalizedDays = 0;
+  let latePermissionDaysUsed = 0;
 
   expectedDates.forEach((item) => {
     const row = attendanceByDate.get(item);
@@ -902,12 +923,23 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     const scheduledEnd = combineDateTime(item, employee.work_end_time);
     const fallbackLate = scheduledStart && row.first_check_in ? hoursBetween(scheduledStart, row.first_check_in) : 0;
     const fallbackEarly = scheduledEnd && row.last_check_out ? hoursBetween(row.last_check_out, scheduledEnd) : 0;
-    const rawLateMinutes = lateEnabled ? Math.max(toNumber(row.late_minutes), fallbackLate * 60, 0) : 0;
-    const permittedMinutes = latePermissionByDate.has(item)
-      ? (toNumber(latePermissionByDate.get(item)) > 0 ? Math.min(rawLateMinutes, toNumber(latePermissionByDate.get(item))) : rawLateMinutes)
+    const rawLateMinutes = lateEnabled
+      ? Math.max(toNumber(row.late_from_start_minutes), toNumber(row.late_minutes), fallbackLate * 60, 0)
       : 0;
-    approvedLatePermissionMinutes += permittedMinutes;
-    const late = Math.max(0, rawLateMinutes - permittedMinutes) / 60;
+    const lateDay = resolveLateDay({
+      lateMinutes: rawLateMinutes,
+      permissionMinutes: latePermissionByDate.has(item) ? latePermissionByDate.get(item) : null,
+      policy,
+    });
+    if (lateDay.covered_minutes > 0) latePermissionDaysUsed += 1;
+    approvedLatePermissionMinutes += lateDay.covered_minutes;
+    if (lateDay.penalized) {
+      latePenalizedDays += 1;
+      latePenaltyDays += lateDay.penalty_days;
+    }
+    // The whole lateness stays out of the missing-hours shortfall: the policy
+    // prices it per day, not per hour.
+    const late = rawLateMinutes / 60;
     const early = earlyEnabled ? Math.max(toNumber(row.early_leave_minutes) / 60, fallbackEarly, 0) : 0;
     const shortfall = Math.max(0, dailyWorkHours - workedHours);
     const explicitShortfall = late + early;
@@ -958,9 +990,10 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     }),
   ]);
 
-  const absenceDeduction = absenceDays * dailyRate;
+  const absencePenaltyDays = absenceDays * policy.absence_penalty_days;
+  const absenceDeduction = absencePenaltyDays * dailyRate;
   const missingHoursDeduction = missingHours * hourlyRate;
-  const lateDeduction = lateHours * hourlyRate;
+  const lateDeduction = latePenaltyDays * dailyRate;
   const earlyLeaveDeduction = earlyLeaveHours * hourlyRate;
   const leaveDeduction = toNumber(leavePayrollImpact.leave_deduction);
   const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction + leaveDeduction;
@@ -1001,8 +1034,12 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     approved_overtime_minutes: toNumber(approvedOvertimeImpact.approved_overtime_minutes),
     approved_overtime_hours: toNumber(approvedOvertimeImpact.approved_overtime_hours),
     approved_overtime_pay: toNumber(approvedOvertimeImpact.approved_overtime_pay),
-    late_permission_days: latePermissionByDate.size,
+    late_permission_days: latePermissionDaysUsed,
     late_permission_minutes: Number(approvedLatePermissionMinutes.toFixed(2)),
+    late_penalized_days: latePenalizedDays,
+    late_penalty_days: Number(latePenaltyDays.toFixed(2)),
+    absence_penalty_days: Number(absencePenaltyDays.toFixed(2)),
+    attendance_policy: policy,
     missing_attendance_dates: missingAttendanceDates,
     open_attendance_logs: openAttendanceLogs,
   };

@@ -43,6 +43,7 @@ import {
   Printer,
   X,
   PhoneCall,
+  ScrollText,
 } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
@@ -78,6 +79,7 @@ import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmpl
 import { useEmployeePortalArabic } from "../lib/employeePortalLanguage";
 import { getEmployeePortalInboxAccess } from "../services/employeePortalInboxApi";
 import EmployeeDisplayAuditPanel from "../components/EmployeeDisplayAuditPanel";
+import AttendanceRulesPanel from "../components/AttendanceRulesPanel";
 import { getEmployeeSalesOpportunities, getEmployeeSalesBoard } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
@@ -1606,6 +1608,7 @@ export default function EmployeePayrollPortal() {
     const [requestSaving, setRequestSaving] = useState(false);
     const [showAllRequests, setShowAllRequests] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
+  const [rulesOpen, setRulesOpen] = useState(false);
   const employeePortalTitles = {
     home: "Employee Portal",
     attendance: "Employee Attendance",
@@ -3753,6 +3756,10 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  const latePermissionBalance = portal?.attendance_policy?.balances || null;
+  const latePermissionMaxMinutes = Number(portal?.attendance_policy?.rules?.late_permission_max_minutes) || 120;
+  const latePermissionThreshold = Number(portal?.attendance_policy?.rules?.late_threshold_minutes) || 30;
+
   const submitRequest = async (event) => {
     event.preventDefault();
     const startedAt = safeNow();
@@ -3850,6 +3857,18 @@ export default function EmployeePayrollPortal() {
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <span>{ui("employeeDashboard")}</span>
           </div>
+          <div className="flex items-center gap-2">
+          {portal ? (
+            <button
+              type="button"
+              onClick={() => setRulesOpen(true)}
+              data-testid="attendance-rules-open"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            >
+              <ScrollText className="h-4 w-4 shrink-0" />
+              <span>{i18n.t("employeePortal.rules.open", { lng: language })}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
@@ -3859,7 +3878,15 @@ export default function EmployeePayrollPortal() {
           >
             {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
+          </div>
         </header>
+        <AttendanceRulesPanel
+          open={rulesOpen}
+          onClose={() => setRulesOpen(false)}
+          policy={portal?.attendance_policy}
+          isArabic={language === "ar"}
+          direction={direction}
+        />
 
         {!portal && loading ? (
           <div className="mt-4 grid gap-3">
@@ -4886,7 +4913,16 @@ export default function EmployeePayrollPortal() {
                   </>
                 ) : null}
                 {requestType === "late_permission" ? (
-                  <input value={requestMinutes} onChange={(event) => setRequestMinutes(event.target.value)} type="number" inputMode="numeric" min="0" max="600" step="1" placeholder={ui("lateMinutes")} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                  <>
+                    {latePermissionBalance ? (
+                      <div data-testid="late-permission-balance" className={`rounded-2xl px-3 py-2 text-xs font-black leading-5 ${latePermissionBalance.late_permissions_left > 0 ? "bg-primary-subtle text-primary" : "bg-red-50 text-red-700"}`}>
+                        {latePermissionBalance.late_permissions_left > 0
+                          ? i18n.t("employeePortal.rules.permissionsLeft", { lng: language, left: latePermissionBalance.late_permissions_left, total: latePermissionBalance.late_permissions_total, minutes: latePermissionMaxMinutes })
+                          : i18n.t("employeePortal.rules.permissionsUsed", { lng: language, total: latePermissionBalance.late_permissions_total, threshold: latePermissionThreshold })}
+                      </div>
+                    ) : null}
+                    <input value={requestMinutes} onChange={(event) => setRequestMinutes(event.target.value)} type="number" inputMode="numeric" min="0" max={latePermissionMaxMinutes} step="1" placeholder={`${ui("lateMinutes")} (${latePermissionMaxMinutes})`} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                  </>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
                   <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
@@ -4896,7 +4932,7 @@ export default function EmployeePayrollPortal() {
                 </div>
                 <textarea value={requestMessage} onChange={(event) => setRequestMessage(event.target.value)} placeholder={text.message} className="min-h-24 rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold outline-none" dir="auto" />
               </div>
-              <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount)} className="mt-3 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
+              <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount) || (requestType === "late_permission" && latePermissionBalance?.late_permissions_left === 0)} className="mt-3 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
                 {requestSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                 {text.sendRequest}
               </button>

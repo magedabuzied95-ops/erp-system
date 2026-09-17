@@ -507,6 +507,7 @@ function NativeSelect(props) {
 }
 
 function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
+  const { t } = useTranslation();
   const values = settings || {
     require_next_opening_on_pos_close: true,
     grace_minutes: 10,
@@ -548,7 +549,19 @@ function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
 
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Field label={isArabic ? "سماحية التأخير بالدقائق" : "Late grace minutes"}>
-          <NativeInput type="number" min="0" value={values.grace_minutes ?? 10} onChange={(event) => onChange("grace_minutes", Number(event.target.value || 0))} />
+          <NativeInput type="number" min="0" value={values.late_threshold_minutes ?? values.grace_minutes ?? 30} onChange={(event) => onChange("late_threshold_minutes", Number(event.target.value || 0))} />
+        </Field>
+        <Field label={t("attendance.center.policy.latePenaltyDays")}>
+          <NativeInput type="number" min="0" step="0.25" value={values.late_penalty_days ?? 0.5} onChange={(event) => onChange("late_penalty_days", Number(event.target.value || 0))} />
+        </Field>
+        <Field label={t("attendance.center.policy.monthlyLatePermissions")}>
+          <NativeInput type="number" min="0" value={values.monthly_late_permissions ?? 2} onChange={(event) => onChange("monthly_late_permissions", Number(event.target.value || 0))} />
+        </Field>
+        <Field label={t("attendance.center.policy.latePermissionMaxMinutes")}>
+          <NativeInput type="number" min="0" value={values.late_permission_max_minutes ?? 120} onChange={(event) => onChange("late_permission_max_minutes", Number(event.target.value || 0))} />
+        </Field>
+        <Field label={t("attendance.center.policy.absencePenaltyDays")}>
+          <NativeInput type="number" min="0" step="0.5" value={values.absence_penalty_days ?? 2} onChange={(event) => onChange("absence_penalty_days", Number(event.target.value || 0))} />
         </Field>
         <Field label={isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"}>
           <NativeInput type="number" min="0" value={values.monthly_paid_leave_days ?? 3} onChange={(event) => onChange("monthly_paid_leave_days", Number(event.target.value || 0))} />

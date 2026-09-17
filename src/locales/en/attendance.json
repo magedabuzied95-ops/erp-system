@@ -62,7 +62,13 @@
     "sectionSchedules": "Schedules",
     "sectionQr": "QR sessions",
     "sectionReports": "Reports",
-    "sectionHrSettings": "HR settings"
+    "sectionHrSettings": "HR settings",
+    "policy": {
+      "latePenaltyDays": "Late penalty after the grace (days)",
+      "monthlyLatePermissions": "Late permissions per month",
+      "latePermissionMaxMinutes": "Max permission minutes",
+      "absencePenaltyDays": "Unexcused absence penalty (days)"
+    }
   },
   "public": {
     "attendance": "Attendance",

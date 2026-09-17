@@ -14,6 +14,7 @@ import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "../services
 import { listEligibleOpeningEmployees, assignNextOpeningEmployee, getDefaultOpeningWorkDate } from "../services/openingShiftService.js";
 import { generateOpeningShiftSchedule } from "../services/shiftScheduleService.js";
 import { ensureSalesCommissionSchema } from "../services/salesCommissionService.js";
+import { normalizeAttendancePolicy } from "../utils/attendancePolicy.js";
 
 const expectedSqlParamCount = (text = "") =>
   [...String(text || "").matchAll(/\$(\d+)/g)].reduce((max, match) => Math.max(max, Number(match[1]) || 0), 0);
@@ -5570,9 +5571,24 @@ const normalizeHrAttendanceSettings = (row = {}) => {
     grace_minutes: Math.max(0, Number(row.grace_minutes ?? 10)),
     monthly_paid_leave_days: Math.max(0, Number(row.monthly_paid_leave_days ?? 3)),
     forbidden_leave_weekdays: normalizeForbiddenWeekdays(forbiddenLeaveWeekdays?.length ? forbiddenLeaveWeekdays : [4, 5, 6]),
+    ...pickAttendancePolicyFields(normalizeAttendancePolicy(row)),
     updated_at: row.updated_at || null,
   };
 };
+
+const pickAttendancePolicyFields = (policy) => ({
+  late_threshold_minutes: policy.late_threshold_minutes,
+  late_penalty_days: policy.late_penalty_days,
+  monthly_late_permissions: policy.monthly_late_permissions,
+  late_permission_max_minutes: policy.late_permission_max_minutes,
+  absence_penalty_days: policy.absence_penalty_days,
+});
+
+const HR_SETTINGS_RETURNING = `
+  require_next_opening_on_pos_close, grace_minutes, monthly_paid_leave_days, forbidden_leave_weekdays,
+  late_threshold_minutes, late_penalty_days, monthly_late_permissions, late_permission_max_minutes, absence_penalty_days,
+  updated_at
+`;
 
 export const getAttendanceHrSettings = async (req, res) => {
   try {
@@ -5583,7 +5599,7 @@ export const getAttendanceHrSettings = async (req, res) => {
       INSERT INTO hr_attendance_settings (tenant_id)
       VALUES ($1)
       ON CONFLICT (tenant_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id
-      RETURNING require_next_opening_on_pos_close, grace_minutes, monthly_paid_leave_days, forbidden_leave_weekdays, updated_at
+      RETURNING ${HR_SETTINGS_RETURNING}
       `,
       [tenantId]
     );
@@ -5604,7 +5620,21 @@ export const updateAttendanceHrSettings = async (req, res) => {
       : Object.prototype.hasOwnProperty.call(req.body || {}, "requireNextOpeningOnPosClose")
         ? req.body.requireNextOpeningOnPosClose === true
         : true;
-    const graceMinutes = Math.max(0, Math.round(Number(req.body?.grace_minutes ?? req.body?.graceMinutes ?? 10)));
+    const currentResult = await db.query(`SELECT * FROM hr_attendance_settings WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
+    // A field the form did not send keeps its stored value.
+    const policy = pickAttendancePolicyFields(normalizeAttendancePolicy({
+      ...(currentResult.rows[0] || {}),
+      ...Object.fromEntries(
+        ["late_threshold_minutes", "late_penalty_days", "monthly_late_permissions", "late_permission_max_minutes", "absence_penalty_days"]
+          .filter((key) => req.body?.[key] !== undefined && req.body?.[key] !== null && req.body?.[key] !== "")
+          .map((key) => [key, req.body[key]])
+      ),
+    }));
+    // grace_minutes is the old name of the same threshold; the two stay equal.
+    if (req.body?.late_threshold_minutes === undefined && (req.body?.grace_minutes ?? req.body?.graceMinutes) !== undefined) {
+      policy.late_threshold_minutes = Math.max(0, Math.round(Number(req.body?.grace_minutes ?? req.body?.graceMinutes) || 0));
+    }
+    const graceMinutes = policy.late_threshold_minutes;
     const monthlyPaidLeaveDays = Math.max(0, Math.round(Number(req.body?.monthly_paid_leave_days ?? req.body?.monthlyPaidLeaveDays ?? 3)));
     const forbiddenLeaveWeekdays = normalizeForbiddenWeekdays(req.body?.forbidden_leave_weekdays ?? req.body?.forbiddenLeaveWeekdays ?? [4, 5, 6]);
 
@@ -5616,18 +5646,39 @@ export const updateAttendanceHrSettings = async (req, res) => {
         grace_minutes,
         monthly_paid_leave_days,
         forbidden_leave_weekdays,
+        late_threshold_minutes,
+        late_penalty_days,
+        monthly_late_permissions,
+        late_permission_max_minutes,
+        absence_penalty_days,
         updated_at
       )
-      VALUES ($1,$2,$3,$4,$5::jsonb,NOW())
+      VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,NOW())
       ON CONFLICT (tenant_id) DO UPDATE
       SET require_next_opening_on_pos_close = EXCLUDED.require_next_opening_on_pos_close,
           grace_minutes = EXCLUDED.grace_minutes,
           monthly_paid_leave_days = EXCLUDED.monthly_paid_leave_days,
           forbidden_leave_weekdays = EXCLUDED.forbidden_leave_weekdays,
+          late_threshold_minutes = EXCLUDED.late_threshold_minutes,
+          late_penalty_days = EXCLUDED.late_penalty_days,
+          monthly_late_permissions = EXCLUDED.monthly_late_permissions,
+          late_permission_max_minutes = EXCLUDED.late_permission_max_minutes,
+          absence_penalty_days = EXCLUDED.absence_penalty_days,
           updated_at = NOW()
-      RETURNING require_next_opening_on_pos_close, grace_minutes, monthly_paid_leave_days, forbidden_leave_weekdays, updated_at
+      RETURNING ${HR_SETTINGS_RETURNING}
       `,
-      [tenantId, requireNextOpening, graceMinutes, monthlyPaidLeaveDays, JSON.stringify(forbiddenLeaveWeekdays)]
+      [
+        tenantId,
+        requireNextOpening,
+        graceMinutes,
+        monthlyPaidLeaveDays,
+        JSON.stringify(forbiddenLeaveWeekdays),
+        policy.late_threshold_minutes,
+        policy.late_penalty_days,
+        policy.monthly_late_permissions,
+        policy.late_permission_max_minutes,
+        policy.absence_penalty_days,
+      ]
     );
 
     await recordAttendanceAuditLog(req, {
@@ -5639,6 +5690,7 @@ export const updateAttendanceHrSettings = async (req, res) => {
         grace_minutes: graceMinutes,
         monthly_paid_leave_days: monthlyPaidLeaveDays,
         forbidden_leave_weekdays: forbiddenLeaveWeekdays,
+        ...policy,
       },
     });
 

@@ -12,6 +12,7 @@ import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { emitToRooms } from "../utils/socket.js";
 import { ensureAccountingSchema, recordCashDrawerEvent } from "./accountingService.js";
 import { resolveAdvanceDeductionMonth } from "../utils/advanceDeductionMonth.js";
+import { latePermissionCoverMinutes, loadAttendancePolicy } from "../utils/attendancePolicy.js";
 
 const tokenBytes = 32;
 
@@ -1948,6 +1949,72 @@ const getEmployeeWalletTasks = async ({ employee }) => {
   }
 };
 
+// Late permissions still open or granted in the month; a rejected or
+// cancelled one gives its slot back.
+const countMonthLatePermissions = async ({ tenantId, employeeId, month, excludeRequestId = null }) => {
+  const result = await db.query(
+    `
+    SELECT
+      COUNT(*) FILTER (WHERE LOWER(COALESCE(status, 'pending')) = 'approved')::int AS approved,
+      COUNT(*) FILTER (WHERE LOWER(COALESCE(status, 'pending')) = 'pending')::int AS pending
+    FROM employee_portal_requests
+    WHERE tenant_id = $1
+      AND employee_id = $2
+      AND LOWER(COALESCE(request_type, '')) IN ('late_permission', 'late', 'lateness_permission')
+      AND request_date >= $3::date
+      AND request_date < ($3::date + interval '1 month')
+      AND ($4::bigint IS NULL OR id <> $4::bigint)
+    `,
+    [tenantId, employeeId, `${month}-01`, excludeRequestId]
+  );
+  return { approved: toNumber(result.rows[0]?.approved), pending: toNumber(result.rows[0]?.pending) };
+};
+
+// The rules the portal's side panel shows, with this month's balances.
+const getEmployeeAttendancePolicy = async ({ employee, timeZone = "Africa/Cairo" }) => {
+  const month = localIsoDate(new Date(), timeZone).slice(0, 7);
+  const [policy, permissions, leaveResult] = await Promise.all([
+    loadAttendancePolicy(db, employee.tenant_id),
+    countMonthLatePermissions({ tenantId: employee.tenant_id, employeeId: employee.id, month }),
+    db.query(
+      `
+      SELECT COUNT(DISTINCT leave_day)::int AS used
+      FROM (
+        SELECT generate_series(COALESCE(leave_date, start_date), COALESCE(leave_date, end_date, start_date), interval '1 day')::date AS leave_day,
+          leave_type AS kind, status
+        FROM employee_leaves
+        WHERE tenant_id = $1 AND employee_id = $2
+        UNION ALL
+        SELECT generate_series(COALESCE(vacation_date, start_date), COALESCE(vacation_date, end_date, start_date), interval '1 day')::date,
+          vacation_type, status
+        FROM employee_vacations
+        WHERE tenant_id = $1 AND employee_id = $2
+      ) days
+      WHERE LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND LOWER(COALESCE(kind, 'paid')) NOT IN ('unpaid', 'no_pay', 'deducted', 'غير مدفوعة', 'بدون راتب')
+        AND leave_day >= $3::date
+        AND leave_day < ($3::date + interval '1 month')
+      `,
+      [employee.tenant_id, employee.id, `${month}-01`]
+    ),
+  ]);
+  const usedPermissions = permissions.approved + permissions.pending;
+  const usedLeave = toNumber(leaveResult.rows[0]?.used);
+  return {
+    month,
+    rules: policy,
+    balances: {
+      late_permissions_total: policy.monthly_late_permissions,
+      late_permissions_used: usedPermissions,
+      late_permissions_pending: permissions.pending,
+      late_permissions_left: Math.max(0, policy.monthly_late_permissions - usedPermissions),
+      paid_leave_total: policy.monthly_paid_leave_days,
+      paid_leave_used: usedLeave,
+      paid_leave_left: Math.max(0, policy.monthly_paid_leave_days - usedLeave),
+    },
+  };
+};
+
 export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptional = false, timings = null, timeZone = "Africa/Cairo" } = {}) => {
   const warnings = [];
   let startedAt = nowMs();
@@ -2024,6 +2091,13 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     getEmployeePortalUnreadNotificationCount({ tenantId: employee.tenant_id, employeeId: employee.id }),
   ]);
   recordTiming(timings, "requests_ms", startedAt);
+
+  const attendancePolicy = await optionalSection({
+    name: "attendance_policy",
+    warnings,
+    fallback: null,
+    fn: () => getEmployeeAttendancePolicy({ employee, timeZone }),
+  });
 
   startedAt = nowMs();
   const tasks = await optionalSection({
@@ -2210,6 +2284,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       timeline: attendanceTimeline,
     },
     employee_requests: employeeRequests,
+    attendance_policy: attendancePolicy,
     notifications: employeeNotifications,
     unread_notifications_count: unreadNotificationCount,
     tasks,
@@ -2297,6 +2372,44 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
     error.status = 400;
     throw error;
   }
+  let latePermissionMinutes = amount;
+  if (requestType === "late_permission") {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(requestDate)) {
+      const error = new Error("Late permission date is invalid");
+      error.status = 400;
+      throw error;
+    }
+    // The branch opener is the one person who may not start late: nobody else has the keys.
+    const openingResult = await db.query(
+      `
+      SELECT 1
+      FROM employee_shift_schedules
+      WHERE tenant_id = $1
+        AND employee_id = $2
+        AND work_date = $3::date
+        AND shift_type = 'opening'
+        AND LOWER(COALESCE(status, 'scheduled')) <> 'cancelled'
+      LIMIT 1
+      `,
+      [employee.tenant_id, employee.id, requestDate]
+    );
+    if (openingResult.rowCount) {
+      const error = new Error("إنت فاتح الفرع اليوم ده، وفاتح الفرع ممنوع ياخد إذن تأخير");
+      error.status = 409;
+      error.code = "LATE_PERMISSION_OPENER";
+      throw error;
+    }
+    const policy = await loadAttendancePolicy(db, employee.tenant_id);
+    const used = await countMonthLatePermissions({ tenantId: employee.tenant_id, employeeId: employee.id, month: requestDate.slice(0, 7) });
+    if (used.approved + used.pending >= policy.monthly_late_permissions) {
+      const error = new Error(`استخدمت ${policy.monthly_late_permissions} إذن تأخير الشهر ده، وده الحد المسموح`);
+      error.status = 409;
+      error.code = "LATE_PERMISSION_QUOTA_USED";
+      throw error;
+    }
+    // A blank duration is stored as the policy's full cover, so the manager sees what is granted.
+    latePermissionMinutes = latePermissionCoverMinutes(amount, policy);
+  }
   if (requestType !== "advance" && !message && !requestDate) {
     const error = new Error("Request details are required");
     error.status = 400;
@@ -2310,7 +2423,7 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
     VALUES ($1,$2,$3,$4,$5,NULLIF($6, '')::date,NULLIF($7, '')::date,$8,'pending',NOW(),NOW())
     RETURNING id, request_type, amount, payment_method, request_date, end_date, message, status, created_at
     `,
-    [employee.tenant_id, employee.id, requestType, amount, requestType === "advance" ? normalizeAdvancePaymentMethod(data.payment_method || data.paymentMethod) : "cash", requestDate, endDate, message]
+    [employee.tenant_id, employee.id, requestType, requestType === "late_permission" ? latePermissionMinutes : amount, requestType === "advance" ? normalizeAdvancePaymentMethod(data.payment_method || data.paymentMethod) : "cash", requestDate, endDate, message]
   );
   const request = result.rows[0];
   await recordEmployeePortalAudit({

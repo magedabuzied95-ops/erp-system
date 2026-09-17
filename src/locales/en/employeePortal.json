@@ -826,5 +826,14 @@
     "alef": "A",
     "ya": "Y",
     "ha": "H"
+  },
+  "rules": {
+    "open": "Rights & duties",
+    "title": "Your rights and duties",
+    "rights": "Your rights",
+    "duties": "Your duties",
+    "close": "Close",
+    "permissionsLeft": "{{left}} of {{total}} permissions left this month; each covers up to {{minutes}} minutes.",
+    "permissionsUsed": "You used all {{total}} permissions this month; lateness over {{threshold}} minutes will be deducted."
   }
 }

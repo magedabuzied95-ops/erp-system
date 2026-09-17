@@ -721,6 +721,14 @@ const statements = [
   );
   `,
   `
+  ALTER TABLE IF EXISTS hr_attendance_settings
+    ADD COLUMN IF NOT EXISTS late_threshold_minutes INTEGER NOT NULL DEFAULT 30,
+    ADD COLUMN IF NOT EXISTS late_penalty_days NUMERIC(4,2) NOT NULL DEFAULT 0.5,
+    ADD COLUMN IF NOT EXISTS monthly_late_permissions INTEGER NOT NULL DEFAULT 2,
+    ADD COLUMN IF NOT EXISTS late_permission_max_minutes INTEGER NOT NULL DEFAULT 120,
+    ADD COLUMN IF NOT EXISTS absence_penalty_days NUMERIC(4,2) NOT NULL DEFAULT 2;
+  `,
+  `
   ALTER TABLE IF EXISTS attendance_logs
     DROP CONSTRAINT IF EXISTS attendance_logs_tenant_id_employee_id_attendance_date_key;
   `,

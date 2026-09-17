@@ -62,7 +62,13 @@
     "sectionSchedules": "الجداول",
     "sectionQr": "جلسات QR",
     "sectionReports": "التقارير",
-    "sectionHrSettings": "إعدادات الموارد البشرية"
+    "sectionHrSettings": "إعدادات الموارد البشرية",
+    "policy": {
+      "latePenaltyDays": "خصم التأخير بعد السماحية (يوم)",
+      "monthlyLatePermissions": "أذونات التأخير شهريًا",
+      "latePermissionMaxMinutes": "أقصى مدة للإذن بالدقائق",
+      "absencePenaltyDays": "خصم الغياب بدون إذن (يوم)"
+    }
   },
   "public": {
     "attendance": "الحضور",
