@@ -273,8 +273,8 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 sm:items-center">
       <button type="button" aria-label={tt("managerPortal.invoice.close")} onClick={onClose} className="absolute inset-0" />
-      <section className="manager-employee-sheet relative flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir="rtl">
-        <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
+      <section className="manager-employee-sheet relative flex h-[94dvh] w-full max-w-3xl flex-col overflow-hidden sm:h-[85dvh] rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir="rtl">
+        <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-700 bg-slate-800 text-lg font-black">
             {photo ? <img src={photo} alt={name} className="h-full w-full object-cover" /> : <span>{String(name).trim().charAt(0)}</span>}
           </div>
@@ -290,13 +290,13 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
           </button>
         </div>
 
-        <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
           <button type="button" aria-label="prev month" onClick={() => setMonth((m) => shiftMonth(m, -1))} className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700"><ChevronRight className="h-4 w-4" /></button>
           <div className="text-sm font-black text-slate-900">{monthLabel(month)}</div>
           <button type="button" aria-label="next month" disabled={isCurrentMonth} onClick={() => setMonth((m) => shiftMonth(m, 1))} className="rounded-full border border-slate-200 bg-white p-1.5 text-slate-700 disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
         </div>
 
-        <div className="manager-employee-sheet-tabs flex gap-1 overflow-x-auto border-b border-slate-200 px-2 py-2">
+        <div className="manager-employee-sheet-tabs flex shrink-0 gap-1 overflow-x-auto border-b border-slate-200 px-2 py-2">
           {TABS.map((key) => (
             <button
               key={key}
