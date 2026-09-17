@@ -276,7 +276,8 @@
     "createTask": "تعذر إنشاء المهمة",
     "updateAdvance": "تعذر تحديث طلب السلفة",
     "partialLoad": "تعذر تحميل بعض البيانات",
-    "deleteTask": "تعذر حذف المهمة"
+    "deleteTask": "تعذر حذف المهمة",
+    "updateLatePermission": "تعذر مراجعة إذن التأخير"
   },
   "toasts": {
     "copied": "تم النسخ",
@@ -291,7 +292,9 @@
     "tasksCreated": "تم إنشاء {{count}} مهام",
     "templateCreated": "تم حفظ الروتين وسيتولد تلقائيًا",
     "templateUpdated": "تم تحديث الروتين",
-    "templateDeleted": "تم حذف الروتين"
+    "templateDeleted": "تم حذف الروتين",
+    "latePermissionApproved": "تمت الموافقة على إذن التأخير",
+    "latePermissionRejected": "تم رفض إذن التأخير"
   },
   "push": {
     "unsupportedDetail": "هذا المتصفح لا يدعم إشعارات الويب الفورية.",
@@ -803,5 +806,14 @@
     "windowTo": "إلى",
     "windowReset": "رجّع ليوم المحل",
     "windowWholeShift": "الوردية كاملة، من فتحها لحد قفلها"
+  },
+  "latePermissions": {
+    "title": "أذونات التأخير",
+    "subtitle": "لو وافقت، التأخير في اليوم ده مايتخصمش من المرتب",
+    "empty": "لا توجد أذونات تأخير قيد المراجعة",
+    "approve": "موافقة",
+    "day": "اليوم",
+    "minutes": "{{count}} دقيقة",
+    "wholeLateness": "التأخير كله"
   }
 }

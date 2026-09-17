@@ -15,6 +15,8 @@ export const managerPortalApi = {
   approveEmployeePayroll: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/payroll/approve`, payload),
   correctEmployeeAttendance: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/attendance`, payload),
   reviewAdvanceRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/advance-requests/${encodeURIComponent(requestId)}`, payload),
+  reviewLatePermissionRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/late-permission-requests/${encodeURIComponent(requestId)}`, payload),
+  reviewLatePermissionRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/late-permission-requests/${encodeURIComponent(requestId)}`, payload),
   tasks: (token, options = {}) => api.get(`${tokenPath(token)}/tasks`, options),
   sales: (token, options = {}) => api.get(`${tokenPath(token)}/sales`, options),
   operations: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/operations`, { ...options, params }),

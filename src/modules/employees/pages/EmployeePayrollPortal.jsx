@@ -565,6 +565,7 @@ Object.assign(labels.ar, {
   advanceRequest: "طلب سلفة",
   leaveRequest: "طلب إجازة",
   latePermission: "إذن تأخير",
+  lateMinutes: "كام دقيقة تأخير؟ (فاضي = التأخير كله)",
   hrNote: "ملاحظة للموارد البشرية",
   pendingTasksTitle: "مهام معلقة",
   inProgressTasks: "قيد التنفيذ",
@@ -659,6 +660,7 @@ Object.assign(labels.en, {
   advanceRequest: "Advance Request",
   leaveRequest: "Leave Request",
   latePermission: "Late Permission",
+  lateMinutes: "Minutes late? (empty = all of it)",
   hrNote: "HR Note",
   pendingTasksTitle: "Pending Tasks",
   inProgressTasks: "In Progress",
@@ -1598,6 +1600,7 @@ export default function EmployeePayrollPortal() {
   const [requestAmount, setRequestAmount] = useState("");
   const [requestPaymentMethod, setRequestPaymentMethod] = useState("cash");
   const [requestDate, setRequestDate] = useState("");
+  const [requestMinutes, setRequestMinutes] = useState("");
   const [requestEndDate, setRequestEndDate] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
     const [requestSaving, setRequestSaving] = useState(false);
@@ -3760,8 +3763,10 @@ export default function EmployeePayrollPortal() {
       const response = await api.post(`/employee-portal/${encodeURIComponent(token)}/requests`, {
         request_type: requestType,
         amount: requestType === "advance" ? requestAmount : undefined,
+        minutes: requestType === "late_permission" && requestMinutes ? requestMinutes : undefined,
         payment_method: requestType === "advance" ? requestPaymentMethod : undefined,
-        request_date: requestDate || undefined,
+        // A late permission is always for a day; the field starts on today.
+        request_date: requestDate || (requestType === "late_permission" ? todayKey : undefined),
         end_date: requestType === "vacation" ? requestEndDate || undefined : undefined,
         message: requestMessage,
         timezone: browserTimeZone(),
@@ -3771,6 +3776,7 @@ export default function EmployeePayrollPortal() {
       setRequestAmount("");
       setRequestPaymentMethod("cash");
       setRequestDate("");
+      setRequestMinutes("");
       setRequestEndDate("");
       setRequestMessage("");
       setPortalNotice(text.requestSent);
@@ -3828,13 +3834,11 @@ export default function EmployeePayrollPortal() {
     }
   };
 
+  // late_permission used to be sent as an hr_note carrying the label, with no date, so neither
+  // payroll nor the manager portal ever saw it as a late permission.
   const chooseRequestType = (value) => {
-    if (value === "late_permission") {
-      setRequestType("hr_note");
-      setRequestMessage((current) => current || ui("latePermission"));
-      return;
-    }
     setRequestType(value);
+    if (value === "late_permission" && !requestDate) setRequestDate(todayKey);
   };
 
   return (
@@ -4856,7 +4860,7 @@ export default function EmployeePayrollPortal() {
                   ["late_permission", ui("latePermission")],
                   ["hr_note", ui("hrNote")],
                 ].map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-2 text-xs font-black ${(value === requestType || (value === "late_permission" && requestMessage === ui("latePermission"))) ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"}`}>
+                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-2 text-xs font-black ${value === requestType ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"}`}>
                     {label}
                   </button>
                 ))}
@@ -4880,6 +4884,9 @@ export default function EmployeePayrollPortal() {
                       </div>
                     </div>
                   </>
+                ) : null}
+                {requestType === "late_permission" ? (
+                  <input value={requestMinutes} onChange={(event) => setRequestMinutes(event.target.value)} type="number" inputMode="numeric" min="0" max="600" step="1" placeholder={ui("lateMinutes")} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
                   <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />

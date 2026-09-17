@@ -276,7 +276,8 @@
     "createTask": "Unable to create the task",
     "updateAdvance": "Unable to update the advance request",
     "partialLoad": "Some data could not be loaded",
-    "deleteTask": "Could not delete task"
+    "deleteTask": "Could not delete task",
+    "updateLatePermission": "Could not review the late permission"
   },
   "toasts": {
     "copied": "Copied",
@@ -291,7 +292,9 @@
     "tasksCreated": "{{count}} tasks created",
     "templateCreated": "Routine saved; it will generate automatically",
     "templateUpdated": "Routine updated",
-    "templateDeleted": "Routine deleted"
+    "templateDeleted": "Routine deleted",
+    "latePermissionApproved": "Late permission approved",
+    "latePermissionRejected": "Late permission rejected"
   },
   "push": {
     "unsupportedDetail": "This browser does not support web push notifications.",
@@ -803,5 +806,14 @@
     "windowTo": "To",
     "windowReset": "Back to the shop's day",
     "windowWholeShift": "The whole shift, open to close"
+  },
+  "latePermissions": {
+    "title": "Late permissions",
+    "subtitle": "Approved: that day's lateness is not deducted from salary",
+    "empty": "No late permissions waiting",
+    "approve": "Approve",
+    "day": "Day",
+    "minutes": "{{count}} min",
+    "wholeLateness": "Whole lateness"
   }
 }

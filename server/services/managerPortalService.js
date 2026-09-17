@@ -1185,10 +1185,15 @@ export const getManagerPortalStaff = async ({ manager = {} } = {}) => {
     && staffEmployeeIds.has(String(request.employee_id))
   ));
 
+  const latePermissionRequests = (pendingPortalRequests || [])
+    .filter((request) => isLatePermissionRequest(request) && staffEmployeeIds.has(String(request.employee_id)))
+    .map((request) => ({ ...request, request_type: "late_permission", allowed_minutes: Number(request.amount || 0) }));
+
   return {
     summary: taskDashboard?.summary || {},
     staff,
     advance_requests: advanceRequests,
+    late_permission_requests: latePermissionRequests,
     recent_tasks: taskDashboard?.recentTasks || [],
     history: taskDashboard?.history || [],
   };
@@ -1218,6 +1223,52 @@ export const reviewManagerPortalAdvanceRequest = async ({ manager = {}, requestI
     adminNote,
     reviewedBy: manager.user_id || manager.id || null,
     createAdvance: requestedStatus === "approved",
+  });
+};
+
+// Until 2026-09-17 the employee portal sent its "إذن تأخير" button as an hr_note whose message
+// was the label, with no date — payroll never saw it and the manager portal never listed it.
+const LEGACY_LATE_PERMISSION_RE = /^\s*(إذن تأخير|اذن تأخير|late permission)/i;
+const isLatePermissionRequest = (request = {}) => {
+  const type = clean(request.request_type).toLowerCase();
+  return type === "late_permission" || (type === "hr_note" && LEGACY_LATE_PERMISSION_RE.test(String(request.message || "")));
+};
+
+export const reviewManagerPortalLatePermissionRequest = async ({ manager = {}, requestId, status, adminNote = "" } = {}) => {
+  const tenantId = numberOrNull(manager.tenant_id);
+  const requestedStatus = clean(status).toLowerCase();
+  if (!["approved", "rejected"].includes(requestedStatus)) {
+    const error = new Error("Status must be approved or rejected");
+    error.status = 400;
+    throw error;
+  }
+  const staffState = await getManagerPortalStaff({ manager });
+  const request = (staffState.late_permission_requests || []).find((item) => String(item.id) === String(requestId));
+  if (!request) {
+    const error = new Error("Late permission request not found or already reviewed");
+    error.status = 404;
+    throw error;
+  }
+  // A legacy hr_note becomes a real late permission, dated the day it was sent, so payroll
+  // (which reads request_type + request_date) honours the approval.
+  await db.query(
+    `
+    UPDATE employee_portal_requests
+    SET request_type = 'late_permission',
+        request_date = COALESCE(request_date, (created_at AT TIME ZONE 'Africa/Cairo')::date),
+        updated_at = NOW()
+    WHERE id = $1::bigint
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      AND status = 'pending'
+    `,
+    [request.id, tenantId]
+  );
+  return reviewEmployeePortalRequest({
+    tenantId,
+    requestId,
+    status: requestedStatus,
+    adminNote,
+    reviewedBy: manager.user_id || manager.id || null,
   });
 };
 

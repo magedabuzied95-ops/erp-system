@@ -946,3 +946,38 @@ export const sendManagerProductEditedPush = async ({
     }),
   });
 };
+
+// A request an employee sent from their portal that the manager decides from the staff tab:
+// an advance or a late permission. Before this only the ERP notifications list heard of them.
+export const sendManagerEmployeeRequestPush = async ({ request = {}, employee = {} } = {}) => {
+  const type = text(request.request_type).toLowerCase();
+  if (!["advance", "late_permission"].includes(type)) return { sent: 0, skipped: true };
+  const name = text(employee.full_name || employee.name || employee.employee_code) || "موظف";
+  const isAdvance = type === "advance";
+  const date = request.request_date ? String(request.request_date instanceof Date ? request.request_date.toISOString() : request.request_date).slice(0, 10) : "";
+  const note = text(request.message);
+  return sendToManagerSubscriptions({
+    tenantId: numberOrNull(employee.tenant_id || request.tenant_id),
+    branchId: numberOrNull(employee.branch_id),
+    category: isAdvance ? "staff" : "attendance",
+    logLabels: {
+      attempt: "[manager-push:employee-request-attempt]",
+      success: "[manager-push:employee-request-success]",
+      failed: "[manager-push:employee-request-failed]",
+    },
+    buildPayload: (row) => ({
+      title: isAdvance ? `طلب سلفة من ${name}` : `طلب إذن تأخير من ${name}`,
+      body: isAdvance
+        ? `${Number(request.amount || 0)} ج.م${note ? ` — ${note}` : ""}`
+        : [date, Number(request.amount) > 0 ? `${Number(request.amount)} دقيقة` : "", note].filter(Boolean).join(" — ") || "افتح البوابة للموافقة أو الرفض",
+      tag: `manager-employee-request-${request.id}`,
+      data: {
+        type: "employee_portal_request",
+        request_id: request.id,
+        request_type: type,
+        employee_id: employee.id || request.employee_id || null,
+        url: `/manager-portal/${encodeURIComponent(row.portal_token)}?tab=staff`,
+      },
+    }),
+  });
+};

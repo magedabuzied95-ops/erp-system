@@ -2263,7 +2263,13 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
     error.status = 400;
     throw error;
   }
-  const amount = requestType === "advance" ? Math.max(0, toNumber(data.amount)) : 0;
+  // A late permission stores its allowed minutes in amount (0 = the whole lateness that day),
+  // which is how payroll's loadApprovedLatePermissionMap reads it.
+  const amount = requestType === "advance"
+    ? Math.max(0, toNumber(data.amount))
+    : requestType === "late_permission"
+      ? Math.min(600, Math.max(0, Math.round(toNumber(data.minutes ?? data.amount))))
+      : 0;
   const requestDate = clean(data.request_date || data.date) || null;
   const endDate = clean(data.end_date || data.endDate) || null;
   const message = clean(data.message || data.note || data.notes);
@@ -2338,6 +2344,11 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
       end_date: endDate,
     },
   }).catch((error) => debugEmployeePortal("[employee-payroll-portal] admin notification skipped", { error: error?.message || error }));
+  if (["advance", "late_permission"].includes(requestType)) {
+    import("./managerPortalPushService.js")
+      .then(({ sendManagerEmployeeRequestPush }) => sendManagerEmployeeRequestPush({ request: { ...request, tenant_id: employee.tenant_id, employee_id: employee.id }, employee }))
+      .catch((error) => console.warn("[employee-payroll-portal] manager request push skipped", error?.message || error));
+  }
   return request;
 };
 
@@ -3668,6 +3679,7 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
   }
   const isAdvanceRequest = request.request_type === "advance";
   const isLeaveRequest = request.request_type === "vacation" || request.request_type === "leave";
+  const isLatePermission = request.request_type === "late_permission";
   const advanceAmount = toNumber(request.amount);
   const requestPushTitle = isAdvanceRequest
     ? nextStatus === "approved"
@@ -3677,7 +3689,11 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
       ? nextStatus === "approved"
         ? "تمت الموافقة على الإجازة"
         : "❌ تم رفض الإجازة"
-      : "تحديث طلب الموارد البشرية";
+      : isLatePermission
+        ? nextStatus === "approved"
+          ? "تمت الموافقة على إذن التأخير"
+          : "❌ تم رفض إذن التأخير"
+        : "تحديث طلب الموارد البشرية";
   const requestPushBody = isAdvanceRequest
     ? nextStatus === "approved"
       ? `تمت الموافقة على طلب السلفة بقيمة ${advanceAmount} جنيه.`
@@ -3686,7 +3702,11 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
       ? nextStatus === "approved"
         ? "تم اعتماد طلب الإجازة الخاص بك."
         : "تم رفض طلب الإجازة."
-      : "تم تحديث طلبك من الإدارة.";
+      : isLatePermission
+        ? nextStatus === "approved"
+          ? "التأخير في اليوم ده مش هيتخصم من مرتبك."
+          : "تم رفض إذن التأخير. راجع الإدارة لمعرفة التفاصيل."
+        : "تم تحديث طلبك من الإدارة.";
   const requestPushEvent = isAdvanceRequest
     ? `advance_${nextStatus}`
     : isLeaveRequest
