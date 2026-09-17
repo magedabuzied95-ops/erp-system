@@ -58,6 +58,31 @@ const dayKey = (value) => {
 
 const signed = (value) => (value > 0 ? `+${value}` : String(value));
 
+// A colour picture that falls back to a neutral tile: 139 catalogue URLs point at
+// files that no longer exist, and a broken-image glyph reads as a rendering bug.
+function ColorThumb({ src, alt, size = 48 }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  const box = { width: size, height: size };
+  if (!src || failed) {
+    return (
+      <span className="grid shrink-0 place-items-center rounded-[10px] border border-border bg-surface text-text-muted" style={box} aria-hidden="true">
+        <Package2 size={Math.round(size * 0.42)} />
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="shrink-0 rounded-[10px] border border-border bg-white object-contain"
+      style={box}
+    />
+  );
+}
+
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export default function ProductLifecycleDialog({ product, onClose }) {
@@ -255,8 +280,16 @@ export default function ProductLifecycleDialog({ product, onClose }) {
       purchased: group.rows.reduce((sum, row) => sum + row.purchased_quantity, 0),
       sold: group.rows.reduce((sum, row) => sum + row.sold_quantity, 0),
       archived: group.rows.every((row) => row.archived),
+      image: resolveProductImageUrl(
+        (group.rows.find((row) => row.image_url && !row.archived) || group.rows.find((row) => row.image_url))?.image_url || ""
+      ),
     })).sort((a, b) => Number(a.archived) - Number(b.archived));
   }, [variants, t]);
+
+  const colorImages = useMemo(
+    () => new Map(colorGroups.filter((group) => group.image).map((group) => [group.key, group.image])),
+    [colorGroups]
+  );
 
   const sizeOptions = useMemo(() => {
     const source = color
@@ -362,7 +395,10 @@ export default function ProductLifecycleDialog({ product, onClose }) {
             <p className={`text-sm font-black text-text ${voided ? "line-through" : ""}`}>{renderEventTitle(event)}</p>
             {renderDocumentLink(event)}
             {event.color ? (
-              <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-bold text-text">{event.color}</span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border py-0.5 pe-2 ps-0.5 text-[11px] font-bold text-text">
+                <ColorThumb src={colorImages.get(event.color.trim().toLowerCase())} alt="" size={20} />
+                {event.color}
+              </span>
             ) : null}
             {event.kind === "sale" || event.kind === "purchase" ? (
               event.document_status ? <span className="text-[11px] font-bold text-text-muted">{documentStatusLabel(event.document_status)}</span> : null
@@ -546,6 +582,7 @@ export default function ProductLifecycleDialog({ product, onClose }) {
                     {colorGroups.map((group) => (
                       <section key={group.key} className="overflow-hidden rounded-[var(--radius-card)] border border-border">
                         <div className="flex flex-wrap items-center gap-2 bg-surface-soft px-3 py-2">
+                          <ColorThumb src={group.image} alt={group.label} size={52} />
                           <h3 className="text-sm font-black text-text">{group.label}</h3>
                           {group.archived ? (
                             <span className="rounded-full px-2 py-0.5 text-[10px] font-black" style={toneStyle("var(--danger)")}>{t("products.lifecycle.archived")}</span>

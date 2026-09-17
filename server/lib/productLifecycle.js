@@ -323,18 +323,79 @@ export const loadProductLifecycleEvents = async (client, { productId, tenantId =
   return { events, total, limit, offset, has_more: offset + events.length < total };
 };
 
+const galleryTableCache = new WeakMap();
+const hasVariantGallery = async (client) => {
+  if (galleryTableCache.has(client)) return galleryTableCache.get(client);
+  const result = await client.query(`SELECT to_regclass('product_variant_images') IS NOT NULL AS present`);
+  const present = Boolean(result.rows[0]?.present);
+  if (client && typeof client === "object") galleryTableCache.set(client, present);
+  return present;
+};
+
+const colorKey = (value) => String(value || "").trim().toLowerCase();
+const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+
+// The colour's picture for each size row: the colour gallery (primary first), then
+// the row's own image columns. to_jsonb keeps this working on schemas that lack a column.
+const loadVariantImages = async (client, { productId, tenantId }) => {
+  const own = await client.query(
+    `
+    SELECT pv.id, pv.color, to_jsonb(pv) AS raw
+    FROM product_variants pv
+    WHERE pv.product_id = $1::bigint
+      AND ($2::bigint IS NULL OR pv.tenant_id IS NULL OR pv.tenant_id = $2::bigint)
+    `,
+    [productId, tenantId]
+  );
+  const byVariant = new Map();
+  const byColor = new Map();
+  if (await hasVariantGallery(client)) {
+    const gallery = await client.query(
+      `
+      SELECT variant_id, color_name, color_value, image_url
+      FROM product_variant_images
+      WHERE product_id = $1::bigint
+        AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+        AND COALESCE(image_url, '') <> ''
+      ORDER BY is_primary DESC, sort_order ASC, id ASC
+      `,
+      [productId, tenantId]
+    );
+    for (const row of gallery.rows) {
+      if (row.variant_id && !byVariant.has(Number(row.variant_id))) byVariant.set(Number(row.variant_id), row.image_url);
+      for (const name of [row.color_name, row.color_value]) {
+        const key = colorKey(name);
+        if (key && !byColor.has(key)) byColor.set(key, row.image_url);
+      }
+    }
+  }
+  const images = new Map();
+  for (const row of own.rows) {
+    const raw = row.raw || {};
+    images.set(
+      Number(row.id),
+      firstText(byVariant.get(Number(row.id)), byColor.get(colorKey(row.color)), raw.image_url, raw.image, raw.thumbnail_url)
+    );
+  }
+  return images;
+};
+
 export const loadProductLifecycleVariants = async (client, { productId, tenantId = null }) => {
   const withAudit = await hasAuditLogs(client);
-  const result = await client.query(variantsSql(withAudit), [
-    productId,
-    tenantId,
-    INACTIVE_PURCHASE_STATUSES,
-    INACTIVE_ORDER_STATUSES,
+  const [result, images] = await Promise.all([
+    client.query(variantsSql(withAudit), [
+      productId,
+      tenantId,
+      INACTIVE_PURCHASE_STATUSES,
+      INACTIVE_ORDER_STATUSES,
+    ]),
+    loadVariantImages(client, { productId, tenantId }),
   ]);
   return result.rows.map((row) => ({
     id: Number(row.id),
     color: row.color || "",
     size: row.size || "",
+    image_url: images.get(Number(row.id)) || "",
     article_code: row.article_code || "",
     stock: toNumber(row.stock),
     created_at: row.created_at,

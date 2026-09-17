@@ -53,7 +53,7 @@ if (!ready) {
   await db.query(`
     CREATE TABLE product_variants (
       id BIGINT PRIMARY KEY, tenant_id BIGINT, product_id BIGINT, color TEXT, size TEXT, article_code TEXT,
-      stock INT DEFAULT 0, cost_price NUMERIC, is_active BOOLEAN DEFAULT TRUE, deleted_at TIMESTAMPTZ, created_at TIMESTAMPTZ
+      stock INT DEFAULT 0, cost_price NUMERIC, image_url TEXT, is_active BOOLEAN DEFAULT TRUE, deleted_at TIMESTAMPTZ, created_at TIMESTAMPTZ
     )`);
   await db.query(`
     CREATE TABLE purchases (
@@ -85,6 +85,11 @@ if (!ready) {
       undone_at TIMESTAMPTZ, undone_by BIGINT
     )`);
   await db.query(`
+    CREATE TABLE product_variant_images (
+      id BIGSERIAL PRIMARY KEY, tenant_id BIGINT, product_id BIGINT, variant_id BIGINT, color_name TEXT, color_value TEXT,
+      image_url TEXT, sort_order INT DEFAULT 0, is_primary BOOLEAN DEFAULT FALSE
+    )`);
+  await db.query(`
     CREATE TABLE audit_logs (
       id BIGSERIAL PRIMARY KEY, tenant_id BIGINT, user_id BIGINT, action TEXT, entity_type TEXT,
       entity_id BIGINT, details JSONB DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ DEFAULT NOW()
@@ -98,6 +103,14 @@ if (!ready) {
       (501, $1, $2, 'Navy', '34', 'B253', 3, 999, '2026-09-01T09:00:10+03', TRUE),
       (502, $1, $2, 'Navy', '35', 'B253', 0, 999, '2026-09-01T09:00:20+03', TRUE),
       (503, $1, $2, 'White', '34', 'B254', 5, 999, '2026-09-05T12:00:00+03', FALSE)
+  `, [TENANT, PRODUCT]);
+  await db.query(`UPDATE product_variants SET image_url = '/uploads/white-own.jpg' WHERE id = 503`);
+  await db.query(`
+    INSERT INTO product_variant_images (tenant_id, product_id, variant_id, color_name, image_url, sort_order, is_primary) VALUES
+      ($1, $2, NULL, 'navy', '/uploads/navy-back.jpg', 1, FALSE),
+      ($1, $2, NULL, 'Navy', '/uploads/navy-front.jpg', 2, TRUE),
+      ($1, $2, NULL, 'White', '/uploads/white-gallery.jpg', 0, FALSE),
+      ($1, $2, 503, 'White', '/uploads/white-variant.jpg', 5, FALSE)
   `, [TENANT, PRODUCT]);
   await db.query(
     `INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details)
@@ -232,6 +245,14 @@ if (!ready) {
     assert.equal(summary.colors, 2);
     assert.equal(summary.purchased_quantity, 6);
     assert.equal(summary.stock, 3, "an archived size is not stock on hand");
+  });
+
+  test("each size row carries its colour picture: gallery primary first, then the row image", async () => {
+    const variants = await lifecycle.loadProductLifecycleVariants(db, { productId: PRODUCT, tenantId: TENANT });
+    const image = (id) => variants.find((variant) => variant.id === id).image_url;
+    assert.equal(image(501), "/uploads/navy-front.jpg", "colour match is case-insensitive and the primary wins");
+    assert.equal(image(502), "/uploads/navy-front.jpg");
+    assert.equal(image(503), "/uploads/white-variant.jpg", "a picture pinned to the size row beats the colour gallery");
   });
 
   test("no cost ever leaves the server", async () => {
