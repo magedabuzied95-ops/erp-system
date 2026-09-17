@@ -403,27 +403,29 @@ const transferAwaitingReview = (order = {}) =>
 const paymentReviewAmountLines = (order = {}) => {
   const total = money(order.total_amount ?? order.total_price ?? order.total);
   if (transferAwaitingReview(order)) {
-    return `الإجمالي: ${total} جنيه
-المبلغ المحول (قيد المراجعة): ${total} جنيه`;
+    return `💰 الإجمالي: ${total} جنيه
+💳 المبلغ المحوَّل (قيد المراجعة): ${total} جنيه`;
   }
-  return `الإجمالي: ${total} جنيه
-المدفوع: ${money(order.paid_amount ?? order.amount_paid ?? order.total_paid)} جنيه
-المتبقي عند الاستلام: ${money(remainingAmount(order))} جنيه`;
+  return `💰 الإجمالي: ${total} جنيه
+💳 المدفوع: ${money(order.paid_amount ?? order.amount_paid ?? order.total_paid)} جنيه
+💵 المتبقي عند الاستلام: ${money(remainingAmount(order))} جنيه`;
 };
 
-const buildPaymentReviewMessage = (order = {}, items = []) => `أهلاً يا ${firstName(order.customer_name)}
+const buildPaymentReviewMessage = (order = {}, items = []) => `أهلاً يا ${firstName(order.customer_name)} 👋
 
-استلمنا طلبك من M1 Store ✅
+✅ استلمنا طلبك من M1 Store
 
-رقم الطلب: #${orderNumber(order)}
+📦 تفاصيل طلبك
 
+🔢 رقم الطلب: #${orderNumber(order)}
+🛍️ المنتجات:
 ${productSummary(items)}
 
-تم استلام إثبات التحويل/تأكيد الشحن، وطلبك الآن قيد المراجعة.
+🧾 تم استلام إثبات التحويل/تأكيد الشحن، وطلبك دلوقتي قيد المراجعة ⏳
 
 ${paymentReviewAmountLines(order)}
 
-هنراجع الطلب ونأكد معاك قبل الشحن.`;
+🔍 هنراجع الطلب ونأكد معاك قبل الشحن 🚚`;
 
 const loadOrderItems = async (orderId) => {
   const result = await db.query(
