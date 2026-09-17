@@ -28,6 +28,7 @@ import {
 } from "./inventoryCountService.js";
 import { listRecentDisplayRefillAlerts } from "./displayRefillAlertService.js";
 import { getRolePermissions } from "./rolesService.js";
+import { sendEmployeePortalPush } from "./employeePortalPushService.js";
 import { listEmployeePortalRequests, reviewEmployeePortalRequest } from "./employeePayrollPortalService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import { repairArabicMojibakeText } from "../utils/textEncoding.js";
@@ -3257,6 +3258,16 @@ export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employ
   };
 };
 
+// Every salary change a manager makes here lands on the employee's phone. Fire-and-forget:
+// a push failure must never fail the save.
+const formatPushAmount = (value) =>
+  `${Number(value || 0).toLocaleString("ar-EG", { maximumFractionDigits: 2 })} جنيه`;
+
+const notifyEmployeeSalaryChange = ({ tenantId, employeeId, title, body, data }) => {
+  sendEmployeePortalPush({ tenantId, employeeId, title, body, tag: String(data.event).replace(/_/g, "-"), data: { ...data, tab: "salary" } })
+    .catch((error) => console.warn("[manager-portal] employee push skipped", { employeeId, event: data.event, message: error?.message || error }));
+};
+
 export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, employeeId, payload = {} } = {}) => {
   const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
   const type = String(payload.type || "").trim().toLowerCase();
@@ -3304,12 +3315,27 @@ export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
     date,
   };
   const userId = manager.user_id || null;
+  const pushBody = (row) => `${reason} — ${formatPushAmount(row.amount)} بتاريخ ${date}`;
   if (type === "bonus") {
     const row = await salesCommission.createEmployeeBonus({ tenantId, employeeId: employee.id, userId, data });
+    notifyEmployeeSalaryChange({
+      tenantId,
+      employeeId: employee.id,
+      title: "🎉 إضافة على مرتبك",
+      body: pushBody(row),
+      data: { event: "bonus_added", bonus_id: row.id, amount: Number(row.amount || 0) },
+    });
     return { type, row };
   }
   if (type === "deduction" || type === "penalty") {
     const row = await salesCommission.createEmployeePenalty({ tenantId, employeeId: employee.id, userId, data, defaultStatus: "approved" });
+    notifyEmployeeSalaryChange({
+      tenantId,
+      employeeId: employee.id,
+      title: "⚠️ خصم من مرتبك",
+      body: pushBody(row),
+      data: { event: "penalty_added", penalty_id: row.id, amount: Number(row.amount || 0) },
+    });
     return { type: "deduction", row };
   }
   const error = new Error("Adjustment type must be bonus or deduction");
@@ -3323,6 +3349,13 @@ export const cancelManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
   const salesCommission = await import("./salesCommissionService.js");
   if (type === "bonus") {
     const row = await salesCommission.cancelEmployeeBonus({ tenantId, employeeId: employee.id, id: adjustmentId });
+    notifyEmployeeSalaryChange({
+      tenantId,
+      employeeId: employee.id,
+      title: "تم إلغاء إضافة",
+      body: `اتلغت إضافة "${row.reason || ""}" — ${formatPushAmount(row.amount)}`,
+      data: { event: "bonus_cancelled", bonus_id: row.id, amount: Number(row.amount || 0) },
+    });
     return { type, row };
   }
   if (type === "deduction" || type === "penalty") {
@@ -3334,6 +3367,13 @@ export const cancelManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
       throw error;
     }
     const row = await salesCommission.cancelEmployeePenalty({ tenantId, id: adjustmentId });
+    notifyEmployeeSalaryChange({
+      tenantId,
+      employeeId: employee.id,
+      title: "✅ تم إلغاء خصم",
+      body: `اتلغى خصم "${row.reason || ""}" — ${formatPushAmount(row.amount)}`,
+      data: { event: "penalty_cancelled", penalty_id: row.id, amount: Number(row.amount || 0) },
+    });
     return { type: "deduction", row };
   }
   const error = new Error("Adjustment type must be bonus or deduction");
@@ -3371,6 +3411,15 @@ export const correctManagerPortalAttendance = async ({ manager = {}, employeeId,
     },
     auditPrefix: "Manager attendance correction",
     auditAction: "attendance_manager_upsert",
+  });
+  const attendanceDate = String(saved?.attendance_date || payload.attendance_date || payload.date || "").slice(0, 10);
+  const correctionReason = String(payload.reason || "").trim();
+  notifyEmployeeSalaryChange({
+    tenantId,
+    employeeId: employee.id,
+    title: "🕒 تم تعديل حضورك",
+    body: `المدير عدّل الحضور/الانصراف${attendanceDate ? ` يوم ${attendanceDate}` : ""}${correctionReason ? ` — ${correctionReason}` : ""}`,
+    data: { event: "attendance_corrected", attendance_id: saved?.id || null, date: attendanceDate },
   });
   return { attendance: saved, created };
 };

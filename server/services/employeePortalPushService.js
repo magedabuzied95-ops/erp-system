@@ -81,7 +81,7 @@ const ensurePushNotificationSchema = () => {
 
 const persistentPushDedupeKey = ({ tag = "", data = {} } = {}) => {
   const event = text(data.event || tag || "employee_notification");
-  const entity = data.message_id || data.request_id || data.task_id || data.payroll_id || data.opportunity_id || data.thread_id || tag;
+  const entity = data.message_id || data.request_id || data.task_id || data.penalty_id || data.bonus_id || data.attendance_id || data.payroll_id || data.opportunity_id || data.thread_id || tag;
   return `${event}:${text(entity || tag || "general")}`.slice(0, 500);
 };
 
@@ -223,6 +223,9 @@ const pushTagForEvent = (event = "", fallback = "") => {
     payroll_generated: "payroll-generated",
     bonus_added: "bonus-added",
     penalty_added: "penalty-added",
+    bonus_cancelled: "bonus-cancelled",
+    penalty_cancelled: "penalty-cancelled",
+    attendance_corrected: "attendance-corrected",
     advance_approved: "advance-approved",
     advance_rejected: "advance-rejected",
     leave_approved: "leave-approved",
