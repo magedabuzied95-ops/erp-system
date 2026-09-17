@@ -3259,10 +3259,7 @@ export const approveManagerPortalEmployeePayroll = async ({ manager = {}, employ
 };
 
 // Every salary change a manager makes here lands on the employee's phone. Fire-and-forget:
-// a push failure must never fail the save.
-const formatPushAmount = (value) =>
-  `${Number(value || 0).toLocaleString("ar-EG", { maximumFractionDigits: 2 })} جنيه`;
-
+// a push failure must never fail the save. The amount stays off the lock screen (owner's call).
 const notifyEmployeeSalaryChange = ({ tenantId, employeeId, title, body, data }) => {
   sendEmployeePortalPush({ tenantId, employeeId, title, body, tag: String(data.event).replace(/_/g, "-"), data: { ...data, tab: "salary" } })
     .catch((error) => console.warn("[manager-portal] employee push skipped", { employeeId, event: data.event, message: error?.message || error }));
@@ -3315,7 +3312,7 @@ export const createManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
     date,
   };
   const userId = manager.user_id || null;
-  const pushBody = (row) => `${reason} — ${formatPushAmount(row.amount)} بتاريخ ${date}`;
+  const pushBody = () => `${reason} بتاريخ ${date}`;
   if (type === "bonus") {
     const row = await salesCommission.createEmployeeBonus({ tenantId, employeeId: employee.id, userId, data });
     notifyEmployeeSalaryChange({
@@ -3353,7 +3350,7 @@ export const cancelManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
       tenantId,
       employeeId: employee.id,
       title: "تم إلغاء إضافة",
-      body: `اتلغت إضافة "${row.reason || ""}" — ${formatPushAmount(row.amount)}`,
+      body: `اتلغت إضافة "${row.reason || ""}"`,
       data: { event: "bonus_cancelled", bonus_id: row.id, amount: Number(row.amount || 0) },
     });
     return { type, row };
@@ -3371,7 +3368,7 @@ export const cancelManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
       tenantId,
       employeeId: employee.id,
       title: "✅ تم إلغاء خصم",
-      body: `اتلغى خصم "${row.reason || ""}" — ${formatPushAmount(row.amount)}`,
+      body: `اتلغى خصم "${row.reason || ""}"`,
       data: { event: "penalty_cancelled", penalty_id: row.id, amount: Number(row.amount || 0) },
     });
     return { type: "deduction", row };
