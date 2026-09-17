@@ -62,7 +62,7 @@
   max-width: 1000px;
 }
 
-.ai-pwa-composer > div {
+.ai-pwa-composer > div:not(.ai-pwa-quick-media-slot) {
   background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
   border-color: var(--border) !important;
   box-shadow: 0 20px 55px color-mix(in srgb, var(--shadow) 90%, transparent) !important;
@@ -620,7 +620,7 @@ html[data-theme="dark"] .ai-pwa-product-sheet option {
     padding-inline: 18px !important;
   }
 
-  .ai-pwa-composer > div {
+  .ai-pwa-composer > div:not(.ai-pwa-quick-media-slot) {
     padding: 12px !important;
   }
 }

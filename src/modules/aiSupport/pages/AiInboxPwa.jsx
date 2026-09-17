@@ -8523,7 +8523,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
         {showComposer ? (
           <div className={`ai-pwa-fixed ai-pwa-composer fixed inset-x-0 z-20 mx-auto w-full px-2 ${contentScreen ? "bottom-[max(0.4rem,env(safe-area-inset-bottom))]" : "bottom-[calc(4rem+env(safe-area-inset-bottom))]"}`}>
             {quickMediaItem && composerMode !== "note" ? (
-              <div dir="ltr" className="pointer-events-none absolute bottom-full right-5 mb-3 flex justify-end">
+              <div dir="ltr" className="ai-pwa-quick-media-slot pointer-events-none absolute bottom-full right-5 mb-3 flex justify-end">
                 <QuickMediaCard
                   media={quickMediaItem}
                   busy={sending && attachmentSendingRef.current}
