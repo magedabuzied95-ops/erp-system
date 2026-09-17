@@ -6598,52 +6598,130 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   color: #171715 !important;
 }
 
-/* Smaller, unringed and further from the bar: at 46px with a white ring and a
-   green glow it read as a sixth navigation item stacked on top of the five real
-   ones. Same target size class, far less voice. */
-.storefront-shell .sf-whatsapp-float {
+/* The floating contact button: one dark circle that fans WhatsApp, Instagram
+   and Messenger out above it. Unringed and small so it does not read as a
+   navigation item; the chips carry each platform's own colour. */
+.storefront-shell .sf-contact-float {
   right: max(14px, env(safe-area-inset-right)) !important;
   bottom: calc(var(--mobile-bottom-nav-height, 62px) + env(safe-area-inset-bottom) + 1.25rem) !important;
-  width: 44px !important;
-  height: 44px !important;
-  border: 0 !important;
-  background: #25d366 !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22) !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  --sf-contact-size: 44px;
+  --sf-contact-icon: 24px;
+  transition: opacity 200ms ease;
+}
+
+.storefront-shell .sf-contact-float__list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.storefront-shell .sf-contact-float__toggle,
+.storefront-shell .sf-contact-float__chip {
+  display: grid;
+  place-items: center;
+  width: var(--sf-contact-size);
+  height: var(--sf-contact-size);
+  border: 0;
+  border-radius: 999px;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.storefront-shell .sf-contact-float__toggle {
+  background: #151515;
+  transition: transform 200ms ease, background-color 200ms ease;
+}
+
+.storefront-shell .sf-contact-float__toggle svg {
+  width: calc(var(--sf-contact-icon) - 2px);
+  height: calc(var(--sf-contact-icon) - 2px);
+  stroke-width: 2.1;
+  transition: transform 220ms ease;
+}
+
+.storefront-shell .sf-contact-float[data-open="true"] .sf-contact-float__toggle svg {
+  transform: rotate(90deg);
+}
+
+.storefront-shell.storefront-dark .sf-contact-float__toggle,
+.storefront-shell .storefront-dark .sf-contact-float__toggle {
+  background: #f3f3f1;
+  color: #151515;
+}
+
+.storefront-shell .sf-contact-float__chip svg {
+  width: var(--sf-contact-icon);
+  height: var(--sf-contact-icon);
+  fill: currentColor;
+}
+
+.storefront-shell .sf-contact-float__chip--whatsapp { background: #25d366; }
+.storefront-shell .sf-contact-float__chip--instagram {
+  background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285aeb 90%);
+}
+.storefront-shell .sf-contact-float__chip--messenger {
+  background: linear-gradient(45deg, #0a7cff 0%, #a033ff 60%, #ff5c87 100%);
+}
+
+.storefront-shell .sf-contact-float__toggle:focus-visible,
+.storefront-shell .sf-contact-float__chip:focus-visible {
+  outline: 2px solid #25d366;
+  outline-offset: 2px;
+}
+
+/* Closed: the chips sit folded into the button, invisible and out of the tab
+   order; open: they rise one after another, the nearest first. */
+.storefront-shell .sf-contact-float__list li {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(calc((var(--sf-contact-i, 0) + 1) * 18px)) scale(0.6);
+  transition: opacity 160ms ease, transform 200ms ease, visibility 0s linear 200ms;
+}
+
+.storefront-shell .sf-contact-float[data-open="true"] .sf-contact-float__list li {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: calc(var(--sf-contact-i, 0) * 40ms), calc(var(--sf-contact-i, 0) * 40ms), 0s;
 }
 
 /* At the page bottom the button would sit on the footer's last line, so it
    turns see-through there and returns in full when reached for. */
-.storefront-shell .sf-whatsapp-float {
-  transition-property: transform, opacity, background-color;
-}
-
-.storefront-shell .sf-whatsapp-float[data-at-bottom="true"]:not(:hover):not(:focus-visible):not(:active) {
+.storefront-shell .sf-contact-float[data-at-bottom="true"][data-open="false"]:not(:hover):not(:focus-within) {
   opacity: 0.4;
 }
 
-.storefront-shell .sf-whatsapp-float:hover {
-  background: #20bd5a !important;
+@media (hover: hover) {
+  .storefront-shell .sf-contact-float__toggle:hover,
+  .storefront-shell .sf-contact-float__chip:hover {
+    transform: scale(1.06);
+  }
 }
 
-.storefront-shell .sf-whatsapp-float svg {
-  width: 24px !important;
-  height: 24px !important;
-  color: #ffffff !important;
-  fill: currentColor !important;
+@media (prefers-reduced-motion: reduce) {
+  .storefront-shell .sf-contact-float__list li,
+  .storefront-shell .sf-contact-float__toggle,
+  .storefront-shell .sf-contact-float__toggle svg {
+    transition: none;
+  }
 }
 
 @media (min-width: 768px) {
-  .storefront-shell .sf-whatsapp-float {
+  .storefront-shell .sf-contact-float {
     right: max(24px, env(safe-area-inset-right)) !important;
     bottom: max(24px, env(safe-area-inset-bottom)) !important;
-    width: 48px !important;
-    height: 48px !important;
-  }
-
-  .storefront-shell .sf-whatsapp-float svg {
-    width: 29px !important;
-    height: 29px !important;
+    --sf-contact-size: 48px;
+    --sf-contact-icon: 28px;
   }
 }
 

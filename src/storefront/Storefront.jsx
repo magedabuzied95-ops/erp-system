@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import {
   FaFacebookF,
+  FaFacebookMessenger,
   FaInstagram,
   FaTiktok,
   FaWhatsapp,
@@ -3652,14 +3653,39 @@ function MeezaMark({ className = "" }) {
   );
 }
 
-// The floating WhatsApp button sits over the last lines of every page. Near the
+// The floating contact button sits over the last lines of every page. Near the
 // bottom it turns see-through so the footer reads through it, and comes back
 // in full on hover or keyboard focus (index.css), rather than the footer
 // padding itself out to make room.
 const WHATSAPP_FLOAT_FADE_DISTANCE_PX = 120;
 
-function StorefrontWhatsAppFloat() {
+// Our Facebook page slug, read off the page URL in the store settings, so the
+// Messenger chip opens a chat with the page (m.me/<slug>) rather than the page.
+const facebookPageSlug = (url = "") => {
+  const match = String(url || "").trim().match(/^https?:\/\/(?:www\.|m\.|web\.)?facebook\.com\/([^/?#]+)/i);
+  const slug = match ? decodeURIComponent(match[1]) : "";
+  return slug && !/^(share|profile\.php|pages|groups|people)$/i.test(slug) ? slug : "";
+};
+
+// One button, three chat channels: tapping it fans WhatsApp, Instagram and
+// Messenger out above it and turns it into a close X. A channel whose account
+// is not set in the store settings is left out.
+function StorefrontContactFloat({ whatsappHref = "", instagramHref = "", messengerHref = "", lang = "ar" }) {
   const [atBottom, setAtBottom] = useState(false);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const isRtl = normalizeLanguage(lang) === "ar";
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (event) => { if (event.key === "Escape") setOpen(false); };
+    const onPointer = (event) => { if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onPointer);
+    };
+  }, [open]);
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     // Three reads and a boolean: cheap enough to run on every scroll event, and
@@ -3676,17 +3702,50 @@ function StorefrontWhatsAppFloat() {
       window.removeEventListener("resize", measure);
     };
   }, []);
+  const channels = [
+    { key: "whatsapp", label: "WhatsApp", href: whatsappHref, icon: FaWhatsapp },
+    { key: "instagram", label: "Instagram", href: instagramHref, icon: FaInstagram },
+    { key: "messenger", label: "Messenger", href: messengerHref, icon: FaFacebookMessenger },
+  ].filter((channel) => channel.href);
+  if (!channels.length) return null;
+  const toggleLabel = open ? (isRtl ? "إغلاق" : "Close") : (isRtl ? "تواصل معنا" : "Chat with us");
   return (
-    <a
-      href="https://wa.me/201000659301"
-      target="_blank"
-      rel="noreferrer"
-      aria-label="WhatsApp"
+    <div
+      ref={rootRef}
+      className="sf-contact-float fixed z-[70]"
+      data-open={open ? "true" : "false"}
       data-at-bottom={atBottom ? "true" : "false"}
-      className="sf-whatsapp-float fixed z-[70] grid place-items-center rounded-full transition duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/45"
     >
-      <FaWhatsapp aria-hidden="true" />
-    </a>
+      <ul id="sf-contact-float-list" className="sf-contact-float__list" aria-hidden={open ? undefined : "true"}>
+        {channels.map(({ key, label, href, icon: Icon }, index) => (
+          <li key={key} style={{ "--sf-contact-i": channels.length - 1 - index }}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={label}
+              title={label}
+              tabIndex={open ? undefined : -1}
+              onClick={() => setOpen(false)}
+              className={`sf-contact-float__chip sf-contact-float__chip--${key}`}
+            >
+              <Icon aria-hidden="true" />
+            </a>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls="sf-contact-float-list"
+        aria-label={toggleLabel}
+        title={toggleLabel}
+        onClick={() => setOpen((current) => !current)}
+        className="sf-contact-float__toggle"
+      >
+        {open ? <X aria-hidden="true" /> : <MessageCircle aria-hidden="true" />}
+      </button>
+    </div>
   );
 }
 
@@ -3858,7 +3917,7 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
           own text colour at reduced strength so they read as part of it.
           Phones: logos first, copyright as the last line of the page. Desktop:
           one row. The floating WhatsApp button fades while the page bottom is
-          in view (StorefrontWhatsAppFloat) instead of the bar reserving room. */}
+          in view (StorefrontContactFloat) instead of the bar reserving room. */}
       <div className="sf-footer__bar bg-[#050505] px-5 py-5 text-center text-xs font-semibold">
         <div className="sfx-wrap flex flex-col-reverse items-center gap-4 md:flex-row md:justify-between">
           <div className="flex flex-col items-center gap-2 md:flex-row md:gap-5">
@@ -12128,6 +12187,19 @@ function Storefront() {
         ),
         "/contact",
       ),
+      instagramHref: (() => {
+        const url = normalizeStoreHref(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url"));
+        const username = (firstValue("storefront.instagram_username", "storefront.instagram", "company.instagram_username", "social.instagram_username", "instagram_username")
+          || (url.match(/instagram\.com\/([A-Za-z0-9._]+)/i) || [])[1] || "").replace(/^@/, "");
+        // ig.me/m opens a Direct chat with the account; the profile URL is the fallback.
+        return username ? `https://ig.me/m/${encodeURIComponent(username)}` : url;
+      })(),
+      messengerHref: (() => {
+        const direct = normalizeStoreHref(firstValue("storefront.messenger_url", "storefront.messenger_link", "social.messenger_url", "messenger_url"));
+        if (direct) return direct;
+        const slug = facebookPageSlug(firstValue("storefront.facebook_url", "storefront.facebook_link", "company.facebook_url", "social.facebook_url", "facebook_url"));
+        return slug ? `https://m.me/${encodeURIComponent(slug)}` : "";
+      })(),
     };
   }, [publicStoreSettings]);
   const isCheckoutPage = isStorefrontCheckoutPath(location.pathname || "");
@@ -12363,7 +12435,14 @@ function Storefront() {
           removeFromCart={removeFromCart}
         />
       ) : null}
-      {!hideFloatingWhatsApp ? <StorefrontWhatsAppFloat /> : null}
+      {!hideFloatingWhatsApp ? (
+        <StorefrontContactFloat
+          whatsappHref={quickActionLinks.whatsappHref}
+          instagramHref={quickActionLinks.instagramHref}
+          messengerHref={quickActionLinks.messengerHref}
+          lang={i18n.language || "ar"}
+        />
+      ) : null}
       <SizeGuideHost whatsappHref={quickActionLinks.whatsappHref} lockScroll={lockBodyScroll} />
       <CompareTray hidden={isCheckoutPage || currentStorefrontPath === ROOT_PATHS.cart ||isOfferStoryPage || cartDrawerOpen || mobileMenuOpen || currentStorefrontPath === ROOT_PATHS.compare} />
       {/* The bottom nav is gone: every destination it carried is now in the

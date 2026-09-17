@@ -264,8 +264,8 @@ body.sfx-has-compare-tray.storefront-shell {
 }
 
 @media (max-width: 900px) {
-  body.sfx-has-compare-tray.storefront-shell .sf-whatsapp-float,
-  body.sfx-has-compare-tray .storefront-shell .sf-whatsapp-float {
+  body.sfx-has-compare-tray.storefront-shell .sf-contact-float,
+  body.sfx-has-compare-tray .storefront-shell .sf-contact-float {
     bottom: calc(var(--product-sticky-actions-height, 0px) + env(safe-area-inset-bottom, 0px) + var(--sfx-cmp-tray-room) + 8px) !important;
   }
 

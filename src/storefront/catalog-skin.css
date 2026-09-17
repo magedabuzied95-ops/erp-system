@@ -1442,7 +1442,7 @@ body.storefront-shell.sfx-sticky-buy-on {
 }
 
 /* The WhatsApp button rides above the bar instead of covering its thumbnail. */
-body.storefront-shell.sfx-sticky-buy-on .sf-whatsapp-float {
+body.storefront-shell.sfx-sticky-buy-on .sf-contact-float {
   bottom: calc(var(--product-sticky-actions-height, 0px) + 12px) !important;
 }
 
