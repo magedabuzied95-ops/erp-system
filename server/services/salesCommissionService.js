@@ -4,7 +4,7 @@ import { createEmployeePortalNotification } from "./employeePayrollPortalService
 import { postPayrollApprovalEntry, postPayrollPaymentEntry, recordFinancialAccountActivity, resolveFinancialAccountForPayment } from "./accountingService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
-import { countedLatePermissions, loadAttendancePolicy, resolveLateDay } from "../utils/attendancePolicy.js";
+import { countedLatePermissions, loadAttendancePolicy, policyAppliesOn, resolveLateDay } from "../utils/attendancePolicy.js";
 import { getAttendanceTimeZone } from "../utils/attendanceTimezone.js";
 import { ensureForeignKeyConstraint } from "../utils/schemaConstraints.js";
 import { sendEmployeePortalPush } from "./employeePortalPushService.js";
@@ -910,11 +910,21 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   let latePenaltyDays = 0;
   let latePenalizedDays = 0;
   let latePermissionDaysUsed = 0;
+  // Days before the policy started keep the old pricing.
+  let legacyAbsenceDays = 0;
+  let legacyLateHours = 0;
+  const allPermissionsByDate = new Map();
+  approvedLatePermissions.forEach(({ date, minutes }) => {
+    if (!allPermissionsByDate.has(date)) allPermissionsByDate.set(date, minutes);
+  });
 
   expectedDates.forEach((item) => {
     const row = attendanceByDate.get(item);
     if (!row) {
-      if (absenceEnabled) absenceDays += 1;
+      if (absenceEnabled) {
+        absenceDays += 1;
+        if (!policyAppliesOn(item, policy)) legacyAbsenceDays += 1;
+      }
       return;
     }
     attendedDays += 1;
@@ -926,6 +936,19 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     const rawLateMinutes = lateEnabled
       ? Math.max(toNumber(row.late_from_start_minutes), toNumber(row.late_minutes), fallbackLate * 60, 0)
       : 0;
+    if (!policyAppliesOn(item, policy)) {
+      const legacyPermission = allPermissionsByDate.has(item) ? toNumber(allPermissionsByDate.get(item)) : null;
+      const legacyCovered = legacyPermission === null ? 0 : legacyPermission > 0 ? Math.min(rawLateMinutes, legacyPermission) : rawLateMinutes;
+      if (legacyCovered > 0) latePermissionDaysUsed += 1;
+      approvedLatePermissionMinutes += legacyCovered;
+      const legacyLate = Math.max(0, rawLateMinutes - legacyCovered) / 60;
+      const legacyEarly = earlyEnabled ? Math.max(toNumber(row.early_leave_minutes) / 60, fallbackEarly, 0) : 0;
+      if (missingEnabled) missingHours += Math.max(0, Math.max(0, dailyWorkHours - workedHours) - legacyLate - legacyEarly);
+      legacyLateHours += legacyLate;
+      lateHours += legacyLate;
+      earlyLeaveHours += legacyEarly;
+      return;
+    }
     const lateDay = resolveLateDay({
       lateMinutes: rawLateMinutes,
       permissionMinutes: latePermissionByDate.has(item) ? latePermissionByDate.get(item) : null,
@@ -990,10 +1013,10 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     }),
   ]);
 
-  const absencePenaltyDays = absenceDays * policy.absence_penalty_days;
+  const absencePenaltyDays = legacyAbsenceDays + (absenceDays - legacyAbsenceDays) * policy.absence_penalty_days;
   const absenceDeduction = absencePenaltyDays * dailyRate;
   const missingHoursDeduction = missingHours * hourlyRate;
-  const lateDeduction = latePenaltyDays * dailyRate;
+  const lateDeduction = latePenaltyDays * dailyRate + legacyLateHours * hourlyRate;
   const earlyLeaveDeduction = earlyLeaveHours * hourlyRate;
   const leaveDeduction = toNumber(leavePayrollImpact.leave_deduction);
   const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction + leaveDeduction;

@@ -117,17 +117,6 @@ test("payroll accounting workflow posts approval, payment, and reports", async (
   assert.ok(employeeResult.rows[0], "Test employee must exist");
   const employee = employeeResult.rows[0];
   await cleanupPayrollArtifacts({ tenantId: employee.tenant_id, employeeId, payrollPeriod });
-  // The fixture month has one absent day; at the default two-day penalty the net
-  // pay goes negative and no journal is posted, so this flow pins one day.
-  const policyRow = await db.query("SELECT absence_penalty_days FROM hr_attendance_settings WHERE tenant_id = $1", [employee.tenant_id]);
-  await db.query(
-    `INSERT INTO hr_attendance_settings (tenant_id, absence_penalty_days) VALUES ($1, 1)
-     ON CONFLICT (tenant_id) DO UPDATE SET absence_penalty_days = 1`,
-    [employee.tenant_id]
-  );
-  after(async () => {
-    await db.query("UPDATE hr_attendance_settings SET absence_penalty_days = $2 WHERE tenant_id = $1", [employee.tenant_id, policyRow.rows[0]?.absence_penalty_days ?? 2]).catch(() => null);
-  });
   await ensurePayrollAdvance({ tenantId: employee.tenant_id, employeeId, payrollPeriod });
 
   const preview = await getPayrollPreview({
@@ -145,8 +134,8 @@ test("payroll accounting workflow posts approval, payment, and reports", async (
   assert.equal(Number(preview.payroll.base_salary), 3000);
   assert.equal(Number(preview.payroll.advance_deductions), 500);
   assert.equal(Number(preview.payroll.penalty_deductions), 150);
-  assert.equal(Number(preview.payroll.attendance_deduction_total), 1500); // 1 absent day + one hour late = half a day
-  assert.equal(Number(preview.payroll.net_pay), 850);
+  assert.equal(Number(preview.payroll.attendance_deduction_total), 1125);
+  assert.equal(Number(preview.payroll.net_pay), 1225);
   assert.ok(preview.payroll_run?.id, "Approval should persist a payroll run");
 
   const approvedRunResult = await db.query(
@@ -217,7 +206,7 @@ test("payroll accounting workflow posts approval, payment, and reports", async (
   });
   assert.equal(String(portal.payroll_status).toLowerCase(), "paid");
   assert.equal(String(portal.payment_status).toLowerCase(), "paid");
-  assert.equal(Number(portal.payslip.net_salary), 850);
+  assert.equal(Number(portal.payslip.net_salary), 1225);
 
   const ledgersAfterPayment = await getLedgersReport(db, {
     tenantId: employee.tenant_id,

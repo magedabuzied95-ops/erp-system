@@ -728,6 +728,11 @@ const statements = [
     ADD COLUMN IF NOT EXISTS late_permission_max_minutes INTEGER NOT NULL DEFAULT 120,
     ADD COLUMN IF NOT EXISTS absence_penalty_days NUMERIC(4,2) NOT NULL DEFAULT 2;
   `,
+  // The owner started the rules on 2026-09-18; earlier days keep the hourly/one-day pricing.
+  `
+  ALTER TABLE IF EXISTS hr_attendance_settings
+    ADD COLUMN IF NOT EXISTS policy_effective_from DATE NOT NULL DEFAULT DATE '2026-09-18';
+  `,
   `
   ALTER TABLE IF EXISTS attendance_logs
     DROP CONSTRAINT IF EXISTS attendance_logs_tenant_id_employee_id_attendance_date_key;

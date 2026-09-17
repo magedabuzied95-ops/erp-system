@@ -8,6 +8,9 @@
 //   only the first `monthly_late_permissions` approved ones in a month count.
 // - A working day with no check-in and no approved leave costs
 //   `absence_penalty_days` (two days).
+// - Days before `effective_from` keep the old pricing (lateness per hour after
+//   any permission, absence one day); permissions granted on those days still
+//   use up the month's quota.
 
 export const DEFAULT_ATTENDANCE_POLICY = Object.freeze({
   late_threshold_minutes: 30,
@@ -17,7 +20,16 @@ export const DEFAULT_ATTENDANCE_POLICY = Object.freeze({
   absence_penalty_days: 2,
   monthly_paid_leave_days: 3,
   forbidden_leave_weekdays: [4, 5, 6],
+  effective_from: "2026-09-18",
 });
+
+const toDateKey = (value) => {
+  if (!value) return "";
+  // pg reads DATE at UTC midnight (see bootstrapTimezone.js).
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
+  const text = String(value).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+};
 
 const numberIn = (value, fallback, { min = 0, max = Infinity } = {}) => {
   const parsed = Number(value);
@@ -45,6 +57,9 @@ export const normalizeAttendancePolicy = (row = {}) => {
     forbidden_leave_weekdays: Array.isArray(weekdays) && weekdays.length
       ? weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
       : [...base.forbidden_leave_weekdays],
+    effective_from: row && Object.prototype.hasOwnProperty.call(row, "policy_effective_from")
+      ? toDateKey(row.policy_effective_from)
+      : base.effective_from,
   };
 };
 
@@ -101,3 +116,6 @@ export const resolveLateDay = ({ lateMinutes = 0, permissionMinutes = null, poli
     penalty_days: penalized ? Math.max(0, Number(policy.late_penalty_days) || 0) : 0,
   };
 };
+
+export const policyAppliesOn = (dateKey, policy = DEFAULT_ATTENDANCE_POLICY) =>
+  !policy?.effective_from || String(dateKey || "") >= policy.effective_from;

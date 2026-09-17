@@ -76,8 +76,7 @@ test("the portal panel states the same rules and the balances", () => {
 
 test("payroll prices lateness and absence through the policy", () => {
   const source = fs.readFileSync(new URL("../server/services/salesCommissionService.js", import.meta.url), "utf8");
-  assert.match(source, /const lateDeduction = latePenaltyDays \* dailyRate;/);
-  assert.match(source, /const absencePenaltyDays = absenceDays \* policy\.absence_penalty_days;/);
+  assert.match(source, /const lateDeduction = latePenaltyDays \* dailyRate/);
   assert.match(source, /countedLatePermissions\(approvedLatePermissions, policy\)/);
   assert.match(source, /ss\.shift_type = 'opening'/);
 });
@@ -86,4 +85,25 @@ test("the portal refuses a third permission and any permission on the opener's d
   const source = fs.readFileSync(new URL("../server/services/employeePayrollPortalService.js", import.meta.url), "utf8");
   assert.match(source, /LATE_PERMISSION_QUOTA_USED/);
   assert.match(source, /LATE_PERMISSION_OPENER/);
+});
+
+test("the rules start on 2026-09-18; earlier days keep the old pricing", async () => {
+  const { policyAppliesOn } = await import("../server/utils/attendancePolicy.js");
+  assert.equal(policy.effective_from, "2026-09-18");
+  assert.equal(policyAppliesOn("2026-09-17", policy), false);
+  assert.equal(policyAppliesOn("2026-09-18", policy), true);
+  assert.equal(normalizeAttendancePolicy({ policy_effective_from: new Date("2026-10-01T00:00:00.000Z") }).effective_from, "2026-10-01");
+  const source = fs.readFileSync(new URL("../server/services/salesCommissionService.js", import.meta.url), "utf8");
+  assert.match(source, /if \(!policyAppliesOn\(item, policy\)\) \{/);
+  assert.match(source, /legacyAbsenceDays \+ \(absenceDays - legacyAbsenceDays\) \* policy\.absence_penalty_days/);
+  assert.match(source, /latePenaltyDays \* dailyRate \+ legacyLateHours \* hourlyRate/);
+});
+
+test("permissions taken before the start date still use up the month's two", () => {
+  const counted = countedLatePermissions([
+    { date: "2026-09-05", minutes: 60 },
+    { date: "2026-09-12", minutes: 0 },
+    { date: "2026-09-20", minutes: 0 },
+  ], policy);
+  assert.equal(counted.has("2026-09-20"), false);
 });
