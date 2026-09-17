@@ -628,7 +628,20 @@
       "videoSendFailed": "الفيديو لم يُسلَّم.",
       "attachmentUnsupported": "صور وفيديوهات بس.",
       "videoFormatUnsupported": "صيغة الفيديو دي مش بتتبعت — حوّله MP4 الأول.",
-      "videoTooLarge": "الفيديو أكبر من ١٦ ميجا، وده أكتر من اللي واتساب بيشيله."
+      "videoTooLarge": "الفيديو أكبر من ١٦ ميجا، وده أكتر من اللي واتساب بيشيله.",
+      "pasteFromClipboard": "لصق صورة من الحافظة",
+      "clipboardEmpty": "مفيش صورة في الحافظة. اعمل Copy للسكرين شوت الأول.",
+      "quickMedia": {
+        "fromClipboard": "صورة منسوخة",
+        "ready": "جاهزة للإرسال",
+        "send": "إرسال الصورة",
+        "dismiss": "إغلاق",
+        "forward": "إرسال لمحادثة تانية",
+        "forwardTitle": "إرسال إلى…",
+        "forwardSearch": "دوّر على محادثة",
+        "forwardEmpty": "مفيش محادثات مطابقة",
+        "forwarded": "اتبعتت لـ {{name}}."
+      }
     },
     "delivery": {
       "sending": "جاري الإرسال",

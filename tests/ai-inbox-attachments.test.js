@@ -87,8 +87,8 @@ test("both surfaces can actually pick a file", () => {
 });
 
 test("both surfaces guard against a double send", () => {
-  assert.match(desktop, /if \(attachmentSendingRef\.current\) return;/);
-  assert.match(pwa, /if \(attachmentSendingRef\.current\) return;/);
+  assert.match(desktop, /if \(attachmentSendingRef\.current\) return( false)?;/);
+  assert.match(pwa, /if \(attachmentSendingRef\.current\) return( false)?;/);
   // And the picker is reset before any await, or the same file cannot be
   // chosen twice in a row.
   const pwaHandler = pwa.slice(pwa.indexOf("const handleImageAttachmentChange"), pwa.indexOf("const toggleConversationAi"));

@@ -7,6 +7,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowUpRight,
+  ClipboardPaste,
   ArrowUpDown,
   ExternalLink,
   FileText,
@@ -103,6 +104,7 @@ import InboxOrderComposer from "../components/InboxOrderComposer";
 import InboxCustomerOrdersPanel from "../../../shared/components/inboxCustomerOrders/InboxCustomerOrdersPanel";
 // The suggested-reply card is shared with the PWA — see components/AiSuggestionCard.jsx.
 import AiSuggestionCard from "../components/AiSuggestionCard";
+import { ForwardConversationSheet, QuickMediaCard, useQuickMedia } from "../components/QuickMediaCard.jsx";
 // The AI-correction dialog is shared with the PWA — see components/ReplyCorrectionModal.jsx.
 import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/ReplyCorrectionModal";
 // Conversation labels are shared with the PWA — see components/ConversationLabelsModal.jsx.
@@ -2995,6 +2997,9 @@ function ManualReplyComposer({
   composerMode = "reply",
   onComposerModeChange,
   onAttachImage,
+  onForwardAttachment,
+  getForwardTargets,
+  attachmentSending = false,
   onAttachmentRejected,
 }) {
   const { t } = useTranslation();
@@ -3012,6 +3017,27 @@ function ManualReplyComposer({
    */
   const attachmentsAllowed = Boolean(onAttachImage) && !loading && !noteMode && canSendLive;
   const [attachmentDropActive, setAttachmentDropActive] = useState(false);
+  // A paste, a drop, or a screenshot noticed on the clipboard waits on the
+  // floating card — send, dismiss, forward — instead of going out unseen.
+  const quickMedia = useQuickMedia({ enabled: attachmentsAllowed });
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardItems, setForwardItems] = useState([]);
+  const [clipboardNotice, setClipboardNotice] = useState(false);
+  useEffect(() => {
+    if (!clipboardNotice) return undefined;
+    const timer = window.setTimeout(() => setClipboardNotice(false), 2600);
+    return () => window.clearTimeout(timer);
+  }, [clipboardNotice]);
+  const sendQuickMedia = () => {
+    const file = quickMedia.media?.file;
+    if (!file) return;
+    quickMedia.dismiss();
+    onAttachImage?.(file);
+  };
+  const pasteFromClipboard = async () => {
+    const outcome = await quickMedia.checkClipboard({ manual: true });
+    setClipboardNotice(outcome === "empty");
+  };
   const acceptTransferFiles = (transfer, { announceRejection = false } = {}) => {
     if (!attachmentsAllowed) return false;
     const [file] = attachmentFilesFromTransfer(transfer);
@@ -3022,7 +3048,7 @@ function ManualReplyComposer({
       if (announceRejection && Number(transfer?.files?.length || 0) > 0) onAttachmentRejected?.();
       return false;
     }
-    onAttachImage(file);
+    void quickMedia.offer(file, "paste");
     return true;
   };
   const submitLabel = noteMode
@@ -3090,6 +3116,35 @@ function ManualReplyComposer({
   }
   return (
     <div className="sticky bottom-0 w-full border-t border-slate-200/80 bg-white/95 p-2 backdrop-blur dark:border-white/10 dark:bg-[#20231f]/95">
+      {quickMedia.media && attachmentsAllowed ? (
+        <div dir="ltr" className="pointer-events-none absolute bottom-full right-6 z-30 mb-3 flex justify-end">
+          <QuickMediaCard
+            media={quickMedia.media}
+            busy={attachmentSending}
+            onSend={sendQuickMedia}
+            onDismiss={quickMedia.dismiss}
+            onForward={onForwardAttachment ? () => {
+              setForwardItems(getForwardTargets?.() || []);
+              setForwardOpen(true);
+            } : null}
+          />
+        </div>
+      ) : null}
+      {clipboardNotice ? (
+        <div role="status" className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-3 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-3 py-1.5 text-xs font-bold text-white shadow-lg dark:bg-slate-100 dark:text-slate-900">
+          {t("aiSupport.inbox.composer.clipboardEmpty")}
+        </div>
+      ) : null}
+      <ForwardConversationSheet
+        open={forwardOpen && Boolean(quickMedia.media)}
+        items={forwardItems}
+        onClose={() => setForwardOpen(false)}
+        onPick={(item) => {
+          setForwardOpen(false);
+          // The card stays: the same picture often goes to several customers.
+          if (quickMedia.media?.file && item?.conversation) onForwardAttachment?.(quickMedia.media.file, item.conversation);
+        }}
+      />
       {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="sr-only">{t("aiSupport.inbox.composer.takeoverWarning")}</div> : null}
       {isCommentConversation ? (
         <div className="mb-1.5">
@@ -3203,6 +3258,18 @@ function ManualReplyComposer({
           >
             <ImageIcon className="h-5 w-5" />
           </button>
+          <button
+            type="button"
+            // No await before the read: Safari only shows its Paste callout
+            // for a read made inside the click itself.
+            onClick={() => void pasteFromClipboard()}
+            disabled={!attachmentsAllowed}
+            title={t("aiSupport.inbox.composer.pasteFromClipboard")}
+            aria-label={t("aiSupport.inbox.composer.pasteFromClipboard")}
+            className="mb-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-slate-100"
+          >
+            <ClipboardPaste className="h-5 w-5" />
+          </button>
           <input
             ref={imageInputRef}
             type="file"
@@ -3227,6 +3294,7 @@ function ManualReplyComposer({
               resizeTextarea();
             }}
             onInput={resizeTextarea}
+            onFocus={() => void quickMedia.autoCheck()}
             onPaste={(event) => {
               // Only swallow the paste when the clipboard actually held an
               // image — pasting text has to keep working exactly as before.
@@ -7899,22 +7967,28 @@ export default function AiInbox({ reviewerMode = false }) {
    * wait removed, and it stops the channel size cap from rejecting a send the
    * operator has already waited through.
    */
-  const sendAttachment = useCallback(async (rawFile) => {
-    const sessionId = selectedConversation?.session_id;
-    if (!rawFile || !sessionId) return;
-    if (attachmentSendingRef.current) return;
+  // `target` forwards the file to a conversation other than the open one: it
+  // takes no caption from, and leaves untouched, the reply being written here.
+  const sendAttachment = useCallback(async (rawFile, { target = null } = {}) => {
+    const destination = target || selectedConversation;
+    const sessionId = destination?.session_id;
+    if (!rawFile || !sessionId) return false;
+    if (attachmentSendingRef.current) return false;
     // Refused here, before the upload: a clip in a container no channel carries,
     // or one over the WhatsApp ceiling, would otherwise be rejected only after
     // the operator had watched the whole transfer go up.
     const problem = attachmentProblem(rawFile);
     if (problem) {
       setToast({ tone: "rose", text: t(`aiSupport.inbox.composer.${problem}`) });
-      return;
+      return false;
     }
     const attachmentKind = attachmentKindOf(rawFile);
     attachmentSendingRef.current = true;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    const caption = clean(replyText);
+    const conversationIdentifier = destination.conversation_key || sessionId;
+    const routeId = target
+      ? clean(destination.session_id || destination.conversation_key || destination.conversation_id || conversationKey(destination))
+      : selectedConversationRouteId;
+    const caption = target ? "" : clean(replyText);
     const clientRequestId = buildClientRequestId();
     const optimisticId = `sending-attachment-${clientRequestId}`;
     const now = new Date().toISOString();
@@ -7954,7 +8028,7 @@ export default function AiInbox({ reviewerMode = false }) {
       last_activity_at: now,
       updated_at: now,
     }));
-    setReplyText("");
+    if (!target) setReplyText("");
     setAttachmentSending(true);
     try {
       const file = await prepareOutboundImage(rawFile);
@@ -7964,7 +8038,7 @@ export default function AiInbox({ reviewerMode = false }) {
       if (caption) form.append("caption", caption);
       form.append("client_request_id", clientRequestId);
       const payload = await api.post(
-        aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/attachment"),
+        aiInboxConversationEndpoint(routeId || sessionId, "/attachment"),
         form,
         { headers, perfComponent: "AiInbox.sendAttachment" }
       );
@@ -7989,8 +8063,14 @@ export default function AiInbox({ reviewerMode = false }) {
       if (payload?.delivery_status === "failed") {
         setToast({ tone: "rose", text: payload?.delivery_error || t(failedKey) });
       } else {
-        setToast({ tone: "emerald", text: t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSent" : "aiSupport.inbox.composer.imageSent") });
+        setToast({
+          tone: "emerald",
+          text: target
+            ? t("aiSupport.inbox.composer.quickMedia.forwarded", { name: getConversationDisplayName(destination) || "" })
+            : t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSent" : "aiSupport.inbox.composer.imageSent"),
+        });
       }
+      return true;
     } catch (err) {
       // The bubble stays, marked failed, still showing the local preview — the
       // operator can see WHICH photo did not go. The preview URL is therefore
@@ -8004,11 +8084,33 @@ export default function AiInbox({ reviewerMode = false }) {
         )),
       }));
       setToast({ tone: "rose", text: err?.message || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed") });
+      return false;
     } finally {
       attachmentSendingRef.current = false;
       setAttachmentSending(false);
     }
   }, [api, headers, patchConversation, replyText, selectedConversation, selectedConversationRouteId, setReplyText, setToast, t, tenantId]);
+
+  // Every other live conversation, for the quick-media card's forward sheet.
+  // Built when the sheet opens, not on every inbox refresh.
+  const getForwardTargets = useCallback(() => {
+    const openKey = selectedConversation ? conversationKey(selectedConversation) : "";
+    return conversations
+      .filter((conversation) => conversation?.session_id && !isCommentConversation(conversation))
+      .filter((conversation) => conversationKey(conversation) !== openKey)
+      .map((conversation) => ({
+        key: conversationKey(conversation) || conversation.session_id,
+        name: getConversationDisplayName(conversation) || conversation.session_id,
+        subtitle: clean(conversation.latest_message_preview || ""),
+        avatarUrl: customerAvatarUrl(conversation),
+        conversation,
+      }));
+  }, [conversations, selectedConversation]);
+
+  const forwardAttachment = useCallback(
+    (file, conversation) => sendAttachment(file, { target: conversation }),
+    [sendAttachment]
+  );
 
   const handleAttachmentRejected = useCallback(() => {
     setToast({ tone: "rose", text: t("aiSupport.inbox.composer.attachmentUnsupported") });
@@ -9848,6 +9950,9 @@ export default function AiInbox({ reviewerMode = false }) {
                         composerMode={composerMode}
                         onComposerModeChange={setComposerMode}
                         onAttachImage={sendAttachment}
+                        onForwardAttachment={forwardAttachment}
+                        getForwardTargets={getForwardTargets}
+                        attachmentSending={attachmentSending}
                         onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
@@ -10381,6 +10486,9 @@ export default function AiInbox({ reviewerMode = false }) {
                         composerMode={composerMode}
                         onComposerModeChange={setComposerMode}
                         onAttachImage={sendAttachment}
+                        onForwardAttachment={forwardAttachment}
+                        getForwardTargets={getForwardTargets}
+                        attachmentSending={attachmentSending}
                         onAttachmentRejected={handleAttachmentRejected}
                         onOpenProductPicker={() => openProductCardPicker()}
                         onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}

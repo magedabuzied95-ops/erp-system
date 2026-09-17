@@ -628,7 +628,20 @@
       "videoSendFailed": "The video was not delivered.",
       "attachmentUnsupported": "Photos and videos only.",
       "videoFormatUnsupported": "That video format cannot be sent — save it as MP4 first.",
-      "videoTooLarge": "That video is over 16 MB, which is more than WhatsApp will carry."
+      "videoTooLarge": "That video is over 16 MB, which is more than WhatsApp will carry.",
+      "pasteFromClipboard": "Paste an image from the clipboard",
+      "clipboardEmpty": "No image on the clipboard. Copy a screenshot first.",
+      "quickMedia": {
+        "fromClipboard": "Copied image",
+        "ready": "Ready to send",
+        "send": "Send this image",
+        "dismiss": "Close",
+        "forward": "Send to another conversation",
+        "forwardTitle": "Send to…",
+        "forwardSearch": "Search conversations",
+        "forwardEmpty": "No matching conversations",
+        "forwarded": "Sent to {{name}}."
+      }
     },
     "delivery": {
       "sending": "Sending",

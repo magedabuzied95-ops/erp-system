@@ -7,6 +7,7 @@ import {
   Bot,
   CheckCheck,
   ChevronLeft,
+  ClipboardPaste,
   Clock3,
   Download,
   ExternalLink,
@@ -85,6 +86,7 @@ import ConversationLabelsModal, { conversationLabelClass } from "../components/C
 import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
 import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
 import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
+import { ForwardConversationSheet, QuickMediaCard, useQuickMedia } from "../components/QuickMediaCard.jsx";
 import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
 import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
 import {
@@ -1962,7 +1964,7 @@ function MessageText({ text = "" }) {
   );
 }
 
-function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null, onPasteFiles = null }) {
+function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disabled = false, editorRef: externalEditorRef = null, onPasteFiles = null, onFocus = null }) {
   const internalEditorRef = useRef(null);
   const editorRef = externalEditorRef || internalEditorRef;
   const allowLineBreakRef = useRef(false);
@@ -1997,6 +1999,7 @@ function PwaReplyEditor({ value = "", onChange, onSubmit, placeholder = "", disa
       dir="auto"
       data-placeholder={placeholder}
       data-ai-inbox-composer="true"
+      onFocus={() => onFocus?.()}
       onInput={(event) => onChange?.(String(event.currentTarget.innerText || "").replace(/\u00a0/g, " "))}
       onPaste={(event) => {
         // An image pasted into a contentEditable is dropped in as an <img> the
@@ -2059,6 +2062,8 @@ const PwaComposerBar = memo(function PwaComposerBar({
   onSetText,
   onPickImage,
   onPasteFiles,
+  onPasteClipboardImage = null,
+  onEditorFocus = null,
   sendTone = "sky",
 }) {
   const { t } = useTranslation();
@@ -2132,6 +2137,18 @@ const PwaComposerBar = memo(function PwaComposerBar({
                   <Image className="h-4 w-4 text-slate-500" />
                   {t("aiSupport.inbox.pwa.attachImage")}
                 </button>
+                {onPasteClipboardImage ? (
+                  <button
+                    type="button"
+                    // No await before the read: Safari only shows its Paste
+                    // callout for a read made inside the tap itself.
+                    onClick={() => { setAttachOpen(false); void onPasteClipboardImage(); }}
+                    className="flex w-full items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+                  >
+                    <ClipboardPaste className="h-4 w-4 text-slate-500" />
+                    {t("aiSupport.inbox.composer.pasteFromClipboard")}
+                  </button>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -2154,6 +2171,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
           onChange={handleChange}
           onSubmit={onSubmit}
           onPasteFiles={onPasteFiles}
+          onFocus={onEditorFocus}
           placeholder={placeholder}
         />
         <button
@@ -6761,21 +6779,27 @@ export default function AiInboxPwa({ portal = null } = {}) {
    * before it is uploaded — see the desktop sendAttachment for why a photo used
    * to leave the operator staring at a composer that looked stuck.
    */
-  const sendAttachmentFile = useCallback(async (rawFile) => {
-    const sessionId = selectedConversation?.session_id;
-    if (!rawFile || !sessionId) return;
-    if (attachmentSendingRef.current) return;
+  // `target` forwards the file to a conversation other than the open one: it
+  // takes no caption from, and leaves untouched, the draft in this composer.
+  const sendAttachmentFile = useCallback(async (rawFile, { target = null } = {}) => {
+    const destination = target || selectedConversation;
+    const sessionId = destination?.session_id;
+    if (!rawFile || !sessionId) return false;
+    if (attachmentSendingRef.current) return false;
     // Refused before the upload, not after it — see the desktop sendAttachment.
     const problem = attachmentProblem(rawFile);
     if (problem) {
       toast.error(t(`aiSupport.inbox.composer.${problem}`));
-      return;
+      return false;
     }
     const attachmentKind = attachmentKindOf(rawFile);
     attachmentSendingRef.current = true;
-    const canonicalSessionId = selectedConversationRouteId || sessionId;
-    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    const caption = cleanMessageText(readComposerText());
+    const destinationIds = conversationIdentifiers(destination);
+    const canonicalSessionId = (target
+      ? clean(destinationIds.sessionId || destinationIds.conversationKey || destinationIds.conversationId || "")
+      : selectedConversationRouteId) || sessionId;
+    const conversationIdentifier = destination.conversation_key || sessionId;
+    const caption = target ? "" : cleanMessageText(readComposerText());
     const clientRequestId = buildClientRequestId();
     const optimisticId = `sending-attachment-${clientRequestId}`;
     const now = new Date().toISOString();
@@ -6815,7 +6839,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
       last_activity_at: now,
       updated_at: now,
     }));
-    setComposerText("");
+    if (!target) setComposerText("");
     setSending(true);
     try {
       const file = await prepareOutboundImage(rawFile);
@@ -6846,8 +6870,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
       if (payload?.delivery_status === "failed") {
         toast.error(payload?.delivery_error || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed"));
       } else {
-        toast.success(t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSent" : "aiSupport.inbox.composer.imageSent"));
+        toast.success(target
+          ? t("aiSupport.inbox.composer.quickMedia.forwarded", { name: conversationName(destination) })
+          : t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSent" : "aiSupport.inbox.composer.imageSent"));
       }
+      return true;
     } catch (error) {
       // The failed bubble keeps the local preview, so the operator can see
       // which photo did not go; that is why the URL is not released here.
@@ -6860,6 +6887,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
         )),
       }));
       toast.error(error?.message || t(attachmentKind === "video" ? "aiSupport.inbox.composer.videoSendFailed" : "aiSupport.inbox.composer.imageSendFailed"));
+      return false;
     } finally {
       attachmentSendingRef.current = false;
       setSending(false);
@@ -6874,13 +6902,51 @@ export default function AiInboxPwa({ portal = null } = {}) {
     if (file) sendAttachmentFile(file);
   }, [sendAttachmentFile]);
 
-  /* Ctrl+V a screenshot straight into the reply box. */
+  /*
+   * A pasted screenshot, or one noticed on the clipboard, waits on the
+   * floating card (send / dismiss / forward) instead of going out the instant
+   * it lands — see QuickMediaCard.
+   */
+  const quickMediaEnabled = Boolean(selectedConversation?.session_id) && composerMode !== "note";
+  const { media: quickMediaItem, offer: offerQuickMedia, checkClipboard: checkClipboardImage, autoCheck: autoCheckClipboardImage, dismiss: dismissQuickMedia } = useQuickMedia({ enabled: quickMediaEnabled });
+  const [forwardSheetOpen, setForwardSheetOpen] = useState(false);
   const handleComposerPasteFiles = useCallback((transfer) => {
     const [file] = attachmentFilesFromTransfer(transfer);
     if (!file) return false;
-    sendAttachmentFile(file);
+    void offerQuickMedia(file, "paste");
     return true;
-  }, [sendAttachmentFile]);
+  }, [offerQuickMedia]);
+  const pasteImageFromClipboard = useCallback(async () => {
+    const outcome = await checkClipboardImage({ manual: true });
+    if (outcome === "empty") toast(t("aiSupport.inbox.composer.clipboardEmpty"));
+  }, [checkClipboardImage, t]);
+  const sendQuickMedia = useCallback(async () => {
+    const file = quickMediaItem?.file;
+    if (!file) return;
+    dismissQuickMedia();
+    await sendAttachmentFile(file);
+  }, [dismissQuickMedia, quickMediaItem, sendAttachmentFile]);
+  const forwardQuickMedia = useCallback(async (item) => {
+    const file = quickMediaItem?.file;
+    setForwardSheetOpen(false);
+    if (!file || !item?.conversation) return;
+    // The card stays: the same picture often goes to several customers.
+    await sendAttachmentFile(file, { target: item.conversation });
+  }, [quickMediaItem, sendAttachmentFile]);
+  const forwardTargets = useMemo(() => {
+    if (!forwardSheetOpen) return [];
+    const openKey = selectedConversation ? conversationIdentifiers(selectedConversation).conversationKey : "";
+    return asArray(portalMode ? portalMessageConversations : conversations)
+      .filter((conversation) => conversation?.session_id && !isCommentConversation(conversation))
+      .filter((conversation) => conversationIdentifiers(conversation).conversationKey !== openKey)
+      .map((conversation) => ({
+        key: conversationIdentifiers(conversation).conversationKey || conversation.session_id,
+        name: conversationName(conversation),
+        subtitle: clean(conversation.latest_message_preview || ""),
+        avatarUrl: customerAvatarUrl(conversation),
+        conversation,
+      }));
+  }, [conversations, forwardSheetOpen, portalMessageConversations, portalMode, selectedConversation]);
 
   const toggleConversationAi = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
@@ -8456,6 +8522,23 @@ export default function AiInboxPwa({ portal = null } = {}) {
 
         {showComposer ? (
           <div className={`ai-pwa-fixed ai-pwa-composer fixed inset-x-0 z-20 mx-auto w-full px-2 ${contentScreen ? "bottom-[max(0.4rem,env(safe-area-inset-bottom))]" : "bottom-[calc(4rem+env(safe-area-inset-bottom))]"}`}>
+            {quickMediaItem && composerMode !== "note" ? (
+              <div dir="ltr" className="pointer-events-none absolute bottom-full right-5 mb-3 flex justify-end">
+                <QuickMediaCard
+                  media={quickMediaItem}
+                  busy={sending && attachmentSendingRef.current}
+                  onSend={() => void sendQuickMedia()}
+                  onDismiss={dismissQuickMedia}
+                  onForward={() => setForwardSheetOpen(true)}
+                />
+              </div>
+            ) : null}
+            <ForwardConversationSheet
+              open={forwardSheetOpen && Boolean(quickMediaItem)}
+              items={forwardTargets}
+              onPick={(item) => void forwardQuickMedia(item)}
+              onClose={() => setForwardSheetOpen(false)}
+            />
             <div className="rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
@@ -8542,6 +8625,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 onSetText={setComposerText}
                 onPickImage={openImagePicker}
                 onPasteFiles={handleComposerPasteFiles}
+                onPasteClipboardImage={composerMode === "note" ? null : pasteImageFromClipboard}
+                onEditorFocus={autoCheckClipboardImage}
                 sendTone={composerMode !== "note" && Boolean(activeAiSuggestionText) && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "amber" : "sky"}
               />
             </div>
