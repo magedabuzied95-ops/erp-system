@@ -744,7 +744,26 @@
     "nextDayShort": "+١",
     "longShiftWarning": "مدة غير معتادة — راجع ص/م قبل الحفظ",
     "longShiftConfirm": "أؤكد أن الوردية بهذا الطول فعلاً",
-    "longShiftBlocked": "أكّد الوردية الطويلة قبل الحفظ"
+    "longShiftBlocked": "أكّد الوردية الطويلة قبل الحفظ",
+    "advanceStatus": {
+      "pending": "لسه ماتخصمتش",
+      "partial": "مخصوم جزء",
+      "included_in_payroll": "داخلة في المرتب",
+      "settled": "اتخصمت",
+      "cancelled": "ملغية"
+    },
+    "advanceEdit": "تعديل السلفة",
+    "advanceDelete": "مسح السلفة",
+    "advanceAmount": "المبلغ",
+    "advanceNotes": "ملاحظة",
+    "advanceSave": "حفظ التعديل",
+    "advanceCancelEdit": "إلغاء",
+    "advanceDrawerHint": "لو السلفة اتصرفت كاش، الفرق هيرجع الدرج أو يطلع منه تلقائيًا.",
+    "advanceDeleteConfirm": "مسح سلفة {{amount}}؟ مش هتتخصم من المرتب، ولو كانت اتصرفت كاش المبلغ هيرجع الدرج.",
+    "advanceCashBack": "تم — {{amount}} رجعوا الدرج",
+    "advanceCashOut": "تم — {{amount}} طلعوا من الدرج",
+    "advanceFromInvoice": "السلفة دي من فاتورة آجل، بتتعدل من الفاتورة",
+    "advanceOpenInvoice": "افتح الفاتورة"
   },
   "weekdays": {
     "0": "الأحد",

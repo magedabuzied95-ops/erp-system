@@ -744,7 +744,26 @@
     "nextDayShort": "+1",
     "longShiftWarning": "Unusual length — check AM/PM before saving",
     "longShiftConfirm": "I confirm the shift really was this long",
-    "longShiftBlocked": "Confirm the long shift before saving"
+    "longShiftBlocked": "Confirm the long shift before saving",
+    "advanceStatus": {
+      "pending": "Not deducted yet",
+      "partial": "Partly deducted",
+      "included_in_payroll": "In payroll",
+      "settled": "Deducted",
+      "cancelled": "Cancelled"
+    },
+    "advanceEdit": "Edit advance",
+    "advanceDelete": "Delete advance",
+    "advanceAmount": "Amount",
+    "advanceNotes": "Note",
+    "advanceSave": "Save changes",
+    "advanceCancelEdit": "Cancel",
+    "advanceDrawerHint": "If the advance was paid in cash, the difference goes back into or out of the drawer automatically.",
+    "advanceDeleteConfirm": "Delete the {{amount}} advance? It will not be deducted from salary, and cash paid out goes back to the drawer.",
+    "advanceCashBack": "Done — {{amount}} back in the drawer",
+    "advanceCashOut": "Done — {{amount}} taken from the drawer",
+    "advanceFromInvoice": "This advance comes from a deferred invoice; change it from the invoice",
+    "advanceOpenInvoice": "Open invoice"
   },
   "weekdays": {
     "0": "Sun",

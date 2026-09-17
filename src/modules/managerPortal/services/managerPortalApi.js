@@ -10,6 +10,8 @@ export const managerPortalApi = {
   employeeDetails: (token, employeeId, params = {}, options = {}) => api.get(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/details`, { ...options, params }),
   createEmployeeAdjustment: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/adjustments`, payload),
   deleteEmployeeAdjustment: (token, employeeId, kind, adjustmentId) => api.delete(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/adjustments/${encodeURIComponent(kind)}/${encodeURIComponent(adjustmentId)}`),
+  updateEmployeeAdvance: (token, employeeId, advanceId, payload) => api.patch(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/advances/${encodeURIComponent(advanceId)}`, payload),
+  deleteEmployeeAdvance: (token, employeeId, advanceId) => api.delete(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/advances/${encodeURIComponent(advanceId)}`),
   approveEmployeePayroll: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/payroll/approve`, payload),
   correctEmployeeAttendance: (token, employeeId, payload) => api.post(`${tokenPath(token)}/staff/${encodeURIComponent(employeeId)}/attendance`, payload),
   reviewAdvanceRequest: (token, requestId, payload) => api.patch(`${tokenPath(token)}/advance-requests/${encodeURIComponent(requestId)}`, payload),

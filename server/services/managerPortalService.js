@@ -3039,7 +3039,8 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
     ))).catch(() => []),
     tableExists("employee_advances").then((ok) => (!ok ? [] : safeQuery(
       `
-      SELECT id, amount, deducted_amount, remaining_amount, deduction_month, deduction_status, status, notes, created_at, deducted_at
+      SELECT id, amount, deducted_amount, remaining_amount, deduction_month, deduction_status, status, notes, created_at, deducted_at,
+             to_jsonb(employee_advances)->>'order_id' AS order_id
       FROM employee_advances
       WHERE employee_id = $1::bigint AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
       ORDER BY created_at DESC, id DESC
@@ -3188,6 +3189,7 @@ export const getManagerPortalEmployeeDetails = async ({ manager = {}, employeeId
         notes: row.notes || "",
         created_at: row.created_at,
         deducted_at: row.deducted_at,
+        order_id: row.order_id ? Number(row.order_id) : null,
       })),
     },
     bonuses: { total: sum(monthBonuses), rows: monthBonuses },
@@ -3376,6 +3378,33 @@ export const cancelManagerPortalEmployeeAdjustment = async ({ manager = {}, empl
   const error = new Error("Adjustment type must be bonus or deduction");
   error.status = 400;
   throw error;
+};
+
+// Edit or delete one advance from the employee sheet. The rules — and how the drawer follows
+// the change — live in modules/payroll/employeeAdvanceEdit.js.
+export const changeManagerPortalEmployeeAdvance = async ({ manager = {}, employeeId, advanceId, action, payload = {} } = {}) => {
+  const { employee, tenantId } = await loadScopedEmployee({ manager, employeeId });
+  const { changeEmployeeAdvance } = await import("../modules/payroll/employeeAdvanceEdit.js");
+  const result = await changeEmployeeAdvance({
+    action,
+    employee,
+    tenantId,
+    advanceId,
+    amount: payload.amount,
+    notes: payload.notes,
+    actorId: numberOrNull(manager.user_id),
+  });
+  const { change } = result;
+  notifyEmployeeSalaryChange({
+    tenantId,
+    employeeId: employee.id,
+    title: action === "delete" ? "تم إلغاء سلفة" : "تم تعديل سلفة",
+    body: action === "delete"
+      ? `اتلغت سلفة ${Number(change.old_amount)} ج.م`
+      : `السلفة اتعدلت من ${Number(change.old_amount)} إلى ${Number(change.new_amount)} ج.م`,
+    data: { event: action === "delete" ? "advance_cancelled" : "advance_updated", advance_id: result.advance.id, amount: Number(change.new_amount) },
+  });
+  return result;
 };
 
 // Manager-side check-in / check-out correction. Same engine as the admin

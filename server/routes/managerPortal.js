@@ -29,6 +29,7 @@ import {
   createManagerPortalEmployeeAdjustment,
   approveManagerPortalEmployeePayroll,
   cancelManagerPortalEmployeeAdjustment,
+  changeManagerPortalEmployeeAdvance,
   correctManagerPortalAttendance,
   reviewManagerPortalAdvanceRequest,
   getManagerPortalStockAlerts,
@@ -481,6 +482,25 @@ router.delete("/:token/staff/:employeeId/adjustments/:kind/:adjustmentId", verif
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete adjustment" });
   }
 });
+
+// Edit (PATCH) or delete (DELETE) one advance; the drawer follows the amount difference.
+const advanceChangeRoute = (action) => async (req, res) => {
+  try {
+    const result = await changeManagerPortalEmployeeAdvance({
+      manager: req.managerPortalManager,
+      employeeId: req.params.employeeId,
+      advanceId: req.params.advanceId,
+      action,
+      payload: req.body || {},
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    if (!error?.status) console.error(`[manager-portal] advance ${action} error`, error);
+    return res.status(error.status || 500).json({ success: false, code: error.code || null, message: error.message || "Failed to change advance" });
+  }
+};
+router.patch("/:token/staff/:employeeId/advances/:advanceId", verifyManagerPortalToken, advanceChangeRoute("update"));
+router.delete("/:token/staff/:employeeId/advances/:advanceId", verifyManagerPortalToken, advanceChangeRoute("delete"));
 
 router.post("/:token/staff/:employeeId/attendance", verifyManagerPortalToken, async (req, res) => {
   try {

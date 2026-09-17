@@ -4761,6 +4761,7 @@ export default function ManagerPortal() {
           initialTab={detailsTab}
           onClose={() => { setDetailsEmployee(null); setDetailsTab("overview"); }}
           onChanged={() => reloadTabData("staff", { force: true })}
+          onOpenInvoice={(orderId) => openInvoiceDetail(orderId)}
         />
       ) : null}
       {taskModalOpen ? (
@@ -4933,7 +4934,7 @@ export default function ManagerPortal() {
         </div>
       ) : null}
       {invoiceSheet.open ? (
-        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-950/55 sm:items-center">
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-slate-950/55 sm:items-center">
           <button type="button" aria-label={tt("managerPortal.invoice.close")} onClick={() => setInvoiceSheet({ open: false, loading: false, invoice: null, error: "" })} className="absolute inset-0" />
           <section className="relative max-h-[92dvh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir={portalLanguage === "ar" ? "rtl" : "ltr"}>
             <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-slate-950 px-4 py-4 text-white">

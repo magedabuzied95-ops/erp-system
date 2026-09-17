@@ -92,7 +92,25 @@ const statusLabel = (status) => {
   return map[key] || status || "—";
 };
 
-export default function EmployeeDetailsSheet({ token, employee, initialTab = "overview", onClose, onChanged }) {
+// deduction_status says where the advance stands against payroll — "pending" means the salary
+// has not taken it yet, not that anyone still has to approve it.
+const advanceStatus = (row) => {
+  const status = String(row?.deduction_status || row?.status || "").toLowerCase();
+  if (["cancelled", "canceled"].includes(status) || String(row?.status || "").toLowerCase() === "cancelled") return "cancelled";
+  if (["settled", "deducted"].includes(status)) return "settled";
+  if (["partial", "partially_deducted"].includes(status)) return "partial";
+  if (status === "included_in_payroll") return "included_in_payroll";
+  return "pending";
+};
+const ADVANCE_STATUS_TONE = {
+  pending: "bg-amber-50 text-amber-700",
+  partial: "bg-amber-50 text-amber-700",
+  included_in_payroll: "bg-sky-50 text-sky-700",
+  settled: "bg-emerald-50 text-emerald-700",
+  cancelled: "bg-slate-100 text-slate-500",
+};
+
+export default function EmployeeDetailsSheet({ token, employee, initialTab = "overview", onClose, onChanged, onOpenInvoice }) {
   const [tab, setTab] = useState(TABS.includes(initialTab) ? initialTab : "overview");
   const [month, setMonth] = useState(currentMonth());
   const [state, setState] = useState({ loading: true, error: "", details: null });
@@ -212,6 +230,55 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
       setNotice(error?.response?.data?.message || error?.message || tt("managerPortal.employeeDetails.deleteError"));
     } finally {
       setDeletingKey("");
+    }
+  };
+
+  // Editing or deleting an advance: the server moves the cash drawer by the difference.
+  const [advForm, setAdvForm] = useState(null);
+  const [advBusy, setAdvBusy] = useState("");
+  const [advNotice, setAdvNotice] = useState("");
+  useEffect(() => { setAdvForm(null); setAdvNotice(""); }, [employeeId]);
+
+  const advanceDoneNotice = (res, fallbackKey) => {
+    const cashBack = Number(res?.drawer?.cash_back || 0);
+    if (cashBack > 0) return tt("managerPortal.employeeDetails.advanceCashBack", { amount: formatCurrency(cashBack) });
+    if (cashBack < 0) return tt("managerPortal.employeeDetails.advanceCashOut", { amount: formatCurrency(-cashBack) });
+    return tt(fallbackKey);
+  };
+
+  const submitAdvance = async (event) => {
+    event.preventDefault();
+    if (!advForm) return;
+    const amount = Number(advForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) { setAdvNotice(tt("managerPortal.employeeDetails.amountRequired")); return; }
+    try {
+      setAdvBusy(`save-${advForm.id}`);
+      setAdvNotice("");
+      const res = await managerPortalApi.updateEmployeeAdvance(token, employeeId, advForm.id, { amount, notes: advForm.notes });
+      setAdvForm(null);
+      setAdvNotice(advanceDoneNotice(res, "managerPortal.employeeDetails.saved"));
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setAdvNotice(error?.responseBody?.message || error?.message || tt("managerPortal.employeeDetails.saveError"));
+    } finally {
+      setAdvBusy("");
+    }
+  };
+
+  const deleteAdvance = async (row) => {
+    if (!window.confirm(tt("managerPortal.employeeDetails.advanceDeleteConfirm", { amount: formatCurrency(row.amount) }))) return;
+    try {
+      setAdvBusy(`delete-${row.id}`);
+      setAdvNotice("");
+      const res = await managerPortalApi.deleteEmployeeAdvance(token, employeeId, row.id);
+      setAdvNotice(advanceDoneNotice(res, "managerPortal.employeeDetails.deleted"));
+      await load();
+      onChanged?.();
+    } catch (error) {
+      setAdvNotice(error?.responseBody?.message || error?.message || tt("managerPortal.employeeDetails.deleteError"));
+    } finally {
+      setAdvBusy("");
     }
   };
 
@@ -418,11 +485,29 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                     <Stat label={tt("managerPortal.employeeDetails.advancesTaken")} value={formatCurrency(d.advances.total_taken)} />
                     <Stat label={tt("managerPortal.employeeDetails.advancesOutstanding")} value={formatCurrency(d.advances.total_outstanding)} tone="text-amber-700" />
                   </div>
-                  {d.advances.rows.length ? d.advances.rows.map((row) => (
-                    <div key={row.id} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5">
+                  {advNotice ? <div className="text-xs font-bold text-slate-600">{advNotice}</div> : null}
+                  {d.advances.rows.length ? d.advances.rows.map((row) => {
+                    const advStatus = advanceStatus(row);
+                    const cancelled = advStatus === "cancelled";
+                    const editable = !cancelled && !row.order_id && advStatus === "pending" && !(Number(row.deducted_amount) > 0);
+                    const editing = advForm?.id === row.id;
+                    return (
+                    <div key={row.id} className={`rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 ${cancelled ? "opacity-60" : ""}`}>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-black text-slate-950">{formatCurrency(row.amount)}</span>
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${row.remaining_amount > 0 ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{statusLabel(row.deduction_status || row.status)}</span>
+                        <span className={`text-sm font-black text-slate-950 ${cancelled ? "line-through" : ""}`}>{formatCurrency(row.amount)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${ADVANCE_STATUS_TONE[advStatus] || "bg-slate-100 text-slate-600"}`}>{tt(`managerPortal.employeeDetails.advanceStatus.${advStatus}`, { defaultValue: row.deduction_status || row.status || "—" })}</span>
+                          {editable && !editing ? (
+                            <>
+                              <button type="button" aria-label={tt("managerPortal.employeeDetails.advanceEdit")} onClick={() => { setAdvNotice(""); setAdvForm({ id: row.id, amount: String(row.amount), notes: row.notes || "" }); }} className="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-600">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" aria-label={tt("managerPortal.employeeDetails.advanceDelete")} disabled={advBusy === `delete-${row.id}`} onClick={() => deleteAdvance(row)} className="rounded-lg border border-rose-200 bg-rose-50 p-1.5 text-rose-600 disabled:opacity-50">
+                                {advBusy === `delete-${row.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-[11px] font-bold text-slate-500">
                         <span>{tt("managerPortal.employeeDetails.takenOn")}: {formatDate(row.created_at)}</span>
@@ -430,9 +515,38 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
                         <span>{tt("managerPortal.employeeDetails.deducted")}: {formatCurrency(row.deducted_amount)}</span>
                         <span>{tt("managerPortal.employeeDetails.remaining")}: {formatCurrency(row.remaining_amount)}</span>
                       </div>
-                      {row.notes ? <div className="mt-1 text-xs text-slate-500">{row.notes}</div> : null}
+                      {row.notes && !editing ? <div className="mt-1 text-xs text-slate-500">{row.notes}</div> : null}
+                      {row.order_id && !cancelled && advStatus === "pending" ? (
+                        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+                          <span>{tt("managerPortal.employeeDetails.advanceFromInvoice")}</span>
+                          {onOpenInvoice ? (
+                            <button type="button" onClick={() => onOpenInvoice(row.order_id)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-800">
+                              {tt("managerPortal.employeeDetails.advanceOpenInvoice")}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {editing ? (
+                        <form onSubmit={submitAdvance} className="mt-2 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                          <label className="block text-[11px] font-black text-slate-500">{tt("managerPortal.employeeDetails.advanceAmount")}</label>
+                          <input type="number" inputMode="decimal" min="0.01" step="0.01" value={advForm.amount} onChange={(e) => setAdvForm((f) => ({ ...f, amount: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-950" required />
+                          <label className="block text-[11px] font-black text-slate-500">{tt("managerPortal.employeeDetails.advanceNotes")}</label>
+                          <input type="text" value={advForm.notes} onChange={(e) => setAdvForm((f) => ({ ...f, notes: e.target.value }))} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-950" />
+                          <div className="text-[11px] font-bold text-slate-500">{tt("managerPortal.employeeDetails.advanceDrawerHint")}</div>
+                          <div className="flex gap-2">
+                            <button type="submit" disabled={advBusy === `save-${row.id}`} className="inline-flex flex-1 items-center justify-center gap-1 rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-slate-50 disabled:opacity-50">
+                              {advBusy === `save-${row.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                              {tt("managerPortal.employeeDetails.advanceSave")}
+                            </button>
+                            <button type="button" onClick={() => setAdvForm(null)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
+                              {tt("managerPortal.employeeDetails.advanceCancelEdit")}
+                            </button>
+                          </div>
+                        </form>
+                      ) : null}
                     </div>
-                  )) : <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs font-bold text-slate-500">{tt("managerPortal.employeeDetails.noAdvances")}</div>}
+                    );
+                  }) : <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs font-bold text-slate-500">{tt("managerPortal.employeeDetails.noAdvances")}</div>}
                 </div>
               ) : null}
 
