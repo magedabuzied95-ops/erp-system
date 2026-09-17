@@ -79,24 +79,7 @@ services:
         max-size: "20m"
         max-file: "3"
 
-  # Open-weights text model for product descriptions, SEO metadata and social
-  # captions (no OpenAI subscription). One request at a time on the CPU; the
-  # model stays loaded for 30 min between edits.
-  erp-ollama:
-    image: ollama/ollama:latest
-    container_name: erp-ollama
-    restart: unless-stopped
-    environment:
-      OLLAMA_KEEP_ALIVE: 30m
-      OLLAMA_NUM_PARALLEL: 1
-      OLLAMA_MAX_LOADED_MODELS: 1
-      OLLAMA_NUM_THREADS: "4"
-    volumes:
-      - erp_ollama_models:/root/.ollama
-    mem_limit: 5g
-
 volumes:
   erp_postgres_data:
   erp_redis_data:
   erp_artwork_models:
-  erp_ollama_models:
