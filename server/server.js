@@ -671,6 +671,7 @@ const { default: amazonRoutes } = await import("./modules/amazon/amazon.routes.j
 const { ensureAmazonSchema } = await import("./modules/amazon/amazonSchema.js");
 const { closeAbandonedRuns: closeAbandonedAmazonRuns } = await import("./modules/amazon/amazonSyncRuns.js");
 const { startAmazonScheduler } = await import("./modules/amazon/amazonScheduler.js");
+const { ensureOrderIdentityAlertsSchema, startOrderIdentitySweeper } = await import("./modules/orders/addressIdentityAlerts.js");
 const { default: brandsRoutes } = await import("./routes/brands.js");
 const { default: manufacturersRoutes } = await import("./routes/manufacturers.js");
 const { default: purchaseRoutes } = await import("./routes/purchases.js");
@@ -2494,6 +2495,12 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, Math.max(60_000, Number(process.env.PRICE_DROP_ALERT_INTERVAL_MS || 15 * 60 * 1000)));
       backgroundIntervals.add(priceDropInterval);
+      // Same address, another name and phone: checks new/edited online orders every minute. The
+      // first passes walk the whole order history (the backfill) without notifying anyone.
+      if (globalThis.__ORDER_IDENTITY_SCHEMA_READY) {
+        const orderIdentityInterval = startOrderIdentitySweeper();
+        if (orderIdentityInterval) backgroundIntervals.add(orderIdentityInterval);
+      }
       /*
        * The WhatsApp outbound queue worker. It is what stands between a reconnecting session and
        * the day's backlog: it drains at the configured rate, never while the session is down, and
@@ -2601,6 +2608,11 @@ const bootstrapStartup = async () => {
       .then(() => console.log("[server] amazon schema ensured"))
       .catch((error) => console.error("[server] amazon schema failed; Amazon integration disabled", { message: error?.message || String(error) }));
     await ensureNotificationsSchema(db);
+    // Same-address alerts: nullable columns + a trigger on orders and a new table. A failure (a
+    // lock that does not come within 5s) turns the feature off for this boot, never the backend.
+    await ensureOrderIdentityAlertsSchema(db)
+      .then(() => { globalThis.__ORDER_IDENTITY_SCHEMA_READY = true; console.log("[server] order identity alerts schema ensured"); })
+      .catch((error) => console.error("[server] order identity alerts schema failed; alerts disabled", { message: error?.message || String(error) }));
     await ensureWebsiteSettingsSchema(db);
     await ensureSystemSettingsSchema(db);
     const openAiCredentials = await refreshOpenAiCredentialOverrides();

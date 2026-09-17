@@ -14,6 +14,11 @@ import {
 } from "../modules/shipping/shipping.controller.js";
 import { createOnlineExchangeController } from "../modules/orders/onlineExchange.js";
 import { blockMarketplaceOrderMutations } from "../modules/amazon/amazonOrderGuards.js";
+import {
+  getOrderIdentityAlertLevelsController,
+  getOrderIdentityAlertsController,
+  reviewOrderIdentityAlertsController,
+} from "../modules/orders/addressIdentityAlerts.js";
 
 import {
   createOrder,
@@ -91,6 +96,33 @@ router.get(
   protect,
   permit("orders", "view"),
   getOrders
+);
+
+/* ======================================================
+   SAME ADDRESS, ANOTHER NAME AND PHONE
+====================================================== */
+
+// ?ids=1,2,3 -> the badge level of each order on the list. Above /:id on purpose.
+router.get(
+  "/identity-alerts",
+  protect,
+  permit("orders", "view"),
+  getOrderIdentityAlertLevelsController
+);
+
+router.get(
+  "/:id/identity-alerts",
+  protect,
+  permit("orders", "view"),
+  getOrderIdentityAlertsController
+);
+
+// { decision: "same_person" | "different_person" | "open" }
+router.post(
+  "/:id/identity-alerts/review",
+  protect,
+  permit("orders", "edit"),
+  reviewOrderIdentityAlertsController
 );
 
 /* ======================================================

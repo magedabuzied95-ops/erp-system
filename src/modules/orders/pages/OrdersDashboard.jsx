@@ -50,6 +50,8 @@ import { Pagination } from "../../../shared/ui";
 import OrdersShell from "../components/OrdersShell";
 import StatusBadge from "../components/StatusBadge";
 import ConfirmationBadge from "../components/ConfirmationBadge";
+import { IdentityAlertBadge } from "../components/IdentityAlert.jsx";
+import { OrderIdentityLevelsContext, useOrderIdentityLevels } from "../lib/identityAlertLevels.js";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import {
   buildSearchText,
@@ -962,6 +964,8 @@ function OrdersDashboard() {
   const currentPage = Math.min(page, totalPages);
   const visibleOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectedOrders = useMemo(() => orders.filter((order) => selectedIds.includes(order.id)), [orders, selectedIds]);
+  // Same-address badges: the table only needs its page, the boards show the whole filtered set.
+  const identityLevels = useOrderIdentityLevels(workspace === "table" ? visibleOrders : filteredOrders);
   const selectedCount = selectedIds.length;
   // Resolved once here so the sheet prints the tenant template rather than the
   // defaults each card would still be showing while fetching its own.
@@ -1343,6 +1347,7 @@ function OrdersDashboard() {
   };
 
   return (
+    <OrderIdentityLevelsContext.Provider value={identityLevels}>
     <OrdersShell header={null}>
       <div className="m1-orders-page">
       {error ? (
@@ -1510,6 +1515,7 @@ function OrdersDashboard() {
       </div>
       {printSheet.sheet}
     </OrdersShell>
+    </OrderIdentityLevelsContext.Provider>
   );
 }
 
@@ -2257,6 +2263,7 @@ function CustomerCell({ t, order }) {
       <div className="truncate text-sm font-semibold text-text" title={getCustomerDisplayName(order, t("orders.fallback.customer"))}>{getCustomerDisplayName(order, t("orders.fallback.customer"))}</div>
       <div className="mt-1 flex max-w-full flex-wrap items-center justify-center gap-1">
         <ConfirmationBadge order={order} />
+        <IdentityAlertBadge order={order} />
         {attribution ? <div className="inline-flex max-w-[9rem] truncate rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{attribution}</div> : null}
       </div>
     </div>
@@ -2434,6 +2441,7 @@ function CompactOrderCard({ t, order, onClick }) {
         <div className="flex shrink-0 flex-col items-end gap-1">
           <StatusBadge value={order.status} />
           <ConfirmationBadge order={order} compact />
+          <IdentityAlertBadge order={order} compact />
         </div>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-muted">

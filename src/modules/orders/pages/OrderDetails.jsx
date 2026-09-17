@@ -43,6 +43,7 @@ import OrdersShell from "../components/OrdersShell";
 import "./OrderDetails.css";
 import StatusBadge from "../components/StatusBadge";
 import AiInboxOrderLink from "../components/AiInboxOrderLink.jsx";
+import { IdentityAlertCard } from "../components/IdentityAlert.jsx";
 import BostaShipmentInsights, { BostaFeeEstimate } from "../components/BostaShipmentInsights.jsx";
 import OrderInvoiceCard from "../../../shared/components/invoices/OrderInvoiceCard";
 import useOrderPrintSheet from "../../../shared/components/print/useOrderPrintSheet";
@@ -1165,6 +1166,8 @@ function OrderDetails() {
               </div>
             ) : null}
           </div>
+
+          <IdentityAlertCard orderId={order.id} />
 
           {!requiresShipping ? (
             <div className="flex flex-col gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">

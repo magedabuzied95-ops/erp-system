@@ -1225,5 +1225,28 @@
     "estimateRoute": "From {{from}} to {{to}}",
     "estimateUnreadable": "Bosta answered without a clear cost figure.",
     "estimateFailed": "Could not calculate the shipping cost."
+  },
+  "identityAlert": {
+    "badge": "Repeated address",
+    "badgeConfirmed": "Same person",
+    "badgeHint": "This address was ordered before under a different name and phone ({{count}})",
+    "titleRed": "This address has a refused or returned order under another name and phone",
+    "titleYellow": "This address was ordered before under another name and phone",
+    "titleDismissed": "Reviewed: a different person at the same address",
+    "titleLater": "Later orders came to this address under other names and phones",
+    "explain": "Same address, but the name and mobile changed. Check the earlier order before confirming or shipping.",
+    "explainLater": "These orders used this order's address with a different name and phone.",
+    "refused": "Refused / returned",
+    "earlier": "Earlier order",
+    "later": "Later order",
+    "exact": "Exact address",
+    "similar": "Very similar address",
+    "samePerson": "Same person",
+    "differentPerson": "Different person",
+    "reopen": "Reopen alert",
+    "markedSame": "Confirmed as the same person",
+    "markedDifferent": "Reviewed: different person",
+    "saved": "Saved",
+    "saveFailed": "Could not save, try again"
   }
 }
