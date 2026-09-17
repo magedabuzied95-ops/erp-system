@@ -2326,8 +2326,12 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
     type: "employee_portal_request",
     category: "employees",
     priority: requestType === "advance" ? "high" : "medium",
-    title: "Employee wallet request",
-    message: `${employee.full_name || employee.name || "Employee"} submitted ${requestType.replace("_", " ")} request`,
+    title: requestType === "advance" ? "طلب سلفة" : requestType === "late_permission" ? "طلب إذن تأخير" : "Employee wallet request",
+    message: requestType === "advance"
+      ? `${employee.full_name || employee.name || "موظف"} طلب سلفة ${amount} ج.م`
+      : requestType === "late_permission"
+        ? `${employee.full_name || employee.name || "موظف"} طلب إذن تأخير${requestDate ? ` يوم ${requestDate}` : ""}`
+        : `${employee.full_name || employee.name || "Employee"} submitted ${requestType.replace("_", " ")} request`,
     action_url: "/employees/employees",
     action_label: "Open requests",
     entity_type: "employee_portal_request",

@@ -563,6 +563,15 @@
       "violet": "Violet",
       "orange": "Orange",
       "slate": "Slate"
+    },
+    "categories": {
+      "messages": "Staff messages",
+      "tasks": "Tasks",
+      "attendance": "Attendance",
+      "sales": "Sales",
+      "stock": "Stock",
+      "ai_leads": "Hot leads",
+      "requests": "Advances & late permissions"
     }
   },
   "invoice": {

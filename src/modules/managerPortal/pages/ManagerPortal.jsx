@@ -51,6 +51,7 @@ import {
   Truck,
   Users,
   Volume2,
+  Wallet,
   VolumeX,
   X,
 } from "lucide-react";
@@ -111,6 +112,8 @@ const DEFAULT_NOTIFICATION_SETTINGS = {
   sales: { sound: true, toast: true, push: true },
   stock: { sound: true, toast: true, push: true },
   ai_leads: { sound: true, toast: true, push: true },
+  // Advance and late permission requests from the employee portal.
+  requests: { sound: true, toast: true, push: true },
 };
 const MANAGER_PORTAL_PWA_VERSION = "20260909-offline-media";
 const MANAGER_PORTAL_CRITICAL_TIMEOUT_MS = 9000;
@@ -319,6 +322,7 @@ const MANAGER_NOTIFICATION_CATEGORIES = [
   { key: "sales", labelKey: "managerPortal.sections.sales", icon: ShoppingCart },
   { key: "stock", labelKey: "managerPortal.sections.stock", icon: Package },
   { key: "ai_leads", labelKey: "managerPortal.sections.hotLeads", icon: Bot },
+  { key: "requests", labelKey: "managerPortal.settings.categories.requests", icon: Wallet },
 ];
 const MANAGER_NOTIFICATION_CATEGORY_KEYS = new Set(MANAGER_NOTIFICATION_CATEGORIES.map((item) => item.key));
 const normalizeNotificationText = (value = "") => String(value ?? "").toLowerCase().replace(/[\s_-]+/g, "_");
@@ -327,6 +331,8 @@ const categoryFromNotification = (notification = {}) => {
   const type = normalizeNotificationText(notification.type || "");
   const source = `${category} ${type}`;
   if (MANAGER_NOTIFICATION_CATEGORY_KEYS.has(category)) return category;
+  // An advance / late permission request from the employee portal (ERP category "employees").
+  if (type.includes("employee_portal_request")) return "requests";
   if (source.includes("employee_chat") || source.includes("chat") || source.includes("message")) return "employee_chat";
   if (source.includes("task_overdue") || source.includes("overdue")) return "task_overdue";
   if (source.includes("task_completed") || source.includes("task") || source.includes("staff_tasks")) return "task_completed";
@@ -339,6 +345,7 @@ const categoryFromNotification = (notification = {}) => {
 const categoryMeta = (category) => MANAGER_NOTIFICATION_CATEGORIES.find((item) => item.key === category) || MANAGER_NOTIFICATION_CATEGORIES[0];
 const notificationTypeLabel = (notification = {}) => {
   const type = normalizeNotificationText(notification.type || "");
+  if (type.includes("employee_portal_request")) return tt("managerPortal.settings.categories.requests");
   if (type.includes("task_overdue")) return tt("managerPortal.notifications.types.taskOverdue");
   if (type.includes("task_completed")) return tt("managerPortal.notifications.types.taskCompleted");
   if (type.includes("employee") || type.includes("chat") || type.includes("message")) return tt("managerPortal.notifications.types.employeeMessage");
@@ -1689,6 +1696,12 @@ export default function ManagerPortal() {
       const next = payload || {};
       upsertNotification(next);
       void notifyClient(next);
+      // A new advance / late permission request: refresh the staff tab's approval panels.
+      if (normalizeNotificationText(next.type || "").includes("employee_portal_request")) {
+        managerPortalApi.staff(token)
+          .then((response) => { if (response?.staff) setStaff(normalizeManagerPortalPayload("staffReload", response.staff)); })
+          .catch(() => null);
+      }
     });
     socket.on("notification:count:refresh", () => {
       Promise.all([
@@ -4622,8 +4635,7 @@ export default function ManagerPortal() {
                   {Object.entries(settings).map(([category, config]) => (
                     <div key={category} className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-black text-slate-900">{portalText(category)}</div>
-                        <StatusPill tone="slate" value={portalText(category)} />
+                        <div className="text-sm font-black text-slate-900">{tt(`managerPortal.settings.categories.${category}`, { defaultValue: portalText(category) })}</div>
                       </div>
                       <Toggle label={tt("managerPortal.settings.sound")} checked={Boolean(config.sound)} onChange={(value) => onCategoryToggle(category, "sound", value)} />
                       <Toggle label={tt("managerPortal.settings.popupNotification")} checked={Boolean(config.toast)} onChange={(value) => onCategoryToggle(category, "toast", value)} />

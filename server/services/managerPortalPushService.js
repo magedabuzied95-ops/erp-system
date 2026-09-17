@@ -959,7 +959,7 @@ export const sendManagerEmployeeRequestPush = async ({ request = {}, employee = 
   return sendToManagerSubscriptions({
     tenantId: numberOrNull(employee.tenant_id || request.tenant_id),
     branchId: numberOrNull(employee.branch_id),
-    category: isAdvance ? "staff" : "attendance",
+    category: "requests",
     logLabels: {
       attempt: "[manager-push:employee-request-attempt]",
       success: "[manager-push:employee-request-success]",

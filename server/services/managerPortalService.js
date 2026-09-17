@@ -89,6 +89,7 @@ const DEFAULT_MANAGER_NOTIFICATION_SETTINGS = {
   sales: { sound: true, toast: true, push: true },
   stock: { sound: true, toast: true, push: true },
   ai_leads: { sound: true, toast: true, push: true },
+  requests: { sound: true, toast: true, push: true },
 };
 
 const defaultManagerPermissions = [
