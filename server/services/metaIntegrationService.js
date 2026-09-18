@@ -12752,7 +12752,11 @@ const mediaAttachmentDescriptors = (attachments = []) => {
   const seen = new Set();
   const descriptors = [];
   for (const attachment of Array.isArray(attachments) ? attachments : []) {
-    const url = text(extractImageUrlFromAttachment(attachment));
+    // The composer hands over the path it saved the file under (`/uploads/inbox/…`).
+    // Graph fetches by URL, so the path gets the backend origin here; dropping it as
+    // "not a URL" left a caption-less clip with nothing to send, and the operator
+    // read "message are required" under a video they had plainly attached.
+    const url = absolutePublicUploadUrl(text(extractImageUrlFromAttachment(attachment)));
     if (!/^https?:\/\//i.test(url) || seen.has(url)) continue;
     seen.add(url);
     const declared = text(attachment?.type || attachment?.media_type || attachment?.mime_type || "").toLowerCase();

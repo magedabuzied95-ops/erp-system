@@ -188,3 +188,31 @@ test("the Cloud transport can send a clip at all", () => {
   assert.equal(typeof whatsappCloud.sendVideo, "function");
   assert.match(gatewaySource, /whatsappCloud\.sendVideo\(\{ phone: normalizedPhone, videoUrl: media/);
 });
+
+/*
+ * The route saves the file and hands over the PATH it saved it under. Graph and
+ * Telegram both fetch by URL from outside, so a bare "/uploads/inbox/x.mp4" is
+ * nothing to them. The Meta descriptor used to discard it as "not a URL", which
+ * left a caption-less clip with no text, no cards and no media: the send was
+ * refused as "tenant_id, recipient id, and message are required" and the
+ * operator saw that under a video they had plainly attached.
+ */
+test("a saved upload path gets the backend origin before it leaves for Meta or Telegram", async () => {
+  const { absolutePublicUploadUrl } = await import("../server/utils/publicUrl.js");
+  const previous = process.env.PUBLIC_BACKEND_URL;
+  process.env.PUBLIC_BACKEND_URL = "https://api.example.com";
+  try {
+    assert.equal(absolutePublicUploadUrl("/uploads/inbox/clip.mp4"), "https://api.example.com/uploads/inbox/clip.mp4");
+  } finally {
+    if (previous === undefined) delete process.env.PUBLIC_BACKEND_URL;
+    else process.env.PUBLIC_BACKEND_URL = previous;
+  }
+
+  const descriptors = metaSource.slice(metaSource.indexOf("const mediaAttachmentDescriptors"));
+  const body = descriptors.slice(0, descriptors.indexOf("return descriptors"));
+  // The origin is added BEFORE the https test, or the path is dropped by it.
+  assert.match(body, /const url = absolutePublicUploadUrl\(text\(extractImageUrlFromAttachment\(attachment\)\)\);\s*\r?\n\s*if \(!\/\^https/);
+
+  const route = routeSource.slice(routeSource.indexOf('"/conversations/:conversationId/attachment"'));
+  assert.match(route, /sendTelegramMedia\(\{[\s\S]*?mediaUrl: absolutePublicUploadUrl\(relativeUrl\) \|\| relativeUrl/);
+});

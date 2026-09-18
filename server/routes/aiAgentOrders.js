@@ -12,6 +12,7 @@ import inboxAttachmentUpload, {
   inboxAttachmentKind,
 } from "../config/inboxAttachmentUpload.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
 import {
   debugMessengerProfileForConversation,
@@ -7244,7 +7245,8 @@ router.post(
       } else if (normalizedChannel === TELEGRAM_CHANNEL) {
         sendResult = await sendTelegramMedia({
           chatId: recipientId,
-          mediaUrl: relativeUrl,
+          // Telegram fetches the file itself and has no idea whose "/uploads" this is.
+          mediaUrl: absolutePublicUploadUrl(relativeUrl) || relativeUrl,
           mediaType: attachmentKind === "video" ? "video" : "photo",
           caption,
         }).catch((error) => ({
