@@ -7613,6 +7613,24 @@ body.storefront-shell:not(.storefront-dark) .sf-buy-now:disabled {
   .portal-chat-root :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
     font-size: max(16px, 1em);
   }
+
+  /* The field size only settles the focus jump. A pinch or a double tap on the
+     screen magnifies the portal just the same, and neither gesture zooms back
+     out by itself — the staff end up reading a panned page with the header off
+     the edge. `pan-x pan-y` keeps every scroll (vertical lists, the horizontal
+     chip rows, the chat thread) and drops only the two zoom gestures; WebKit
+     has honoured it for page zoom since iOS 13, which `user-scalable=no` on the
+     viewport meta has never been able to do.
+     Staff portals only, on touch only: the ERP on a laptop and the storefront —
+     where a shopper zooming into a product photo is the point — never match.
+     Both html and body carry it: the gesture is decided by intersecting
+     touch-action from the touched element up to the document, so the root is
+     the element that actually owns page zoom — body is there for the engines
+     that hit-test the canvas against it instead. */
+  html[data-portal-touch],
+  html[data-portal-touch] body {
+    touch-action: pan-x pan-y;
+  }
 }
 
 /* ============================================================================

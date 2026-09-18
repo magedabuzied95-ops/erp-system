@@ -24,6 +24,7 @@ import { getPublicSettings } from "./shared/api/publicSettings";
 import { setAppTimezoneFromSettings } from "./shared/lib/appTimezone";
 import { setCurrency } from "./shared/lib/currency";
 import { importWithChunkRetry } from "./shared/utils/chunkLoadRecovery";
+import { isPortalPath, lockPortalViewport, releasePortalViewport } from "./shared/utils/portalViewportLock";
 import { useTheme } from "./theme/useTheme";
 import { FeatureFlagProvider } from "./modules/aiSupport/integration/FeatureFlagProvider";
 
@@ -396,14 +397,16 @@ function App() {
     void whenLocalesReady();
   }, [location.pathname]);
 
-  // iOS Safari zooms the page when a focused field renders below 16px. The
-  // portals are phone-first and their fields are text-sm, so flag the route on
-  // <html> and let index.css lift field font-size on touch devices there.
+  // The staff portals never magnify: no focus zoom, no pinch, no double tap.
+  // Held for as long as the route is open and handed back on the way out, so
+  // the storefront and the ERP keep their own viewport — see
+  // shared/utils/portalViewportLock.js for why both halves are needed.
   useEffect(() => {
-    const path = location.pathname || "";
-    const isPortal = /^\/(employee-app|employee-portal|employee\/portal|manager-portal|manager\/)/.test(path);
-    if (isPortal) document.documentElement.setAttribute("data-portal-touch", "1");
-    else document.documentElement.removeAttribute("data-portal-touch");
+    if (!isPortalPath(location.pathname)) {
+      releasePortalViewport();
+      return undefined;
+    }
+    return lockPortalViewport();
   }, [location.pathname]);
 
   useEffect(() => {

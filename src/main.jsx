@@ -12,6 +12,7 @@ import { importWithChunkRetry, installChunkLoadRecovery, installStylesheetRecove
 import { installDayFirstDateInputs } from "./shared/utils/dateInputLocale";
 import { installNumericZeroSelect } from "./shared/utils/numericInputZero";
 import { installAppTimezoneDefaults } from "./shared/lib/appTimezone";
+import { lockPortalViewport } from "./shared/utils/portalViewportLock";
 import { ThemeProvider } from "./theme/ThemeProvider";
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -108,6 +109,12 @@ if (isEmployeeAppRoute) {
   // added to App.jsx's /employee-app block must be added here too: الشحن was missing
   // (2026-09-11) and fell through to the home below, so the tab "did nothing".
   // الشحن is lazy (the home prefetches it once idle) so the board never weighs on the boot.
+  //
+  // For the same reason the viewport lock is taken here and never released: App.jsx
+  // holds it per route, but this root is the portal from boot to close, and it is the
+  // copy on the staff's home screens — the one that was magnifying on every tap into
+  // the chat composer. Taken before the first render so no field can be focused first.
+  lockPortalViewport();
   const EmployeePortalOnlineOrders = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalOnlineOrders.jsx")));
   const EmployeePortalInbox = lazy(() => importWithChunkRetry(() => import("./modules/employees/pages/EmployeePortalInbox.jsx")));
   Promise.all([
