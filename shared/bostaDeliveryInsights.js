@@ -106,3 +106,111 @@ export const parseBostaPromiseDate = (value) => {
   if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== day) return "";
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 };
+
+/*
+ * ---------------------------------------------------------------------------
+ * What the parcel needs from a human, said once for every screen that asks.
+ *
+ * The board, the order page and the manager alert all want the same three
+ * answers: has this parcel left the shop, is it stuck, and did the customer
+ * refuse it. Deriving them separately is how the same shipment ends up reading
+ * "out for delivery" in one place and "لم يتم تأكيد الأوردر" in another.
+ * ---------------------------------------------------------------------------
+ */
+
+const key = (value = "") => String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// The shipping statuses that mean the box is no longer in the shop's hands. The
+// courier has it, or had it — either way, nothing about confirming or collecting
+// the shipping fee is still an open question the staff can act on.
+export const DISPATCHED_SHIPPING_STATUSES = new Set([
+  "created",
+  "shipment_created",
+  "shipping_created",
+  "picked",
+  "picked_up",
+  "pickup_done",
+  "in_transit",
+  "on_the_way",
+  "out_for_delivery",
+  "delivered",
+  "failed",
+  "failed_delivery",
+  "delivery_failed",
+  "returned",
+  "return",
+]);
+
+const DISPATCHED_ORDER_STATUSES = new Set([
+  "shipment_created",
+  "shipping_created",
+  "shipped",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+  "completed",
+  "complete",
+  "returned",
+  "partially_returned",
+]);
+
+/**
+ * Has this order left the shop? True from the moment a real parcel exists — a
+ * booked shipment IS the shop's decision to send it, whatever the confirmation
+ * columns still say.
+ */
+export const orderLeftTheShop = ({ status = "", shippingStatus = "", trackingNumber = "" } = {}) =>
+  Boolean(String(trackingNumber ?? "").trim())
+  || DISPATCHED_SHIPPING_STATUSES.has(key(shippingStatus))
+  || DISPATCHED_ORDER_STATUSES.has(key(status));
+
+// A failed attempt, however the status was spelled on the way in.
+const FAILED_SHIPPING_STATUSES = new Set(["failed", "failed_delivery", "delivery_failed"]);
+const FINISHED_SHIPPING_STATUSES = new Set(["delivered", "returned", "return", "cancelled", "canceled"]);
+
+// The customer turned the parcel away at the door. Its own alert because it is
+// the one failure the shop answers with a phone call, not a retry.
+export const BOSTA_REFUSED_EXCEPTION_CODES = new Set([8]);
+
+// Reasons nobody at Bosta can fix: the parcel waits on a decision from us.
+const BOSTA_BLOCKED_EXCEPTION_CODES = new Set([2, 4, 5, 12, 13, 14, 26, 27, 28, 29, 30, 101]);
+
+// The states the ERP maps to failed_delivery that are not a doorstep attempt at
+// all — the parcel is lost, damaged or parked waiting for our answer.
+const BOSTA_BLOCKED_STATE_CODES = new Set([100, 101, 103]);
+
+/**
+ * One alert for a parcel that needs a person, or null when it is simply moving.
+ * `key` is the message, `tone` how loudly to draw it, `code` the Bosta exception
+ * behind it so the screen can print Bosta's own wording beside ours.
+ *
+ * Pure on purpose: the server decides nothing here, it only hands over the four
+ * facts (status, state code, exception, attempts) it already stores.
+ */
+export const describeDeliveryAlert = ({
+  shippingStatus = "",
+  stateCode = null,
+  exceptionCode = null,
+  attempts = 0,
+} = {}) => {
+  const shipping = key(shippingStatus);
+  const state = Number.isFinite(Number(stateCode)) && stateCode !== null ? Number(stateCode) : null;
+  const exception = Number.isFinite(Number(exceptionCode)) && exceptionCode !== null ? Number(exceptionCode) : null;
+  const tries = Math.max(0, Number(attempts) || 0);
+  // A delivered or returned parcel is finished: whatever went wrong on the way is
+  // history, and an alert on it is noise on a closed order.
+  if (FINISHED_SHIPPING_STATUSES.has(shipping)) return null;
+  const failed = FAILED_SHIPPING_STATUSES.has(shipping);
+  if (!failed && exception === null && !BOSTA_BLOCKED_STATE_CODES.has(state)) return null;
+  if (exception !== null && BOSTA_REFUSED_EXCEPTION_CODES.has(exception)) {
+    return { key: "refused", tone: "danger", code: exception, attempts: tries };
+  }
+  if (BOSTA_BLOCKED_STATE_CODES.has(state) || (exception !== null && BOSTA_BLOCKED_EXCEPTION_CODES.has(exception))) {
+    return { key: "action_needed", tone: "danger", code: exception, attempts: tries };
+  }
+  if (failed || exception !== null) {
+    // Bosta gives up after three; the second failure is already worth a call.
+    return { key: tries >= 2 ? "action_needed" : "failed_attempt", tone: tries >= 2 ? "danger" : "warning", code: exception, attempts: tries };
+  }
+  return null;
+};

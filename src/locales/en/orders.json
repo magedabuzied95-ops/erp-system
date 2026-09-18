@@ -830,7 +830,8 @@
       "confirmed": "Confirmed",
       "shipping": "With courier",
       "delivered": "Delivered",
-      "closed": "Returned / cancelled"
+      "closed": "Returned / cancelled",
+      "attention": "Needs action"
     },
     "ranges": {
       "today": "Today",
@@ -1107,6 +1108,18 @@
       "awaiting": "Awaiting shipping fee {{amount}}",
       "review": "Shipping transfer awaiting review",
       "paid": "Shipping fee paid"
+    },
+    "delivery": {
+      "alerts": {
+        "refused": "Customer refused the parcel",
+        "action_needed": "Needs your action",
+        "failed_attempt": "Delivery attempt failed"
+      },
+      "attempts": "Attempt {{count}}",
+      "courierState": "Bosta state",
+      "promiseDate": "Promised delivery",
+      "courier": "Courier",
+      "courierPhone": "Courier phone"
     }
   },
   "walletTransfers": {

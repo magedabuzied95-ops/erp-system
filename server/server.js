@@ -811,6 +811,7 @@ const { ensureTransactionalEmailSchema, processTransactionalEmailOutbox } = awai
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { runAutomationTick } = await import("./services/aiWorkflowTriggerService.js");
 const { runAbandonedCartReminderTick } = await import("./services/abandonedCartReminderService.js");
+const { BOSTA_RECONCILE_INTERVAL_MS, bostaReconcileEnabled, reconcileStaleBostaShipments } = await import("./modules/shipping/bosta.reconcile.js");
 const { ensurePriceDropAlertSchema, runPriceDropAlertTick } = await import("./services/storefrontPriceDropAlertService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
@@ -2489,6 +2490,20 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         });
       }, 15 * 60 * 1000);
       backgroundIntervals.add(reviewRequestInterval);
+      // Bosta status safety net: the webhook is the fast path, this catches the parcels
+      // it never reached (a callback lost in a restart, a parcel booked before the
+      // per-delivery webHook field existed). Off outside production unless
+      // BOSTA_STATUS_RECONCILE_ENABLED says otherwise — a refresh messages real customers.
+      if (bostaReconcileEnabled()) {
+        const safeReconcileBosta = () => {
+          void reconcileStaleBostaShipments().catch((error) => {
+            console.error("[server] bosta status reconcile error", { message: error?.message || String(error) });
+          });
+        };
+        const bostaReconcileInterval = setInterval(safeReconcileBosta, BOSTA_RECONCILE_INTERVAL_MS());
+        backgroundIntervals.add(bostaReconcileInterval);
+        console.log("[server] bosta status reconciler started", { every_ms: BOSTA_RECONCILE_INTERVAL_MS() });
+      }
       const priceDropInterval = setInterval(() => {
         void runPriceDropAlertTick().catch((error) => {
           console.error("[server] price drop alert tick error", { message: error?.message || String(error) });

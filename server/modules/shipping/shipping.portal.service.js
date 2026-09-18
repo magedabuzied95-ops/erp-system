@@ -4,6 +4,8 @@ import { orderCodAmount, orderOwedAmount } from "./shipping.service.js";
 import { describeShippingFeeAdvance } from "./shippingFeeAdvance.js";
 import { loadCodPolicySettings } from "../../services/storefrontShippingService.js";
 import { buildPortalOnlineSql, loadColumns, tableExists } from "./onlineOrderSql.js";
+import { bostaExceptionReason, describeDeliveryAlert, orderLeftTheShop } from "../../../shared/bostaDeliveryInsights.js";
+import { normalizeWhatsappSessionId } from "../../utils/whatsappIdentity.js";
 
 export { buildPortalOnlineSql };
 
@@ -27,6 +29,10 @@ const idOrNull = (value) => {
 };
 
 export const PORTAL_ONLINE_GROUPS = ["new", "confirmed", "shipping", "delivered", "closed"];
+// Not a group — a cut across the "shipping" one: the parcels that need a person
+// today. It has its own tab and its own count so a failed attempt cannot hide on
+// page three of مع الشحن.
+export const PORTAL_ATTENTION_GROUP = "attention";
 export const PORTAL_ONLINE_RANGES = ["today", "7d", "30d", "90d", "all"];
 const DEFAULT_RANGE = "30d";
 const PAGE_SIZE = 30;
@@ -201,6 +207,62 @@ export const itemsForOrders = async (orderIds, client = db) => {
   return byOrder;
 };
 
+/*
+ * The AI Inbox thread behind an order, so the portal's واتساب button opens the
+ * customer's real chat instead of a fresh wa.me window with no history.
+ *
+ * Two ways in, in this order: the conversation the order was raised from (an inbox
+ * order carries it), then the WhatsApp thread keyed by the customer's number —
+ * `whatsapp:<20…>`, the one canonical form every ingest path writes (see
+ * utils/whatsappIdentity.js). A LID-only chat has no phone to key on and simply
+ * resolves to nothing; the button falls back to wa.me there, which is honest.
+ */
+const conversationCandidates = (order = {}) => {
+  const candidates = [];
+  const direct = text(order.ai_agent_conversation_id);
+  if (direct) candidates.push(direct);
+  for (const phone of [order.customer_phone, order.customer_record_phone, order.customer_secondary_phone]) {
+    const sessionId = normalizeWhatsappSessionId("", text(phone));
+    if (sessionId && !candidates.includes(sessionId)) candidates.push(sessionId);
+  }
+  return candidates;
+};
+
+export const conversationsForOrders = async (orders = [], { tenantId = null, client = db } = {}) => {
+  const byOrder = new Map();
+  if (!orders.length || !(await tableExists("ai_channel_conversations", client))) return byOrder;
+  const wanted = new Map();
+  const keys = new Set();
+  for (const order of orders) {
+    const candidates = conversationCandidates(order);
+    if (!candidates.length) continue;
+    wanted.set(String(order.id), candidates);
+    for (const candidate of candidates) keys.add(candidate);
+  }
+  if (!keys.size) return byOrder;
+  const result = await client.query(
+    `
+    SELECT external_conversation_id, channel, last_message_at
+    FROM ai_channel_conversations
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+      AND external_conversation_id = ANY($2::text[])
+    `,
+    [idOrNull(tenantId), [...keys]]
+  );
+  const found = new Map(result.rows.map((row) => [row.external_conversation_id, row]));
+  for (const [orderId, candidates] of wanted) {
+    // First candidate that exists wins: the order's own thread before the phone's.
+    const hit = candidates.map((candidate) => found.get(candidate)).find(Boolean);
+    if (!hit) continue;
+    byOrder.set(orderId, {
+      id: hit.external_conversation_id,
+      channel: text(hit.channel) || "whatsapp",
+      last_message_at: hit.last_message_at || null,
+    });
+  }
+  return byOrder;
+};
+
 // "Which door did it come in through", said once here so both portals label the
 // same order the same way.
 export const portalOrderSourceKey = (order = {}) => {
@@ -220,6 +282,41 @@ export const portalOrderSourceKey = (order = {}) => {
 
 const joinAddress = (parts) => parts.map(text).filter(Boolean).join("، ");
 
+// What the courier last said about the parcel, in the words Bosta used. Everything
+// here is already on the order (the webhook and the status refresh both write it);
+// the portals never had it, so a failed attempt looked identical to a parcel quietly
+// on its way. `alert` is the shared verdict — see shared/bostaDeliveryInsights.js.
+const shapeDelivery = (order = {}) => {
+  const details = order.bosta_details && typeof order.bosta_details === "object" ? order.bosta_details : {};
+  const stateCode = number(details.state_code, NaN);
+  const exceptionCode = order.bosta_exception_code === null || order.bosta_exception_code === undefined
+    ? null
+    : number(order.bosta_exception_code, NaN);
+  const shippingStatus = text(order.shipment_status || order.shipping_status);
+  const alert = describeDeliveryAlert({
+    shippingStatus,
+    stateCode: Number.isFinite(stateCode) ? stateCode : null,
+    exceptionCode: Number.isFinite(exceptionCode) ? exceptionCode : null,
+    attempts: order.bosta_attempts,
+  });
+  return {
+    state_code: Number.isFinite(stateCode) ? stateCode : null,
+    exception_code: Number.isFinite(exceptionCode) ? exceptionCode : null,
+    // Bosta's own sentence when it sent one, our translation of the code otherwise.
+    exception_reason: text(order.bosta_exception_reason) || bostaExceptionReason(exceptionCode, "", "ar"),
+    exception_at: order.bosta_exception_at || null,
+    attempts: order.bosta_attempts === null || order.bosta_attempts === undefined ? null : number(order.bosta_attempts),
+    promise_date: order.bosta_promise_date || null,
+    next_action: text(details.next_action),
+    masked_state: text(details.masked_state),
+    courier_name: text(order.bosta_courier_name),
+    courier_phone: text(order.bosta_courier_phone),
+    reported_cod: order.bosta_reported_cod === null || order.bosta_reported_cod === undefined ? null : number(order.bosta_reported_cod),
+    details_synced_at: order.bosta_details_synced_at || null,
+    alert,
+  };
+};
+
 const shapeOrder = (order = {}, items = [], codPolicy = undefined) => {
   const total = number(order.total_amount ?? order.total ?? order.total_price);
   const subtotal = number(order.subtotal) || items.reduce((sum, item) => sum + number(item.line_total), 0);
@@ -236,6 +333,16 @@ const shapeOrder = (order = {}, items = [], codPolicy = undefined) => {
     source: portalOrderSourceKey(order),
     status: text(order.status),
     shipping_status: text(order.shipment_status || order.shipping_status),
+    // The parcel is with the courier: the confirmation and shipping-fee questions are
+    // closed, whatever the columns behind them still say (owner request 2026-09-18 —
+    // a shipped order must never read "لم يتم تأكيد الأوردر" or "مستني دفع الشحن").
+    dispatched: orderLeftTheShop({
+      status: order.status,
+      shippingStatus: order.shipment_status || order.shipping_status,
+      trackingNumber: order.shipping_tracking_number || order.tracking_number,
+    }),
+    delivery: shapeDelivery(order),
+    conversation: order.portal_conversation || null,
     whatsapp_confirmation_sent_at: order.whatsapp_confirmation_sent_at || null,
     whatsapp_confirmed_at: order.whatsapp_confirmed_at || null,
     whatsapp_cancelled_at: order.whatsapp_cancelled_at || null,
@@ -315,13 +422,15 @@ export const listPortalOnlineOrders = async ({ tenantId = null, query = {}, clie
   const columns = await loadColumns("orders", client);
   const sql = buildPortalOnlineSql(columns);
   const range = PORTAL_ONLINE_RANGES.includes(query.range) ? query.range : DEFAULT_RANGE;
-  const group = PORTAL_ONLINE_GROUPS.includes(query.group) ? query.group : "all";
+  const group = PORTAL_ONLINE_GROUPS.includes(query.group) || query.group === PORTAL_ATTENTION_GROUP ? query.group : "all";
   const page = Math.max(1, Math.min(200, Math.trunc(number(query.page, 1)) || 1));
   const { where, params } = buildBaseWhere({ columns, sql, tenantId: idOrNull(tenantId), range, search: query.search });
 
   const pageParams = [...params];
   let pageWhere = where;
-  if (group !== "all") {
+  if (group === PORTAL_ATTENTION_GROUP) {
+    pageWhere += `\n      AND ${sql.attentionExpr}`;
+  } else if (group !== "all") {
     pageParams.push(group);
     pageWhere += `\n      AND ${sql.groupExpr} = $${pageParams.length}`;
   }
@@ -331,7 +440,9 @@ export const listPortalOnlineOrders = async ({ tenantId = null, query = {}, clie
   const [countsResult, pageResult] = await Promise.all([
     client.query(
       `
-      SELECT ${sql.groupExpr} AS portal_group, COUNT(*)::int AS count
+      SELECT ${sql.groupExpr} AS portal_group,
+             COUNT(*)::int AS count,
+             COUNT(*) FILTER (WHERE ${sql.attentionExpr})::int AS attention
       FROM orders o
       WHERE ${where}
       GROUP BY 1
@@ -358,16 +469,24 @@ export const listPortalOnlineOrders = async ({ tenantId = null, query = {}, clie
   ]);
 
   const counts = Object.fromEntries(PORTAL_ONLINE_GROUPS.map((key) => [key, 0]));
-  for (const row of countsResult.rows) counts[row.portal_group] = number(row.count);
+  counts[PORTAL_ATTENTION_GROUP] = 0;
+  for (const row of countsResult.rows) {
+    counts[row.portal_group] = number(row.count);
+    counts[PORTAL_ATTENTION_GROUP] += number(row.attention);
+  }
   counts.all = PORTAL_ONLINE_GROUPS.reduce((sum, key) => sum + counts[key], 0);
 
   const rows = pageResult.rows.slice(0, PAGE_SIZE);
-  const [itemsByOrder, codPolicy] = await Promise.all([
+  const [itemsByOrder, codPolicy, conversationByOrder] = await Promise.all([
     itemsForOrders(rows.map((row) => row.id), client),
     loadCodPolicySettings().catch(() => undefined),
+    // Never fatal to the board: no inbox thread just means the واتساب button opens wa.me.
+    conversationsForOrders(rows, { tenantId, client }).catch(() => new Map()),
   ]);
   return {
-    orders: rows.map((row) => shapeOrder(row, itemsByOrder.get(String(row.id)) || [], codPolicy)),
+    orders: rows.map((row) =>
+      shapeOrder({ ...row, portal_conversation: conversationByOrder.get(String(row.id)) || null }, itemsByOrder.get(String(row.id)) || [], codPolicy)
+    ),
     counts,
     range,
     group,
@@ -500,12 +619,17 @@ export const getPortalOnlineOrder = async ({ tenantId = null, orderId, client = 
   );
   const order = result.rows[0];
   if (!order) throw notFound();
-  const [itemsByOrder, codPolicy] = await Promise.all([
+  const [itemsByOrder, codPolicy, conversationByOrder] = await Promise.all([
     itemsForOrders([order.id], client),
     loadCodPolicySettings().catch(() => undefined),
+    conversationsForOrders([order], { tenantId, client }).catch(() => new Map()),
   ]);
   return {
-    ...shapeOrder(order, itemsByOrder.get(String(order.id)) || [], codPolicy),
+    ...shapeOrder(
+      { ...order, portal_conversation: conversationByOrder.get(String(order.id)) || null },
+      itemsByOrder.get(String(order.id)) || [],
+      codPolicy
+    ),
     timeline: orderTimeline(order),
   };
 };

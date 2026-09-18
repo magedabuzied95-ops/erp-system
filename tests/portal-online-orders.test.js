@@ -109,9 +109,11 @@ test("an older database without the newer columns still gets a valid query", asy
 });
 
 test("tab counts cover every tab and 'all' is their sum", async () => {
-  const client = makeClient({ counts: [{ portal_group: "new", count: 4 }, { portal_group: "shipping", count: 2 }, { portal_group: "closed", count: 1 }] });
+  const client = makeClient({ counts: [{ portal_group: "new", count: 4 }, { portal_group: "shipping", count: 2, attention: 1 }, { portal_group: "closed", count: 1 }] });
   const payload = await listPortalOnlineOrders({ tenantId: 1, query: {}, client });
-  assert.deepEqual(payload.counts, { new: 4, confirmed: 0, shipping: 2, delivered: 0, closed: 1, all: 7 });
+  // "attention" is a cut across shipping, not a sixth tab: it is counted separately and
+  // deliberately left out of `all`, or a stuck parcel would be counted twice.
+  assert.deepEqual(payload.counts, { new: 4, confirmed: 0, shipping: 2, delivered: 0, closed: 1, attention: 1, all: 7 });
   assert.equal(payload.range, "30d", "the default window is the last 30 days");
 });
 
@@ -188,4 +190,115 @@ test("the manager tab keeps the board out of .manager-portal-card", () => {
   const block = source.slice(source.indexOf('activeTab === "shipping"'), source.indexOf('activeTab === "notifications"'));
   assert.ok(block.includes("<PortalOnlineOrdersBoard"), "the shipping tab renders the shared board");
   assert.ok(!block.includes("<Card"), "the board must not sit inside a manager-portal Card");
+});
+
+/*
+ * ---------------------------------------------------------------------------
+ * What the courier said, carried into both portals (2026-09-18).
+ *
+ * The three rules the owner asked for: a parcel already moving must stop asking
+ * to be confirmed or paid for, a failed attempt must be visible, and a customer
+ * who refused the box must say so on the card.
+ * ---------------------------------------------------------------------------
+ */
+
+const DELIVERY_COLUMNS = [
+  ...ORDER_COLUMNS,
+  "bosta_exception_code", "bosta_exception_reason", "bosta_exception_at", "bosta_attempts",
+  "bosta_promise_date", "bosta_courier_name", "bosta_courier_phone", "bosta_details", "bosta_reported_cod",
+  "bosta_details_synced_at", "customer_secondary_phone", "customer_record_phone",
+];
+
+const shippedRow = (extra = {}) => ({
+  id: 41,
+  status: "pending_confirmation",
+  created_at: "2026-09-16T10:00:00Z",
+  portal_group: "shipping",
+  shipping_provider: "bosta",
+  shipping_tracking_number: "6612345",
+  shipment_status: "out_for_delivery",
+  ...extra,
+});
+
+test("a parcel with the courier stops asking to be confirmed", async () => {
+  const client = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [shippedRow()] });
+  const [order] = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client })).orders;
+  // status is still pending_confirmation — the board must read the parcel, not the column.
+  assert.equal(order.dispatched, true, "a booked parcel IS the shop's decision to send it");
+  assert.equal(order.delivery.alert, null, "a parcel simply on its way raises nothing");
+});
+
+test("an order still in the shop is not dispatched", async () => {
+  const row = { id: 42, status: "pending_confirmation", created_at: "2026-09-16T10:00:00Z", portal_group: "new", channel: "website" };
+  const client = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [row] });
+  const [order] = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client })).orders;
+  assert.equal(order.dispatched, false);
+});
+
+test("a customer who refused the parcel says so, with Bosta's own reason", async () => {
+  const row = shippedRow({ shipment_status: "failed_delivery", bosta_exception_code: 8, bosta_attempts: 1 });
+  const client = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [row] });
+  const [order] = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client })).orders;
+  assert.equal(order.delivery.alert.key, "refused");
+  assert.equal(order.delivery.alert.tone, "danger");
+  assert.equal(order.delivery.exception_reason, "العميل رفض الاستلام");
+});
+
+test("a failed attempt is a warning, a second one needs a person", async () => {
+  const once = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [shippedRow({ shipment_status: "failed_delivery", bosta_exception_code: 7, bosta_attempts: 1 })] });
+  const twice = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [shippedRow({ shipment_status: "failed_delivery", bosta_exception_code: 7, bosta_attempts: 2 })] });
+  const first = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client: once })).orders[0];
+  const second = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client: twice })).orders[0];
+  assert.equal(first.delivery.alert.key, "failed_attempt");
+  assert.equal(second.delivery.alert.key, "action_needed", "Bosta gives up after three tries");
+});
+
+test("a delivered parcel carries no alert, whatever went wrong on the way", async () => {
+  const row = shippedRow({ shipment_status: "delivered", bosta_exception_code: 7, bosta_attempts: 2 });
+  const client = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [row] });
+  const [order] = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client })).orders;
+  assert.equal(order.delivery.alert, null, "an alert on a finished order is noise");
+});
+
+test("the attention tab is a cut across shipping, counted on its own", async () => {
+  const { attentionExpr, groupExpr } = buildPortalOnlineSql(new Set(DELIVERY_COLUMNS));
+  assert.ok(attentionExpr.includes(`${groupExpr} = 'shipping'`), "only a live parcel can need a person");
+  assert.match(attentionExpr, /bosta_exception_code IS NOT NULL/);
+  assert.match(attentionExpr, /'failed_delivery'/);
+  const client = makeClient({ columns: DELIVERY_COLUMNS });
+  await listPortalOnlineOrders({ tenantId: 1, query: { group: "attention", range: "all" }, client });
+  const [countsQuery, pageQuery] = orderQueries(client);
+  assert.ok(countsQuery.sql.includes("FILTER (WHERE"), "the count must cover the whole range, not the page");
+  assert.ok(pageQuery.sql.includes(attentionExpr), "the attention tab filters by the shared expression");
+  assert.ok(!pageQuery.params.includes("attention"), "attention is not a portal_group value");
+});
+
+test("an older database without the Bosta columns still answers", () => {
+  const columns = ["id", "tenant_id", "status", "channel", "created_at", "customer_name"];
+  const { attentionExpr } = buildPortalOnlineSql(new Set(columns));
+  assert.ok(!attentionExpr.includes("bosta_exception_code"), "must not reference a column the table lacks");
+});
+
+test("the WhatsApp button resolves the customer's own inbox thread", async () => {
+  const row = shippedRow({ customer_phone: "01001234567" });
+  const conversationRow = { external_conversation_id: "whatsapp:201001234567", channel: "whatsapp", last_message_at: "2026-09-17T09:00:00Z" };
+  const client = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [row], tables: [...TABLES, "ai_channel_conversations"] });
+  const inner = client.query;
+  client.query = async (sql, params = []) => {
+    if (sql.includes("FROM ai_channel_conversations")) {
+      // 010… is typed, whatsapp:2010… is what every ingest path writes.
+      assert.ok(params[1].includes("whatsapp:201001234567"), `phone was not canonicalised: ${params[1]}`);
+      return { rows: [conversationRow] };
+    }
+    return inner(sql, params);
+  };
+  const [order] = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client })).orders;
+  assert.equal(order.conversation.id, "whatsapp:201001234567");
+  assert.equal(order.conversation.channel, "whatsapp");
+});
+
+test("an order the inbox never saw gets no thread, so the button stays wa.me", async () => {
+  const client = makeClient({ columns: DELIVERY_COLUMNS, pageRows: [shippedRow({ customer_phone: "01001234567" })], tables: [...TABLES, "ai_channel_conversations"] });
+  const [order] = (await listPortalOnlineOrders({ tenantId: 1, query: { range: "all" }, client })).orders;
+  assert.equal(order.conversation, null);
 });

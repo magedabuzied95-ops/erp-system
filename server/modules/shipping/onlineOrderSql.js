@@ -113,6 +113,15 @@ export const buildPortalOnlineSql = (columns) => {
     ELSE 'new'
   END)`;
 
+  // A parcel that is stuck and needs a person: still in the courier's hands, and
+  // either a failed doorstep attempt or a Bosta exception (customer refused, wrong
+  // address, parcel damaged…). A delivered or returned parcel is finished, so it
+  // never raises the flag — the same rule the screens apply, kept in one place
+  // (shared/bostaDeliveryInsights.js explains each code).
+  const failedShippingSql = `${shippingStatusExpr} IN ('failed', 'failed_delivery', 'delivery_failed')`;
+  const exceptionSql = has("bosta_exception_code") ? `o.bosta_exception_code IS NOT NULL` : "FALSE";
+  const attentionExpr = `(${groupExpr} = 'shipping' AND (${failedShippingSql} OR ${exceptionSql}))`;
+
   const liveParts = [];
   if (has("deleted_at")) liveParts.push("o.deleted_at IS NULL");
   if (has("is_personal_transaction")) liveParts.push("o.is_personal_transaction IS DISTINCT FROM TRUE");
@@ -121,7 +130,7 @@ export const buildPortalOnlineSql = (columns) => {
   if (has("source")) liveParts.push(`LOWER(COALESCE(o.source, '')) NOT IN (${sqlList(EXTERNAL_MARKETPLACE_ORIGINS)})`);
   if (has("channel")) liveParts.push(`LOWER(COALESCE(o.channel, '')) NOT IN (${sqlList(EXTERNAL_MARKETPLACE_ORIGINS)})`);
 
-  return { onlineExpr, groupExpr, liveExpr: liveParts.join(" AND "), trackingExpr };
+  return { onlineExpr, groupExpr, attentionExpr, liveExpr: liveParts.join(" AND "), trackingExpr };
 };
 
 // For money views that must leave online orders out (the manager portal's اليوم tab).

@@ -29,6 +29,7 @@ import { formatInAppTimezone } from "../../lib/appTimezone";
 import { resolveProductImageUrl, resolveShippingProofImageUrl } from "../../lib/imageUrls";
 import { buildStorefrontImageSrcSet } from "../../lib/storefrontImage";
 import { normalizeOrderLifecycleStatus, normalizeShippingLifecycleStatus } from "../../../../shared/orderStatus.js";
+import { bostaExceptionReason, bostaStateLabel } from "../../../../shared/bostaDeliveryInsights.js";
 import { getConfirmationState } from "../../../modules/orders/components/ConfirmationBadge";
 import { PORTAL_ACTION_ERROR_CODES, pdfUrlFromBase64, portalOrderActionsFor, shippingFeeAdvanceState } from "./portalOrderActions";
 import { currentBuildId } from "../../lib/portalBuildUpdate";
@@ -43,6 +44,10 @@ import { OrderDeleteSheet, OrderEditSheet, OrderManageMenu } from "./PortalOrder
 // different shells cannot lean on either shell's normalisation.
 
 const GROUPS = ["all", "new", "confirmed", "shipping", "delivered", "closed"];
+// A cut across "shipping", not a sixth group: the parcels the courier could not hand
+// over. Its tab appears only when there is something in it, and the server counts it
+// over the whole range — a failed attempt must never hide on page three.
+const ATTENTION_GROUP = "attention";
 const RANGES = ["today", "7d", "30d", "90d", "all"];
 const DEFAULT_RANGE = "30d";
 const POLL_MS = 60_000;
@@ -84,6 +89,7 @@ const GROUP_TONE = {
   shipping: "solid",
   delivered: "success",
   closed: "danger",
+  [ATTENTION_GROUP]: "danger",
 };
 
 const CONFIRMATION_TONE = {
@@ -195,7 +201,14 @@ function useBoardText() {
       if (PROVIDER_KEYS.includes(key)) return tb(`providers.${key}`);
       return key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
     };
-    return { t, tb, language, dir: language === "ar" ? "rtl" : "ltr", money, count, dateTime, statusLabel, shippingLabel, paymentMethodLabel, paymentStatusLabel, confirmationLabel, providerLabel };
+    // Bosta's own words for why an attempt failed and where the parcel is. The code
+    // table is shared with the server, so the reason on this card, in the manager's
+    // alert and in the customer's message is one sentence (bostaDeliveryInsights.js).
+    const exceptionReason = (delivery = {}) =>
+      bostaExceptionReason(delivery.exception_code, text(delivery.exception_reason), language) || text(delivery.exception_reason);
+    const courierStateLabel = (delivery = {}) => bostaStateLabel(delivery.state_code, language);
+    const dayDate = (value) => (value ? formatInAppTimezone(value, { day: "numeric", month: "short" }, locale) : "");
+    return { t, tb, language, dir: language === "ar" ? "rtl" : "ltr", money, count, dateTime, dayDate, statusLabel, shippingLabel, paymentMethodLabel, paymentStatusLabel, confirmationLabel, providerLabel, exceptionReason, courierStateLabel };
   }, [t, language, locale]);
 }
 
@@ -242,13 +255,20 @@ function CopyButton({ value, label, copiedLabel, className = "" }) {
   );
 }
 
-function ContactButtons({ phone, ui, size = "sm" }) {
+// The واتساب button. When the portal can open الرسائل and this customer already has a
+// thread there, it goes to that thread — the whole history, the same replies, and the
+// message counts as the shop's (owner request 2026-09-18). With no thread, or in a
+// portal without الرسائل, it stays the plain wa.me link that starts a fresh chat.
+function ContactButtons({ order = null, phone, ui, size = "sm", onOpenChat = null }) {
   const tel = telHref(phone);
   const wa = whatsappHref(phone);
-  if (!tel && !wa) return null;
+  const conversationId = text(order?.conversation?.id);
+  const chat = onOpenChat && conversationId ? () => onOpenChat(order) : null;
+  if (!tel && !wa && !chat) return null;
   const base = size === "lg"
     ? "min-h-[var(--control-height-lg)] px-4 text-sm"
     : "min-h-9 px-3 text-xs";
+  const waClass = `inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-success-subtle font-black text-text transition hover:opacity-90 ${base}`;
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       {tel ? (
@@ -262,13 +282,26 @@ function ContactButtons({ phone, ui, size = "sm" }) {
           <span>{ui.tb("actions.call")}</span>
         </a>
       ) : null}
-      {wa ? (
+      {chat ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            chat();
+          }}
+          className={waClass}
+          aria-label={ui.tb("actions.openChat")}
+        >
+          <MessageCircle className="h-4 w-4 text-success" />
+          <span>{ui.tb("actions.whatsapp")}</span>
+        </button>
+      ) : wa ? (
         <a
           href={wa}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(event) => event.stopPropagation()}
-          className={`inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-success-subtle font-black text-text transition hover:opacity-90 ${base}`}
+          className={waClass}
           aria-label={ui.tb("actions.whatsapp")}
         >
           <MessageCircle className="h-4 w-4 text-success" />
@@ -352,6 +385,10 @@ function ItemLine({ item, ui }) {
 function ShippingFeePill({ order, ui }) {
   const fee = shippingFeeAdvanceState(order);
   if (!fee) return null;
+  // The fee is a gate in front of the parcel. Once the parcel is with the courier the
+  // gate is behind us, and "مستني دفع الشحن" on a moving shipment is a demand nobody
+  // can act on — the courier collects the rest at the door (owner, 2026-09-18).
+  if (fee.awaiting && order.dispatched) return null;
   const key = fee.status === "paid" ? "paid" : fee.status === "awaiting_review" ? "review" : "awaiting";
   return (
     <TonePill tone={key === "paid" ? "success" : "danger"}>
@@ -360,8 +397,33 @@ function ShippingFeePill({ order, ui }) {
   );
 }
 
-function OrderCard({ order, ui, onOpen, selectable = false, selected = false, onToggleSelect, onManage = null }) {
-  const confirmation = getConfirmationState(order);
+// What the courier said went wrong, in one line. The verdict itself is the server's
+// (shared/bostaDeliveryInsights.js) so the board, the alert and the order page can
+// never disagree about whether a parcel is stuck.
+const deliveryAlertLabel = (order = {}, ui) => {
+  const delivery = order.delivery || {};
+  const alert = delivery.alert;
+  if (!alert) return "";
+  const head = ui.tb(`delivery.alerts.${alert.key}`);
+  const reason = ui.exceptionReason(delivery);
+  // "رفض الاستلام" already says the reason; repeating Bosta's wording for code 8 is noise.
+  if (!reason || alert.key === "refused") return head;
+  return `${head} — ${reason}`;
+};
+
+function DeliveryAlertPill({ order, ui }) {
+  const alert = order.delivery?.alert;
+  if (!alert) return null;
+  return (
+    <TonePill tone={alert.tone === "danger" ? "danger" : "warning"}>{deliveryAlertLabel(order, ui)}</TonePill>
+  );
+}
+
+function OrderCard({ order, ui, onOpen, selectable = false, selected = false, onToggleSelect, onManage = null, onOpenChat = null }) {
+  // A parcel in the courier's hands answers the confirmation question by existing:
+  // the shop decided to send it. Showing "لم يتم تأكيد الأوردر" beside "خرجت للتسليم"
+  // is the board contradicting itself (owner, 2026-09-18).
+  const confirmation = order.dispatched ? null : getConfirmationState(order);
   const items = Array.isArray(order.items) ? order.items : [];
   // What was ordered is read from the card itself: a photo big enough to recognise the
   // shoe, with its name, size and article code beside it (owner request 2026-09-10).
@@ -405,6 +467,7 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
         <div className="flex max-w-[60%] items-start gap-1.5">
           <div className="flex min-w-0 flex-col items-end gap-1">
             <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{statusText}</TonePill>
+            <DeliveryAlertPill order={order} ui={ui} />
             {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
             <ShippingFeePill order={order} ui={ui} />
           </div>
@@ -421,7 +484,7 @@ function OrderCard({ order, ui, onOpen, selectable = false, selected = false, on
           </div>
           <div className="mt-0.5 text-xs font-bold text-text-muted" dir="ltr">{order.customer?.phone || ui.tb("card.noPhone")}</div>
         </div>
-        <ContactButtons phone={order.customer?.phone} ui={ui} />
+        <ContactButtons order={order} phone={order.customer?.phone} ui={ui} onOpenChat={onOpenChat} />
       </div>
 
       <div className="mt-2 flex items-center gap-1.5 text-xs font-bold text-text-muted">
@@ -613,7 +676,7 @@ function OrderActionBar({ order, ui, state = {}, onAction, onCancelConfirm, canA
   );
 }
 
-function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, canShip = false, onAction, onCancelConfirm }) {
+function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, canShip = false, onAction, onCancelConfirm, onOpenChat = null }) {
   const [imagePreview, setImagePreview] = useState("");
   const order = selection.order || {};
   useEffect(() => {
@@ -631,10 +694,11 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
     };
   }, [imagePreview, onClose]);
 
-  const confirmation = getConfirmationState(order);
+  const confirmation = order.dispatched ? null : getConfirmationState(order);
   const items = Array.isArray(order.items) ? order.items : [];
   const money = order.money || {};
   const shipment = order.shipment || {};
+  const delivery = order.delivery || {};
   const people = order.people || {};
   const address = order.address || {};
   const proofUrl = resolveShippingProofImageUrl(money.payment_proof_url);
@@ -658,6 +722,7 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <TonePill tone={GROUP_TONE[order.group] || GROUP_TONE.new}>{ui.tb(`groups.${order.group || "new"}`)}</TonePill>
               <Pill className="bg-surface-soft text-text-muted">{ui.tb(`sources.${order.source || "website"}`)}</Pill>
+              <DeliveryAlertPill order={order} ui={ui} />
               {confirmation ? <TonePill tone={CONFIRMATION_TONE[confirmation.key] || CONFIRMATION_TONE.not_sent}>{ui.confirmationLabel(confirmation)}</TonePill> : null}
             </div>
           </div>
@@ -705,7 +770,7 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
                 {order.customer?.email ? <div className="mt-0.5 text-xs font-bold text-text-muted" dir="ltr">{order.customer.email}</div> : null}
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <ContactButtons phone={order.customer?.phone} ui={ui} size="lg" />
+                <ContactButtons order={order} phone={order.customer?.phone} ui={ui} size="lg" onOpenChat={onOpenChat} />
                 <CopyButton value={order.customer?.phone} label={ui.tb("actions.copy")} copiedLabel={ui.tb("actions.copied")} className="min-h-[var(--control-height-lg)]" />
               </div>
             </div>
@@ -799,11 +864,34 @@ function OrderDetailSheet({ selection, ui, onClose, onRetry, canAct = false, can
           <Section icon={Truck} title={ui.tb("detail.shipment")}>
             {shipment.tracking_number || shipment.delivery_id ? (
               <div className="space-y-2">
+                {/* What the courier wants from us, before the paperwork: the reason the
+                    attempt failed, how many were made, and who is carrying the box. */}
+                {delivery.alert ? (
+                  <div
+                    className={`flex items-start gap-2 rounded-[var(--radius-control)] px-3 py-2 ${delivery.alert.tone === "danger" ? "bg-danger-subtle" : "bg-warning-subtle"}`}
+                    role="status"
+                  >
+                    <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${delivery.alert.tone === "danger" ? "text-danger" : "text-warning"}`} />
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-text">{deliveryAlertLabel(order, ui)}</div>
+                      <div className="mt-0.5 text-[11px] font-bold text-text-muted">
+                        {[
+                          Number(delivery.attempts) > 0 ? ui.tb("delivery.attempts", { count: ui.count(delivery.attempts) }) : "",
+                          delivery.exception_at ? ui.dateTime(delivery.exception_at) : "",
+                        ].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid grid-cols-2 gap-2">
                   <Field label={ui.tb("detail.provider")} value={ui.providerLabel(shipment.provider)} />
                   <Field label={ui.tb("detail.shippingStatus")} value={ui.shippingLabel(order.shipping_status)} />
                   <Field label={ui.tb("detail.trackingNumber")} value={shipment.tracking_number || shipment.delivery_id} ltr />
                   <Field label={ui.tb("detail.lastSync")} value={ui.dateTime(shipment.last_synced_at)} />
+                  <Field label={ui.tb("delivery.courierState")} value={ui.courierStateLabel(delivery)} />
+                  <Field label={ui.tb("delivery.promiseDate")} value={ui.dayDate(delivery.promise_date)} />
+                  <Field label={ui.tb("delivery.courier")} value={delivery.courier_name} />
+                  <Field label={ui.tb("delivery.courierPhone")} value={delivery.courier_phone} ltr />
                   {shipment.allow_open_package !== null && shipment.allow_open_package !== undefined ? (
                     <Field label={ui.tb("detail.openPackage")} value={shipment.allow_open_package ? ui.tb("detail.yes") : ui.tb("detail.no")} />
                   ) : null}
@@ -884,6 +972,10 @@ export default function PortalOnlineOrdersBoard({
   // Manager portal only: the card ⋮ (edit the customer / address, or delete the order).
   editOrder = null,
   deleteOrder = null,
+  // Employee portal only: open this order's customer thread in الرسائل. The server says
+  // whether this employee has messages access (permissions.can_open_inbox); without it,
+  // or without a thread on the order, the واتساب button stays a wa.me link.
+  openConversation = null,
   // Where the multi-select bar floats: above the manager portal's bottom nav, or at the
   // screen edge on the employee page, which has none.
   bulkBarOffset = "calc(env(safe-area-inset-bottom) + 0.75rem)",
@@ -892,6 +984,7 @@ export default function PortalOnlineOrdersBoard({
   const ui = useBoardText();
   const [canAct, setCanAct] = useState(false);
   const [canShip, setCanShip] = useState(false);
+  const [canOpenInbox, setCanOpenInbox] = useState(false);
   const runActionRef = useRef(runAction);
   runActionRef.current = runAction;
   const [group, setGroup] = useState("all");
@@ -927,6 +1020,7 @@ export default function PortalOnlineOrdersBoard({
       const orders = Array.isArray(payload?.orders) ? payload.orders : [];
       setCanAct(Boolean(runActionRef.current) && payload?.permissions?.can_act === true);
       setCanShip(Boolean(runActionRef.current) && (payload?.permissions?.can_ship === true || payload?.permissions?.can_act === true));
+      setCanOpenInbox(payload?.permissions?.can_open_inbox === true);
       setBoard((current) => ({
         orders: page > 1 ? appendById(current.orders, orders) : orders,
         counts: payload?.counts || {},
@@ -1150,6 +1244,10 @@ export default function PortalOnlineOrdersBoard({
     if (boardRef.current.page === 1) void fetchPage({ page: 1, silent: true });
   };
   const counts = board.counts || {};
+  const tabs = Number(counts[ATTENTION_GROUP]) > 0 || group === ATTENTION_GROUP ? [ATTENTION_GROUP, ...GROUPS] : GROUPS;
+  // Both halves must be true: a host that knows how to open الرسائل, and a server that
+  // says this person may. Either missing and the button stays wa.me.
+  const onOpenChat = openConversation && canOpenInbox ? openConversation : null;
 
   return (
     <div className={`portal-online-orders space-y-3 ${className}`} dir={ui.dir}>
@@ -1207,8 +1305,12 @@ export default function PortalOnlineOrdersBoard({
       </div>
 
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" role="tablist">
-        {GROUPS.map((key) => {
+        {/* محتاج تدخل comes first and only exists while something is in it: an empty
+            alarm tab is a tab people stop reading. Leaving it mounted while the current
+            filter has nothing left keeps the person from losing the list under them. */}
+        {tabs.map((key) => {
           const active = group === key;
+          const attention = key === ATTENTION_GROUP;
           return (
             <button
               key={key}
@@ -1216,8 +1318,9 @@ export default function PortalOnlineOrdersBoard({
               role="tab"
               aria-selected={active}
               onClick={() => setGroup(key)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-black transition ${active ? "border-transparent bg-primary text-primary-foreground" : "border-border bg-surface text-text"}`}
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-[var(--radius-control)] border px-3 py-2 text-xs font-black transition ${active ? "border-transparent bg-primary text-primary-foreground" : attention ? "border-[var(--danger)] bg-danger-subtle text-text" : "border-border bg-surface text-text"}`}
             >
+              {attention ? <AlertTriangle className={`h-3.5 w-3.5 ${active ? "" : "text-danger"}`} /> : null}
               <span>{ui.tb(`groups.${key}`)}</span>
               <span className={`inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] leading-5 ${active ? "bg-[rgba(255,255,255,0.22)]" : "bg-surface-soft text-text-muted"}`}>
                 {ui.count(counts[key] || 0)}
@@ -1270,6 +1373,7 @@ export default function PortalOnlineOrdersBoard({
               selected={selectedIds.has(String(order.id))}
               onToggleSelect={toggleSelect}
               onManage={manageHandlers}
+              onOpenChat={onOpenChat}
             />
           ))}
         </div>
@@ -1415,6 +1519,7 @@ export default function PortalOnlineOrdersBoard({
           canShip={canShip}
           onAction={(action, input) => void handleAction(action, input)}
           onCancelConfirm={() => patchSelection(selection.id, { confirming: "" })}
+          onOpenChat={onOpenChat}
         />
       ) : null}
     </div>

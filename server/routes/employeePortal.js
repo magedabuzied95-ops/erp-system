@@ -677,13 +677,16 @@ router.get("/:token/online-orders", async (req, res) => {
     res.set("Cache-Control", "no-store, private");
     const employee = await loadVerifiedEmployee(req, res);
     if (!employee) return;
-    const [payload, canAct] = await Promise.all([
+    const [payload, canAct, inboxEnabled] = await Promise.all([
       listPortalOnlineOrders({ tenantId: employee.tenant_id, query: req.query || {} }),
       employeeCanActOnOnlineOrders({ employeeId: employee.id, tenantId: employee.tenant_id }),
+      // The واتساب button opens the customer's thread in الرسائل instead of wa.me —
+      // but only for an employee whose messages access is switched on.
+      employeePortalInboxEnabled({ employeeId: employee.id, tenantId: employee.tenant_id }).catch(() => false),
     ]);
     // can_ship: every employee may book the Bosta parcel, print the AWB and multi-select.
     // can_act: confirming stays with the employees the admin switched on.
-    return res.json({ success: true, ...payload, permissions: { can_act: canAct, can_ship: true } });
+    return res.json({ success: true, ...payload, permissions: { can_act: canAct, can_ship: true, can_open_inbox: Boolean(inboxEnabled) } });
   } catch (error) {
     console.error("[employee-portal] online orders load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load online orders" });

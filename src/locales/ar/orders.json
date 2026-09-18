@@ -830,7 +830,8 @@
       "confirmed": "مؤكد",
       "shipping": "مع الشحن",
       "delivered": "تم التسليم",
-      "closed": "مرتجع / ملغي"
+      "closed": "مرتجع / ملغي",
+      "attention": "محتاج تدخل"
     },
     "ranges": {
       "today": "اليوم",
@@ -1107,6 +1108,18 @@
       "awaiting": "مستني دفع الشحن {{amount}}",
       "review": "تحويل الشحن مستني مراجعة",
       "paid": "الشحن مدفوع"
+    },
+    "delivery": {
+      "alerts": {
+        "refused": "العميل رفض الاستلام",
+        "action_needed": "محتاج تدخل",
+        "failed_attempt": "محاولة تسليم فشلت"
+      },
+      "attempts": "المحاولة {{count}}",
+      "courierState": "حالة بوسطة",
+      "promiseDate": "موعد التسليم",
+      "courier": "المندوب",
+      "courierPhone": "موبايل المندوب"
     }
   },
   "walletTransfers": {

@@ -27,6 +27,20 @@ export default function EmployeePortalOnlineOrders() {
 
   const homePath = () => buildEmployeePortalHomePath({ pathname: window.location.pathname, token });
 
+  // واتساب on a card opens the customer's own thread in الرسائل instead of wa.me, so the
+  // reply carries the whole history and lands in the shop's inbox (owner, 2026-09-18).
+  // The board only calls this for an order the server matched to a real conversation,
+  // and only when this employee has messages access.
+  const openConversation = useCallback(
+    (order) => {
+      const conversationId = String(order?.conversation?.id || "").trim();
+      if (!conversationId) return;
+      navigate(`${homePath()}/inbox/${encodeURIComponent(conversationId)}`);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [navigate, token]
+  );
+
   return (
     <main dir={dir} className="employee-portal-online-orders employee-portal-min-screen employee-portal-safe-top min-h-[100dvh] overflow-x-hidden bg-background px-3 py-3 text-text sm:px-4 sm:py-4">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
@@ -50,7 +64,7 @@ export default function EmployeePortalOnlineOrders() {
           </div>
         </header>
 
-        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} runAction={runAction} printLabels={printLabels} />
+        <PortalOnlineOrdersBoard loadList={loadList} loadDetail={loadDetail} runAction={runAction} printLabels={printLabels} openConversation={openConversation} />
       </div>
     </main>
   );
