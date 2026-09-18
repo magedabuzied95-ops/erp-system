@@ -288,6 +288,10 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await ensureShiftResolutionSchema(clientOrPool);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS employee_portal_token TEXT`);
   await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_employee_portal_token ON employees (employee_portal_token) WHERE employee_portal_token IS NOT NULL AND employee_portal_token <> ''`);
+  // The employee's own PIN, set from this portal and asked for whenever a record
+  // has to carry a real person's name instead of a shared ERP login (product entry today).
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS staff_pin_hash TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employees ADD COLUMN IF NOT EXISTS staff_pin_set_at TIMESTAMPTZ NULL`);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_portal_requests (
       id BIGSERIAL PRIMARY KEY,
@@ -1175,6 +1179,8 @@ export const loadEmployeePortalByToken = async (token) => {
       e.status,
       COALESCE(e.is_deleted, FALSE) AS is_deleted,
       e.employee_portal_token,
+      (e.staff_pin_hash IS NOT NULL) AS has_staff_pin,
+      e.staff_pin_set_at,
       e.branch_id,
       b.name AS branch_name
     FROM employees e
@@ -2218,6 +2224,8 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       branchId: employee.branch_id || null,
       branch: employee.branch_name || "",
       mobile: firstNonEmpty(employee.mobile, employee.phone, employee.phone_number),
+      has_staff_pin: employee.has_staff_pin === true,
+      staff_pin_set_at: employee.staff_pin_set_at || null,
       photo_url: employeePhotoUrl,
       avatar_url: employeeImageFields.avatar_url,
       image_url: employeeImageFields.image_url,

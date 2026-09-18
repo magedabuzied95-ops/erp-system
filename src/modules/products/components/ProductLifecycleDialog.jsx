@@ -13,6 +13,7 @@ import {
   RefreshCw,
   ShoppingBag,
   SlidersHorizontal,
+  UserRound,
   X,
 } from "lucide-react";
 
@@ -545,6 +546,13 @@ export default function ProductLifecycleDialog({ product, onClose }) {
             <h2 id={titleId} className="mt-0.5 truncate text-lg font-black text-text">{header.name || product?.name}</h2>
             {header.sku || header.product_code ? (
               <p className="truncate text-xs font-semibold text-text-muted" dir="ltr">{header.sku || header.product_code}</p>
+            ) : null}
+            {/* The person who typed the product in, proven by their PIN at save time. */}
+            {header.created_by_employee_name ? (
+              <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs font-bold text-text-muted">
+                <UserRound size={13} aria-hidden="true" />
+                {t("products.lifecycle.enteredBy", { name: header.created_by_employee_name })}
+              </p>
             ) : null}
           </div>
           <button

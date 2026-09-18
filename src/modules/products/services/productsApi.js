@@ -399,6 +399,22 @@ export const getProductByQrToken = async (token) => {
   return unwrapItem(await api.get(`/products/qr/${encodeURIComponent(token)}`), "product");
 };
 
+// Who is entering the product. The PIN is checked on its own request, so it
+// never travels with the product payload and never sits in form state: the
+// answer is a short-lived signed token the save carries instead.
+export const getProductEntryEmployees = async () => {
+  const response = await api.get("/products/entry-employees");
+  return {
+    employees: unwrapArray(response),
+    required: response?.required !== false,
+  };
+};
+
+export const verifyProductEntryEmployee = async ({ employeeId, pin }) => {
+  const response = await api.post("/products/entry-employees/verify", { employee_id: employeeId, pin });
+  return { employee: response?.employee || null, token: response?.entry_employee_token || "" };
+};
+
 export const createProduct = async (body) => {
   return unwrapItem(await api.post("/products", body));
 };

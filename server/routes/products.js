@@ -9,6 +9,8 @@ import {
   createVariant,
   deleteProduct,
   deleteVariant,
+  getProductEntryEmployees,
+  verifyProductEntryEmployee,
   getProductsAdminList,
   getProductColorUsage,
   getProductColorNames,
@@ -191,6 +193,9 @@ router.use((req, res, next) => {
   next();
 });
 
+// Who is entering the product: a static path, so it is declared before any "/:id" route.
+router.get("/entry-employees", protect, permit("products", "view"), getProductEntryEmployees);
+router.post("/entry-employees/verify", protect, permit("products", "create"), verifyProductEntryEmployee);
 router.get("/admin-list", protect, permit("products", "view"), getProductsAdminList);
 router.get("/", protect, permit("products", "view"), getProducts);
 router.get("/with-variants", protect, permit("products", "view"), getProductsWithVariants);

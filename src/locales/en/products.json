@@ -1316,6 +1316,22 @@
       "PROVISIONAL_SETTLEMENT_REVERSED": "Provisional settlement reversed",
       "OPENING_BALANCE": "Opening balance"
     },
-    "neverCounted": "Never counted"
+    "neverCounted": "Never counted",
+    "enteredBy": "Entered by: {{name}}"
+  },
+  "entryEmployee": {
+    "navTitle": "Entered by",
+    "title": "Who is entering this product?",
+    "subtitle": "Pick your name and confirm with your PIN; it is recorded in the product history.",
+    "employee": "Employee",
+    "pickEmployee": "Pick your name",
+    "pin": "PIN",
+    "confirm": "Confirm",
+    "change": "Change employee",
+    "verified": "Confirmed: {{name}}",
+    "noPinYet": "no PIN set yet",
+    "requiredHint": "A product is saved only after the employee confirms. The PIN is set from the employee portal.",
+    "optionalHint": "Confirming is optional, but without it the history cannot say who entered the product.",
+    "required": "Confirm the employee entering this product with their PIN before saving"
   }
 }

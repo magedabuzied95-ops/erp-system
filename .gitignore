@@ -121,6 +121,7 @@ server/services/*
 !server/services/aiInboundIntakeService.js
 !server/services/aiInboxGroundingGate.js
 !server/services/footwearSizeResolver.js
+!server/services/employeeStaffPinService.js
 !server/services/productAudienceResolver.js
 !server/services/adFeedPurchaseLinesSql.js
 !server/services/invoiceTemplateService.js

@@ -20,6 +20,7 @@ import {
   Save,
   ScanLine,
   Search,
+  ShieldCheck,
 
   Sparkles,
   Trash2,
@@ -74,6 +75,7 @@ import {
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
 import normalizeColorName from "../../../shared/utils/colorNameNormalization";
 import ColorNameDatalist from "../components/ColorNameDatalist";
+import ProductEntryEmployeeCard, { useProductEntryEmployee } from "../components/ProductEntryEmployeeCard";
 import {
   createProduct,
   generateAiProductData,
@@ -515,6 +517,8 @@ function CreateProduct() {
   const [gallery, setGallery] = useState([]);
   const [saving, setSaving] = useState(false);
   const [savingStep, setSavingStep] = useState("");
+  // Who is typing this product in, proven by their own PIN.
+  const entryEmployee = useProductEntryEmployee();
   const [defaultManufacturerIds, setDefaultManufacturerIds] = useState([]);
   /* Product-level fields (SKU prefix, AI context, the product row itself) still
      want ONE name, so the first pick stays the product's factory. */
@@ -1142,6 +1146,7 @@ function CreateProduct() {
   });
 
   const pageNavSections = [
+    { id: "entry-employee", title: t("products.entryEmployee.navTitle", "الموظف المُدخِل") },
     { id: "basic-info", title: t("products.editor.basicInfoNav") },
     { id: "media-ai", title: t("products.editor.mediaNav") },
     { id: "content-seo", title: t("products.editor.seoNav") },
@@ -2147,6 +2152,14 @@ function CreateProduct() {
       return;
     }
 
+    // The server refuses an unstamped product too; asking here keeps the
+    // filled form on screen instead of bouncing it off a 400.
+    if (!entryEmployee.isReady) {
+      toast.error(t("products.entryEmployee.required", "أكّد الموظف اللي بيدخل المنتج برقمه السري قبل الحفظ"), { duration: 6000 });
+      document.getElementById("entry-employee")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
     const missingRequiredFields = getMissingRequiredProductFields({
       brand: selectedBrandName || brand,
       category: childCategory || subCategory || mainCategory,
@@ -2448,6 +2461,7 @@ function CreateProduct() {
         variants: generatedVariants,
         colorImages: colorImagesPayload,
         ...getManufacturerPayload(defaultManufacturerIds),
+        ...entryEmployee.payload,
       });
       setSavingStep("Saving images...");
       const product = await createProduct(productPayload);
@@ -2647,6 +2661,16 @@ function CreateProduct() {
           </div>
 
           <div className="space-y-4">
+            <SectionCard id="entry-employee">
+              <SectionHeader
+                icon={ShieldCheck}
+                title={t("products.entryEmployee.title", "مين بيدخّل المنتج ده؟")}
+                subtitle={t("products.entryEmployee.subtitle", "اختر اسمك وأكّد برقمك السري، وهيتسجل معاك في سجل حياة المنتج.")}
+                tone="emerald"
+              />
+              <ProductEntryEmployeeCard state={entryEmployee} />
+            </SectionCard>
+
             <SectionCard id="basic-info">
               <SectionHeader
                 icon={Sparkles}

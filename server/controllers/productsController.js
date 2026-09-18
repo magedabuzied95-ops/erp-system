@@ -40,6 +40,14 @@ import {
   resolveExistingVariantIdFromContext,
 } from "../utils/variantSaveContext.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
+import {
+  issueProductEntryToken,
+  hasAnyStaffPin,
+  listProductEntryEmployees,
+  resolveProductEntryEmployee,
+  verifyEmployeeStaffPin,
+} from "../services/employeeStaffPinService.js";
+import { getSetting } from "../services/settingsService.js";
 import { buildCacheKey, invalidateCachePattern } from "../services/cacheService.js";
 import { buildInClause, normalizeAdminListFilterValue, normalizeAdminListFilterValues } from "../lib/productFilterValues.js";
 import { getKeyboardLayoutSearchVariants } from "../../shared/keyboardLayoutSearch.js";
@@ -424,9 +432,11 @@ const toPriceValue = (value, { nullable = false } = {}) => {
 // product_variants has no created_by, so the lifecycle dialog reads who added a
 // colour/size from this row. A savepoint keeps a failed audit insert from
 // aborting the product save's transaction.
-const insertVariantsCreatedAuditLog = async (client, { tenantId, userId, productId, variants = [] }) => {
+const insertVariantsCreatedAuditLog = async (client, { tenantId, userId, entryEmployee = null, productId, variants = [] }) => {
   const rows = (Array.isArray(variants) ? variants : []).filter((row) => Number(row?.id) > 0);
-  if (!rows.length || !userId) return;
+  // The PIN-verified employee is the answer to "who added this"; the login is
+  // only the fallback for rows saved before the PIN existed.
+  if (!rows.length || (!userId && !entryEmployee)) return;
   try {
     if (!(await tableExists(client, "audit_logs"))) return;
     await client.query("SAVEPOINT variants_created_audit");
@@ -441,6 +451,8 @@ const insertVariantsCreatedAuditLog = async (client, { tenantId, userId, product
           JSON.stringify({
             variant_ids: rows.map((row) => Number(row.id)),
             variants: rows.map((row) => ({ id: Number(row.id), color: row.color || "", size: row.size || "" })),
+            entry_employee_id: entryEmployee?.id || null,
+            entry_employee_name: entryEmployee?.name || "",
           }),
         ]
       );
@@ -782,6 +794,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS manufacturer_id BIGINT,
             ADD COLUMN IF NOT EXISTS supplier_id BIGINT,
             ADD COLUMN IF NOT EXISTS warehouse_id BIGINT,
+            ADD COLUMN IF NOT EXISTS created_by_employee_id BIGINT NULL,
             ADD COLUMN IF NOT EXISTS purchase_alerts_enabled BOOLEAN NOT NULL DEFAULT TRUE,
             ADD COLUMN IF NOT EXISTS purchase_alert_by_color BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS carton_size INTEGER NULL,
@@ -5408,6 +5421,51 @@ export const getProductByQrToken = async (req, res) => {
   }
 };
 
+/*
+ * Product entry identity: the employee list the Add Product form offers, the
+ * PIN check that proves who is typing, and the switch that makes it mandatory.
+ * Employees without a PIN are still listed so the form can tell them (and the
+ * manager) exactly what is missing instead of hiding the name.
+ */
+const isProductEntryEmployeeRequired = async (tenantId = null) => {
+  const value = await getSetting("inventory.product_entry_employee_required", true);
+  if (value === false || String(value).toLowerCase() === "false") return false;
+  // Until somebody has actually set a PIN the gate would only lock the shop out
+  // of its own catalogue, so it arms itself with the first PIN.
+  return hasAnyStaffPin({ tenantId });
+};
+
+export const getProductEntryEmployees = async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const employees = await listProductEntryEmployees({ tenantId });
+    return res.json({ success: true, data: employees, required: await isProductEntryEmployeeRequired(tenantId) });
+  } catch (error) {
+    console.error("[products:entry-employees] list failed", error);
+    return res.status(500).json({ success: false, message: "تعذر تحميل قائمة الموظفين" });
+  }
+};
+
+export const verifyProductEntryEmployee = async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const employee = await verifyEmployeeStaffPin({
+      tenantId,
+      employeeId: req.body?.employee_id,
+      pin: req.body?.pin,
+    });
+    return res.json({
+      success: true,
+      employee: { id: employee.id, name: employee.name, employee_code: employee.employee_code },
+      entry_employee_token: issueProductEntryToken(employee),
+    });
+  } catch (error) {
+    if (error?.status) return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+    console.error("[products:entry-employees] verify failed", error);
+    return res.status(500).json({ success: false, message: "تعذر التأكد من الرقم السري" });
+  }
+};
+
 export const createProduct = async (req, res) => {
   const client = await db.connect();
   let transactionStarted = false;
@@ -5605,6 +5663,33 @@ export const createProduct = async (req, res) => {
     if (!tenantId) {
       return tenantContextMissingResponse(res);
     }
+
+    /*
+     * Who physically entered this product. ERP logins are shared on the shop
+     * floor, so the person is proven by their own PIN (set from the employee
+     * portal) and travels with the save as a short-lived signed token. It is
+     * resolved before the transaction opens so a wrong PIN costs nothing.
+     */
+    let entryEmployee = null;
+    try {
+      entryEmployee = await resolveProductEntryEmployee({
+        tenantId,
+        token: req.body?.entry_employee_token || "",
+        employeeId: req.body?.entry_employee_id || null,
+        pin: req.body?.entry_employee_pin || "",
+      });
+    } catch (error) {
+      client.release();
+      return res.status(error.status || 400).json({ success: false, code: error.code || "entry_employee_invalid", message: error.message });
+    }
+    if (!entryEmployee && (await isProductEntryEmployeeRequired(tenantId))) {
+      client.release();
+      return res.status(400).json({
+        success: false,
+        code: "entry_employee_required",
+        message: "اختر الموظف اللي بيدخل المنتج وأكّد رقمه السري قبل الحفظ",
+      });
+    }
     performanceLogger.markStage("Validate request");
 
     await client.query("BEGIN");
@@ -5778,6 +5863,7 @@ export const createProduct = async (req, res) => {
       "product_low_stock_threshold",
       "minimum_distinct_sizes_required",
       "tax_rate",
+      "created_by_employee_id",
     ];
     const insertParams = [
       ...(reservedProductId ? [reservedProductId] : []),
@@ -5850,6 +5936,7 @@ export const createProduct = async (req, res) => {
       normalizedProductLowStockThreshold,
       normalizedMinimumDistinctSizesRequired,
       Number(tax_rate || 0),
+      entryEmployee?.id || null,
     ];
     const insertPlaceholders = insertColumns.map((_, index) => `$${index + 1}`);
     if (isDevelopment()) {
@@ -5887,6 +5974,7 @@ export const createProduct = async (req, res) => {
     await insertVariantsCreatedAuditLog(client, {
       tenantId,
       userId: req.user?.id ?? null,
+      entryEmployee,
       productId,
       variants: insertedVariants,
     });

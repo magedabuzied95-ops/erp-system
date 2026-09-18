@@ -19,6 +19,7 @@ import {
   unsubscribeEmployeePortalPush,
   updateEmployeeWalletTaskStatus,
 } from "../services/employeePayrollPortalService.js";
+import { setEmployeeStaffPin } from "../services/employeeStaffPinService.js";
 import { loadEmployeePortalProducts, loadEmployeePortalCompactProducts, loadEmployeePortalProductVariants, loadEmployeePortalFacets } from "../services/employeePortalProductsService.js";
 import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
@@ -392,6 +393,37 @@ router.patch("/:token/profile", verifyEmployeePortalToken, uploadEmployeeProfile
   } catch (error) {
     console.error("[employee-payroll-portal] profile update error", error);
     return res.status(500).json({ success: false, message: "تعذر حفظ بيانات الملف الشخصي" });
+  }
+});
+
+/*
+ * The employee's own PIN. Only the employee holds their portal link, so the
+ * link authenticates the *first* PIN; changing an existing one asks for the old
+ * PIN as well, in case the phone was left unlocked. The PIN is stored hashed and
+ * is never returned — the portal only ever learns whether one exists.
+ */
+router.post("/:token/staff-pin", verifyEmployeePortalToken, async (req, res) => {
+  const employee = req.employeePortalEmployee;
+  try {
+    const saved = await setEmployeeStaffPin({
+      employeeId: employee.id,
+      tenantId: employee.tenant_id ?? null,
+      pin: req.body?.pin,
+      currentPin: req.body?.current_pin,
+    });
+    await recordEmployeePortalAudit({
+      employee,
+      action: "staff_pin_set",
+      status: "success",
+      audit: { ip: req.ip, userAgent: req.headers["user-agent"] || "" },
+    });
+    return res.json({ success: true, has_staff_pin: true, staff_pin_set_at: saved.set_at, message: "تم حفظ الرقم السري" });
+  } catch (error) {
+    if (error?.status) {
+      return res.status(error.status).json({ success: false, code: error.code, message: error.message });
+    }
+    console.error("[employee-payroll-portal] staff pin error", error);
+    return res.status(500).json({ success: false, message: "تعذر حفظ الرقم السري" });
   }
 });
 

@@ -107,7 +107,18 @@ const labels = {
   ar: {
     chatDeleteForEveryone: "حذف هذه الرسالة لدى الجميع؟",
     profileSettings: "إعدادات الملف الشخصي",
-    profileSettingsSubtitle: "حدّث صورتك ورقم الموبايل",
+    profileSettingsSubtitle: "حدّث صورتك ورقم الموبايل والرقم السري",
+    staffPinTitle: "الرقم السري بتاعك",
+    staffPinHint: "بتستخدمه لما تدخل منتج جديد على السيستم، عشان يتسجل باسمك إنت.",
+    staffPinSet: "الرقم السري متسجل",
+    staffPinMissing: "لسه ماعملتش رقم سري",
+    staffPinCurrent: "الرقم السري الحالي",
+    staffPinNew: "الرقم السري الجديد",
+    staffPinConfirm: "تأكيد الرقم الجديد",
+    staffPinSave: "حفظ الرقم السري",
+    staffPinSaving: "جارٍ الحفظ...",
+    staffPinMismatch: "الرقمين مش زي بعض",
+    staffPinSaved: "تم حفظ الرقم السري، متقولهوش لحد",
     warehouseRequest: "طلب من المخزن",
     inventoryTab: "الجرد",
     portalAsApp: "بوابة الموظف كتطبيق",
@@ -205,7 +216,18 @@ const labels = {
   en: {
     chatDeleteForEveryone: "Delete this message for everyone?",
     profileSettings: "Profile settings",
-    profileSettingsSubtitle: "Update your photo and mobile number",
+    profileSettingsSubtitle: "Update your photo, mobile number and PIN",
+    staffPinTitle: "Your PIN",
+    staffPinHint: "You use it when entering a new product, so it is recorded under your name.",
+    staffPinSet: "A PIN is set",
+    staffPinMissing: "No PIN set yet",
+    staffPinCurrent: "Current PIN",
+    staffPinNew: "New PIN",
+    staffPinConfirm: "Confirm new PIN",
+    staffPinSave: "Save PIN",
+    staffPinSaving: "Saving...",
+    staffPinMismatch: "The two PINs do not match",
+    staffPinSaved: "PIN saved - keep it to yourself",
     warehouseRequest: "Request from warehouse",
     inventoryTab: "Stocktake",
     portalAsApp: "Employee portal as an app",
@@ -1718,6 +1740,12 @@ export default function EmployeePayrollPortal() {
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [profilePhotoPreview, setProfilePhotoPreview] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
+  // The employee's own PIN: set here, asked for when a product is entered
+  // on the ERP so the record carries the person, not the shared login.
+  const [staffPinCurrent, setStaffPinCurrent] = useState("");
+  const [staffPinNext, setStaffPinNext] = useState("");
+  const [staffPinConfirm, setStaffPinConfirm] = useState("");
+  const [staffPinSaving, setStaffPinSaving] = useState(false);
   const chatSocketRef = useRef(null);
   const requestSocketRef = useRef(null);
   const receivedChatNotificationIdsRef = useRef(new Set());
@@ -2109,7 +2137,11 @@ export default function EmployeePayrollPortal() {
     portal?.employee?.photo_url,
   ].find((value) => String(value || "").trim()) || "";
   const profilePhotoUrl = resolveEmployeeProfileImageUrl(rawProfilePhotoUrl);
+  const hasStaffPin = profile.has_staff_pin === true || portal?.employee?.has_staff_pin === true;
   const openProfileSettings = () => {
+    setStaffPinCurrent("");
+    setStaffPinNext("");
+    setStaffPinConfirm("");
     setProfileMobile(profile.mobile || portal?.employee?.mobile || "");
     setProfilePhoto(null);
     setProfilePhotoPreview(profilePhotoUrl || "");
@@ -2144,6 +2176,37 @@ export default function EmployeePayrollPortal() {
       setPortalNotice(err?.responseBody?.message || err?.message || "تعذر حفظ البيانات");
     } finally {
       setProfileSaving(false);
+    }
+  };
+  const saveStaffPin = async () => {
+    if (staffPinSaving) return;
+    if (String(staffPinNext || "").trim() !== String(staffPinConfirm || "").trim()) {
+      setPortalNotice(text.staffPinMismatch);
+      return;
+    }
+    try {
+      setStaffPinSaving(true);
+      const responseRaw = await fetch(`${API_ORIGIN}/api/employee-portal/${encodeURIComponent(token)}/staff-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: staffPinNext, current_pin: staffPinCurrent }),
+      });
+      const response = await responseRaw.json().catch(() => ({}));
+      if (!responseRaw.ok) throw new Error(response.message || "تعذر حفظ الرقم السري");
+      setStaffPinCurrent("");
+      setStaffPinNext("");
+      setStaffPinConfirm("");
+      // The portal payload carries has_staff_pin, so the card flips without a reload.
+      setPortal((current) => (current ? {
+        ...current,
+        employee_profile: { ...(current.employee_profile || {}), has_staff_pin: true },
+        employee: { ...(current.employee || {}), has_staff_pin: true },
+      } : current));
+      setPortalNotice(text.staffPinSaved);
+    } catch (err) {
+      setPortalNotice(err?.message || "تعذر حفظ الرقم السري");
+    } finally {
+      setStaffPinSaving(false);
     }
   };
   const attendance = portal?.attendance?.summary || portal?.recent_attendance_summary || {};
@@ -5218,6 +5281,66 @@ export default function EmployeePayrollPortal() {
                 dir="ltr"
               />
             </label>
+            {/* The PIN never leaves this phone as text: it is set here and, on the
+                ERP, only ever checked against its hash. */}
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-black text-slate-900">{text.staffPinTitle}</h3>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${hasStaffPin ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                  {hasStaffPin ? text.staffPinSet : text.staffPinMissing}
+                </span>
+              </div>
+              <p className="mt-1 text-xs font-bold text-slate-500">{text.staffPinHint}</p>
+              {hasStaffPin ? (
+                <label className="mt-3 block text-xs font-black text-slate-800">
+                  {text.staffPinCurrent}
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={staffPinCurrent}
+                    onChange={(event) => setStaffPinCurrent(event.target.value)}
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                    dir="ltr"
+                  />
+                </label>
+              ) : null}
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-black text-slate-800">
+                  {text.staffPinNew}
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    value={staffPinNext}
+                    onChange={(event) => setStaffPinNext(event.target.value)}
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                    dir="ltr"
+                  />
+                </label>
+                <label className="block text-xs font-black text-slate-800">
+                  {text.staffPinConfirm}
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    value={staffPinConfirm}
+                    onChange={(event) => setStaffPinConfirm(event.target.value)}
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                    dir="ltr"
+                  />
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={saveStaffPin}
+                disabled={staffPinSaving || !staffPinNext || !staffPinConfirm}
+                className="mt-3 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-300 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60"
+              >
+                {staffPinSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {staffPinSaving ? text.staffPinSaving : text.staffPinSave}
+              </button>
+            </div>
             <button type="submit" disabled={profileSaving} className="mt-5 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60">
               {profileSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {profileSaving ? "جارٍ الحفظ..." : "حفظ التعديلات"}

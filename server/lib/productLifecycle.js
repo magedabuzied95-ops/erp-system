@@ -36,6 +36,17 @@ const toNumber = (value) => {
 };
 
 const auditTableCache = new WeakMap();
+// employees is a core table, but the lifecycle SQL also runs against shadow
+// schemas in tests, so the creator join is probed exactly like audit_logs.
+const employeesTableCache = new WeakMap();
+const hasEmployees = async (client) => {
+  if (employeesTableCache.has(client)) return employeesTableCache.get(client);
+  const result = await client.query(`SELECT to_regclass('employees') IS NOT NULL AS present`);
+  const present = Boolean(result.rows[0]?.present);
+  if (client && typeof client === "object") employeesTableCache.set(client, present);
+  return present;
+};
+
 const hasAuditLogs = async (client) => {
   if (auditTableCache.has(client)) return auditTableCache.get(client);
   const result = await client.query(`SELECT to_regclass('audit_logs') IS NOT NULL AS present`);
@@ -72,12 +83,14 @@ const inventoryCountSupport = async (client) => {
 // Who added each colour/size. product_variants has no created_by; the product save
 // writes one audit row per batch listing the new variant ids. Read once per query,
 // not once per variant. $1 = product id.
-const creatorsCte = (withAudit) =>
+const creatorsCte = (withAudit, withEmployees = false) =>
   withAudit
     ? `creators AS (
          SELECT DISTINCT ON (ids.variant_id)
            ids.variant_id,
            COALESCE(
+             ${withEmployees ? "NULLIF(e.full_name, '')," : ""}
+             NULLIF(a.details ->> 'entry_employee_name', ''),
              NULLIF(u.name, ''),
              u.email
            ) AS name
@@ -85,6 +98,9 @@ const creatorsCte = (withAudit) =>
          CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(a.details -> 'variant_ids', '[]'::jsonb)) AS ids_raw(value)
          CROSS JOIN LATERAL (SELECT ids_raw.value::bigint AS variant_id) ids
          LEFT JOIN users u ON u.id = a.user_id
+         -- The PIN-verified employee wins over the (often shared) ERP login.
+         -- Joined on text so a malformed id can never abort the query.
+         ${withEmployees ? "LEFT JOIN employees e ON e.id::text = a.details ->> 'entry_employee_id'" : ""}
          WHERE a.action = 'product.variants_created'
            AND a.entity_type = 'product'
            AND a.entity_id = $1::bigint
@@ -172,9 +188,9 @@ const countEventsCte = ({ present, hasCounter }) =>
          WHERE FALSE AND $9::text[] IS NOT NULL
        )`;
 
-const eventsSql = (withAudit, countSupport) => `
+const eventsSql = (withAudit, countSupport, withEmployees = false) => `
   WITH scoped_variants AS (${variantScope}),
-  ${creatorsCte(withAudit)},
+  ${creatorsCte(withAudit, withEmployees)},
   ${countEventsCte(countSupport)},
   created_events AS (
     SELECT
@@ -358,9 +374,9 @@ const countedCte = ({ present, hasCounter }) =>
          WHERE FALSE AND $5::text[] IS NOT NULL
        )`;
 
-const variantsSql = (withAudit, countSupport) => `
+const variantsSql = (withAudit, countSupport, withEmployees = false) => `
   WITH scoped_variants AS (${variantScope}),
-  ${creatorsCte(withAudit)},
+  ${creatorsCte(withAudit, withEmployees)},
   ${countedCte(countSupport)},
   purchased AS (
     SELECT pi.variant_id,
@@ -445,8 +461,8 @@ export const normalizeLifecycleQuery = (query = {}) => {
 };
 
 export const loadProductLifecycleEvents = async (client, { productId, tenantId = null, kinds = null, color = null, size = null, limit = 40, offset = 0 }) => {
-  const [withAudit, countSupport] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client)]);
-  const result = await client.query(eventsSql(withAudit, countSupport), [
+  const [withAudit, countSupport, withEmployees] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client), hasEmployees(client)]);
+  const result = await client.query(eventsSql(withAudit, countSupport, withEmployees), [
     productId,
     tenantId,
     DOCUMENT_MIRROR_MOVEMENTS,
@@ -536,9 +552,9 @@ const loadVariantImages = async (client, { productId, tenantId }) => {
 };
 
 export const loadProductLifecycleVariants = async (client, { productId, tenantId = null }) => {
-  const [withAudit, countSupport] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client)]);
+  const [withAudit, countSupport, withEmployees] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client), hasEmployees(client)]);
   const [result, images] = await Promise.all([
-    client.query(variantsSql(withAudit, countSupport), [
+    client.query(variantsSql(withAudit, countSupport, withEmployees), [
       productId,
       tenantId,
       INACTIVE_PURCHASE_STATUSES,
@@ -613,6 +629,14 @@ export const loadProductLifecycleHeader = async (client, { productId, tenantId =
   );
   const product = result.rows[0]?.product;
   if (!product) return null;
+  // Who entered the product, read off the row rather than the audit trail: the
+  // header answers it once even when the colours were added in several batches.
+  let createdByEmployeeName = "";
+  const entryEmployeeId = Number(product.created_by_employee_id || 0);
+  if (entryEmployeeId > 0 && (await hasEmployees(client))) {
+    const employee = await client.query(`SELECT full_name FROM employees WHERE id = $1::bigint LIMIT 1`, [entryEmployeeId]);
+    createdByEmployeeName = employee.rows[0]?.full_name || "";
+  }
   return {
     id: Number(product.id),
     name: product.name || "",
@@ -620,6 +644,8 @@ export const loadProductLifecycleHeader = async (client, { productId, tenantId =
     product_code: product.product_code || "",
     image_url: product.image_url || "",
     created_at: product.created_at || null,
+    created_by_employee_id: entryEmployeeId > 0 ? entryEmployeeId : null,
+    created_by_employee_name: createdByEmployeeName,
   };
 };
 
