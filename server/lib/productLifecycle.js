@@ -14,7 +14,10 @@
 const DOCUMENT_MIRROR_MOVEMENTS = ["PURCHASE_IN", "PURCHASE", "SALE_OUT", "SALE"];
 const INACTIVE_PURCHASE_STATUSES = ["draft", "cancelled", "canceled", "reversed"];
 const INACTIVE_ORDER_STATUSES = ["draft", "cancelled", "canceled", "deleted"];
-export const LIFECYCLE_KINDS = ["created", "purchase", "sale", "movement"];
+export const LIFECYCLE_KINDS = ["created", "purchase", "sale", "count", "movement"];
+// A stock count only becomes history once it has left the counter's hands: a
+// draft still being typed on a phone is not an event anyone should read.
+const VISIBLE_COUNT_STATUSES = ["pending_review", "completed", "rejected"];
 
 const toPositiveInt = (value) => {
   const parsed = Number(value);
@@ -41,6 +44,31 @@ const hasAuditLogs = async (client) => {
   return present;
 };
 
+// inventory_count_items is created lazily the first time a count runs, and its
+// per-row counter identity (counted_by/counted_at) is newer than the table, so
+// both the table and the column are probed. Without the column the counter
+// falls back to whoever submitted the session — the history still answers "who
+// counted this", just at session granularity.
+const countTableCache = new WeakMap();
+const inventoryCountSupport = async (client) => {
+  if (countTableCache.has(client)) return countTableCache.get(client);
+  const result = await client.query(`
+    SELECT
+      to_regclass('inventory_count_items') IS NOT NULL
+        AND to_regclass('inventory_count_sessions') IS NOT NULL AS present,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'inventory_count_items' AND column_name = 'counted_by'
+      ) AS has_counter
+  `);
+  const support = {
+    present: Boolean(result.rows[0]?.present),
+    hasCounter: Boolean(result.rows[0]?.has_counter),
+  };
+  if (client && typeof client === "object") countTableCache.set(client, support);
+  return support;
+};
+
 // Who added each colour/size. product_variants has no created_by; the product save
 // writes one audit row per batch listing the new variant ids. Read once per query,
 // not once per variant. $1 = product id.
@@ -49,7 +77,10 @@ const creatorsCte = (withAudit) =>
     ? `creators AS (
          SELECT DISTINCT ON (ids.variant_id)
            ids.variant_id,
-           COALESCE(NULLIF(u.name, ''), u.email) AS name
+           COALESCE(
+             NULLIF(u.name, ''),
+             u.email
+           ) AS name
          FROM audit_logs a
          CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(a.details -> 'variant_ids', '[]'::jsonb)) AS ids_raw(value)
          CROSS JOIN LATERAL (SELECT ids_raw.value::bigint AS variant_id) ids
@@ -71,9 +102,80 @@ const variantScope = `
     AND ($2::bigint IS NULL OR v.tenant_id IS NULL OR v.tenant_id = $2::bigint)
 `;
 
-const eventsSql = (withAudit) => `
+// When the count happened. counted_at is the moment the employee entered the
+// quantity — which for an offline count is earlier than the row reaching us —
+// so it wins over the row's write time and over the session's own stamps.
+const countedAtExpr = (hasCounter) =>
+  hasCounter
+    ? "COALESCE(ci.counted_at, ci.updated_at, cs.submitted_at, cs.created_at)"
+    : "COALESCE(ci.updated_at, cs.submitted_at, cs.created_at)";
+
+// Who physically counted a colour, and when. One event per count session and
+// colour: the size rows carry what was counted against what the system expected.
+// The counter is the employee on the item row; a row written before counted_by
+// existed falls back to whoever submitted or opened the session.
+const countEventsCte = ({ present, hasCounter }) =>
+  present
+    ? `count_events AS (
+         SELECT
+           'count'::text AS kind,
+           MAX(${countedAtExpr(hasCounter)})::timestamptz AS occurred_at,
+           'count:' || cs.id || ':' || COALESCE(v.color, '') AS event_key,
+           COALESCE(v.color, '') AS color,
+           jsonb_agg(jsonb_build_object(
+             'variant_id', v.id,
+             'size', COALESCE(v.size, ''),
+             'quantity', ci.counted_quantity,
+             'expected', ci.system_quantity,
+             'difference', ci.difference_quantity
+           ) ORDER BY ci.id) AS lines,
+           cs.id::bigint AS document_id,
+           COALESCE(NULLIF(cs.title, ''), '#' || cs.id) AS document_number,
+           COALESCE(cs.status, '') AS document_status,
+           COALESCE(
+             ${hasCounter ? "MIN(NULLIF(cbu.name, '')), MIN(cbu.email)," : ""}
+             MIN(NULLIF(su.name, '')), MIN(su.email),
+             MIN(NULLIF(ou.name, '')), MIN(ou.email),
+             MIN(NULLIF(ccu.name, '')), MIN(ccu.email)
+           ) AS actor_name,
+           NULLIF(b.name, '') AS party_name,
+           NULL::text AS channel,
+           NULL::timestamptz AS voided_at,
+           NULL::text AS voided_by_name,
+           jsonb_build_object(
+             'session_title', NULLIF(cs.title, ''),
+             'branch_name', NULLIF(b.name, ''),
+             'expected', SUM(ci.system_quantity),
+             'difference', SUM(ci.difference_quantity),
+             'approved_by_name', COALESCE(MIN(NULLIF(au.name, '')), MIN(au.email))
+           ) AS extra
+         FROM inventory_count_items ci
+         JOIN inventory_count_sessions cs ON cs.id = COALESCE(ci.inventory_count_session_id, ci.inventory_count_id)
+         JOIN scoped_variants v ON v.id = COALESCE(ci.product_variant_id, ci.variant_id)
+         LEFT JOIN branches b ON b.id = cs.branch_id
+         ${hasCounter ? "LEFT JOIN users cbu ON cbu.id = ci.counted_by" : ""}
+         LEFT JOIN users su ON su.id = cs.submitted_by
+         LEFT JOIN users ou ON ou.id = cs.opened_by
+         LEFT JOIN users ccu ON ccu.id = cs.created_by
+         LEFT JOIN users au ON au.id = cs.approved_by
+         WHERE ($2::bigint IS NULL OR cs.tenant_id IS NULL OR cs.tenant_id = $2::bigint)
+           AND LOWER(COALESCE(cs.status, '')) = ANY($9::text[])
+         GROUP BY cs.id, cs.title, cs.status, b.name, COALESCE(v.color, '')
+       )`
+    : `count_events AS (
+         SELECT
+           'count'::text AS kind, NULL::timestamptz AS occurred_at, ''::text AS event_key, ''::text AS color,
+           '[]'::jsonb AS lines, NULL::bigint AS document_id, NULL::text AS document_number, NULL::text AS document_status,
+           NULL::text AS actor_name, NULL::text AS party_name, NULL::text AS channel, NULL::timestamptz AS voided_at,
+           NULL::text AS voided_by_name, '{}'::jsonb AS extra
+         -- $9 stays referenced so the parameter list is identical either way.
+         WHERE FALSE AND $9::text[] IS NOT NULL
+       )`;
+
+const eventsSql = (withAudit, countSupport) => `
   WITH scoped_variants AS (${variantScope}),
   ${creatorsCte(withAudit)},
+  ${countEventsCte(countSupport)},
   created_events AS (
     SELECT
       'created'::text AS kind,
@@ -201,6 +303,7 @@ const eventsSql = (withAudit) => `
     SELECT * FROM created_events
     UNION ALL SELECT * FROM purchase_events
     UNION ALL SELECT * FROM sale_events
+    UNION ALL SELECT * FROM count_events
     UNION ALL SELECT * FROM movement_events
   )
   SELECT *, COUNT(*) OVER () AS total_count
@@ -214,9 +317,51 @@ const eventsSql = (withAudit) => `
   LIMIT $7 OFFSET $8
 `;
 
-const variantsSql = (withAudit) => `
+// The last time each size row was actually counted, and by whom. Only counts
+// that left the counter's hands are shown, for the same reason the timeline
+// hides a draft.
+const countedCte = ({ present, hasCounter }) =>
+  present
+    ? `counted AS (
+         SELECT DISTINCT ON (variant_key)
+           COALESCE(ci.product_variant_id, ci.variant_id) AS variant_key,
+           ${countedAtExpr(hasCounter)} AS counted_at,
+           COALESCE(
+             ${hasCounter ? "NULLIF(cbu.name, ''), cbu.email," : ""}
+             NULLIF(su.name, ''), su.email,
+             NULLIF(ccu.name, ''), ccu.email
+           ) AS counted_by_name,
+           ci.counted_quantity,
+           ci.difference_quantity,
+           cs.id AS session_id,
+           COALESCE(cs.status, '') AS session_status
+         FROM inventory_count_items ci
+         JOIN inventory_count_sessions cs ON cs.id = COALESCE(ci.inventory_count_session_id, ci.inventory_count_id)
+         ${hasCounter ? "LEFT JOIN users cbu ON cbu.id = ci.counted_by" : ""}
+         LEFT JOIN users su ON su.id = cs.submitted_by
+         LEFT JOIN users ccu ON ccu.id = cs.created_by
+         WHERE COALESCE(ci.product_variant_id, ci.variant_id) IN (SELECT id FROM scoped_variants)
+           AND ($2::bigint IS NULL OR cs.tenant_id IS NULL OR cs.tenant_id = $2::bigint)
+           AND LOWER(COALESCE(cs.status, '')) = ANY($5::text[])
+           -- Putting a colour on the sheet is not counting its sizes. A row the
+           -- employee never touched carries no counted_at and no quantity, and
+           -- must not claim a counter. Rows from before counted_at existed are
+           -- still attributed at session level as long as a quantity was entered.
+           ${hasCounter ? "AND (ci.counted_at IS NOT NULL OR COALESCE(ci.counted_quantity, 0) <> 0)" : "AND COALESCE(ci.counted_quantity, 0) <> 0"}
+         ORDER BY variant_key, ${countedAtExpr(hasCounter)} DESC, ci.id DESC
+       )`
+    : `counted AS (
+         SELECT
+           NULL::bigint AS variant_key, NULL::timestamptz AS counted_at, NULL::text AS counted_by_name,
+           NULL::int AS counted_quantity, NULL::int AS difference_quantity, NULL::bigint AS session_id,
+           ''::text AS session_status
+         WHERE FALSE AND $5::text[] IS NOT NULL
+       )`;
+
+const variantsSql = (withAudit, countSupport) => `
   WITH scoped_variants AS (${variantScope}),
   ${creatorsCte(withAudit)},
+  ${countedCte(countSupport)},
   purchased AS (
     SELECT pi.variant_id,
            SUM(pi.quantity)::int AS quantity,
@@ -256,11 +401,18 @@ const variantsSql = (withAudit) => `
     COALESCE(so.quantity, 0) AS sold_quantity,
     COALESCE(so.returned, 0) AS returned_quantity,
     COALESCE(so.invoices, 0) AS sale_invoices,
-    so.last_at AS last_sale_at
+    so.last_at AS last_sale_at,
+    co.counted_at AS last_counted_at,
+    co.counted_by_name AS last_counted_by_name,
+    co.counted_quantity AS last_counted_quantity,
+    co.difference_quantity AS last_counted_difference,
+    co.session_id AS last_count_session_id,
+    co.session_status AS last_count_status
   FROM scoped_variants v
   ${creatorJoin("v")}
   LEFT JOIN purchased pu ON pu.variant_id = v.id
   LEFT JOIN sold so ON so.variant_id = v.id
+  LEFT JOIN counted co ON co.variant_key = v.id
   ORDER BY v.color NULLS LAST, v.id
 `;
 
@@ -272,6 +424,8 @@ const normalizeLines = (lines) =>
     ...(line?.returned !== undefined ? { returned: toNumber(line.returned) } : {}),
     ...(line?.before !== undefined && line?.before !== null ? { before: toNumber(line.before) } : {}),
     ...(line?.after !== undefined && line?.after !== null ? { after: toNumber(line.after) } : {}),
+    ...(line?.expected !== undefined && line?.expected !== null ? { expected: toNumber(line.expected) } : {}),
+    ...(line?.difference !== undefined && line?.difference !== null ? { difference: toNumber(line.difference) } : {}),
   }));
 
 export const normalizeLifecycleQuery = (query = {}) => {
@@ -291,8 +445,8 @@ export const normalizeLifecycleQuery = (query = {}) => {
 };
 
 export const loadProductLifecycleEvents = async (client, { productId, tenantId = null, kinds = null, color = null, size = null, limit = 40, offset = 0 }) => {
-  const withAudit = await hasAuditLogs(client);
-  const result = await client.query(eventsSql(withAudit), [
+  const [withAudit, countSupport] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client)]);
+  const result = await client.query(eventsSql(withAudit, countSupport), [
     productId,
     tenantId,
     DOCUMENT_MIRROR_MOVEMENTS,
@@ -301,6 +455,7 @@ export const loadProductLifecycleEvents = async (client, { productId, tenantId =
     size,
     limit,
     offset,
+    VISIBLE_COUNT_STATUSES,
   ]);
   const total = toNumber(result.rows[0]?.total_count);
   const events = result.rows.map((row) => ({
@@ -381,13 +536,14 @@ const loadVariantImages = async (client, { productId, tenantId }) => {
 };
 
 export const loadProductLifecycleVariants = async (client, { productId, tenantId = null }) => {
-  const withAudit = await hasAuditLogs(client);
+  const [withAudit, countSupport] = await Promise.all([hasAuditLogs(client), inventoryCountSupport(client)]);
   const [result, images] = await Promise.all([
-    client.query(variantsSql(withAudit), [
+    client.query(variantsSql(withAudit, countSupport), [
       productId,
       tenantId,
       INACTIVE_PURCHASE_STATUSES,
       INACTIVE_ORDER_STATUSES,
+      VISIBLE_COUNT_STATUSES,
     ]),
     loadVariantImages(client, { productId, tenantId }),
   ]);
@@ -409,6 +565,12 @@ export const loadProductLifecycleVariants = async (client, { productId, tenantId
     returned_quantity: toNumber(row.returned_quantity),
     sale_invoices: toNumber(row.sale_invoices),
     last_sale_at: row.last_sale_at,
+    last_counted_at: row.last_counted_at || null,
+    last_counted_by_name: row.last_counted_by_name || null,
+    last_counted_quantity: row.last_counted_at ? toNumber(row.last_counted_quantity) : null,
+    last_counted_difference: row.last_counted_at ? toNumber(row.last_counted_difference) : null,
+    last_count_session_id: row.last_count_session_id === null || row.last_count_session_id === undefined ? null : Number(row.last_count_session_id),
+    last_count_status: row.last_count_status || null,
   }));
 };
 

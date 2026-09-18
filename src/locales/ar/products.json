@@ -1199,19 +1199,22 @@
       "created": "إضافة للسيستم",
       "purchase": "فواتير الشراء",
       "sale": "فواتير البيع",
-      "movement": "حركات أخرى"
+      "movement": "حركات أخرى",
+      "count": "الجرد"
     },
     "events": {
       "created": "اتضاف للسيستم",
       "purchase": "فاتورة شراء",
-      "sale": "فاتورة بيع"
+      "sale": "فاتورة بيع",
+      "count": "جرد مخزون"
     },
     "columns": {
       "size": "المقاس",
       "added": "اتضاف",
       "purchased": "مشترى",
       "sold": "مباع",
-      "stock": "المخزون"
+      "stock": "المخزون",
+      "lastCount": "آخر جرد"
     },
     "fields": {
       "addedBy": "بواسطة",
@@ -1222,7 +1225,11 @@
       "cashier": "الكاشير",
       "customer": "العميل",
       "channel": "القناة",
-      "reason": "السبب"
+      "reason": "السبب",
+      "countedBy": "جرده",
+      "countedAt": "تاريخ الجرد",
+      "branch": "الفرع",
+      "approvedBy": "اعتمده"
     },
     "channels": {
       "pos": "نقطة البيع",
@@ -1278,7 +1285,9 @@
       "failed_delivery": "فشل التسليم",
       "outfordelivery": "خرج للتوصيل",
       "partiallypaid": "مدفوع جزئياً",
-      "partiallyrefunded": "مسترد جزئياً"
+      "partiallyrefunded": "مسترد جزئياً",
+      "pending_review": "بانتظار المراجعة",
+      "in_progress": "قيد التنفيذ"
     },
     "movementTypes": {
       "RETURN_IN": "مرتجع للمخزن",
@@ -1306,6 +1315,7 @@
       "PROVISIONAL_STOCK_REMOVED": "إلغاء الكمية المبدئية",
       "PROVISIONAL_SETTLEMENT_REVERSED": "رجوع تسوية الكمية المبدئية",
       "OPENING_BALANCE": "رصيد افتتاحي"
-    }
+    },
+    "neverCounted": "لسه ماتجردش"
   }
 }

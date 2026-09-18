@@ -94,6 +94,20 @@ if (!ready) {
       id BIGSERIAL PRIMARY KEY, tenant_id BIGINT, user_id BIGINT, action TEXT, entity_type TEXT,
       entity_id BIGINT, details JSONB DEFAULT '{}'::jsonb, created_at TIMESTAMPTZ DEFAULT NOW()
     )`);
+  await db.query(`CREATE TABLE branches (id BIGINT PRIMARY KEY, name TEXT)`);
+  await db.query(`
+    CREATE TABLE inventory_count_sessions (
+      id BIGINT PRIMARY KEY, tenant_id BIGINT, branch_id BIGINT, title TEXT, status TEXT,
+      submitted_by BIGINT, submitted_at TIMESTAMPTZ, opened_by BIGINT, created_by BIGINT,
+      approved_by BIGINT, created_at TIMESTAMPTZ
+    )`);
+  await db.query(`
+    CREATE TABLE inventory_count_items (
+      id BIGSERIAL PRIMARY KEY, inventory_count_session_id BIGINT, inventory_count_id BIGINT,
+      product_id BIGINT, product_variant_id BIGINT, variant_id BIGINT,
+      system_quantity INT, counted_quantity INT, difference_quantity INT,
+      counted_by BIGINT, counted_at TIMESTAMPTZ, updated_at TIMESTAMPTZ
+    )`);
 
   await db.query(`INSERT INTO users VALUES (1, 'Ahmed', 'a@x'), (2, 'Mona', 'm@x'), (3, NULL, 'sara@x')`);
   await db.query(`INSERT INTO suppliers VALUES (9, 'Eleven 7')`);
@@ -145,6 +159,23 @@ if (!ready) {
       ($1, $2, 501, 'SALE_OUT', -1, 4, 3, 999, 'order', 80, NULL, 3, '2026-09-06T15:00:00+03'),
       ($1, $2, 503, 'COUNT_ADJUSTMENT', 5, 0, 5, 999, 'inventory_count', 5, 'found in store', 1, '2026-09-08T09:00:00+03')
   `, [TENANT, PRODUCT]);
+  await db.query(`INSERT INTO branches VALUES (1, 'فرع البشبيشي')`);
+  await db.query(`
+    INSERT INTO inventory_count_sessions (id, tenant_id, branch_id, title, status, submitted_by, submitted_at, opened_by, created_by, approved_by, created_at) VALUES
+      (300, $1, 1, 'جرد سبتمبر', 'completed', 2, '2026-09-09T21:00:00+03', 3, 3, 1, '2026-09-09T19:00:00+03'),
+      (301, $1, 1, 'جرد لسه شغال', 'draft', NULL, NULL, 3, 3, NULL, '2026-09-10T19:00:00+03'),
+      (302, $2, 1, 'جرد فرع تاني', 'completed', 2, '2026-09-11T21:00:00+03', 2, 2, 1, '2026-09-11T19:00:00+03')
+  `, [TENANT, OTHER_TENANT]);
+  await db.query(`
+    INSERT INTO inventory_count_items
+      (inventory_count_session_id, product_id, product_variant_id, variant_id, system_quantity, counted_quantity, difference_quantity, counted_by, counted_at, updated_at) VALUES
+      (300, $1, 501, 501, 3, 2, -1, 3, '2026-09-09T20:00:00+03', '2026-09-09T20:05:00+03'),
+      (300, $1, 502, 502, 0, 1,  1, 3, '2026-09-09T20:01:00+03', '2026-09-09T20:05:00+03'),
+      -- The White colour was only put on the sheet; nobody counted its size.
+      (300, $1, 503, 503, 5, 0, -5, NULL, NULL, '2026-09-09T20:05:00+03'),
+      (301, $1, 501, 501, 3, 9,  6, 3, '2026-09-10T20:00:00+03', '2026-09-10T20:00:00+03'),
+      (302, $1, 501, 501, 3, 7,  4, 2, '2026-09-11T20:00:00+03', '2026-09-11T20:00:00+03')
+  `, [PRODUCT]);
 
   const load = (options = {}) =>
     lifecycle.loadProductLifecycleEvents(db, { productId: PRODUCT, tenantId: TENANT, limit: 50, offset: 0, ...options });
@@ -154,6 +185,8 @@ if (!ready) {
     assert.deepEqual(
       events.map((event) => event.key),
       [
+        "count:300:White",
+        "count:300:Navy",
         "movement:3",
         "sale:81:Navy",
         "sale:80:Navy",
@@ -163,7 +196,49 @@ if (!ready) {
         "created:Navy:202609010900",
       ]
     );
-    assert.equal(total, 7);
+    assert.equal(total, 9);
+  });
+
+  test("a submitted count says who counted the colour, when, and against what", async () => {
+    const { events } = await load({ kinds: ["count"] });
+    assert.equal(events.length, 2, "one event per colour on the sheet");
+    const count = events.find((event) => event.color === "Navy");
+    assert.equal(count.document_number, "جرد سبتمبر");
+    assert.equal(count.document_status, "completed");
+    assert.equal(count.actor_name, "sara@x", "the employee who entered the quantities, not the approver");
+    assert.equal(count.party_name, "فرع البشبيشي");
+    assert.equal(count.extra.approved_by_name, "Ahmed");
+    assert.equal(new Date(count.occurred_at).toISOString(), "2026-09-09T17:01:00.000Z");
+    assert.deepEqual(
+      count.lines.map((line) => [line.size, line.quantity, line.expected, line.difference]),
+      [["34", 2, 3, -1], ["35", 1, 0, 1]]
+    );
+  });
+
+  test("a count still being typed on a phone is not history yet", async () => {
+    const { events } = await load({ kinds: ["count"] });
+    assert.equal(events.some((event) => event.document_number === "جرد لسه شغال"), false);
+  });
+
+  test("another tenant's count never appears", async () => {
+    const { events } = await load({ kinds: ["count"] });
+    assert.equal(events.some((event) => event.document_number === "جرد فرع تاني"), false);
+  });
+
+  test("each size row carries its last count: who, when, and how far off", async () => {
+    const variants = await lifecycle.loadProductLifecycleVariants(db, { productId: PRODUCT, tenantId: TENANT });
+    const navy34 = variants.find((variant) => variant.id === 501);
+    assert.equal(navy34.last_counted_by_name, "sara@x");
+    assert.equal(new Date(navy34.last_counted_at).toISOString(), "2026-09-09T17:00:00.000Z");
+    assert.equal(navy34.last_counted_quantity, 2);
+    assert.equal(navy34.last_counted_difference, -1);
+    assert.equal(navy34.last_count_session_id, 300);
+
+    // 503 IS on that count sheet, but as a listed colour nobody touched. Putting
+    // a colour on the sheet must never read as having counted its sizes.
+    const white = variants.find((variant) => variant.id === 503);
+    assert.equal(white.last_counted_at, null, "listed but never counted stays empty, never guessed");
+    assert.equal(white.last_counted_by_name, null);
   });
 
   test("movements that mirror a purchase or a sale are not listed twice", async () => {
@@ -216,9 +291,9 @@ if (!ready) {
 
   test("filters narrow by colour and by size", async () => {
     const white = await load({ color: "white" });
-    assert.deepEqual(white.events.map((event) => event.key), ["movement:3", "created:White:202609051200"]);
+    assert.deepEqual(white.events.map((event) => event.key), ["count:300:White", "movement:3", "created:White:202609051200"]);
     const size35 = await load({ size: "35" });
-    assert.deepEqual(size35.events.map((event) => event.key), ["sale:81:Navy", "purchase:70:Navy", "created:Navy:202609010900"]);
+    assert.deepEqual(size35.events.map((event) => event.key), ["count:300:Navy", "sale:81:Navy", "purchase:70:Navy", "created:Navy:202609010900"]);
   });
 
   test("pages report whether more events remain", async () => {
@@ -226,7 +301,7 @@ if (!ready) {
     assert.equal(first.events.length, 3);
     assert.equal(first.has_more, true);
     const last = await load({ limit: 3, offset: 6 });
-    assert.equal(last.events.length, 1);
+    assert.equal(last.events.length, 3);
     assert.equal(last.has_more, false);
   });
 

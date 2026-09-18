@@ -6,6 +6,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronRight,
+  CloudOff,
   ClipboardList,
   Filter,
   Loader2,
@@ -18,6 +19,7 @@ import {
   Menu,
   Trash2,
   Warehouse,
+  Wifi,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -35,11 +37,25 @@ import {
   clearInventoryDraft,
   reconcileInventoryRows,
   sweepExpiredDrafts,
+  saveInventoryCatalog,
+  loadInventoryCatalog,
 } from "../services/employeeDrafts/employeeDraftStore.js";
+import {
+  catalogIsStale,
+  isOfflineFailure,
+  outboxSize,
+  outboxToItems,
+  queueCountedQuantity,
+  searchCatalogRows,
+  settleOutbox,
+  toCatalogRow,
+} from "../services/employeeDrafts/inventoryCountSync.js";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
+  bulkUpsertEmployeePortalInventoryItems,
   createEmployeePortalInventorySession,
+  getEmployeePortalInventoryCatalogSnapshot,
   getEmployeePortalInventorySession,
   listEmployeePortalInventorySessions,
   lookupEmployeePortalInventoryVariants,
@@ -48,7 +64,6 @@ import {
   reopenEmployeePortalInventorySession,
   submitEmployeePortalInventorySession,
   updateEmployeePortalInventorySession,
-  upsertEmployeePortalInventoryItem,
 } from "../services/employeePortalInventoryApi";
 
 import { useTranslation } from "react-i18next";
@@ -550,6 +565,19 @@ export default function EmployeePortalInventory() {
   // local edit time per variant so a locally-counted row wins reconciliation.
   const [draftIdentity, setDraftIdentity] = useState(null);
   const editedAtRef = useRef(new Map());
+  // ---- Offline count engine -------------------------------------------------
+  // A tap is recorded locally and owed to the server, never awaited. `outbox`
+  // holds the LATEST quantity per variant; it is persisted with the draft, so a
+  // count survives a dead connection, a reload and a closed app.
+  const [outbox, setOutbox] = useState({});
+  const outboxRef = useRef(outbox);
+  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [catalogSnapshot, setCatalogSnapshot] = useState(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const flushTimerRef = useRef(null);
+  const flushInFlightRef = useRef(false);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionSaving, setSessionSaving] = useState(false);
   const [sessionOpening, setSessionOpening] = useState(false);
@@ -578,8 +606,6 @@ export default function EmployeePortalInventory() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [branchDrawerOpen, setBranchDrawerOpen] = useState(false);
   const itemsRef = useRef(items);
-  const itemSaveTimersRef = useRef(new Map());
-  const itemSavePatchRef = useRef(new Map());
   const itemSavingIdRef = useRef("");
   const lookupInputRef = useRef(null);
   const filtersPanelRef = useRef(null);
@@ -595,8 +621,26 @@ export default function EmployeePortalInventory() {
   }, [items]);
 
   useEffect(() => {
+    outboxRef.current = outbox;
+  }, [outbox]);
+
+  useEffect(() => {
     itemSavingIdRef.current = itemSavingId;
   }, [itemSavingId]);
+
+  // The browser's own connection flag is the cheapest signal we have; a flush
+  // that fails anyway just puts its rows back in the outbox.
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -619,15 +663,6 @@ export default function EmployeePortalInventory() {
       window.clearTimeout(timer);
     };
   }, [token]);
-
-  useEffect(
-    () => () => {
-      itemSaveTimersRef.current.forEach((timer) => window.clearTimeout(timer));
-      itemSaveTimersRef.current.clear();
-      itemSavePatchRef.current.clear();
-    },
-    []
-  );
 
   const loadSessions = useCallback(async () => {
     try {
@@ -665,6 +700,11 @@ export default function EmployeePortalInventory() {
       // authoritative. Read is fail-safe (null on any cache error).
       const draft = await loadInventoryDraft(draftId);
       const draftRows = Array.isArray(draft?.rows) ? draft.rows : [];
+      // Quantities counted on this device that never reached the server (the
+      // app was closed offline, or the flush failed). They are restored BEFORE
+      // the rows render so the badge is honest from the first frame.
+      const restoredOutbox = draft?.outbox && typeof draft.outbox === "object" ? draft.outbox : {};
+      if (Object.keys(restoredOutbox).length) setOutbox(restoredOutbox);
 
       if (serverOk) {
         const nextSession = response?.session || null;
@@ -704,6 +744,120 @@ export default function EmployeePortalInventory() {
       setSessionLoading(false);
     }
   }, [token, draftIdentity]);
+
+  /**
+   * Send everything the outbox owes the server in ONE request.
+   *
+   * Returns true when nothing is left owing. A failure is not an error the
+   * employee has to act on: the rows stay in the outbox and go out with the
+   * next tap, the next reconnection, or the send-for-review button.
+   */
+  const flushOutbox = useCallback(async ({ silent = true } = {}) => {
+    const sessionId = session?.id;
+    const pending = outboxRef.current;
+    if (!sessionId || !isEditable) return false;
+    if (!outboxSize(pending)) return true;
+    if (flushInFlightRef.current) return false;
+    if (typeof navigator !== "undefined" && navigator?.onLine === false) return false;
+
+    flushInFlightRef.current = true;
+    setSyncing(true);
+    const sent = pending;
+    try {
+      const response = await bulkUpsertEmployeePortalInventoryItems(token, sessionId, outboxToItems(sent));
+      // Only what was actually accepted is cleared, and only if the employee has
+      // not re-counted that variant while the request was in flight.
+      setOutbox((current) => settleOutbox(current, sent));
+      if (response?.session) setSession(response.session);
+      setLastSyncedAt(Date.now());
+      const rejected = Array.isArray(response?.rejected) ? response.rejected : [];
+      if (rejected.length && !silent) {
+        toast.error(tt("employeePortal.stockCount.someRowsRejected", { count: rejected.length }));
+      }
+      return true;
+    } catch (error) {
+      if (isOfflineFailure(error)) {
+        setOnline(false);
+        if (!silent) toast(tt("employeePortal.stockCount.queuedOffline"), { icon: "📴" });
+      } else if (!silent) {
+        toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveItemFailed"));
+      }
+      return false;
+    } finally {
+      flushInFlightRef.current = false;
+      setSyncing(false);
+    }
+  }, [isEditable, session?.id, token]);
+
+  // Counting must never wait on the network, so the flush trails the taps: it
+  // fires once the employee pauses, not once per tap.
+  useEffect(() => {
+    if (!outboxSize(outbox) || !online || !session?.id || !isEditable) return undefined;
+    if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = window.setTimeout(() => { void flushOutbox({ silent: true }); }, 1200);
+    return () => {
+      if (flushTimerRef.current) window.clearTimeout(flushTimerRef.current);
+    };
+  }, [outbox, online, session?.id, isEditable, flushOutbox]);
+
+  // Leaving the screen or backgrounding the app is the last chance to send.
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const onHide = () => {
+      if (document.visibilityState === "hidden") void flushOutbox({ silent: true });
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      void flushOutbox({ silent: true });
+    };
+  }, [flushOutbox]);
+
+  // ---- Offline lookup catalogue ---------------------------------------------
+  useEffect(() => {
+    if (!draftIdentity) return;
+    let cancelled = false;
+    (async () => {
+      const cached = await loadInventoryCatalog(draftIdentity);
+      if (cancelled) return;
+      if (cached) setCatalogSnapshot(cached);
+      if (!online || !catalogIsStale(cached)) return;
+      setCatalogLoading(true);
+      try {
+        const response = await getEmployeePortalInventoryCatalogSnapshot(token);
+        if (cancelled) return;
+        const rows = (Array.isArray(response?.variants) ? response.variants : []).map(toCatalogRow);
+        if (!rows.length) return;
+        const snapshot = { variants: rows, savedAt: Date.now(), generatedAt: response?.generated_at || null };
+        setCatalogSnapshot(snapshot);
+        saveInventoryCatalog(draftIdentity, snapshot);
+      } catch (error) {
+        // A missing catalogue costs offline lookup, nothing else — the online
+        // search path is untouched, so this stays silent.
+        console.warn("[employee-portal-inventory] catalog snapshot failed", error?.message || error);
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [draftIdentity, online, token]);
+
+  const refreshOfflineCatalog = useCallback(async () => {
+    if (!draftIdentity) return;
+    setCatalogLoading(true);
+    try {
+      const response = await getEmployeePortalInventoryCatalogSnapshot(token);
+      const rows = (Array.isArray(response?.variants) ? response.variants : []).map(toCatalogRow);
+      const snapshot = { variants: rows, savedAt: Date.now(), generatedAt: response?.generated_at || null };
+      setCatalogSnapshot(snapshot);
+      saveInventoryCatalog(draftIdentity, snapshot);
+      toast.success(tt("employeePortal.stockCount.catalogReady", { count: rows.length }));
+    } catch (error) {
+      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.catalogFailed"));
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, [draftIdentity, token]);
 
   useEffect(() => {
     loadSessions();
@@ -754,8 +908,10 @@ export default function EmployeePortalInventory() {
         local_updated_at: editedAtRef.current.get(vid) || Number(row.local_updated_at) || 0,
       };
     });
-    saveInventoryDraft(identity, { rows, savedAt: Date.now() });
-  }, [items, session?.id, isEditable, draftIdentity]);
+    // The outbox rides with the rows: reopening the app offline has to restore
+    // both what was counted AND what the server has not been told yet.
+    saveInventoryDraft(identity, { rows, outbox, savedAt: Date.now() });
+  }, [items, outbox, session?.id, isEditable, draftIdentity]);
 
   // Once the session leaves an editable state (submitted for review / completed
   // / cancelled), authoritative success owns cleanup — drop the local draft.
@@ -764,6 +920,9 @@ export default function EmployeePortalInventory() {
     if (!["draft", "in_progress"].includes(String(session.status || ""))) {
       clearInventoryDraft({ ...draftIdentity, sessionId: session.id });
       editedAtRef.current.clear();
+      // The session is closed to edits, so an outbox entry can no longer be
+      // written; keeping it would show a permanent "not sent yet" badge.
+      setOutbox({});
     }
   }, [session?.status, session?.id, draftIdentity]);
 
@@ -773,24 +932,33 @@ export default function EmployeePortalInventory() {
       if (!lookupQuery.trim()) setLookupResults([]);
       return;
     }
-    const timer = window.setTimeout(() => {
+    const timer = window.setTimeout(async () => {
       setLookupLoading(true);
-      lookupEmployeePortalInventoryVariants(token, session.id, {
-        query: lookupQuery,
-        limit: searchParams.get("taskId") ? 100 : 20,
-      })
-        .then((response) => {
-          setLookupResults(Array.isArray(response?.items) ? response.items : []);
-        })
-        .catch((error) => {
-          if (sessionState !== "pending_review" && sessionState !== "completed") {
-            toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.searchFailed"));
-          }
-        })
-        .finally(() => setLookupLoading(false));
+      const limit = searchParams.get("taskId") ? 100 : 20;
+      // With no signal the cached catalogue answers instead; it is a lookup
+      // index only, so the row it returns is still written against the server's
+      // own expected quantity.
+      const offlineResults = () => searchCatalogRows(catalogSnapshot?.variants || [], lookupQuery, limit);
+      try {
+        if (!online) {
+          setLookupResults(offlineResults());
+          return;
+        }
+        const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query: lookupQuery, limit });
+        setLookupResults(Array.isArray(response?.items) ? response.items : []);
+      } catch (error) {
+        if (isOfflineFailure(error)) {
+          setOnline(false);
+          setLookupResults(offlineResults());
+        } else if (sessionState !== "pending_review" && sessionState !== "completed") {
+          toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.searchFailed"));
+        }
+      } finally {
+        setLookupLoading(false);
+      }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [isEditable, isRejected, lookupQuery, searchParams, session?.id, session?.status, token]);
+  }, [catalogSnapshot, isEditable, isRejected, lookupQuery, online, searchParams, session?.id, session?.status, token]);
 
   const visibleSessions = useMemo(() => {
     const query = clean(sessionSearch).toLowerCase();
@@ -959,10 +1127,25 @@ export default function EmployeePortalInventory() {
   const differenceTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.difference_quantity, 0), 0), [items]);
   const expectedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.system_quantity, 0), 0), [items]);
   const countedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.counted_quantity, 0), 0), [items]);
+  // Progress is COVERAGE — how many size rows have been visited — not a ratio of
+  // quantities. A count that finds half the expected stock is not "50% done";
+  // it is finished and short by half, which is the whole point of counting.
+  const countedRowKeys = useMemo(() => new Set(Object.keys(outbox)), [outbox]);
+  const visitedRows = useMemo(
+    () =>
+      items.filter((item) => {
+        const id = String(item.product_variant_id ?? item.variant_id ?? item.id ?? "");
+        if (countedRowKeys.has(id)) return true;
+        if (Number(item.counted_at ?? 0)) return true;
+        return Boolean(item.counted_by_name) || toNumber(item.counted_quantity, 0) > 0;
+      }).length,
+    [items, countedRowKeys]
+  );
   const progressPercent = useMemo(() => {
-    if (!expectedTotal) return 0;
-    return Math.max(0, Math.min(100, Math.round((countedTotal / expectedTotal) * 100)));
-  }, [countedTotal, expectedTotal]);
+    if (!items.length) return 0;
+    return Math.max(0, Math.min(100, Math.round((visitedRows / items.length) * 100)));
+  }, [items.length, visitedRows]);
+  const pendingCount = useMemo(() => outboxSize(outbox), [outbox]);
 
   const refreshCurrentSession = useCallback(async () => {
     if (!selectedSessionId) return;
@@ -1070,6 +1253,22 @@ export default function EmployeePortalInventory() {
     if (!session?.id) return;
     try {
       setSessionSubmitting(true);
+      // Nothing may be submitted for review while a counted quantity is still
+      // sitting on the phone: a manager would be approving an incomplete count.
+      if (outboxSize(outboxRef.current)) {
+        // The trailing flush may already be mid-request, which makes the first
+        // attempt a no-op rather than a failure — one short retry tells the two
+        // apart before accusing the employee of having no connection.
+        let flushed = await flushOutbox({ silent: false });
+        if (!flushed && outboxSize(outboxRef.current)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 900));
+          flushed = await flushOutbox({ silent: false });
+        }
+        if (!flushed) {
+          toast.error(tt("employeePortal.stockCount.submitNeedsSync", { count: outboxSize(outboxRef.current) }));
+          return;
+        }
+      }
       const response = await submitEmployeePortalInventorySession(token, session.id);
       if (response?.session) setSession(response.session);
       await refreshCurrentSession();
@@ -1079,7 +1278,7 @@ export default function EmployeePortalInventory() {
     } finally {
       setSessionSubmitting(false);
     }
-  }, [refreshCurrentSession, session?.id, token]);
+  }, [flushOutbox, refreshCurrentSession, session?.id, token]);
 
   const handleReopenSession = useCallback(async () => {
     if (!session?.id) return;
@@ -1096,101 +1295,23 @@ export default function EmployeePortalInventory() {
     }
   }, [refreshCurrentSession, session?.id, token]);
 
-  const saveItem = useCallback(async (variant, patch = {}, options = {}) => {
-    if (!session?.id || !isEditable) return;
-    const productVariantId = variant.product_variant_id ?? variant.variant_id ?? variant.id;
-    if (!productVariantId) return;
-    try {
-      if (options.busy !== false) setItemSavingId(String(productVariantId));
-      const response = await upsertEmployeePortalInventoryItem(token, session.id, {
-        productVariantId,
-        countedQuantity: patch.countedQuantity ?? patch.counted_quantity ?? variant.counted_quantity,
-        systemQuantity: patch.systemQuantity ?? patch.system_quantity ?? variant.system_quantity,
-        reason: patch.reason ?? variant.reason ?? "",
-        notes: patch.notes ?? variant.notes ?? "",
-      });
-      if (response?.item) {
-        const saved = normalizeVariant(response.item);
-        setItems((current) =>
-          (() => {
-            const savedId = String(saved.product_variant_id ?? saved.variant_id ?? saved.id ?? "");
-            const index = current.findIndex((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === savedId);
-            if (index === -1) return current;
-            const row = current[index];
-            const mergedImageUrl = resolveInventoryImageUrl(
-              saved.image_url,
-              saved.image,
-              saved.product_image,
-              saved.color_image,
-              saved.variant_image,
-              row.image_url,
-              row.image,
-              row.product_image,
-              row.color_image,
-              row.variant_image
-            );
-            const next = current.slice();
-            next[index] = {
-              ...row,
-              ...saved,
-              image_url: mergedImageUrl || row.image_url || saved.image_url || "",
-              image: mergedImageUrl || row.image || saved.image || "",
-              product_image: mergedImageUrl || row.product_image || saved.product_image || "",
-              color_image: mergedImageUrl || row.color_image || saved.color_image || "",
-              variant_image: mergedImageUrl || row.variant_image || saved.variant_image || "",
-              images: mergedImageUrl ? [mergedImageUrl] : row.images || saved.images || [],
-            };
-            return next;
-          })()
-        );
-      }
-      if (response?.session) setSession(response.session);
-    } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveItemFailed"));
-    } finally {
-      if (options.busy !== false) setItemSavingId("");
-    }
-  }, [isEditable, session?.id, token]);
-
-  const scheduleItemSave = useCallback((variant, patch = {}, delayMs = 280) => {
-    if (!variant || !session?.id || !isEditable) return;
-    const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
-    if (!variantId) return;
-
-    const nextPatch = {
-      ...(itemSavePatchRef.current.get(variantId) || {}),
-      ...patch,
-    };
-    itemSavePatchRef.current.set(variantId, nextPatch);
-
-    const existingTimer = itemSaveTimersRef.current.get(variantId);
-    if (existingTimer) window.clearTimeout(existingTimer);
-
-    const timer = window.setTimeout(async () => {
-      itemSaveTimersRef.current.delete(variantId);
-      const currentVariant = itemsRef.current.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === variantId) || variant;
-      const patchToSave = itemSavePatchRef.current.get(variantId) || nextPatch;
-      itemSavePatchRef.current.delete(variantId);
-      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
-      try {
-        setItemSavingId(variantId);
-        await saveItem(currentVariant, patchToSave);
-        logDevDuration("save item", startedAt, { variantId });
-      } catch (error) {
-        toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.saveItemFailed"));
-      } finally {
-        setItemSavingId("");
-      }
-    }, delayMs);
-
-    itemSaveTimersRef.current.set(variantId, timer);
-  }, [isEditable, saveItem, session?.id]);
-
+  /**
+   * Put a colour's whole size run on the sheet.
+   *
+   * Local first: the sizes appear immediately and the rows are owed to the
+   * server through the outbox, so adding a colour works with no signal and does
+   * not make the employee wait. They are queued as NOT counted — the employee
+   * has only listed the colour, and the product history must not claim they
+   * counted a size they have not touched.
+   */
   const addColorGroup = useCallback(async (group) => {
     if (!group?.variants?.length || !session?.id || !isEditable) return;
-    try {
-      setItemSavingId(group.key);
-      const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+    let completeGroup = group;
+
+    if (online) {
+      // The online search returns a capped page, so a colour can come back with
+      // only some of its sizes; re-resolve it by code before adding.
       const seedVariant = group.variants[0] || {};
       const exactLookupValue = clean(
         seedVariant.sku ||
@@ -1200,37 +1321,56 @@ export default function EmployeePortalInventory() {
         seedVariant.product_barcode ||
         ""
       );
-      let completeGroup = group;
       if (exactLookupValue) {
-        const response = await lookupEmployeePortalInventoryVariants(token, session.id, {
-          query: exactLookupValue,
-          limit: 25,
-        });
-        const completeResults = Array.isArray(response?.items) ? response.items.map((row) => normalizeVariant(row)) : [];
-        const seedProductId = seedVariant.product_id ?? null;
-        const seedColorKey = normalizeColorKey(seedVariant.color || "");
-        const resolvedGroup = groupVariants(completeResults).find((entry) =>
-          String(entry.product_id ?? "") === String(seedProductId ?? "") &&
-          normalizeColorKey(entry.color || "") === seedColorKey
-        );
-        if (resolvedGroup?.variants?.length) completeGroup = resolvedGroup;
+        try {
+          setItemSavingId(group.key);
+          const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query: exactLookupValue, limit: 25 });
+          const completeResults = Array.isArray(response?.items) ? response.items.map((row) => normalizeVariant(row)) : [];
+          const seedProductId = seedVariant.product_id ?? null;
+          const seedColorKey = normalizeColorKey(seedVariant.color || "");
+          const resolvedGroup = groupVariants(completeResults).find((entry) =>
+            String(entry.product_id ?? "") === String(seedProductId ?? "") &&
+            normalizeColorKey(entry.color || "") === seedColorKey
+          );
+          if (resolvedGroup?.variants?.length) completeGroup = resolvedGroup;
+        } catch (error) {
+          if (isOfflineFailure(error)) setOnline(false);
+          // Fall through with what the search already gave us.
+        } finally {
+          setItemSavingId("");
+        }
       }
-      await Promise.all(completeGroup.variants.map(async (variant) => {
-        const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? ""));
-        await saveItem(variant, {
-          countedQuantity: existing ? toNumber(existing.counted_quantity, 0) : 0,
-          systemQuantity: variant.system_quantity,
-        }, { busy: false });
-      }));
-      await refreshCurrentSession();
-      logDevDuration("add color group", startedAt, { groupKey: group.key, variantCount: completeGroup.variants.length });
-      toast.success(tt("employeePortal.stockCount.colorAdded"));
-    } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.addColorFailed"));
-    } finally {
-      setItemSavingId("");
     }
-  }, [isEditable, items, refreshCurrentSession, saveItem, session?.id, token]);
+
+    // Which sizes are genuinely new is decided HERE, off the live rows ref —
+    // not inside the setItems updater. React runs that updater lazily, so a list
+    // collected inside it is still empty on the next line, and the rows would
+    // reach the screen while never reaching the outbox: the colour would show on
+    // the employee's phone and be missing from the sheet the manager reviews.
+    const known = new Set(itemsRef.current.map((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "")));
+    const added = [];
+    for (const variant of completeGroup.variants) {
+      const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
+      if (!variantId || known.has(variantId)) continue;
+      known.add(variantId);
+      const row = normalizeVariant({ ...variant, counted_quantity: 0 });
+      added.push({ ...row, counted_quantity: 0, difference_quantity: -toNumber(row.system_quantity, 0) });
+    }
+    if (!added.length) return;
+
+    setItems((current) => {
+      const present = new Set(current.map((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "")));
+      return [...current, ...added.filter((row) => !present.has(String(row.product_variant_id ?? row.variant_id ?? row.id ?? "")))];
+    });
+    setOutbox((current) => added.reduce((acc, row) => queueCountedQuantity(acc, {
+      variantId: String(row.product_variant_id ?? row.variant_id ?? row.id ?? ""),
+      countedQuantity: 0,
+      systemQuantity: toNumber(row.system_quantity, 0),
+      counted: false,
+    }), current));
+    logDevDuration("add color group", startedAt, { groupKey: group.key, variantCount: completeGroup.variants.length, added: added.length });
+    toast.success(tt("employeePortal.stockCount.colorAdded"));
+  }, [isEditable, online, session?.id, token]);
 
   useEffect(() => {
     const taskId = clean(searchParams.get("taskId"));
@@ -1265,29 +1405,38 @@ export default function EmployeePortalInventory() {
     const query = clean(value);
     setLookupQuery(query);
     if (!session?.id || !query || !isEditable) return false;
-    try {
-      setLookupLoading(true);
-      const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit: 20 });
-      const results = Array.isArray(response?.items) ? response.items : [];
+    const resolveFromResults = async (results) => {
       setLookupResults(results);
       const normalizedResults = results.map((variant) => normalizeVariant(variant));
       const exact = normalizedResults.find((variant) => isExactVariantMatch(query, variant));
-      if (exact) {
-        const group = findColorGroupForVariant(exact, normalizedResults);
-        if (group) {
-          await addColorGroup(group);
-        }
-        return true;
+      if (!exact) {
+        toast.error(tt("employeePortal.scanner.noMatchingProduct"));
+        return false;
       }
-      toast.error(tt("employeePortal.scanner.noMatchingProduct"));
-      return false;
+      const group = findColorGroupForVariant(exact, normalizedResults);
+      if (group) await addColorGroup(group);
+      return true;
+    };
+    // The cached catalogue is what makes scanning work in a stockroom with no
+    // signal; the barcode resolves locally and the row is owed to the server.
+    const scanOffline = () => resolveFromResults(searchCatalogRows(catalogSnapshot?.variants || [], query, 40));
+
+    try {
+      setLookupLoading(true);
+      if (!online) return await scanOffline();
+      const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit: 20 });
+      return await resolveFromResults(Array.isArray(response?.items) ? response.items : []);
     } catch (error) {
+      if (isOfflineFailure(error)) {
+        setOnline(false);
+        return await scanOffline();
+      }
       toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.scanner.readFailed"));
       return false;
     } finally {
       setLookupLoading(false);
     }
-  }, [addColorGroup, findColorGroupForVariant, session?.id, token]);
+  }, [addColorGroup, catalogSnapshot, findColorGroupForVariant, isEditable, online, session?.id, token]);
 
   const handleVariantCountChange = useCallback((variantId, value) => {
     if (!isEditable) return;
@@ -1312,17 +1461,33 @@ export default function EmployeePortalInventory() {
     );
   }, [isEditable]);
 
-  const adjustVariantCount = useCallback(async (variant, delta) => {
+  /**
+   * Record a counted quantity. Local state and the outbox only — no request.
+   *
+   * This is the whole speed story: the old path fired a save per tap and made a
+   * long count feel like waiting on a server, and made a count impossible with
+   * no signal. The quantity is the employee's as soon as they tap it; the
+   * server hears about it when the network allows.
+   */
+  const setVariantCount = useCallback((variant, nextValue) => {
     if (!isEditable) return;
     const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
     if (!variantId) return;
-    const currentValue = toNumber(variant.counted_quantity, 0);
-    const nextValue = Math.max(0, currentValue + Number(delta || 0));
+    const counted = Math.max(0, toNumber(nextValue, 0));
     const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
-    handleVariantCountChange(variantId, nextValue);
-    scheduleItemSave(variant, { countedQuantity: nextValue, systemQuantity: variant.system_quantity });
-    logDevDuration("adjust variant queued", startedAt, { variantId, delta, nextValue });
-  }, [handleVariantCountChange, isEditable, scheduleItemSave]);
+    handleVariantCountChange(variantId, counted);
+    setOutbox((current) => queueCountedQuantity(current, {
+      variantId,
+      countedQuantity: counted,
+      systemQuantity: toNumber(variant.system_quantity, 0),
+      countedAt: new Date().toISOString(),
+    }));
+    logDevDuration("count recorded locally", startedAt, { variantId, counted });
+  }, [handleVariantCountChange, isEditable]);
+
+  const adjustVariantCount = useCallback((variant, delta) => {
+    setVariantCount(variant, toNumber(variant.counted_quantity, 0) + Number(delta || 0));
+  }, [setVariantCount]);
 
   const handleDeleteColorGroup = useCallback(async (group) => {
     if (!session?.id || !isEditable) return;
@@ -1419,6 +1584,32 @@ export default function EmployeePortalInventory() {
         }
         .employee-portal-inventory .inventory-grid-columns {
           grid-template-columns: minmax(0, 1fr) 110px 90px;
+        }
+        /* Size tiles: as many as fit, never narrower than a thumb-sized
+           stepper plus a two-digit quantity. */
+        .employee-portal-inventory .inventory-size-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+          gap: 8px;
+        }
+        .employee-portal-inventory .inventory-size-tile {
+          min-width: 0;
+        }
+        /* The send button follows the thumb through a long count. */
+        .employee-portal-inventory .inventory-send-bar {
+          position: sticky;
+          bottom: 0;
+          z-index: 20;
+          margin: 0 -2px;
+          padding: 8px 2px calc(8px + env(safe-area-inset-bottom, 0px));
+          background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, 0.92) 42%, #f8fafc 100%);
+        }
+        /* The count header follows the sizes so progress and the sync state are
+           always one glance away. */
+        .employee-portal-inventory .inventory-head {
+          position: sticky;
+          top: 0;
+          z-index: 21;
         }
         @media (max-width: 640px) {
           .employee-portal-inventory {
@@ -1576,51 +1767,99 @@ export default function EmployeePortalInventory() {
               </div>
             ) : (
               <div className="space-y-2.5 sm:space-y-4">
-                <div className="inventory-wrap flex min-w-0 flex-col gap-2 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-2.5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      <h2 className="m1-section-title text-slate-950">{titleDraft || session.title || tt("employeePortal.stockCount.new")}</h2>
-                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[session.status] || sessionStatusTone.draft}`}>
-                        {sessionStatusLabels[session.status] || session.status}
+                {/* Count header: what is being counted, how far it has got, and
+                    whether anything is still owed to the server. Everything the
+                    employee needs to trust the sheet, in one strip. */}
+                <div className="inventory-head inventory-wrap rounded-[1.25rem] border border-slate-200 bg-white p-2.5 shadow-sm">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <h2 className="m1-section-title min-w-0 flex-1 truncate text-slate-950">{titleDraft || session.title || tt("employeePortal.stockCount.new")}</h2>
+                    <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[session.status] || sessionStatusTone.draft}`}>
+                      {sessionStatusLabels[session.status] || session.status}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 truncate text-xs font-semibold text-slate-500">
+                    {session.branch_name || tt("employeePortal.common.branch")}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
+                  </div>
+
+                  <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1.5 py-1.5">
+                      <div className="text-base font-black leading-5 text-slate-950">{groupedItems.length}</div>
+                      <div className="truncate text-[10px] font-bold text-slate-500">{tt("employeePortal.stockCount.colorsCounted")}</div>
+                    </div>
+                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1.5 py-1.5">
+                      <div className="text-base font-black leading-5 text-slate-950">{countedTotal}</div>
+                      <div className="truncate text-[10px] font-bold text-slate-500">{tt("employeePortal.stockCount.piecesCounted")}</div>
+                    </div>
+                    <div className={`rounded-[var(--radius-control)] border px-1.5 py-1.5 ${differenceTotal === 0 ? "border-emerald-200 bg-emerald-50" : differenceTotal > 0 ? "border-amber-200 bg-amber-50" : "border-rose-200 bg-rose-50"}`}>
+                      <div className={`text-base font-black leading-5 ${differenceTotal === 0 ? "text-emerald-700" : differenceTotal > 0 ? "text-amber-700" : "text-rose-700"}`} dir="ltr">
+                        {differenceTotal > 0 ? `+${differenceTotal}` : differenceTotal}
+                      </div>
+                      <div className="truncate text-[10px] font-bold text-slate-500">{tt("employeePortal.chrome.differences")}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-black text-slate-500">
+                    <span>{tt("employeePortal.stockCount.coverage", { done: visitedRows, total: items.length })}</span>
+                    <span dir="ltr">{progressPercent}%</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progressPercent}%` }} />
+                  </div>
+
+                  {/* The sync line is the offline promise made visible: counted
+                      rows are safe on the device, and this says what is still
+                      owed to the server. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-black ${online ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                      {online ? <Wifi className="h-3.5 w-3.5" /> : <CloudOff className="h-3.5 w-3.5" />}
+                      {online ? tt("employeePortal.stockCount.online") : tt("employeePortal.stockCount.offline")}
+                    </span>
+                    {pendingCount ? (
+                      <button
+                        type="button"
+                        onClick={() => flushOutbox({ silent: false })}
+                        disabled={syncing || !online}
+                        className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-800 disabled:opacity-60"
+                      >
+                        {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        {tt("employeePortal.stockCount.pendingRows", { count: pendingCount })}
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-black text-slate-600">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        {tt("employeePortal.stockCount.allSynced")}
+                        {lastSyncedAt ? (
+                          <span className="font-bold text-slate-400" dir="ltr">
+                            {new Date(lastSyncedAt).toLocaleTimeString(i18nRuntime.language === "en" ? "en-GB" : "ar-EG", { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        ) : null}
                       </span>
-                    </div>
-                    <div className="mt-0.5 text-xs font-semibold text-slate-500 sm:mt-1 sm:text-sm">
-                      {session.branch_name || tt("employeePortal.common.branch")}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
-                    </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={refreshOfflineCatalog}
+                      disabled={catalogLoading || !online}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-600 disabled:opacity-60"
+                      title={tt("employeePortal.stockCount.catalogHint")}
+                    >
+                      {catalogLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanBarcode className="h-3.5 w-3.5" />}
+                      {catalogSnapshot?.variants?.length
+                        ? tt("employeePortal.stockCount.catalogReady", { count: catalogSnapshot.variants.length })
+                        : tt("employeePortal.stockCount.catalogDownload")}
+                    </button>
                   </div>
-                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-                    {session.status === "draft" ? (
-                      <button
-                        type="button"
-                        onClick={handleOpenSession}
-                        disabled={sessionOpening}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-60"
-                      >
-                        {sessionOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-                        بدء الجرد
-                      </button>
-                    ) : null}
-                    <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-                      <button
-                        type="button"
-                        onClick={handleSaveSessionMeta}
-                        disabled={sessionSaving || !isEditable}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60"
-                      >
-                        <Save className="h-4 w-4" />
-                        {tt("employeePortal.common.save")}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSubmitSession}
-                        disabled={sessionSubmitting || !isEditable}
-                        className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60"
-                      >
-                        {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        إرسال للمراجعة
-                      </button>
-                    </div>
-                  </div>
+
+                  {session.status === "draft" ? (
+                    <button
+                      type="button"
+                      onClick={handleOpenSession}
+                      disabled={sessionOpening}
+                      className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-60"
+                    >
+                      {sessionOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                      بدء الجرد
+                    </button>
+                  ) : null}
                 </div>
 
                 {isPendingReview ? (
@@ -1645,44 +1884,43 @@ export default function EmployeePortalInventory() {
                   </div>
                 ) : null}
 
-                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-black text-slate-600">
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{tt("employeePortal.chrome.products")}: {groupedItems.length}</span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{tt("employeePortal.display.quantity")}: {countedTotal}</span>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1">{tt("employeePortal.chrome.differences")}: {differenceTotal}</span>
+                {/* Name and notes are set once at the start and never during the
+                    count itself, so they fold away instead of pushing the sizes
+                    off the first screen. */}
+                <details className="inventory-wrap rounded-[var(--radius-card)] border border-slate-200 bg-white shadow-sm">
+                  <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-black text-slate-600">
+                    {tt("employeePortal.stockCount.details")}
+                  </summary>
+                  <div className="grid min-w-0 gap-2 px-3 pb-3 lg:grid-cols-[1fr_1fr]">
+                    <label className="inventory-wrap block rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 p-2.5">
+                      <div className="text-xs font-black text-slate-400">{tt("employeePortal.stockCount.name")}</div>
+                      <input
+                        value={titleDraft}
+                        onChange={(event) => setTitleDraft(event.target.value)}
+                        disabled={!isEditable}
+                        className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
+                      />
+                    </label>
+                    <label className="inventory-wrap block rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 p-2.5">
+                      <div className="text-xs font-black text-slate-400">{tt("employeePortal.common.notes")}</div>
+                      <input
+                        value={notesDraft}
+                        onChange={(event) => setNotesDraft(event.target.value)}
+                        disabled={!isEditable}
+                        className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSaveSessionMeta}
+                      disabled={sessionSaving || !isEditable || !online}
+                      className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60 lg:col-span-2"
+                    >
+                      {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {tt("employeePortal.common.save")}
+                    </button>
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-black text-slate-500 sm:mt-3">
-                    <span>{countedTotal} قطعة معدودة</span>
-                    <span>{progressPercent}%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div
-                      className="h-full rounded-full bg-emerald-500 transition-all"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid min-w-0 gap-2 lg:grid-cols-[1fr_1fr]">
-                  <label className="inventory-wrap block rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">{tt("employeePortal.stockCount.name")}</div>
-                    <input
-                      value={titleDraft}
-                      onChange={(event) => setTitleDraft(event.target.value)}
-                      disabled={!isEditable}
-                      className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
-                    />
-                  </label>
-                  <label className="inventory-wrap block rounded-[var(--radius-card)] border border-slate-200 bg-white p-2.5 shadow-sm">
-                    <div className="text-xs font-black text-slate-400">{tt("employeePortal.common.notes")}</div>
-                    <input
-                      value={notesDraft}
-                      onChange={(event) => setNotesDraft(event.target.value)}
-                      disabled={!isEditable}
-                      className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
-                    />
-                  </label>
-                </div>
+                </details>
 
                 <section className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
                   <div className="flex min-w-0 items-center gap-2">
@@ -1776,7 +2014,7 @@ export default function EmployeePortalInventory() {
                   ) : null}
                 </section>
 
-                <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
+                <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="inventory-title">
                       <h3 className="m1-section-title text-slate-950">{tt("employeePortal.stockCount.items")}</h3>
@@ -1784,95 +2022,102 @@ export default function EmployeePortalInventory() {
                         المتوقع: {expectedTotal} • الفعلي: {countedTotal} • الفرق: {currentBalance}
                       </p>
                     </div>
-                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
+                    <div className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
                       {groupedItems.length} لون
                     </div>
                   </div>
 
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 space-y-2.5">
                     {groupedItems.length ? groupedItems.map((group) => (
-                      <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                      <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-2.5">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-slate-200 bg-slate-100">
                             <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex min-w-0 items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
-                                <div className="mt-1 text-xs font-semibold text-slate-500">
-                                  المتوقع {group.system_total} • الفعلي {group.counted_total}
-                                </div>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <span className="inline-flex max-w-[110px] items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-600">
-                                  <span className="truncate">{group.color || tt("employeePortal.stockCount.unknownColor")}</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteColorGroup(group)}
-                                  disabled={!isEditable || itemSavingId === group.key}
-                                  className="inline-flex h-[var(--control-height-sm)] items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 text-[11px] font-black text-rose-700 disabled:opacity-60"
-                                  aria-label={tt("employeePortal.stockCount.deleteColor")}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                  <span className="hidden sm:inline">{tt("employeePortal.stockCount.deleteColor")}</span>
-                                </button>
-                              </div>
-                            </div>
-                            <div className="mt-2 text-xs font-black text-slate-500">
-                              {group.difference_total === 0 ? tt("employeePortal.status.balanced") : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
+                            <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
+                            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                              <span className="max-w-[9rem] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-700">
+                                {group.color || tt("employeePortal.stockCount.unknownColor")}
+                              </span>
+                              <span dir="ltr">{group.counted_total} / {group.system_total}</span>
+                              <span className={group.difference_total === 0 ? "text-emerald-700" : group.difference_total > 0 ? "text-amber-700" : "text-rose-700"}>
+                                {group.difference_total === 0 ? tt("employeePortal.status.balanced") : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
+                              </span>
                             </div>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteColorGroup(group)}
+                            disabled={!isEditable || itemSavingId === group.key}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-60"
+                            aria-label={tt("employeePortal.stockCount.deleteColor")}
+                            title={tt("employeePortal.stockCount.deleteColor")}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                        <div className="mt-3 space-y-2">
+
+                        {/* One tile per size, two or three to a row: the whole
+                            colour is countable without a single scroll, and the
+                            quantity is typeable instead of only tappable. */}
+                        <div className="inventory-size-grid mt-2.5">
                           {group.variants.map((variant) => {
                             const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
-                            const saving = itemSavingId === variantId;
+                            const difference = toNumber(variant.difference_quantity, 0);
+                            const pending = Boolean(outbox[variantId]);
                             return (
-                              <div key={variantId} className="inventory-item min-w-0 rounded-[var(--radius-card)] border border-white/80 bg-white p-3">
-                                <div className="flex min-w-0 items-start gap-3">
-                                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                                    <InventoryImage src={resolveCardImage(variant)} alt={`${group.product_name || tt("employeePortal.common.product")} ${variant.color || ""}`} />
-                                  </div>
-                                  <div className="inventory-item-main min-w-0 flex-1">
-                                    <div className="truncate text-sm font-black text-slate-950">{variant.size || variant.sku || tt("employeePortal.stockCount.unknownSize")}</div>
-                                    <div className="mt-1 text-xs font-semibold text-slate-500">
-                                      {variant.sku ? `SKU: ${variant.sku}` : variant.barcode ? `Barcode: ${variant.barcode}` : tt("employeePortal.stockCount.noSku")}
-                                    </div>
-                                  </div>
-                                  <div className="text-left text-xs font-black">
-                                    <span className={variant.difference_quantity === 0 ? "text-emerald-700" : variant.difference_quantity > 0 ? "text-amber-700" : "text-rose-700"}>
-                                      {variant.difference_quantity === 0 ? tt("employeePortal.status.balanced") : variant.difference_quantity > 0 ? `زيادة ${variant.difference_quantity}` : `عجز ${Math.abs(variant.difference_quantity)}`}
-                                    </span>
-                                  </div>
+                              <div
+                                key={variantId}
+                                className={`inventory-size-tile rounded-[var(--radius-card)] border bg-white p-2 ${difference === 0 ? "border-slate-200" : difference > 0 ? "border-amber-300" : "border-rose-300"}`}
+                              >
+                                <div className="flex min-w-0 items-center justify-between gap-1">
+                                  <span className="truncate text-sm font-black text-slate-950">{variant.size || tt("employeePortal.stockCount.unknownSize")}</span>
+                                  <span className="shrink-0 text-[10px] font-bold text-slate-400" dir="ltr">{tt("employeePortal.stockCount.expectedShort")} {toNumber(variant.system_quantity, 0)}</span>
                                 </div>
-                                <div className="mt-3 grid grid-cols-[56px_minmax(0,1fr)_56px] gap-2">
+                                <div className="mt-1.5 grid grid-cols-[44px_minmax(0,1fr)_44px] gap-1">
                                   <button
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, -1)}
-                                    disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 transition-colors disabled:opacity-50"
+                                    disabled={!isEditable}
+                                    className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 active:bg-slate-100 disabled:opacity-50"
                                     aria-label={tt("employeePortal.stockCount.decrement")}
                                   >
                                     -
                                   </button>
                                   <input
                                     type="text"
-                                    readOnly
                                     inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={variant.counted_quantity}
-                                    className="h-14 w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-center text-base font-black text-slate-950 outline-none"
+                                    onFocus={(event) => event.target.select()}
+                                    onChange={(event) => {
+                                      const digits = event.target.value.replace(/[^0-9]/g, "");
+                                      setVariantCount(variant, digits === "" ? 0 : Number(digits));
+                                    }}
+                                    disabled={!isEditable}
+                                    className="h-12 w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1 text-center text-lg font-black text-slate-950 outline-none focus:border-emerald-400 focus:bg-white disabled:opacity-70"
+                                    aria-label={`${group.product_name || ""} ${variant.size || ""}`}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => adjustVariantCount(variant, 1)}
-                                    disabled={!isEditable || saving}
-                                    className="inline-flex h-14 items-center justify-center rounded-[var(--radius-control)] bg-primary text-2xl font-black text-[var(--primary-contrast)] transition-colors disabled:opacity-50"
+                                    disabled={!isEditable}
+                                    className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] bg-primary text-2xl font-black text-[var(--primary-contrast)] active:opacity-80 disabled:opacity-50"
                                     aria-label={tt("employeePortal.stockCount.increment")}
                                   >
                                     +
                                   </button>
+                                </div>
+                                <div className="mt-1 flex items-center justify-between gap-1 text-[10px] font-black">
+                                  <span className={difference === 0 ? "text-emerald-700" : difference > 0 ? "text-amber-700" : "text-rose-700"} dir="ltr">
+                                    {difference === 0 ? tt("employeePortal.status.balanced") : difference > 0 ? `+${difference}` : difference}
+                                  </span>
+                                  {pending ? (
+                                    <span className="inline-flex items-center gap-0.5 text-amber-700" title={tt("employeePortal.sync.pending")}>
+                                      <CloudOff className="h-3 w-3" />
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             );
@@ -1886,6 +2131,23 @@ export default function EmployeePortalInventory() {
                     )}
                   </div>
                 </section>
+
+                {/* The send button stays under the thumb for the whole count,
+                    and never lets a quantity still sitting on the phone pass
+                    as a reviewed count. */}
+                {isEditable ? (
+                  <div className="inventory-send-bar">
+                    <button
+                      type="button"
+                      onClick={handleSubmitSession}
+                      disabled={sessionSubmitting || !items.length}
+                      className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-900/10 disabled:opacity-60"
+                    >
+                      {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      {pendingCount ? tt("employeePortal.stockCount.sendWithPending", { count: pendingCount }) : "إرسال للمراجعة"}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
           </main>

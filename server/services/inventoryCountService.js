@@ -44,6 +44,23 @@ const normalizeNullableId = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+// An offline count is entered on the phone and only reaches us when the device
+// comes back online, so the client sends the moment the employee actually
+// counted. Trust it only inside a sane window: never in the future (clock skew
+// beyond a minute) and never older than the retention window of a working
+// draft. Anything else falls back to the server clock (NULL -> NOW()).
+const OFFLINE_COUNT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const normalizeCountedAt = (value) => {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  const time = date.getTime();
+  if (!Number.isFinite(time)) return null;
+  const now = Date.now();
+  if (time > now + 60_000) return null;
+  if (time < now - OFFLINE_COUNT_MAX_AGE_MS) return null;
+  return date.toISOString();
+};
+
 const normalizeImageValue = (value = "") => {
   if (!value) return "";
   if (Array.isArray(value)) return normalizeImageValue(value[0]);
@@ -528,6 +545,8 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
       difference_qty INTEGER NOT NULL DEFAULT 0,
       reason TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
+      counted_by BIGINT NULL,
+      counted_at TIMESTAMPTZ NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -546,6 +565,11 @@ const ensureInventoryCountItemsCompatibility = async (client) => {
   await ensureColumn(client, "inventory_count_items", "difference_qty INTEGER NOT NULL DEFAULT 0");
   await ensureColumn(client, "inventory_count_items", "reason TEXT NOT NULL DEFAULT ''");
   await ensureColumn(client, "inventory_count_items", "notes TEXT NOT NULL DEFAULT ''");
+  // Who physically counted this row and when. The session already records who
+  // created/submitted it; these two carry the counter down to the size row so
+  // the product history can answer "who counted this, and on what date".
+  await ensureColumn(client, "inventory_count_items", "counted_by BIGINT NULL");
+  await ensureColumn(client, "inventory_count_items", "counted_at TIMESTAMPTZ NULL");
   await ensureColumn(client, "inventory_count_items", "created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
   await ensureColumn(client, "inventory_count_items", "updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP");
 
@@ -773,6 +797,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
       v.sku AS variant_sku,
       v.barcode AS variant_barcode,
       v.article_code AS variant_article_code,
+      COALESCE(NULLIF(cb.name, ''), cb.email) AS counted_by_name,
       ${imageSelects.variantImageExpr} AS variant_image_url,
       ${imageSelects.colorImageExpr} AS color_image_url,
       ${imageSelects.imageUrlExpr} AS image_url,
@@ -783,6 +808,7 @@ const fetchSessionItems = async (clientOrPool, { tenantId, sessionId, lock = fal
     LEFT JOIN inventory_count_sessions s ON s.id = COALESCE(i.inventory_count_session_id, i.inventory_count_id)
     LEFT JOIN product_variants v ON v.id = COALESCE(i.product_variant_id, i.variant_id)
     LEFT JOIN products p ON p.id = COALESCE(i.product_id, v.product_id)
+    LEFT JOIN users cb ON cb.id = i.counted_by
     WHERE i.inventory_count_session_id = $1
        OR i.inventory_count_id = $1
       ${tenantClause}
@@ -1171,6 +1197,87 @@ export const reopenInventoryCountSession = async (clientOrPool, data = {}) => {
   });
 };
 
+/**
+ * The whole countable catalogue in one lean payload, so a phone with no signal
+ * can still search, scan and add a colour.
+ *
+ * It is a SNAPSHOT for lookup only — never authority. Stock on it is what the
+ * server believed when it was taken; the server recomputes system_quantity when
+ * the row is actually written, so a stale snapshot can never fake a difference.
+ * Zero-stock variants stay in: counting a variant the system thinks is empty is
+ * exactly how a surplus is found.
+ */
+export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  const dbClient = queryable(clientOrPool);
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const limit = Math.min(Math.max(toNumber(data.limit ?? 20000, 20000), 1), 40000);
+  const [variantColumns, productColumns, imageSelects] = await Promise.all([
+    getTableColumns(dbClient, "product_variants"),
+    getTableColumns(dbClient, "products"),
+    buildInventoryCountVariantImageSelects(dbClient),
+  ]);
+  const activeParts = [];
+  if (variantColumns.has("is_active")) activeParts.push("v.is_active IS DISTINCT FROM FALSE");
+  if (variantColumns.has("deleted_at")) activeParts.push("v.deleted_at IS NULL");
+  if (productColumns.has("is_active")) activeParts.push("COALESCE(p.is_active, TRUE) = TRUE");
+  // Column sets differ between deployments, so every optional field is resolved
+  // against the live catalogue rather than assumed.
+  const articleCodeExpr = firstAvailableColumnExpr("v", variantColumns, ["article_code"], "''");
+  const genderExpr = variantColumns.has("audience")
+    ? firstAvailableColumnExpr("v", variantColumns, ["audience"], firstAvailableColumnExpr("p", productColumns, ["gender"], "''"))
+    : firstAvailableColumnExpr("p", productColumns, ["gender"], "''");
+  const typeExpr = firstAvailableColumnExpr("p", productColumns, ["product_type", "style"], "''");
+  const categoryExpr = firstAvailableColumnExpr("p", productColumns, ["grade", "category"], "''");
+  const brandExpr = productColumns.has("brand_id")
+    ? `COALESCE(NULLIF(b.name, ''), ${firstAvailableColumnExpr("p", productColumns, ["brand"], "''")})`
+    : firstAvailableColumnExpr("p", productColumns, ["brand"], "''");
+  const manufacturerExpr = productColumns.has("manufacturer_id") ? `COALESCE(NULLIF(m.name, ''), '')` : "''";
+
+  const result = await dbClient.query(
+    `
+    SELECT
+      v.id AS product_variant_id,
+      v.product_id,
+      p.name AS product_name,
+      COALESCE(v.color, '') AS color,
+      COALESCE(v.size, '') AS size,
+      COALESCE(NULLIF(v.sku, ''), '') AS sku,
+      COALESCE(NULLIF(v.barcode, ''), '') AS barcode,
+      ${articleCodeExpr} AS article_code,
+      COALESCE(NULLIF(p.barcode, ''), '') AS product_barcode,
+      COALESCE(NULLIF(p.sku, ''), '') AS product_sku,
+      COALESCE(v.stock, 0)::int AS stock,
+      ${genderExpr} AS gender,
+      ${typeExpr} AS type,
+      ${categoryExpr} AS category,
+      ${brandExpr} AS brand,
+      ${manufacturerExpr} AS manufacturer_name,
+      ${imageSelects.colorImageExpr} AS image_url
+    FROM product_variants v
+    JOIN products p ON p.id = v.product_id
+    ${productColumns.has("brand_id") ? "LEFT JOIN brands b ON b.id = p.brand_id" : ""}
+    ${productColumns.has("manufacturer_id") ? "LEFT JOIN manufacturers m ON m.id = p.manufacturer_id" : ""}
+    WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
+      ${activeParts.length ? `AND ${activeParts.join(" AND ")}` : ""}
+    ORDER BY p.name, v.color, v.size, v.id
+    LIMIT $2
+    `,
+    [tenantId, limit]
+  );
+
+  return {
+    generated_at: new Date().toISOString(),
+    truncated: result.rows.length >= limit,
+    variants: result.rows.map((row) => ({
+      ...row,
+      product_variant_id: Number(row.product_variant_id),
+      product_id: Number(row.product_id),
+      stock: toNumber(row.stock, 0),
+    })),
+  };
+};
+
 export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   const dbClient = queryable(clientOrPool);
@@ -1446,6 +1553,157 @@ const fetchInventoryCountProductVariants = async (dbClient, { tenantId, productI
   );
 };
 
+// A single flush from a phone that counted a whole branch offline; anything
+// larger is a client bug, not a count.
+const BULK_COUNT_ITEM_LIMIT = 500;
+
+// The one place a count row is written. Both the live +/- path and the offline
+// flush go through it, so the counter identity (counted_by/counted_at) can
+// never be recorded by one path and skipped by the other.
+const writeInventoryCountItemRow = async (dbClient, { sessionId, variantId, variant, data = {} }) => {
+  const existingResult = await dbClient.query(
+    `
+    SELECT *
+    FROM inventory_count_items
+    WHERE inventory_count_session_id = $1
+      AND product_variant_id = $2
+    LIMIT 1
+    FOR UPDATE
+    `,
+    [sessionId, variantId]
+  );
+
+  const existing = existingResult.rows[0] || null;
+  const isNew = !existing;
+  const systemQuantity = isNew
+    ? toNumber(variant.stock, 0)
+    : toNumber(data.systemQuantity ?? data.system_quantity ?? existing.system_quantity, 0);
+  const countedQuantity = data.countedQuantity ?? data.counted_quantity;
+  const nextCountedQuantity = countedQuantity === undefined || countedQuantity === null || countedQuantity === ""
+    ? (isNew ? 1 : toNumber(existing.counted_quantity, systemQuantity))
+    : toNumber(countedQuantity, systemQuantity);
+  const differenceQuantity = nextCountedQuantity - systemQuantity;
+  const reason = normalizeText(data.reason ?? existing?.reason ?? "");
+  const notes = normalizeText(data.notes ?? existing?.notes ?? "");
+  // Putting a colour on the sheet is not counting it: only a write that carries
+  // a quantity the employee actually entered stamps the counter identity, so an
+  // untouched row still reads "not counted yet" in the product history.
+  const isCount = data.counted !== false;
+  const countedBy = isCount
+    ? normalizeNullableId(data.userId ?? data.user_id ?? data.countedBy ?? data.counted_by) ?? null
+    : null;
+  // ISO strings carry their own offset, so the cast must be timestamptz —
+  // a plain ::timestamp would land the count three hours off in Cairo.
+  const countedAt = isCount ? normalizeCountedAt(data.countedAt ?? data.counted_at) || new Date().toISOString() : null;
+
+  if (existing) {
+    const result = await dbClient.query(
+      `
+      UPDATE inventory_count_items
+      SET inventory_count_id = COALESCE($2, inventory_count_id),
+          inventory_count_session_id = $1,
+          product_id = $3,
+          product_variant_id = $4,
+          variant_id = $5,
+          system_quantity = $6,
+          counted_quantity = $7,
+          difference_quantity = $8,
+          expected_qty = $6,
+          actual_qty = $7,
+          difference_qty = $8,
+          reason = $9,
+          notes = $10,
+          counted_by = COALESCE($12::bigint, counted_by),
+          counted_at = COALESCE($13::timestamptz, counted_at),
+          updated_at = NOW()
+      WHERE id = $11
+      RETURNING *
+      `,
+      [
+        sessionId,
+        sessionId,
+        variant.product_id,
+        variantId,
+        variantId,
+        systemQuantity,
+        nextCountedQuantity,
+        differenceQuantity,
+        reason,
+        notes,
+        existing.id,
+        countedBy,
+        countedAt,
+      ]
+    );
+    return result.rows[0];
+  }
+
+  const result = await dbClient.query(
+    `
+    INSERT INTO inventory_count_items (
+      inventory_count_id,
+      inventory_count_session_id,
+      product_id,
+      product_variant_id,
+      variant_id,
+      system_quantity,
+      counted_quantity,
+      difference_quantity,
+      expected_qty,
+      actual_qty,
+      difference_qty,
+      reason,
+      notes,
+      counted_by,
+      counted_at,
+      created_at,
+      updated_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$6,$7,$8,$9,$10,$11::bigint,$12::timestamptz,NOW(),NOW())
+    RETURNING *
+    `,
+    [
+      sessionId,
+      sessionId,
+      variant.product_id,
+      variantId,
+      variantId,
+      systemQuantity,
+      nextCountedQuantity,
+      differenceQuantity,
+      reason,
+      notes,
+      countedBy,
+      countedAt,
+    ]
+  );
+  return result.rows[0];
+};
+
+// Paint the saved row with the variant's product/colour/image fields the portal
+// list renders from, so a saved row looks exactly like a loaded one.
+const decorateInventoryCountItemRow = (itemRow, variant) =>
+  resolveInventoryCountImageFields(
+    applyRowAliases({
+      ...itemRow,
+      product_name: variant.product_name,
+      variant_color: variant.color,
+      variant_size: variant.size,
+      variant_sku: variant.sku,
+      variant_barcode: variant.barcode,
+      variant_article_code: variant.article_code,
+      variant_image_url: variant.image_url,
+      color_image_url: variant.color_image_url || variant.primary_image_url || variant.variant_image_url || variant.image_url || "",
+      product_image: variant.product_image || variant.product_image_url || "",
+      product_image_url: variant.product_image_url || variant.product_image || "",
+      main_image: variant.main_image || variant.product_image || variant.image_url || variant.variant_image_url || "",
+      main_image_url: variant.main_image_url || variant.main_image || variant.product_image_url || variant.product_image || variant.image_url || "",
+      primary_image_url: variant.primary_image_url || variant.color_image_url || variant.variant_image_url || variant.image_url || "",
+      product_variant_id: variant.product_variant_id ?? itemRow.product_variant_id,
+      product_id: variant.product_id,
+    })
+  );
+
 export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
   await ensureInventoryCountSchema();
   return withTransaction(clientOrPool, async (dbClient) => {
@@ -1504,141 +1762,98 @@ export const upsertInventoryCountItem = async (clientOrPool, data = {}) => {
     );
   }
 
-  const existingResult = await dbClient.query(
-    `
-    SELECT *
-    FROM inventory_count_items
-    WHERE inventory_count_session_id = $1
-      AND product_variant_id = $2
-    LIMIT 1
-    FOR UPDATE
-    `,
-    [sessionId, variantId]
-  );
-
-  const existing = existingResult.rows[0] || null;
-  const isNew = !existing;
-  const systemQuantity = isNew
-    ? toNumber(variant.stock, 0)
-    : toNumber(data.systemQuantity ?? data.system_quantity ?? existing.system_quantity, 0);
-  const countedQuantity = data.countedQuantity ?? data.counted_quantity;
-  const nextCountedQuantity = countedQuantity === undefined || countedQuantity === null || countedQuantity === ""
-    ? (isNew ? 1 : toNumber(existing.counted_quantity, systemQuantity))
-    : toNumber(countedQuantity, systemQuantity);
-  const differenceQuantity = nextCountedQuantity - systemQuantity;
-  const reason = normalizeText(data.reason ?? existing?.reason ?? "");
-  const notes = normalizeText(data.notes ?? existing?.notes ?? "");
-
-  let itemRow;
-  if (existing) {
-    const result = await dbClient.query(
-      `
-      UPDATE inventory_count_items
-      SET inventory_count_id = COALESCE($2, inventory_count_id),
-          inventory_count_session_id = $1,
-          product_id = $3,
-          product_variant_id = $4,
-          variant_id = $5,
-          system_quantity = $6,
-          counted_quantity = $7,
-          difference_quantity = $8,
-          expected_qty = $6,
-          actual_qty = $7,
-          difference_qty = $8,
-          reason = $9,
-          notes = $10,
-          updated_at = NOW()
-      WHERE id = $11
-      RETURNING *
-      `,
-      [
-        sessionId,
-        sessionId,
-        variant.product_id,
-        variantId,
-        variantId,
-        systemQuantity,
-        nextCountedQuantity,
-        differenceQuantity,
-        reason,
-        notes,
-        existing.id,
-      ]
-    );
-    itemRow = result.rows[0];
-  } else {
-    const result = await dbClient.query(
-      `
-      INSERT INTO inventory_count_items (
-        inventory_count_id,
-        inventory_count_session_id,
-        product_id,
-        product_variant_id,
-        variant_id,
-        system_quantity,
-        counted_quantity,
-        difference_quantity,
-        expected_qty,
-        actual_qty,
-        difference_qty,
-        reason,
-        notes,
-        created_at,
-        updated_at
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$6,$7,$8,$9,$10,NOW(),NOW())
-      RETURNING *
-      `,
-      [
-        sessionId,
-        sessionId,
-        variant.product_id,
-        variantId,
-        variantId,
-        systemQuantity,
-        nextCountedQuantity,
-        differenceQuantity,
-        reason,
-        notes,
-      ]
-    );
-    itemRow = result.rows[0];
-  }
+  const itemRow = await writeInventoryCountItemRow(dbClient, { sessionId, variantId, variant, data });
 
   return {
     sessionStatus,
     session: sessionStatus === session.status
       ? session
       : await fetchSessionRow(dbClient, { tenantId, sessionId, lock: false }),
-    item: resolveInventoryCountImageFields(
-      applyRowAliases({
-        ...itemRow,
-        product_name: variant.product_name,
-        variant_color: variant.color,
-        variant_size: variant.size,
-        variant_sku: variant.sku,
-        variant_barcode: variant.barcode,
-        variant_article_code: variant.article_code,
-        variant_image_url: variant.image_url,
-        color_image_url: variant.color_image_url || variant.primary_image_url || variant.variant_image_url || variant.image_url || "",
-        product_image: variant.product_image || variant.product_image_url || "",
-        product_image_url: variant.product_image_url || variant.product_image || "",
-        main_image: variant.main_image || variant.product_image || variant.image_url || variant.variant_image_url || "",
-        main_image_url: variant.main_image_url || variant.main_image || variant.product_image_url || variant.product_image || variant.image_url || "",
-        primary_image_url: variant.primary_image_url || variant.color_image_url || variant.variant_image_url || variant.image_url || "",
-        product_variant_id: variantId,
-        product_id: variant.product_id,
-        system_quantity: systemQuantity,
-        counted_quantity: nextCountedQuantity,
-        difference_quantity: differenceQuantity,
-        expected_qty: systemQuantity,
-        actual_qty: nextCountedQuantity,
-        difference_qty: differenceQuantity,
-        reason,
-        notes,
-      })
-    ),
+    item: decorateInventoryCountItemRow(itemRow, variant),
   };
+  });
+};
+
+/**
+ * One request carrying every quantity the phone counted while it was offline.
+ *
+ * The single-item path locks and re-reads the session on every keystroke, which
+ * is what made a long count feel slow and what made an offline flush N round
+ * trips. Here the session is locked ONCE and every row is written inside that
+ * one transaction, so a flush is atomic: either the whole batch lands or none
+ * of it does and the phone keeps its draft.
+ */
+export const bulkUpsertInventoryCountItems = async (clientOrPool, data = {}) => {
+  await ensureInventoryCountSchema();
+  return withTransaction(clientOrPool, async (dbClient) => {
+    const tenantId = data.tenantId ?? data.tenant_id ?? null;
+    const sessionId = normalizeNullableId(data.sessionId ?? data.session_id);
+    const rows = Array.isArray(data.items) ? data.items : [];
+    if (rows.length > BULK_COUNT_ITEM_LIMIT) {
+      const error = new Error(`A stock count batch carries at most ${BULK_COUNT_ITEM_LIMIT} rows`);
+      error.status = 413;
+      error.code = "inventory_count_batch_too_large";
+      throw error;
+    }
+
+    const session = await fetchSessionRow(dbClient, { tenantId, sessionId, lock: true });
+    if (!session) {
+      const error = new Error("Inventory count session not found");
+      error.status = 404;
+      throw error;
+    }
+    if (session.status === "pending_review" || session.status === "completed" || session.status === "cancelled") {
+      const error = new Error("Cannot modify a finished inventory count session");
+      error.status = 409;
+      error.code = "inventory_count_session_finished";
+      throw error;
+    }
+
+    const userId = data.userId ?? data.user_id ?? null;
+    if (session.status === "draft" && rows.length) {
+      await dbClient.query(
+        `
+        UPDATE inventory_count_sessions
+        SET status = 'in_progress',
+            opened_at = COALESCE(opened_at, NOW()),
+            opened_by = COALESCE(opened_by, $2),
+            updated_at = NOW()
+        WHERE id = $1
+        `,
+        [sessionId, userId]
+      );
+    }
+
+    const saved = [];
+    const rejected = [];
+    for (const row of rows) {
+      const variantId = normalizeNullableId(row?.productVariantId ?? row?.product_variant_id ?? row?.variantId ?? row?.variant_id);
+      if (!variantId) {
+        rejected.push({ product_variant_id: null, code: "variant_required" });
+        continue;
+      }
+      const variant = await fetchVariantForSession(dbClient, { tenantId, productVariantId: variantId });
+      if (!variant) {
+        // A variant that vanished (archived colour) must not abort the batch:
+        // the rest of the count is still good and the phone needs it accepted.
+        rejected.push({ product_variant_id: variantId, code: "variant_not_found" });
+        continue;
+      }
+      const itemRow = await writeInventoryCountItemRow(dbClient, {
+        sessionId,
+        variantId,
+        variant,
+        data: { ...row, userId: row?.userId ?? userId },
+      });
+      saved.push(decorateInventoryCountItemRow(itemRow, variant));
+    }
+
+    return {
+      session: await fetchSessionRow(dbClient, { tenantId, sessionId, lock: false }),
+      items: saved,
+      rejected,
+      savedCount: saved.length,
+    };
   });
 };
 

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
+  ClipboardCheck,
   History,
   Loader2,
   Package2,
@@ -28,12 +29,13 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
  */
 
 const PAGE_SIZE = 40;
-const KINDS = ["created", "purchase", "sale", "movement"];
+const KINDS = ["created", "purchase", "sale", "count", "movement"];
 
 const KIND_STYLE = {
   created: { tone: "var(--primary)", Icon: PackagePlus },
   purchase: { tone: "var(--success, #22c55e)", Icon: ArrowDownToLine },
   sale: { tone: "var(--warning, #f59e0b)", Icon: ShoppingBag },
+  count: { tone: "var(--info, #0ea5e9)", Icon: ClipboardCheck },
   movement: { tone: "var(--text-muted, #94a3b8)", Icon: SlidersHorizontal },
 };
 
@@ -337,11 +339,21 @@ export default function ProductLifecycleDialog({ product, onClose }) {
     if (event.kind === "created") return t("products.lifecycle.events.created");
     if (event.kind === "purchase") return t("products.lifecycle.events.purchase");
     if (event.kind === "sale") return t("products.lifecycle.events.sale");
+    if (event.kind === "count") return t("products.lifecycle.events.count");
     return movementLabel(event.document_status);
   };
 
   const renderDocumentLink = (event) => {
     if (!event.document_id || !event.document_number) return null;
+    // A count session is named, not numbered, and has no page of its own to
+    // open from here — it reads as a label.
+    if (event.kind === "count") {
+      return (
+        <span className="rounded-full px-2 py-0.5 text-xs font-black" style={toneStyle(KIND_STYLE.count.tone, 10)}>
+          {event.document_number}
+        </span>
+      );
+    }
     const to = event.kind === "purchase" ? `/purchases/${event.document_id}` : event.kind === "sale" ? `/orders/${event.document_id}` : "";
     if (!to) return null;
     return (
@@ -377,6 +389,12 @@ export default function ProductLifecycleDialog({ product, onClose }) {
       }
       if (event.party_name) meta.push([t("products.lifecycle.fields.customer"), event.party_name]);
       if (event.channel) meta.push([t("products.lifecycle.fields.channel"), channelLabel(event.channel)]);
+    } else if (event.kind === "count") {
+      // The question this answers: who counted this colour, and when.
+      meta.push([t("products.lifecycle.fields.countedBy"), event.actor_name || t("products.lifecycle.unknownUser")]);
+      meta.push([t("products.lifecycle.fields.countedAt"), formatDateTime(event.occurred_at)]);
+      if (event.party_name) meta.push([t("products.lifecycle.fields.branch"), event.party_name]);
+      if (extra.approved_by_name) meta.push([t("products.lifecycle.fields.approvedBy"), extra.approved_by_name]);
     } else {
       meta.push([t("products.lifecycle.fields.by"), event.actor_name || t("products.lifecycle.unknownUser")]);
       if (extra.reason) meta.push([t("products.lifecycle.fields.reason"), extra.reason]);
@@ -400,7 +418,7 @@ export default function ProductLifecycleDialog({ product, onClose }) {
                 {event.color}
               </span>
             ) : null}
-            {event.kind === "sale" || event.kind === "purchase" ? (
+            {event.kind === "sale" || event.kind === "purchase" || event.kind === "count" ? (
               event.document_status ? <span className="text-[11px] font-bold text-text-muted">{documentStatusLabel(event.document_status)}</span> : null
             ) : null}
             <span className="ms-auto text-xs font-semibold text-text-muted" dir="ltr">{formatTime(event.occurred_at)}</span>
@@ -426,7 +444,20 @@ export default function ProductLifecycleDialog({ product, onClose }) {
                   <span className="font-bold text-text-muted">{line.size || "—"}</span>
                   {line.quantity !== null && line.quantity !== undefined ? (
                     <bdi className="font-black" style={{ color: tone }} dir="ltr">
-                      {event.kind === "movement" ? signed(line.quantity) : signed(line.quantity * quantitySign)}
+                      {event.kind === "movement" ? signed(line.quantity) : event.kind === "count" ? line.quantity : signed(line.quantity * quantitySign)}
+                    </bdi>
+                  ) : null}
+                  {/* A count is only meaningful against what was expected. */}
+                  {event.kind === "count" && line.expected !== undefined ? (
+                    <bdi className="text-text-muted" dir="ltr">/ {line.expected}</bdi>
+                  ) : null}
+                  {event.kind === "count" && Number(line.difference) ? (
+                    <bdi
+                      className="font-black"
+                      style={{ color: Number(line.difference) > 0 ? "var(--warning, #f59e0b)" : "var(--danger)" }}
+                      dir="ltr"
+                    >
+                      {signed(Number(line.difference))}
                     </bdi>
                   ) : null}
                   {line.returned ? (
@@ -608,6 +639,7 @@ export default function ProductLifecycleDialog({ product, onClose }) {
                                 <th className="px-3 py-2 text-start font-bold">{t("products.lifecycle.columns.purchased")}</th>
                                 <th className="px-3 py-2 text-start font-bold">{t("products.lifecycle.columns.sold")}</th>
                                 <th className="px-3 py-2 text-start font-bold">{t("products.lifecycle.columns.stock")}</th>
+                                <th className="px-3 py-2 text-start font-bold">{t("products.lifecycle.columns.lastCount")}</th>
                                 <th className="px-3 py-2" aria-label={t("products.lifecycle.colorHistory")} />
                               </tr>
                             </thead>
@@ -649,6 +681,31 @@ export default function ProductLifecycleDialog({ product, onClose }) {
                                   <td className="block px-3 py-2 font-black text-text sm:table-cell">
                                     <span className="block text-[10px] font-bold text-text-muted sm:hidden">{t("products.lifecycle.columns.stock")}</span>
                                     {row.archived ? t("products.lifecycle.archived") : row.stock}
+                                  </td>
+                                  {/* Who counted this size and when — the count is
+                                      the only event that checks the stock number
+                                      to its left against a person in a branch. */}
+                                  <td className="block px-3 py-2 sm:table-cell">
+                                    <span className="block text-[10px] font-bold text-text-muted sm:hidden">{t("products.lifecycle.columns.lastCount")}</span>
+                                    {row.last_counted_at ? (
+                                      <>
+                                        <p className="font-bold text-text">
+                                          {formatDateTime(row.last_counted_at)}
+                                          {Number(row.last_counted_difference) ? (
+                                            <bdi
+                                              className="ms-1 font-black"
+                                              style={{ color: Number(row.last_counted_difference) > 0 ? KIND_STYLE.sale.tone : "var(--danger)" }}
+                                              dir="ltr"
+                                            >
+                                              {signed(Number(row.last_counted_difference))}
+                                            </bdi>
+                                          ) : null}
+                                        </p>
+                                        <p className="text-text-muted">{row.last_counted_by_name || t("products.lifecycle.unknownUser")}</p>
+                                      </>
+                                    ) : (
+                                      <p className="text-text-muted">{t("products.lifecycle.neverCounted")}</p>
+                                    )}
                                   </td>
                                   <td className="col-span-2 block px-3 pb-2.5 pt-0 sm:table-cell sm:py-2 sm:text-end">
                                     <button

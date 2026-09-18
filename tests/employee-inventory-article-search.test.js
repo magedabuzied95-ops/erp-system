@@ -26,7 +26,10 @@ test("employee inventory search communicates article support", () => {
 test("adding a color reloads and counts every registered size including zero stock", () => {
   assert.match(portalSource, /const exactLookupValue = clean\(/);
   assert.match(portalSource, /lookupEmployeePortalInventoryVariants\(token, session\.id/);
-  assert.match(portalSource, /completeGroup\.variants\.map/);
+  // Every size of the resolved colour is added, whatever the loop looks like:
+  // the colour is re-resolved by code and the WHOLE run is what gets added.
+  assert.match(portalSource, /of completeGroup\.variants|completeGroup\.variants\.map/);
+  assert.doesNotMatch(portalSource, /completeGroup\.variants\.filter/);
   assert.match(portalRouteSource, /loadEmployeePortalInventoryColorGroup[\s\S]*?AND v\.is_active IS DISTINCT FROM FALSE[\s\S]*?AND v\.deleted_at IS NULL/);
   assert.doesNotMatch(portalRouteSource, /loadEmployeePortalInventoryColorGroup[\s\S]*?COALESCE\(v\.stock, 0\) > 0/);
 });

@@ -67,6 +67,13 @@ export const inventoryKey = (identity = {}) => {
   return base && s ? `inv:${base}:s=${s}` : "";
 };
 
+// The offline lookup catalogue is per employee/branch, NOT per session: one
+// download serves every count that employee runs on this device.
+export const inventoryCatalogKey = (identity = {}) => {
+  const base = baseKey(identity);
+  return base ? `invcat:${base}` : "";
+};
+
 // ---- Debounced writes (per key; latest value wins) -------------------------
 const pending = new Map(); // key -> { timer, record }
 
@@ -159,6 +166,25 @@ export const loadInventoryDraft = async (identity) => {
 };
 
 export const clearInventoryDraft = (identity) => removeKey(inventoryKey(identity));
+
+// ---- Inventory Count offline lookup catalogue --------------------------------
+// A LOOKUP INDEX, never authority: it lets a phone with no signal find and add a
+// colour. The stock on it is only what the server believed when it was taken —
+// the server recomputes the expected quantity when the row is written, so a
+// stale snapshot can never invent a difference.
+export const saveInventoryCatalog = (identity, snapshot) => {
+  const key = inventoryCatalogKey(identity);
+  if (!key) return false;
+  scheduleWrite(key, makeRecord("inventory-catalog", identity, snapshot));
+  return true;
+};
+
+export const loadInventoryCatalog = async (identity) => {
+  const record = await readRecord(inventoryCatalogKey(identity));
+  return record ? record.draft : null;
+};
+
+export const clearInventoryCatalog = (identity) => removeKey(inventoryCatalogKey(identity));
 
 // ---- Retention / cleanup ---------------------------------------------------
 // Delete expired drafts (opportunistic sweep on mount). Bounded + content-free.

@@ -21,6 +21,17 @@ export const lookupEmployeePortalInventoryVariants = (token, sessionId, params =
 export const upsertEmployeePortalInventoryItem = (token, sessionId, body = {}) =>
   api.put(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/items`, body);
 
+// One request for every quantity the phone counted while it had no signal.
+export const bulkUpsertEmployeePortalInventoryItems = (token, sessionId, items = []) =>
+  api.put(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/items/bulk`, { items });
+
+// Lean lookup snapshot cached on the device so scan/search works offline.
+export const getEmployeePortalInventoryCatalogSnapshot = (token, params = {}) =>
+  api.get(`/employee-portal/${encodeURIComponent(token)}/inventory/catalog-snapshot`, {
+    params,
+    suppressErrorStatuses: [404, 422],
+  });
+
 export const deleteEmployeePortalInventoryColorGroup = (token, sessionId, body = {}) =>
   api.delete(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/color-groups`, { body });
 

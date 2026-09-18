@@ -22,9 +22,11 @@ import {
 import { loadEmployeePortalProducts, loadEmployeePortalCompactProducts, loadEmployeePortalProductVariants, loadEmployeePortalFacets } from "../services/employeePortalProductsService.js";
 import { loadEmployeeDisplayAudit, markEmployeeProductDisplayed } from "../services/employeeDisplayAuditService.js";
 import {
+  bulkUpsertInventoryCountItems,
   createInventoryCountSession,
   getInventoryCountSession,
   listInventoryCountSessions,
+  loadInventoryCountCatalogSnapshot,
   openInventoryCountSession,
   reopenInventoryCountSession,
   searchInventoryCountVariants,
@@ -1023,6 +1025,48 @@ router.put("/:token/inventory/sessions/:sessionId/items", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] inventory item save error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to save inventory item" });
+  }
+});
+
+// Offline flush: every quantity the phone counted while it had no signal, in one
+// request. The employee on the token is the counter recorded on each row.
+router.put("/:token/inventory/sessions/:sessionId/items/bulk", async (req, res) => {
+  try {
+    const scoped = await loadEmployeeInventorySession(req, res);
+    if (!scoped) return;
+    const result = await bulkUpsertInventoryCountItems(db, {
+      tenantId: scoped.employee.tenant_id ?? null,
+      sessionId: scoped.session.id,
+      userId: scoped.employee.id || null,
+      items: Array.isArray(req.body?.items) ? req.body.items : [],
+    });
+    return res.json({
+      success: true,
+      session: result.session,
+      items: Array.isArray(result.items) ? result.items.map(enrichInventoryImageFields) : [],
+      rejected: result.rejected || [],
+      savedCount: result.savedCount || 0,
+    });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory bulk item save error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to save inventory items" });
+  }
+});
+
+// Lean lookup snapshot the phone caches so scan/search keeps working with no
+// signal. Never authoritative — the server recomputes system_quantity on write.
+router.get("/:token/inventory/catalog-snapshot", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const snapshot = await loadInventoryCountCatalogSnapshot(db, {
+      tenantId: employee.tenant_id ?? null,
+      limit: req.query?.limit,
+    });
+    return res.json({ success: true, ...snapshot });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory catalog snapshot error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load the count catalogue" });
   }
 });
 

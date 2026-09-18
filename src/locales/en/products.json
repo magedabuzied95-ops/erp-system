@@ -1199,19 +1199,22 @@
       "created": "Added",
       "purchase": "Purchase invoices",
       "sale": "Sales invoices",
-      "movement": "Other movements"
+      "movement": "Other movements",
+      "count": "Stock counts"
     },
     "events": {
       "created": "Added to the system",
       "purchase": "Purchase invoice",
-      "sale": "Sales invoice"
+      "sale": "Sales invoice",
+      "count": "Stock count"
     },
     "columns": {
       "size": "Size",
       "added": "Added",
       "purchased": "Bought",
       "sold": "Sold",
-      "stock": "Stock"
+      "stock": "Stock",
+      "lastCount": "Last count"
     },
     "fields": {
       "addedBy": "By",
@@ -1222,7 +1225,11 @@
       "cashier": "Cashier",
       "customer": "Customer",
       "channel": "Channel",
-      "reason": "Reason"
+      "reason": "Reason",
+      "countedBy": "Counted by",
+      "countedAt": "Counted on",
+      "branch": "Branch",
+      "approvedBy": "Approved by"
     },
     "channels": {
       "pos": "Point of sale",
@@ -1278,7 +1285,9 @@
       "failed_delivery": "Failed Delivery",
       "outfordelivery": "Out for delivery",
       "partiallypaid": "Partially paid",
-      "partiallyrefunded": "Partially refunded"
+      "partiallyrefunded": "Partially refunded",
+      "pending_review": "Awaiting review",
+      "in_progress": "In progress"
     },
     "movementTypes": {
       "RETURN_IN": "Return to stock",
@@ -1306,6 +1315,7 @@
       "PROVISIONAL_STOCK_REMOVED": "Provisional quantity removed",
       "PROVISIONAL_SETTLEMENT_REVERSED": "Provisional settlement reversed",
       "OPENING_BALANCE": "Opening balance"
-    }
+    },
+    "neverCounted": "Never counted"
   }
 }
