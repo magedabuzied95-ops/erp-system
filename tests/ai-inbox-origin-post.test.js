@@ -210,3 +210,64 @@ test("the permalink resolver returns empty rather than guessing", () => {
   assert.equal(resolveSocialCommentPostPermalink({}), "");
   assert.equal(resolveSocialCommentPostPermalink({ raw_payload: { value: { post: {} } } }), "");
 });
+
+// ---------------------------------------------------------------- Instagram
+//
+// An Instagram media object is not a Facebook post. It answers to `caption`, `permalink`,
+// `media_url` and `timestamp`, and has no `message`, `permalink_url`, `full_picture` or `picture`.
+// Asking it the Facebook list costs four invalid fields and the retry loop forgives only three, so
+// an IG media resolved to nothing at all — which is why an Instagram thread showed an empty card.
+
+const META = fs.readFileSync("server/services/metaIntegrationService.js", "utf8");
+
+test("Instagram gets its own Graph field list", () => {
+  const list = META.slice(META.indexOf("const META_POST_INSTAGRAM_FIELDS"), META.indexOf("const buildMetaPostPreviewFields"));
+  for (const field of ["caption", "permalink", "media_url", "thumbnail_url", "timestamp"]) {
+    assert.ok(list.includes(`"${field}"`), `Instagram must request ${field}`);
+  }
+  for (const field of ["permalink_url", "full_picture", "picture", "created_time", "message"]) {
+    assert.ok(!list.includes(`"${field}"`), `${field} does not exist on an Instagram media`);
+  }
+
+  const builder = META.slice(META.indexOf("const buildMetaPostPreviewFields"), META.indexOf("const fetchMetaPostMediaCandidate"));
+  assert.ok(builder.includes("if (instagramCandidate) {"), "the builder must branch on the platform");
+  assert.ok(builder.includes("META_POST_INSTAGRAM_FIELDS.forEach(pushField)"));
+});
+
+// The platform was sniffed out of the permalink. An Instagram comment webhook carries no permalink
+// at all -- only value.media.id -- so the sniff was always false and every IG comment was queried
+// as a Facebook post.
+test("the platform is believed, not sniffed out of a permalink", () => {
+  const graph = META.slice(
+    META.indexOf("const fetchMetaPostPreviewDetailsFromGraph"),
+    META.indexOf("const bestPreview = primaryPreview")
+  );
+  assert.ok(graph.includes(`platform = ""`), "the fetch must accept a platform");
+  assert.ok(graph.includes(`lower(platform) === "instagram"`), "the platform must decide Instagram");
+  assert.ok(graph.includes("const instagramCandidate = isInstagram;"));
+  // facebook_page_id never equals the IG business account id the webhook sends, so applying the
+  // Facebook page guard to Instagram rejected every media before a field was asked for.
+  assert.ok(graph.includes("if (!isInstagram && text(pageId) && configuredPageId"), "the page guard is Facebook-only");
+  assert.ok(graph.includes("text(!isInstagram && pageId && safePostId"), "page_post ids are a Facebook convention");
+});
+
+test("the comment automation tells Graph which platform it is asking about", () => {
+  assert.ok(AUTOMATION.includes("fetchMetaPostPreviewDetails({ tenantId, postId, pageId, permalinkUrl, platform: normalizedPlatform })"));
+  const fetcher = AUTOMATION.slice(
+    AUTOMATION.indexOf("const fetchSocialCommentWebhookPostMedia"),
+    AUTOMATION.indexOf("const applyWebhookPostMediaToEvent")
+  );
+  assert.ok(fetcher.includes("event.raw_payload?.value?.media?.id"), "an IG comment carries the media id, not a post id");
+});
+
+// media_url is THE image on an Instagram media: an IG photo comes back with a media_url and no
+// full_picture and no picture, so leaving it out normalized every IG post to an empty thumbnail.
+test("the preview normalizer treats media_url as an image source", () => {
+  const normalizer = META.slice(
+    META.indexOf("const normalizeMetaPostPreview"),
+    META.indexOf("const normalizeMetaReelPreview")
+  );
+  assert.ok(normalizer.includes("const mediaUrl = text(post.media_url"));
+  assert.ok(normalizer.includes("fullPicture || picture || mediaUrl ||"), "media_url must be in the thumbnail chain");
+  assert.ok(normalizer.includes("post.timestamp"), "an Instagram media is stamped with timestamp");
+});

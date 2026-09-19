@@ -5059,9 +5059,18 @@ const fetchSocialCommentWebhookPostMedia = async ({ tenantId = null, event = {} 
     event.raw_payload?.post_id ||
     event.raw_payload?.value?.post_id ||
     event.raw_payload?.value?.media_id ||
+    event.raw_payload?.value?.media?.id ||
+    socialCommentWebhookValues(event)
+      .map((value) => text(value?.media?.id || value?.media_id || ""))
+      .find(Boolean) ||
     ""
   );
   if (!postId) return null;
+  // Graph is asked for Instagram fields only when it is told the platform: an IG comment webhook
+  // carries no permalink to sniff, so without this every IG media was queried as a Facebook post.
+  const normalizedPlatform = text(event.platform || event.raw_payload?.platform || "").toLowerCase() === "instagram"
+    ? "instagram"
+    : "facebook";
 
   const pageId = text(
     event.page_id ||
@@ -5079,7 +5088,7 @@ const fetchSocialCommentWebhookPostMedia = async ({ tenantId = null, event = {} 
   try {
     const fetchMetaPostPreviewDetails = await loadFetchMetaPostPreviewDetails();
     const preview = fetchMetaPostPreviewDetails
-      ? await fetchMetaPostPreviewDetails({ tenantId, postId, pageId, permalinkUrl }).catch((error) => ({
+      ? await fetchMetaPostPreviewDetails({ tenantId, postId, pageId, permalinkUrl, platform: normalizedPlatform }).catch((error) => ({
           error_message: text(error?.message || "Graph fetch failed"),
           thumbnail_url: "",
           post_full_picture: "",

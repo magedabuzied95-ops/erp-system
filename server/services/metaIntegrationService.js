@@ -5978,7 +5978,8 @@ const extractMetaPostGraphFieldPresence = (post = {}) => {
 const normalizeMetaPostPreview = (post = {}) => {
   const attachmentDetails = extractMetaPostAttachmentDetails(post);
   const graphFieldsPresent = extractMetaPostGraphFieldPresence(post);
-  const createdTime = text(post.created_time || post.post_created_time || "");
+  // Instagram stamps a media with "timestamp"; a Facebook post uses "created_time".
+  const createdTime = text(post.created_time || post.timestamp || post.post_created_time || "");
   const graphThumbnailUrl = text(post.thumbnail_url || "");
   const fullPicture = text(post.full_picture || post.picture || "");
   const picture = text(post.picture || "");
@@ -5989,10 +5990,14 @@ const normalizeMetaPostPreview = (post = {}) => {
   const postCaption = text(post.caption || postMessage || "");
   const mediaType = inferMetaPostMediaType(post, attachmentDetails);
   const postType = text(post.type || post.media_type || mediaType || "");
-  const thumbnailUrl = graphThumbnailUrl || attachmentImage || fullPicture || picture || (/(video|reel)/.test(mediaType) ? sourceUrl : "");
+  // `media_url` is THE image field on an Instagram media object — an IG photo comes back with a
+  // media_url and no full_picture and no picture at all. Leaving it out of this chain meant every
+  // Instagram post normalized to an empty thumbnail even when Graph had answered perfectly.
+  const mediaUrl = text(post.media_url || "");
+  const thumbnailUrl = graphThumbnailUrl || attachmentImage || fullPicture || picture || mediaUrl || (/(video|reel)/.test(mediaType) ? sourceUrl : "");
   const thumbnailSource = graphThumbnailUrl
     ? "thumbnail_url"
-    : attachmentDetails.thumbnailSource || (attachmentImage ? "attachments.media.image.src" : fullPicture ? "full_picture" : picture ? "picture" : sourceUrl ? "source" : "");
+    : attachmentDetails.thumbnailSource || (attachmentImage ? "attachments.media.image.src" : fullPicture ? "full_picture" : picture ? "picture" : mediaUrl ? "media_url" : sourceUrl ? "source" : "");
   const reasonIfMissing = thumbnailUrl
     ? ""
     : mediaType === "video" || mediaType === "reel"
@@ -6086,7 +6091,6 @@ const normalizeMetaReelPreview = (post = {}) => {
 
 const META_POST_BASE_FIELDS = ["id", "permalink_url", "full_picture", "picture", "media_type", "media_url", "thumbnail_url"];
 const META_POST_FACEBOOK_TEXT_FIELD = "message";
-const META_POST_INSTAGRAM_TEXT_FIELD = "caption";
 const META_POST_ATTACHMENT_FIELDS = ["attachments{media,type,url,title,description,subattachments}", "child_attachments"];
 
 const extractMetaGraphMissingField = (error = {}) => {
@@ -6097,6 +6101,13 @@ const extractMetaGraphMissingField = (error = {}) => {
 
 const getGraphErrorCode = (error = {}) => Number(error?.code || error?.meta?.error?.code || error?.metaResponse?.error?.code || 0);
 
+// An Instagram media object is not a Facebook post and does not answer to its fields: it has
+// `caption` not `message`, `permalink` not `permalink_url`, `timestamp` not `created_time`, and no
+// `full_picture` or `picture` at all. Asking the Facebook list cost four invalid fields, and the
+// caller's retry loop only forgives three before it gives up — so an Instagram media never resolved
+// even once. It gets its own list.
+const META_POST_INSTAGRAM_FIELDS = ["id", "caption", "permalink", "media_type", "media_url", "thumbnail_url", "timestamp"];
+
 const buildMetaPostPreviewFields = ({ instagramCandidate = false, includeAttachments = false, blockedFields = [] } = {}) => {
   const blocked = new Set(asArray(blockedFields).map((value) => lower(value)).filter(Boolean));
   const fields = [];
@@ -6104,8 +6115,12 @@ const buildMetaPostPreviewFields = ({ instagramCandidate = false, includeAttachm
     if (!field || blocked.has(lower(field))) return;
     fields.push(field);
   };
+  if (instagramCandidate) {
+    META_POST_INSTAGRAM_FIELDS.forEach(pushField);
+    return fields.join(",");
+  }
   pushField(META_POST_BASE_FIELDS[0]);
-  pushField(instagramCandidate ? META_POST_INSTAGRAM_TEXT_FIELD : META_POST_FACEBOOK_TEXT_FIELD);
+  pushField(META_POST_FACEBOOK_TEXT_FIELD);
   META_POST_BASE_FIELDS.slice(1).forEach(pushField);
   pushField("created_time");
   if (includeAttachments) META_POST_ATTACHMENT_FIELDS.forEach(pushField);
@@ -6221,7 +6236,7 @@ const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {})
 const POST_PREVIEW_CACHE_TTL_MS = 30 * 60 * 1000;
 const postPreviewCache = new Map();
 export const fetchMetaPostPreviewDetails = async (options = {}) => {
-  const key = [numberOrNull(options?.tenantId) || 0, text(options?.postId), text(options?.pageId), text(options?.permalinkUrl)].join("|");
+  const key = [numberOrNull(options?.tenantId) || 0, text(options?.postId), text(options?.pageId), text(options?.permalinkUrl), lower(options?.platform)].join("|");
   const cached = postPreviewCache.get(key);
   if (cached && Date.now() - cached.at < POST_PREVIEW_CACHE_TTL_MS) return { ...cached.value };
   const value = await fetchMetaPostPreviewDetailsFromGraph(options);
@@ -6234,14 +6249,22 @@ export const fetchMetaPostPreviewDetails = async (options = {}) => {
   return value;
 };
 
-const fetchMetaPostPreviewDetailsFromGraph = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
+const fetchMetaPostPreviewDetailsFromGraph = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "", platform = "" } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safePostId = text(postId);
   if (!safeTenantId || !safePostId) return null;
   const row = await getMetaIntegrationConfig({ tenantId: safeTenantId });
   if (!row) return null;
+  // Instagram was decided by sniffing the permalink for the word "instagram". An Instagram comment
+  // webhook carries no permalink at all — only `value.media.id` — so every IG comment was treated
+  // as a Facebook post: it asked Graph for `message` and `full_picture` on a media object, which
+  // answers with neither. The caller knows the platform; believe it.
+  const isInstagram = lower(platform) === "instagram" || /instagram/i.test(text(permalinkUrl || ""));
   const configuredPageId = text(row.facebook_page_id || "");
-  if (text(pageId) && configuredPageId && text(pageId) !== configuredPageId) {
+  // ...and this guard is a Facebook check. On Instagram the webhook's entry.id is the IG business
+  // account id, which never equals facebook_page_id, so it rejected every IG media before a single
+  // field was asked for.
+  if (!isInstagram && text(pageId) && configuredPageId && text(pageId) !== configuredPageId) {
     return null;
   }
   const token = getTokenForConfig(row);
@@ -6249,7 +6272,9 @@ const fetchMetaPostPreviewDetailsFromGraph = async ({ tenantId = null, postId = 
   const reelIdFromPermalink = extractReelIdFromPermalink(permalinkUrl);
   const objectIdFromPermalink = extractFacebookPostObjectIdFromPermalink(permalinkUrl);
   const shortPostId = safePostId.includes("_") ? safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "" : "";
-  const pagePostId = text(pageId && safePostId && !safePostId.startsWith(`${text(pageId)}_`) ? `${text(pageId)}_${safePostId}` : "");
+  // `<page>_<post>` is a Facebook id convention. An Instagram media id is whole on its own, so
+  // gluing the IG account id in front of it only adds a candidate that can never resolve.
+  const pagePostId = text(!isInstagram && pageId && safePostId && !safePostId.startsWith(`${text(pageId)}_`) ? `${text(pageId)}_${safePostId}` : "");
   const rawCandidateIds = [
     pagePostId,
     safePostId,
@@ -6264,7 +6289,7 @@ const fetchMetaPostPreviewDetailsFromGraph = async ({ tenantId = null, postId = 
   let primaryPreview = null;
   let reelPreview = null;
   let objectIdPreview = null;
-  const instagramCandidate = /instagram/i.test(text(permalinkUrl || ""));
+  const instagramCandidate = isInstagram;
 
   for (const candidatePostId of candidateIds) {
     try {

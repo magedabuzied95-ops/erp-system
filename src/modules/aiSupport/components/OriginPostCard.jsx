@@ -24,7 +24,7 @@ import { transcriptDayLabel } from "../lib/conversationHelpers";
 
 const SKINS = {
   desktop: {
-    shell: "sticky top-2 z-10 rounded-3xl border border-white/10 bg-slate-950/90 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur",
+    shell: "sticky top-2 z-20 rounded-3xl border border-white/10 bg-slate-950/90 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur",
     thumb: "ring-1 ring-white/10",
     thumbFallback: "border border-white/10 bg-white/[0.06] text-slate-400",
     eyebrow: "text-cyan-100",
@@ -35,7 +35,7 @@ const SKINS = {
     quoteName: "text-slate-400",
   },
   pwa: {
-    shell: "sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.12)]",
+    shell: "sticky top-2 z-20 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.12)]",
     thumb: "ring-1 ring-slate-200",
     thumbFallback: "bg-slate-100 text-slate-400",
     eyebrow: "text-cyan-700",
