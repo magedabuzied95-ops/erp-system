@@ -20,6 +20,7 @@ import { useTranslation } from "react-i18next";
 import { ExternalLink, MessageSquareText } from "lucide-react";
 
 import { resolveChatMediaUrl } from "../../../shared/lib/imageUrls";
+import { transcriptDayLabel } from "../lib/conversationHelpers";
 
 const SKINS = {
   desktop: {
@@ -56,6 +57,10 @@ function OriginPostCard({ post = null, variant = "desktop" }) {
   const skin = SKINS[variant] || SKINS.desktop;
   const image = imageFailed ? "" : resolveChatMediaUrl(post.image);
   const caption = post.caption || t("aiSupport.inbox.originPost.empty");
+  // The run row stores the post's time as the ISO string Meta sent. Printed raw it reads as
+  // "2026-09-19T10:19:06.000Z" above the chat; through the transcript's own labeller it reads as
+  // "اليوم" on the store's clock, like every other date in the thread.
+  const postDate = transcriptDayLabel(post.createdTime);
 
   return (
     <div className={skin.shell}>
@@ -80,7 +85,7 @@ function OriginPostCard({ post = null, variant = "desktop" }) {
           <div dir="auto" className={`mt-1 line-clamp-2 text-[15px] font-black leading-6 ${skin.title}`}>
             {caption}
           </div>
-          {post.createdTime ? <div className={`mt-1 text-[11px] font-medium ${skin.muted}`}>{post.createdTime}</div> : null}
+          {postDate ? <div className={`mt-1 text-[11px] font-medium ${skin.muted}`}>{postDate}</div> : null}
           {post.url ? (
             <div className="mt-2 flex flex-wrap gap-2">
               <a

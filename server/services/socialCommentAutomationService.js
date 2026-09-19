@@ -4964,6 +4964,9 @@ const resolveSocialCommentPostMessage = (event = {}) =>
       event.raw_payload?.post?.caption ||
       event.raw_payload?.value?.post?.message ||
       event.raw_payload?.value?.post?.caption ||
+      socialCommentWebhookValues(event)
+        .map((value) => text(value?.post?.message || value?.post?.caption || ""))
+        .find(Boolean) ||
       ""
   );
 
@@ -5012,7 +5015,25 @@ const resolveSocialCommentPostCreatedTime = (event = {}) =>
       ""
   );
 
-const resolveSocialCommentPostPermalink = (event = {}) =>
+// The permalink Meta itself puts on the webhook, dug out of the shape it actually arrives in.
+//
+// Every chain here used to start at a flattened key — post_permalink, post_permalink_url — and the
+// webhook does not carry one. It carries `value.post.permalink_url`, nested, and for a Reel that is
+// the ONLY place the reel id exists. So this returned "" on every single comment, which cost twice:
+// the inbox had no link to the post, and fetchMetaPostPreviewDetails was handed an empty permalink,
+// could not run extractReelIdFromPermalink, and so came back with no thumbnail for reel posts.
+const socialCommentWebhookValues = (event = {}) => {
+  const raw = event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : {};
+  const entries = [
+    raw.value,
+    ...asArray(raw.changes).map((change) => change?.value),
+    ...asArray(raw.entry?.changes).map((change) => change?.value),
+    ...asArray(raw.body?.entry).flatMap((entry) => asArray(entry?.changes).map((change) => change?.value)),
+  ];
+  return entries.filter((value) => value && typeof value === "object");
+};
+
+export const resolveSocialCommentPostPermalink = (event = {}) =>
   text(
     event.post_permalink ||
       event.post_permalink_url ||
@@ -5025,6 +5046,9 @@ const resolveSocialCommentPostPermalink = (event = {}) =>
       event.raw_payload?.post_url ||
       event.raw_payload?.comment_url ||
       event.raw_payload?.permalink ||
+      socialCommentWebhookValues(event)
+        .map((value) => text(value?.post?.permalink_url || value?.post?.permalink || ""))
+        .find(Boolean) ||
       ""
   );
 
@@ -5047,7 +5071,10 @@ const fetchSocialCommentWebhookPostMedia = async ({ tenantId = null, event = {} 
     event.raw_payload?.value?.metadata?.page_id ||
     ""
   );
-  const permalinkUrl = text(event.post_permalink_url || event.post_permalink || event.raw_payload?.post_permalink_url || event.raw_payload?.post_permalink || event.raw_payload?.permalink_url || event.raw_payload?.post_url || event.raw_payload?.comment_url || "");
+  // Through the resolver, not a private chain: the reel id lives only in the webhook's nested
+  // `value.post.permalink_url`, and without it fetchMetaPostPreviewDetails cannot look a Reel up,
+  // so every reel comment came back with no thumbnail.
+  const permalinkUrl = resolveSocialCommentPostPermalink(event);
 
   try {
     const fetchMetaPostPreviewDetails = await loadFetchMetaPostPreviewDetails();
@@ -5154,6 +5181,42 @@ const applyWebhookPostMediaToEvent = (event = {}, media = null) => {
     media_enrichment_error: mediaEnrichmentError || text(event.media_enrichment_error || ""),
     raw_payload: rawPayload,
   };
+};
+
+// Fold the enriched post media back into the stored run row. The merge is done in Postgres with
+// `||` so a concurrent writer's keys survive, and only the keys that actually resolved are written
+// — a failed Graph fetch must not overwrite a picture an earlier comment on the same post found.
+const persistSocialCommentWebhookPostMedia = async ({ row = {} } = {}) => {
+  const runId = Number(row?.id || 0);
+  if (!Number.isFinite(runId) || runId <= 0) return null;
+
+  const patch = {};
+  const keep = (key, value) => {
+    const found = text(value);
+    if (found) patch[key] = found;
+  };
+  keep("post_full_picture", row.post_full_picture || row.full_picture);
+  keep("thumbnail_url", row.thumbnail_url || row.post_thumbnail);
+  keep("post_thumbnail", row.post_thumbnail || row.thumbnail_url);
+  keep("full_picture", row.full_picture || row.post_full_picture);
+  keep("post_permalink_url", resolveSocialCommentPostPermalink(row));
+  keep("post_message", resolveSocialCommentPostMessage(row));
+  keep("post_created_time", resolveSocialCommentPostCreatedTime(row));
+  keep("media_enrichment_status", row.media_enrichment_status);
+  if (!Object.keys(patch).length) return null;
+
+  const permalink = text(patch.post_permalink_url || "");
+  await db.query(
+    `
+    UPDATE social_comment_automation_runs
+    SET raw_payload = COALESCE(raw_payload, '{}'::jsonb) || $2::jsonb,
+        post_permalink = COALESCE(NULLIF(post_permalink, ''), NULLIF($3, '')),
+        updated_at = NOW()
+    WHERE id = $1
+    `,
+    [runId, JSON.stringify(patch), permalink]
+  );
+  return patch;
 };
 
 const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = {} } = {}) => {
@@ -7230,6 +7293,10 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_platform ON social_comment_automation_runs (tenant_id, platform, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_comment ON social_comment_automation_runs (tenant_id, comment_id)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_post_platform ON social_comment_automation_runs (tenant_id, post_id, platform, created_at DESC)`);
+      // The AI Inbox list asks this table "which post did the person in this DM comment on" once per
+      // conversation, matched on commenter_id — the same PSID the DM session is keyed by. Without
+      // this index that is a sequential scan per row of the list.
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_commenter ON social_comment_automation_runs (tenant_id, commenter_id, created_at DESC)`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS status TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS step_results JSONB NOT NULL DEFAULT '[]'::jsonb`);
@@ -8339,6 +8406,18 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       event: storedRow,
     }).catch(() => null);
     storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
+    // ...and write it back. The run row was INSERTed before this enrichment ran, so for every
+    // comment ever processed the stored raw_payload kept the webhook's empty post_full_picture and
+    // post_permalink_url while the enriched copy lived only in memory for the rest of the request.
+    // The AI Inbox reads the stored row to tell an operator which post a DM came from, so without
+    // this the card has no picture and no link no matter how well the Graph fetch went.
+    await persistSocialCommentWebhookPostMedia({ row: storedRow }).catch((error) => {
+      console.warn("[social-comments:webhook-media-persist-failed]", {
+        run_id: storedRow?.id || null,
+        post_id: text(storedRow?.post_id || ""),
+        message: error?.message || "",
+      });
+    });
     // Every comment, whatever post it is on and whether or not that post has automation, passes
     // the word filter here — before the like, the reply, the DM or the lead can be picked.
     const moderation = await moderateIncomingSocialComment({ row: storedRow }).catch(() => ({ matched: false }));

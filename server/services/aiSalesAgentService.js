@@ -2852,38 +2852,56 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ORDER BY comment_msg.created_at DESC, comment_msg.id DESC
       LIMIT 1
     ) cm ON TRUE
-    -- The post the customer came from. The cm lateral above answers "who commented last" and is ordered for
-    -- that job, so it can settle on a row that carries no post columns at all. This one answers a
-    -- different question - which post opened this thread - so it only ever reads rows that actually
-    -- carry post context, and it does that for a DM session exactly as it does for a comment thread:
-    -- the comment_private_reply row the automation writes into the DM session carries the post it
-    -- answered. Nothing here depends on the post being linked to a product.
+    -- The post the customer came from, for the card the inbox pins above the chat.
+    --
+    -- Read from social_comment_automation_runs, not from ai_support_messages. The DM the comment
+    -- automation opens does NOT get a transcript row of its own: what lands in the thread is Meta's
+    -- echo of the message we sent (insert_source = meta_provider_echo), and an echo carries no post
+    -- and no comment id. The run row is the only record that ties the two together, and it does it
+    -- through commenter_id - the same PSID the DM session is keyed by, so
+    -- facebook_messenger:5036593356360590 finds the run whose commenter_id is 5036593356360590.
+    --
+    -- The permalink and the picture come out of raw_payload because the flattened columns beside it
+    -- are written before the Graph enrichment and stay empty; the webhook's own nested
+    -- value.post.permalink_url is always there, including for a Reel.
+    --
+    -- Nothing here consults a product: an unlinked post is exactly when the automation greets
+    -- without naming one, so the post itself is the only context the operator gets.
     LEFT JOIN LATERAL (
       SELECT
-        origin_msg.post_id,
-        origin_msg.post_full_picture,
-        origin_msg.post_permalink_url,
-        origin_msg.post_message,
-        origin_msg.post_caption,
-        origin_msg.post_created_time,
-        origin_msg.comment_id,
-        origin_msg.comment_url,
-        origin_msg.commenter_name,
-        origin_msg.comment_created_time,
+        run.post_id,
+        run.comment_id,
+        run.commenter_name,
+        NULLIF(run.original_comment_text, '') AS origin_comment_text,
+        run.created_at AS comment_created_time,
         COALESCE(
-          NULLIF(origin_msg.source_comment_text, ''),
-          NULLIF(origin_msg.customer_message, ''),
-          NULLIF(origin_msg.message_text, '')
-        ) AS origin_comment_text
-      FROM ai_support_messages origin_msg
-      WHERE origin_msg.tenant_id = s.tenant_id
-        AND origin_msg.session_id = s.session_id
-        AND (
-          COALESCE(origin_msg.post_id, '') <> ''
-          OR COALESCE(origin_msg.post_permalink_url, '') <> ''
-          OR COALESCE(origin_msg.post_full_picture, '') <> ''
+          NULLIF(run.post_permalink, ''),
+          NULLIF(run.raw_payload->>'post_permalink_url', ''),
+          NULLIF(run.raw_payload->'value'->'post'->>'permalink_url', ''),
+          NULLIF(run.raw_payload->'value'->'post'->>'permalink', '')
+        ) AS post_permalink_url,
+        COALESCE(
+          NULLIF(run.raw_payload->>'post_full_picture', ''),
+          NULLIF(run.raw_payload->>'thumbnail_url', ''),
+          NULLIF(run.raw_payload->>'post_thumbnail', ''),
+          NULLIF(run.raw_payload->>'full_picture', '')
+        ) AS post_full_picture,
+        COALESCE(
+          NULLIF(run.raw_payload->>'post_message', ''),
+          NULLIF(run.raw_payload->>'post_caption', ''),
+          NULLIF(run.raw_payload->'value'->'post'->>'message', '')
+        ) AS post_message,
+        NULLIF(run.raw_payload->>'post_caption', '') AS post_caption,
+        NULLIF(run.raw_payload->>'post_created_time', '') AS post_created_time,
+        NULLIF(run.raw_payload->>'comment_url', '') AS comment_url
+      FROM social_comment_automation_runs run
+      WHERE run.tenant_id = s.tenant_id
+        AND COALESCE(run.post_id, '') <> ''
+        AND run.commenter_id = COALESCE(
+          NULLIF(c.external_customer_id, ''),
+          NULLIF(split_part(s.session_id, ':', 2), '')
         )
-      ORDER BY origin_msg.created_at DESC, origin_msg.id DESC
+      ORDER BY run.created_at DESC, run.id DESC
       LIMIT 1
     ) op ON TRUE
     WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at"), deletedConversationClauseSql("m.latest_message_created_at")].filter(Boolean).join(" AND ")}
