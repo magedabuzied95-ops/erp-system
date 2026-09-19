@@ -237,3 +237,7 @@ server/scripts/timestamptz-fingerprint.json
 
 # Meta profile backfill state/lock files (server/scripts/backfillMetaCustomerProfiles.js) — local runs only
 server/data/backfill/
+!server/services/aiAgentActionPolicy.js
+!server/services/aiInboxTeamPerformanceService.js
+!server/services/marketingConsentService.js
+!server/services/marketingBroadcastService.js

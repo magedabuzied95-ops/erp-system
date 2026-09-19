@@ -1,6 +1,6 @@
 import { applyInboxMessageDelete, applyInboxMessageEdit, isSameInboxMessage, messageDeleteToast, messageEditToast } from "../services/messageActions.js";
 import { dateKeyInAppTimezone } from "../../../shared/lib/appTimezone";
-import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -43,9 +43,6 @@ import {
   Paperclip,
   Pencil,
   PlayCircle,
-  Plug,
-  Power,
-  Receipt,
   Plus,
   Star,
   RefreshCw,
@@ -54,7 +51,6 @@ import {
   Search,
   Send,
   Settings,
-  Zap,
   Smile,
   ShieldBan,
   ShoppingBag,
@@ -98,7 +94,8 @@ import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACT
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import OriginPostCard from "../components/OriginPostCard.jsx";
-import IntegrationsCenter from "../components/integrations/lazyIntegrationsCenter";
+import InboxControlCenter from "../components/controlCenter/lazyInboxControlCenter";
+import { CONTROL_CENTER_SECTIONS } from "../components/controlCenter/InboxControlCenter.jsx";
 // One composer, both surfaces — see components/InboxOrderComposer.jsx.
 import InboxOrderComposer from "../components/InboxOrderComposer";
 // The customer's real orders, with the confirmation message and the payment review on them.
@@ -152,9 +149,7 @@ import { loadCustomerProductCatalogWarm } from "../services/customerProductCatal
 import { WEAK_CONVERSATION_CHANNELS, backendChannelFilter, channelFromConversationSessionId, channelWindow, channelsForFilter, conversationAccountKey, mergeConversationPages } from "../services/inboxChannels";
 import { findDeepLinkedConversation, normalizeInboxDeepLinkChannel } from "../services/inboxDeepLink.js";
 import "./AiInboxDesktop.css";
-import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
-import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
-import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
+import { QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import { AppleEmojiPicker } from "../components/AppleEmojiPicker.jsx";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
@@ -2018,49 +2013,10 @@ function InboxChannelSidebar({
   onSelectSocialComments,
   socialPlatformFilter = "all",
   onSelectSocialPlatform,
-  onOpenQuickReplies,
-  onOpenCommentsSettings,
-  onOpenInvoiceMessages,
-  onOpenAutomations,
-  onOpenIntegrations,
+  onOpenControlCenter,
   configActive = false,
 }) {
   const { t } = useTranslation();
-  const [configMenuAnchor, setConfigMenuAnchor] = useState(null);
-  const configMenuRef = useRef(null);
-  // The gear sits at the BOTTOM of the rail, so a menu pinned to the trigger's own top
-  // ran past the bottom of the viewport and the last items were unreachable. Measure the
-  // rendered menu and flip/clamp it into view; `null` means "not placed yet" (kept hidden
-  // for that one frame so the unplaced position never flashes).
-  const [configMenuPlacement, setConfigMenuPlacement] = useState(null);
-  useLayoutEffect(() => {
-    if (!configMenuAnchor) {
-      setConfigMenuPlacement(null);
-      return undefined;
-    }
-    const place = () => {
-      const node = configMenuRef.current;
-      if (!node) return;
-      const menu = node.getBoundingClientRect();
-      const margin = 8;
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      let left = configMenuAnchor.right + margin;
-      if (left + menu.width > viewportWidth - margin) left = configMenuAnchor.left - margin - menu.width;
-      left = Math.max(margin, Math.min(left, viewportWidth - margin - menu.width));
-      let top = configMenuAnchor.top;
-      if (top + menu.height > viewportHeight - margin) top = configMenuAnchor.bottom - menu.height;
-      top = Math.max(margin, Math.min(top, viewportHeight - margin - menu.height));
-      setConfigMenuPlacement({ top, left, maxHeight: Math.max(120, viewportHeight - margin * 2) });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
-    };
-  }, [configMenuAnchor]);
   const channelIcon = (key, active = false) => {
     const baseIconClass = "h-6 w-6";
     const iconClass = active ? "drop-shadow-[0_0_10px_rgba(34,211,238,0.45)]" : "";
@@ -2150,65 +2106,22 @@ function InboxChannelSidebar({
           </button>
         ))}
       </div>
-      {onOpenQuickReplies || onOpenCommentsSettings || onOpenInvoiceMessages || onOpenAutomations || onOpenIntegrations ? (
+      {onOpenControlCenter ? (
         <div className="mt-2 border-t border-[#d7c9a6] pt-2 dark:border-white/10">
+          {/* One button, not a menu. The five items this used to list are now sections of the
+              control center, which also carries the agent, the numbers and the connections —
+              a popover pinned to the bottom of the rail could never have held them. */}
           <button
             type="button"
-            onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              // Fixed placement: the rail's ancestors clip overflow, so an absolute menu would be cut off.
-              setConfigMenuAnchor((current) => (current ? null : { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }));
-            }}
-            title={t("aiSupport.inbox.rail.config")}
-            aria-label={t("aiSupport.inbox.rail.config")}
-            aria-haspopup="menu"
-            aria-expanded={Boolean(configMenuAnchor)}
-            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 rounded-xl text-center transition ${configActive || configMenuAnchor ? "bg-[#f2dfad] text-[#8c6100] shadow-sm dark:bg-amber-400/15 dark:text-amber-200" : "text-[#9a6a00] hover:bg-[#f7efd9] hover:text-[#704d00] dark:text-white/75 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}
+            onClick={() => onOpenControlCenter("agent")}
+            title={t("aiSupport.controlCenter.title")}
+            aria-label={t("aiSupport.controlCenter.title")}
+            aria-expanded={configActive}
+            className={`relative flex h-[58px] w-12 flex-col items-center justify-center gap-1 rounded-xl text-center transition ${configActive ? "bg-[#f2dfad] text-[#8c6100] shadow-sm dark:bg-amber-400/15 dark:text-amber-200" : "text-[#9a6a00] hover:bg-[#f7efd9] hover:text-[#704d00] dark:text-white/75 dark:hover:bg-white/[0.06] dark:hover:text-white"}`}
           >
             <Settings className="h-6 w-6" aria-hidden="true" />
             <span className="text-[8px] font-black uppercase tracking-wide">{t("aiSupport.inbox.rail.config")}</span>
           </button>
-          {configMenuAnchor ? (
-            <>
-              <div className="fixed inset-0 z-[250]" onClick={() => setConfigMenuAnchor(null)} />
-              <div
-                ref={configMenuRef}
-                dir="rtl"
-                role="menu"
-                style={{
-                  top: configMenuPlacement ? configMenuPlacement.top : configMenuAnchor.top,
-                  left: configMenuPlacement ? configMenuPlacement.left : configMenuAnchor.right + 8,
-                  maxHeight: configMenuPlacement ? configMenuPlacement.maxHeight : undefined,
-                  visibility: configMenuPlacement ? "visible" : "hidden",
-                }}
-                className="fixed z-[251] w-56 overflow-y-auto overscroll-contain rounded-2xl border border-[#d8cba9] bg-[#f8f4eb] py-1.5 shadow-[0_24px_60px_rgba(47,35,12,0.28)] dark:border-amber-300/15 dark:bg-[#181a18] dark:shadow-black/50"
-              >
-                {[
-                  { key: "quick_replies", label: t("aiSupport.quickReplies.title"), icon: Zap, onSelect: onOpenQuickReplies },
-                  { key: "comments", label: t("aiSupport.commentsSettings.title"), icon: MessageSquareText, onSelect: onOpenCommentsSettings },
-                  { key: "invoice_messages", label: t("aiSupport.aiSettings.variants.menuTitle"), icon: Receipt, onSelect: onOpenInvoiceMessages },
-                  { key: "automations", label: t("aiSupport.integrations.automations.menuTitle"), icon: Power, onSelect: onOpenAutomations },
-                  { key: "integrations", label: t("aiSupport.integrations.title"), icon: Plug, onSelect: onOpenIntegrations },
-                ].filter((item) => item.onSelect).map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setConfigMenuAnchor(null);
-                      item.onSelect();
-                    }}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-right text-xs font-black text-[#3d372c] transition hover:bg-[#f0e6cf] dark:text-slate-100 dark:hover:bg-white/[0.06]"
-                  >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#f2dfad] text-[#8c6100] dark:bg-amber-400/10 dark:text-amber-300">
-                      <item.icon className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    <span className="min-w-0 flex-1">{item.label}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
         </div>
       ) : null}
       {onSelectSocialComments ? (
@@ -4570,17 +4483,21 @@ export default function AiInbox({ reviewerMode = false }) {
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const [orderComposerOpen, setOrderComposerOpen] = useState(false);
   const [consoleOpen, setConsoleOpen] = useState(false);
-  const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
-  const [commentsSettingsOpen, setCommentsSettingsOpen] = useState(false);
-  const [invoiceMessagesOpen, setInvoiceMessagesOpen] = useState(false);
-  // `?integrations=<tab>` is how OAuth callbacks (TikTok today) get the user
-  // back to the connection they just approved instead of a bare inbox.
+  // One control center replaces the five-item gear menu and the separate integrations shell.
+  // `?integrations=<tab>` is how OAuth callbacks (TikTok today) get the user back to the connection
+  // they just approved instead of a bare inbox; `?config=<section>` opens any section directly.
   const integrationsDeepLinkTab = clean(searchParams.get("integrations")).toLowerCase();
-  const [integrationsOpen, setIntegrationsOpen] = useState(() => INTEGRATION_TAB_KEYS.has(integrationsDeepLinkTab));
-  const [integrationsTab, setIntegrationsTab] = useState(() => (INTEGRATION_TAB_KEYS.has(integrationsDeepLinkTab) ? integrationsDeepLinkTab : "overview"));
-  const openIntegrations = useCallback((tab = "overview") => {
-    setIntegrationsTab(INTEGRATION_TAB_KEYS.has(tab) ? tab : "overview");
-    setIntegrationsOpen(true);
+  const configDeepLinkSection = clean(searchParams.get("config")).toLowerCase();
+  const deepLinkSection = CONTROL_CENTER_SECTIONS.includes(configDeepLinkSection)
+    ? configDeepLinkSection
+    : INTEGRATION_TAB_KEYS.has(integrationsDeepLinkTab)
+      ? integrationsDeepLinkTab
+      : "";
+  const [controlCenterOpen, setControlCenterOpen] = useState(() => Boolean(deepLinkSection));
+  const [controlCenterSection, setControlCenterSection] = useState(() => deepLinkSection || "agent");
+  const openControlCenter = useCallback((section = "agent") => {
+    setControlCenterSection(CONTROL_CENTER_SECTIONS.includes(section) ? section : "agent");
+    setControlCenterOpen(true);
   }, []);
   const [socialDrawerRequest, setSocialDrawerRequest] = useState({ kind: "", nonce: 0 });
   const [replyText, setReplyText] = useState("");
@@ -9208,38 +9125,29 @@ export default function AiInbox({ reviewerMode = false }) {
     );
   };
 
+  // The post tools inside the comments section open a drawer that lives outside the center, so the
+  // center steps aside for it rather than stacking two overlays.
   const requestSocialDrawer = (kind) => {
-    setCommentsSettingsOpen(false);
+    setControlCenterOpen(false);
     setSocialDrawerRequest((current) => ({ kind, nonce: current.nonce + 1 }));
   };
 
-  const renderCommentsSettingsModal = () => (
-    <CommentsSettingsModal
-      open={commentsSettingsOpen}
-      onClose={() => setCommentsSettingsOpen(false)}
-      selectedPost={selectedSocialComment}
-      onOpenAutomation={() => requestSocialDrawer("automation")}
-      onOpenProductLinks={() => requestSocialDrawer("product_links")}
-      postToolsEnabled={isSocialMode}
-    />
-  );
-
-  const renderInvoiceMessagesModal = () => (
-    <WhatsappMessageVariantsModal
-      open={invoiceMessagesOpen}
-      onClose={() => setInvoiceMessagesOpen(false)}
-      initialType="invoice_receipt"
-    />
-  );
-
-  const renderIntegrationsCenter = () => (
-    integrationsOpen ? (
+  const renderControlCenter = () => (
+    controlCenterOpen ? (
       <Suspense fallback={null}>
-        <IntegrationsCenter
+        <InboxControlCenter
           open
-          initialTab={integrationsTab}
+          initialSection={controlCenterSection}
           headers={headers}
-          onClose={() => setIntegrationsOpen(false)}
+          tenantId={tenantId}
+          onClose={() => setControlCenterOpen(false)}
+          quickReplies={quickRepliesStore}
+          commentsProps={{
+            selectedPost: selectedSocialComment,
+            onOpenAutomation: () => requestSocialDrawer("automation"),
+            onOpenProductLinks: () => requestSocialDrawer("product_links"),
+            postToolsEnabled: isSocialMode,
+          }}
         />
       </Suspense>
     ) : null
@@ -9360,20 +9268,7 @@ export default function AiInbox({ reviewerMode = false }) {
           </div>
         ) : null}
         <div className="flex h-full w-full min-w-0 gap-2 overflow-hidden p-2">
-          <QuickRepliesConfig
-            open={quickRepliesConfigOpen}
-            onClose={() => setQuickRepliesConfigOpen(false)}
-            replies={quickRepliesStore.quickReplies}
-            loading={quickRepliesStore.loading}
-            saving={quickRepliesStore.saving}
-            onCreate={quickRepliesStore.createReply}
-            onUpdate={quickRepliesStore.updateReply}
-            onDelete={quickRepliesStore.deleteReply}
-            onReorder={quickRepliesStore.reorderReplies}
-          />
-          {renderCommentsSettingsModal()}
-          {renderInvoiceMessagesModal()}
-          {renderIntegrationsCenter()}
+          {renderControlCenter()}
           <InboxChannelSidebar
             channels={[]}
             allUnread={channelSummaries.all.unread}
@@ -9393,12 +9288,8 @@ export default function AiInbox({ reviewerMode = false }) {
               setMobileView("list");
             }}
             onSelectSocialComments={() => setInboxSection("social_comments")}
-            onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
-            onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
-            onOpenInvoiceMessages={() => setInvoiceMessagesOpen(true)}
-            onOpenAutomations={() => openIntegrations("automations")}
-            onOpenIntegrations={() => openIntegrations()}
-            configActive={quickRepliesConfigOpen || commentsSettingsOpen || invoiceMessagesOpen || integrationsOpen}
+            onOpenControlCenter={openControlCenter}
+            configActive={controlCenterOpen}
           />
           <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
@@ -9485,20 +9376,7 @@ export default function AiInbox({ reviewerMode = false }) {
         onSave={saveReplyCorrection}
       />
       <div ref={fullscreenHostRef} className={`${conversationExpanded ? "conversation-expanded fixed inset-0 z-[9999] flex h-[100vh] w-[100vw] max-w-none flex-col overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] p-0" : "ai-omni-frame flex w-full min-w-0 flex-col gap-2 overflow-hidden"}`}>
-        <QuickRepliesConfig
-          open={quickRepliesConfigOpen}
-          onClose={() => setQuickRepliesConfigOpen(false)}
-          replies={quickRepliesStore.quickReplies}
-          loading={quickRepliesStore.loading}
-          saving={quickRepliesStore.saving}
-          onCreate={quickRepliesStore.createReply}
-          onUpdate={quickRepliesStore.updateReply}
-          onDelete={quickRepliesStore.deleteReply}
-          onReorder={quickRepliesStore.reorderReplies}
-        />
-        {renderCommentsSettingsModal()}
-          {renderInvoiceMessagesModal()}
-        {renderIntegrationsCenter()}
+        {renderControlCenter()}
         {!import.meta.env.PROD ? (
           <div data-debug-ai-inbox-section style={{ display: "none" }}>
             {inboxSection}:{visibleConversations.length}:{visibleSocialComments.length}
@@ -9593,12 +9471,8 @@ export default function AiInbox({ reviewerMode = false }) {
               activeChannel={channelFilter}
               socialCommentsCount={socialCommentsPanelCount}
               socialCommentsActive={false}
-              onOpenQuickReplies={() => setQuickRepliesConfigOpen(true)}
-              onOpenCommentsSettings={() => setCommentsSettingsOpen(true)}
-              onOpenInvoiceMessages={() => setInvoiceMessagesOpen(true)}
-              onOpenAutomations={() => openIntegrations("automations")}
-              onOpenIntegrations={() => openIntegrations()}
-              configActive={quickRepliesConfigOpen || commentsSettingsOpen || invoiceMessagesOpen || integrationsOpen}
+              onOpenControlCenter={openControlCenter}
+              configActive={controlCenterOpen}
               onSelectSocialComments={() => {
                 setInboxSection("social_comments");
                 setSelectedSocialCommentId(socialCommentIdentity(visibleSocialComments[0] || {}));

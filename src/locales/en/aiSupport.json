@@ -2267,5 +2267,149 @@
         }
       }
     }
+  },
+  "controlCenter": {
+    "title": "Control center",
+    "subtitle": "Every inbox and agent setting in one place, without leaving the conversations.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "unsaved": "Unsaved changes",
+    "loadError": "Failed to load settings",
+    "saveError": "Failed to save settings",
+    "neverAutomatic": "Never automatic",
+    "groups": {
+      "agent": "Agent",
+      "workspace": "Team workspace",
+      "insight": "Numbers",
+      "connections": "Connections",
+      "growth": "Growth"
+    },
+    "nav": {
+      "agent": "Agent voice",
+      "actions": "Agent actions",
+      "playground": "Try the agent",
+      "performance": "Team performance",
+      "broadcasts": "Campaigns"
+    },
+    "risk": {
+      "read": "Read",
+      "write": "Write",
+      "sensitive": "Sensitive"
+    },
+    "actions": {
+      "title": "What the agent may do",
+      "subtitle": "{{enabled}} of {{total}} actions enabled",
+      "guidanceLabel": "When should it do this?",
+      "guidancePlaceholder": "Describe when the agent should take this action…",
+      "note": "Each switch is the same flag that gates the action everywhere else, not a second copy of it. The note shapes when an enabled action fires; it can never enable a disabled one.",
+      "sendProductCard": {
+        "title": "Send product cards",
+        "hint": "When it recognises a product, send a card with photo and price per colour instead of describing it."
+      },
+      "suggestedReplies": {
+        "title": "Suggest replies to staff",
+        "hint": "In-inbox suggestions for a person to pick from."
+      },
+      "requestAddress": {
+        "title": "Send the shipping-details link",
+        "hint": "Switched off, the agent tells the customer the team will follow up instead of sending a link."
+      },
+      "createDraftOrder": {
+        "title": "Prepare a draft order",
+        "hint": "Writes the order as a draft for review, without confirming it."
+      },
+      "followups": {
+        "title": "Follow up a quiet customer",
+        "hint": "A nudge for a customer who stopped mid-conversation, within the limits set under Agent voice."
+      },
+      "confirmOrder": {
+        "title": "Confirm the order",
+        "hint": "Sensitive: even switched on, the agent only prepares the order for a person to approve."
+      },
+      "handoffToHuman": {
+        "title": "Hand off to a person",
+        "hint": "When the customer is upset, asks for a person, or there is a dispute over money.",
+        "locked": "Cannot be switched off: a customer must always be able to reach a person."
+      }
+    },
+    "playground": {
+      "title": "Try the agent",
+      "subtitle": "See its reply before a real customer does. Nothing is sent and no order is created.",
+      "channel": "Channel",
+      "productId": "Product id (optional)",
+      "productIdHint": "Leave empty for a general question.",
+      "message": "Customer message",
+      "messagePlaceholder": "e.g. How much is this model? Do you have size 42?",
+      "run": "Run it",
+      "safetyNote": "The test runs on a sandbox conversation: no customer is messaged and no order is recorded.",
+      "resultTitle": "Agent reply",
+      "noReply": "No reply",
+      "intent": "Intent",
+      "mode": "Reply mode",
+      "safety": "Safety guard",
+      "safetyClean": "Passed unchanged",
+      "wouldSend": "Would it send on its own?",
+      "yes": "Yes",
+      "no": "No",
+      "error": "Could not run the test"
+    },
+    "performance": {
+      "title": "Team performance",
+      "subtitle": "Who replied, how fast, and how much the agent carried alone.",
+      "range": "Range",
+      "lastDays": "Last {{count}} days",
+      "staff": "Person",
+      "staffCount": "People who replied",
+      "handled": "Conversations",
+      "replies": "Replies",
+      "median": "Median first reply",
+      "slowest": "Slowest first reply",
+      "avgFirstResponse": "Average first reply",
+      "avgFirstResponseHint": "From the customer's message to the first human reply.",
+      "aiShare": "Handled by the agent alone",
+      "aiShareHint": "Conversations the agent answered without anyone on the team stepping in.",
+      "excluded": "{{count}} conversations excluded from the timing",
+      "empty": "No team replies in this range.",
+      "note": "These figures come from the message rows, so they stay correct even after a conversation returns to the agent. First reply is measured against the customer message it answers, not the start of the conversation.",
+      "seconds": "{{count}}s",
+      "minutes": "{{count}} min",
+      "hours": "{{count}} h"
+    },
+    "broadcasts": {
+      "newTitle": "New campaign",
+      "newSubtitle": "One message to a group of customers. See the count first, then send.",
+      "name": "Campaign name",
+      "message": "Message",
+      "messageHint": "Write {{customer_name}} to insert the customer's name.",
+      "messagePlaceholder": "e.g. New models landed today 👟 want to see them?",
+      "audience": "Who receives it",
+      "minOrders": "Minimum orders",
+      "minSpent": "Minimum total spent",
+      "boughtWithin": "Bought within (days)",
+      "quietFor": "Has not bought for (days)",
+      "daysHint": "Leave empty if it does not matter.",
+      "frequencyCap": "Minimum days between messages",
+      "frequencyCapHint": "A customer messaged more recently than this is skipped.",
+      "countThem": "Count them",
+      "audienceCount": "{{count}} customers",
+      "send": "Send the campaign",
+      "confirmSend": "This will message {{count}} customers. Continue?",
+      "confirmStop": "Stop the campaign? Messages already sent cannot be recalled.",
+      "stop": "Stop",
+      "stopped": "Stopped, and {{count}} unsent messages were cancelled.",
+      "queued": "Queued: {{count}} messages.",
+      "queuedForMorning": "Queued: {{count}} messages — they go out in the morning, after quiet hours.",
+      "historyTitle": "Past campaigns",
+      "rowSummary": "{{queued}} queued · {{skipped}} skipped",
+      "empty": "No campaigns yet.",
+      "disabledNote": "Campaigns are switched off. You can build one and count the audience, but sending is refused until it is enabled server-side.",
+      "quietHours": "It is quiet hours now (22:00–09:00). Anything you send waits for the morning.",
+      "note": "A customer who replied with a stop word never enters another campaign, and messages leave through the same queue as order confirmations, with its per-minute limits — so the number does not get reported.",
+      "previewError": "Could not count the audience",
+      "createError": "Could not create the campaign",
+      "sendError": "Could not send the campaign",
+      "stopError": "Could not stop the campaign"
+    }
   }
 }

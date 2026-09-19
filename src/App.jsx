@@ -286,7 +286,6 @@ const SurveillanceNetwork = lazy(() => import("./modules/surveillance/pages/Surv
 const AiStudioWorkflowEditor = lazy(() => import("./modules/aiStudio/pages/AiStudioWorkflowEditor"));
 const AiStudioRestockRecovery = lazy(() => import("./modules/aiStudio/pages/AiStudioRestockRecovery"));
 const AiFollowups = lazy(() => import("./modules/aiSupport/pages/AiFollowups"));
-const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
 const AiSettings = lazy(() => import("./modules/aiSupport/pages/AiSettings"));
 const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAnalytics"));
 // The whole shop sits behind this one chunk, so a CDN edge still holding a 404 for
@@ -1035,14 +1034,9 @@ function App() {
             The redirect keeps saved links and the TikTok OAuth callback working. */}
         <Route path="admin/ai-channels" element={<Navigate to="/admin/ai-inbox?integrations=overview" replace />} />
 
-        <Route
-          path="admin/ai-agent-settings"
-          element={
-            <ProtectedRoute adminOnly>
-              <AiAgentSettings />
-            </ProtectedRoute>
-          }
-        />
+        {/* The agent's own knobs now live in the AI Inbox control center, beside the conversations
+            they change. Kept as a redirect so saved links and the sidebar entry still land somewhere. */}
+        <Route path="admin/ai-agent-settings" element={<Navigate to="/admin/ai-inbox?config=agent" replace />} />
 
         <Route
           path="ai/settings"

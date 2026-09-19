@@ -45,20 +45,35 @@ test("default quick replies are natural Arabic responses and legacy English defa
   assert.match(arabicDefaultsMigration, /إنهاء المحادثة/);
 });
 
+// Authoring quick replies moved into the inbox control center (2026-09-19): the rail's gear used to
+// open a five-item menu and now opens the center itself, with quick replies as one of its sections.
+// These guards follow the editor to its new home rather than pinning it to the deleted menu.
 test("desktop AI Inbox places Config above Social Comments and uses replies in the composer", () => {
-  const configPosition = desktop.indexOf('title={t("aiSupport.inbox.rail.config")}');
+  const configPosition = desktop.indexOf('title={t("aiSupport.controlCenter.title")}');
   const commentsPosition = desktop.indexOf('title={t("aiSupport.inbox.ui.socialComments")}');
   assert.ok(configPosition > 0 && commentsPosition > configPosition);
   assert.match(desktop, /<QuickRepliesPicker/);
   assert.match(desktop, /quickReplies=\{quickRepliesStore\.quickReplies\}/);
-  assert.match(desktop, /<QuickRepliesConfig/);
+  // The editor reaches the center through the same store the composer reads.
+  assert.match(desktop, /<InboxControlCenter[\s\S]*quickReplies=\{quickRepliesStore\}/);
 });
 
 test("PWA includes Config management and the same message composer picker", () => {
   assert.match(pwa, /\{ key: "config", labelKey: "aiSupport\.quickReplies\.config", icon: Settings \}/);
-  assert.match(pwa, /<QuickRepliesConfig/);
+  assert.match(pwa, /<InboxControlCenter[\s\S]*quickReplies=\{quickRepliesStore\}/);
   assert.match(pwa, /<QuickRepliesPicker/);
-  assert.match(pwa, /setQuickRepliesConfigOpen\(true\)/);
+  assert.match(pwa, /setControlCenterOpen\(true\)/);
+});
+
+test("the quick replies editor is a panel the control center mounts, not a modal of its own", () => {
+  const center = read("src/modules/aiSupport/components/controlCenter/InboxControlCenter.jsx");
+  assert.match(center, /<QuickRepliesPanel/);
+  assert.match(center, /onCreate=\{quickReplies\?\.createReply\}/);
+  assert.match(center, /onReorder=\{quickReplies\?\.reorderReplies\}/);
+  // The modal shell still exists for any caller that wants the editor on its own.
+  assert.match(components, /export function QuickRepliesPanel/);
+  assert.match(components, /export function QuickRepliesConfig/);
+  assert.match(components, /<QuickRepliesPanel mounted=\{open\}/);
 });
 
 test("reply management supports drag, arrows, editing and safe insert-before-send", () => {

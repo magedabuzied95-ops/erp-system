@@ -78,7 +78,7 @@ import PostProductLinksDrawer from "../components/socialAutomation/PostProductLi
 import PostAutomationSheet from "../components/socialAutomation/PostAutomationSheet.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
-import IntegrationsCenter from "../components/integrations/lazyIntegrationsCenter";
+import InboxControlCenter from "../components/controlCenter/lazyInboxControlCenter";
 // The suggested-reply card is shared with the desktop workspace, so resolving an
 // ambiguous product, picking a colour or ticking a batch works the same in both.
 import AiSuggestionCard from "../components/AiSuggestionCard";
@@ -88,8 +88,6 @@ import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } fro
 import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
 import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
 import { ForwardConversationSheet, QuickMediaCard, useQuickMedia } from "../components/QuickMediaCard.jsx";
-import { CommentsSettingsModal } from "../components/CommentsSettings.jsx";
-import { WhatsappMessageVariantsModal } from "../components/WhatsappMessageVariantsEditor.jsx";
 import {
   MAX_BATCH_PRODUCTS,
   SELECTION_MODES,
@@ -121,7 +119,7 @@ import {
   mergeConversationPages,
 } from "../services/inboxChannels";
 import "./AiInboxPwa.css";
-import { QuickRepliesConfig, QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
+import { QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
   GENERIC_CUSTOMER_NAMES,
@@ -3379,46 +3377,6 @@ function SmartphoneIcon() {
   return <MessageCircleMore className="h-5 w-5 text-slate-700" />;
 }
 
-// The settings the desktop reaches from its channel rail. On a phone there is no
-// rail, so they live behind the Config tab as one sheet.
-function SettingsSheet({ open, onClose, items = [] }) {
-  const { t } = useTranslation();
-  if (!open) return null;
-  return createPortal(
-    <div className="fixed inset-0 z-[9997] flex items-end bg-slate-950/60 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="max-h-[80dvh] w-full overflow-y-auto rounded-t-[28px] bg-white p-3 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-18px_40px_rgba(15,23,42,0.24)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-        <div className="px-1 pb-2 text-[15px] font-semibold text-slate-900">{t("aiSupport.quickReplies.config")}</div>
-        <div className="space-y-2">
-          {items.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={item.onClick}
-              className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-left shadow-sm"
-            >
-              <span className="flex min-w-0 items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600">
-                  <item.icon className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-slate-900">{item.label}</span>
-                  {item.hint ? <span className="block truncate text-xs text-slate-500">{item.hint}</span> : null}
-                </span>
-              </span>
-              <ChevronLeft className="h-4 w-4 shrink-0 rotate-180 text-slate-400" />
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 function HeaderOverflowMenu({ open, anchorRef, onClose, children }) {
   const { t } = useTranslation();
   const [menuStyle, setMenuStyle] = useState(null);
@@ -3550,13 +3508,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
   }, []);
   const readComposerText = useCallback(() => composerTextRef.current, []);
   const [composerMode, setComposerMode] = useState("reply");
-  const [quickRepliesConfigOpen, setQuickRepliesConfigOpen] = useState(false);
   // The settings the desktop workspace hides behind its channel rail: comment
   // automation, the WhatsApp receipt wordings, and the integrations centre.
-  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
-  const [commentsSettingsOpen, setCommentsSettingsOpen] = useState(false);
-  const [invoiceMessagesOpen, setInvoiceMessagesOpen] = useState(false);
-  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  // The phone gets the same control center as the desktop, opened from the Config tab. It renders
+  // as a bottom sheet at this width, so the old four-item SettingsSheet has nothing left to list.
+  const [controlCenterOpen, setControlCenterOpen] = useState(false);
 
   useEffect(() => {
     const handleCustomerAction = (event) => {
@@ -8086,18 +8042,6 @@ export default function AiInboxPwa({ portal = null } = {}) {
   return (
     <div className="ai-inbox-pwa h-dvh overflow-hidden bg-slate-50 text-slate-900">
       <div className="ai-pwa-shell mx-auto flex h-full w-full flex-col bg-slate-50">
-        <QuickRepliesConfig
-          open={quickRepliesConfigOpen}
-          onClose={() => setQuickRepliesConfigOpen(false)}
-          replies={quickRepliesStore.quickReplies}
-          loading={quickRepliesStore.loading}
-          saving={quickRepliesStore.saving}
-          onCreate={quickRepliesStore.createReply}
-          onUpdate={quickRepliesStore.updateReply}
-          onDelete={quickRepliesStore.deleteReply}
-          onReorder={quickRepliesStore.reorderReplies}
-          light={!isDarkTheme}
-        />
         {contentScreen && tab === "conversations" ? (
           <header
             ref={conversationHeaderRef}
@@ -8682,7 +8626,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                       return;
                     }
                     if (item.key === "config") {
-                      setSettingsSheetOpen(true);
+                      setControlCenterOpen(true);
                       return;
                     }
                     if (item.key === "social_comments") setSocialMobileDetailOpen(false);
@@ -8734,58 +8678,16 @@ export default function AiInboxPwa({ portal = null } = {}) {
           restockMode={availableBySizePickerConfig.restockMode}
           mode="inlineFullscreen"
         />
-        <SettingsSheet
-          open={settingsSheetOpen}
-          onClose={() => setSettingsSheetOpen(false)}
-          items={[
-            {
-              key: "quick_replies",
-              icon: MessageSquareText,
-              label: t("aiSupport.quickReplies.config"),
-              hint: t("aiSupport.inbox.pwa.quickRepliesHint"),
-              onClick: () => { setSettingsSheetOpen(false); setQuickRepliesConfigOpen(true); },
-            },
-            {
-              key: "comments_settings",
-              icon: MessageCircleMore,
-              label: t("aiSupport.inbox.pwa.commentsSettings"),
-              hint: t("aiSupport.inbox.pwa.commentsSettingsHint"),
-              onClick: () => { setSettingsSheetOpen(false); setCommentsSettingsOpen(true); },
-            },
-            {
-              key: "invoice_messages",
-              icon: FaWhatsapp,
-              label: t("aiSupport.inbox.pwa.receiptMessages"),
-              hint: t("aiSupport.inbox.pwa.receiptMessagesHint"),
-              onClick: () => { setSettingsSheetOpen(false); setInvoiceMessagesOpen(true); },
-            },
-            {
-              key: "integrations",
-              icon: Settings,
-              label: t("aiSupport.inbox.pwa.integrations"),
-              hint: t("aiSupport.inbox.pwa.integrationsHint"),
-              onClick: () => { setSettingsSheetOpen(false); setIntegrationsOpen(true); },
-            },
-          ]}
-        />
-        <CommentsSettingsModal
-          open={commentsSettingsOpen}
-          onClose={() => setCommentsSettingsOpen(false)}
-          selectedPost={selectedSocialPost}
-          postToolsEnabled={isSocialMode}
-        />
-        <WhatsappMessageVariantsModal
-          open={invoiceMessagesOpen}
-          onClose={() => setInvoiceMessagesOpen(false)}
-          initialType="invoice_receipt"
-        />
-        {integrationsOpen ? (
+        {controlCenterOpen ? (
           <Suspense fallback={null}>
-            <IntegrationsCenter
+            <InboxControlCenter
               open
-              initialTab="overview"
+              initialSection="agent"
               headers={headers}
-              onClose={() => setIntegrationsOpen(false)}
+              tenantId={tenantId}
+              onClose={() => setControlCenterOpen(false)}
+              quickReplies={quickRepliesStore}
+              commentsProps={{ selectedPost: selectedSocialPost, postToolsEnabled: isSocialMode }}
             />
           </Suspense>
         ) : null}

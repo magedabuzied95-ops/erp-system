@@ -174,7 +174,9 @@ export function QuickRepliesPicker({ replies = [], customerName = "", value = ""
   );
 }
 
-export function QuickRepliesConfig({ open, onClose, replies = [], loading = false, saving = false, onCreate, onUpdate, onDelete, onReorder, light: lightOverride }) {
+// The body, with no shell of its own, so the same editor can sit inside the modal below or inside a
+// section of the inbox control center. `mounted` replaces the modal's `open` for the reset-on-close effect.
+export function QuickRepliesPanel({ mounted = true, replies = [], loading = false, saving = false, onCreate, onUpdate, onDelete, onReorder, light: lightOverride }) {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const light = typeof lightOverride === "boolean" ? lightOverride : theme?.mode === "light";
@@ -183,13 +185,12 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
   const [draggedId, setDraggedId] = useState(null);
 
   useEffect(() => {
-    if (!open) {
+    if (!mounted) {
       setEditingId(null);
       setDraft({ shortcut: "", name: "", message: "", is_active: true });
     }
-  }, [open]);
+  }, [mounted]);
 
-  if (!open) return null;
   const nextShortcut = () => {
     const used = new Set(asArray(replies).map((reply) => Number(reply.shortcut)).filter((value) => Number.isInteger(value) && value > 0));
     let candidate = 1;
@@ -251,17 +252,7 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
   };
 
   return (
-    <div className="fixed inset-0 z-[260] flex items-end justify-center bg-[#17130d]/60 p-3 backdrop-blur-sm md:items-center" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
-      <section className={`flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_100px_rgba(47,35,12,0.36)] ${light ? "border-[#d8cba9] bg-[#f8f4eb] text-[#28251f]" : "border-amber-300/15 bg-[#181a18] text-white"}`}>
-        <header className={`flex items-center justify-between gap-3 border-b px-4 py-4 md:px-5 ${light ? "border-[#ded4bd] bg-[#f5efe2]" : "border-white/10 bg-[#171917]"}`}>
-          <div className="flex items-center gap-3">
-            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${light ? "bg-[#fff8e7] text-[#a87400] ring-1 ring-[#e6d4a6]" : "bg-amber-400/10 text-amber-200"}`}><Settings className="h-5 w-5" /></span>
-            <div><div className="text-lg font-black">{t("aiSupport.quickReplies.config")}</div><div className={`text-xs ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.subtitle")}</div></div>
-          </div>
-          <button type="button" onClick={onClose} className={`grid h-10 w-10 place-items-center rounded-xl transition ${light ? "bg-white text-[#625b4d] ring-1 ring-[#e3dbc9] hover:bg-[#f5efe2]" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"}`}><X className="h-5 w-5" /></button>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col md:flex-row">
           <div className={`min-h-0 flex-1 overflow-y-auto p-3 md:p-4 ${light ? "bg-[#f3eee4]" : "bg-black/10"}`}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div><div className="text-sm font-black">{t("aiSupport.quickReplies.title")}</div><div className={`text-[11px] ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.reorderHint")}</div></div>
@@ -324,8 +315,27 @@ export function QuickRepliesConfig({ open, onClose, replies = [], loading = fals
                 <div className="mt-1 text-xs leading-5">{t("aiSupport.quickReplies.reusableDescription")}</div>
               </div>
             )}
-          </aside>
-        </div>
+      </aside>
+    </div>
+  );
+}
+
+export function QuickRepliesConfig({ open, onClose, light: lightOverride, ...panelProps }) {
+  const { t } = useTranslation();
+  const { theme } = useTheme();
+  const light = typeof lightOverride === "boolean" ? lightOverride : theme?.mode === "light";
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[260] flex items-end justify-center bg-[#17130d]/60 p-3 backdrop-blur-sm md:items-center" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+      <section className={`flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border shadow-[0_30px_100px_rgba(47,35,12,0.36)] ${light ? "border-[#d8cba9] bg-[#f8f4eb] text-[#28251f]" : "border-amber-300/15 bg-[#181a18] text-white"}`}>
+        <header className={`flex items-center justify-between gap-3 border-b px-4 py-4 md:px-5 ${light ? "border-[#ded4bd] bg-[#f5efe2]" : "border-white/10 bg-[#171917]"}`}>
+          <div className="flex items-center gap-3">
+            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${light ? "bg-[#fff8e7] text-[#a87400] ring-1 ring-[#e6d4a6]" : "bg-amber-400/10 text-amber-200"}`}><Settings className="h-5 w-5" /></span>
+            <div><div className="text-lg font-black">{t("aiSupport.quickReplies.config")}</div><div className={`text-xs ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.subtitle")}</div></div>
+          </div>
+          <button type="button" onClick={onClose} className={`grid h-10 w-10 place-items-center rounded-xl transition ${light ? "bg-white text-[#625b4d] ring-1 ring-[#e3dbc9] hover:bg-[#f5efe2]" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"}`}><X className="h-5 w-5" /></button>
+        </header>
+        <QuickRepliesPanel mounted={open} light={light} {...panelProps} />
       </section>
     </div>
   );
