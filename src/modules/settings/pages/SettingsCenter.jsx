@@ -1551,7 +1551,7 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const defaultPrice = Number(value("storefront.default_shipping_price") || 0);
   const storeFreeShippingThreshold = Math.max(0, Number(value("storefront.free_shipping_threshold") || 0));
   const defaultProvider = normalizeProviderKey(value("orders.shipping_provider"));
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("prices");
   const activeZones = zones.filter((zone) => zone.active).length;
   const proofZones = zones.filter((zone) => zone.requires_shipping_proof).length;
   const freeShippingRules = zones.filter((zone) => Number(zone.free_shipping_threshold || 0) > 0).length;
@@ -1560,7 +1560,8 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
   const handlingMaxDays = value(SHIPPING_HANDLING_MAX_KEY);
   const handlingError = validateGlobalHandlingTime(handlingMinDays, handlingMaxDays, language);
   const tabs = [
-    ["overview", copy.tabOverview, Truck],
+    ["prices", copy.tabPrices, Truck],
+    ["overview", copy.tabOverview, Clock3],
     ["locations", copy.tabLocations, MapPin],
     ["zones", copy.tabZones, Layers3],
     ["free", copy.tabFree, Package],
@@ -1590,6 +1591,20 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           </button>
         ))}
       </div>
+
+      {activeTab === "prices" ? (
+        <div className="grid gap-5">
+          <ShippingPriceList
+            zones={zones}
+            defaultPrice={defaultPrice}
+            language={language}
+            copy={copy}
+            onChange={(next) => updateValue("storefront.shipping_zones", next)}
+            onDefaultPriceChange={(next) => updateValue("storefront.default_shipping_price", next)}
+          />
+          <ShippingRuleTester zones={zones} defaultPrice={defaultPrice} defaultProvider={defaultProvider} storeFreeShippingThreshold={storeFreeShippingThreshold} copy={copy} />
+        </div>
+      ) : null}
 
       {activeTab === "overview" ? (
         <div className="grid gap-5">
@@ -1655,14 +1670,6 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
             )}
           </section>
           <DeliveryEstimateSettings value={value} updateValue={updateValue} language={language} zones={zones} />
-          <VisualSection icon={Truck} title={copy.overviewTitle} description={copy.overviewDescription}>
-            <div className="grid gap-4 xl:grid-cols-2">
-              {renderField(setting("storefront.default_shipping_price"), true)}
-            </div>
-          </VisualSection>
-          <ShippingQuickSetup zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
-          <ShippingTemplates zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
-          <ShippingRuleTester zones={zones} defaultPrice={defaultPrice} defaultProvider={defaultProvider} storeFreeShippingThreshold={storeFreeShippingThreshold} copy={copy} />
         </div>
       ) : null}
 
@@ -1703,13 +1710,20 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
       ) : null}
 
       {activeTab === "advanced" ? (
-        <VisualSection icon={SlidersHorizontal} title={copy.advancedTitle} description={copy.advancedDescription}>
-          <div className="grid gap-4 xl:grid-cols-2">
-            {renderField(setting("orders.shipping_provider"), true)}
-            {renderField(setting("storefront.shipping_locations"), true)}
-            {renderField(setting("storefront.shipping_zones"), true)}
-          </div>
-        </VisualSection>
+        <div className="grid gap-5">
+          <p role="note" className="rounded-2xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm font-black leading-6 text-amber-800 dark:border-amber-300/20 dark:bg-amber-400/10 dark:text-amber-200">
+            {copy.bulkToolsWarning}
+          </p>
+          <ShippingQuickSetup zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+          <ShippingTemplates zones={zones} defaultPrice={defaultPrice} copy={copy} onChange={(next) => updateValue("storefront.shipping_zones", next)} />
+          <VisualSection icon={SlidersHorizontal} title={copy.advancedTitle} description={copy.advancedDescription}>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {renderField(setting("orders.shipping_provider"), true)}
+              {renderField(setting("storefront.shipping_locations"), true)}
+              {renderField(setting("storefront.shipping_zones"), true)}
+            </div>
+          </VisualSection>
+        </div>
       ) : null}
     </div>
   );
@@ -2225,6 +2239,58 @@ function ProviderBadge({ provider, active = false, onClick }) {
   return <button type="button" onClick={onClick} className={className}>{content}</button>;
 }
 
+// The one list the owner asked for: a place and the fee the checkout charges for it. It edits the
+// same `storefront.shipping_zones` rows the full editor does, so there is still one source of truth.
+function ShippingPriceList({ zones, defaultPrice, language, copy, onChange, onDefaultPriceChange }) {
+  const arabicNames = useMemo(() => new Map(egyptGovernorates.map(([, name, arabic]) => [normalizeZoneKey(name), arabic])), []);
+  const rowLabel = (zone) => {
+    const governorate = language === "ar" ? arabicNames.get(normalizeZoneKey(zone.governorate)) || zone.governorate : zone.governorate;
+    const inner = [zone.city, zone.area].filter(Boolean);
+    if (!inner.length) return governorate;
+    const alias = zone.arabic_alias || shippingZonePresets.find((preset) => ruleIdentity(preset) === ruleIdentity(zone))?.arabic_alias || "";
+    const innerLabel = language === "ar" && alias && alias !== governorate ? alias : inner.join(" / ");
+    return `${governorate} — ${innerLabel}`;
+  };
+  const rows = useMemo(
+    () => zones.map((zone, index) => ({ zone, index, label: rowLabel(zone) })).sort((a, b) => a.label.localeCompare(b.label, language === "ar" ? "ar" : "en") || a.index - b.index),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [zones, language],
+  );
+  const patchPrice = (id, price) => onChange(zones.map((zone) => (zone.id === id ? { ...zone, price } : zone)));
+  // inputClass is `w-full`, which would squeeze the governorate name out of the row.
+  const priceInput = `${inputClass.replace("w-full", "w-24")} h-[var(--control-height-lg)] shrink-0 rounded-[var(--radius-control)] text-center text-base font-black`;
+
+  return (
+    <VisualSection icon={Truck} title={copy.pricesTitle} description={copy.pricesDescription}>
+      <div data-testid="shipping-price-list" className="grid gap-2 sm:grid-cols-[repeat(auto-fill,minmax(16rem,1fr))]">
+        {rows.map(({ zone, label }) => (
+          <label key={zone.id} className={`flex items-center justify-between gap-3 rounded-2xl p-3 ${fieldSurface} ${zone.active ? "" : "opacity-60"}`}>
+            <span className="min-w-0">
+              <span className={`block truncate text-sm font-black ${headingText}`}>{label}</span>
+              {zone.active ? null : <span className={`block text-xs font-bold ${mutedText}`}>{copy.pricesInactive}</span>}
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <input type="number" min="0" inputMode="numeric" value={zone.price} onChange={(event) => patchPrice(zone.id, Number(event.target.value))} className={priceInput} />
+              <span className={`text-xs font-black ${mutedText}`}>{copy.pricesCurrency}</span>
+            </span>
+          </label>
+        ))}
+        <label className={`flex items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-300 p-3 dark:border-white/20 ${fieldSurface}`}>
+          <span className="min-w-0">
+            <span className={`block text-sm font-black ${headingText}`}>{copy.pricesFallback}</span>
+            <span className={`block text-xs font-bold ${mutedText}`}>{copy.pricesFallbackHint}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            <input type="number" min="0" inputMode="numeric" value={defaultPrice} onChange={(event) => onDefaultPriceChange(Number(event.target.value))} className={priceInput} />
+            <span className={`text-xs font-black ${mutedText}`}>{copy.pricesCurrency}</span>
+          </span>
+        </label>
+      </div>
+      <p className={`mt-4 text-xs font-bold leading-6 ${bodyText}`}>{copy.pricesSaveHint}</p>
+    </VisualSection>
+  );
+}
+
 function ShippingQuickSetup({ zones, defaultPrice, copy, onChange }) {
   const [prices, setPrices] = useState({
     damietta: 45,
@@ -2385,6 +2451,15 @@ const shippingUi = {
     activeZones: "Active zones",
     proofZones: "Proof required",
     freeRules: "Free shipping rules",
+    tabPrices: "Governorate prices",
+    pricesTitle: "Shipping price per governorate",
+    pricesDescription: "This is the fee the checkout charges. A city row wins over its governorate.",
+    pricesFallback: "Any other place",
+    pricesFallbackHint: "Charged when the address matches no row above.",
+    pricesInactive: "Switched off — the fallback price applies",
+    pricesCurrency: "EGP",
+    pricesSaveHint: "Press Save after editing. Free shipping rules can still waive the fee.",
+    bulkToolsWarning: "The tools below rewrite the price of every governorate at once. Their numbers are presets, not your current prices.",
     tabOverview: "Overview",
     tabLocations: "Locations",
     tabZones: "Zones",
@@ -2504,6 +2579,21 @@ const shippingUi = {
     activeZones: "المناطق النشطة",
     proofZones: "مناطق إثبات الدفع",
     freeRules: "قواعد الشحن المجاني",
+    tabPrices: "أسعار المحافظات",
+    tabOverview: "مدة التجهيز والتوصيل",
+    tabLocations: "الأماكن",
+    tabZones: "المناطق بالتفصيل",
+    tabFree: "الشحن المجاني",
+    tabProviders: "شركات الشحن",
+    tabAdvanced: "متقدم",
+    pricesTitle: "سعر الشحن لكل محافظة",
+    pricesDescription: "ده السعر اللي العميل بيدفعه في صفحة الدفع. لو فيه سطر لمدينة جوه محافظة، سعر المدينة هو اللي بيتطبق عليها.",
+    pricesFallback: "أي مكان تاني",
+    pricesFallbackHint: "بيتطبق لو العنوان مش مطابق لأي سطر فوق.",
+    pricesInactive: "متوقفة — بيتطبق عليها سعر «أي مكان تاني»",
+    pricesCurrency: "ج.م",
+    pricesSaveHint: "بعد التعديل دوس «حفظ التغييرات» فوق. قواعد الشحن المجاني ممكن تلغي الرسوم لو الأوردر عدّى الحد.",
+    bulkToolsWarning: "الأدوات اللي تحت بتغيّر سعر كل المحافظات مرة واحدة. الأرقام اللي فيها قوالب جاهزة، مش أسعارك الحالية.",
     overviewTitle: "ملخص الشحن",
     overviewDescription: "سعر افتراضي وقواعد تشغيل يستخدمها المتجر في خطوة الدفع.",
     zonesTitle: "مناطق الشحن",
