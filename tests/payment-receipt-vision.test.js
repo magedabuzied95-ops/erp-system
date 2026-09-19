@@ -49,6 +49,23 @@ test("no model configured, or the flag switched off, means the feature is simply
   assert.equal(receiptVisionProvider({ AI_VISION_MODEL: "qwen-vl", AI_TEXT_BASE_URL: "https://api.groq.com/openai" }).kind, "compatible");
 });
 
+test("receipts can be given a model of their own, so a busy inbox cannot spend their budget", () => {
+  const shared = { AI_VISION_MODEL: "qwen-vl", AI_TEXT_BASE_URL: "https://api.groq.com/openai", OPENAI_API_KEY: "sk-test" };
+  assert.equal(receiptVisionProvider(shared).model, "qwen-vl", "no override: receipts ride with customer photos");
+  // A model alone means OpenAI, which has a budget of its own.
+  const ownOpenAi = receiptVisionProvider({ ...shared, PAYMENT_RECEIPT_VISION_MODEL: "gpt-4o-mini" });
+  assert.equal(ownOpenAi.kind, "openai");
+  assert.equal(ownOpenAi.model, "gpt-4o-mini");
+  assert.equal(ownOpenAi.baseUrl, "https://api.openai.com/v1");
+  // A model with a server of its own rides that server instead, and /v1 is added once.
+  const ownServer = receiptVisionProvider({ ...shared, PAYMENT_RECEIPT_VISION_MODEL: "llava", PAYMENT_RECEIPT_VISION_BASE_URL: "http://10.0.0.5:11434" });
+  assert.equal(ownServer.kind, "compatible");
+  assert.equal(ownServer.baseUrl, "http://10.0.0.5:11434/v1");
+  assert.equal(receiptVisionProvider({ ...shared, PAYMENT_RECEIPT_VISION_MODEL: "llava", PAYMENT_RECEIPT_VISION_BASE_URL: "http://10.0.0.5:11434/v1" }).baseUrl, "http://10.0.0.5:11434/v1");
+  // The switch still wins over every one of them.
+  assert.equal(receiptVisionProvider({ ...shared, PAYMENT_RECEIPT_VISION_MODEL: "gpt-4o-mini", PAYMENT_RECEIPT_VISION: "off" }), null);
+});
+
 test("the address read off the receipt is what the InstaPay notification then matches", () => {
   const notification = parseTransferSms("انستاباي لقد استلمت 1.00 جنيه من zeinababdelnasser@instapay", { receivedAt: new Date("2026-09-20T02:07:31Z") });
   const read = normalizeReceipt({ sender_address: "zeinababdelnasser@instapay", amount: "1.00" });

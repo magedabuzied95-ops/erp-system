@@ -55,16 +55,41 @@ export const normalizeReceipt = (raw = {}) => ({
 
 const envFlagDisabled = (value = "") => ["0", "false", "off", "no"].includes(cleanText(value).toLowerCase());
 
-// The compatible server configured for customer photos reads receipts too; OpenAI stays the
-// fallback, as it is everywhere else. No model configured at all ⇒ the feature is simply off.
+const RECEIPT_TIMEOUT_MS = 30_000;
+
+export const openAiVisionProvider = (env = process.env, model = "") => {
+  const apiKey = cleanText(env.OPENAI_AGENT_API_KEY || env.OPENAI_API_KEY);
+  const chosen = cleanText(model || env.OPENAI_VISION_MODEL || env.OPENAI_MODEL);
+  if (!apiKey || !chosen) return null;
+  return { kind: "openai", baseUrl: "https://api.openai.com/v1", apiKey, model: chosen, timeout: RECEIPT_TIMEOUT_MS };
+};
+
+/*
+ * The compatible server configured for customer photos reads receipts too, and OpenAI stays the
+ * fallback, as it is everywhere else. No model configured at all ⇒ the feature is simply off.
+ *
+ * PAYMENT_RECEIPT_VISION_MODEL gives receipts a model of their own (with _BASE_URL / _API_KEY, or
+ * OpenAI when no base URL is given). Live 2026-09-20 the Groq day budget the inbox and the photo
+ * search share was at 199,590 of 200,000 tokens by 01:40, and a receipt costs ~3,000 — so on a
+ * busy day receipts would find nothing left. Their own key is how they stop queueing behind chat.
+ */
 export const receiptVisionProvider = (env = process.env) => {
   if (envFlagDisabled(env.PAYMENT_RECEIPT_VISION)) return null;
+  const own = cleanText(env.PAYMENT_RECEIPT_VISION_MODEL);
+  if (own) {
+    const origin = cleanText(env.PAYMENT_RECEIPT_VISION_BASE_URL).replace(/\/+$/, "");
+    if (!origin) return openAiVisionProvider(env, own);
+    return {
+      kind: "compatible",
+      baseUrl: /\/v1$/i.test(origin) ? origin : `${origin}/v1`,
+      apiKey: cleanText(env.PAYMENT_RECEIPT_VISION_API_KEY || env.AI_VISION_API_KEY || env.AI_TEXT_API_KEY) || "local",
+      model: own,
+      timeout: RECEIPT_TIMEOUT_MS,
+    };
+  }
   const configured = resolveVisionProvider(env);
   if (configured.kind === "compatible") return configured;
-  const apiKey = cleanText(env.OPENAI_AGENT_API_KEY || env.OPENAI_API_KEY);
-  const model = cleanText(env.OPENAI_VISION_MODEL || env.OPENAI_MODEL);
-  if (!apiKey || !model) return null;
-  return { baseUrl: "https://api.openai.com/v1", apiKey, model, timeout: 30_000 };
+  return openAiVisionProvider(env);
 };
 
 // A 10 MB camera photo is mostly noise to a reader. Straighten it by its EXIF orientation —

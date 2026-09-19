@@ -15,7 +15,7 @@ import "dotenv/config";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { readReceiptImage, receiptVisionProvider } from "../modules/walletTransfers/paymentReceiptVision.js";
+import { openAiVisionProvider, readReceiptImage, receiptVisionProvider } from "../modules/walletTransfers/paymentReceiptVision.js";
 
 const arg = (name) => {
   const found = process.argv.slice(2).find((value) => value.startsWith(`--${name}=`));
@@ -37,7 +37,9 @@ const newestProof = async () => {
 };
 
 const main = async () => {
-  const provider = receiptVisionProvider();
+  // --openai proves the fallback while the shared day budget on the compatible server is spent.
+  const openai = process.argv.includes("--openai");
+  const provider = openai ? openAiVisionProvider(process.env, arg("model")) : receiptVisionProvider();
   if (!provider) {
     console.error("No vision model configured. Set AI_VISION_MODEL (+ AI_VISION_BASE_URL / AI_TEXT_BASE_URL) or OPENAI_VISION_MODEL.");
     console.error("PAYMENT_RECEIPT_VISION=off also switches receipt reading off entirely.");
