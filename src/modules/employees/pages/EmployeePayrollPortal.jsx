@@ -2,6 +2,7 @@ import { getAppTimezone } from "../../../shared/lib/appTimezone";
 import { createChunkPreloader } from "../../../shared/utils/chunkLoadRecovery";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import usePortalCatalog from "../hooks/usePortalCatalog";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
@@ -814,7 +815,7 @@ const safeNow = () => {
 };
 
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
-const EMPLOYEE_PORTAL_PWA_VERSION = "20260909-offline-media";
+const EMPLOYEE_PORTAL_PWA_VERSION = "20260919-product-catalog";
 
 // The store's zone, never the phone's: an employee whose handset roamed or was never set saw a
 // check-in time hours away from the one on the branch wall.
@@ -1606,6 +1607,16 @@ export default function EmployeePayrollPortal() {
     return () => cancel(handle);
   }, []);
   const [portal, setPortal] = useState(null);
+  // Opening the portal is when the phone usually still has signal, so this is
+  // where the product catalogue (and its pictures) is brought onto the device —
+  // before the employee walks into the stockroom and searches for something.
+  // Nothing here renders; المنتجات and الجرد read the same cache.
+  usePortalCatalog(token, {
+    enabled: Boolean(portal?.employee?.id),
+    identity: portal?.employee?.id
+      ? { tenantId: portal.employee.tenant_id ?? null, employeeId: portal.employee.id, branchId: portal.employee.branch_id ?? null }
+      : null,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [salesBoard, setSalesBoard] = useState(SALES_BOARD_EMPTY);

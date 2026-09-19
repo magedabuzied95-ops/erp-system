@@ -20,6 +20,8 @@ import {
   normalizeClassificationValue,
 } from "../../products/lib/productClassifications";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
+import usePortalCatalog from "../hooks/usePortalCatalog";
+import { SEARCH_NETWORK_TIMEOUT_MS, searchPortalProducts } from "../services/employeeDrafts/portalCatalogCache.js";
 import "./EmployeePortalWorkspaces.m1.css";
 
 import { useTranslation } from "react-i18next";
@@ -977,6 +979,16 @@ export default function EmployeePortalProducts() {
     employeeId: employee?.id ?? null,
     branchId: employee?.branch_id ?? null,
   }), [employee]);
+  // The phone's own copy of the catalogue. It answers every list query first, so
+  // a weak line shows results immediately and the server only refines them.
+  const { snapshot: catalogSnapshot } = usePortalCatalog(token, {
+    identity: warehouseIdentity.tenantId && warehouseIdentity.employeeId && warehouseIdentity.branchId ? warehouseIdentity : null,
+  });
+  const catalogSnapshotRef = useRef(null);
+  catalogSnapshotRef.current = catalogSnapshot;
+  // Where the rows on screen came from: "server" is authoritative, "cache" means
+  // the phone answered and the server has not (yet, or at all).
+  const [listSource, setListSource] = useState("server");
   const filtersPanelRef = useRef(null);
   const searchInputRef = useRef(null);
   const homePath = useMemo(() => buildEmployeePortalHomePath({ pathname: location.pathname, token }), [location.pathname, token]);
@@ -995,6 +1007,21 @@ export default function EmployeePortalProducts() {
     });
   }, [directLookup.action, directLookup.color, directLookup.colorId, directLookup.productId, directLookup.size, directLookup.variantId, searchParams]);
 
+  // The same list query, answered by the phone. Reads the snapshot through a ref
+  // so a background catalogue refresh never re-fires the network effect below.
+  const answerFromCache = useCallback((page) => {
+    const snapshot = catalogSnapshotRef.current;
+    if (!snapshot) return null;
+    return searchPortalProducts(snapshot, {
+      q: deferredSearch,
+      filters,
+      size: selectedFilterSize,
+      page,
+      limit: EMPLOYEE_PRODUCTS_PAGE_SIZE,
+      inStockOnly: filters.inStockOnly !== false,
+    });
+  }, [deferredSearch, filters, selectedFilterSize]);
+
   useEffect(() => {
     let cancelled = false;
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -1007,18 +1034,35 @@ export default function EmployeePortalProducts() {
         // in-flight "load more" from the old filter is discarded on arrival.
         const requestId = productsRequestIdRef.current + 1;
         productsRequestIdRef.current = requestId;
+        // Beat one: the phone answers. No network, no spinner — on a weak line
+        // this is the difference between a list and a wait.
+        const local = answerFromCache(1);
+        if (local) {
+          setProducts(mapCompactCatalog(local.products));
+          setProductsPage(1);
+          setHasMoreProducts(local.has_more);
+          setListSource("cache");
+          setLoading(false);
+        }
+        // Beat two: the server refines, inside a hard cap. With a local answer
+        // already on screen there is nothing to gain from waiting out a line
+        // that is not going to deliver.
         const response = await getEmployeePortalCompactProducts(
           token,
           buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize, page: 1 }),
-          { signal: controller?.signal }
+          { signal: controller?.signal, timeoutMs: local ? SEARCH_NETWORK_TIMEOUT_MS : undefined }
         );
         if (cancelled || requestId !== productsRequestIdRef.current) return;
         setProducts(mapCompactCatalog(response?.products));
         setProductsPage(1);
         setHasMoreProducts(Boolean(response?.has_more));
         setEmployee(response?.employee || null);
+        setListSource("server");
       } catch (err) {
         if (cancelled || err?.name === "AbortError" || err?.name === "CanceledError") return;
+        // The phone already answered: a server that timed out or is unreachable
+        // is not an error the employee needs to see, and must not wipe the list.
+        if (answerFromCache(1)) return;
         setError(err?.responseBody?.message_ar || err?.responseBody?.message || err?.message || tt("employeePortal.products.loadFailed"));
         setProducts([]);
         setHasMoreProducts(false);
@@ -1056,26 +1100,61 @@ export default function EmployeePortalProducts() {
     const requestId = productsRequestIdRef.current;
     const nextPage = productsPage + 1;
     setLoadingMoreProducts(true);
-    try {
-      const response = await getEmployeePortalCompactProducts(
-        token,
-        buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize, page: nextPage })
-      );
-      if (requestId !== productsRequestIdRef.current) return;
-      const incoming = mapCompactCatalog(response?.products);
+    const appendPage = (incoming, hasMore) => {
       setProducts((current) => {
         const seen = new Set((Array.isArray(current) ? current : []).map(stableProductKey));
         return [...(Array.isArray(current) ? current : []), ...incoming.filter((item) => !seen.has(stableProductKey(item)))];
       });
       setProductsPage(nextPage);
-      setHasMoreProducts(Boolean(response?.has_more));
+      setHasMoreProducts(hasMore);
+    };
+    try {
+      // A list the phone answered keeps paging from the phone: mixing a server
+      // page into a cached list would interleave two different orderings.
+      if (listSource === "cache") {
+        const local = answerFromCache(nextPage);
+        if (local) {
+          appendPage(mapCompactCatalog(local.products), local.has_more);
+          return;
+        }
+      }
+      const response = await getEmployeePortalCompactProducts(
+        token,
+        buildListParams({ search: deferredSearch, filters, selectedSize: selectedFilterSize, page: nextPage }),
+        { timeoutMs: catalogSnapshotRef.current ? SEARCH_NETWORK_TIMEOUT_MS * 2 : undefined }
+      );
+      if (requestId !== productsRequestIdRef.current) return;
+      const incoming = mapCompactCatalog(response?.products);
+      appendPage(incoming, Boolean(response?.has_more));
     } catch (err) {
       if (err?.name === "AbortError" || err?.name === "CanceledError") return;
+      // The line gave out mid-scroll: the phone can still serve the next page.
+      const local = answerFromCache(nextPage);
+      if (local && requestId === productsRequestIdRef.current) {
+        appendPage(mapCompactCatalog(local.products), local.has_more);
+        return;
+      }
       toast.error(err?.responseBody?.message_ar || err?.message || tt("employeePortal.products.loadMoreFailed"));
     } finally {
       setLoadingMoreProducts(false);
     }
-  }, [loadingMoreProducts, hasMoreProducts, productsPage, token, deferredSearch, filters, selectedFilterSize]);
+  }, [answerFromCache, listSource, loadingMoreProducts, hasMoreProducts, productsPage, token, deferredSearch, filters, selectedFilterSize]);
+
+  // Cold open: the list request can leave before IndexedDB has handed over the
+  // snapshot. When it lands and the server still has not answered, the phone does.
+  useEffect(() => {
+    if (!catalogSnapshot) return;
+    if (listSource === "server" && !loading && !error) return;
+    const local = answerFromCache(1);
+    if (!local || (!local.products.length && !error)) return;
+    setProducts(mapCompactCatalog(local.products));
+    setProductsPage(1);
+    setHasMoreProducts(local.has_more);
+    setListSource("cache");
+    setLoading(false);
+    setError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogSnapshot]);
 
   useEffect(() => {
     lookupDoneRef.current = false;
@@ -1161,13 +1240,16 @@ export default function EmployeePortalProducts() {
 
   const normalizedProducts = useMemo(() => (Array.isArray(products) ? products : []).map(normalizeProduct), [products]);
 
-  const resolveScannedProductFromCatalog = useCallback((scannedValue) => {
+  // `productList` defaults to the page on screen; the scanner also runs it over
+  // products rebuilt from the phone's catalogue, so a code that is not on the
+  // current page still resolves without a round trip.
+  const resolveScannedProductFromCatalog = useCallback((scannedValue, productList = normalizedProducts) => {
     const lookupValues = scanValueVariants(scannedValue);
-    if (!lookupValues.length || !normalizedProducts.length) return null;
+    if (!lookupValues.length || !productList.length) return null;
 
     const matchesCandidate = (candidate) => lookupValues.some((lookup) => scanFieldMatches(lookup, candidate));
 
-    for (const product of normalizedProducts) {
+    for (const product of productList) {
       if (!product) continue;
       const variants = Array.isArray(product.variants) ? product.variants : [];
       const productCandidates = [
@@ -1612,6 +1694,22 @@ export default function EmployeePortalProducts() {
       return localMatch;
     }
 
+    // Second, the phone's whole catalogue. A scan is an exact code, which the
+    // cache resolves as well as the server does — and at once, where the heavy
+    // lookup below can hang a weak line for the length of its timeout.
+    const snapshot = catalogSnapshotRef.current;
+    if (snapshot) {
+      const cached = searchPortalProducts(snapshot, { q: lookupValue, limit: 20, inStockOnly: true });
+      const cachedMatch = resolveScannedProductFromCatalog(lookupValue, mapCompactCatalog(cached.products).map(normalizeProduct));
+      if (cachedMatch) {
+        console.info("[employee-scanner:device-catalog-match]", {
+          scannedValue: lookupValue,
+          productId: cachedMatch.product?.id ?? cachedMatch.product?.product_id ?? null,
+        });
+        return cachedMatch;
+      }
+    }
+
     const response = await getEmployeePortalProducts(token, {
       search: lookupValue,
       qr_token: lookupValue,
@@ -1884,6 +1982,14 @@ export default function EmployeePortalProducts() {
             <h2 className="m1-section-title text-zinc-300">{tt("employeePortal.products.results")}</h2>
             <div className="text-xs font-semibold text-zinc-500">{visibleProducts.length.toLocaleString("ar-EG")} منتج</div>
           </div>
+          {/* Honest about where the rows came from: the phone answered, and stock
+              on it is as of the last sync until the server confirms. */}
+          {listSource === "cache" && visibleProducts.length ? (
+            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-200" role="status">
+              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package2 className="h-3.5 w-3.5" />}
+              {tt("employeePortal.products.fromDevice")}
+            </div>
+          ) : null}
           <ProductGrid
             loading={loading && !visibleProducts.length}
             error={error}

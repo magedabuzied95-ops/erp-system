@@ -704,7 +704,8 @@
     "loadMoreFailed": "Unable to load more products",
     "searchPlaceholder": "Search by name, model, barcode, or code",
     "results": "Results",
-    "active": "Active"
+    "active": "Active",
+    "fromDevice": "Results from this phone — stock as of the last sync"
   },
   "weekdays": {
     "sunday": "Sunday",

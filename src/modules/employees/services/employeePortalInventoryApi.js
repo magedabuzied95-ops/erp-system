@@ -15,8 +15,10 @@ export const updateEmployeePortalInventorySession = (token, sessionId, body = {}
 export const openEmployeePortalInventorySession = (token, sessionId) =>
   api.post(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/open`);
 
-export const lookupEmployeePortalInventoryVariants = (token, sessionId, params = {}) =>
-  api.get(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/lookup`, { params });
+// `options` carries a timeout: with the phone's catalogue already answering, a
+// lookup that a weak line cannot finish quickly is not worth waiting out.
+export const lookupEmployeePortalInventoryVariants = (token, sessionId, params = {}, options = {}) =>
+  api.get(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/lookup`, { params, ...options });
 
 export const upsertEmployeePortalInventoryItem = (token, sessionId, body = {}) =>
   api.put(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/items`, body);
@@ -40,3 +42,13 @@ export const submitEmployeePortalInventorySession = (token, sessionId) =>
 
 export const reopenEmployeePortalInventorySession = (token, sessionId) =>
   api.post(`/employee-portal/${encodeURIComponent(token)}/inventory/sessions/${encodeURIComponent(sessionId)}/reopen`);
+
+// A few bytes: has the catalogue this phone holds changed? Asked before the
+// snapshot so a weak line never downloads a catalogue that is already current.
+// Hard-capped — on a line that cannot answer this quickly, the cache stands.
+export const getEmployeePortalInventoryCatalogVersion = (token) =>
+  api.get(`/employee-portal/${encodeURIComponent(token)}/inventory/catalog-version`, {
+    timeoutMs: 8000,
+    cache: "no-store",
+    suppressErrorStatuses: [404, 422],
+  });

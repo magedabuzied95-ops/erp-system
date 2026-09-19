@@ -10,7 +10,10 @@ const CACHE_NAME = "employee-portal-shell-v9";
 // deliberately NOT under the "employee-portal" prefix that activate() deletes --
 // a name inside that prefix would throw the media away on every version bump.
 const MEDIA_CACHE = "portal-media-v1";
-const portalMedia = self.createSwImageCache({ cacheName: MEDIA_CACHE, maxEntries: 800 });
+// Sized for a whole product catalogue, not just chat media: the portal now
+// warms every product picture so a search on a weak line draws its results
+// instead of a grid of empty tiles. Same order of magnitude as the POS cache.
+const portalMedia = self.createSwImageCache({ cacheName: MEDIA_CACHE, maxEntries: 4000 });
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
@@ -275,6 +278,19 @@ self.addEventListener("message", (event) => {
     const sentAt = Number(event.data.at || 0);
     if (sentAt && sentAt < lastBadgeClearAt) return;
     event.waitUntil(writeBadgeState(event.data.counts || EMPTY_BADGE_STATE).then(applyAppBadge));
+  }
+  // The page hands over the catalogue's picture URLs; they are stored in the
+  // same cache the fetch handler above serves from, so a warmed picture is a
+  // picture the next search can draw with no connection at all.
+  if (type === "employee-portal:warm-images") {
+    const port = event.ports?.[0] || null;
+    event.waitUntil(
+      portalMedia
+        .warm(Array.isArray(event.data.urls) ? event.data.urls : [])
+        .then((counts) => port?.postMessage({ type: "employee-portal:warm-images-done", counts }))
+        .catch(() => port?.postMessage({ type: "employee-portal:warm-images-done", counts: null }))
+    );
+    return;
   }
   if (type === "employee-portal:badge-clear" || type === "EMPLOYEE_BADGE_CLEAR_PORTION") {
     event.waitUntil(clearBadgeScope(event.data.scope || event.data.portion || ""));

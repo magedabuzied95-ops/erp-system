@@ -1233,9 +1233,35 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
     ? `COALESCE(NULLIF(b.name, ''), ${firstAvailableColumnExpr("p", productColumns, ["brand"], "''")})`
     : firstAvailableColumnExpr("p", productColumns, ["brand"], "''");
   const manufacturerExpr = productColumns.has("manufacturer_id") ? `COALESCE(NULLIF(m.name, ''), '')` : "''";
+  // The products page searches and filters on these too, so the one snapshot can
+  // answer both screens with the same matches the server would give.
+  const qrTokenExpr = firstAvailableColumnExpr("p", productColumns, ["qr_token"], "''");
+  const productCodeExpr = firstAvailableColumnExpr("p", productColumns, ["product_code"], "''");
+  const styleExpr = firstAvailableColumnExpr("p", productColumns, ["style"], "''");
+  const rawCategoryExpr = firstAvailableColumnExpr("p", productColumns, ["category"], "''");
+  const gradeExpr = firstAvailableColumnExpr("p", productColumns, ["grade"], "''");
+  // Some products keep their picture INLINE, as a base64 data: URI — a whole
+  // image per row. One of those per size row would turn a lean catalogue into
+  // tens of megabytes over the very line this snapshot exists for, so only real
+  // URLs leave the database; an inline picture is simply absent from the cache
+  // and still loads the normal way when the product is opened online.
+  // The outer SELECT names its columns (never t.*) so the raw values do not even
+  // cross from the database into this process.
+  const urlOnly = (column) => `CASE WHEN ${column} IS NULL OR LEFT(${column}, 5) = 'data:' OR LENGTH(${column}) > 1024 THEN '' ELSE ${column} END`;
+  const productUpdatedExpr = productColumns.has("updated_at")
+    ? "COALESCE(extract(epoch FROM p.updated_at)::bigint, 0)"
+    : "0";
 
   const result = await dbClient.query(
     `
+    SELECT
+      t.product_variant_id, t.product_id, t.product_name, t.color, t.size, t.sku, t.barcode,
+      t.article_code, t.product_barcode, t.product_sku, t.stock, t.gender, t.type, t.category,
+      t.brand, t.manufacturer_name, t.qr_token, t.product_code, t.style, t.product_category,
+      t.grade, t.product_updated_at,
+      ${urlOnly("t.image_url_raw")} AS image_url,
+      ${urlOnly("t.product_image_url_raw")} AS product_image_url
+    FROM (
     SELECT
       v.id AS product_variant_id,
       v.product_id,
@@ -1253,7 +1279,14 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       ${categoryExpr} AS category,
       ${brandExpr} AS brand,
       ${manufacturerExpr} AS manufacturer_name,
-      ${imageSelects.colorImageExpr} AS image_url
+      ${qrTokenExpr} AS qr_token,
+      ${productCodeExpr} AS product_code,
+      ${styleExpr} AS style,
+      ${rawCategoryExpr} AS product_category,
+      ${gradeExpr} AS grade,
+      ${imageSelects.productImageExpr} AS product_image_url_raw,
+      ${productUpdatedExpr} AS product_updated_at,
+      ${imageSelects.colorImageExpr} AS image_url_raw
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     ${productColumns.has("brand_id") ? "LEFT JOIN brands b ON b.id = p.brand_id" : ""}
@@ -1262,11 +1295,17 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       ${activeParts.length ? `AND ${activeParts.join(" AND ")}` : ""}
     ORDER BY p.name, v.color, v.size, v.id
     LIMIT $2
+    ) t
     `,
     [tenantId, limit]
   );
 
+  // The phone stores this beside the rows and compares it with the cheap
+  // version endpoint, so an unchanged catalogue is never downloaded twice.
+  const { version } = await loadInventoryCountCatalogVersion(dbClient, { tenantId });
+
   return {
+    version,
     generated_at: new Date().toISOString(),
     truncated: result.rows.length >= limit,
     variants: result.rows.map((row) => ({
@@ -1274,8 +1313,56 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       product_variant_id: Number(row.product_variant_id),
       product_id: Number(row.product_id),
       stock: toNumber(row.stock, 0),
+      product_updated_at: toNumber(row.product_updated_at, 0),
     })),
   };
+};
+
+/**
+ * A few bytes that say whether the catalogue snapshot a phone already holds is
+ * still the catalogue. On a weak line the snapshot is the expensive request, so
+ * the phone asks this first and downloads again only when the answer changed.
+ *
+ * It watches what makes a product FINDABLE — rows added, archived, renamed or
+ * re-coded — and deliberately not stock: every sale moves stock, which would
+ * turn the watermark into "always changed" and the check into pure overhead.
+ * Stock on the snapshot is a hint anyway; the server owns it on every write.
+ */
+export const loadInventoryCountCatalogVersion = async (clientOrPool, data = {}) => {
+  const dbClient = queryable(clientOrPool);
+  const tenantId = data.tenantId ?? data.tenant_id ?? null;
+  const [variantColumns, productColumns] = await Promise.all([
+    getTableColumns(dbClient, "product_variants"),
+    getTableColumns(dbClient, "products"),
+  ]);
+  const liveVariant = variantColumns.has("deleted_at") ? "AND v.deleted_at IS NULL" : "";
+  // Neither timestamp is guaranteed on every deployment's tables, so the stamp is
+  // built from whichever of them the live schema actually has.
+  const stampOf = (alias, columns, names) => {
+    const parts = names.filter((name) => columns.has(name)).map((name) => `COALESCE(${alias}.${name}, to_timestamp(0))`);
+    if (!parts.length) return "to_timestamp(0)";
+    return parts.length === 1 ? parts[0] : `GREATEST(${parts.join(", ")})`;
+  };
+  const productStamp = stampOf("p", productColumns, ["updated_at", "created_at"]);
+  const variantStamp = stampOf("v", variantColumns, ["created_at"]);
+  // A variant's updated_at moves on every stock change, so only its creation
+  // counts here; an archive is caught by the live-row count instead.
+  const result = await dbClient.query(
+    `
+    SELECT
+      (SELECT count(*) FROM products p WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)) AS pc,
+      (SELECT count(*) FROM product_variants v JOIN products p ON p.id = v.product_id
+         WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL) ${liveVariant}) AS vc,
+      (SELECT COALESCE(extract(epoch FROM max(${productStamp}))::bigint, 0) FROM products p
+         WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)) AS pmax,
+      (SELECT COALESCE(extract(epoch FROM max(${variantStamp}))::bigint, 0)
+         FROM product_variants v JOIN products p ON p.id = v.product_id
+         WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint OR p.tenant_id IS NULL)) AS vmax
+    `,
+    [tenantId]
+  );
+  const row = result.rows[0] || {};
+  return { version: `${row.pc || 0}.${row.vc || 0}.${row.pmax || 0}.${row.vmax || 0}` };
 };
 
 export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {

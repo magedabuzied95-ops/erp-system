@@ -37,25 +37,22 @@ import {
   clearInventoryDraft,
   reconcileInventoryRows,
   sweepExpiredDrafts,
-  saveInventoryCatalog,
-  loadInventoryCatalog,
 } from "../services/employeeDrafts/employeeDraftStore.js";
 import {
-  catalogIsStale,
   isOfflineFailure,
   outboxSize,
   outboxToItems,
   queueCountedQuantity,
   searchCatalogRows,
   settleOutbox,
-  toCatalogRow,
 } from "../services/employeeDrafts/inventoryCountSync.js";
+import { SEARCH_NETWORK_TIMEOUT_MS } from "../services/employeeDrafts/portalCatalogCache.js";
+import usePortalCatalog from "../hooks/usePortalCatalog";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
   bulkUpsertEmployeePortalInventoryItems,
   createEmployeePortalInventorySession,
-  getEmployeePortalInventoryCatalogSnapshot,
   getEmployeePortalInventorySession,
   listEmployeePortalInventorySessions,
   lookupEmployeePortalInventoryVariants,
@@ -574,8 +571,6 @@ export default function EmployeePortalInventory() {
   const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine !== false));
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState(null);
-  const [catalogSnapshot, setCatalogSnapshot] = useState(null);
-  const [catalogLoading, setCatalogLoading] = useState(false);
   const flushTimerRef = useRef(null);
   const flushInFlightRef = useRef(false);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -769,6 +764,26 @@ export default function EmployeePortalInventory() {
       // not re-counted that variant while the request was in flight.
       setOutbox((current) => settleOutbox(current, sent));
       if (response?.session) setSession(response.session);
+      // A row added from the phone's catalogue carries the stock the snapshot
+      // remembered. The server has now written the row against the REAL stock,
+      // so its expected quantity replaces the remembered one — the counted value
+      // on screen is left alone; only what it is measured against is corrected.
+      const authoritative = new Map(
+        (Array.isArray(response?.items) ? response.items : []).map((row) => [
+          String(row.product_variant_id ?? row.variant_id ?? ""),
+          toNumber(row.system_quantity, 0),
+        ])
+      );
+      if (authoritative.size) {
+        setItems((current) => current.map((row) => {
+          const id = String(row.product_variant_id ?? row.variant_id ?? row.id ?? "");
+          if (!authoritative.has(id)) return row;
+          const system = authoritative.get(id);
+          if (system === toNumber(row.system_quantity, 0)) return row;
+          const difference = toNumber(row.counted_quantity, 0) - system;
+          return { ...row, system_quantity: system, expected_qty: system, difference_quantity: difference, difference_qty: difference };
+        }));
+      }
       setLastSyncedAt(Date.now());
       const rejected = Array.isArray(response?.rejected) ? response.rejected : [];
       if (rejected.length && !silent) {
@@ -813,51 +828,17 @@ export default function EmployeePortalInventory() {
     };
   }, [flushOutbox]);
 
-  // ---- Offline lookup catalogue ---------------------------------------------
-  useEffect(() => {
-    if (!draftIdentity) return;
-    let cancelled = false;
-    (async () => {
-      const cached = await loadInventoryCatalog(draftIdentity);
-      if (cancelled) return;
-      if (cached) setCatalogSnapshot(cached);
-      if (!online || !catalogIsStale(cached)) return;
-      setCatalogLoading(true);
-      try {
-        const response = await getEmployeePortalInventoryCatalogSnapshot(token);
-        if (cancelled) return;
-        const rows = (Array.isArray(response?.variants) ? response.variants : []).map(toCatalogRow);
-        if (!rows.length) return;
-        const snapshot = { variants: rows, savedAt: Date.now(), generatedAt: response?.generated_at || null };
-        setCatalogSnapshot(snapshot);
-        saveInventoryCatalog(draftIdentity, snapshot);
-      } catch (error) {
-        // A missing catalogue costs offline lookup, nothing else — the online
-        // search path is untouched, so this stays silent.
-        console.warn("[employee-portal-inventory] catalog snapshot failed", error?.message || error);
-      } finally {
-        if (!cancelled) setCatalogLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [draftIdentity, online, token]);
+  // ---- The phone's product catalogue ----------------------------------------
+  // Shared with the products screen: one download, one cache, one set of warmed
+  // pictures. It answers a search or a scan at once; the server only refines.
+  const { snapshot: catalogSnapshot, refreshing: catalogLoading, refresh: refreshCatalog } = usePortalCatalog(token, { identity: draftIdentity });
 
   const refreshOfflineCatalog = useCallback(async () => {
-    if (!draftIdentity) return;
-    setCatalogLoading(true);
-    try {
-      const response = await getEmployeePortalInventoryCatalogSnapshot(token);
-      const rows = (Array.isArray(response?.variants) ? response.variants : []).map(toCatalogRow);
-      const snapshot = { variants: rows, savedAt: Date.now(), generatedAt: response?.generated_at || null };
-      setCatalogSnapshot(snapshot);
-      saveInventoryCatalog(draftIdentity, snapshot);
-      toast.success(tt("employeePortal.stockCount.catalogReady", { count: rows.length }));
-    } catch (error) {
-      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.catalogFailed"));
-    } finally {
-      setCatalogLoading(false);
-    }
-  }, [draftIdentity, token]);
+    const result = await refreshCatalog({ force: true });
+    const count = result?.snapshot?.variants?.length || 0;
+    if (result?.refreshed && count) toast.success(tt("employeePortal.stockCount.catalogReady", { count }));
+    else if (!count) toast.error(tt("employeePortal.stockCount.catalogFailed"));
+  }, [refreshCatalog]);
 
   useEffect(() => {
     loadSessions();
@@ -938,18 +919,27 @@ export default function EmployeePortalInventory() {
       // With no signal the cached catalogue answers instead; it is a lookup
       // index only, so the row it returns is still written against the server's
       // own expected quantity.
-      const offlineResults = () => searchCatalogRows(catalogSnapshot?.variants || [], lookupQuery, limit);
+      const deviceResults = () => searchCatalogRows(catalogSnapshot?.variants || [], lookupQuery, limit);
       try {
-        if (!online) {
-          setLookupResults(offlineResults());
-          return;
+        // The phone answers first, connected or not: on a weak line "online" is
+        // true and the request still takes ten seconds, so waiting for it is the
+        // slow path even when it eventually works.
+        const fromDevice = deviceResults();
+        if (fromDevice.length) {
+          setLookupResults(fromDevice);
+          setLookupLoading(false);
         }
-        const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query: lookupQuery, limit });
+        if (!online) return;
+        const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query: lookupQuery, limit }, {
+          timeoutMs: fromDevice.length ? SEARCH_NETWORK_TIMEOUT_MS : undefined,
+        });
         setLookupResults(Array.isArray(response?.items) ? response.items : []);
       } catch (error) {
-        if (isOfflineFailure(error)) {
+        if (error?.name === "TimeoutError" || /timed out/i.test(String(error?.message || ""))) {
+          // Slow, not gone: the phone's answer stands and nothing is reported.
+        } else if (isOfflineFailure(error)) {
           setOnline(false);
-          setLookupResults(offlineResults());
+          setLookupResults(deviceResults());
         } else if (sessionState !== "pending_review" && sessionState !== "completed") {
           toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.searchFailed"));
         }
@@ -1423,6 +1413,11 @@ export default function EmployeePortalInventory() {
 
     try {
       setLookupLoading(true);
+      // A scan is an exact code, which the phone resolves as well as the server
+      // and at once. The server is only asked when the phone does not know it
+      // (a product added since the last catalogue refresh).
+      const deviceRows = searchCatalogRows(catalogSnapshot?.variants || [], query, 40);
+      if (deviceRows.some((row) => isExactVariantMatch(query, normalizeVariant(row)))) return await resolveFromResults(deviceRows);
       if (!online) return await scanOffline();
       const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit: 20 });
       return await resolveFromResults(Array.isArray(response?.items) ? response.items : []);

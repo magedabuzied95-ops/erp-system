@@ -11,10 +11,11 @@ export const getEmployeePortalProducts = (token, params = {}) =>
 
 // Compact Warehouse Request browse/search/size path — lean products+variants,
 // no cache-buster (so identical queries dedupe), cancellable via AbortSignal.
-export const getEmployeePortalCompactProducts = (token, params = {}, { signal } = {}) =>
+export const getEmployeePortalCompactProducts = (token, params = {}, { signal, timeoutMs } = {}) =>
   api.get(`/employee-portal/${encodeURIComponent(token)}/products/compact`, {
     params,
     signal,
+    timeoutMs,
     suppressErrorStatuses: [404, 422],
   });
 

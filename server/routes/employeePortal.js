@@ -28,6 +28,7 @@ import {
   getInventoryCountSession,
   listInventoryCountSessions,
   loadInventoryCountCatalogSnapshot,
+  loadInventoryCountCatalogVersion,
   openInventoryCountSession,
   reopenInventoryCountSession,
   searchInventoryCountVariants,
@@ -1095,10 +1096,34 @@ router.get("/:token/inventory/catalog-snapshot", async (req, res) => {
       tenantId: employee.tenant_id ?? null,
       limit: req.query?.limit,
     });
-    return res.json({ success: true, ...snapshot });
+    return res.json({
+      success: true,
+      identity: { tenant_id: employee.tenant_id ?? null, employee_id: employee.id ?? null, branch_id: employee.branch_id ?? null },
+      ...snapshot,
+    });
   } catch (error) {
     console.error("[employee-payroll-portal] inventory catalog snapshot error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load the count catalogue" });
+  }
+});
+
+// A few bytes answering "is the catalogue my phone holds still current?", so a
+// weak line never pays for a snapshot download that would change nothing.
+router.get("/:token/inventory/catalog-version", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const { version } = await loadInventoryCountCatalogVersion(db, { tenantId: employee.tenant_id ?? null });
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate");
+    return res.json({
+      success: true,
+      version,
+      // Token-free identity: the phone keys its catalogue cache on these.
+      identity: { tenant_id: employee.tenant_id ?? null, employee_id: employee.id ?? null, branch_id: employee.branch_id ?? null },
+    });
+  } catch (error) {
+    console.error("[employee-payroll-portal] inventory catalog version error", error);
+    return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load the catalogue version" });
   }
 });
 
