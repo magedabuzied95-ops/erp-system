@@ -1020,7 +1020,8 @@
       "send_confirmation": "Confirmation message sent to the customer on WhatsApp",
       "send_confirmation_queued": "Confirmation message queued for sending",
       "shipping_fee_paid": "Shipping fee recorded as paid",
-      "order_paid_in_full": "Whole order recorded as paid"
+      "order_paid_in_full": "Whole order recorded as paid",
+      "receiptDelayed": "the customer gets the payment receipt in {{minutes}} min"
     },
     "actionErrors": {
       "generic": "Could not complete the action",

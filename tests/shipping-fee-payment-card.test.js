@@ -148,6 +148,12 @@ test("confirming the money anywhere tells the customer, and the message carries 
   // Switching the queue off must not turn the wait into an instant send.
   assert.match(module, /scheduledAt: delayMs > 0 \? new Date\(Date\.now\(\) \+ delayMs\) : null,/);
   assert.match(module, /const directSend = delayMs > 0\s*\?\s*async \(\) => \{\s*const timer = setTimeout\(/);
+  // And the team is told about the wait, so silence on the customer's chat is not read as failure.
+  assert.match(read("../server/modules/shipping/shipping.portal.actions.js"), /result = \{ payment_receipt_delay_minutes: Math\.round\(PAYMENT_APPROVED_DELAY_MS \/ 60000\) \};/);
+  assert.match(read("../src/shared/components/portalOnlineOrders/PortalOnlineOrdersBoard.jsx"), /ui\.tb\("actionDone\.receiptDelayed", \{ minutes \}\)/);
+  for (const locale of ["../src/locales/ar/orders.json", "../src/locales/en/orders.json"]) {
+    assert.match(read(locale), /"receiptDelayed": "[^"]*\{\{minutes\}\}/, locale);
+  }
   for (const path of ["../server/controllers/ordersController.js", "../server/modules/walletTransfers/walletTransfers.service.js", "../server/modules/shipping/shipping.portal.actions.js"]) {
     assert.match(read(path), /notifyPaymentProofApproved\(/, path);
   }

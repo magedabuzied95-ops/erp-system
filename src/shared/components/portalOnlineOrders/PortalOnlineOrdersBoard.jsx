@@ -565,6 +565,24 @@ function timelineLabel(event, ui) {
   return ui.tb(`timeline.${event.kind}`);
 }
 
+/*
+ * What the toast says after an action succeeded.
+ *
+ * A recorded payment also says WHEN the customer hears about it. The receipt is held back a few
+ * minutes on purpose (the WhatsApp account, not the queue — see PAYMENT_APPROVED_DELAY_MS), and
+ * without this line a staffer reads "تم تسجيل دفع الشحن" plus silence on the customer's chat as a
+ * failure, and presses it again. The server sends the number, so changing the delay moves both.
+ */
+const actionNotice = ({ ui, action, input, response }) => {
+  if (action === "send_confirmation" && response?.queued) return ui.tb("actionDone.send_confirmation_queued");
+  if (action === "shipping_fee_paid") {
+    const done = ui.tb(`actionDone.${input?.scope === "order_total" ? "order_paid_in_full" : "shipping_fee_paid"}`);
+    const minutes = Number(response?.payment_receipt_delay_minutes) || 0;
+    return minutes > 0 ? `${done} — ${ui.tb("actionDone.receiptDelayed", { minutes })}` : done;
+  }
+  return ui.tb(`actionDone.${action}`);
+};
+
 const ACTION_ICON = { confirm: Check, send_confirmation: Send, ready_to_ship: Package, create_shipment: Truck, print_awb: Printer, shipping_fee_paid: Banknote };
 const ACTION_LABEL = { confirm: "actions.confirmOrder", send_confirmation: "actions.sendConfirmation", ready_to_ship: "actions.readyToShip", create_shipment: "actions.createShipment", print_awb: "actions.printAwb", shipping_fee_paid: "actions.shippingFeePaid" };
 const SHIPPING_FEE_METHODS = ["vodafone_cash", "instapay", "cash"];
@@ -1118,7 +1136,7 @@ export default function PortalOnlineOrdersBoard({
       }
       const nextOrder = response?.order || null;
       setSelection((existing) => (existing && existing.id === orderId
-        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: ui.tb(action === "send_confirmation" && response?.queued ? "actionDone.send_confirmation_queued" : action === "shipping_fee_paid" && input?.scope === "order_total" ? "actionDone.order_paid_in_full" : `actionDone.${action}`) }
+        ? { ...existing, order: nextOrder ? { ...existing.order, ...nextOrder } : existing.order, busy: "", confirming: "", actionError: "", notice: actionNotice({ ui, action, input, response }) }
         : existing));
       if (nextOrder) {
         setBoard((existing) => ({ ...existing, orders: existing.orders.map((row) => (String(row.id) === String(orderId) ? { ...row, ...nextOrder } : row)) }));

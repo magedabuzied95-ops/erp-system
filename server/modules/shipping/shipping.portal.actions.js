@@ -6,7 +6,7 @@ import { getPortalOnlineOrder } from "./shipping.portal.service.js";
 import { createBostaShipmentForOrder, fetchBostaShipmentLabels } from "./shipping.service.js";
 import { markShippingFeePaid } from "./shippingFeeAdvance.js";
 import { markOrderPaidInFull } from "./markOrderPaidInFull.js";
-import { notifyPaymentProofApproved } from "./paymentProofLink.js";
+import { notifyPaymentProofApproved, PAYMENT_APPROVED_DELAY_MS } from "./paymentProofLink.js";
 import { isWhatsappNumberMissingError } from "../../utils/whatsappNotOnNumber.js";
 
 // The four things staff can DO from أوردرات الشحن: confirm → ready to ship → create the
@@ -191,8 +191,11 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
         actorName,
         source: surface,
       });
-    // The customer hears back on WhatsApp, the same as from the orders page (owner, 2026-09-20).
+    // The customer hears back on WhatsApp, the same as from the orders page (owner, 2026-09-20) —
+    // but not instantly. The board is told how long the receipt is held back, so a staffer who
+    // just pressed this does not read the silence as a failure and press it again.
     if (paid) notifyPaymentProofApproved(paid).catch(() => {});
+    result = { payment_receipt_delay_minutes: Math.round(PAYMENT_APPROVED_DELAY_MS / 60000) };
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
       throw actionError(409, "BOSTA_NO_PRINTABLE_LABEL", "This order has no shipment to print yet");

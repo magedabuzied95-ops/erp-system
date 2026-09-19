@@ -1020,7 +1020,8 @@
       "send_confirmation": "تم إرسال رسالة التأكيد للعميل على واتساب",
       "send_confirmation_queued": "تم إدراج رسالة التأكيد في طابور الإرسال",
       "shipping_fee_paid": "تم تسجيل دفع الشحن",
-      "order_paid_in_full": "تم تسجيل دفع الأوردر كامل"
+      "order_paid_in_full": "تم تسجيل دفع الأوردر كامل",
+      "receiptDelayed": "رسالة تأكيد الدفع هتوصل العميل خلال {{minutes}} دقايق"
     },
     "actionErrors": {
       "generic": "تعذّر تنفيذ الإجراء",
