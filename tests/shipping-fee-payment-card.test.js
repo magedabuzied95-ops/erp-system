@@ -117,7 +117,9 @@ test("confirming the money anywhere tells the customer, and the message carries 
   );
   assert.match(message, /^✅ تم تأكيد دفع رسوم الشحن لطلبك رقم INV-1700 يا Mo3taz$/m);
   assert.match(message, /^🚚 طلبك بيتجهز للشحن دلوقتي، والمندوب هيحصّل 1,850 جنيه عند الاستلام\.$/m);
-  assert.match(message, /^🚚 فريقنا بدأ تجهيز طلبك للشحن، وهنتابع معاك لحد ما يوصلك\.$/m);
+  // One 🚚 line, never two: "فريقنا بدأ تجهيز طلبك للشحن" only said the line above it again (owner).
+  assert.equal(message.split("\n\n").filter((block) => block.startsWith("🚚")).length, 1);
+  assert.doesNotMatch(message, /بدأ تجهيز/);
   assert.match(message, /📍 تابع طلبك من هنا:\nhttps:\/\/m1store-egy\.com\/track\?order=INV-1700&phone=201558934989/);
   assert.match(message, /شكراً لاختيارك M1 Store ❤️$/);
 

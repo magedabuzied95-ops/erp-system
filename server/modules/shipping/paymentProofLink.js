@@ -402,7 +402,6 @@ export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "" 
     collectText
       ? (tracking ? `💰 المندوب هيحصّل ${collectText} عند الاستلام.` : "")
       : "💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام.",
-    tracking ? "" : "🚚 فريقنا بدأ تجهيز طلبك للشحن، وهنتابع معاك لحد ما يوصلك.",
     trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
     "شكراً لاختيارك M1 Store ❤️",
   ].filter(Boolean).join("\n\n");
