@@ -2905,7 +2905,17 @@ function ProductSheet({
       selected_variant_color: clean(selectedVariantDebug?.color || selectedVariantDebug?.color_name || selectedVariantDebug?.variant_color || selectedVariantDebug?.selected_color || ""),
       selected_variant_size: clean(selectedVariantDebug?.size || selectedVariantDebug?.size_name || selectedVariantDebug?.variant_size || selectedVariantDebug?.selected_size || ""),
     });
-    onSend([card]);
+    // The server used to fan EVERY send out into all colours, so choosing "Grey" here still
+    // delivered the whole product. The card now says what was chosen: this colour alone (with
+    // its available sizes), or this colour in this size.
+    const sendScope = clean(selectedSize) ? "color_size" : clean(selectedColor) ? "color" : "all_colors";
+    onSend([{ ...card, send_scope: sendScope }]);
+  };
+
+  // The row's own send: the whole product — every colour, every size — without opening it.
+  const handleQuickSendProduct = (product) => {
+    if (!selectedConversation?.session_id || sending) return;
+    onSend([{ ...buildProductCardPayload(product, null, "", "", []), send_scope: "all_colors" }]);
   };
 
   const sheet = (
@@ -3003,8 +3013,8 @@ function ProductSheet({
                     const active = sheetId === selectedProductEntry?.sheetId;
                     const previewImage = productImage(product);
                     return (
+                      <div key={sheetId} className="relative">
                       <button
-                        key={sheetId}
                         type="button"
                         onClick={() => {
                           setSelectedProductId(sheetId);
@@ -3012,7 +3022,7 @@ function ProductSheet({
                           setSelectedSize("");
                           setView("detail");
                         }}
-                        className={`ai-pwa-product-sheet__product-row flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
+                        className={`ai-pwa-product-sheet__product-row flex w-full items-center gap-3 rounded-2xl border p-3 pe-[4.25rem] text-left transition ${
                           active ? "is-active border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
                         }`}
                       >
@@ -3030,6 +3040,19 @@ function ProductSheet({
                           </div>
                         </div>
                       </button>
+                      {/* A sibling, not a child: a button inside the row button is invalid and
+                          would open the product as well as sending it. */}
+                      <button
+                        type="button"
+                        onClick={() => handleQuickSendProduct(product)}
+                        disabled={sending || !selectedConversation?.session_id}
+                        aria-label={t("aiSupport.inbox.pwa.quickSendAllColors", { name: product.name || product.product_name || "" })}
+                        title={t("aiSupport.inbox.pwa.quickSendAllColors", { name: product.name || product.product_name || "" })}
+                        className="absolute end-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-slate-900 text-white shadow-sm transition active:scale-95 disabled:opacity-40"
+                      >
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </button>
+                      </div>
                     );
                   })
                 ) : (

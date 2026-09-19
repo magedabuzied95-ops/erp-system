@@ -6828,9 +6828,19 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
     });
     const previewText = formatProductCardPreviewText(productCards[0] || {});
     const expandedToColorCarousel = productCards.length >= 2 && enrichedProductCards.length === 1;
+    // One colour (or one colour + size) the operator picked on purpose. On Messenger and Instagram
+    // it leaves as the same template card the carousel is made of, which names the colour and the
+    // price but not the product — so the sentence above it has to.
+    const pickedOneColor =
+      productCards.length === 1 &&
+      ["color", "color_size"].includes(envText(productCards[0]?.send_scope)) &&
+      [AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(normalizedChannel);
+    const pickedBaseName = envText(enrichedProductCards[0]?.product_name || enrichedProductCards[0]?.name || productCards[0]?.base_name || "المنتج");
     const fallbackText = expandedToColorCarousel
       ? `${envText(productCards[0]?.product_name || productCards[0]?.name || "المنتج")} — اختار اللون اللي يعجبك 👇`
-      : buildProductCardFallbackText(productCards);
+      : pickedOneColor
+        ? `${pickedBaseName} 👇`
+        : buildProductCardFallbackText(productCards);
     const conversationRecipientId = recipientIdFromConversationKey({
       conversationId: conversation.session_id || conversation.external_conversation_id || conversationId,
       channel: normalizedChannel,
@@ -6970,6 +6980,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, inboxRe
           // colour, capped at 30). sendMetaInboxOutboundMessage defaults productCardLimit to 6,
           // which would silently drop every colour past the sixth — so hand it the real count.
           productCardLimit: Math.max(6, productCards.length),
+          singleCardAsTemplate: pickedOneColor,
         });
         deliveryStatus = sendResult?.delivery_status || (sendResult.sent ? "sent" : "failed");
         if (deliveryStatus === "failed" && !deliveryError) {

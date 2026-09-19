@@ -19,6 +19,24 @@ const normalizeColorKey = (value = "") => text(value).toLowerCase().replace(/\s+
 // visual match. It sorts to the front so the carousel opens on the shoe in their picture and the
 // other colours follow; without it the answer to "do you have this?" could open on a colour they
 // never showed. Everything else about the expansion is identical for every caller.
+/*
+ * WHAT THE OPERATOR ACTUALLY ASKED TO SEND.
+ *
+ * The expansion used to be unconditional: pick "Grey" in the chooser, press send, and the
+ * customer got every colour anyway — the pick only named the lead sentence. The picker now says
+ * what it means on the card itself:
+ *   all_colors  the quick send on the product row — the whole product, every colour and size
+ *   color       one colour was opened and chosen — that colour alone, with ITS available sizes
+ *   color_size  a colour and a size — that colour alone, carded with that one size
+ * No scope at all is every older caller (AI suggestions, approve-and-send, visual search) and
+ * keeps the full expansion they were built around.
+ */
+export const productCardSendScope = (card = {}) => {
+  const scope = text(card?.send_scope).toLowerCase();
+  if (!["color", "color_size"].includes(scope) || !text(card?.color)) return "all_colors";
+  return scope === "color_size" && text(card?.size || card?.selected_size) ? "color_size" : "color";
+};
+
 export const expandProductCardsByColor = async ({ tenantId, cards = [], leadColor = "" } = {}) => {
   const expanded = [];
   // The per-colour price is resolved by the canonical authority, and that rule needs the GLOBAL
@@ -65,7 +83,32 @@ export const expandProductCardsByColor = async ({ tenantId, cards = [], leadColo
         [{ ...product, variants: variantsResult.rows, storefront_url: card.storefront_url || card.product_url || "" }],
         { limit: 30, saleModeSettings }
       );
-      if (colorCards.length >= 2) {
+      const scope = productCardSendScope(card);
+      const scopedColorCard = scope === "all_colors"
+        ? null
+        : colorCards.find((colorCard) => normalizeColorKey(colorCard.color || colorCard.matched_variant_color || "") === normalizeColorKey(card.color));
+      if (scopedColorCard) {
+        // The catalogue's own colour card, not the picker's payload: it carries the canonical
+        // price and the sizes that are in stock for THIS colour, which the picker never sends.
+        const { variants, variant, product: _product, matched_variant, selected_variant, ...flatCard } = scopedColorCard;
+        const rawImage = String(flatCard.image_url || flatCard.image || "").trim();
+        const squared = rawImage ? await ensureSquareCardImageUrl(rawImage).catch(() => "") : "";
+        const pickedSize = scope === "color_size" ? text(card.size || card.selected_size) : "";
+        expanded.push({
+          ...flatCard,
+          image_url: squared || flatCard.image_url,
+          product_id: scopedColorCard.product_id || card.product_id || card.id,
+          storefront_url: card.storefront_url || card.product_url || scopedColorCard.storefront_url || "",
+          product_url: card.product_url || card.storefront_url || scopedColorCard.product_url || "",
+          send_scope: scope,
+          ...(pickedSize ? { size: pickedSize, selected_size: pickedSize, available_sizes: [pickedSize], sizes: [pickedSize] } : {}),
+        });
+        console.info("[ai-inbox][product-card-send] one colour, as picked", { product_id: productId, color: card.color, size: pickedSize });
+      } else if (scope !== "all_colors") {
+        // The colour has no card of its own (no photo, or sold out since the picker loaded). The
+        // operator chose ONE thing — never answer that with the whole product.
+        expanded.push(card);
+      } else if (colorCards.length >= 2) {
         const leadKey = normalizeColorKey(leadColor);
         const ordered = leadKey
           ? [...colorCards].sort((left, right) => {

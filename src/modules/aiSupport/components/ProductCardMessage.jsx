@@ -230,7 +230,13 @@ function ProductCardMessage({
   const strip = items.length > 1;
   // Only the carousel leaves as this template; a single card goes out in another shape.
   const mirrorsCarousel = mirrorsCustomerCarousel(platform, items.length);
-  const mirrorsMetaTemplate = mirrorsCarousel && platform !== "whatsapp";
+  // A colour the operator picked on its own leaves Messenger/Instagram as that same template
+  // card, alone (send_scope, set by the picker and kept on the stored card).
+  const pickedOneColorTemplate =
+    items.length === 1 &&
+    ["instagram", "messenger"].includes(platform) &&
+    ["color", "color_size"].includes(clean(items[0]?.send_scope));
+  const mirrorsMetaTemplate = (mirrorsCarousel && platform !== "whatsapp") || pickedOneColorTemplate;
   const mirrorsWhatsappCarousel = mirrorsCarousel && platform === "whatsapp";
 
   const renderCard = (card, index) => {

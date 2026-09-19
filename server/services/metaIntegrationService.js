@@ -25719,6 +25719,9 @@ export const sendMetaInboxOutboundMessage = async ({
   attachments = [],
   productCards = [],
   productCardLimit = 6,
+  // One card normally leaves in the channel's single-card shape (a text share on Instagram).
+  // The picker's "this colour only" send asks for the carousel's own card instead, alone.
+  singleCardAsTemplate = false,
   suggestedActions = [],
   facebookPageId = "",
   instagramBusinessAccountId = "",
@@ -25757,6 +25760,18 @@ export const sendMetaInboxOutboundMessage = async ({
     safeMessage = "";
   }
   const cards = await resolveProductCardLinks(normalizeProductCards(productCards, { limit: productCardLimit }), { tenantId: scopedTenantId });
+  // normalizeProductCards rebuilds the card and has no field for a PICKED size, so "colour + size"
+  // would card as a one-entry size list. Only when the rebuild kept the cards one-to-one.
+  if (cards.length === asArray(productCards).length) {
+    cards.forEach((card, index) => {
+      const picked = productCards[index];
+      if (text(picked?.send_scope) === "color_size" && text(picked?.size)) {
+        card.size = text(picked.size);
+        card.selected_size = text(picked.size);
+      }
+    });
+  }
+  const templateMinimum = singleCardAsTemplate && cards.length === 1 ? 1 : 2;
   console.info("product_card_send_service_entered", {
     tenant_id: scopedTenantId,
     conversation_id: conversationId || "",
@@ -26088,7 +26103,7 @@ export const sendMetaInboxOutboundMessage = async ({
   const metaCarouselChannels = [AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM];
   let metaCarouselDone = false;
   let leadTextSentBeforeCarousel = false;
-  if (cards.length >= 2 && metaCarouselChannels.includes(normalizedChannel) && text(token)) {
+  if (cards.length >= templateMinimum && metaCarouselChannels.includes(normalizedChannel) && text(token)) {
     try {
       const elements = cards.map(buildMetaCarouselElement).filter((el) => el.image_url && el.buttons);
       // Dropping down to the per-card loop is a real degradation on Instagram — each colour leaves
@@ -26103,7 +26118,7 @@ export const sendMetaInboxOutboundMessage = async ({
           public_backend_url_configured: Boolean(getPublicBackendUrl()),
         });
       }
-      if (elements.length >= 2) {
+      if (elements.length >= templateMinimum) {
         // The lead line ("... اختار اللون اللي يعجبك 👇") introduces the carousel, so it must land
         // ABOVE the cards, not after them. The general message body is otherwise sent last (below);
         // send it here first and mark it done so the trailing send skips it.
