@@ -115,12 +115,22 @@ export default function usePortalCatalog(token, { identity = null, enabled = tru
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, token, identityKey]);
 
-  // Coming back into signal is the natural moment to catch up.
+  // Coming back into signal, or back to the app, is the natural moment to catch
+  // up. The second one matters most: an installed portal is RESUMED from the
+  // phone's app switcher far more often than it is opened, so a check that only
+  // runs on mount would leave a day-old catalogue on a phone that never closed it.
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return undefined;
     const onOnline = () => { void refresh(); };
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && navigator.onLine !== false) void refresh();
+    };
     window.addEventListener("online", onOnline);
-    return () => window.removeEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [enabled, refresh]);
 
   return { snapshot, refreshing, refresh };

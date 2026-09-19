@@ -27,8 +27,16 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-/** How long a snapshot is trusted without even asking the server if it changed. */
-export const CATALOG_RECHECK_MS = 15 * 60 * 1000;
+/**
+ * How long a snapshot is trusted without even asking the server if it changed.
+ *
+ * One minute, not fifteen. The question costs a few bytes and runs in the
+ * background, so a long window bought nothing — and it cost a lot: a corrected
+ * catalogue (new pictures, a new product) stayed invisible on every phone that
+ * had checked recently, which is exactly the phone of someone testing the fix.
+ * The minute only de-duplicates the hub, المنتجات and الجرد opening back to back.
+ */
+export const CATALOG_RECHECK_MS = 60 * 1000;
 /** Past this the snapshot is refreshed regardless of the version answer. */
 export const CATALOG_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /**

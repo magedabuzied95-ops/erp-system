@@ -125,6 +125,35 @@ const countingApi = ({ version = "v1", failSnapshot = false, failVersion = false
   };
 };
 
+test("a corrected catalogue reaches a phone within about a minute, not a quarter of an hour", async () => {
+  // The window was 15 minutes. A fix to the snapshot (each colour's own picture)
+  // was live on the server and invisible on the owner's phone, because the phone
+  // had checked a few minutes earlier and was not going to ask again. The ask is
+  // a few bytes; the window only has to de-duplicate screens opening together.
+  assert.ok(cache.CATALOG_RECHECK_MS <= 2 * 60 * 1000, "keep the recheck window short — read the comment on the constant");
+
+  const t0 = Date.now();
+  await cache.refreshPortalCatalog({ token: TOKEN, api: countingApi({ version: "s2.1" }), now: t0 });
+  await store.flushPendingDraftWrites();
+  // Two minutes later the server has a new SHAPE of snapshot (s3): same data
+  // counts, different version string. The phone must notice and re-download.
+  const api = countingApi({ version: "s3.1" });
+  const later = await cache.refreshPortalCatalog({ token: TOKEN, api, now: t0 + 2 * 60 * 1000 });
+  assert.equal(later.refreshed, true);
+  assert.equal(later.snapshot.version, "s3.1");
+});
+
+const hookSource = (await import("node:fs")).readFileSync(
+  new URL("../src/modules/employees/hooks/usePortalCatalog.js", import.meta.url),
+  "utf8"
+);
+
+test("a resumed app re-checks the catalogue, not only a freshly opened one", () => {
+  // An installed portal comes back from the app switcher; nothing re-mounts.
+  assert.match(hookSource, /addEventListener\("visibilitychange", onVisible\)/);
+  assert.match(hookSource, /visibilityState === "visible"/);
+});
+
 test("a first open downloads the catalogue, and a cold reopen finds it with no network", async () => {
   const api = countingApi();
   const first = await cache.refreshPortalCatalog({ token: TOKEN, api });
