@@ -4,12 +4,12 @@
  * It used to be one house card everywhere: a cyan panel captioned "منتج مُرسل"
  * with the full send timestamp, wrapping a dark tile per product. Nothing on a
  * customer's phone looks like that. WhatsApp shows the card as part of the
- * outgoing bubble — photo, caption, then a link row under a hairline — while
- * Meta's generic template is a white card that sits on the transcript
- * background, outside any bubble, with its button in the platform's blue.
+ * outgoing bubble — photo, caption, then a link row under a hairline — and that
+ * is the one layout every channel uses now, in its own bubble colours. The
+ * free-standing white card (Meta's generic template) is still here behind
+ * `cardMode: "standalone"`, unused.
  *
- * The shapes come from `platformChrome`, so the transcript mirrors what actually
- * left the building, platform for platform.
+ * The shape and the colours come from `platformChrome`.
  */
 import { memo, useContext } from "react";
 import { useTranslation } from "react-i18next";

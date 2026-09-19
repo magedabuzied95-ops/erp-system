@@ -28,6 +28,10 @@
  *      Guessing from the session's current `last_product_cards` would staple
  *      today's products onto an old message, which is worse than a photo.
  *
+ * A history sync stored the same carousel the same way — Graph hands a template
+ * back as one image attachment per card — so its staff rows are examined too,
+ * under the identical pairing and the identical text guard.
+ *
  * Usage (inside the backend container):
  *   node server/scripts/backfillMetaCarouselEchoCards.js [--tenant 1] [--days 90] [--include-captioned] [--apply]
  *
@@ -104,7 +108,8 @@ const run = async () => {
           LIMIT 1
         ) AS sibling_cards
       FROM ai_support_messages m
-      WHERE m.insert_source = 'meta_provider_echo'
+      WHERE m.insert_source IN ('meta_provider_echo', 'meta_history_sync')
+        AND m.sender_type <> 'customer'
         AND m.channel IN ('facebook_messenger', 'instagram')
         AND COALESCE(jsonb_array_length(m.product_cards), 0) = 0
         AND COALESCE(jsonb_array_length(m.visual_attachments), 0) > 0

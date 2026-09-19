@@ -46,6 +46,9 @@ import {
   logChannelEvent,
   normalizeOutgoingChannelReply,
   isLikelyMessageLikeName,
+  metaTemplateElements,
+  noteMetaTemplateSend,
+  recentMetaTemplateSend,
   resolveMessengerConversationDisplayName,
   upsertChannelConversationMapping,
   verifyMetaWebhookSignatureWithSecrets,
@@ -1816,12 +1819,9 @@ const shouldContinueCheckout = (message = {}, memory = {}) => {
 // is how our own Messenger colour carousel came back through Meta's echo as a
 // single product photo: the echo was stored as an image message, the cards were
 // never written to the row, and the transcript could only draw what was there.
-const attachmentTemplateElements = (attachment = {}) => {
-  if (!attachment || typeof attachment !== "object") return [];
-  if (text(attachment.type).toLowerCase() !== "template") return [];
-  const elements = attachment.payload?.elements;
-  return Array.isArray(elements) ? elements : [];
-};
+// The shape lives with the webhook normaliser (metaTemplateElements), because that is the step
+// which used to throw the payload away before this function was ever asked.
+const attachmentTemplateElements = (attachment = {}) => metaTemplateElements(attachment);
 
 // The inverse of buildMetaCarouselElement: the element we sent, read back into a
 // product card the transcript can draw. The title is "<name> — <price> جنيه" and
@@ -1854,6 +1854,61 @@ export const metaTemplateProductCards = (attachments = []) =>
     .map(templateElementToProductCard)
     .filter(Boolean)
     .slice(0, 10);
+
+/*
+ * IS THIS ECHO THE CAROUSEL WE ALREADY WROTE DOWN?
+ *
+ * Every path of ours that sends product cards logs its own transcript row, cards included. Meta
+ * then echoes the template back, under a message id no row of ours carries (the row keeps the
+ * lead sentence's id), so the echo was stored a second time — and, the payload having been
+ * dropped on the way in, stored as PHOTOS: three or four colour pictures under a carousel, none
+ * of which the customer ever received as pictures.
+ *
+ * Two shapes are recognised, because what Instagram echoes is not ours to decide:
+ *   - a template attachment, whatever its elements look like;
+ *   - bare pictures with no words, every one of them an image we just put in a template for
+ *     this same customer. A photo somebody really sent never matches: it comes back on Meta's
+ *     CDN, not on our own product image url.
+ *
+ * `duplicate` means our own row already tells this story (or is about to — the sender's note
+ * covers the echo that arrives mid-send). Otherwise `cards` lets the caller store a card row.
+ * Must be asked BEFORE the attachments are re-hosted, while the urls are still the sent ones.
+ */
+export const classifyMetaCarouselEcho = async ({ tenantId = null, message = {} } = {}) => {
+  const attachments = Array.isArray(message?.attachments) ? message.attachments : [];
+  const cards = metaTemplateProductCards(attachments);
+  const isTemplate = cards.length > 0 || attachments.some((attachment) => text(attachment?.type).toLowerCase() === "template");
+  const ourSend = recentMetaTemplateSend(message?.external_customer_id);
+  const urls = attachments.map((attachment) => text(attachment?.remote_url || attachment?.url)).filter(Boolean);
+  const onlyOurTemplatePhotos =
+    !isTemplate &&
+    !text(message?.message_text) &&
+    urls.length > 0 &&
+    urls.length === attachments.length &&
+    Boolean(ourSend) &&
+    urls.every((url) => ourSend.imageUrls.has(url));
+  if (!isTemplate && !onlyOurTemplatePhotos) return { isCardSet: false, duplicate: false, cards: [] };
+  if (ourSend) return { isCardSet: true, duplicate: true, cards };
+  // After a restart the note is gone, but by then the sender's row is long since stored.
+  const sibling = await db.query(
+    `
+    SELECT 1
+    FROM ai_support_messages
+    WHERE tenant_id = $1
+      AND session_id = $2
+      AND COALESCE(insert_source, '') <> 'meta_provider_echo'
+      AND sender_type <> 'customer'
+      AND (
+        product_cards NOT IN ('[]'::jsonb, 'null'::jsonb)
+        OR suggested_products NOT IN ('[]'::jsonb, 'null'::jsonb)
+      )
+      AND created_at >= NOW() - INTERVAL '3 minutes'
+    LIMIT 1
+    `,
+    [numberOrNull(tenantId), text(message?.external_conversation_id)]
+  ).then((result) => result.rows.length > 0).catch(() => false);
+  return { isCardSet: true, duplicate: sibling, cards };
+};
 
 const extractImageUrlFromAttachment = (attachment = {}) => {
   if (!attachment || typeof attachment !== "object") return "";
@@ -26065,6 +26120,9 @@ export const sendMetaInboxOutboundMessage = async ({
         // and only that helper knows which endpoint the resolved config belongs to. image_aspect_ratio
         // is a Messenger field — Instagram's template reference does not carry it, so it is omitted
         // there; the photos are already padded onto a square canvas during colour expansion.
+        // Left BEFORE the call: the echo can come back while Graph is still answering us, and
+        // the echo handler needs to know these cards are ours (classifyMetaCarouselEcho).
+        noteMetaTemplateSend({ recipientId: safeRecipientId, elements });
         for (let i = 0; i < elements.length; i += 10) {
           const carouselResult = await postMetaMessageWithThreadControl({
             token,
@@ -26140,10 +26198,12 @@ export const sendMetaInboxOutboundMessage = async ({
         let messengerTemplateSucceeded = false;
         if (normalizedChannel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && productImageUrl) {
           try {
+            const templatePayload = buildMessengerGenericTemplatePayload({ recipientId: safeRecipientId, product });
+            noteMetaTemplateSend({ recipientId: safeRecipientId, elements: templatePayload.message.attachment.payload.elements });
             const templateResponse = await fetch(`${GRAPH_BASE_URL}/me/messages?access_token=${encodeURIComponent(token)}`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: json(buildMessengerGenericTemplatePayload({ recipientId: safeRecipientId, product })),
+              body: json(templatePayload),
             });
             const templateResult = await templateResponse.json().catch(() => ({}));
             if (!templateResponse.ok) throw Object.assign(new Error(templateResult?.error?.message || "Messenger product card failed"), { status: templateResponse.status, responseBody: templateResult });
@@ -26686,6 +26746,32 @@ export const processMetaWebhook = async ({ req } = {}) => {
     // unrelated steps happen to run in — that ordering is exactly what made the
     // first version of this fix do nothing.
     const echoTemplateCards = metaTemplateProductCards(message.attachments || []);
+    // Our own carousel, echoed back. The send path has already written its row with the cards,
+    // so there is nothing to store — and nothing to re-host: asked here, before
+    // materializeInboundAttachments, or the colour photos are downloaded into
+    // /uploads/inbox-media for a row that is about to be thrown away.
+    const isPageOriginMessage = message.from_me === true || text(message.direction) === "outbound";
+    const carouselEcho = isPageOriginMessage
+      ? await classifyMetaCarouselEcho({ tenantId: config.tenant_id, message })
+      : { isCardSet: false, duplicate: false, cards: [] };
+    if (carouselEcho.duplicate) {
+      console.log("[meta-webhook] carousel_echo_skipped", {
+        tenant_id: config.tenant_id,
+        channel: channelAlias(message.channel),
+        conversation_id: message.external_conversation_id,
+        attachments: (message.attachments || []).length,
+        cards: carouselEcho.cards.length,
+      });
+      results.push({
+        channel: channelAlias(message.channel),
+        external_user_id: message.external_customer_id,
+        stored: false,
+        sent: false,
+        provider_echo: true,
+        carousel_echo_skipped: true,
+      });
+      continue;
+    }
     // Meta hands us a signed CDN link that expires. Re-host it before anything
     // downstream (inbox transcript, AI vision, debug events) captures the url.
     message.attachments = await materializeInboundAttachments({
@@ -26733,7 +26819,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
         providerMessageId: echoMessageId,
         productCards: echoProductCards,
         messageType: echoProductCards.length ? "product_card" : undefined,
-        visualAttachments: echoProductCards.length ? [] : (message.attachments || []),
+        // A template has no picture of its own to show; only real media rides on the row.
+        visualAttachments: echoProductCards.length
+          ? []
+          : (message.attachments || []).filter((attachment) => text(attachment?.type).toLowerCase() !== "template"),
         sessionCustomerName: message.customer_name || "",
         sessionStatus: "ai_active",
         preserveExistingOnProviderMatch: true,
@@ -28838,6 +28927,30 @@ const persistMetaSyncedMessage = async ({ tenantId, sessionRefId, sessionId, cha
       return { existing: true, repaired: true };
     }
     return { existing: true };
+  }
+  // Graph hands a generic template back as its element photos — one image attachment per card,
+  // on Meta's CDN, under a message id our own card row never carried. Pulled in as it stands it
+  // is the same defect the echo had: the colours as loose pictures beside the carousel they came
+  // from. A wordless all-image message of ours that sits next to a card row of ours, with no
+  // more pictures than that row has cards, is that carousel.
+  if (fromBusiness && !body && attachments.length && attachments.every((attachment) => attachment.type === "image")) {
+    const carousel = await db.query(
+      `
+      SELECT 1
+      FROM ai_support_messages
+      WHERE tenant_id = $1 AND session_id = $2
+        AND sender_type <> 'customer'
+        AND COALESCE(insert_source, '') NOT IN ('meta_history_sync', 'meta_provider_echo')
+        AND GREATEST(
+          CASE WHEN jsonb_typeof(product_cards) = 'array' THEN jsonb_array_length(product_cards) ELSE 0 END,
+          CASE WHEN jsonb_typeof(suggested_products) = 'array' THEN jsonb_array_length(suggested_products) ELSE 0 END
+        ) >= $4
+        AND created_at BETWEEN $3::timestamptz - INTERVAL '3 minutes' AND $3::timestamptz + INTERVAL '3 minutes'
+      LIMIT 1
+      `,
+      [tenantId, sessionId, createdAt, attachments.length]
+    ).catch(() => ({ rows: [] }));
+    if (carousel.rows.length) return { skipped: true, carousel_duplicate: true };
   }
   const inserted = await db.query(
     `

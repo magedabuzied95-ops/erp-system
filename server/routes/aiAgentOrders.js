@@ -15,6 +15,7 @@ import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
 import {
+  classifyMetaCarouselEcho,
   debugMessengerProfileForConversation,
   enrichStoryAttachments,
   getAiInboxConversationDebug,
@@ -2010,6 +2011,15 @@ router.post("/channels/meta/webhook", async (req, res) => {
       const conversationId = message.external_conversation_id;
       const customerMessage = envText(message.normalized_for_intent || message.message_text || "");
       const messageId = envText(message.external_message_id || message.dedupe_key || "");
+      // Same rule as /api/meta/webhook: the echo of a carousel we sent is already a row of
+      // ours, cards included. Storing it again is what put colour photos under the carousel.
+      const carouselEcho = message.from_me === true || message.direction === "outbound"
+        ? await classifyMetaCarouselEcho({ tenantId, message })
+        : { isCardSet: false, duplicate: false, cards: [] };
+      if (carouselEcho.duplicate) {
+        results.push({ channel, conversation_id: conversationId, sent: true, provider_echo: true, carousel_echo_skipped: true });
+        continue;
+      }
       // Same treatment for both directions: Meta CDN links expire, so the inbox
       // keeps its own copy of anything the provider sent us.
       message.attachments = await materializeInboundAttachments({
@@ -2022,14 +2032,16 @@ router.post("/channels/meta/webhook", async (req, res) => {
       message.attachments = await enrichStoryAttachments({ tenantId, attachments: message.attachments });
       const attachmentLabel = inboundAttachmentLabel(message.attachments);
       const isProviderOutbound = message.from_me === true || message.direction === "outbound";
+      // A card row's words are the cards; the attachment label is for media with nothing else to say.
+      const echoText = message.message_text || (carouselEcho.cards.length ? "" : attachmentLabel || "[attachment]");
       if (isProviderOutbound) {
         const outboundRow = await appendChannelOutboundSupportReply({
           tenantId,
           sessionId: conversationId,
-          message: message.message_text || attachmentLabel || "[attachment]",
+          message: echoText,
           channel,
           senderType: "staff",
-          staffMessage: message.message_text || attachmentLabel || "[attachment]",
+          staffMessage: echoText,
           staffUserName: "أنا",
           source: "meta_provider_echo",
           sourcePath: "meta_provider_echo",
@@ -2037,7 +2049,9 @@ router.post("/channels/meta/webhook", async (req, res) => {
           deliveryStatus: "sent",
           externalMessageId: messageId,
           providerMessageId: messageId,
-          visualAttachments: message.attachments || [],
+          productCards: carouselEcho.cards,
+          messageType: carouselEcho.cards.length ? "product_card" : undefined,
+          visualAttachments: (message.attachments || []).filter((attachment) => envText(attachment?.type).toLowerCase() !== "template"),
           sessionCustomerName: message.customer_name || "",
           sessionStatus: "ai_active",
           preserveExistingOnProviderMatch: true,

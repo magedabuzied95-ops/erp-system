@@ -9,10 +9,11 @@
  *
  * So the channel picks the chrome instead of a caption: WhatsApp's teal-on-slate,
  * Messenger's blue, Instagram's gradient, Telegram's navy. The same object also
- * decides how a product card is drawn, because the platforms genuinely differ —
- * WhatsApp sends the card as a bubble (image, caption, a link row under a
- * hairline), while Meta's generic template is a white card that sits on the
- * transcript background outside any bubble.
+ * decides how a product card is drawn. Every channel now draws it the WhatsApp
+ * way — inside the outgoing bubble: photo, caption, a link row under a hairline
+ * (owner's call: one card to learn, whichever thread is open). Meta's own white
+ * free-standing template survives only as `cardMode: "standalone"`, which no
+ * channel selects today.
  *
  * These are VALUES, not Tailwind classes, and the bubbles apply them as inline
  * styles. Twice now the class route has failed silently on production: once
@@ -49,8 +50,8 @@ export const resolveMessagePlatform = (message = {}, fallbackChannel = "") => {
  *   inMeta/outMeta  the timestamp row
  *   inLink/outLink  link colour ON that side (Messenger keeps a blue bubble in
  *                   light mode, so its outgoing link stays white there)
- *   card*         the product card, which is part of the bubble on WhatsApp and
- *                 a free-standing white template on Meta
+ *   card*         the product card, drawn inside the outgoing bubble, so its ink
+ *                 has to read on outBg — white on Meta's and TikTok's fills
  */
 const CHROME = {
   whatsapp: {
@@ -72,36 +73,36 @@ const CHROME = {
   },
   messenger: {
     radius: "18px",
-    cardMode: "standalone",
-    cardWidth: "248px",
+    cardMode: "bubble",
+    cardWidth: "286px",
     dark: {
       canvas: "#0a0a0a",
       inBg: "#303030", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.5)", inLink: "#ffffff",
       outBg: "#0084ff", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
-      cardBg: "#ffffff", cardInk: "#050505", cardMuted: "#65676b", cardLine: "#dadde1", cardAction: "#0084ff", cardImageBg: "#f0f2f5",
+      cardBg: "#0084ff", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.8)", cardLine: "rgba(255,255,255,0.25)", cardAction: "#ffffff", cardImageBg: "#ffffff",
     },
     light: {
       canvas: "#ffffff",
       inBg: "#e4e6eb", inInk: "#050505", inDark: true, inMeta: "#65676b", inLink: "#0064d1",
       outBg: "#0084ff", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
-      cardBg: "#ffffff", cardInk: "#050505", cardMuted: "#65676b", cardLine: "#dadde1", cardAction: "#0084ff", cardImageBg: "#f0f2f5",
+      cardBg: "#0084ff", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.8)", cardLine: "rgba(255,255,255,0.25)", cardAction: "#ffffff", cardImageBg: "#ffffff",
     },
   },
   instagram: {
     radius: "20px",
-    cardMode: "standalone",
-    cardWidth: "240px",
+    cardMode: "bubble",
+    cardWidth: "286px",
     dark: {
       canvas: "#000000",
       inBg: "#262626", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.5)", inLink: "#ffffff",
       outBg: "linear-gradient(135deg,#4f5bd5,#962fbf 55%,#d62976)", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
-      cardBg: "#ffffff", cardInk: "#0f0f0f", cardMuted: "#737373", cardLine: "#dbdbdb", cardAction: "#0095f6", cardImageBg: "#fafafa",
+      cardBg: "linear-gradient(135deg,#4f5bd5,#962fbf 55%,#d62976)", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.8)", cardLine: "rgba(255,255,255,0.25)", cardAction: "#ffffff", cardImageBg: "#ffffff",
     },
     light: {
       canvas: "#ffffff",
       inBg: "#efefef", inInk: "#0f0f0f", inDark: true, inMeta: "#737373", inLink: "#00376b",
       outBg: "linear-gradient(135deg,#4f5bd5,#962fbf 55%,#d62976)", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
-      cardBg: "#ffffff", cardInk: "#0f0f0f", cardMuted: "#737373", cardLine: "#dbdbdb", cardAction: "#0095f6", cardImageBg: "#fafafa",
+      cardBg: "linear-gradient(135deg,#4f5bd5,#962fbf 55%,#d62976)", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.8)", cardLine: "rgba(255,255,255,0.25)", cardAction: "#ffffff", cardImageBg: "#ffffff",
     },
   },
   telegram: {
@@ -123,19 +124,19 @@ const CHROME = {
   },
   tiktok: {
     radius: "16px",
-    cardMode: "standalone",
-    cardWidth: "240px",
+    cardMode: "bubble",
+    cardWidth: "286px",
     dark: {
       canvas: "#121212",
       inBg: "#2a2a2a", inInk: "#ffffff", inDark: false, inMeta: "rgba(255,255,255,0.5)", inLink: "#ffffff",
       outBg: "#fe2c55", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
-      cardBg: "#ffffff", cardInk: "#161823", cardMuted: "#6b7280", cardLine: "#e5e7eb", cardAction: "#fe2c55", cardImageBg: "#f4f4f5",
+      cardBg: "#fe2c55", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.8)", cardLine: "rgba(255,255,255,0.25)", cardAction: "#ffffff", cardImageBg: "#ffffff",
     },
     light: {
       canvas: "#ffffff",
       inBg: "#f1f1f2", inInk: "#161823", inDark: true, inMeta: "#6b7280", inLink: "#fe2c55",
       outBg: "#fe2c55", outInk: "#ffffff", outDark: false, outMeta: "rgba(255,255,255,0.75)", outLink: "#ffffff",
-      cardBg: "#ffffff", cardInk: "#161823", cardMuted: "#6b7280", cardLine: "#e5e7eb", cardAction: "#fe2c55", cardImageBg: "#f4f4f5",
+      cardBg: "#fe2c55", cardInk: "#ffffff", cardMuted: "rgba(255,255,255,0.8)", cardLine: "rgba(255,255,255,0.25)", cardAction: "#ffffff", cardImageBg: "#ffffff",
     },
   },
   // Web chat has no app of its own to imitate, so it borrows the house green and

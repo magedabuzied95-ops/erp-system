@@ -408,6 +408,60 @@ export const updateChannelSettings = async ({ tenantId, channel = AI_AGENT_CHANN
   return result.rows[0]?.settings || next;
 };
 
+/*
+ * A GENERIC TEMPLATE IS A CARD SET, NOT A PHOTO.
+ *
+ * We send it as { type: "template", payload: { template_type, elements } }. The echo is not
+ * guaranteed to come back in the shape it left in — Meta's Instagram samples nest the elements
+ * one level down, under payload.generic — so both are read here and nothing downstream has to
+ * know which app the echo came from.
+ */
+export const metaTemplateElements = (attachment = {}) => {
+  if (!attachment || typeof attachment !== "object") return [];
+  if (!["template", "generic"].includes(toText(attachment.type).toLowerCase())) return [];
+  const payload = attachment.payload && typeof attachment.payload === "object" ? attachment.payload : {};
+  const elements = Array.isArray(payload.elements) ? payload.elements : payload.generic?.elements;
+  return Array.isArray(elements) ? elements : [];
+};
+
+export const isMetaTemplateAttachment = (attachment = {}) =>
+  toText(attachment?.type).toLowerCase() === "template" || metaTemplateElements(attachment).length > 0;
+
+/*
+ * WHAT WE OURSELVES JUST SENT AS A TEMPLATE.
+ *
+ * The send route writes ONE transcript row for a carousel, under the message id of the lead
+ * sentence — the template leaves in a second Graph call whose id is kept nowhere. Its echo
+ * therefore matches no stored row, and it usually lands while the route is still sending, before
+ * that row even exists. So the echo cannot be recognised from the database alone: the sender
+ * leaves a note here, and the echo handler reads it. In-memory on purpose — it has to outlive a
+ * webhook round trip, not a deploy; after a restart the echo handler falls back to the stored row.
+ */
+const META_TEMPLATE_SEND_TTL_MS = 5 * 60 * 1000;
+const recentMetaTemplateSends = new Map();
+
+export const noteMetaTemplateSend = ({ recipientId = "", elements = [] } = {}) => {
+  const key = toText(recipientId);
+  if (!key) return;
+  const now = Date.now();
+  for (const [storedKey, entry] of recentMetaTemplateSends) {
+    if (now - entry.at > META_TEMPLATE_SEND_TTL_MS) recentMetaTemplateSends.delete(storedKey);
+  }
+  const previous = recentMetaTemplateSends.get(key);
+  const imageUrls = new Set(previous ? previous.imageUrls : []);
+  for (const element of asArray(elements)) {
+    const url = toText(element?.image_url);
+    if (url) imageUrls.add(url);
+  }
+  recentMetaTemplateSends.set(key, { at: now, imageUrls });
+};
+
+export const recentMetaTemplateSend = (recipientId = "") => {
+  const entry = recentMetaTemplateSends.get(toText(recipientId));
+  if (!entry || Date.now() - entry.at > META_TEMPLATE_SEND_TTL_MS) return null;
+  return entry;
+};
+
 const normalizeAttachments = (attachments = []) =>
   asArray(attachments)
     .map((attachment) => ({
@@ -415,6 +469,8 @@ const normalizeAttachments = (attachments = []) =>
       url: toText(attachment?.url || attachment?.image_url || attachment?.media_url || attachment?.path),
       title: toText(attachment?.title || attachment?.name || attachment?.filename),
       metadata: attachment?.metadata && typeof attachment.metadata === "object" ? attachment.metadata : {},
+      // A card set is its payload — without it the echo handler cannot tell a carousel from a photo.
+      ...(isMetaTemplateAttachment(attachment) ? { payload: attachment.payload } : {}),
     }))
     .filter((attachment) => attachment.url || attachment.title);
 
@@ -638,6 +694,13 @@ const extractMetaAttachments = (event = {}) => {
   const storyReply = metaStoryReplyContext(event);
   const mapped = asArray(event.message?.attachments)
     .map((attachment) => {
+      // Our own carousel comes back through the echo as a template. The recursive url walk
+      // reaches past it into the first ELEMENT's image_url, and the payload was then dropped —
+      // so every echo handler downstream saw "a photo" and stored the colours as pictures under
+      // a carousel the customer received once. The card set travels whole, and owns no url.
+      if (isMetaTemplateAttachment(attachment)) {
+        return { type: "template", url: "", image_url: "", title: "template", payload: attachment.payload, metadata: {} };
+      }
       const url = extractMetaAttachmentUrl(attachment);
       const isStory = isStoryAttachmentType(attachment.type);
       return {
@@ -657,7 +720,7 @@ const extractMetaAttachments = (event = {}) => {
         },
       };
     })
-    .filter((attachment) => attachment.url || attachment.metadata.sticker_id);
+    .filter((attachment) => attachment.url || attachment.metadata.sticker_id || attachment.type === "template");
   if (!storyReply || mapped.some((attachment) => isStoryAttachmentType(attachment.type))) return mapped;
   // The story is the context for the customer's text, so it leads the list — the
   // transcript renders the first story attachment as a quote above the message.
@@ -2167,6 +2230,10 @@ const postMetaPageMessage = async ({ payload, config }) => {
     payloadType,
     source: "aiChannelAdapterService",
   });
+  // Before the call, not after it: the echo can beat Graph's own answer back to us.
+  if (payloadType === "template") {
+    noteMetaTemplateSend({ recipientId: payload?.recipient?.id, elements: payload?.message?.attachment?.payload?.elements });
+  }
   const response = await fetch(`${metaMessagesUrl(config.graphVersion)}?access_token=${encodeURIComponent(config.pageAccessToken)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -1180,9 +1180,9 @@ function TranscriptMessage({
   }
 
   /* ── The product card ─────────────────────────────────────────────────────
-   * On WhatsApp the card is the outgoing bubble; on Messenger and Instagram the
-   * generic template is a white card on the conversation background with no
-   * bubble behind it. `cardMode` carries that difference. */
+   * The card is the outgoing bubble on every channel. `cardMode: "standalone"`
+   * (a white card on the conversation background, no bubble) is kept for a
+   * channel that wants Meta's own template look back. */
   if (safeRow.kind === "product_card") {
     const standalone = chrome.cardMode === "standalone";
     // A reply that carries cards almost always carries the sentence that
@@ -1236,7 +1236,7 @@ function TranscriptMessage({
       <ChatRow side="in" align="left" variant={variant} avatarUrl={avatarUrl} customerName={customerName || commenterName} showAvatar={showAvatar}>
         <ChatBubble skin={skin} radius={chrome.radius} side="in">
           {commenterName ? (
-            <div dir="auto" style={{ color: chrome.cardAction }} className="text-[12.5px] font-bold leading-4">{commenterName}</div>
+            <div dir="auto" style={{ color: skin.link }} className="text-[12.5px] font-bold leading-4">{commenterName}</div>
           ) : null}
           <LinkifiedText text={text} className={`${textClass} ${commenterName ? "mt-0.5" : ""}`} linkColor={skin.link} />
           {attachments()}
