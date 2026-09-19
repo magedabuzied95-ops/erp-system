@@ -856,12 +856,22 @@ export const getAiAgentSettings = async ({ tenantId }) => {
   };
 };
 
+// A patch is merged onto what is already stored, never onto the bare defaults. The row is shared:
+// aiPersonaService writes `persona` into it, aiWorkflows writes style-learning flags. A caller that
+// sends only the keys it owns must not silently reset everyone else's to DEFAULT_SETTINGS.
 export const updateAiAgentSettings = async ({ tenantId, settings = {} }) => {
   await ensureAiSalesAgentSchema();
+  const storedResult = await db.query(`SELECT settings FROM ai_agent_settings WHERE tenant_id = $1`, [tenantId]);
+  const stored = storedResult.rows[0]?.settings || {};
+  const merged = { ...stored, ...(settings || {}) };
   const next = {
     ...DEFAULT_SETTINGS,
-    ...(settings || {}),
-    handoff_rules: { ...DEFAULT_SETTINGS.handoff_rules, ...(settings?.handoff_rules || {}) },
+    ...merged,
+    handoff_rules: {
+      ...DEFAULT_SETTINGS.handoff_rules,
+      ...(stored?.handoff_rules || {}),
+      ...(settings?.handoff_rules || {}),
+    },
     allowed_phrases: asArray(settings.allowed_phrases || settings.preferred_phrases || DEFAULT_SETTINGS.allowed_phrases),
     preferred_phrases: asArray(settings.preferred_phrases || settings.allowed_phrases || DEFAULT_SETTINGS.preferred_phrases),
     forbidden_phrases: asArray(settings.forbidden_phrases || DEFAULT_SETTINGS.forbidden_phrases),

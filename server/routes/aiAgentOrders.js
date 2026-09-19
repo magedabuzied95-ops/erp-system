@@ -48,6 +48,13 @@ import { detectEscalation } from "../services/aiEscalationDetector.js";
 import { buildHumanizedReply } from "../services/aiHumanizedReplies.js";
 import { isDuplicateMessage } from "../services/aiMessageDeduplication.js";
 import { getAISettings, getAIToneInstruction, updateAISettings, wasAISettingsPersisted } from "../services/aiSettingsService.js";
+import { splitAiSettingsPayload } from "../utils/aiSettingsPartition.js";
+import {
+  __resetAgentActionPolicyCache,
+  applyAgentActionUpdates,
+  resolveAgentActions,
+} from "../services/aiAgentActionPolicy.js";
+import { loadInboxTeamPerformance } from "../services/aiInboxTeamPerformanceService.js";
 import { buildSuggestedReplies } from "../services/aiSuggestedReplies.js";
 import {
   getAIChannelSettings,
@@ -8433,10 +8440,20 @@ router.patch("/followups/:id/done", protect, inboxReply(), async (req, res) => {
   }
 });
 
+// Two stores hide behind this one route, and until 2026-09-19 the PUT wrote everything to the wrong one.
+// See server/utils/aiSettingsPartition.js for which key belongs to which store and why.
 router.get("/settings", protect, permit("settings", "view"), async (req, res) => {
   try {
-    const settings = await getAISettings();
-    return res.json({ success: true, settings, persisted: wasAISettingsPersisted() });
+    const tenantId = toTenantId(req);
+    const [globalSettings, agentSettings] = await Promise.all([
+      getAISettings(),
+      getAiAgentSettings({ tenantId }),
+    ]);
+    return res.json({
+      success: true,
+      settings: { ...agentSettings, ...globalSettings },
+      persisted: wasAISettingsPersisted(),
+    });
   } catch (error) {
     return sendError(res, error, "Failed to load AI agent settings");
   }
@@ -8444,10 +8461,63 @@ router.get("/settings", protect, permit("settings", "view"), async (req, res) =>
 
 router.put("/settings", protect, permit("settings", "edit"), async (req, res) => {
   try {
-    const settings = await updateAISettings(req.body?.settings || req.body || {});
-    return res.json({ success: true, settings, persisted: wasAISettingsPersisted() });
+    const tenantId = toTenantId(req);
+    const incoming = req.body?.settings || req.body || {};
+    const { global, agent } = splitAiSettingsPayload(incoming);
+    const globalSettings = Object.keys(global).length ? await updateAISettings(global) : await getAISettings();
+    const agentSettings = Object.keys(agent).length
+      ? await updateAiAgentSettings({ tenantId, settings: agent })
+      : await getAiAgentSettings({ tenantId });
+    return res.json({
+      success: true,
+      settings: { ...agentSettings, ...globalSettings },
+      persisted: wasAISettingsPersisted(),
+    });
   } catch (error) {
     return sendError(res, error, "Failed to update AI agent settings");
+  }
+});
+
+// Per-staff inbox performance. Attribution comes from message rows, not from the session's
+// assigned_user_id — that column is wiped on return-to-AI by design. See the service header.
+router.get("/analytics/team-performance", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const report = await loadInboxTeamPerformance({
+      tenantId,
+      from: req.query?.from || req.query?.date_from || "",
+      to: req.query?.to || req.query?.date_to || "",
+    });
+    return res.json({ success: true, ...report });
+  } catch (error) {
+    return sendError(res, error, "Failed to load inbox team performance");
+  }
+});
+
+// The action switches are a view over the same tenant row: three of them ARE existing agent flags,
+// so `applyAgentActionUpdates` writes each switch to whichever key really gates it rather than
+// inventing a parallel set. See server/services/aiAgentActionPolicy.js.
+router.get("/settings/actions", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const settings = await getAiAgentSettings({ tenantId });
+    return res.json({ success: true, actions: resolveAgentActions(settings) });
+  } catch (error) {
+    return sendError(res, error, "Failed to load AI agent actions");
+  }
+});
+
+router.put("/settings/actions", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const updates = req.body?.actions || req.body?.updates || {};
+    const current = await getAiAgentSettings({ tenantId });
+    const next = applyAgentActionUpdates(current, updates);
+    const saved = await updateAiAgentSettings({ tenantId, settings: next });
+    __resetAgentActionPolicyCache();
+    return res.json({ success: true, actions: resolveAgentActions(saved) });
+  } catch (error) {
+    return sendError(res, error, "Failed to update AI agent actions");
   }
 });
 
