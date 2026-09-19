@@ -556,8 +556,6 @@ Object.assign(labels.ar, {
   currentMonthSubtitle: "الشهر الحالي",
   notificationsShort: "تنبيهات",
   displayRefillShort: "عرض",
-  tasksShort: "مهام",
-  requestsShort: "طلبات",
   pendingTasks: "مهام معلقة",
   salaryNotGenerated: "لم يتم إنشاء راتب هذا الشهر بعد",
   payrollSummary: "ملخص الراتب",
@@ -651,8 +649,6 @@ Object.assign(labels.en, {
   currentMonthSubtitle: "Current month",
   notificationsShort: "Alerts",
   displayRefillShort: "Display",
-  tasksShort: "Tasks",
-  requestsShort: "Requests",
   pendingTasks: "Pending Tasks",
   salaryNotGenerated: "This month salary has not been generated yet.",
   payrollSummary: "Payroll summary",
@@ -1292,12 +1288,15 @@ const salesOpportunityRoute = (token = "", opportunity = {}) => {
 
 function SalesBoardFilter({ label, allLabel, value, options = [], onChange, className = "" }) {
   return (
-    <label className={`flex min-w-0 flex-col gap-1 text-right ${className}`}>
+    // min-h-16 is the sales board's shared box height: the same 64px the "اليوم"
+    // counter above the filters uses, so caption+control and caption+number line
+    // up instead of the filters sitting 6px short (owner request 2026-09-19).
+    <label className={`flex min-h-16 min-w-0 flex-col gap-1 text-right ${className}`}>
       <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[var(--control-height-md)] w-full min-w-0 rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 px-2 text-[13px] font-black text-white outline-none focus:border-primary/60"
+        className="min-h-[var(--control-height-md)] w-full min-w-0 flex-1 rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 px-2 text-[13px] font-black text-white outline-none focus:border-primary/60"
       >
         <option value="all">{allLabel}</option>
         {safeArray(options).map((option) => (
@@ -4050,14 +4049,12 @@ export default function EmployeePayrollPortal() {
                 {[
                   { key: "notifications", count: badgeCounts.unreadNotifications || 0, label: ui("notificationsShort"), Icon: Bell, tone: "emerald" },
                   { key: "display-refill", count: badgeCounts.displayRefillAlerts || 0, label: ui("displayRefillShort"), Icon: AlertTriangle, tone: "amber" },
-                  { key: "tasks", count: badgeCounts.newTasks || 0, label: ui("tasksShort"), Icon: ClipboardList, tone: "sky" },
-                  { key: "requests", count: badgeCounts.pendingNotifications || 0, label: ui("requestsShort"), Icon: MessageCircle, tone: "orange" },
                 ].map(({ key, count, label, Icon, tone }) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setActiveTab(key)}
-                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${ tone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-700" : tone === "sky" ? "border-primary/30 bg-primary-subtle text-primary" : "border-orange-200 bg-orange-50 text-orange-700" }`}
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${ tone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700" }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{label}</span>
@@ -4066,26 +4063,36 @@ export default function EmployeePayrollPortal() {
                     </span>
                   </button>
                 ))}
-              </div>
-            </div>
-            ) : null}
-            {showHomeTabSections ? (
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => setActiveTab("requests")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-800 shadow-sm">
-                  <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                {/* المهام and الطلبات gave their two slots to these (owner request
+                    2026-09-19): المهام lives in the bottom bar, and طلب سلفة opens
+                    the الطلبات tab, so both stay reachable. */}
+                <button
+                  type="button"
+                  data-testid="employee-home-advance-request"
+                  onClick={() => setActiveTab("requests")}
+                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-black text-slate-800 shadow-sm transition"
+                >
+                  <MessageCircle className="h-4 w-4 shrink-0" />
                   <span className="truncate">{ui("advanceRequest")}</span>
+                  {badgeCounts.pendingNotifications > 0 ? (
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-black text-slate-950">
+                      {badgeCounts.pendingNotifications > 99 ? "99+" : badgeCounts.pendingNotifications}
+                    </span>
+                  ) : null}
                 </button>
                 <button
                   type="button"
+                  data-testid="employee-home-talk-to-management"
                   onClick={() => {
                     setChatOpen(true);
                   }}
-                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-full bg-primary px-3 text-[11px] font-black text-[var(--primary-contrast)] shadow-sm"
+                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] bg-primary px-2.5 py-2 text-[11px] font-black text-[var(--primary-contrast)] shadow-sm transition"
                 >
-                  <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                  <MessageCircle className="h-4 w-4 shrink-0" />
                   <span className="truncate">{ui("talkToManagement")}</span>
                 </button>
               </div>
+            </div>
             ) : null}
 
             {showHomeTabSections ? (
@@ -4094,7 +4101,7 @@ export default function EmployeePayrollPortal() {
                   <div className="min-w-0">
                     <h2 className="m1-section-title">{text.salesOpportunitiesTitle}</h2>
                   </div>
-                  <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
+                  <div className="flex min-h-16 shrink-0 flex-col justify-center rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{text.today}</div>
                     <div className="mt-0.5 text-lg font-black text-primary">{salesBoardCounts.total || 0}</div>
                   </div>
@@ -4196,13 +4203,14 @@ export default function EmployeePayrollPortal() {
                                 {text.salesBoardLastOneBadge}
                               </span>
                             ) : null}
-                            {card.grade_label ? (
-                              <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-black text-slate-100">
-                                {card.grade_label}
-                              </span>
-                            ) : null}
+                            {/* The grade ("مستورد فيتنامي") is a filter, not a badge:
+                                it crowded the row and pushed عرض/آخر قطعة away from
+                                the photo (owner request 2026-09-19). */}
                           </div>
-                          <div className="mt-2 truncate text-[15px] font-black leading-5 text-white" dir="auto">
+                          {/* text-left is physically left here: the utilities layer beats
+                              the RTL flip in index.css, so the name sits next to the photo
+                              like the badges above it (justify-end resolves left in RTL). */}
+                          <div className="mt-2 truncate text-left text-[15px] font-black leading-5 text-white" dir="auto">
                             {card.product_name || "منتج"}
                           </div>
                           <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[11px] font-bold text-slate-300">

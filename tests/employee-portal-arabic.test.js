@@ -24,7 +24,21 @@ test("الشحن sits in the bottom bar after المهام, then الرسائل 
   const order = ["\"tasks\"", "ONLINE_ORDERS_NAV_KEY", "INBOX_NAV_KEY", "\"display-refill\""].map((token) => tabs.indexOf(token));
   assert.ok(order.every((index) => index > 0) && order.every((index, i) => i === 0 || order[i - 1] < index), `order was ${order}`);
   assert.doesNotMatch(tabs, /"requests"/, "الطلبات left the bottom bar");
-  assert.match(home, /\{ key: "requests", count: badgeCounts\.pendingNotifications/, "الطلبات is still reachable from the home");
+  // 2026-09-19: the مهام and الطلبات badges gave their two slots on the home to
+  // طلب سلفة and كلم الإدارة (owner request). المهام keeps its bottom-bar tab, and
+  // الطلبات is now opened by طلب سلفة.
+  assert.doesNotMatch(home, /key: "tasks", count: badgeCounts/, "المهام left the home grid");
+  assert.doesNotMatch(home, /key: "requests", count: badgeCounts/, "الطلبات left the home grid");
+  assert.match(
+    home,
+    /data-testid="employee-home-advance-request"[\s\S]{0,160}?setActiveTab\("requests"\)/,
+    "الطلبات is still reachable from the home, through طلب سلفة"
+  );
+  assert.match(
+    home,
+    /data-testid="employee-home-talk-to-management"[\s\S]{0,200}?setChatOpen\(true\)/,
+    "كلم الإدارة opens the chat from the home"
+  );
   assert.match(tabs, /\.\.\.\(inboxEnabled \? \[\[INBOX_NAV_KEY/, "only switched-on employees get الرسائل");
   assert.match(home, /onClick=\{\(\) => \(key === ONLINE_ORDERS_NAV_KEY \? openOnlineOrdersPage\(\) : key === INBOX_NAV_KEY \? navigate\(/);
   assert.doesNotMatch(home, /employee-inbox-link/, "no second الرسائل entry on the home");
