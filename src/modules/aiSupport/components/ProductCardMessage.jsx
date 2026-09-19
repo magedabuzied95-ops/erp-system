@@ -4,12 +4,12 @@
  * It used to be one house card everywhere: a cyan panel captioned "منتج مُرسل"
  * with the full send timestamp, wrapping a dark tile per product. Nothing on a
  * customer's phone looks like that. WhatsApp shows the card as part of the
- * outgoing bubble — photo, caption, then a link row under a hairline — and that
- * is the one layout every channel uses now, in its own bubble colours. The
- * free-standing white card (Meta's generic template) is still here behind
- * `cardMode: "standalone"`, unused.
+ * outgoing bubble — photo, caption, then a link row under a hairline — while
+ * Meta's generic template is a white card that sits on the transcript
+ * background, outside any bubble, with its button in the platform's blue.
  *
- * The shape and the colours come from `platformChrome`.
+ * The shapes come from `platformChrome`, so the transcript mirrors what actually
+ * left the building, platform for platform.
  */
 import { memo, useContext } from "react";
 import { useTranslation } from "react-i18next";
@@ -162,6 +162,34 @@ const cardSubtitle = (card = {}, t, priceValue) => {
   return parts.join(" · ");
 };
 
+/*
+ * THE WORDS THE CUSTOMER ACTUALLY READS.
+ *
+ * A Messenger/Instagram colour carousel does not show the product name and an "EGP 900.00 ·
+ * Colour: Bige" line — that was the inbox describing the card in its own voice. What leaves the
+ * building is buildMetaCarouselElement (metaIntegrationService): the colour and the price as the
+ * bold title, the sizes under their own label, and one button. This is that function read back,
+ * so the operator sees the card the customer is looking at. The strings are the customer's copy,
+ * Arabic on every ERP language — they are not interface text and must not be translated.
+ */
+const META_TEMPLATE_PLATFORMS = ["instagram", "messenger"];
+
+const metaTemplateCopy = (card = {}) => {
+  const priceValue = Number(card.price ?? card.final_price ?? 0);
+  const priceText = priceValue > 0 ? `${priceValue.toLocaleString("en-US")} جنيه` : "";
+  const title = [firstText(card.color, card.product_name, card.name, card.title), priceText].filter(Boolean).join(" — ");
+  const sizes = [...new Set([...asArray(card.available_sizes), ...asArray(card.sizes), ...asArray(card.size_options)].map(clean).filter(Boolean))];
+  const selectedSize = clean(card.size || card.selected_size);
+  const subtitle = selectedSize
+    ? `المقاس: ${selectedSize}`
+    : sizes.length
+      ? `المقاسات المتاحة:
+${sizes.join(" · ")}`
+      : "";
+  const button = clean(card.variant_id || card.price_variant_id) ? "اطلب اللون ده ✅" : "عرض المنتج";
+  return { title, subtitle, button };
+};
+
 function ProductCardMessage({
   message = {},
   cards = [],
@@ -184,6 +212,8 @@ function ProductCardMessage({
   // card there inherits the bubble instead of sitting on top of one.
   const standalone = chrome.cardMode === "standalone";
   const strip = items.length > 1;
+  // Only the carousel leaves as this template; a single card goes out in another shape.
+  const mirrorsMetaTemplate = standalone && strip && META_TEMPLATE_PLATFORMS.includes(platform);
 
   const renderCard = (card, index) => {
     const image = cardImage(card);
@@ -213,6 +243,34 @@ function ProductCardMessage({
         <ShoppingBag style={{ color: chrome.cardMuted }} className="h-8 w-8" />
       </div>
     );
+
+    if (mirrorsMetaTemplate) {
+      const copy = metaTemplateCopy(card);
+      return (
+        <article
+          key={cardKey}
+          style={{ width: chrome.cardWidth, background: chrome.cardBg, color: chrome.cardInk, borderRadius: chrome.radius }}
+          className="shrink-0 snap-start overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.25)]"
+        >
+          {picture}
+          <div className="px-3 pb-3 pt-2.5" dir="auto">
+            <p style={{ color: chrome.cardInk }} className="text-[15px] font-bold leading-5">{copy.title || name}</p>
+            {copy.subtitle ? (
+              <p style={{ color: chrome.cardMuted }} className="mt-0.5 whitespace-pre-line text-[13px] leading-[18px]">{copy.subtitle}</p>
+            ) : null}
+            <a
+              href={storefrontUrl || undefined}
+              target="_blank"
+              rel="noreferrer"
+              style={{ background: chrome.cardButtonBg, color: chrome.cardButtonInk }}
+              className="mt-2.5 block rounded-[10px] px-3 py-2 text-center text-[14px] font-bold"
+            >
+              {copy.button}
+            </a>
+          </div>
+        </article>
+      );
+    }
 
     if (standalone) {
       return (
