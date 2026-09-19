@@ -536,7 +536,9 @@
     "originPost": {
       "title": "Came from this post",
       "empty": "Post with no text",
-      "openPost": "Open post"
+      "openPost": "Open post",
+      "collapse": "Tuck the post away",
+      "expand": "Show the post"
     },
     "rail": {
       "conversations": "Conversations",

@@ -211,6 +211,48 @@ test("the permalink resolver returns empty rather than guessing", () => {
   assert.equal(resolveSocialCommentPostPermalink({ raw_payload: { value: { post: {} } } }), "");
 });
 
+// ------------------------------------------------------------ folding away
+//
+// Pinned to the top of a phone-sized transcript the card eats real estate an operator mid-thread no
+// longer needs, so the whole card toggles: tap it and it tucks into a pill on the leading edge, tap
+// the pill and it comes back.
+
+const CARD = fs.readFileSync("src/modules/aiSupport/components/OriginPostCard.jsx", "utf8");
+
+test("the card folds into a pill and back", () => {
+  assert.ok(CARD.includes("if (collapsed) {"), "there must be a folded render");
+  const folded = CARD.slice(CARD.indexOf("if (collapsed) {"), CARD.indexOf("return (", CARD.indexOf("if (collapsed) {") + 400));
+  assert.ok(folded.includes("justify-start"), "the pill sits on the leading edge");
+  assert.ok(folded.includes("onClick={toggle}"), "tapping the pill brings the card back");
+  assert.ok(folded.includes(`aria-expanded="false"`));
+  // The pill keeps the thumbnail, so the operator can still tell which post it was without
+  // unfolding it -- a bare chevron would make folding it a loss of information.
+  assert.ok(folded.includes("thumbnail("), "the pill keeps the post thumbnail");
+});
+
+// The card holds the "open post" anchor, and an anchor may not live inside a <button>.
+test("the expanded card toggles without nesting an anchor in a button", () => {
+  assert.ok(CARD.includes(`role="button"`), "the expanded card is a div with a button role");
+  assert.ok(CARD.includes("onKeyDown={onToggleKeyDown}"), "Enter and Space must work");
+  assert.ok(!/=\{`sticky top-2 z-20 cursor-pointer \$\{skin\.shell\}`\}[\s\S]{0,4000}<button/.test(CARD), "no nested button inside the card shell");
+});
+
+// Opening the post must not also fold the card away behind the new tab.
+test("opening the post does not fold the card", () => {
+  const anchor = CARD.slice(CARD.indexOf("<a"), CARD.indexOf("</a>"));
+  assert.ok(anchor.includes("onClick={(event) => event.stopPropagation()}"));
+});
+
+// Storage can be blocked, cleared, or throw outright in a private window. A forgotten preference is
+// a shrug; a transcript that will not render because storage said no is not.
+test("the fold preference survives a storage that refuses", () => {
+  const read = CARD.slice(CARD.indexOf("const readCollapsedPreference"), CARD.indexOf("const writeCollapsedPreference"));
+  const write = CARD.slice(CARD.indexOf("const writeCollapsedPreference"), CARD.indexOf("const SKINS"));
+  assert.ok(read.includes("try {") && read.includes("} catch {"), "reads must not throw");
+  assert.ok(write.includes("try {") && write.includes("} catch {"), "writes must not throw");
+  assert.ok(read.includes("return false;"), "an unreadable storage means shown, not hidden");
+});
+
 // ---------------------------------------------------------------- Instagram
 //
 // An Instagram media object is not a Facebook post. It answers to `caption`, `permalink`,
