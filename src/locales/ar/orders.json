@@ -1143,7 +1143,7 @@
     "reason": {
       "amount_only": "المبلغ مطابق بس الرقم مختلف",
       "several_orders": "أكتر من طلب مطابق",
-      "untrusted_sender": "الرسالة مش من فودافون",
+      "untrusted_sender": "الرسالة مش من مصدر موثوق",
       "unknown_wallet": "على محفظة غير المسجلة في الإعدادات"
     },
     "method": {
@@ -1186,6 +1186,7 @@
       "vodafone_cash": "فودافون كاش",
       "cib": "إنستاباي CIB",
       "united_bank": "المصرف المتحد",
+      "instapay": "إنستاباي",
       "unknown": "غير معروف"
     }
   },

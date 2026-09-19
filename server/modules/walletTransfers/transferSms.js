@@ -10,7 +10,14 @@ import { parseVodafoneCashSms } from "./vodafoneCashSms.js";
 //   يرجى العلم انه تم تنفيذ تحويل لحظي بمبلغ 2700.00 جم إلى حسابك المنتهي بـ ********2572
 //   من محمدمجدى علىالبواب برقم مرجعي e46bbe82 بتاريخ 11-09-2026 21:59 للمزيد، برجاء الاتصال بـ 19666
 
-export const TRANSFER_PROVIDERS = ["vodafone_cash", "cib", "united_bank"];
+//
+// InstaPay's own app notification (2026-09-20) — the iPhone automation forwards the title
+// and the body together:
+//   انستاباي لقد استلمت 1.00 جنيه من zeinababdelnasser@instapay
+// It names the sender by their InstaPay address, never by a person, and carries neither a
+// transaction number nor a time — so the minute it arrived stands in for both.
+
+export const TRANSFER_PROVIDERS = ["vodafone_cash", "cib", "united_bank", "instapay"];
 
 const EASTERN_DIGITS = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹";
 const toLatinDigits = (value = "") =>
@@ -87,11 +94,41 @@ export const parseCibSms = (raw = "") => {
   };
 };
 
-export const parseTransferSms = (raw = "") => {
+const IPA = "([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+|(?:\\+?20|0)?1\\d{9})";
+const minuteStamp = (date) => {
+  const at = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+  return at.toISOString().slice(0, 16).replace(/\D/g, "");
+};
+
+export const parseInstapayNotification = (raw = "", receivedAt = new Date()) => {
+  const text = clean(raw);
+  const found = match(text, `(?:لقد\\s+)?استلمت\\s+(?:مبلغ\\s+)?${MONEY}\\s*(?:جنيه|جم|ج\\.?م|EGP)?\\s+من\\s+${IPA}`);
+  if (!found) return null;
+  const [, amountText, handle] = found;
+  const amount = money(amountText);
+  const address = handle.trim();
+  return {
+    ...empty("instapay"),
+    kind: "incoming",
+    amount,
+    // The address IS the sender here; the page shows it and the matcher reads the part
+    // before the @, which is what a customer types at checkout when asked for it.
+    counterpartyName: address,
+    counterpartyPhone: address.includes("@") ? "" : address,
+    // Nothing in the notification is unique, so the same one delivered twice in the same
+    // minute collapses into one row — two real transfers differ by address, amount or minute.
+    reference: amount ? `instapay-${address.toLowerCase()}-${amount}-${minuteStamp(receivedAt)}` : "",
+    complete: Boolean(amount && address),
+  };
+};
+
+export const parseTransferSms = (raw = "", { receivedAt = new Date() } = {}) => {
   const cib = parseCibSms(raw);
   if (cib) return cib;
   const united = parseUnitedBankSms(raw);
   if (united) return united;
+  const instapay = parseInstapayNotification(raw, receivedAt);
+  if (instapay) return instapay;
   const vodafone = parseVodafoneCashSms(raw);
   if (vodafone.kind !== "unknown") return { provider: "vodafone_cash", ...vodafone };
   return empty("unknown", { reference: vodafone.reference });
@@ -103,6 +140,9 @@ const TRUSTED_SENDERS = {
   vodafone_cash: /vf|vodafone|فودافون/i,
   cib: /cib|التجاري/i,
   united_bank: /united|المتحد|ubank/i,
+  // Not an SMS at all: the iPhone automation only fires on notifications from the InstaPay
+  // app itself, so nobody outside the phone can put words in this one.
+  instapay: /instapay|انستاباي|إنستاباي|انستا/i,
 };
 export const isTrustedTransferSender = (provider = "", sender = "") =>
   Boolean(TRUSTED_SENDERS[provider]?.test(String(sender || "")));

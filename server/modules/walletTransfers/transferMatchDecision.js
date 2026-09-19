@@ -26,16 +26,25 @@ export const namesMatch = (a = "", b = "") => {
   return shorter.length >= 8 && longer.startsWith(shorter);
 };
 
+// InstaPay names the sender by their address — "zeinababdelnasser@instapay". The part
+// before the @ is what a person recognises and what a customer types at checkout; the
+// domain is the same for everyone, so it never takes part in a comparison.
+const senderIdentity = (value = "") => String(value ?? "").split("@")[0].trim();
+
 // Pure: which of the waiting orders the transfer proves, and how sure we are.
 export const decideTransferMatch = ({ transfer, candidates = [], trustedSender = false, walletKnown = true }) => {
   const senderKey = canonicalPhoneKey(transfer.counterparty_phone);
   const reference = alnum(transfer.reference);
+  const identity = senderIdentity(transfer.counterparty_name);
+  const identityKey = alnum(identity);
   const methodFor = (order) => {
     if (senderKey && canonicalPhoneKey(order.customer_phone) === senderKey) return "auto_phone";
     const quoted = alnum(order.shipping_payment_reference);
     if (quoted && reference.length >= 6 && quoted.includes(reference)) return "auto_reference";
     if (quoted && senderKey && canonicalPhoneKey(quoted) === senderKey) return "auto_reference";
-    if (transfer.counterparty_name && namesMatch(order.customer_name, transfer.counterparty_name)) return "auto_name";
+    // The customer who wrote their own InstaPay address on the order owns this transfer.
+    if (quoted && identityKey.length >= 6 && quoted.includes(identityKey)) return "auto_reference";
+    if (identity && namesMatch(order.customer_name, identity)) return "auto_name";
     return "";
   };
   const strong = candidates.filter((order) => methodFor(order));

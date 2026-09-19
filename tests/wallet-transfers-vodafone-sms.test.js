@@ -148,6 +148,51 @@ test("a United Bank deposit has nothing to prove who sent it, so it only ever go
   assert.equal(decideTransferMatch({ transfer: deposit, candidates: [order(14, "01011112222")], trustedSender: true }).reviewReason, "amount_only");
 });
 
+// The InstaPay app notification, title and body joined the way the iPhone automation sends them.
+const INSTAPAY = "انستاباي لقد استلمت 1.00 جنيه من zeinababdelnasser@instapay";
+const AT = new Date("2026-09-20T02:07:31Z");
+
+test("an InstaPay notification parses its amount and the address that sent it", () => {
+  const parsed = parseTransferSms(INSTAPAY, { receivedAt: AT });
+  assert.equal(parsed.provider, "instapay");
+  assert.equal(parsed.kind, "incoming");
+  assert.equal(parsed.amount, 1);
+  assert.equal(parsed.counterpartyName, "zeinababdelnasser@instapay");
+  assert.equal(parsed.counterpartyPhone, "");
+  assert.equal(parsed.complete, true);
+  assert.equal(isTrustedTransferSender("instapay", "انستاباي"), true);
+  assert.equal(isTrustedTransferSender("instapay", "VF-Cash"), false);
+});
+
+test("the same InstaPay notification delivered twice is one transfer, a later one is another", () => {
+  const first = parseTransferSms(INSTAPAY, { receivedAt: AT });
+  const again = parseTransferSms(INSTAPAY, { receivedAt: new Date("2026-09-20T02:07:59Z") });
+  const later = parseTransferSms(INSTAPAY, { receivedAt: new Date("2026-09-20T02:08:01Z") });
+  assert.equal(first.reference, again.reference);
+  assert.notEqual(first.reference, later.reference);
+  assert.notEqual(first.reference, parseTransferSms("انستاباي لقد استلمت 250 جنيه من someoneelse@instapay", { receivedAt: AT }).reference);
+});
+
+test("an InstaPay address approves the order that quotes it, or whose customer bears that name", () => {
+  const transfer = { counterparty_name: "zeinababdelnasser@instapay", reference: "instapay-zeinababdelnasser@instapay-1-202609200207", amount: 1 };
+  const quoted = decideTransferMatch({
+    transfer,
+    candidates: [order(21, "01011112222", { shipping_payment_reference: "ZeinabAbdelnasser@instapay" }), order(22, "01033334444")],
+    trustedSender: true,
+  });
+  assert.equal(quoted.action, "confirm");
+  assert.equal(quoted.order.id, 21);
+  assert.equal(quoted.matchMethod, "auto_reference");
+
+  const byName = decideTransferMatch({ transfer, candidates: [order(23, "01011112222", { customer_name: "Zeinab Abdelnasser" })], trustedSender: true });
+  assert.equal(byName.matchMethod, "auto_name");
+
+  // The address is Latin and the name at checkout is Arabic: nothing links them, so a person looks.
+  const arabic = decideTransferMatch({ transfer, candidates: [order(24, "01011112222", { customer_name: "زينب عبد الناصر" })], trustedSender: true });
+  assert.equal(arabic.action, "review");
+  assert.equal(arabic.reviewReason, "amount_only");
+});
+
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("wiring: boot creates the table, routes are mounted, checkout re-matches, staff approval shares the core", () => {

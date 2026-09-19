@@ -8,7 +8,8 @@ import { decideTransferMatch } from "./transferMatchDecision.js";
 import { isTrustedTransferSender, parseTransferSms } from "./transferSms.js";
 import { notifyPaymentProofApproved } from "../shipping/paymentProofLink.js";
 
-// Every money SMS the owner's phone forwards (Vodafone Cash, CIB, United Bank) becomes one
+// Every money message the owner's phone forwards — the SMS from Vodafone Cash, CIB and the
+// United Bank, and the InstaPay app's own notification — becomes one
 // row here, whatever it says. An incoming transfer is matched to a website order waiting on its transfer proof:
 // the order is approved on its own only when exactly one waiting order has that amount AND
 // was placed by the phone or the name that sent the money (or quotes the transaction number). Anything
@@ -21,7 +22,7 @@ const MATCH_WINDOW_AFTER = "2 days";
 // Customers pick "InstaPay" and pay the wallet, or the other way round; the SMS says where
 // the money landed, not which button they pressed, so both kinds of order are candidates.
 const TRANSFER_PAYMENT_METHODS = ["vodafone_cash", "instapay"];
-export const PROVIDER_LABELS = { vodafone_cash: "فودافون كاش", cib: "إنستاباي CIB", united_bank: "المصرف المتحد" };
+export const PROVIDER_LABELS = { vodafone_cash: "فودافون كاش", cib: "إنستاباي CIB", united_bank: "المصرف المتحد", instapay: "إنستاباي" };
 const PLACEHOLDER_WALLETS = new Set(["", "1000000000"]);
 
 const text = (value = "") => String(value ?? "").trim();
