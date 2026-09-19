@@ -155,11 +155,14 @@ const buildInventoryCountVariantImageSelects = async (client, { variantAlias = "
     productImageExpr
   );
 
+  // NULL, not '': this is the FIRST argument of the COALESCE below. An empty
+  // string is not NULL, so on a schema without the column the whole expression
+  // resolved to '' and the colour's real picture behind it was never reached.
   const colorImageColumnExpr = firstAvailableColumnExpr(
     variantAlias,
     variantColumns,
     ["color_image_url"],
-    "''"
+    "NULL"
   );
 
   let productColorImageExpr = "";
@@ -1234,7 +1237,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
   // asked for it in a correlated subquery — once per size row — and took the
   // production snapshot (9k rows) from under a second to six.
   const colorCodeCtes = hasColorGroups
-    ? `WITH pcg_by_name AS (
+    ? `pcg_by_name AS (
         SELECT DISTINCT ON (product_id, LOWER(TRIM(COALESCE(color_name, ''))))
           product_id,
           LOWER(TRIM(COALESCE(color_name, ''))) AS color_key,
@@ -1256,6 +1259,39 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
     ? `${hasColorGroupKey ? "LEFT JOIN pcg_by_key ck ON ck.product_id = v.product_id AND ck.group_key = LOWER(TRIM(COALESCE(v.color_group_key, '')))" : ""}
     LEFT JOIN pcg_by_name cn ON cn.product_id = v.product_id AND cn.color_key = LOWER(TRIM(COALESCE(v.color, '')))`
     : "";
+  // The colour's own picture. Colour photos live in the product_variant_images
+  // gallery (primary first); the size row's image columns are the fallback. The
+  // product cover is sent separately and is only what the phone shows when a
+  // colour has no picture at all — never instead of one.
+  const hasGallery = await tableExists(dbClient, "product_variant_images");
+  const galleryColumns = hasGallery ? await getTableColumns(dbClient, "product_variant_images") : new Set();
+  const galleryUsable = hasGallery && galleryColumns.has("product_id") && galleryColumns.has("image_url") && galleryColumns.has("color_name");
+  const galleryOrder = [
+    galleryColumns.has("is_primary") ? "is_primary DESC" : "",
+    galleryColumns.has("sort_order") ? "sort_order ASC" : "",
+    "id ASC",
+  ].filter(Boolean).join(", ");
+  const gallerySource = (keyColumn) =>
+    `SELECT product_id, LOWER(TRIM(COALESCE(${keyColumn}, ''))) AS color_key, image_url${galleryColumns.has("is_primary") ? ", is_primary" : ""}${galleryColumns.has("sort_order") ? ", sort_order" : ""}, id
+       FROM product_variant_images WHERE COALESCE(image_url, '') <> ''`;
+  const galleryCte = galleryUsable
+    ? `pvi_by_color AS (
+        SELECT DISTINCT ON (product_id, color_key) product_id, color_key, image_url
+        FROM (
+          ${gallerySource("color_name")}
+          ${galleryColumns.has("color_value") ? `UNION ALL ${gallerySource("color_value")}` : ""}
+        ) g
+        WHERE color_key <> ''
+        ORDER BY product_id, color_key, ${galleryOrder}
+      )`
+    : "";
+  const galleryJoin = galleryUsable
+    ? "LEFT JOIN pvi_by_color gi ON gi.product_id = v.product_id AND gi.color_key = LOWER(TRIM(COALESCE(v.color, '')))"
+    : "";
+  const ownImageExpr = firstAvailableColumnExpr("v", variantColumns, ["color_image_url", "image_url", "image", "photo_url", "thumbnail_url"], "''");
+  const colorPictureExpr = galleryUsable ? `COALESCE(NULLIF(gi.image_url, ''), ${ownImageExpr})` : ownImageExpr;
+  const snapshotCtes = [colorCodeCtes, galleryCte].filter(Boolean);
+
   const articleCodeExpr = hasColorGroups
     ? `COALESCE(NULLIF(${ownArticleExpr}, ''), ${hasColorGroupKey ? "NULLIF(ck.code, '')," : ""} NULLIF(cn.code, ''), '')`
     : ownArticleExpr;
@@ -1289,7 +1325,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
 
   const result = await dbClient.query(
     `
-    ${colorCodeCtes}
+    ${snapshotCtes.length ? `WITH ${snapshotCtes.join(",\n    ")}` : ""}
     SELECT
       t.product_variant_id, t.product_id, t.product_name, t.color, t.size, t.sku, t.barcode,
       t.article_code, t.product_barcode, t.product_sku, t.stock, t.gender, t.type, t.category,
@@ -1322,10 +1358,11 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       ${gradeExpr} AS grade,
       ${imageSelects.productImageExpr} AS product_image_url_raw,
       ${productUpdatedExpr} AS product_updated_at,
-      ${imageSelects.colorImageExpr} AS image_url_raw
+      ${colorPictureExpr} AS image_url_raw
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
     ${colorCodeJoins}
+    ${galleryJoin}
     ${productColumns.has("brand_id") ? "LEFT JOIN brands b ON b.id = p.brand_id" : ""}
     ${productColumns.has("manufacturer_id") ? "LEFT JOIN manufacturers m ON m.id = p.manufacturer_id" : ""}
     WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
@@ -1355,7 +1392,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
   };
 };
 
-const CATALOG_SNAPSHOT_SHAPE = "s2";
+const CATALOG_SNAPSHOT_SHAPE = "s3";
 
 /**
  * A few bytes that say whether the catalogue snapshot a phone already holds is
@@ -1402,7 +1439,7 @@ export const loadInventoryCountCatalogVersion = async (clientOrPool, data = {}) 
   );
   const row = result.rows[0] || {};
   // The leading tag is the SHAPE of the snapshot. The data watermark cannot see a
-  // change to what the snapshot contains (s2: colour-level article codes), so
+  // change to what the snapshot contains (s2: colour-level article codes, s3: each colour's own picture), so
   // bump this whenever the projection changes and every phone re-downloads once.
   return { version: `${CATALOG_SNAPSHOT_SHAPE}.${row.pc || 0}.${row.vc || 0}.${row.pmax || 0}.${row.vmax || 0}` };
 };

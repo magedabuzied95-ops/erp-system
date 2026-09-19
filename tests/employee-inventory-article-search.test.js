@@ -29,6 +29,22 @@ test("employee inventory search communicates article support", () => {
   assert.match(en.stockCount.searchItems, /article/i);
 });
 
+test("a search result shows the colour's own picture, never the product cover for every colour", () => {
+  // The snapshot used to take its picture from an expression whose FIRST COALESCE
+  // argument was the literal '' (the color_image_url column does not exist on
+  // production). '' is not NULL, so every colour came back with no picture and the
+  // phone fell back to the cover: three colours of one article, one identical shoe.
+  assert.doesNotMatch(
+    serviceSource,
+    /\["color_image_url"\],\s*"''"\s*\)/,
+    "a missing colour-image column must fall back to NULL so COALESCE keeps looking"
+  );
+  // The colour's picture comes from the gallery (primary first), then the row itself.
+  assert.match(serviceSource, /pvi_by_color AS \(/);
+  assert.match(serviceSource, /\$\{colorPictureExpr\} AS image_url_raw/);
+  assert.doesNotMatch(serviceSource, /\$\{imageSelects\.colorImageExpr\} AS image_url_raw/);
+});
+
 test("adding a color reloads and counts every registered size including zero stock", () => {
   assert.match(portalSource, /const exactLookupValue = clean\(/);
   assert.match(portalSource, /lookupEmployeePortalInventoryVariants\(token, session\.id/);
