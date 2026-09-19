@@ -6951,6 +6951,96 @@ export const lookupSocialCommenterProfiles = async ({ tenantId = null, commenter
   return learned;
 };
 
+// A DM whose first profile lookup failed (timeout, budget pause, a Graph hiccup) used
+// to stay "مستخدم ماسنجر …1234" until that customer wrote again, because only an
+// inbound message ever asked Meta. This tick asks again for recent nameless DMs.
+// The attempt is stamped on the conversation row, so an id Meta refuses for good
+// costs one call per retry window, and a restart does not re-ask everybody.
+const META_PROFILE_SWEEP_LIMIT = () => Math.max(1, Math.min(20, Number(process.env.META_PROFILE_SWEEP_LIMIT || 5)));
+const META_PROFILE_SWEEP_RETRY_HOURS = () => Math.max(1, Number(process.env.META_PROFILE_SWEEP_RETRY_HOURS || 6));
+const META_PROFILE_SWEEP_WINDOW_DAYS = () => Math.max(1, Number(process.env.META_PROFILE_SWEEP_WINDOW_DAYS || 14));
+let metaProfileSweepRunning = false;
+
+export const sweepIncompleteMetaProfiles = async ({ limit = META_PROFILE_SWEEP_LIMIT() } = {}) => {
+  const summary = { candidates: 0, asked: 0, named: 0, pictured: 0 };
+  if (metaProfileSweepRunning || shouldDeferBackgroundGraphWork().defer) return summary;
+  metaProfileSweepRunning = true;
+  try {
+    const result = await db.query(
+      `
+      SELECT c.id, c.tenant_id, c.channel, c.external_conversation_id, c.external_customer_id, c.metadata
+      FROM ai_channel_conversations c
+      LEFT JOIN ai_customer_profiles p
+        ON p.tenant_id = c.tenant_id
+        AND (p.id = c.customer_profile_id OR (c.customer_profile_id IS NULL AND p.phone = 'meta:' || c.channel || ':' || c.external_customer_id))
+      WHERE c.channel IN ('facebook_messenger', 'instagram')
+        AND COALESCE(c.thread_kind, 'dm') NOT IN ('comment', 'post')
+        AND c.external_customer_id ~ '^[0-9]{5,}$'
+        AND c.last_message_at > NOW() - ($1::int * INTERVAL '1 day')
+        AND (p.id IS NULL OR p.last_profile_sync_at IS NULL OR COALESCE(p.display_name, '') = '')
+        AND COALESCE(NULLIF(c.metadata->>'profile_sweep_attempted_at', '')::timestamptz, 'epoch'::timestamptz) < NOW() - ($2::int * INTERVAL '1 hour')
+      ORDER BY c.last_message_at DESC NULLS LAST, c.id DESC
+      LIMIT $3
+      `,
+      [META_PROFILE_SWEEP_WINDOW_DAYS(), META_PROFILE_SWEEP_RETRY_HOURS(), Math.max(1, Number(limit) || 1)]
+    );
+    summary.candidates = result.rows.length;
+    // Sequential, like the commenter lookup: a sweep never puts a burst on the shared budget.
+    for (const row of result.rows) {
+      if (shouldDeferBackgroundGraphWork().defer) break;
+      const pageId = text(row.metadata?.page_id || row.metadata?.resolved_page_id || "");
+      const instagramAccountId = text(row.metadata?.instagram_business_account_id || (row.channel === "instagram" ? row.metadata?.account_id : "") || "");
+      await db.query(
+        `UPDATE ai_channel_conversations SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('profile_sweep_attempted_at', NOW()) WHERE id = $1`,
+        [row.id]
+      );
+      const enriched = await runGraphRequest({
+        lane: "background",
+        label: `profile-sweep:${row.channel}`,
+        run: () =>
+          enrichMessengerProfile({
+            message: {
+              channel: row.channel,
+              external_conversation_id: row.external_conversation_id,
+              external_customer_id: row.external_customer_id,
+              customer_name: "",
+              customer_avatar_url: "",
+              raw: {
+                sender_psid: row.external_customer_id,
+                customer_psid: row.external_customer_id,
+                page_id: pageId,
+                resolved_page_id: text(row.metadata?.resolved_page_id || ""),
+                recipient_page_id: text(row.metadata?.recipient_page_id || ""),
+                metadata: row.metadata || {},
+              },
+            },
+            config: { tenant_id: row.tenant_id, facebook_page_id: pageId, instagram_business_account_id: instagramAccountId },
+            facebookPageId: pageId,
+            instagramBusinessAccountId: instagramAccountId,
+            forceRefresh: true,
+          }),
+      }).catch(() => null);
+      summary.asked += 1;
+      const named = Boolean(text(enriched?.customer_name || enriched?.display_name));
+      const pictured = Boolean(text(enriched?.customer_avatar_url));
+      if (named) summary.named += 1;
+      if (pictured) summary.pictured += 1;
+      if (named || pictured) {
+        emitToRooms([`tenant:${row.tenant_id}`], "ai_inbox:refresh", {
+          tenant_id: row.tenant_id,
+          session_id: row.external_conversation_id,
+          reason: "meta_profile_refreshed",
+          at: nowIso(),
+        });
+      }
+    }
+    if (summary.asked) console.log("meta_profile_sweep", summary);
+    return summary;
+  } finally {
+    metaProfileSweepRunning = false;
+  }
+};
+
 const maskSecret = (value = "") => {
   const safe = text(value);
   if (!safe) return "";

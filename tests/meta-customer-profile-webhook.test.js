@@ -144,3 +144,22 @@ test("the new service file is allow-listed past the server/services ignore rule"
   const gitignore = fs.readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
   assert.match(gitignore, /^!server\/services\/metaCustomerProfileService\.js$/m);
 });
+
+// A lookup that failed once used to be retried only when that customer wrote again,
+// so a DM could sit as "مستخدم ماسنجر …9859" for hours while Meta would have answered.
+test("sweep: nameless recent DMs are asked again on a timer, bounded and stamped", () => {
+  const sweepStart = source.indexOf("export const sweepIncompleteMetaProfiles = async");
+  assert.ok(sweepStart > 0, "the sweep exists");
+  const sweepSource = source.slice(sweepStart, source.indexOf("\n};", sweepStart));
+  assert.match(sweepSource, /shouldDeferBackgroundGraphWork\(\)\.defer/, "yields to the shared Graph budget (reads .defer, not the object)");
+  assert.match(sweepSource, /lane: "background"/);
+  assert.match(sweepSource, /NOT IN \('comment', 'post'\)/, "DM threads only");
+  assert.match(sweepSource, /LIMIT \$3/);
+  const stamp = sweepSource.indexOf("'profile_sweep_attempted_at', NOW()");
+  const ask = sweepSource.indexOf("enrichMessengerProfile({");
+  assert.ok(stamp > 0 && ask > stamp, "the attempt is stamped BEFORE Meta is asked, so a refused id cannot loop");
+  assert.match(sweepSource, /profile_sweep_attempted_at', ''\)::timestamptz, 'epoch'::timestamptz\) < NOW\(\)/, "the stamp gates the next attempt");
+
+  const server = fs.readFileSync(new URL("../server/server.js", import.meta.url), "utf8");
+  assert.match(server, /void sweepIncompleteMetaProfiles\(\)\.catch\(/, "the tick is registered and cannot crash the process");
+});

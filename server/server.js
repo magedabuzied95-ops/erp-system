@@ -814,7 +814,7 @@ const { runAbandonedCartReminderTick } = await import("./services/abandonedCartR
 const { BOSTA_RECONCILE_INTERVAL_MS, bostaReconcileEnabled, reconcileStaleBostaShipments } = await import("./modules/shipping/bosta.reconcile.js");
 const { ensurePriceDropAlertSchema, runPriceDropAlertTick } = await import("./services/storefrontPriceDropAlertService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents, sweepIncompleteMetaProfiles } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation, ensureSocialCommentVisibilityColumns } = await import("./services/socialCommentAutomationService.js");
 const { ensureOrderSecondaryPhoneColumn } = await import("./utils/orderSecondaryPhone.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
@@ -2503,6 +2503,17 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
         const bostaReconcileInterval = setInterval(safeReconcileBosta, BOSTA_RECONCILE_INTERVAL_MS());
         backgroundIntervals.add(bostaReconcileInterval);
         console.log("[server] bosta status reconciler started", { every_ms: BOSTA_RECONCILE_INTERVAL_MS() });
+      }
+      // Customer names Meta was only ever asked for once: a DM whose first profile lookup
+      // failed stayed nameless until that customer wrote again. Production only — a dev
+      // database holds real PSIDs and would spend the shared Graph budget.
+      if (isProductionEnvironment || process.env.META_PROFILE_SWEEP_ENABLED === "true") {
+        const metaProfileSweepInterval = setInterval(() => {
+          void sweepIncompleteMetaProfiles().catch((error) => {
+            console.error("[server] meta profile sweep error", { message: error?.message || String(error) });
+          });
+        }, Math.max(60_000, Number(process.env.META_PROFILE_SWEEP_INTERVAL_MS || 10 * 60 * 1000)));
+        backgroundIntervals.add(metaProfileSweepInterval);
       }
       const priceDropInterval = setInterval(() => {
         void runPriceDropAlertTick().catch((error) => {
