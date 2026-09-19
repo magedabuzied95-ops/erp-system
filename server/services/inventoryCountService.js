@@ -1229,24 +1229,35 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
   // product online and "nothing" on a weak line.
   const ownArticleExpr = firstAvailableColumnExpr("v", variantColumns, ["article_code"], "''");
   const hasColorGroups = await tableExists(dbClient, "product_color_groups");
-  const colorGroupMatch = variantColumns.has("color_group_key")
-    ? `(
-        (NULLIF(TRIM(COALESCE(v.color_group_key, '')), '') IS NOT NULL AND LOWER(TRIM(pcg.color_group_key)) = LOWER(TRIM(v.color_group_key)))
-        OR LOWER(TRIM(COALESCE(pcg.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
-      )`
-    : `LOWER(TRIM(COALESCE(pcg.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, '')))`;
+  const hasColorGroupKey = hasColorGroups && variantColumns.has("color_group_key");
+  // The colour's code is pre-aggregated ONCE and hash-joined. The first version
+  // asked for it in a correlated subquery — once per size row — and took the
+  // production snapshot (9k rows) from under a second to six.
+  const colorCodeCtes = hasColorGroups
+    ? `WITH pcg_by_name AS (
+        SELECT DISTINCT ON (product_id, LOWER(TRIM(COALESCE(color_name, ''))))
+          product_id,
+          LOWER(TRIM(COALESCE(color_name, ''))) AS color_key,
+          COALESCE(NULLIF(color_article_code, ''), article_codes[1], '') AS code
+        FROM product_color_groups
+        ORDER BY product_id, LOWER(TRIM(COALESCE(color_name, ''))), id
+      )${hasColorGroupKey ? `,
+      pcg_by_key AS (
+        SELECT DISTINCT ON (product_id, LOWER(TRIM(color_group_key)))
+          product_id,
+          LOWER(TRIM(color_group_key)) AS group_key,
+          COALESCE(NULLIF(color_article_code, ''), article_codes[1], '') AS code
+        FROM product_color_groups
+        WHERE NULLIF(TRIM(COALESCE(color_group_key, '')), '') IS NOT NULL
+        ORDER BY product_id, LOWER(TRIM(color_group_key)), id
+      )` : ""}`
+    : "";
+  const colorCodeJoins = hasColorGroups
+    ? `${hasColorGroupKey ? "LEFT JOIN pcg_by_key ck ON ck.product_id = v.product_id AND ck.group_key = LOWER(TRIM(COALESCE(v.color_group_key, '')))" : ""}
+    LEFT JOIN pcg_by_name cn ON cn.product_id = v.product_id AND cn.color_key = LOWER(TRIM(COALESCE(v.color, '')))`
+    : "";
   const articleCodeExpr = hasColorGroups
-    ? `COALESCE(
-        NULLIF(${ownArticleExpr}, ''),
-        (
-          SELECT COALESCE(NULLIF(pcg.color_article_code, ''), pcg.article_codes[1], '')
-          FROM product_color_groups pcg
-          WHERE pcg.product_id = v.product_id AND ${colorGroupMatch}
-          ORDER BY pcg.id ASC
-          LIMIT 1
-        ),
-        ''
-      )`
+    ? `COALESCE(NULLIF(${ownArticleExpr}, ''), ${hasColorGroupKey ? "NULLIF(ck.code, '')," : ""} NULLIF(cn.code, ''), '')`
     : ownArticleExpr;
   const genderExpr = variantColumns.has("audience")
     ? firstAvailableColumnExpr("v", variantColumns, ["audience"], firstAvailableColumnExpr("p", productColumns, ["gender"], "''"))
@@ -1278,6 +1289,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
 
   const result = await dbClient.query(
     `
+    ${colorCodeCtes}
     SELECT
       t.product_variant_id, t.product_id, t.product_name, t.color, t.size, t.sku, t.barcode,
       t.article_code, t.product_barcode, t.product_sku, t.stock, t.gender, t.type, t.category,
@@ -1313,6 +1325,7 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
       ${imageSelects.colorImageExpr} AS image_url_raw
     FROM product_variants v
     JOIN products p ON p.id = v.product_id
+    ${colorCodeJoins}
     ${productColumns.has("brand_id") ? "LEFT JOIN brands b ON b.id = p.brand_id" : ""}
     ${productColumns.has("manufacturer_id") ? "LEFT JOIN manufacturers m ON m.id = p.manufacturer_id" : ""}
     WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint OR v.tenant_id IS NULL)
