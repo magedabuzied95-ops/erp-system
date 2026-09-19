@@ -96,9 +96,48 @@ test("the customer's messages: received, approved, and the reply to a screenshot
   assert.match(buildScreenshotInChatReply({ order, state: "submitted" }), /وصلتنا قبل كده/);
 });
 
-test("approval is only announced for a transfer uploaded through the link", async () => {
-  assert.deepEqual(await notifyPaymentProofApproved({ id: 9, timeline: [] }), { sent: false, reason: "not_link_upload" });
-  assert.deepEqual(await notifyPaymentProofApproved({ id: 9, timeline: [{ action: "shipping_fee_paid", source: "orders" }] }), { sent: false, reason: "not_link_upload" });
+test("confirming the money anywhere tells the customer, and the message carries the tracking link", async () => {
+  // Owner, 2026-09-20: the orders page, the employee portal, the manager portal, the AI Inbox
+  // order card and the wallet SMS matcher all answer the customer. A fee staff recorded by hand
+  // used to be silent because it carried no payment_proof_link timeline entry.
+  assert.deepEqual(await notifyPaymentProofApproved(null), { sent: false, reason: "missing_order" });
+  assert.deepEqual(
+    await notifyPaymentProofApproved({ id: 9, timeline: [{ action: "shipping_fee_paid", source: "orders" }] }),
+    { sent: false, reason: "missing_phone" }
+  );
+  // A closed order can still have its money recorded; "بيتجهز للشحن" would be wrong on it.
+  assert.deepEqual(
+    await notifyPaymentProofApproved({ id: 9, status: "cancelled", customer_phone: "01012345678" }),
+    { sent: false, reason: "order_closed" }
+  );
+
+  const message = buildPaymentProofApprovedMessage(
+    { ...order, customer_name: "Mo3taz Ali", paid_amount: 90 },
+    { trackingUrl: "https://m1store-egy.com/track?order=INV-1700&phone=201558934989" }
+  );
+  assert.match(message, /^✅ تم تأكيد دفع رسوم الشحن لطلبك رقم INV-1700 يا Mo3taz$/m);
+  assert.match(message, /^🚚 طلبك بيتجهز للشحن دلوقتي، والمندوب هيحصّل 1,850 جنيه عند الاستلام\.$/m);
+  assert.match(message, /^🚚 فريقنا بدأ تجهيز طلبك للشحن، وهنتابع معاك لحد ما يوصلك\.$/m);
+  assert.match(message, /📍 تابع طلبك من هنا:\nhttps:\/\/m1store-egy\.com\/track\?order=INV-1700&phone=201558934989/);
+  assert.match(message, /شكراً لاختيارك M1 Store ❤️$/);
+
+  // Paid in full: naming the shipping fee would read as if something is still owed.
+  const full = buildPaymentProofApprovedMessage({ ...order, paid_amount: 1940 });
+  assert.match(full, /^✅ تم تأكيد دفع طلبك رقم INV-1700 بالكامل يا Mona$/m);
+  assert.match(full, /^💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام\.$/m);
+  assert.doesNotMatch(full, /رسوم الشحن|هيحصّل \d/);
+
+  // A parcel that is already booked is never described as "بيتجهز للشحن" (the INV-1616 lie).
+  const shipped = buildPaymentProofApprovedMessage({ ...order, paid_amount: 90, shipping_tracking_number: "7654321", shipping_provider: "bosta" });
+  assert.match(shipped, /🚚 طلبك اتسلّم لـبوسطة، ورقم الشحنة 7654321\./);
+  assert.match(shipped, /💰 المندوب هيحصّل 1,850 جنيه عند الاستلام\./);
+  assert.doesNotMatch(shipped, /بيتجهز للشحن دلوقتي|بدأ تجهيز/);
+
+  // Two taps on the same amount are one message; a later, larger payment gets its own.
+  const module = read("../server/modules/shipping/paymentProofLink.js");
+  assert.match(module, /idempotencySuffix: `paid:\$\{Math\.round\(money\(order\.paid_amount\) \* 100\)\}`/);
+  // The link is built here, not by the caller: every approval path gets it for free.
+  assert.match(module, /buildPaymentProofApprovedMessage\(order, \{ trackingUrl: buildOrderTrackingUrl\(orderRef\(order\), phone\) \}\)/);
   for (const path of ["../server/controllers/ordersController.js", "../server/modules/walletTransfers/walletTransfers.service.js", "../server/modules/shipping/shipping.portal.actions.js"]) {
     assert.match(read(path), /notifyPaymentProofApproved\(/, path);
   }

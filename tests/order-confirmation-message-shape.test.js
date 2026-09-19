@@ -102,7 +102,10 @@ test("the tracking link lands on the customer's own order, not a lookup form", (
   const track = page.slice(page.indexOf("export function TrackOrderPage"), page.indexOf("export function", page.indexOf("export function TrackOrderPage") + 10));
   assert.match(track, /params\.get\("order"\)/, "the page reads the order param this link sets");
   assert.match(track, /params\.get\("phone"\)/, "the page reads the phone param this link sets");
-  assert.match(track, /hasOrderFromQuery/, "the page auto-submits from the query");
+  // The auto-open guard was renamed (hasOrderFromQuery → autoOpenedRef); what it guards is the
+  // assertion: a link that carries both values opens the order without the shopper typing.
+  assert.match(track, /autoOpenedRef\.current = true/, "the page auto-submits from the query");
+  assert.match(track, /if \(!form\.order_number \|\| \(!form\.phone && !signedIn\)\) return undefined;/);
 });
 
 test("a tracking link is never rendered half-built", () => {

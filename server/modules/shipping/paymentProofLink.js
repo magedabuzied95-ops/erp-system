@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 
 import db from "../../database/db.js";
 import { generateOrderLinkCode, orderLinkSecret } from "../../utils/orderLinkSecret.js";
-import { resolvePublicAppUrl } from "../../utils/whatsapp.js";
+import { buildOrderTrackingUrl, resolvePublicAppUrl } from "../../utils/whatsapp.js";
 import { emitToRooms } from "../../utils/socket.js";
 import { describeShippingFeeAdvance, DEPOSIT_REQUEST_TIMELINE_ACTION } from "./shippingFeeAdvance.js";
 
@@ -371,33 +371,67 @@ export const buildPaymentProofReceivedMessage = (order = {}) => {
   ].join("\n\n");
 };
 
-export const buildPaymentProofApprovedMessage = (order = {}) => {
+/**
+ * The receipt the customer gets when staff (or the wallet SMS) confirm their money.
+ *
+ * It says the same four things the order-confirmed reply says — which order, where it is, what
+ * the courier still collects, and where to follow it — because this message is often the LAST
+ * one a prepaid order gets before the parcel moves.
+ *
+ * A parcel that is already booked is never described as "بيتجهز للشحن": the fee can be recorded
+ * after the shipment exists, and the same lie was the INV-1616 bug in buildOrderConfirmedMessage.
+ */
+export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "" } = {}) => {
   const ref = orderRef(order);
+  const name = firstName(order.customer_name);
   const total = orderTotal(order);
   const collect = Math.max(0, money(total - money(order.paid_amount)));
+  const collectText = collect > 0 ? `${formatMoney(collect)} جنيه` : "";
+  const tracking = text(order.shipping_tracking_number || order.tracking_number);
+  const courier = text(order.shipping_provider || order.shipping_provider_id).toLowerCase() === "bosta" ? "بوسطة" : "شركة الشحن";
+  // "رسوم الشحن" on an order the customer paid in full would read as if something is still owed.
+  const paidInFull = total > 0 && collect <= 0;
   return [
-    `✅ تم تأكيد دفع ${advanceLabel(order)} لطلبك${ref ? ` رقم ${ref}` : ""}`,
-    `🚚 طلبك بيتجهز للشحن دلوقتي${collect > 0 ? `، والمندوب هيحصّل ${formatMoney(collect)} جنيه عند الاستلام` : ""}.`,
+    paidInFull
+      ? `✅ تم تأكيد دفع طلبك${ref ? ` رقم ${ref}` : ""} بالكامل${name ? ` يا ${name}` : ""}`
+      : `✅ تم تأكيد دفع ${advanceLabel(order)} لطلبك${ref ? ` رقم ${ref}` : ""}${name ? ` يا ${name}` : ""}`,
+    tracking
+      ? `🚚 طلبك اتسلّم لـ${courier}، ورقم الشحنة ${tracking}.`
+      : `🚚 طلبك بيتجهز للشحن دلوقتي${collectText ? `، والمندوب هيحصّل ${collectText} عند الاستلام` : ""}.`,
+    // Nothing left to collect is worth saying out loud — it is the whole point of paying up front.
+    collectText
+      ? (tracking ? `💰 المندوب هيحصّل ${collectText} عند الاستلام.` : "")
+      : "💰 طلبك مدفوع بالكامل، مفيش مبلغ هيتحصّل عند الاستلام.",
+    tracking ? "" : "🚚 فريقنا بدأ تجهيز طلبك للشحن، وهنتابع معاك لحد ما يوصلك.",
+    trackingUrl && `📍 تابع طلبك من هنا:\n${trackingUrl}`,
     "شكراً لاختيارك M1 Store ❤️",
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 };
 
-const uploadedThroughLink = (order = {}) =>
-  (Array.isArray(order.timeline) ? order.timeline : []).some(
-    (entry) => entry?.action === PAYMENT_PROOF_TIMELINE_ACTION && entry?.source === PAYMENT_PROOF_SOURCE
-  );
+// Nothing to announce on an order that is already over: a cancelled or delivered row can still
+// have its money recorded, and "طلبك بيتجهز للشحن" would be wrong on both.
+const NOT_WORTH_ANNOUNCING = new Set(["cancelled", "canceled", "cancelled_by_customer", "returned", "delivered", "completed"]);
 
 /**
- * Tell the customer their transfer was approved — only when they uploaded it through the link, so
- * every other approval path (website checkout proofs, staff-recorded payments) stays as silent as
- * it was. Never throws; call it after the approving transaction has committed.
+ * Tell the customer their money landed — from EVERY approval path (owner, 2026-09-20): the orders
+ * page, the employee portal, the manager portal, the AI Inbox order card and the wallet SMS
+ * matcher. It used to speak only for transfers uploaded through the payment link, so a fee staff
+ * recorded by hand left the customer with no answer at all.
+ *
+ * The queue's idempotency key carries the amount, so pressing "تم دفع الشحن" twice sends one
+ * message while a later, larger payment (رسوم الشحن ثم الأوردر كامل) still gets its own.
+ * Never throws; call it after the approving transaction has committed.
  */
 export const notifyPaymentProofApproved = async (order = null) => {
-  if (!order?.id || !uploadedThroughLink(order)) return { sent: false, reason: "not_link_upload" };
+  if (!order?.id) return { sent: false, reason: "missing_order" };
+  if (NOT_WORTH_ANNOUNCING.has(text(order.status).toLowerCase())) return { sent: false, reason: "order_closed" };
+  const phone = await orderPhone(order);
+  if (!phone) return { sent: false, reason: "missing_phone" };
   return sendOrderPaymentText({
     order,
     automationType: "payment_proof_approved",
-    message: buildPaymentProofApprovedMessage(order),
+    idempotencySuffix: `paid:${Math.round(money(order.paid_amount) * 100)}`,
+    message: buildPaymentProofApprovedMessage(order, { trackingUrl: buildOrderTrackingUrl(orderRef(order), phone) }),
     source: "whatsapp_payment_proof_approved",
   });
 };

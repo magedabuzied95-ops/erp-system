@@ -191,7 +191,7 @@ export const runPortalOrderAction = async ({ actor = {}, surface = "employee_por
         actorName,
         source: surface,
       });
-    // Only a transfer uploaded through the payment card is answered; anything else stays silent.
+    // The customer hears back on WhatsApp, the same as from the orders page (owner, 2026-09-20).
     if (paid) notifyPaymentProofApproved(paid).catch(() => {});
   } else if (key === "print_awb") {
     if (!order.shipment.tracking_number && !order.shipment.delivery_id) {
