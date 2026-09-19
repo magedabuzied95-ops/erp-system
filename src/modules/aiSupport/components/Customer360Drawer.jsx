@@ -196,6 +196,9 @@ export default function Customer360Drawer({
   title = "",
   initialTab = "summary",
   aiAnalysis = null,
+  // Rendered first in the summary tab. The inbox hands its lead-status control in
+  // here; the handler and the conversation stay with the page that owns them.
+  summaryLead = null,
   portalTarget = null,
   // The catalogue picker lives in the inbox page, so the drawer asks for it and
   // receives the chosen card back rather than owning a second copy of it.
@@ -406,6 +409,7 @@ export default function Customer360Drawer({
 
           {activeTab === "summary" ? (
             <div className="space-y-3">
+              {summaryLead}
               <div className="grid grid-cols-2 gap-3">
                 {metricCard("Total Orders", metrics.totalOrders ?? context.totalOrders ?? 0)}
                 {metricCard("Completed Orders", metrics.completedOrders ?? context.completedOrders ?? 0)}

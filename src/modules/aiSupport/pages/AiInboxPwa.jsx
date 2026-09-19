@@ -7535,6 +7535,40 @@ export default function AiInboxPwa({ portal = null } = {}) {
   const selectedMetaLabel = getConversationSourceLabel(selectedConversation || {}, t);
   const SelectedChannelIcon = getConversationSourceIcon(selectedConversation || {});
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
+  // Lives at the top of the Customer 360 summary, not above the chat: it took a
+  // full row off every thread on a phone for something changed once per customer.
+  const leadStatusCard = selectedConversation ? (
+    <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+          leadStatusTone(currentLeadStatus) === "amber"
+            ? "bg-amber-400"
+            : leadStatusTone(currentLeadStatus) === "emerald"
+              ? "bg-emerald-400"
+              : "bg-blue-400"
+        }`} />
+        <div className="min-w-0">
+          <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{t("aiSupport.inbox.pwa.leadStatus")}</div>
+          <div className="truncate text-[12px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus, t)}</div>
+        </div>
+      </div>
+      <label className="min-w-[8.5rem] shrink-0">
+        <span className="sr-only">{t("aiSupport.inbox.pwa.changeLeadStatus")}</span>
+        <select
+          value={currentLeadStatus}
+          onChange={(event) => void updateLeadStatus(event.target.value)}
+          disabled={leadActionLoading === "lead_status"}
+          className="h-8 w-full rounded-full border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 outline-none disabled:opacity-50"
+        >
+          {LEAD_STATUS_ORDER.map((status) => (
+            <option key={status} value={status}>
+              {leadStatusLabel(status, t)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  ) : null;
   const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
   const selectedConversationAiEnabled = isConversationAiEnabled(selectedConversation || {});
   const selectedAvatar = isCommentConversation(selectedConversation || {}) ? commentThreadCustomerAvatarUrl(selectedConversation || {}) : customerAvatarUrl(selectedConversation || {});
@@ -8264,36 +8298,6 @@ export default function AiInboxPwa({ portal = null } = {}) {
             </div>
             {!fullscreenConversation ? (
               <div className="ai-pwa-conversation-toolbar mt-2">
-                <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                      leadStatusTone(currentLeadStatus) === "amber"
-                        ? "bg-amber-400"
-                        : leadStatusTone(currentLeadStatus) === "emerald"
-                          ? "bg-emerald-400"
-                          : "bg-blue-400"
-                    }`} />
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{t("aiSupport.inbox.pwa.leadStatus")}</div>
-                      <div className="truncate text-[12px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus, t)}</div>
-                    </div>
-                  </div>
-                  <label className="min-w-[8.5rem] shrink-0">
-                    <span className="sr-only">{t("aiSupport.inbox.pwa.changeLeadStatus")}</span>
-                    <select
-                      value={currentLeadStatus}
-                      onChange={(event) => void updateLeadStatus(event.target.value)}
-                      disabled={leadActionLoading === "lead_status"}
-                      className="h-8 w-full rounded-full border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 outline-none disabled:opacity-50"
-                    >
-                      {LEAD_STATUS_ORDER.map((status) => (
-                        <option key={status} value={status}>
-                          {leadStatusLabel(status, t)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -8810,6 +8814,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
           context={customerDrawer.context}
           aiAnalysis={customerDrawerAnalysis}
           title={t("aiSupport.inbox.ui.customer360")}
+          summaryLead={leadStatusCard}
           restockPick={restockPick}
           onRequestRestockPick={openRestockPicker}
           onClearRestockPick={() => setRestockPick(null)}
