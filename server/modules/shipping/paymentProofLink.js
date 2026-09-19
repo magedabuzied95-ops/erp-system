@@ -624,6 +624,16 @@ export const submitPaymentProof = async ({ code = "", method = "", proofPath = "
   const { loadTransferDetails } = await import("../../services/codPolicyReplyService.js");
   const transfer = await loadTransferDetails().catch(() => ({}));
   const advance = describeShippingFeeAdvance({ order: updated, policy });
+  // An InstaPay notification names the sender by their InstaPay address and by nothing else, and
+  // that address is printed on the very screenshot just uploaded. Read it off the picture, write it
+  // on the order, and the transfer already waiting can recognise it. Never blocks the reply.
+  import("../walletTransfers/paymentReceiptVision.js")
+    .then(({ attachReceiptSenderAddress }) => attachReceiptSenderAddress({
+      order: updated,
+      proofPath: text(proofPath),
+      expectedAmounts: [money(advance.amount), money(updated.total_amount), money(updated.shipping_fee)],
+    }))
+    .catch((error) => console.warn("[payment-proof] receipt not read", { orderId: updated.id, message: error?.message || String(error) }));
   return publicView({ order: updated, advance, transfer, state: paymentProofState({ order: updated, advance }) });
 };
 
