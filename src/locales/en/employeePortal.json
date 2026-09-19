@@ -310,7 +310,20 @@
     "coverage": "{{done}} of {{total}} sizes counted",
     "expectedShort": "exp.",
     "details": "Count details (name and notes)",
-    "sendWithPending": "Send for review ({{count}} not sent yet)"
+    "sendWithPending": "Send for review ({{count}} not sent yet)",
+    "add": "Add",
+    "addRest": "Add the rest",
+    "onSheet": "On the sheet",
+    "clearSearch": "Clear search",
+    "clearFilters": "Clear filters",
+    "sizeCount": "{{count}} sizes",
+    "stockShort": "stock {{count}}",
+    "resultsCount": "{{count}} results",
+    "resultsCapped": "First {{shown}} of {{total}} — keep typing to narrow",
+    "searchingServer": "Not on this phone — asking the server…",
+    "noResults": "No product with that name or code",
+    "noResultsHint": "Try part of the name, the article code, or scan the barcode.",
+    "noResultsFiltered": "Active filters may be hiding the product."
   },
   "payroll": {
     "walletTitle": "Employee wallet",

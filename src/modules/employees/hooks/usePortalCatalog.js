@@ -12,6 +12,27 @@ import {
   refreshPortalCatalog,
   warmPortalCatalogImages,
 } from "../services/employeeDrafts/portalCatalogCache.js";
+import { getCountSearchIndex } from "../services/employeeDrafts/countSearchIndex.js";
+
+// Building the search index is the one expensive step (tens of ms on a desktop,
+// several times that on a phone). It is done HERE, in idle time, before the
+// snapshot is handed to React — so the screen that renders from it finds the
+// index already built instead of paying for it inside a render.
+const whenIdle = () =>
+  new Promise((resolve) => {
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(() => resolve(), { timeout: 1200 });
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+
+const prepareSnapshot = async (snapshot) => {
+  if (!snapshot) return snapshot;
+  await whenIdle();
+  getCountSearchIndex(snapshot);
+  return snapshot;
+};
 
 const catalogApi = {
   getVersion: getEmployeePortalInventoryCatalogVersion,
@@ -58,8 +79,11 @@ export default function usePortalCatalog(token, { identity = null, enabled = tru
     setRefreshing(true);
     try {
       const result = await refreshPortalCatalog({ token, identity, api: catalogApi, force });
+      if (result?.snapshot) await prepareSnapshot(result.snapshot);
       if (aliveRef.current && result?.snapshot) {
-        setSnapshot(result.snapshot);
+        // Same object as before (an unchanged catalogue): keep React's reference
+        // so nothing downstream re-renders for a refresh that changed nothing.
+        setSnapshot((current) => (current && current.version === result.snapshot.version && !result.refreshed ? current : result.snapshot));
         warmImages(result.snapshot);
       }
       return result;
@@ -79,7 +103,11 @@ export default function usePortalCatalog(token, { identity = null, enabled = tru
     (async () => {
       const cached = await readPortalCatalog({ token, identity });
       if (cancelled) return;
-      if (cached) setSnapshot(cached);
+      if (cached) {
+        await prepareSnapshot(cached);
+        if (cancelled) return;
+        setSnapshot(cached);
+      }
       if (typeof navigator !== "undefined" && navigator.onLine === false) return;
       await refresh();
     })();

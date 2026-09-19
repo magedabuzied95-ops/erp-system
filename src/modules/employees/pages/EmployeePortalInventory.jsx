@@ -1,14 +1,12 @@
 import { createPortal } from "react-dom";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
-  Camera,
   CheckCircle2,
   ChevronRight,
   CloudOff,
   ClipboardList,
-  Filter,
   Loader2,
   Plus,
   RefreshCw,
@@ -26,10 +24,8 @@ import toast from "react-hot-toast";
 
 import BarcodeScanner from "../../../components/BarcodeScanner";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
-import { productMatchesAudience } from "../../../shared/lib/productAudiences";
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
-import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 import { getEmployeePortalFacets } from "../services/employeePortalProductsApi";
 import {
   saveInventoryDraft,
@@ -43,11 +39,11 @@ import {
   outboxSize,
   outboxToItems,
   queueCountedQuantity,
-  searchCatalogRows,
   settleOutbox,
 } from "../services/employeeDrafts/inventoryCountSync.js";
-import { SEARCH_NETWORK_TIMEOUT_MS } from "../services/employeeDrafts/portalCatalogCache.js";
 import usePortalCatalog from "../hooks/usePortalCatalog";
+import CountProductSearch from "../components/CountProductSearch";
+import { countIndexFacets, findCountGroupByCode, getCountSearchIndex, searchCountIndex } from "../services/employeeDrafts/countSearchIndex.js";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
 import "./EmployeePortalWorkspaces.m1.css";
 import {
@@ -81,12 +77,6 @@ const toDraftIdentity = (identity = {}) => ({
 const clean = (value = "") => String(value || "").trim();
 const lower = (value = "") => clean(value).toLowerCase();
 const uniqueTextValues = (values = []) => [...new Set(values.map((value) => clean(value)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ar"));
-const sortSizes = (sizes = []) => [...sizes].sort((a, b) => {
-  const left = Number(a);
-  const right = Number(b);
-  if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
-  return String(a).localeCompare(String(b), "ar");
-});
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -160,10 +150,6 @@ const resolveCardImage = (record = {}) => {
     ) || null
   );
 };
-const createInventoryImagePlaceholder = (label = "") => ({
-  src: "",
-  alt: label,
-});
 const normalizeColorKey = (value = "") => {
   const aliases = {
     black: "black",
@@ -257,11 +243,6 @@ const sessionFilters = [
   { value: "all", labelKey: "employeePortal.common.all", statuses: null },
 ];
 
-const buildCatalogParams = () => ({
-  limit: 120,
-  inStockOnly: 1,
-});
-
 const normalizeVariant = (record = {}) => {
   const productId = record.product_id ?? record.productId ?? null;
   const variantId = record.product_variant_id ?? record.variant_id ?? record.variantId ?? record.id ?? null;
@@ -313,35 +294,6 @@ const normalizeVariant = (record = {}) => {
     notes: clean(record.notes ?? ""),
   };
 };
-
-const normalizeInventoryFilterRecord = (record = {}) => {
-  const normalizedProduct = normalizePosCatalogProduct(record.product || record);
-  const normalizedVariant = normalizeVariant({
-    ...normalizedProduct,
-    ...record,
-    product: record.product || normalizedProduct,
-  });
-
-  return {
-    ...normalizedVariant,
-    category: clean(normalizedProduct.category || normalizedProduct.category_name || record.category || record.grade || normalizedVariant.category),
-    type: clean(normalizedProduct.type || normalizedProduct.product_type || normalizedProduct.productType || record.type || record.product_type || record.productType || normalizedVariant.type),
-    brand: clean(normalizedProduct.brand || normalizedProduct.brand_name || record.brand || record.brand_name || normalizedVariant.brand),
-    manufacturer_name: clean(
-      normalizedProduct.manufacturer_name ||
-      normalizedProduct.manufacturer ||
-      record.manufacturer_name ||
-      record.manufacturer ||
-      record.manufacturerName ||
-      normalizedVariant.manufacturer_name
-    ),
-    gender: clean(normalizedProduct.gender || record.gender || normalizedVariant.gender),
-  };
-};
-
-const normalizeInventoryCatalog = (payload = []) =>
-  normalizePosSellableProducts(Array.isArray(payload) ? payload : [])
-    .map((product) => normalizePosCatalogProduct(product));
 
 const groupVariants = (records = []) => {
   const groups = new Map();
@@ -413,6 +365,131 @@ function InventoryImage({ src, alt = "", className = "" }) {
     </div>
   );
 }
+
+// What a colour card actually renders from: its size rows' quantities and which
+// of them still owe the server. A count tap rewrites `items`, which re-groups
+// EVERY colour into new objects — without this, one tap re-rendered every
+// stepper on a sheet that can hold hundreds of them.
+const groupSignature = (group, outbox) =>
+  group.variants
+    .map((variant) => {
+      const id = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
+      return `${id}:${variant.counted_quantity}:${variant.system_quantity}:${outbox[id] ? 1 : 0}`;
+    })
+    .join("|");
+
+const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable, deleting, flash, onAdjust, onSet, onDelete }) {
+  return (
+    <div
+        data-count-group={group.key}
+        data-count-variant={group.variants.map((variant) => `v${variant.product_variant_id ?? variant.variant_id ?? variant.id ?? ""}`).join(" ")}
+        className={`inventory-wrap inventory-color-card rounded-2xl border bg-slate-50 p-2.5 ${flash ? "inventory-color-card--flash border-emerald-400" : "border-slate-200"}`}
+      >
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-slate-200 bg-slate-100">
+          <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
+            <span className="max-w-[9rem] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-700">
+              {group.color || tt("employeePortal.stockCount.unknownColor")}
+            </span>
+            <span dir="ltr">{group.counted_total} / {group.system_total}</span>
+            <span className={group.difference_total === 0 ? "text-emerald-700" : group.difference_total > 0 ? "text-amber-700" : "text-rose-700"}>
+              {group.difference_total === 0 ? tt("employeePortal.status.balanced") : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(group)}
+          disabled={!isEditable || deleting}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-60"
+          aria-label={tt("employeePortal.stockCount.deleteColor")}
+          title={tt("employeePortal.stockCount.deleteColor")}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* One tile per size, two or three to a row: the whole
+          colour is countable without a single scroll, and the
+          quantity is typeable instead of only tappable. */}
+      <div className="inventory-size-grid mt-2.5">
+        {group.variants.map((variant) => {
+          const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
+          const difference = toNumber(variant.difference_quantity, 0);
+          const pending = Boolean(outbox[variantId]);
+          return (
+            <div
+              key={variantId}
+              className={`inventory-size-tile rounded-[var(--radius-card)] border bg-white p-2 ${difference === 0 ? "border-slate-200" : difference > 0 ? "border-amber-300" : "border-rose-300"}`}
+            >
+              <div className="flex min-w-0 items-center justify-between gap-1">
+                <span className="truncate text-sm font-black text-slate-950">{variant.size || tt("employeePortal.stockCount.unknownSize")}</span>
+                <span className="shrink-0 text-[10px] font-bold text-slate-400" dir="ltr">{tt("employeePortal.stockCount.expectedShort")} {toNumber(variant.system_quantity, 0)}</span>
+              </div>
+              <div className="mt-1.5 grid grid-cols-[44px_minmax(0,1fr)_44px] gap-1">
+                <button
+                  type="button"
+                  onClick={() => onAdjust(variant, -1)}
+                  disabled={!isEditable}
+                  className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 active:bg-slate-100 disabled:opacity-50"
+                  aria-label={tt("employeePortal.stockCount.decrement")}
+                >
+                  -
+                </button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={variant.counted_quantity}
+                  onFocus={(event) => event.target.select()}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/[^0-9]/g, "");
+                    onSet(variant, digits === "" ? 0 : Number(digits));
+                  }}
+                  disabled={!isEditable}
+                  className="h-12 w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1 text-center text-lg font-black text-slate-950 outline-none focus:border-emerald-400 focus:bg-white disabled:opacity-70"
+                  aria-label={`${group.product_name || ""} ${variant.size || ""}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => onAdjust(variant, 1)}
+                  disabled={!isEditable}
+                  className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] bg-primary text-2xl font-black text-[var(--primary-contrast)] active:opacity-80 disabled:opacity-50"
+                  aria-label={tt("employeePortal.stockCount.increment")}
+                >
+                  +
+                </button>
+              </div>
+              <div className="mt-1 flex items-center justify-between gap-1 text-[10px] font-black">
+                <span className={difference === 0 ? "text-emerald-700" : difference > 0 ? "text-amber-700" : "text-rose-700"} dir="ltr">
+                  {difference === 0 ? tt("employeePortal.status.balanced") : difference > 0 ? `+${difference}` : difference}
+                </span>
+                {pending ? (
+                  <span className="inline-flex items-center gap-0.5 text-amber-700" title={tt("employeePortal.sync.pending")}>
+                    <CloudOff className="h-3 w-3" />
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}, (previous, next) =>
+  previous.signature === next.signature &&
+  previous.isEditable === next.isEditable &&
+  previous.deleting === next.deleting &&
+  previous.flash === next.flash &&
+  previous.group.key === next.group.key &&
+  previous.onAdjust === next.onAdjust &&
+  previous.onSet === next.onSet &&
+  previous.onDelete === next.onDelete
+);
 
 function ScannerModal({ onClose, onScan }) {
   const [manualValue, setManualValue] = useState("");
@@ -544,8 +621,6 @@ function ScannerModal({ onClose, onScan }) {
 
 export default function EmployeePortalInventory() {
   // Subscribes this screen to language changes; strings resolve through tt().
-  // language is a real dependency of filterGroups below: its titles resolve
-  // through tt(), so without it they freeze on an AR<->EN switch.
   const { i18n: i18nRuntime } = useTranslation();
   const { token, sessionId: routeSessionId } = useParams();
   const [searchParams] = useSearchParams();
@@ -554,7 +629,11 @@ export default function EmployeePortalInventory() {
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState("");
-  const [selectedSessionId, setSelectedSessionId] = useState(routeSessionId || "");
+  // Starts EMPTY even when the URL names a session. Seeding it with the route id
+  // made the loader below see "already selected" on a cold open of
+  // /inventory/:id, so a shared or re-launched session link showed the empty
+  // "pick a count" state forever. Empty here, the effect loads it.
+  const [selectedSessionId, setSelectedSessionId] = useState("");
   const [session, setSession] = useState(null);
   const [items, setItems] = useState([]);
   // Token-free identity {tenant_id, employee_id, branch_id} for the local draft
@@ -579,11 +658,7 @@ export default function EmployeePortalInventory() {
   const [sessionSubmitting, setSessionSubmitting] = useState(false);
   const [sessionReopening, setSessionReopening] = useState(false);
   const [itemSavingId, setItemSavingId] = useState("");
-  const [catalogProducts, setCatalogProducts] = useState([]);
   const [facets, setFacets] = useState({ categories: [], types: [], brands: [], manufacturers: [], genders: [], grades: [], sizes: [] });
-  const [lookupQuery, setLookupQuery] = useState("");
-  const [lookupResults, setLookupResults] = useState([]);
-  const [lookupLoading, setLookupLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("active");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState({
@@ -592,7 +667,8 @@ export default function EmployeePortalInventory() {
     brand: "all",
     manufacturer: "all",
     gender: "all",
-    inStockOnly: true,
+    // A count exists to find what the system got wrong, zero-stock colours included.
+    inStockOnly: false,
   });
   const [selectedFilterSize, setSelectedFilterSize] = useState("all");
   const [sessionSearch, setSessionSearch] = useState("");
@@ -602,7 +678,8 @@ export default function EmployeePortalInventory() {
   const [branchDrawerOpen, setBranchDrawerOpen] = useState(false);
   const itemsRef = useRef(items);
   const itemSavingIdRef = useRef("");
-  const lookupInputRef = useRef(null);
+  const [flashGroupKey, setFlashGroupKey] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
   const filtersPanelRef = useRef(null);
   const taskLaunchHandledRef = useRef(false);
   const taskAutoAddHandledRef = useRef(false);
@@ -771,17 +848,20 @@ export default function EmployeePortalInventory() {
       const authoritative = new Map(
         (Array.isArray(response?.items) ? response.items : []).map((row) => [
           String(row.product_variant_id ?? row.variant_id ?? ""),
-          toNumber(row.system_quantity, 0),
+          { system: toNumber(row.system_quantity, 0), countedAt: row.counted_at || null },
         ])
       );
       if (authoritative.size) {
         setItems((current) => current.map((row) => {
           const id = String(row.product_variant_id ?? row.variant_id ?? row.id ?? "");
           if (!authoritative.has(id)) return row;
-          const system = authoritative.get(id);
-          if (system === toNumber(row.system_quantity, 0)) return row;
+          // counted_at comes back too: it is what keeps a size that was counted
+          // as ZERO marked as visited once its outbox entry is gone.
+          const { system, countedAt } = authoritative.get(id);
+          const sameStock = system === toNumber(row.system_quantity, 0);
+          if (sameStock && (row.counted_at || null) === countedAt) return row;
           const difference = toNumber(row.counted_quantity, 0) - system;
-          return { ...row, system_quantity: system, expected_qty: system, difference_quantity: difference, difference_qty: difference };
+          return { ...row, counted_at: countedAt, system_quantity: system, expected_qty: system, difference_quantity: difference, difference_qty: difference };
         }));
       }
       setLastSyncedAt(Date.now());
@@ -884,6 +964,7 @@ export default function EmployeePortalInventory() {
         system_quantity: row.system_quantity ?? 0,
         counted_quantity: row.counted_quantity ?? 0,
         difference_quantity: row.difference_quantity ?? 0,
+        counted_at: row.counted_at ?? null,
         // Preserve a prior-session edit marker (survives reload via the draft)
         // or stamp this session's edit; untouched rows stay 0 so the server wins.
         local_updated_at: editedAtRef.current.get(vid) || Number(row.local_updated_at) || 0,
@@ -907,49 +988,6 @@ export default function EmployeePortalInventory() {
     }
   }, [session?.status, session?.id, draftIdentity]);
 
-  useEffect(() => {
-    const sessionState = String(session?.status || "");
-    if (!session?.id || !lookupQuery.trim() || !isEditable) {
-      if (!lookupQuery.trim()) setLookupResults([]);
-      return;
-    }
-    const timer = window.setTimeout(async () => {
-      setLookupLoading(true);
-      const limit = searchParams.get("taskId") ? 100 : 20;
-      // With no signal the cached catalogue answers instead; it is a lookup
-      // index only, so the row it returns is still written against the server's
-      // own expected quantity.
-      const deviceResults = () => searchCatalogRows(catalogSnapshot?.variants || [], lookupQuery, limit);
-      try {
-        // The phone answers first, connected or not: on a weak line "online" is
-        // true and the request still takes ten seconds, so waiting for it is the
-        // slow path even when it eventually works.
-        const fromDevice = deviceResults();
-        if (fromDevice.length) {
-          setLookupResults(fromDevice);
-          setLookupLoading(false);
-        }
-        if (!online) return;
-        const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query: lookupQuery, limit }, {
-          timeoutMs: fromDevice.length ? SEARCH_NETWORK_TIMEOUT_MS : undefined,
-        });
-        setLookupResults(Array.isArray(response?.items) ? response.items : []);
-      } catch (error) {
-        if (error?.name === "TimeoutError" || /timed out/i.test(String(error?.message || ""))) {
-          // Slow, not gone: the phone's answer stands and nothing is reported.
-        } else if (isOfflineFailure(error)) {
-          setOnline(false);
-          setLookupResults(deviceResults());
-        } else if (sessionState !== "pending_review" && sessionState !== "completed") {
-          toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.searchFailed"));
-        }
-      } finally {
-        setLookupLoading(false);
-      }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [catalogSnapshot, isEditable, isRejected, lookupQuery, online, searchParams, session?.id, session?.status, token]);
-
   const visibleSessions = useMemo(() => {
     const query = clean(sessionSearch).toLowerCase();
     const filter = sessionFilters.find((item) => item.value === statusFilter) || sessionFilters[0];
@@ -962,64 +1000,21 @@ export default function EmployeePortalInventory() {
   }, [sessionSearch, sessions, statusFilter]);
 
   const groupedItems = useMemo(() => groupVariants(items), [items]);
-  const inventoryCatalogSource = useMemo(() => {
-    const seen = new Set();
-    const records = [];
-    for (const record of catalogProducts) {
-      const variant = normalizeInventoryFilterRecord(record);
-      const key = [
-        variant.product_id,
-        variant.product_name,
-        variant.color,
-        variant.size,
-        variant.sku,
-        variant.barcode,
-        variant.article_code,
-      ].map((value) => clean(value)).join("::");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      records.push(variant);
-    }
-    return records;
-  }, [catalogProducts]);
-  const inventoryFilterSource = useMemo(() => {
-    const seen = new Set();
-    const records = [];
-    for (const record of [...items, ...lookupResults]) {
-      const variant = normalizeInventoryFilterRecord(record);
-      const key = [
-        variant.product_id,
-        variant.product_name,
-        variant.color,
-        variant.size,
-        variant.sku,
-        variant.barcode,
-        variant.article_code,
-      ].map((value) => clean(value)).join("::");
-      if (seen.has(key)) continue;
-      seen.add(key);
-      records.push(variant);
-    }
-    return records;
-  }, [items, lookupResults]);
-  const filterOptions = useMemo(() => {
-    // Filter dropdowns come from the tiny facets endpoint. Fall back to values
-    // derived from the current session items/lookup results so nothing is lost
-    // if facets are unavailable.
-    const facetOr = (list, derived) => (Array.isArray(list) && list.length ? uniqueTextValues(list) : uniqueTextValues(derived));
-    return {
-      categories: facetOr(facets.categories, inventoryFilterSource.map((record) => record.category)),
-      types: facetOr(facets.types, inventoryFilterSource.map((record) => record.type)),
-      brands: facetOr(facets.brands, inventoryFilterSource.map((record) => record.brand)),
-      manufacturers: facetOr(facets.manufacturers, inventoryFilterSource.map((record) => record.manufacturer_name)),
-      genders: facetOr(facets.genders, inventoryFilterSource.map((record) => record.gender)),
-    };
-  }, [facets, inventoryFilterSource]);
-  const optionWithCounts = useCallback((values, records, valueForRecord) => values.map((value) => ({
-    id: value,
-    name: value,
-    count: records.filter((record) => clean(valueForRecord(record)) === clean(value)).length,
-  })), []);
+  // ---- Search index + filter options, both from the phone's catalogue -------
+  // Built once per snapshot. The filter panel used to be fed by a list that was
+  // never populated, so every option showed a count of 0 and the size filter
+  // reset itself on each render; the index gives it real colours-per-option.
+  const searchIndex = useMemo(() => getCountSearchIndex(catalogSnapshot), [catalogSnapshot]);
+  const indexFacets = useMemo(() => countIndexFacets(searchIndex), [searchIndex]);
+  const facetFallback = useCallback((list) => uniqueTextValues(Array.isArray(list) ? list : []).map((name) => ({ id: name, name })), []);
+  const smartFilterOptions = useMemo(() => ({
+    gender: indexFacets.gender.length ? indexFacets.gender : facetFallback(facets.genders),
+    productType: indexFacets.type.length ? indexFacets.type : facetFallback(facets.types),
+    grade: indexFacets.grade.length ? indexFacets.grade : facetFallback(facets.grades?.length ? facets.grades : facets.categories),
+  }), [facetFallback, facets, indexFacets]);
+  const brandOptions = useMemo(() => (indexFacets.brand.length ? indexFacets.brand : facetFallback(facets.brands)), [facetFallback, facets.brands, indexFacets.brand]);
+  const manufacturerOptions = useMemo(() => (indexFacets.manufacturer.length ? indexFacets.manufacturer : facetFallback(facets.manufacturers)), [facetFallback, facets.manufacturers, indexFacets.manufacturer]);
+  const availableSizes = useMemo(() => (indexFacets.size.length ? indexFacets.size : facetFallback(facets.sizes)), [facetFallback, facets.sizes, indexFacets.size]);
   const activeFilterCount = useMemo(
     () =>
       ["category", "type", "brand", "manufacturer", "gender"].reduce(
@@ -1028,105 +1023,44 @@ export default function EmployeePortalInventory() {
       ),
     [filters, selectedFilterSize]
   );
-  const smartFilterOptions = useMemo(() => ({
-    gender: optionWithCounts(filterOptions.genders, inventoryCatalogSource, (record) => record.gender),
-    productType: optionWithCounts(filterOptions.types, inventoryCatalogSource, (record) => record.type),
-    grade: optionWithCounts(filterOptions.categories, inventoryCatalogSource, (record) => record.category),
-  }), [filterOptions, inventoryCatalogSource, optionWithCounts]);
-  const brandOptions = useMemo(() => filterOptions.brands.map((brand) => ({ id: brand, name: brand })), [filterOptions.brands]);
-  const manufacturerOptions = useMemo(() => filterOptions.manufacturers.map((manufacturer) => ({ id: manufacturer, name: manufacturer })), [filterOptions.manufacturers]);
-  const filterGroups = useMemo(() => {
-    const sizeCount = new Set(inventoryCatalogSource.map((record) => clean(record.size)).filter(Boolean)).size;
-    return [
-      { key: "gender", title: tt("employeePortal.chrome.gender"), count: smartFilterOptions.gender?.length || 0 },
-      { key: "productType", title: tt("employeePortal.chrome.productType"), count: smartFilterOptions.productType?.length || 0 },
-      { key: "grade", title: tt("employeePortal.chrome.grade"), count: smartFilterOptions.grade?.length || 0 },
-      { key: "size", title: tt("employeePortal.chrome.size"), count: sizeCount },
-      { key: "brand", title: tt("employeePortal.chrome.brand"), count: brandOptions.length },
-      { key: "manufacturer", title: tt("employeePortal.chrome.manufacturer"), count: manufacturerOptions.length },
-    ];
-  }, [inventoryCatalogSource, brandOptions.length, manufacturerOptions.length, smartFilterOptions.gender, smartFilterOptions.productType, smartFilterOptions.grade, i18nRuntime.language]);
-  const filterDebugText = useMemo(() => {
-    const sizeCount = new Set(inventoryCatalogSource.map((record) => clean(record.size)).filter(Boolean)).size;
-    return `Filters debug: gender=${smartFilterOptions.gender?.length || 0}, productType=${smartFilterOptions.productType?.length || 0}, grade=${smartFilterOptions.grade?.length || 0}, size=${sizeCount}, brand=${brandOptions.length}, manufacturer=${manufacturerOptions.length}`;
-  }, [inventoryCatalogSource, brandOptions.length, manufacturerOptions.length, smartFilterOptions.gender, smartFilterOptions.productType, smartFilterOptions.grade]);
   const resetFilters = useCallback(() => {
-    setFilters({
-      category: "all",
-      type: "all",
-      brand: "all",
-      manufacturer: "all",
-      gender: "all",
-      inStockOnly: true,
-    });
+    setFilters({ category: "all", type: "all", brand: "all", manufacturer: "all", gender: "all", inStockOnly: false });
     setSelectedFilterSize("all");
   }, []);
   const updateFilter = useCallback((key, value) => {
     setFilters((current) => ({ ...current, [key]: value }));
   }, []);
-  const matchesInventoryBaseFilters = useCallback((record) => {
-    const normalized = normalizeInventoryFilterRecord(record);
-    const matchesCategory = filters.category === "all" || clean(normalized.category) === clean(filters.category);
-    const matchesType = filters.type === "all" || clean(normalized.type) === clean(filters.type);
-    const matchesBrand = filters.brand === "all" || clean(normalized.brand) === clean(filters.brand);
-    const matchesManufacturer = filters.manufacturer === "all" || clean(normalized.manufacturer_name) === clean(filters.manufacturer);
-    const matchesGender = filters.gender === "all" || productMatchesAudience(record, filters.gender);
-    const matchesStock = !filters.inStockOnly || Number(normalized.system_quantity || normalized.stock || 0) > 0;
-    return matchesCategory && matchesType && matchesBrand && matchesManufacturer && matchesGender && matchesStock;
-  }, [filters]);
-  const matchesInventoryFilters = useCallback((record) => {
-    const normalized = normalizeInventoryFilterRecord(record);
-    const matchesSize = selectedFilterSize === "all" || clean(normalized.size) === clean(selectedFilterSize);
-    return matchesInventoryBaseFilters(record) && matchesSize;
-  }, [matchesInventoryBaseFilters, selectedFilterSize]);
-  const filteredLookupResults = useMemo(() => {
-    const normalizedQuery = clean(lookupQuery).toLowerCase();
-    const exactCodes = (record) => [
-      record.article_code,
-      record.variant_article_code,
-      record.barcode,
-      record.variant_barcode,
-      record.product_barcode,
-      record.product_article_code,
-      record.sku,
-      record.variant_sku,
-      record.product_sku,
-    ].map((value) => clean(value).toLowerCase()).filter(Boolean);
-    const hasExactCodeMatch = normalizedQuery && lookupResults.some((record) => exactCodes(record).includes(normalizedQuery));
-    return hasExactCodeMatch
-      ? lookupResults.filter((record) => exactCodes(record).includes(normalizedQuery))
-      : lookupResults.filter(matchesInventoryFilters);
-  }, [lookupQuery, lookupResults, matchesInventoryFilters]);
-  const lookupGroups = useMemo(() => groupVariants(filteredLookupResults), [filteredLookupResults]);
-  const availableSizes = useMemo(() => {
-    const filteredBaseRecords = inventoryCatalogSource.filter(matchesInventoryBaseFilters);
-    const sizes = new Map();
-    for (const record of filteredBaseRecords) {
-      if (!record.size) continue;
-      sizes.set(record.size, (sizes.get(record.size) || 0) + 1);
-    }
-    return sortSizes([...sizes.entries()].map(([id, count]) => ({ id, name: id, count })));
-  }, [inventoryCatalogSource, matchesInventoryBaseFilters]);
+  const openFilters = useCallback(() => setFiltersOpen(true), []);
+  const openScanner = useCallback(() => setScannerOpen(true), []);
 
-  useEffect(() => {
-    if (selectedFilterSize === "all") return;
-    if (!availableSizes.some((option) => option.id === selectedFilterSize)) {
-      setSelectedFilterSize("all");
-    }
-  }, [availableSizes, selectedFilterSize]);
+  // Which size rows are already on the sheet. Re-made only when the SET of ids
+  // changes, so counting (which rewrites `items` on every tap) does not make the
+  // search box re-render.
+  const sheetIdsKey = useMemo(
+    () => items.map((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "")).join(","),
+    [items]
+  );
+  const sheetVariantIds = useMemo(() => new Set(sheetIdsKey ? sheetIdsKey.split(",") : []), [sheetIdsKey]);
+
   const differenceTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.difference_quantity, 0), 0), [items]);
   const expectedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.system_quantity, 0), 0), [items]);
   const countedTotal = useMemo(() => items.reduce((sum, item) => sum + toNumber(item.counted_quantity, 0), 0), [items]);
   // Progress is COVERAGE — how many size rows have been visited — not a ratio of
   // quantities. A count that finds half the expected stock is not "50% done";
   // it is finished and short by half, which is the whole point of counting.
-  const countedRowKeys = useMemo(() => new Set(Object.keys(outbox)), [outbox]);
+  // Only quantities the employee actually entered. A colour that was merely put
+  // on the sheet also sits in the outbox (the server still has to create its
+  // rows), and counting those made a freshly added colour read "5 of 5 counted".
+  const countedRowKeys = useMemo(
+    () => new Set(Object.entries(outbox).filter(([, entry]) => entry?.counted !== false).map(([id]) => id)),
+    [outbox]
+  );
   const visitedRows = useMemo(
     () =>
       items.filter((item) => {
         const id = String(item.product_variant_id ?? item.variant_id ?? item.id ?? "");
         if (countedRowKeys.has(id)) return true;
-        if (Number(item.counted_at ?? 0)) return true;
+        if (item.counted_at) return true;
         return Boolean(item.counted_by_name) || toNumber(item.counted_quantity, 0) > 0;
       }).length,
     [items, countedRowKeys]
@@ -1176,7 +1110,6 @@ export default function EmployeePortalInventory() {
     const productName = clean(searchParams.get("productName"));
     if (!taskId || taskLaunchHandledRef.current) return;
     taskLaunchHandledRef.current = true;
-    setLookupQuery(taskQuery);
 
     if (routeSessionId) return;
     let cancelled = false;
@@ -1285,6 +1218,23 @@ export default function EmployeePortalInventory() {
     }
   }, [refreshCurrentSession, session?.id, token]);
 
+  // Bring a colour's card into view and flash it: the answer to "where did the
+  // thing I just added go" on a sheet that can be fifty colours long.
+  const revealGroup = useCallback((variantLike) => {
+    const variantId = String(variantLike?.product_variant_id ?? variantLike?.variant_id ?? variantLike?.variantIds?.[0] ?? variantLike?.id ?? "");
+    if (!variantId || typeof window === "undefined") return;
+    // A timer, not requestAnimationFrame: rAF never fires while the tab is in the
+    // background, and the card has to exist (React has committed) either way.
+    window.setTimeout(() => {
+      const node = document.querySelector(`[data-count-variant~="v${variantId}"]`);
+      if (!node) return;
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      const key = node.getAttribute("data-count-group") || "";
+      setFlashGroupKey(key);
+      window.setTimeout(() => setFlashGroupKey((current) => (current === key ? "" : current)), 1600);
+    }, 60);
+  }, []);
+
   /**
    * Put a colour's whole size run on the sheet.
    *
@@ -1299,7 +1249,11 @@ export default function EmployeePortalInventory() {
     const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
     let completeGroup = group;
 
-    if (online) {
+    // A group from the phone's index already holds the colour's whole size run,
+    // so it goes on the sheet at once. Only a group from a capped server page
+    // (`complete: false`) is re-resolved — that lookup used to run on EVERY add
+    // and was the wait between tapping "add" and seeing the sizes.
+    if (online && group.complete !== true) {
       // The online search returns a capped page, so a colour can come back with
       // only some of its sizes; re-resolve it by code before adding.
       const seedVariant = group.variants[0] || {};
@@ -1359,79 +1313,66 @@ export default function EmployeePortalInventory() {
       counted: false,
     }), current));
     logDevDuration("add color group", startedAt, { groupKey: group.key, variantCount: completeGroup.variants.length, added: added.length });
-    toast.success(tt("employeePortal.stockCount.colorAdded"));
-  }, [isEditable, online, session?.id, token]);
+    revealGroup(added[0]);
+  }, [isEditable, online, revealGroup, session?.id, token]);
 
+  const serverGroupsFor = useCallback(async (query, limit) => {
+    const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit });
+    const rows = Array.isArray(response?.items) ? response.items.map((row) => normalizeVariant(row)) : [];
+    return groupVariants(rows).map((entry) => ({ ...entry, complete: false }));
+  }, [session?.id, token]);
+
+  // A count launched from a task adds the task's model by itself: the phone's
+  // index first, the server only if the phone does not know the product.
   useEffect(() => {
     const taskId = clean(searchParams.get("taskId"));
-    if (
-      !taskId ||
-      taskAutoAddHandledRef.current ||
-      lookupLoading ||
-      !session?.id ||
-      !isEditable ||
-      !lookupGroups.length
-    ) return;
-
+    const taskQuery = clean(searchParams.get("query"));
+    if (!taskId || !taskQuery || taskAutoAddHandledRef.current || !session?.id || !isEditable) return;
+    if (!searchIndex.length && catalogLoading) return; // the catalogue is on its way
     taskAutoAddHandledRef.current = true;
     const addTaskModel = async () => {
-      for (const group of lookupGroups) {
-        await addColorGroup(group);
+      try {
+        let groups = searchCountIndex(searchIndex, taskQuery, { limit: 100 }).groups.map((entry) => ({ ...entry, complete: true }));
+        if (!groups.length && online) groups = await serverGroupsFor(taskQuery, 100);
+        if (!groups.length) return;
+        for (const group of groups) await addColorGroup(group);
+        toast.success(tt("employeePortal.stockCount.modelAdded"));
+      } catch (error) {
+        toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.stockCount.addColorFailed"));
       }
-      setLookupQuery("");
-      toast.success(tt("employeePortal.stockCount.modelAdded"));
     };
     void addTaskModel();
-  }, [addColorGroup, isEditable, lookupGroups, lookupLoading, searchParams, session?.id]);
+  }, [addColorGroup, catalogLoading, isEditable, online, searchIndex, searchParams, serverGroupsFor, session?.id]);
 
-  const findColorGroupForVariant = useCallback((variant, records = []) => {
-    const productId = variant?.product_id ?? null;
-    const colorKey = normalizeColorKey(variant?.color ?? "");
-    if (!productId || !colorKey) return null;
-    return groupVariants(records).find((entry) => String(entry.product_id ?? "") === String(productId) && normalizeColorKey(entry.color || "") === colorKey) || null;
-  }, []);
-
+  // A scan is an exact code. The phone resolves it at once; the server is asked
+  // only for a code the phone has never seen.
   const handleScan = useCallback(async (value) => {
     const query = clean(value);
-    setLookupQuery(query);
     if (!session?.id || !query || !isEditable) return false;
-    const resolveFromResults = async (results) => {
-      setLookupResults(results);
-      const normalizedResults = results.map((variant) => normalizeVariant(variant));
-      const exact = normalizedResults.find((variant) => isExactVariantMatch(query, variant));
-      if (!exact) {
+    const deviceGroup = findCountGroupByCode(searchIndex, query);
+    if (deviceGroup) {
+      await addColorGroup({ ...deviceGroup, complete: true });
+      return true;
+    }
+    if (!online) {
+      toast.error(tt("employeePortal.scanner.noMatchingProduct"));
+      return false;
+    }
+    try {
+      const groups = await serverGroupsFor(query, 20);
+      const match = groups.find((entry) => entry.variants.some((variant) => isExactVariantMatch(query, variant)));
+      if (!match) {
         toast.error(tt("employeePortal.scanner.noMatchingProduct"));
         return false;
       }
-      const group = findColorGroupForVariant(exact, normalizedResults);
-      if (group) await addColorGroup(group);
+      await addColorGroup(match);
       return true;
-    };
-    // The cached catalogue is what makes scanning work in a stockroom with no
-    // signal; the barcode resolves locally and the row is owed to the server.
-    const scanOffline = () => resolveFromResults(searchCatalogRows(catalogSnapshot?.variants || [], query, 40));
-
-    try {
-      setLookupLoading(true);
-      // A scan is an exact code, which the phone resolves as well as the server
-      // and at once. The server is only asked when the phone does not know it
-      // (a product added since the last catalogue refresh).
-      const deviceRows = searchCatalogRows(catalogSnapshot?.variants || [], query, 40);
-      if (deviceRows.some((row) => isExactVariantMatch(query, normalizeVariant(row)))) return await resolveFromResults(deviceRows);
-      if (!online) return await scanOffline();
-      const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit: 20 });
-      return await resolveFromResults(Array.isArray(response?.items) ? response.items : []);
     } catch (error) {
-      if (isOfflineFailure(error)) {
-        setOnline(false);
-        return await scanOffline();
-      }
-      toast.error(error?.responseBody?.message || error?.message || tt("employeePortal.scanner.readFailed"));
+      if (isOfflineFailure(error)) setOnline(false);
+      toast.error(isOfflineFailure(error) ? tt("employeePortal.scanner.noMatchingProduct") : error?.responseBody?.message || error?.message || tt("employeePortal.scanner.readFailed"));
       return false;
-    } finally {
-      setLookupLoading(false);
     }
-  }, [addColorGroup, catalogSnapshot, findColorGroupForVariant, isEditable, online, session?.id, token]);
+  }, [addColorGroup, isEditable, online, searchIndex, serverGroupsFor, session?.id]);
 
   const handleVariantCountChange = useCallback((variantId, value) => {
     if (!isEditable) return;
@@ -1532,7 +1473,7 @@ export default function EmployeePortalInventory() {
       : `عجز: ${Math.abs(differenceTotal)}`;
 
   return (
-    <div dir="rtl" className="employee-portal-workspace employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
+    <div dir="rtl" className={`${searchActive ? "inventory-searching " : ""}employee-portal-workspace employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4`}>
       <style>{`
         .employee-portal-inventory {
           width: 100%;
@@ -1590,6 +1531,16 @@ export default function EmployeePortalInventory() {
         .employee-portal-inventory .inventory-size-tile {
           min-width: 0;
         }
+        /* A colour that was just added or jumped to announces itself once. */
+        @keyframes inventory-card-flash {
+          0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
+          100% { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
+        }
+        .employee-portal-inventory .inventory-color-card { scroll-margin-top: 220px; content-visibility: auto; contain-intrinsic-size: auto 260px; }
+        .employee-portal-inventory .inventory-color-card--flash { animation: inventory-card-flash 0.8s ease-out 2; }
+        @media (prefers-reduced-motion: reduce) {
+          .employee-portal-inventory .inventory-color-card--flash { animation: none; }
+        }
         /* The send button follows the thumb through a long count. */
         .employee-portal-inventory .inventory-send-bar {
           position: sticky;
@@ -1605,6 +1556,14 @@ export default function EmployeePortalInventory() {
           position: sticky;
           top: 0;
           z-index: 21;
+        }
+        /* While searching, the header lets go: the search box has to reach the top
+           of the screen so its results clear the phone's keyboard. */
+        .employee-portal-inventory.inventory-searching .inventory-head {
+          position: static;
+        }
+        .employee-portal-inventory .inventory-search-card {
+          scroll-margin-top: 8px;
         }
         @media (max-width: 640px) {
           .employee-portal-inventory {
@@ -1917,97 +1876,24 @@ export default function EmployeePortalInventory() {
                   </div>
                 </details>
 
-                <section className="rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-sm">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFiltersOpen(true)}
-                      aria-expanded={filtersOpen}
-                      className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-violet-400/40 bg-violet-500/10 text-violet-700 shadow-[0_0_18px_rgba(124,58,237,0.12)]" : "border-slate-200 bg-white text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700" }`}
-                      aria-label={tt("employeePortal.common.filters")}
-                      title={tt("employeePortal.common.filters")}
-                    >
-                      <span className="relative inline-flex">
-                        <Filter className="h-4 w-4" />
-                        {activeFilterCount > 0 ? (
-                          <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-black text-white">
-                            {activeFilterCount > 99 ? "99+" : activeFilterCount}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                    <label className="inventory-search flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3">
-                      <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                      <input
-                        ref={lookupInputRef}
-                        value={lookupQuery}
-                        onChange={(event) => setLookupQuery(event.target.value)}
-                        disabled={!isEditable}
-                        placeholder={tt("employeePortal.stockCount.searchItems")}
-                        className="w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400 disabled:opacity-70"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setScannerOpen(true)}
-                      disabled={!isEditable}
-                      className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 disabled:opacity-60"
-                      aria-label={tt("employeePortal.scanner.scan")}
-                      title={tt("employeePortal.scanner.scan")}
-                    >
-                      <Camera className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
-                    {lookupLoading ? (
-                      <div className="inline-flex items-center gap-2 text-sm font-black text-slate-500">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        {tt("employeePortal.scanner.searching")}
-                      </div>
-                    ) : null}                  </div>
-                  {lookupGroups.length ? (
-                    <div className="mt-3 grid min-w-0 gap-3 md:grid-cols-2">
-                      {lookupGroups.map((group) => (
-                        <div key={group.key} className="inventory-wrap rounded-[var(--radius-card)] border border-slate-200 bg-white p-3">
-                          <div className="flex min-w-0 items-start gap-3">
-                            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                              <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
-                              <div className="mt-1 text-xs font-semibold text-slate-500">
-                                {group.color || tt("employeePortal.stockCount.unknownColor")} • {group.variants.length} قطع
-                              </div>
-                              {(group.article_code || group.category) ? (
-                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-black text-slate-600">
-                                  {group.article_code ? (
-                                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1" dir="ltr">
-                                      Article: {group.article_code}
-                                    </span>
-                                  ) : null}
-                                  {group.category ? (
-                                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
-                                      {group.category}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                              <button
-                                type="button"
-                                onClick={() => addColorGroup(group)}
-                                disabled={!isEditable}
-                                className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-xs font-black text-[var(--primary-contrast)] disabled:opacity-60"
-                              >
-                                <Plus className="h-4 w-4" />
-                                {tt("employeePortal.stockCount.addColor")}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </section>
+                <CountProductSearch
+                  snapshot={catalogSnapshot}
+                  filters={filters}
+                  selectedSize={selectedFilterSize}
+                  activeFilterCount={activeFilterCount}
+                  filtersOpen={filtersOpen}
+                  onOpenFilters={openFilters}
+                  onResetFilters={resetFilters}
+                  onOpenScanner={openScanner}
+                  disabled={!isEditable}
+                  online={online}
+                  token={token}
+                  sessionId={session.id}
+                  sheetVariantIds={sheetVariantIds}
+                  onAdd={addColorGroup}
+                  onJump={revealGroup}
+                  onActiveChange={setSearchActive}
+                />
 
                 <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
                   <div className="flex min-w-0 items-start justify-between gap-3">
@@ -2024,101 +1910,18 @@ export default function EmployeePortalInventory() {
 
                   <div className="mt-3 space-y-2.5">
                     {groupedItems.length ? groupedItems.map((group) => (
-                      <div key={group.key} className="inventory-wrap rounded-2xl border border-slate-200 bg-slate-50 p-2.5">
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-slate-200 bg-slate-100">
-                            <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
-                            <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
-                              <span className="max-w-[9rem] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-700">
-                                {group.color || tt("employeePortal.stockCount.unknownColor")}
-                              </span>
-                              <span dir="ltr">{group.counted_total} / {group.system_total}</span>
-                              <span className={group.difference_total === 0 ? "text-emerald-700" : group.difference_total > 0 ? "text-amber-700" : "text-rose-700"}>
-                                {group.difference_total === 0 ? tt("employeePortal.status.balanced") : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteColorGroup(group)}
-                            disabled={!isEditable || itemSavingId === group.key}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-60"
-                            aria-label={tt("employeePortal.stockCount.deleteColor")}
-                            title={tt("employeePortal.stockCount.deleteColor")}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-
-                        {/* One tile per size, two or three to a row: the whole
-                            colour is countable without a single scroll, and the
-                            quantity is typeable instead of only tappable. */}
-                        <div className="inventory-size-grid mt-2.5">
-                          {group.variants.map((variant) => {
-                            const variantId = String(variant.product_variant_id ?? variant.variant_id ?? variant.id ?? "");
-                            const difference = toNumber(variant.difference_quantity, 0);
-                            const pending = Boolean(outbox[variantId]);
-                            return (
-                              <div
-                                key={variantId}
-                                className={`inventory-size-tile rounded-[var(--radius-card)] border bg-white p-2 ${difference === 0 ? "border-slate-200" : difference > 0 ? "border-amber-300" : "border-rose-300"}`}
-                              >
-                                <div className="flex min-w-0 items-center justify-between gap-1">
-                                  <span className="truncate text-sm font-black text-slate-950">{variant.size || tt("employeePortal.stockCount.unknownSize")}</span>
-                                  <span className="shrink-0 text-[10px] font-bold text-slate-400" dir="ltr">{tt("employeePortal.stockCount.expectedShort")} {toNumber(variant.system_quantity, 0)}</span>
-                                </div>
-                                <div className="mt-1.5 grid grid-cols-[44px_minmax(0,1fr)_44px] gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => adjustVariantCount(variant, -1)}
-                                    disabled={!isEditable}
-                                    className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 active:bg-slate-100 disabled:opacity-50"
-                                    aria-label={tt("employeePortal.stockCount.decrement")}
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    value={variant.counted_quantity}
-                                    onFocus={(event) => event.target.select()}
-                                    onChange={(event) => {
-                                      const digits = event.target.value.replace(/[^0-9]/g, "");
-                                      setVariantCount(variant, digits === "" ? 0 : Number(digits));
-                                    }}
-                                    disabled={!isEditable}
-                                    className="h-12 w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1 text-center text-lg font-black text-slate-950 outline-none focus:border-emerald-400 focus:bg-white disabled:opacity-70"
-                                    aria-label={`${group.product_name || ""} ${variant.size || ""}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => adjustVariantCount(variant, 1)}
-                                    disabled={!isEditable}
-                                    className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] bg-primary text-2xl font-black text-[var(--primary-contrast)] active:opacity-80 disabled:opacity-50"
-                                    aria-label={tt("employeePortal.stockCount.increment")}
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                                <div className="mt-1 flex items-center justify-between gap-1 text-[10px] font-black">
-                                  <span className={difference === 0 ? "text-emerald-700" : difference > 0 ? "text-amber-700" : "text-rose-700"} dir="ltr">
-                                    {difference === 0 ? tt("employeePortal.status.balanced") : difference > 0 ? `+${difference}` : difference}
-                                  </span>
-                                  {pending ? (
-                                    <span className="inline-flex items-center gap-0.5 text-amber-700" title={tt("employeePortal.sync.pending")}>
-                                      <CloudOff className="h-3 w-3" />
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <CountColorCard
+                        key={group.key}
+                        group={group}
+                        signature={groupSignature(group, outbox)}
+                        outbox={outbox}
+                        isEditable={isEditable}
+                        deleting={itemSavingId === group.key}
+                        flash={flashGroupKey === group.key}
+                        onAdjust={adjustVariantCount}
+                        onSet={setVariantCount}
+                        onDelete={handleDeleteColorGroup}
+                      />
                     )) : (
                       <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm font-bold leading-6 text-slate-500">
                         {tt("employeePortal.stockCount.noItemsYet")}

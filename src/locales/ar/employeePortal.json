@@ -310,7 +310,20 @@
     "coverage": "اتعدّ {{done}} من {{total}} مقاس",
     "expectedShort": "متوقع",
     "details": "بيانات الجرد (الاسم والملاحظات)",
-    "sendWithPending": "إرسال للمراجعة ({{count}} لسه ماتبعتش)"
+    "sendWithPending": "إرسال للمراجعة ({{count}} لسه ماتبعتش)",
+    "add": "إضافة",
+    "addRest": "إضافة الباقي",
+    "onSheet": "على الورقة",
+    "clearSearch": "مسح البحث",
+    "clearFilters": "امسح الفلاتر",
+    "sizeCount": "{{count}} مقاس",
+    "stockShort": "رصيد {{count}}",
+    "resultsCount": "{{count}} نتيجة",
+    "resultsCapped": "أول {{shown}} من {{total}} — كمّل كتابة عشان تضيّق",
+    "searchingServer": "مش على الموبايل — بندوّر في السيرفر…",
+    "noResults": "مفيش منتج بالاسم أو الكود ده",
+    "noResultsHint": "جرّب جزء من الاسم، أو كود الأرتكل، أو امسح الباركود.",
+    "noResultsFiltered": "فيه فلاتر شغالة ممكن تكون مخبّية المنتج."
   },
   "payroll": {
     "walletTitle": "محفظة الموظف",

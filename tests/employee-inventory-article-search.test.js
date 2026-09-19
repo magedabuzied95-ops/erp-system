@@ -5,6 +5,9 @@ import test from "node:test";
 const serviceSource = readFileSync(new URL("../server/services/inventoryCountService.js", import.meta.url), "utf8");
 const portalSource = readFileSync(new URL("../src/modules/employees/pages/EmployeePortalInventory.jsx", import.meta.url), "utf8");
 const portalRouteSource = readFileSync(new URL("../server/routes/employeePortal.js", import.meta.url), "utf8");
+// The search box is its own component now (it owns its text, so typing does not
+// re-render the count sheet); the placeholder promise lives there.
+const searchSource = readFileSync(new URL("../src/modules/employees/components/CountProductSearch.jsx", import.meta.url), "utf8");
 
 test("employee inventory lookup searches variant and color-level article codes", () => {
   assert.match(serviceSource, /buildExactMatchParts\("v", variantColumns, \["barcode", "sku", "article_code"/);
@@ -16,7 +19,10 @@ test("employee inventory lookup searches variant and color-level article codes",
 
 test("employee inventory search communicates article support", () => {
   // The placeholder is localized now, so the promise lives in the dictionaries.
-  assert.match(portalSource, /placeholder=\{tt\("employeePortal\.stockCount\.searchItems"\)\}/);
+  assert.match(searchSource, /placeholder=\{tt\("employeePortal\.stockCount\.searchItems"\)\}/);
+  // The phone's snapshot must resolve the colour-level code too, or a code that
+  // works online finds nothing on a weak line.
+  assert.match(serviceSource, /const articleCodeExpr = hasColorGroups/);
   const ar = JSON.parse(readFileSync(new URL("../src/locales/ar/employeePortal.json", import.meta.url), "utf8"));
   const en = JSON.parse(readFileSync(new URL("../src/locales/en/employeePortal.json", import.meta.url), "utf8"));
   assert.match(ar.stockCount.searchItems, /الأرتكل/);

@@ -1223,7 +1223,31 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
   if (productColumns.has("is_active")) activeParts.push("COALESCE(p.is_active, TRUE) = TRUE");
   // Column sets differ between deployments, so every optional field is resolved
   // against the live catalogue rather than assumed.
-  const articleCodeExpr = firstAvailableColumnExpr("v", variantColumns, ["article_code"], "''");
+  // Article Code has two levels: a size row may carry its own, otherwise the
+  // colour's code from product_color_groups applies. The online lookup resolves
+  // both, so the snapshot must too — or a code read off the box finds the
+  // product online and "nothing" on a weak line.
+  const ownArticleExpr = firstAvailableColumnExpr("v", variantColumns, ["article_code"], "''");
+  const hasColorGroups = await tableExists(dbClient, "product_color_groups");
+  const colorGroupMatch = variantColumns.has("color_group_key")
+    ? `(
+        (NULLIF(TRIM(COALESCE(v.color_group_key, '')), '') IS NOT NULL AND LOWER(TRIM(pcg.color_group_key)) = LOWER(TRIM(v.color_group_key)))
+        OR LOWER(TRIM(COALESCE(pcg.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
+      )`
+    : `LOWER(TRIM(COALESCE(pcg.color_name, ''))) = LOWER(TRIM(COALESCE(v.color, '')))`;
+  const articleCodeExpr = hasColorGroups
+    ? `COALESCE(
+        NULLIF(${ownArticleExpr}, ''),
+        (
+          SELECT COALESCE(NULLIF(pcg.color_article_code, ''), pcg.article_codes[1], '')
+          FROM product_color_groups pcg
+          WHERE pcg.product_id = v.product_id AND ${colorGroupMatch}
+          ORDER BY pcg.id ASC
+          LIMIT 1
+        ),
+        ''
+      )`
+    : ownArticleExpr;
   const genderExpr = variantColumns.has("audience")
     ? firstAvailableColumnExpr("v", variantColumns, ["audience"], firstAvailableColumnExpr("p", productColumns, ["gender"], "''"))
     : firstAvailableColumnExpr("p", productColumns, ["gender"], "''");
@@ -1318,6 +1342,8 @@ export const loadInventoryCountCatalogSnapshot = async (clientOrPool, data = {})
   };
 };
 
+const CATALOG_SNAPSHOT_SHAPE = "s2";
+
 /**
  * A few bytes that say whether the catalogue snapshot a phone already holds is
  * still the catalogue. On a weak line the snapshot is the expensive request, so
@@ -1362,7 +1388,10 @@ export const loadInventoryCountCatalogVersion = async (clientOrPool, data = {}) 
     [tenantId]
   );
   const row = result.rows[0] || {};
-  return { version: `${row.pc || 0}.${row.vc || 0}.${row.pmax || 0}.${row.vmax || 0}` };
+  // The leading tag is the SHAPE of the snapshot. The data watermark cannot see a
+  // change to what the snapshot contains (s2: colour-level article codes), so
+  // bump this whenever the projection changes and every phone re-downloads once.
+  return { version: `${CATALOG_SNAPSHOT_SHAPE}.${row.pc || 0}.${row.vc || 0}.${row.pmax || 0}.${row.vmax || 0}` };
 };
 
 export const searchInventoryCountVariants = async (clientOrPool, data = {}) => {
