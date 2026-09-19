@@ -5175,6 +5175,7 @@ router.get("/shipping-quote", protect, inboxReply(), async (req, res) => {
       zone: shipping.zone,
       shipping_fee_advance: {
         required: !cod.cod_allowed,
+        kind: cod.advance_kind || "shipping_fee",
         amount: cod.cod_allowed ? 0 : cod.advance_amount,
         notice: cod.cod_allowed ? "" : await shippingFeeAdvanceNoticeFor({ governorate: req.query?.governorate || "", shippingFee: shipping.cost, orderTotal: netSubtotal + (Number(shipping.cost) || 0) }),
       },

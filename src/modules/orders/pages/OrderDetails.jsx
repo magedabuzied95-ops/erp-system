@@ -1372,9 +1372,9 @@ function OrderDetails() {
             <div className={`rounded-2xl border p-5 shadow-xl shadow-black/10 ${order.shipping_fee_advance.status === "paid" ? "border-emerald-500/25 bg-emerald-500/10" : "border-rose-500/25 bg-rose-500/10"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="m1-section-title text-white">{t("orders.shippingFeeAdvance.title")}</h3>
+                  <h3 className="m1-section-title text-white">{t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.title" : "orders.shippingFeeAdvance.title")}</h3>
                   <p className="mt-1 text-sm font-semibold text-zinc-300">
-                    {t(`orders.shippingFeeAdvance.status.${order.shipping_fee_advance.status}`, { amount: formatCurrency(order.shipping_fee_advance.amount) })}
+                    {t(`orders.shippingFeeAdvance.${order.shipping_fee_advance.kind === "confirmation_fee" ? "confirmationFee" : "status"}.${order.shipping_fee_advance.status}`, { amount: formatCurrency(order.shipping_fee_advance.amount) })}
                   </p>
                 </div>
                 <Banknote className={`h-6 w-6 shrink-0 ${order.shipping_fee_advance.status === "paid" ? "text-emerald-300" : "text-rose-300"}`} />
@@ -1432,7 +1432,7 @@ function OrderDetails() {
                     className="mt-4 inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)]"
                   >
                     <Banknote className="h-4 w-4" />
-                    {t("orders.shippingFeeAdvance.markPaid")}
+                    {t(order.shipping_fee_advance.kind === "confirmation_fee" ? "orders.shippingFeeAdvance.confirmationFee.markPaid" : "orders.shippingFeeAdvance.markPaid")}
                   </button>
                 )
               ) : null}

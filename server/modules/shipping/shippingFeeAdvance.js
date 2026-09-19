@@ -1,5 +1,8 @@
 import db from "../../database/db.js";
 import { resolveCodPolicy, resolveGovernorateId } from "../../../shared/codPolicy.js";
+import { isOnlineShippingOrder } from "./onlineOrderSql.js";
+import { isExternalMarketplaceOrder } from "../amazon/amazonOrderGuards.js";
+import { exchangeParcelContextOf } from "../orders/exchangeParcel.js";
 
 // The restricted closing system, seen from an order that already exists: does it owe
 // its shipping fee before it may ship, and has that been paid? One answer for the
@@ -18,6 +21,15 @@ const orderShippingFee = (order = {}) => money(order.shipping_fee ?? order.deliv
 const orderGovernorate = (order = {}, city = null) =>
   [city?.name_en, city?.name_ar, order.shipping_city_name_en, order.shipping_city_name_ar, order.governorate]
     .find((name) => resolveGovernorateId(name)) || text(order.governorate);
+
+// Free shipping owes the order confirmation fee only where a courier fee was ever on the
+// table: a till sale, a pickup, an Amazon order and an exchange parcel also carry a zero fee,
+// and none of them is "free shipping".
+export const confirmationFeeExempt = (order = {}) =>
+  !isOnlineShippingOrder(order)
+  || isExternalMarketplaceOrder(order)
+  || ["pickup", "store_pickup"].includes(text(order.shipping_provider || order.shipping_method).toLowerCase())
+  || Boolean(exchangeParcelContextOf(order));
 
 export const DEPOSIT_REQUEST_TIMELINE_ACTION = "deposit_requested";
 
@@ -51,6 +63,7 @@ export const describeShippingFeeAdvance = ({ order = {}, city = null, policy } =
     governorateId: order.governorate_id,
     shippingFee,
     orderTotal: orderTotal(order),
+    confirmationFeeExempt: confirmationFeeExempt(order),
   });
   const paid = money(order.paid_amount);
   const deposit = requestedDepositAmount(order);
@@ -58,11 +71,14 @@ export const describeShippingFeeAdvance = ({ order = {}, city = null, policy } =
   // open system). Whichever is larger is what this order owes before it moves.
   const amount = Math.max(cod.cod_allowed ? 0 : cod.advance_amount, deposit);
   if (!(amount > 0)) return { required: false, status: "not_required", amount: 0, paid_amount: paid };
+  // "confirmation_fee" when the policy's share of it is the confirmation fee, so every screen
+  // and message can call the money by its name.
+  const kind = !cod.cod_allowed && cod.advance_kind === "confirmation_fee" ? "confirmation_fee" : "shipping_fee";
   const proofStatus = text(order.transfer_proof_status).toLowerCase();
   const verified = !proofStatus || proofStatus === "approved";
   const covered = paid + 0.009 >= amount;
   const status = covered && verified ? "paid" : proofStatus === "pending" ? "awaiting_review" : "awaiting_payment";
-  return { required: true, status, amount, paid_amount: paid, requested_deposit: deposit };
+  return { required: true, status, kind, amount, paid_amount: paid, requested_deposit: deposit };
 };
 
 const httpError = (status, code, message) => Object.assign(new Error(message), { status, code });
@@ -89,7 +105,17 @@ export const markShippingFeePaid = async ({ orderId, tenantId = null, method = "
       throw httpError(409, "ORDER_LOCKED", "This order is closed");
     }
     const total = orderTotal(order);
-    const fee = Math.min(orderShippingFee(order), total);
+    // Free shipping has no shipping fee to record; what the customer paid is the confirmation fee.
+    let fee = Math.min(orderShippingFee(order), total);
+    let confirmationFee = false;
+    if (fee <= 0) {
+      const { loadCodPolicySettings } = await import("../../services/storefrontShippingService.js");
+      const advance = describeShippingFeeAdvance({ order, policy: await loadCodPolicySettings() });
+      if (advance.kind === "confirmation_fee") {
+        fee = Math.min(advance.amount, total);
+        confirmationFee = true;
+      }
+    }
     if (fee <= 0) throw httpError(409, "NO_SHIPPING_FEE", "This order has no shipping fee to pay");
     const nextPaid = Math.min(total, Math.max(money(order.paid_amount), fee));
     const remaining = Math.max(0, money(total - nextPaid));
@@ -100,7 +126,7 @@ export const markShippingFeePaid = async ({ orderId, tenantId = null, method = "
       note: [paymentMethod, reference].filter(Boolean).join(" · "),
       source,
       actor: actorName,
-      label: "تم دفع الشحن",
+      label: confirmationFee ? "تم دفع رسوم تأكيد الأوردر" : "تم دفع الشحن",
       amount: fee,
       at: new Date().toISOString(),
     }]);

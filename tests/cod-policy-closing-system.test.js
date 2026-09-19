@@ -27,7 +27,7 @@ test("the open system keeps cash on delivery everywhere and transfers the whole 
 });
 
 test("an unset mode is the open system, and an unset list is Damietta", () => {
-  assert.deepEqual(normalizeCodPolicy({}), { mode: "open", governorates: ["damietta"] });
+  assert.deepEqual(normalizeCodPolicy({}), { mode: "open", governorates: ["damietta"], confirmationFee: 400 });
 });
 
 test("the restricted system: Damietta keeps COD, everyone else prepays the shipping fee only", () => {
@@ -44,9 +44,41 @@ test("more governorates can be added to the COD list", () => {
   assert.equal(cod.cod_allowed, true);
 });
 
-test("nothing to prepay (free shipping) leaves cash on delivery available", () => {
-  const cod = resolveCodPolicy({ policy: restricted, governorate: "Cairo", shippingFee: 0, orderTotal: 1940 });
-  assert.equal(cod.cod_allowed, true);
+// INV-1740 (2026-09-19): a 10,700 order to Giza crossed the free-shipping threshold, owed no
+// shipping fee, and went through as plain cash on delivery.
+test("free shipping outside the list prepays the order confirmation fee, off the total", () => {
+  const cod = resolveCodPolicy({ policy: restricted, governorate: "الجيزه", shippingFee: 0, orderTotal: 10700 });
+  assert.equal(cod.cod_allowed, false);
+  assert.equal(cod.advance, "shipping_fee");
+  assert.equal(cod.advance_kind, "confirmation_fee");
+  assert.equal(cod.advance_amount, 400);
+  assert.equal(cod.confirmation_fee, 400);
+});
+
+test("the confirmation fee follows the setting, never exceeds the order, and 0 switches it off", () => {
+  const typed = resolveCodPolicy({ policy: { ...restricted, confirmationFee: "250" }, governorate: "Cairo", shippingFee: 0, orderTotal: 1940 });
+  assert.equal(typed.advance_amount, 250);
+  const small = resolveCodPolicy({ policy: restricted, governorate: "Cairo", shippingFee: 0, orderTotal: 300 });
+  assert.equal(small.advance_amount, 300);
+  const off = resolveCodPolicy({ policy: { ...restricted, confirmationFee: 0 }, governorate: "Cairo", shippingFee: 0, orderTotal: 1940 });
+  assert.equal(off.cod_allowed, true);
+  assert.equal(off.advance_amount, 0);
+  assert.equal(normalizeCodPolicy({ confirmationFee: "abc" }).confirmationFee, 400);
+});
+
+test("a paid shipping fee, a COD governorate, a pickup and the open system owe no confirmation fee", () => {
+  const paidShipping = resolveCodPolicy({ policy: restricted, governorate: "Cairo", shippingFee: 90, orderTotal: 1940 });
+  assert.equal(paidShipping.advance_kind, "shipping_fee");
+  assert.equal(paidShipping.advance_amount, 90);
+  const damietta = resolveCodPolicy({ policy: restricted, governorate: "دمياط", shippingFee: 0, orderTotal: 10700 });
+  assert.equal(damietta.cod_allowed, true);
+  assert.equal(damietta.confirmation_fee, 0);
+  const pickup = resolveCodPolicy({ policy: restricted, governorate: "Cairo", shippingFee: 0, orderTotal: 1940, confirmationFeeExempt: true });
+  assert.equal(pickup.cod_allowed, true);
+  assert.equal(pickup.advance_amount, 0);
+  const open = resolveCodPolicy({ policy: { mode: "open" }, governorate: "Cairo", shippingFee: 0, orderTotal: 1940 });
+  assert.equal(open.cod_allowed, true);
+  assert.equal(open.advance, "order_total");
 });
 
 test("an unknown governorate fails closed", () => {
@@ -261,4 +293,28 @@ test("the notice names the governorate as written Arabic: للقاهرة, لدم
   const notice = buildShippingFeeAdvanceNotice({ policy: restricted, governorate: "القاهره", shippingFee: 90, orderTotal: 1840 });
   assert.match(notice, /عشان نشحن طلبك للقاهرة لازم تحوّل رسوم الشحن 90 جنيه/);
   assert.doesNotMatch(notice, /لـال/);
+});
+
+test("an existing free-shipping website order owes the confirmation fee; a till sale and an exchange do not", () => {
+  const website = { source: "website", channel: "storefront", governorate: "الجيزه", total_amount: 10700, shipping_fee: 0, paid_amount: 0 };
+  const owed = describeShippingFeeAdvance({ order: website, policy: restricted });
+  assert.deepEqual([owed.required, owed.status, owed.kind, owed.amount], [true, "awaiting_payment", "confirmation_fee", 400]);
+  const paid = describeShippingFeeAdvance({ order: { ...website, paid_amount: 400, transfer_proof_status: "approved" }, policy: restricted });
+  assert.equal(paid.status, "paid");
+  const till = describeShippingFeeAdvance({ order: { source: "pos", channel: "pos", total_amount: 900, shipping_fee: 0, shipping_provider: null }, policy: restricted });
+  assert.equal(till.required, false);
+  const exchange = describeShippingFeeAdvance({ order: { ...website, ai_agent_metadata: { exchange: { return_lines: [{ product_name: "x", quantity: 1 }] } } }, policy: restricted });
+  assert.equal(exchange.required, false);
+  const pickup = describeShippingFeeAdvance({ order: { ...website, shipping_provider: "store_pickup" }, policy: restricted });
+  assert.equal(pickup.required, false);
+});
+
+test("the customer is told the fee by its name and that it comes off the total", () => {
+  const notice = buildShippingFeeAdvanceNotice({ policy: restricted, governorate: "الجيزه", shippingFee: 0, orderTotal: 10700 });
+  assert.match(notice, /رسوم تأكيد الأوردر 400 جنيه/);
+  assert.match(notice, /بيتخصم من إجمالي الأوردر/);
+  assert.match(notice, /10,300 جنيه/);
+  const shipping = buildShippingFeeAdvanceNotice({ policy: restricted, governorate: "Cairo", shippingFee: 90, orderTotal: 1940 });
+  assert.match(shipping, /رسوم الشحن 90 جنيه/);
+  assert.doesNotMatch(shipping, /رسوم تأكيد/);
 });

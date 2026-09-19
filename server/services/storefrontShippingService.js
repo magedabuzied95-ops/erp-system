@@ -132,11 +132,12 @@ export const normalizeShippingZone = (zone = {}, index = 0) => ({
 });
 
 export const loadCodPolicySettings = async () => {
-  const [mode, governorates] = await Promise.all([
+  const [mode, governorates, confirmationFee] = await Promise.all([
     getSetting("orders.cod_policy_mode", "open"),
     getSetting("orders.cod_governorates", null),
+    getSetting("orders.free_shipping_confirmation_fee", null),
   ]);
-  return { mode, governorates: Array.isArray(governorates) ? governorates : undefined };
+  return { mode, governorates: Array.isArray(governorates) ? governorates : undefined, confirmationFee };
 };
 
 export const loadShippingZones = async () => {
@@ -281,7 +282,7 @@ export const resolveStorefrontShippingQuote = async ({ governorate = "", city = 
     // started accepting COD from every address. Carrying the global flag here is what
     // stops the storefront offering COD all the way to submit and then 403-ing.
     cod_allowed: codAllowed && cod.cod_allowed,
-    cod_policy: { mode: cod.mode, advance: cod.advance, advance_amount: cod.advance_amount, store_cod_allowed: codAllowed },
+    cod_policy: { mode: cod.mode, advance: cod.advance, advance_kind: cod.advance_kind, advance_amount: cod.advance_amount, confirmation_fee: cod.confirmation_fee || 0, store_cod_allowed: codAllowed },
     requires_shipping_proof: match ? Boolean(match.requires_shipping_proof) : true,
     estimated_delivery_text: match?.estimated_delivery_text || "",
     delivery_estimate: deliveryEstimate,

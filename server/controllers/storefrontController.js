@@ -6150,13 +6150,15 @@ export const createWebsiteOrder = async (req, res) => {
       });
     }
     // The closing system (orders.cod_policy_mode). Resolved again here with the fee
-    // actually charged: a free-shipping coupon leaves nothing to prepay.
+    // actually charged: free shipping (the threshold or a coupon) swaps the shipping fee for
+    // the order confirmation fee, which comes off what the courier collects.
     const codPolicy = resolveCodPolicy({
       policy: await loadCodPolicySettings(),
       governorate: checkout.governorate,
       governorateId: checkout.governorate_id || shippingQuote.governorate_id,
       shippingFee: couponValidation?.free_shipping ? 0 : deliveryFee,
       orderTotal: total,
+      confirmationFeeExempt: shippingMethod === "store_pickup",
     });
     // The till takes the order as COD on the customer's behalf; for it the rule is
     // enforced where the parcel leaves (the shipment gate), not at the counter.
@@ -6166,6 +6168,7 @@ export const createWebsiteOrder = async (req, res) => {
         payment_method: paymentMethod,
         governorate: checkout.governorate,
         advance_amount: codPolicy.advance_amount,
+        advance_kind: codPolicy.advance_kind,
       });
     }
     const transferAmount = codPolicy.advance === "shipping_fee" ? codPolicy.advance_amount : total;

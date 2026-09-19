@@ -91,6 +91,7 @@
     "couponAppliedSummary": "Coupon applied: {{code}} - {{discount}}",
     "couponNeedsApply": "Coupon entered. Apply it to calculate the discount.",
     "codOnlyForGovernorates": "Cash on delivery is available in {{governorates}} only. For your governorate, transfer the shipping fee now to confirm the order and pay the rest on delivery.",
+    "codOnlyConfirmationFee": "Cash on delivery is available in {{governorates}} only. Your shipping is free, so transfer the {{amount}} order confirmation fee now — it is deducted from your order total, and you pay the remaining {{rest}} on delivery.",
     "codUnavailableForGovernorate": "Cash on delivery is not available for your governorate. Transfer the shipping fee and upload the receipt to confirm the order.",
     "couponTotalChanged": "Your discount was updated and the amount to transfer is now {{amount}}. Please review it, transfer that amount, upload the receipt and place the order again.",
     "errors": {

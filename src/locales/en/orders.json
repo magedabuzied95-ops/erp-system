@@ -1191,6 +1191,13 @@
   },
   "shippingFeeAdvance": {
     "title": "Shipping fee in advance",
+    "confirmationFee": {
+      "title": "Order confirmation fee",
+      "awaiting_payment": "Shipping is free on this order and the governorate is outside the cash-on-delivery list: the customer must transfer the {{amount}} order confirmation fee before it ships. It is deducted from the order total.",
+      "awaiting_review": "The customer uploaded the order confirmation fee transfer ({{amount}}) — review and confirm it below so the order can ship.",
+      "paid": "Order confirmation fee paid ({{amount}}) and deducted from the total — the order can ship and the courier collects only the rest.",
+      "markPaid": "Confirmation fee paid"
+    },
     "status": {
       "awaiting_payment": "This governorate is outside the cash-on-delivery list: the customer must pay the {{amount}} shipping fee before the order ships.",
       "awaiting_review": "The customer uploaded a shipping transfer ({{amount}}) — review and confirm it below so the order can ship.",

@@ -1,6 +1,7 @@
 import { governorateOptions, normalizeCodPolicy, resolveCodPolicy, resolveGovernorateId } from "../../shared/codPolicy.js";
 import { getSetting } from "./settingsService.js";
 import { loadCodPolicySettings, resolveStorefrontShippingQuote } from "./storefrontShippingService.js";
+import { confirmationFeeExempt as orderIsConfirmationFeeExempt } from "../modules/shipping/shippingFeeAdvance.js";
 
 // What the customer is TOLD about the closing system, in one place: the AI's "how do I
 // pay" answer, its order summaries and confirmations, and the WhatsApp confirmation
@@ -58,17 +59,24 @@ export const transferDetailLines = ({ vodafone = "", instapay = "" } = {}) => [
  * Pure wording, so it can be tested without settings. `policy` is the loaded
  * { mode, governorates }; returns "" when nothing has to be prepaid.
  */
-export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, transfer = {}, compact = false, paymentCardFollows = false } = {}) => {
-  const cod = resolveCodPolicy({ policy, governorate, governorateId, shippingFee, orderTotal });
+export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, transfer = {}, compact = false, paymentCardFollows = false, confirmationFeeExempt = false } = {}) => {
+  const cod = resolveCodPolicy({ policy, governorate, governorateId, shippingFee, orderTotal, confirmationFeeExempt });
   if (cod.cod_allowed) return "";
   const fee = formatMoney(cod.advance_amount);
+  // Free shipping: what is prepaid is the order confirmation fee, and it comes off the total.
+  const confirmation = cod.advance_kind === "confirmation_fee";
   const rest = Math.max(0, Number(orderTotal) - cod.advance_amount);
   const where = governorateName(governorate || governorateId);
   const codList = codGovernorateNames(policy);
   if (compact) {
-    return `💳 رسوم الشحن ${fee} جنيه تتحوّل مقدّم قبل الشحن${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : ""}.`;
+    return confirmation
+      ? `💳 الشحن مجاني، ورسوم تأكيد الأوردر ${fee} جنيه تتحوّل مقدّم وبتتخصم من إجمالي الأوردر${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : ""}.`
+      : `💳 رسوم الشحن ${fee} جنيه تتحوّل مقدّم قبل الشحن${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه عند الاستلام` : ""}.`;
   }
-  const headline = `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن طلبك${where ? ` ${toPlace(where)}` : ""} لازم تحوّل رسوم الشحن ${fee} جنيه الأول${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
+  const owed = confirmation
+    ? `رسوم تأكيد الأوردر ${fee} جنيه الأول (شحنك مجاني، والمبلغ ده بيتخصم من إجمالي الأوردر)`
+    : `رسوم الشحن ${fee} جنيه الأول`;
+  const headline = `💳 الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList} بس` : "لمحافظات معيّنة بس"}. عشان نشحن طلبك${where ? ` ${toPlace(where)}` : ""} لازم تحوّل ${owed}${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
   // The WhatsApp confirmation request is followed by its own payment card (pay buttons + the
   // screenshot upload link), so the request itself only says what is owed and points at it.
   if (paymentCardFollows) return `${headline}\n👇 طرق الدفع ورفع صورة التحويل في الرسالة اللي جاية.`;
@@ -79,12 +87,12 @@ export const buildShippingFeeAdvanceNotice = ({ policy, governorate = "", govern
   ].join("\n");
 };
 
-export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false } = {}) => {
+export const shippingFeeAdvanceNoticeFor = async ({ governorate = "", governorateId = "", shippingFee = 0, orderTotal = 0, compact = false, paymentCardFollows = false, confirmationFeeExempt = false } = {}) => {
   try {
     const policy = await loadCodPolicySettings();
     if (normalizeCodPolicy(policy).mode !== "restricted") return "";
     const transfer = compact || paymentCardFollows ? {} : await loadTransferDetails();
-    return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact, paymentCardFollows });
+    return buildShippingFeeAdvanceNotice({ policy, governorate, governorateId, shippingFee, orderTotal, transfer, compact, paymentCardFollows, confirmationFeeExempt });
   } catch (error) {
     console.warn("[cod-policy-reply] notice skipped", { message: error?.message || String(error) });
     return "";
@@ -112,6 +120,8 @@ export const shippingFeeAdvanceNoticeForOrder = (order = {}, options = {}) =>
     governorateId: order.governorate_id || "",
     shippingFee: order.shipping_fee ?? order.delivery_fee ?? order.shipping_cost ?? 0,
     orderTotal: order.total_amount ?? order.total_price ?? order.total ?? 0,
+    // The same exemptions describeShippingFeeAdvance applies (a pickup, a till sale, an exchange).
+    confirmationFeeExempt: orderIsConfirmationFeeExempt(order),
     ...options,
   });
 
@@ -119,11 +129,13 @@ export const shippingFeeAdvanceNoticeForOrder = (order = {}, options = {}) =>
 export const buildRestrictedCodFaqAnswer = ({ policy, transfer = {} } = {}) => {
   if (normalizeCodPolicy(policy).mode !== "restricted") return "";
   const codList = codGovernorateNames(policy);
+  const { confirmationFee } = normalizeCodPolicy(policy);
   return [
     `الدفع عند الاستلام متاح ${codList ? `لمحافظة ${codList}` : "لمحافظات معيّنة"} 👌`,
     "لباقي المحافظات بتحوّل رسوم الشحن بس مقدّم، والباقي بتدفعه عند الاستلام.",
+    confirmationFee > 0 ? `ولو شحنك مجاني بتحوّل ${formatMoney(confirmationFee)} جنيه رسوم تأكيد الأوردر، وبتتخصم من إجمالي الأوردر.` : "",
     ...transferDetailLines(transfer),
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 };
 
 export const restrictedCodFaqAnswer = async () => {
@@ -171,5 +183,8 @@ export const codPolicyFacts = async () => {
     mode: policy.mode,
     cod_governorates: policy.governorates.map((id) => governorateOptions.find((option) => option.value === id)?.ar || id),
     other_governorates: policy.mode === "restricted" ? "transfer the shipping fee in advance, rest cash on delivery" : "cash on delivery",
+    free_shipping_orders: policy.mode === "restricted" && policy.confirmationFee > 0
+      ? `other governorates transfer a ${policy.confirmationFee} EGP order confirmation fee in advance; it is deducted from the order total, rest cash on delivery`
+      : "",
   };
 };

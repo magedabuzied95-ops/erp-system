@@ -8233,7 +8233,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
   // the shipping fee now and pays the rest on delivery. A waived fee leaves nothing to
   // prepay, so cash on delivery comes back — the server resolves it the same way.
   const shippingFeeAdvance = shippingQuote.advance === "shipping_fee";
-  const shippingAdvanceAmount = couponFreeShipping ? 0 : Math.min(deliveryFee, total);
+  // Free shipping (the threshold or a coupon) swaps the fee for the order confirmation fee,
+  // which comes off the total collected on delivery.
+  const shippingIsFree = couponFreeShipping || !(deliveryFee > 0);
+  const confirmationFeeDue = shippingFeeAdvance && shippingIsFree && shippingQuote.cod_allowed === false && Number(shippingQuote.confirmation_fee) > 0;
+  const shippingAdvanceAmount = confirmationFeeDue ? Math.min(Number(shippingQuote.confirmation_fee), total) : couponFreeShipping ? 0 : Math.min(deliveryFee, total);
   const codAvailable = shippingQuote.cod_allowed !== false || (shippingFeeAdvance && shippingAdvanceAmount <= 0 && shippingQuote.store_cod_allowed);
   const normalizedFormPaymentMethod = paymentMode === "cod"
     ? "cod"
@@ -9360,7 +9364,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
       // Under the restricted system only the shipping fee is transferred, and the
       // re-validated coupon can change that figure too (a free-shipping code waives it).
       const couponFreeShippingToSend = Boolean(activeCouponValidation?.valid && activeCouponValidation?.free_shipping);
-      const transferAmountToSend = shippingFeeAdvance ? (couponFreeShippingToSend ? 0 : Math.min(deliveryFee, orderTotal)) : orderTotal;
+      // Free shipping transfers the order confirmation fee instead — the same rule the server applies.
+      const confirmationFeeToSend = (couponFreeShippingToSend || !(deliveryFee > 0)) && shippingQuote.cod_allowed === false
+        ? Math.min(Number(shippingQuote.confirmation_fee) || 0, orderTotal)
+        : 0;
+      const transferAmountToSend = shippingFeeAdvance
+        ? (confirmationFeeToSend > 0 ? confirmationFeeToSend : couponFreeShippingToSend ? 0 : Math.min(deliveryFee, orderTotal))
+        : orderTotal;
       if (shippingFeeAdvance && paymentMode === "cod" && !codAvailable && transferAmountToSend > 0) {
         toast.error(sfText("storefront.checkout.codUnavailableForGovernorate"));
         setSubmitting(false);
@@ -10017,7 +10027,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode, reprice
                 </CheckoutChoice>
               ) : shippingFeeAdvance ? (
                 <p className="sfc-pane">
-                  {sfText("storefront.checkout.codOnlyForGovernorates", "", { governorates: codGovernorateNames })}
+                  {confirmationFeeDue
+                    ? sfText("storefront.checkout.codOnlyConfirmationFee", "", { governorates: codGovernorateNames, amount: money(shippingAdvanceAmount), rest: money(Math.max(0, total - shippingAdvanceAmount)) })
+                    : sfText("storefront.checkout.codOnlyForGovernorates", "", { governorates: codGovernorateNames })}
                 </p>
               ) : null}
               <CheckoutChoice

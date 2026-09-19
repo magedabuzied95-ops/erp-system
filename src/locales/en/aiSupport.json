@@ -832,6 +832,7 @@
       "shippingLoading": "Pricing shipping…",
       "shippingNeedsAddress": "Choose the governorate and area to price shipping",
       "orderTotal": "Order total",
+      "orderConfirmationFee": "Shipping is free on this order and the customer is outside the cash-on-delivery governorates: they must transfer the {{amount}} order confirmation fee first. It is deducted from the order total.",
       "shippingFeeAdvance": "This customer is outside the cash-on-delivery governorates: they must transfer the {{amount}} shipping fee first, and the order will not ship until it is confirmed.",
       "shippingFeeAdvanceCopy": "Copy the transfer message",
       "shippingFeeAdvanceCopied": "Copied — paste it into the chat",

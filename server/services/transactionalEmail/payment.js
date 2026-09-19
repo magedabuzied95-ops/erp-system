@@ -1,6 +1,7 @@
 import { resolveCodPolicy } from "../../../shared/codPolicy.js";
 import { collectOnDeliveryAmount } from "../../utils/orderConfirmationMessage.js";
 import { buildShippingFeeAdvanceNotice } from "../codPolicyReplyService.js";
+import { confirmationFeeExempt as orderIsConfirmationFeeExempt } from "../../modules/shipping/shippingFeeAdvance.js";
 
 // The money half of the order emails, read the way every other surface reads it since
 // 2026-09-15: what is collected on delivery is total - paid (never a stale cod_amount), a
@@ -38,15 +39,17 @@ export const buildOrderEmailPayment = ({ order = {}, policy, transfer = {} } = {
   const collect = money(collectOnDeliveryAmount(order));
   if (collect <= 0) return { kind: "paid", collect: 0, paid, total };
 
+  const confirmationFeeExempt = orderIsConfirmationFeeExempt(order);
   const cod = resolveCodPolicy({
     policy,
+    confirmationFeeExempt,
     governorate: order.governorate || "",
     governorateId: order.governorate_id || "",
     shippingFee,
     orderTotal: total,
   });
   if (!cod.cod_allowed && paid + 0.009 < cod.advance_amount) {
-    const notice = buildShippingFeeAdvanceNotice({ policy, governorate: order.governorate, governorateId: order.governorate_id, shippingFee, orderTotal: total, transfer });
+    const notice = buildShippingFeeAdvanceNotice({ policy, governorate: order.governorate, governorateId: order.governorate_id, shippingFee, orderTotal: total, transfer, confirmationFeeExempt });
     return { kind: "advance_required", advance: cod.advance_amount, collect: money(total - cod.advance_amount), paid, total, notice };
   }
   return { kind: "cod", collect, paid, total };

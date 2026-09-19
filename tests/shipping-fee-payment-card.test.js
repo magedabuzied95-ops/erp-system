@@ -166,3 +166,12 @@ test("wiring: queue types, Evolution copy buttons, the public route, the webhook
   assert.match(wallet, /OR LOWER\(COALESCE\(shipping_payment_method, ''\)\) = ANY\(\$4::text\[\]\)/);
   assert.match(wallet, /ABS\(COALESCE\(shipping_fee, 0\) - \$3::numeric\) < 0\.01/);
 });
+
+test("a free-shipping order's card and messages call the money the order confirmation fee", () => {
+  const order = { id: 1740, invoice_number: "INV-1740", total_amount: 10700, shipping_fee: 0, paid_amount: 400 };
+  const card = buildShippingFeePaymentCard({ order, amount: 400, transfer: { vodafone: "01012345678" }, uploadUrl: "https://m1store-egy.com/pay/abc" });
+  assert.equal(card.title, "💳 دفع رسوم تأكيد الأوردر");
+  assert.match(card.body, /رسوم تأكيد الأوردر لطلبك رقم INV-1740: 400 جنيه، والباقي 10,300 جنيه تدفعه عند الاستلام\./);
+  assert.match(buildPaymentProofReceivedMessage(order), /صورة تحويل رسوم تأكيد الأوردر/);
+  assert.match(buildPaymentProofApprovedMessage(order), /تم تأكيد دفع رسوم تأكيد الأوردر[\s\S]*10,300 جنيه عند الاستلام/);
+});

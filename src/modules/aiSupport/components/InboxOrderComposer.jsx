@@ -728,7 +728,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
 
           {quotedShipping.advance ? (
             <div className="ai-order__notice p-3" role="status">
-              <div className="font-black">{t("aiSupport.inbox.order.shippingFeeAdvance", { amount: money(quotedShipping.advance.amount) })}</div>
+              <div className="font-black">{t(quotedShipping.advance.kind === "confirmation_fee" ? "aiSupport.inbox.order.orderConfirmationFee" : "aiSupport.inbox.order.shippingFeeAdvance", { amount: money(quotedShipping.advance.amount) })}</div>
               {quotedShipping.advance.notice ? (
                 <button
                   type="button"

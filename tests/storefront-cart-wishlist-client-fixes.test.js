@@ -28,7 +28,9 @@ test("submit prices paid_amount and remaining_amount from the validation it send
   assert.match(submit, /remaining_amount: Math\.max\(0, orderTotal - paidAmount\)/);
   // The transfer is the whole order, or only the shipping fee under the restricted
   // closing system — both priced from the validation being sent.
-  assert.match(submit, /const transferAmountToSend = shippingFeeAdvance \? \(couponFreeShippingToSend \? 0 : Math\.min\(deliveryFee, orderTotal\)\) : orderTotal;/);
+  // Free shipping swaps the fee for the order confirmation fee (INV-1740), capped by the same total.
+  assert.match(submit, /const confirmationFeeToSend = \(couponFreeShippingToSend \|\| !\(deliveryFee > 0\)\) && shippingQuote\.cod_allowed === false\s*\? Math\.min\(Number\(shippingQuote\.confirmation_fee\) \|\| 0, orderTotal\)\s*: 0;/);
+  assert.match(submit, /const transferAmountToSend = shippingFeeAdvance\s*\? \(confirmationFeeToSend > 0 \? confirmationFeeToSend : couponFreeShippingToSend \? 0 : Math\.min\(deliveryFee, orderTotal\)\)\s*: orderTotal;/);
   assert.match(submit, /const paidAmount = [^;]*transferAmountToSend;/);
   assert.doesNotMatch(submit, /const paidAmount = [^;]*amountDueNow/, "the render-time amount must not be sent");
 });

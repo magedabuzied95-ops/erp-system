@@ -52,6 +52,13 @@ const formatMoney = (value) => {
 const orderRef = (order = {}) =>
   text(order.public_order_number || order.display_order_number || order.invoice_number || order.order_number || order.id).replace(/^#/, "");
 const orderTotal = (order = {}) => money(order.total_amount ?? order.total_price ?? order.total ?? 0);
+// What the advance is called to the customer. An order whose shipping is free has no shipping
+// fee to pay, so its advance is the order confirmation fee. A row that does not carry its fee at
+// all keeps the old name rather than guessing.
+const advanceLabel = (order = {}) => {
+  const fee = order.shipping_fee ?? order.delivery_fee ?? order.service_fee;
+  return fee === undefined || fee === null || fee === "" || money(fee) > 0 ? "رسوم الشحن" : "رسوم تأكيد الأوردر";
+};
 const firstName = (name = "") => text(name).split(/\s+/).filter(Boolean)[0] || "";
 const tenantOf = (order = {}) => Number(order.tenant_id) || Number(process.env.WHATSAPP_TENANT_ID) || 1;
 const httpError = (status, code, message) => Object.assign(new Error(message), { status, code });
@@ -131,8 +138,9 @@ export const buildShippingFeePaymentCard = ({ order = {}, amount = 0, transfer =
     uploadUrl ? { type: "url", displayText: "ارفع صورة التحويل", url: uploadUrl } : null,
   ].filter(Boolean);
 
-  const title = "💳 دفع رسوم الشحن";
-  const opening = `رسوم الشحن لطلبك${ref ? ` رقم ${ref}` : ""}: ${fee} جنيه${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
+  const label = advanceLabel(order);
+  const title = `💳 دفع ${label}`;
+  const opening = `${label} لطلبك${ref ? ` رقم ${ref}` : ""}: ${fee} جنيه${rest > 0 ? `، والباقي ${formatMoney(rest)} جنيه تدفعه عند الاستلام` : ""}.`;
   const closing = "وأول ما نراجع التحويل هنأكد طلبك ونشحنه على طول ✅";
   const payStep = number
     ? `1️⃣ حوّل ${fee} جنيه على الرقم ده:\n📱 ${number}\nينفع تحوّل عليه بانستا باي أو فودافون كاش 👌`
@@ -357,7 +365,7 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, idemp
 export const buildPaymentProofReceivedMessage = (order = {}) => {
   const ref = orderRef(order);
   return [
-    `🧾 استلمنا صورة تحويل رسوم الشحن لطلبك${ref ? ` رقم ${ref}` : ""}`,
+    `🧾 استلمنا صورة تحويل ${advanceLabel(order)} لطلبك${ref ? ` رقم ${ref}` : ""}`,
     "⏳ طلبك دلوقتي في مراجعة الدفع، وهنأكدلك أول ما نراجعها.",
     "شكراً لاختيارك M1 Store ❤️",
   ].join("\n\n");
@@ -368,7 +376,7 @@ export const buildPaymentProofApprovedMessage = (order = {}) => {
   const total = orderTotal(order);
   const collect = Math.max(0, money(total - money(order.paid_amount)));
   return [
-    `✅ تم تأكيد دفع رسوم الشحن لطلبك${ref ? ` رقم ${ref}` : ""}`,
+    `✅ تم تأكيد دفع ${advanceLabel(order)} لطلبك${ref ? ` رقم ${ref}` : ""}`,
     `🚚 طلبك بيتجهز للشحن دلوقتي${collect > 0 ? `، والمندوب هيحصّل ${formatMoney(collect)} جنيه عند الاستلام` : ""}.`,
     "شكراً لاختيارك M1 Store ❤️",
   ].join("\n\n");
@@ -468,7 +476,7 @@ export const loadPaymentProofPage = async ({ code = "" } = {}) => {
 const REFUSALS = {
   closed: [409, "ORDER_CLOSED", "الطلب ده مبقاش مستني دفع."],
   not_required: [409, "PAYMENT_NOT_REQUIRED", "طلبك مش محتاج تحويل مقدّم."],
-  paid: [409, "ALREADY_PAID", "رسوم الشحن لطلبك اتأكدت خلاص."],
+  paid: [409, "ALREADY_PAID", "المبلغ المقدّم لطلبك اتأكد خلاص."],
   submitted: [409, "ALREADY_SUBMITTED", "صورة التحويل وصلتنا قبل كده وطلبك في مراجعة الدفع."],
 };
 
@@ -536,7 +544,7 @@ export const submitPaymentProof = async ({ code = "", method = "", proofPath = "
   import("../../services/notificationsService.js")
     .then(({ createSystemNotification }) => createSystemNotification("payment_proof_uploaded", {
       tenant_id: updated.tenant_id,
-      message: `طلب ${ref} — العميل رفع صورة تحويل رسوم الشحن وتحتاج مراجعة`,
+      message: `طلب ${ref} — العميل رفع صورة تحويل ${advanceLabel(updated)} وتحتاج مراجعة`,
       action_url: `/orders/${updated.id}`,
       entity_type: "order",
       entity_id: updated.id,
@@ -669,7 +677,7 @@ export const sendShippingFeePaymentRequest = async ({ orderId, tenantId = null, 
   }
   const askedAmount = requested > 0 ? requested : advance.amount;
   if (!(askedAmount > 0)) throw httpError(409, "PAYMENT_NOT_REQUIRED", "اكتب مبلغ الديبوزت الأول.");
-  if (requested <= 0 && advance.status === "paid") throw httpError(409, "ALREADY_PAID", "رسوم الشحن للأوردر ده اتأكدت خلاص.");
+  if (requested <= 0 && advance.status === "paid") throw httpError(409, "ALREADY_PAID", `${advanceLabel(order)} للأوردر ده اتأكدت خلاص.`);
   if (owed <= 0) throw httpError(409, "ORDER_SETTLED", "الأوردر ده مدفوع بالكامل.");
   const card = await prepareShippingFeePaymentCard({ order, amount: askedAmount });
   if (!card) throw httpError(502, "CARD_UNAVAILABLE", "مش قادرين نجهّز كارت الدفع دلوقتي.");
