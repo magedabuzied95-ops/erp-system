@@ -533,6 +533,11 @@
     "reorderError": "تعذر ترتيب الردود السريعة"
   },
   "inbox": {
+    "originPost": {
+      "title": "جاي من البوست ده",
+      "empty": "منشور من غير نص",
+      "openPost": "افتح البوست"
+    },
     "rail": {
       "conversations": "المحادثات",
       "subtitle": "كل قنوات العملاء المتصلة",

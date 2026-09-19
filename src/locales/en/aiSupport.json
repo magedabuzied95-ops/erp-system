@@ -533,6 +533,11 @@
     "reorderError": "Could not reorder quick replies"
   },
   "inbox": {
+    "originPost": {
+      "title": "Came from this post",
+      "empty": "Post with no text",
+      "openPost": "Open post"
+    },
     "rail": {
       "conversations": "Conversations",
       "subtitle": "All connected customer channels",

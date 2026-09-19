@@ -1072,6 +1072,39 @@ export const normalizeInboxMessage = (rawRow = {}) => {
   };
 };
 
+// The post a thread started from, assembled for the card the AI Inbox pins above the chat so an
+// operator opening a DM can see what the customer is actually asking about. The `op` lateral in
+// loadAiInbox feeds it; channel metadata is only the fallback for threads stored before the lateral
+// existed. Deliberately blind to products: a post with nothing linked to it still answers "where did
+// this person come from", which is the whole point of the card.
+const buildInboxOriginPost = (conversation = {}, channelMetadata = {}) => {
+  const row = conversation && typeof conversation === "object" ? conversation : {};
+  const meta = channelMetadata && typeof channelMetadata === "object" ? channelMetadata : {};
+  const postId = text(row.origin_post_id || meta.post_id || "");
+  const image = text(row.origin_post_full_picture || meta.post_full_picture || meta.full_picture || "");
+  const caption = text(row.origin_post_message || row.origin_post_caption || meta.post_message || meta.post_caption || "");
+  const permalink = text(row.origin_post_permalink_url || meta.post_permalink_url || meta.post_permalink || "");
+  const commentId = text(row.origin_comment_id || meta.comment_id || "");
+  const commentUrl = text(row.origin_comment_url || meta.comment_url || "");
+  // A post with no image and no caption is still worth showing when we can link to it - the
+  // operator clicks through and reads it on Facebook. Only a thread with nothing at all is empty.
+  if (!postId && !image && !caption && !permalink) return null;
+  return {
+    post_id: postId,
+    post_full_picture: image,
+    post_message: text(row.origin_post_message || meta.post_message || ""),
+    post_caption: text(row.origin_post_caption || meta.post_caption || ""),
+    post_title: caption,
+    post_permalink_url: permalink || commentUrl,
+    post_created_time: row.origin_post_created_time || meta.post_created_time || null,
+    comment_id: commentId,
+    comment_url: commentUrl || permalink,
+    comment_text: text(row.origin_comment_text || ""),
+    commenter_name: text(row.origin_commenter_name || meta.commenter_name || ""),
+    comment_created_time: row.origin_comment_created_time || meta.comment_created_time || null,
+  };
+};
+
 const normalizeAiReplyDraft = (value = {}) => {
   const draft = value && typeof value === "object" ? value : {};
   return {
@@ -2728,7 +2761,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       cm.post_caption AS latest_comment_post_caption,
       cm.post_created_time AS latest_comment_post_created_time,
       cm.comment_created_time AS latest_comment_created_time,
-      cm.comment_id AS latest_comment_id
+      cm.comment_id AS latest_comment_id,
+      op.post_id AS origin_post_id,
+      op.post_full_picture AS origin_post_full_picture,
+      op.post_permalink_url AS origin_post_permalink_url,
+      op.post_message AS origin_post_message,
+      op.post_caption AS origin_post_caption,
+      op.post_created_time AS origin_post_created_time,
+      op.comment_id AS origin_comment_id,
+      op.comment_url AS origin_comment_url,
+      op.commenter_name AS origin_commenter_name,
+      op.comment_created_time AS origin_comment_created_time,
+      op.origin_comment_text AS origin_comment_text
     FROM ai_support_sessions s
     LEFT JOIN LATERAL (
       SELECT channel_conversation.*
@@ -2808,6 +2852,40 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ORDER BY comment_msg.created_at DESC, comment_msg.id DESC
       LIMIT 1
     ) cm ON TRUE
+    -- The post the customer came from. The cm lateral above answers "who commented last" and is ordered for
+    -- that job, so it can settle on a row that carries no post columns at all. This one answers a
+    -- different question - which post opened this thread - so it only ever reads rows that actually
+    -- carry post context, and it does that for a DM session exactly as it does for a comment thread:
+    -- the comment_private_reply row the automation writes into the DM session carries the post it
+    -- answered. Nothing here depends on the post being linked to a product.
+    LEFT JOIN LATERAL (
+      SELECT
+        origin_msg.post_id,
+        origin_msg.post_full_picture,
+        origin_msg.post_permalink_url,
+        origin_msg.post_message,
+        origin_msg.post_caption,
+        origin_msg.post_created_time,
+        origin_msg.comment_id,
+        origin_msg.comment_url,
+        origin_msg.commenter_name,
+        origin_msg.comment_created_time,
+        COALESCE(
+          NULLIF(origin_msg.source_comment_text, ''),
+          NULLIF(origin_msg.customer_message, ''),
+          NULLIF(origin_msg.message_text, '')
+        ) AS origin_comment_text
+      FROM ai_support_messages origin_msg
+      WHERE origin_msg.tenant_id = s.tenant_id
+        AND origin_msg.session_id = s.session_id
+        AND (
+          COALESCE(origin_msg.post_id, '') <> ''
+          OR COALESCE(origin_msg.post_permalink_url, '') <> ''
+          OR COALESCE(origin_msg.post_full_picture, '') <> ''
+        )
+      ORDER BY origin_msg.created_at DESC, origin_msg.id DESC
+      LIMIT 1
+    ) op ON TRUE
     WHERE ${[...clauses, readFilterClauseSql(readFilter, "m.latest_message_created_at"), deletedConversationClauseSql("m.latest_message_created_at")].filter(Boolean).join(" AND ")}
     ORDER BY
       CASE WHEN ${INBOX_RESOLVED_CHANNEL_SQL} IN ('facebook_messenger', 'instagram', 'whatsapp', 'telegram') THEN 0 ELSE 1 END,
@@ -3040,6 +3118,11 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         post_created_time: conversation.latest_comment_post_created_time || channelMetadata.post_created_time || null,
         comment_created_time: conversation.latest_comment_created_time || channelMetadata.comment_created_time || null,
         comment_id: conversation.latest_comment_id || channelMetadata.comment_id || "",
+        // Which post this customer came from, for the card the AI Inbox pins above the chat. It is
+        // its own object rather than more loose post_* keys because a DM thread already carries the
+        // post_* fields above for the comment-thread card, and the two must not overwrite one
+        // another. Present on every channel, product link or not.
+        origin_post: buildInboxOriginPost(conversation, channelMetadata),
         phone: text(conversation.profile_phone || existingChannelMetadata.resolved_phone || existingChannelMetadata.phone || conversation.external_customer_id || ""),
         sender_name: "",
         profile_name: "",

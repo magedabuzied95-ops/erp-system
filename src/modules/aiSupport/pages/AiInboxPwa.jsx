@@ -70,6 +70,7 @@ import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACT
 import { platformCanvas, resolveMessagePlatform } from "../components/messagePlatform.js";
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardMessage from "../components/ProductCardMessage";
+import OriginPostCard from "../components/OriginPostCard.jsx";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow, SocialCommentThreadGroup } from "../components/SocialCommentsWorkspace.jsx";
 import { commentThreadCanvas, threadCommentsForDisplay } from "../lib/socialCommentThread.js";
@@ -146,6 +147,7 @@ import {
   messagesConflict,
   normalizeProductCardsValue,
   normalizeValidationSummary,
+  conversationOriginPost,
   transcriptDayKey,
   transcriptDayLabel,
   transcriptRowTime,
@@ -2526,6 +2528,9 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   const threadChannel = clean(conversation?.channel || conversation?.source || "").toLowerCase();
   const threadAvatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation || {}) : customerAvatarUrl(conversation || {});
   const threadName = isCommentThread ? commentThreadCommenterName(conversation || {}) : conversationName(conversation || {});
+  // Same reason as the desktop surface: the DM is where the reply gets typed, so the DM is where
+  // the post the customer commented on has to be visible.
+  const originPost = isCommentThread ? null : conversationOriginPost(conversation || {});
   if (!rows.length && !isCommentThread) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
@@ -2550,6 +2555,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
           </button>
         </div>
       ) : null}
+      {originPost ? <OriginPostCard post={originPost} variant="pwa" /> : null}
       {isCommentThread ? (
         <div className="sticky top-2 z-10 rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
           <div className="flex items-start gap-3">

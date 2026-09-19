@@ -178,6 +178,76 @@ export const getConversationThreadMetadata = (item = {}) => {
   return { channelMetadata, metadata };
 };
 
+// Which post a thread started from, for the card both inbox surfaces pin above the chat.
+//
+// The comment-thread card already had an answer, but it only ever ran on a facebook_comment /
+// instagram_comment thread. The DM the automation opens is a different conversation on a different
+// channel, and that is exactly where an operator types the reply — so they were answering a
+// customer with no idea which post the customer was looking at. The backend now hands every
+// conversation an `origin_post`, read from the comment_private_reply row the automation writes into
+// the DM session, and this reads it.
+//
+// It never asks whether a product is linked to the post. An unlinked post is precisely the case the
+// automation greets without naming a product, so it is the case where the operator most needs to
+// see what was posted.
+export const conversationOriginPost = (conversation = {}) => {
+  const item = conversation && typeof conversation === "object" ? conversation : {};
+  const { channelMetadata, metadata } = getConversationThreadMetadata(item);
+  const direct = item.origin_post && typeof item.origin_post === "object" ? item.origin_post : {};
+  const pick = (...values) => {
+    for (const value of values) {
+      const found = clean(value);
+      if (found) return found;
+    }
+    return "";
+  };
+  const postId = pick(direct.post_id, item.post_id, channelMetadata.post_id, metadata.post_id);
+  const image = pick(
+    direct.post_full_picture,
+    item.post_full_picture,
+    channelMetadata.post_full_picture,
+    channelMetadata.full_picture,
+    metadata.post_full_picture,
+    metadata.full_picture
+  );
+  const caption = pick(
+    direct.post_message,
+    direct.post_caption,
+    item.post_message,
+    item.post_caption,
+    channelMetadata.post_message,
+    channelMetadata.post_caption,
+    metadata.post_message,
+    metadata.post_caption
+  );
+  const permalink = pick(
+    direct.post_permalink_url,
+    item.post_permalink_url,
+    channelMetadata.post_permalink_url,
+    channelMetadata.post_permalink,
+    metadata.post_permalink_url,
+    metadata.post_permalink
+  );
+  const commentUrl = pick(direct.comment_url, item.comment_url, channelMetadata.comment_url, metadata.comment_url);
+  const commentId = pick(direct.comment_id, item.comment_id, channelMetadata.comment_id, metadata.comment_id);
+  // A post we can only link to is still worth a card: the operator clicks through and reads it.
+  // Only a thread that carries nothing at all has no origin to show.
+  if (!postId && !image && !caption && !permalink && !commentUrl) return null;
+  return {
+    postId,
+    image,
+    caption,
+    // Facebook's own post url is the most reliable click-through; the comment url is the fallback
+    // and lands on the same post anyway, scrolled to the comment.
+    url: permalink || commentUrl,
+    commentUrl: commentUrl || permalink,
+    commentId,
+    commentText: pick(direct.comment_text, item.origin_comment_text, channelMetadata.last_comment_text, metadata.last_comment_text),
+    commenterName: pick(direct.commenter_name, item.commenter_name, channelMetadata.commenter_name, metadata.commenter_name),
+    createdTime: pick(direct.post_created_time, item.post_created_time, channelMetadata.post_created_time, metadata.post_created_time),
+  };
+};
+
 export const isUsefulCommenterName = (value = "") => {
   const name = clean(value);
   return Boolean(name) && !/^\d+$/.test(name) && !["customer", "unknown", "guest", "anonymous", "commenter", "عميل", "العميل"].includes(name.toLowerCase());

@@ -97,6 +97,7 @@ import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage, { INSTAGRAM_MESSAGE_REACTIONS, MESSENGER_MESSAGE_REACTIONS, PinnedMessagesBar } from "../components/TranscriptMessage";
 import { cascadeDeliveryStatuses } from "../components/DeliveryTicks.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
+import OriginPostCard from "../components/OriginPostCard.jsx";
 import IntegrationsCenter from "../components/integrations/lazyIntegrationsCenter";
 // One composer, both surfaces — see components/InboxOrderComposer.jsx.
 import InboxOrderComposer from "../components/InboxOrderComposer";
@@ -182,6 +183,7 @@ import {
   messageProductCards,
   isProductCardMessageType,
   normalizeValidationSummary,
+  conversationOriginPost,
   transcriptDayKey,
   transcriptDayLabel,
   transcriptRowTime,
@@ -2660,6 +2662,10 @@ const Transcript = memo(function Transcript({
   const threadChannel = clean(conversation?.channel || conversation?.source || "").toLowerCase();
   const threadAvatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation || {}) : customerAvatarUrl(conversation || {});
   const threadName = isCommentThread ? commentThreadCommenterName(conversation || {}) : getConversationDisplayName(conversation || {});
+  // A DM opened by the comment automation is answered here, not on the comment thread, so this is
+  // where "which post is this about" has to be readable. The comment thread keeps its own card
+  // below, which also carries the reply/private-message actions this one has no business showing.
+  const originPost = isCommentThread ? null : conversationOriginPost(conversation || {});
   if (!rows.length && !events.length && !isCommentThread) {
     return <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{t("aiSupport.inbox.panel.noTranscript")}</div>;
   }
@@ -2675,6 +2681,7 @@ const Transcript = memo(function Transcript({
           </button>
         </div>
       ) : null}
+      {originPost ? <OriginPostCard post={originPost} variant="desktop" /> : null}
       {isCommentThread ? (
         <div className="sticky top-2 z-10 rounded-3xl border border-white/10 bg-slate-950/90 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)] backdrop-blur">
           <div className="flex items-start gap-3">
