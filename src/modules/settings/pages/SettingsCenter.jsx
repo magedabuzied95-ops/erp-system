@@ -880,6 +880,16 @@ function SettingsCenterContent({ debugMode = false }) {
           </div>
         );
       }
+      // CollectionSelector draws each entry as text and deletes it on click. A list of rows
+      // (shipping zones, locations) is an array of objects: drawing one crashes React (#31),
+      // so those lists only report their size here and are edited in their own screen.
+      if (Array.isArray(current) && current.some((entry) => entry && typeof entry === "object")) {
+        return (
+          <p className={`rounded-2xl px-3 py-2 text-xs font-bold ${subtleSurface} ${bodyText}`}>
+            {language === "ar" ? `${current.length} سطر — بيتعدّل من شاشته المخصصة.` : `${current.length} rows — edited in its own screen.`}
+          </p>
+        );
+      }
       return <CollectionSelector collections={Array.isArray(current) ? current : []} draft={collectionDraft} setDraft={setCollectionDraft} onChange={(next) => updateValue(item.key, next)} hint={ui.collectionHint} />;
     }
     if (item.type === "textarea") {
@@ -1719,8 +1729,6 @@ function ShippingSettings({ setting, value, language, updateValue, renderField }
           <VisualSection icon={SlidersHorizontal} title={copy.advancedTitle} description={copy.advancedDescription}>
             <div className="grid gap-4 xl:grid-cols-2">
               {renderField(setting("orders.shipping_provider"), true)}
-              {renderField(setting("storefront.shipping_locations"), true)}
-              {renderField(setting("storefront.shipping_zones"), true)}
             </div>
           </VisualSection>
         </div>
