@@ -78,6 +78,38 @@ const EXTENSION_BY_TYPE = {
   story: "jpg",
   story_reply: "jpg",
   story_mention: "jpg",
+  // A forwarded reel is a clip; a forwarded post is its picture.
+  ig_reel: "mp4",
+  reel: "mp4",
+  ig_post: "jpg",
+  post: "jpg",
+  share: "jpg",
+};
+
+// Meta's CDN does not always name a forwarded reel as a video — it can answer with
+// `application/octet-stream`, and once the signature has lapsed with an html page
+// under a 200. The header decided the file's extension and the bubble's kind, so a
+// playable clip was stored as `.bin` and drawn as a document. The first bytes say
+// what the file is; the header only gets a vote when they do not.
+export const sniffMediaMime = (bytes) => {
+  if (!bytes || bytes.length < 12) return "";
+  const ascii = (start, end) => bytes.subarray(start, end).toString("latin1");
+  if (ascii(4, 8) === "ftyp") {
+    const brand = ascii(8, 12).toLowerCase();
+    if (brand.startsWith("qt")) return "video/quicktime";
+    if (brand.startsWith("m4a")) return "audio/mp4";
+    if (["heic", "heix", "mif1"].includes(brand)) return "image/heic";
+    return "video/mp4";
+  }
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (ascii(1, 4) === "PNG") return "image/png";
+  if (ascii(0, 4) === "GIF8") return "image/gif";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
+  if (ascii(0, 4) === "OggS") return "audio/ogg";
+  if (ascii(0, 4) === "%PDF") return "application/pdf";
+  const head = ascii(0, Math.min(bytes.length, 256)).trimStart().toLowerCase();
+  if (head.startsWith("<!doctype html") || head.startsWith("<html")) return "text/html";
+  return "";
 };
 
 export const inboundMediaExtension = (mimeType = "", mediaType = "") => {
@@ -88,6 +120,8 @@ export const inboundMediaExtension = (mimeType = "", mediaType = "") => {
 const IMAGE_TYPES = ["image", "sticker", "photo"];
 const VIDEO_TYPES = ["video", "animated_image", "gif"];
 const AUDIO_TYPES = ["audio", "voice", "ptt"];
+const REEL_TYPES = ["ig_reel", "reel"];
+const POST_TYPES = ["ig_post", "post", "share"];
 
 // Providers disagree on the field name, and Messenger nests the real link one
 // level down inside `payload`.
@@ -131,6 +165,9 @@ export const inboundAttachmentLabel = (attachments = []) => {
   // conversation list as a photo the customer sent us.
   if (types.includes("story_mention")) return "📸 منشن في استوري";
   if (types.some((type) => ["story_reply", "story"].includes(type))) return "📸 رد على استوري";
+  // Before the photo/video labels: "🎥 فيديو" reads as a clip the customer filmed.
+  if (types.some((type) => REEL_TYPES.includes(type))) return "🎬 ريل من الصفحة";
+  if (types.some((type) => POST_TYPES.includes(type))) return "🖼️ بوست من الصفحة";
   if (types.some((type) => IMAGE_TYPES.includes(type))) return types.includes("sticker") ? "🌟 ملصق" : "📷 صورة";
   if (types.some((type) => VIDEO_TYPES.includes(type))) return "🎥 فيديو";
   if (types.some((type) => AUDIO_TYPES.includes(type))) return "🎤 رسالة صوتية";
@@ -172,7 +209,15 @@ const downloadMedia = async ({ url = "", accessToken = "" } = {}) => {
   const bytes = Buffer.from(await response.arrayBuffer());
   if (!bytes.length) throw new Error("media_empty");
   if (bytes.length > MAX_MEDIA_BYTES) throw new Error("media_too_large");
-  return { bytes, mimeType: text(response.headers.get("content-type") || "") };
+  const sniffed = sniffMediaMime(bytes);
+  // An error page under a 200 is not the customer's media; storing it re-hosts a
+  // dead link as a file the agent can "open".
+  if (sniffed === "text/html") throw new Error("media_is_html_page");
+  const declared = text(response.headers.get("content-type") || "");
+  // A header that already names media is kept — an mp4 voice clip and an mp4 video
+  // share their first bytes, and only the header knows which one this is.
+  const declaredIsMedia = /^(image|audio|video)\//i.test(declared);
+  return { bytes, mimeType: declaredIsMedia ? declared : sniffed || declared };
 };
 
 const storeMedia = async ({ bytes, channel = "", messageId = "", index = 0, mimeType = "", mediaType = "" } = {}) => {

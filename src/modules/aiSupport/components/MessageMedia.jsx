@@ -16,9 +16,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Download, ExternalLink, FileArchive, FileSpreadsheet, FileText, ImageOff, Mic, Paperclip, Pause, Play, X, ZoomIn } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clapperboard, Download, ExternalLink, FileArchive, FileSpreadsheet, FileText, ImageOff, Mic, Paperclip, Pause, Play, X, ZoomIn } from "lucide-react";
 
 import { resolveChatMediaUrl } from "../../../shared/lib/imageUrls.js";
+import { isTypeNameTitle, sharedMediaBucket, sharedMediaKind } from "../../../shared/lib/sharedInboundMedia.js";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -42,6 +43,8 @@ const attachmentMime = (attachment = {}) =>
 const attachmentKind = (attachment = {}) => {
   const type = rawAttachmentType(attachment);
   const mime = attachmentMime(attachment) || (type.includes("/") ? type : "");
+  const shared = sharedMediaBucket(sharedMediaKind(attachment), mime);
+  if (shared) return shared;
   if (AUDIO_TYPES.includes(type) || mime.startsWith("audio/")) return "audio";
   if (VIDEO_TYPES.includes(type) || mime.startsWith("video/")) return "video";
   if (DOCUMENT_TYPES.includes(type) || mime.startsWith("application/") || mime.startsWith("text/")) return "document";
@@ -184,10 +187,16 @@ export const messageMediaGroups = (message = {}) => {
     const kind = attachmentKind(attachment);
     const bucket = { image: groups.images, audio: groups.audios, video: groups.videos, document: groups.documents }[kind];
     if (!bucket || bucket.length >= MAX_ITEMS_PER_KIND) continue;
+    const shared = sharedMediaKind(attachment);
+    const fileName = attachmentFileName(attachment);
     bucket.push({
       url,
       kind,
-      fileName: attachmentFileName(attachment),
+      shared,
+      caption: shared ? clean(attachment.metadata?.share_caption) : "",
+      // Every reel received before the webhook stopped doing it carries its type
+      // name as its title, and the title is what the viewer reads as the alt text.
+      fileName: shared && isTypeNameTitle(fileName) ? "" : fileName,
       mimeType: attachmentMime(attachment),
       durationSeconds: attachmentDuration(attachment),
       size: attachmentSize(attachment),
@@ -679,14 +688,20 @@ function MessageImages({ items = [], tone = "customer", variant = "desktop", bar
   return (
     <>
       {visible.length === 1 ? (
-        <ImageTile
-          item={visible[0]}
-          tone={tone}
-          fit="contain"
-          bare={bare}
-          onOpen={() => setViewer(0)}
-          className={`${single} w-fit`}
-        />
+        // A forwarded post is always one picture, and on its own it is
+        // indistinguishable from a photo the customer took, so it keeps the strip
+        // that names it — the same one a forwarded reel carries.
+        <div className={`overflow-hidden ${visible[0].shared ? `w-fit rounded-2xl border ${toneOf(tone).frame}` : ""}`}>
+          <ImageTile
+            item={visible[0]}
+            tone={tone}
+            fit="contain"
+            bare={bare || Boolean(visible[0].shared)}
+            onOpen={() => setViewer(0)}
+            className={`${single} w-fit`}
+          />
+          <SharedMediaStrip item={visible[0]} tone={tone} bare={bare} />
+        </div>
       ) : (
         <div className={`grid grid-cols-2 gap-[3px] ${grid}`}>
           {visible.map((item, index) => (
@@ -778,13 +793,57 @@ function DocumentCard({ item, tone = "customer", variant = "desktop", bare = fal
   );
 }
 
+/* ── Forwarded reels and posts ───────────────────────────────────────────── */
+
+// A reel or post the customer forwarded says so. Without the strip a reel reads as
+// a clip they filmed and a post as a photo they took — and the caption Meta sends
+// with it is often the only thing naming the product they are asking about.
+function SharedMediaStrip({ item, tone = "customer", bare = false }) {
+  const { t } = useTranslation();
+  const palette = toneOf(tone);
+  if (!item.shared) return null;
+  return (
+    <div className={`flex flex-col gap-0.5 px-2.5 py-2 ${bare ? "bg-black/[0.16]" : ""}`}>
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${palette.title}`}>
+        <Clapperboard className="h-3.5 w-3.5 shrink-0" />
+        {t(item.shared === "reel" ? "aiSupport.inbox.message.sharedReel" : "aiSupport.inbox.message.sharedPost")}
+      </span>
+      {item.caption ? (
+        <span dir="auto" className={`line-clamp-2 text-[11px] leading-4 ${palette.muted}`}>{item.caption}</span>
+      ) : null}
+    </div>
+  );
+}
+
 /* ── Videos ──────────────────────────────────────────────────────────────── */
 
 function VideoCard({ item, tone = "customer", variant = "desktop", bare = false }) {
+  const { t } = useTranslation();
   const palette = toneOf(tone);
+  const [failed, setFailed] = useState(false);
+  const width = variant === "pwa" ? "max-w-[236px]" : "max-w-[320px]";
+  const frame = bare ? "rounded-[10px]" : `rounded-2xl border ${palette.frame}`;
+
   return (
-    <div className={`overflow-hidden ${bare ? "rounded-[10px]" : `rounded-2xl border ${palette.frame}`} ${variant === "pwa" ? "max-w-[236px]" : "max-w-[320px]"}`}>
-      <video controls preload="metadata" src={item.url} className="block max-h-[340px] w-full bg-black" />
+    <div className={`overflow-hidden ${frame} ${width}`}>
+      {failed ? (
+        <div className={`grid min-w-[204px] place-items-center gap-1 p-5 text-center ${bare ? "bg-black/[0.16]" : ""}`}>
+          <ImageOff className={`h-5 w-5 ${palette.muted}`} />
+          <span className={`text-[10px] font-black ${palette.muted}`}>
+            {t(item.shared === "reel" ? "aiSupport.inbox.message.reelUnavailable" : "aiSupport.inbox.message.mediaUnavailable")}
+          </span>
+        </div>
+      ) : (
+        <video
+          controls
+          playsInline
+          preload="metadata"
+          src={item.url}
+          onError={() => setFailed(true)}
+          className="block max-h-[340px] w-full bg-black"
+        />
+      )}
+      <SharedMediaStrip item={item} tone={tone} bare={bare} />
     </div>
   );
 }

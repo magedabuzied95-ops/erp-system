@@ -3,6 +3,7 @@ import crypto from "crypto";
 import db from "../database/db.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { writableConversationChannel } from "../utils/inboxChannelIdentity.js";
+import { sharedMediaKind } from "../../src/shared/lib/sharedInboundMedia.js";
 import { resolveAIStatus } from "./aiStatusResolver.js";
 import {
   normalizeProductCards as normalizeStructuredProductCards,
@@ -703,13 +704,22 @@ const extractMetaAttachments = (event = {}) => {
       }
       const url = extractMetaAttachmentUrl(attachment);
       const isStory = isStoryAttachmentType(attachment.type);
+      const shareKind = sharedMediaKind(attachment);
       return {
         type: attachment.type || "file",
         url,
         image_url: url,
-        title: attachment.title || attachment.type || "",
+        // The title ends up as the file name on the bubble, and a caption is not one.
+        title: shareKind ? "" : attachment.title || attachment.type || "",
         metadata: {
           sticker_id: attachment.payload?.sticker_id || "",
+          ...(shareKind
+            ? {
+                share_kind: shareKind,
+                share_caption: toText(attachment.payload?.title || attachment.title || "").slice(0, 500),
+                share_media_id: toText(attachment.payload?.reel_video_id || attachment.payload?.ig_post_media_id || attachment.payload?.id || ""),
+              }
+            : {}),
           ...(isStory
             ? {
                 story_kind: toText(attachment.type).toLowerCase() === "story_mention" ? "story_mention" : "story_reply",
