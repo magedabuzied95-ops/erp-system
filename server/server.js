@@ -726,6 +726,7 @@ const { default: whatsappGatewayRoutes } = await import("./routes/whatsappGatewa
 const { default: whatsappDebugRoutes } = await import("./routes/whatsappDebug.js");
 const { default: whatsappQueueRoutes } = await import("./routes/whatsappQueue.js");
 const { default: whatsappAutomationsRoutes } = await import("./routes/whatsappAutomations.js");
+const { default: marketingBroadcastRoutes } = await import("./routes/marketingBroadcasts.js");
 const { startWhatsappQueueWorker } = await import("./services/whatsappQueue/worker.js");
 const { ensureProductSchema, ensureProductVariantSchema, warmProductsMetadataCache } = await import("./controllers/productsController.js");
 const { ensureOrdersSchema, ensurePosCheckoutSchema } = await import("./controllers/ordersController.js");
@@ -2050,6 +2051,7 @@ app.use("/api/invoice-templates", invoiceTemplateRoutes);
 // not swallowed by it.
 app.use("/api/whatsapp/queue", whatsappQueueRoutes);
 app.use("/api/whatsapp/automations", whatsappAutomationsRoutes);
+app.use("/api/marketing/broadcasts", marketingBroadcastRoutes);
 app.use("/api/whatsapp", whatsappGatewayRoutes);
 app.use("/api/debug/whatsapp", whatsappDebugRoutes);
 app.use("/api/staff-tasks", staffTasksRoutes);

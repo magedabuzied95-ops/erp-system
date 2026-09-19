@@ -12,6 +12,7 @@ import {
   upsertChannelConversationMapping,
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
+import { handleInboundMarketingStopWord } from "./marketingConsentService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
 import { ensureSquareCardImageUrl } from "./productImageVariantService.js";
 import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus, upsertAiSupportMessageReaction } from "./aiSupportLogService.js";
@@ -6497,6 +6498,18 @@ export const triggerWhatsappAiAutoReply = async (message = {}) => {
    * why they are fired without being awaited and why the helpers swallow their own errors.
    * `WHATSAPP_LIVE_PRESENCE=false` turns them off without a deploy.
    */
+  /*
+   * One word stops the offers. Checked on the whole message only — never as a substring — so a
+   * customer writing "إلغاء الطلب" is cancelling an order, not unsubscribing from marketing.
+   * It never blocks or alters the reply: the customer still gets answered, they just stop being
+   * broadcast to. Transactional messages are unaffected by design.
+   */
+  void handleInboundMarketingStopWord({
+    tenantId: message.raw?.tenant_id || message.raw?.tenantId || process.env.WHATSAPP_TENANT_ID || 1,
+    message: message.text,
+    phone: message.phone,
+  });
+
   const liveFeedbackEnabled = String(process.env.WHATSAPP_LIVE_PRESENCE ?? "true").toLowerCase() !== "false";
   const presenceInstance = text(message.instance || message.instanceName || "");
   const presenceTarget = text(message.resolvedReplyJid || message.remoteJid || message.phone || "");

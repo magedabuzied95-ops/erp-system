@@ -65,6 +65,9 @@ export const WHATSAPP_AUTOMATION_TYPES = Object.freeze({
   price_drop_alert: "engagement",
   // "How was it?" a few days after delivery, with a button to /review/:code.
   product_review_request: "engagement",
+  // A campaign the SHOP chose to send. Engagement by definition, and the only automation type
+  // gated by the marketing opt-out — see server/services/marketingConsentService.js.
+  marketing_broadcast: "engagement",
 });
 
 export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
@@ -84,6 +87,7 @@ export const WHATSAPP_AUTOMATION_LABELS = Object.freeze({
   abandoned_cart: { en: "Abandoned cart", ar: "السلة المتروكة" },
   price_drop_alert: { en: "Price drop alert", ar: "تنبيه نزول السعر" },
   product_review_request: { en: "Product review request", ar: "طلب تقييم المنتجات" },
+  marketing_broadcast: { en: "Marketing broadcast", ar: "حملة تسويقية" },
 });
 
 /* Every placeholder the queue understands. Existing templates already use the {{token}} form. */
@@ -176,6 +180,7 @@ export const WHATSAPP_AUTOMATION_EXPIRY_DEFAULTS = Object.freeze({
   price_drop_alert: 480,
   // Same quiet-hours hold; a review ask that missed its day is simply not sent.
   product_review_request: 480,
+  marketing_broadcast: 480,
 });
 
 /*
