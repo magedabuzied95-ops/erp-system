@@ -184,6 +184,16 @@ export const platformCanvas = (platform = "web", mode = "dark") => platformChrom
 export const chromeModeFor = (variant = "desktop", themeMode = "") =>
   variant === "pwa" || String(themeMode).toLowerCase() === "light" ? "light" : "dark";
 
+/*
+ * A colour carousel is drawn as the customer's phone draws it — the lead sentence in its own
+ * bubble, then the swipeable cards, each with the words that actually left the building. That
+ * holds on the three channels that have a real carousel transport; a single card, and every
+ * other channel, keeps the house card.
+ */
+const CUSTOMER_CAROUSEL_PLATFORMS = ["instagram", "messenger", "whatsapp"];
+export const mirrorsCustomerCarousel = (platform = "", cardCount = 0) =>
+  Number(cardCount) > 1 && CUSTOMER_CAROUSEL_PLATFORMS.includes(platform);
+
 /** The side of one message, resolved to the values that side is drawn in. */
 export const bubbleSkin = (chrome = {}, side = "in") => {
   const isIn = side === "in";

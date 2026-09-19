@@ -13,11 +13,11 @@
  */
 import { memo, useContext } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowUpRight, ShoppingBag } from "lucide-react";
+import { ArrowUpRight, Reply, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
-import { chromeModeFor, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+import { chromeModeFor, mirrorsCustomerCarousel, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
 import { ThemeContext } from "../../../theme/themeContext";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -172,8 +172,6 @@ const cardSubtitle = (card = {}, t, priceValue) => {
  * so the operator sees the card the customer is looking at. The strings are the customer's copy,
  * Arabic on every ERP language — they are not interface text and must not be translated.
  */
-const META_TEMPLATE_PLATFORMS = ["instagram", "messenger"];
-
 const metaTemplateCopy = (card = {}) => {
   const priceValue = Number(card.price ?? card.final_price ?? 0);
   const priceText = priceValue > 0 ? `${priceValue.toLocaleString("en-US")} جنيه` : "";
@@ -188,6 +186,24 @@ ${sizes.join(" · ")}`
       : "";
   const button = clean(card.variant_id || card.price_variant_id) ? "اطلب اللون ده ✅" : "عرض المنتج";
   return { title, subtitle, button };
+};
+
+/*
+ * The same, for WhatsApp. The Evolution carousel card (sendWhatsAppCloudReply,
+ * aiChannelAdapterService) is three plain lines — colour, price, "المقاسات: 41 / 42" capped at
+ * six — over one button: a reply button when the card knows its variant, a link when it does not.
+ */
+const whatsappCarouselCopy = (card = {}) => {
+  const priceValue = Number(card.price ?? card.final_price ?? 0);
+  const priceText = clean(card.price_text) || (priceValue > 0 ? `${Math.round(priceValue).toLocaleString("en-US")} جنيه` : "");
+  const sizes = [...new Set([...asArray(card.sizes), ...asArray(card.available_sizes)].map(clean).filter(Boolean))];
+  const lines = [
+    firstText(card.color, card.product_name, card.name, card.title),
+    priceText,
+    sizes.length ? `المقاسات: ${sizes.slice(0, 6).join(" / ")}` : "",
+  ].filter(Boolean);
+  const isReply = Boolean(clean(card.variant_id || card.price_variant_id));
+  return { lines, isReply, button: isReply ? "اطلب اللون ده ✅" : "شوف المنتج 🛒" };
 };
 
 function ProductCardMessage({
@@ -213,7 +229,9 @@ function ProductCardMessage({
   const standalone = chrome.cardMode === "standalone";
   const strip = items.length > 1;
   // Only the carousel leaves as this template; a single card goes out in another shape.
-  const mirrorsMetaTemplate = standalone && strip && META_TEMPLATE_PLATFORMS.includes(platform);
+  const mirrorsCarousel = mirrorsCustomerCarousel(platform, items.length);
+  const mirrorsMetaTemplate = mirrorsCarousel && platform !== "whatsapp";
+  const mirrorsWhatsappCarousel = mirrorsCarousel && platform === "whatsapp";
 
   const renderCard = (card, index) => {
     const image = cardImage(card);
@@ -243,6 +261,36 @@ function ProductCardMessage({
         <ShoppingBag style={{ color: chrome.cardMuted }} className="h-8 w-8" />
       </div>
     );
+
+    if (mirrorsWhatsappCarousel) {
+      const copy = whatsappCarouselCopy(card);
+      const ButtonIcon = copy.isReply ? Reply : ArrowUpRight;
+      return (
+        <article
+          key={cardKey}
+          style={{ width: "236px", background: chrome.cardBg, color: chrome.cardInk, borderRadius: "12px" }}
+          className="shrink-0 snap-start overflow-hidden p-1 shadow-[0_1px_1px_rgba(0,0,0,0.13)]"
+        >
+          <div className="overflow-hidden rounded-[9px]">{picture}</div>
+          <div className="px-1.5 pb-1.5 pt-1.5" dir="auto">
+            {copy.lines.map((line, lineIndex) => (
+              <p key={lineIndex} style={{ color: chrome.cardInk }} className="text-[14px] leading-[19px]">{line}</p>
+            ))}
+          </div>
+          <span aria-hidden="true" style={{ background: chrome.cardLine }} className="block h-px w-full" />
+          <a
+            href={copy.isReply ? undefined : storefrontUrl || undefined}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: chrome.cardAction }}
+            className="flex items-center justify-center gap-1.5 py-2 text-[14px] font-medium"
+          >
+            <ButtonIcon className="h-4 w-4" />
+            {copy.button}
+          </a>
+        </article>
+      );
+    }
 
     if (mirrorsMetaTemplate) {
       const copy = metaTemplateCopy(card);

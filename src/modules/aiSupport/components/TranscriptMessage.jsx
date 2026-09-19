@@ -8,7 +8,7 @@ import ProductCardMessage from "./ProductCardMessage";
 import MessageMedia, { messageMediaGroups, messageStoryContext } from "./MessageMedia.jsx";
 import DeliveryTicks, { isTickableDeliveryStatus } from "./DeliveryTicks.jsx";
 import CustomerAvatar from "./CustomerAvatar.jsx";
-import { bubbleClock, bubbleSkin, chromeModeFor, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
+import { bubbleClock, bubbleSkin, chromeModeFor, mirrorsCustomerCarousel, platformChrome, resolveMessagePlatform } from "./messagePlatform.js";
 // The context, not the hook: this component also renders in the message
 // previews and the pinned bar, and useTheme throws outside a provider.
 import { ThemeContext } from "../../../theme/themeContext";
@@ -1184,7 +1184,11 @@ function TranscriptMessage({
    * generic template is a white card on the conversation background with no
    * bubble behind it. `cardMode` carries that difference. */
   if (safeRow.kind === "product_card") {
-    const standalone = chrome.cardMode === "standalone";
+    // A WhatsApp carousel arrives the same way round as Meta's: the lead sentence as its own
+    // bubble, the cards loose underneath it — not the single-card bubble with a caption below.
+    // Counted the way ProductCardMessage flattens them, so the two never disagree about a strip.
+    const cardCount = cards.reduce((total, card) => total + (asArray(card?.items || card?.cards || card?.products || card?.product_cards || card?.productCards).length || 1), 0);
+    const standalone = chrome.cardMode === "standalone" || mirrorsCustomerCarousel(platform, cardCount);
     // A reply that carries cards almost always carries the sentence that
     // introduces them ("اختار اللون…"). It used to be dropped on the floor,
     // because the row's kind decided the whole render.
