@@ -12,6 +12,7 @@ import {
 } from "./productAliasEngine.js";
 import { assignSequentialInvoiceNumber, buildTemporaryInvoiceNumber } from "../utils/invoiceNumber.js";
 import { parseOrderSecondaryPhone } from "../utils/orderSecondaryPhone.js";
+import { canonicalPhoneKey, canonicalPhoneSql } from "../utils/phoneSearch.js";
 import { attachPublicOrderNumber, displayPublicOrderNumber } from "../utils/publicOrderNumber.js";
 import { buildOrderItemInsertQuery, enrichOrderItemsInsertError } from "../utils/orderItemInsert.js";
 import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
@@ -1084,22 +1085,84 @@ const addressFingerprint = (address = {}) =>
     .map((value) => text(value).trim().toLowerCase())
     .join("|");
 
+// An order row in the saved-address shape. The website and the POS keep the whole
+// address in customer_address and leave street_address empty, so either one counts.
+export const savedAddressFromOrder = (order = {}) => ({
+  id: `order-${order.id}`,
+  source: "order",
+  customer_phone: text(order.customer_phone),
+  customer_name: text(order.customer_name),
+  // Only a Bosta address carries ids the composer can re-select; anything else
+  // leaves the provider the seller already has on screen.
+  shipping_provider: text(order.shipping_city_id) ? "bosta" : "",
+  governorate: text(order.governorate),
+  city_area: text(order.city_area),
+  shipping_city_id: text(order.shipping_city_id),
+  shipping_zone_id: text(order.shipping_zone_id),
+  shipping_district_id: text(order.shipping_district_id),
+  street_address: text(order.street_address) || text(order.customer_address),
+  building_number: text(order.building_number),
+  floor_number: text(order.floor_number),
+  apartment_number: text(order.apartment_number),
+  landmark: text(order.landmark),
+  last_used_at: order.created_at || null,
+});
+
+// Saved rows first (they are the ones a seller confirmed), then every other place
+// the order book knows — one entry per distinct address.
+export const mergeSavedAndOrderAddresses = (savedRows = [], orderRows = [], limit = 12) => {
+  const seen = new Set();
+  const merged = [];
+  for (const address of [...savedRows, ...orderRows.map(savedAddressFromOrder)]) {
+    if (!text(address.street_address)) continue;
+    const fingerprint = addressFingerprint(address);
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    merged.push(address);
+  }
+  return merged
+    .sort((a, b) => new Date(b.last_used_at || 0).getTime() - new Date(a.last_used_at || 0).getTime())
+    .slice(0, limit);
+};
+
 export const listCustomerSavedAddresses = async ({ tenantId, phone } = {}) => {
   await ensureAiAgentOrderSchema();
-  const normalized = normalizePhone(phone) || text(phone);
-  if (!normalized) return [];
-  const result = await db.query(
-    `
-    SELECT *
-    FROM customer_saved_addresses
-    WHERE (COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0))
-      AND customer_phone = $2
-    ORDER BY last_used_at DESC, id DESC
-    LIMIT 12
-    `,
-    [tenantId || null, normalized]
-  );
-  return result.rows;
+  // The canonical key, not the typed spelling: a customer saved as +2010… is the
+  // same person the chat shows as 010….
+  const phoneKey = canonicalPhoneKey(phone);
+  if (!phoneKey) return [];
+  const [saved, ordered] = await Promise.all([
+    db.query(
+      `
+      SELECT *
+      FROM customer_saved_addresses
+      WHERE (COALESCE(tenant_id, 0) = COALESCE($1::bigint, 0))
+        AND ${canonicalPhoneSql("customer_phone")} = $2
+      ORDER BY last_used_at DESC, id DESC
+      LIMIT 12
+      `,
+      [tenantId || null, phoneKey]
+    ),
+    // The sale often starts on the website or at the till: those orders never wrote
+    // a saved address, so a returning customer looked like a stranger in the composer.
+    db.query(
+      `
+      SELECT o.id, o.customer_name, o.customer_phone, o.governorate, o.city_area,
+             o.shipping_city_id, o.shipping_zone_id, o.shipping_district_id,
+             o.street_address, o.customer_address, o.building_number, o.floor_number,
+             o.apartment_number, o.landmark, o.created_at
+      FROM orders o
+      WHERE ($1::bigint IS NULL OR o.tenant_id = $1::bigint)
+        AND o.deleted_at IS NULL
+        AND ${canonicalPhoneSql("o.customer_phone")} = $2
+        AND NULLIF(TRIM(COALESCE(NULLIF(TRIM(o.street_address), ''), o.customer_address, '')), '') IS NOT NULL
+      ORDER BY o.created_at DESC NULLS LAST, o.id DESC
+      LIMIT 30
+      `,
+      [tenantId || null, phoneKey]
+    ),
+  ]);
+  return mergeSavedAndOrderAddresses(saved.rows, ordered.rows);
 };
 
 export const saveCustomerAddress = async ({ tenantId, phone, customerName = "", address = {} } = {}) => {
