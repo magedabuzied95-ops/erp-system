@@ -15,6 +15,7 @@
  * fixed in buildInstructions and a tenant cannot switch them off.
  */
 import db from "../database/db.js";
+import { agentActionGuidanceLines } from "./aiAgentActionPolicy.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -98,13 +99,22 @@ const readSettingsRow = async (tenantId) => {
 export const loadPersona = async ({ tenantId } = {}) => {
   if (!tenantId) return clone(DEFAULT_PERSONA);
   const settings = await readSettingsRow(tenantId);
-  return mergePersona(DEFAULT_PERSONA, settings?.[SETTINGS_KEY]);
+  const persona = mergePersona(DEFAULT_PERSONA, settings?.[SETTINGS_KEY]);
+  // The owner's "when should it do this" notes ride on the persona rather than on every call site:
+  // all three builders of the instruction block already load the persona, and none of them should
+  // need to learn about action policy to pass the notes through. Enabled actions only — see
+  // aiAgentActionPolicy.js. Never persisted back: savePersona strips it before writing.
+  const actionGuidance = agentActionGuidanceLines(settings || {});
+  if (actionGuidance.length) persona.action_guidance = actionGuidance;
+  return persona;
 };
 
 export const savePersona = async ({ tenantId, patch = {} } = {}) => {
   if (!tenantId) throw Object.assign(new Error("tenantId is required"), { status: 400 });
   const settings = await readSettingsRow(tenantId);
   const nextPersona = mergePersona(DEFAULT_PERSONA, { ...(settings?.[SETTINGS_KEY] || {}), ...patch });
+  // Derived at read time from action_policies; storing a copy here would let the two drift.
+  delete nextPersona.action_guidance;
   const nextSettings = { ...settings, [SETTINGS_KEY]: nextPersona };
 
   await db.query(
@@ -221,6 +231,12 @@ export const buildInstructions = ({
     persona.escalation?.on_private_data_request ? "حوّل لو طلب بيانات داخلية أو خاصة." : "",
     "متحوّلش لمجرد إن السؤال عام أو إن العميل بيدور على منتجات.",
   ];
+
+  // Per-action notes the owner wrote in the control center. These shape WHEN an already-enabled
+  // action fires; a disabled action never reaches this list, so nothing here can switch one on.
+  if (Array.isArray(persona.action_guidance) && persona.action_guidance.length) {
+    lines.push("", "# إمتى تعمل كل إجراء:", ...persona.action_guidance);
+  }
 
   if (understanding) {
     lines.push("", "# قراءة العميل في الرسالة دي:");

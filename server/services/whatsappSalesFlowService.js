@@ -8,6 +8,7 @@ import {
   sortSocialCommentAvailableSizes,
 } from "./socialCommentPrivateReplyService.js";
 import { createAddressRequest } from "./conversationAddressRequestService.js";
+import { agentActionAllowed } from "./aiAgentActionPolicy.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { absolutePublicUploadUrl } from "../utils/publicUrl.js";
 import { sendChoiceListMessage, sendCtaUrlMessage, sendImageMessage, sendReplyButtonsMessage, sendTextMessage } from "./whatsappGatewayService.js";
@@ -298,6 +299,13 @@ const sendSummary = async ({ tenantId, phone, conversationId, productId, color, 
 };
 
 const sendAddressLink = async ({ tenantId, phone, conversationId, flow, productId }) => {
+  // The owner can switch the automatic address link off in the inbox control center. Switched off,
+  // the sale does not die — it takes the same exit the flow already has for a link that failed to build.
+  const allowed = await agentActionAllowed({ tenantId, actionId: "request_address" });
+  if (!allowed) {
+    await send({ phone, message: "تمام ✅ فريق خدمة العملاء هيتواصل معاك حالاً ياخد بيانات الشحن ❤️" });
+    return { handled: true, reason: "whatsapp_address_link_disabled" };
+  }
   const request = await createAddressRequest({
     tenantId,
     sessionId: conversationId,

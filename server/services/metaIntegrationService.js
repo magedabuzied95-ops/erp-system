@@ -102,6 +102,7 @@ import {
   buildAddressRequestPublicUrl,
   createAddressRequest,
 } from "./conversationAddressRequestService.js";
+import { agentActionAllowed } from "./aiAgentActionPolicy.js";
 import {
   normalizeProductCards,
   productCardReplyText,
@@ -17180,6 +17181,13 @@ const buildSocialCommentAddressLink = async ({ config, message, customerName = "
   const conversationId = text(message?.external_conversation_id || "");
   if (!conversationId) return "";
   try {
+    // Switched off in the control center, this returns the same empty string a failed build returns,
+    // and the caller falls back to asking for the address in words.
+    const allowed = await agentActionAllowed({
+      tenantId: Number(config?.tenant_id || 0) || null,
+      actionId: "request_address",
+    });
+    if (!allowed) return "";
     const request = await createAddressRequest({
       tenantId: Number(config?.tenant_id || 0) || null,
       sessionId: conversationId,

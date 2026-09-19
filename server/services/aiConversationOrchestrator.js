@@ -3,6 +3,7 @@ import { appendAiGeneratedSupportReply } from "./aiSupportLogService.js";
 import { normalizeWhatsappSessionId } from "./aiInboxService.js";
 import { normalizeProductCards } from "./aiProductCards.js";
 import { buildSalesConversationIntelligence } from "./aiSalesAgentService.js";
+import { agentActionAllowed } from "./aiAgentActionPolicy.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -325,11 +326,16 @@ export const buildUnifiedAiReplyPayload = ({
   response = {},
   earlyReturnReason = "",
   source = "",
+  // Resolved by the async caller from the `send_product_card` action switch; this builder is sync and
+  // must stay that way. Defaults to true so a caller that knows nothing about the switch behaves as before.
+  allowProductCards = true,
 } = {}) => {
   const normalizedChannel = normalizeChannel(channel);
-  const products = normalizeProductCards(collectProducts(response), { limit: 12 });
+  const products = allowProductCards === false ? [] : normalizeProductCards(collectProducts(response), { limit: 12 });
   const channelReply = response?.channel_reply || normalizeOutgoingChannelReply({ channel: normalizedChannel, response });
-  const productCards = normalizeProductCards(channelReply.product_cards?.length ? channelReply.product_cards : products, { limit: 12 });
+  const productCards = allowProductCards === false
+    ? []
+    : normalizeProductCards(channelReply.product_cards?.length ? channelReply.product_cards : products, { limit: 12 });
   const imageCards = collectImageCards(response, productCards);
   const actions = collectActions(response);
   const quickReplies = collectQuickReplies(response);
@@ -708,9 +714,12 @@ const fetchUnifiedAiSupportReply = async ({
     providerMessageId: text(providerMessageId || message?.provider_message_id || ""),
     traceReason: "unified_ai_support_reply",
   }).catch(() => null);
+  // One read per reply, cached for 30s inside the policy service.
+  const allowProductCards = await agentActionAllowed({ tenantId, actionId: "send_product_card" });
   const unified = buildUnifiedAiReplyPayload({
     tenantId,
     branchId,
+    allowProductCards,
     channel: normalizedChannel,
     conversation: { ...conversation, session_id: sessionId },
     customer,
