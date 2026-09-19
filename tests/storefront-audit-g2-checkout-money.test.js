@@ -66,9 +66,17 @@ test("#30 the customer is not told to pay a sent transfer again at the door", ()
   assert.equal(orderDueOnDelivery({ payment_method: "instapay", payment_status: "paid", transfer_proof_status: "approved", remaining_amount: 0 }), 0);
   assert.match(trackingSource, /const remaining = orderDueOnDelivery\(order\);/);
   assert.match(accountSource, /const remaining = orderDueOnDelivery\(order\);/);
-  // The WhatsApp payment-review message names the transfer instead of "paid 0 / due at delivery".
-  assert.match(confirmationService, /\$\{paymentReviewAmountLines\(order\)\}/);
-  assert.match(confirmationService, /const transferAwaitingReview = \(order = \{\}\) =>\s+text\(order\.transfer_proof_status\)\.toLowerCase\(\) === "pending"/);
+  // The WhatsApp payment-review message names the order total and nothing else (owner,
+  // 2026-09-20): "المدفوع / المتبقي عند الاستلام" told a shopper whose transfer was still in
+  // review to pay the whole total at the door, and "المبلغ المحوَّل" claimed the total had been
+  // transferred when only the shipping fee had (INV-1772).
+  const reviewMessage = confirmationService.slice(
+    confirmationService.indexOf("const buildPaymentReviewMessage"),
+    confirmationService.indexOf("const loadOrderItems")
+  );
+  assert.ok(reviewMessage.length > 0);
+  assert.match(reviewMessage, /💰 إجمالي الاوردر : \$\{total\} ج/);
+  assert.doesNotMatch(reviewMessage, /المتبقي عند الاستلام|المبلغ المحوَّل|💳 المدفوع/);
 });
 
 /* #31 — client zone ids must agree with the address */

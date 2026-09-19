@@ -11,6 +11,7 @@ import {
   buildShippingFeePaymentCard,
   hashPaymentProofCode,
   notifyPaymentProofApproved,
+  PAYMENT_APPROVED_DELAY_MS,
   paymentProofState,
 } from "../server/modules/shipping/paymentProofLink.js";
 import { buildShippingFeeAdvanceNotice } from "../server/services/codPolicyReplyService.js";
@@ -140,6 +141,13 @@ test("confirming the money anywhere tells the customer, and the message carries 
   assert.match(module, /idempotencySuffix: `paid:\$\{Math\.round\(money\(order\.paid_amount\) \* 100\)\}`/);
   // The link is built here, not by the caller: every approval path gets it for free.
   assert.match(module, /buildPaymentProofApprovedMessage\(order, \{ trackingUrl: buildOrderTrackingUrl\(orderRef\(order\), phone\) \}\)/);
+  // The receipt waits five minutes: the wallet matcher approves a website order a second after
+  // checkout, and two automated messages back to back on one number is the burst WhatsApp bans.
+  assert.equal(PAYMENT_APPROVED_DELAY_MS, 5 * 60 * 1000);
+  assert.match(module, /delayMs: PAYMENT_APPROVED_DELAY_MS,/);
+  // Switching the queue off must not turn the wait into an instant send.
+  assert.match(module, /scheduledAt: delayMs > 0 \? new Date\(Date\.now\(\) \+ delayMs\) : null,/);
+  assert.match(module, /const directSend = delayMs > 0\s*\?\s*async \(\) => \{\s*const timer = setTimeout\(/);
   for (const path of ["../server/controllers/ordersController.js", "../server/modules/walletTransfers/walletTransfers.service.js", "../server/modules/shipping/shipping.portal.actions.js"]) {
     assert.match(read(path), /notifyPaymentProofApproved\(/, path);
   }

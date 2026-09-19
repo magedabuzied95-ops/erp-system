@@ -327,7 +327,10 @@ export const queueShippingFeePaymentCard = async ({ order = {}, card = null, pho
 };
 
 // A short system message about the transfer. Queued (paced, recorded) when the queue is on.
-const sendOrderPaymentText = async ({ order = {}, automationType, message, idempotencySuffix = "", source }) => {
+// `delayMs` holds it back: the queue gets a scheduled_at, and the direct path (queue switched
+// off) gets a detached timer, so switching the queue off never turns a deliberate wait into an
+// instant send — the reason for the wait is the WhatsApp account, not the queue.
+const sendOrderPaymentText = async ({ order = {}, automationType, message, idempotencySuffix = "", source, delayMs = 0 }) => {
   const phone = await orderPhone(order);
   if (!phone || !message) return { sent: false, reason: "missing_phone" };
   const tenantId = tenantOf(order);
@@ -336,11 +339,20 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, idemp
       import("../../services/whatsappQueue/index.js"),
       import("../../services/whatsappGatewayService.js"),
     ]);
-    const directSend = async () => {
+    const sendNow = async () => {
       const result = await gateway.sendTextMessage({ phone, message });
       await appendSystemTranscript({ tenantId, phone, message, source, result, customerName: text(order.customer_name) });
       return result;
     };
+    const directSend = delayMs > 0
+      ? async () => {
+        const timer = setTimeout(() => {
+          sendNow().catch((error) => console.warn("[payment-proof] delayed send failed", { orderId: order.id, automationType, message: error?.message || String(error) }));
+        }, delayMs);
+        timer.unref?.();
+        return { delayed_ms: delayMs };
+      }
+      : sendNow;
     const queued = await queueWhatsappAutomation({
       tenantId,
       automationType,
@@ -353,9 +365,10 @@ const sendOrderPaymentText = async ({ order = {}, automationType, message, idemp
       values: { customer_name: text(order.customer_name), order_number: orderRef(order) },
       fallbackBody: message,
       onSent: { transcript: { session_id: `whatsapp:${phone}`, source, customer_name: text(order.customer_name), message } },
+      scheduledAt: delayMs > 0 ? new Date(Date.now() + delayMs) : null,
       directSend,
     });
-    return { sent: Boolean(queued.queued || queued.direct), queued: Boolean(queued.queued), duplicate: Boolean(queued.duplicate) };
+    return { sent: Boolean(queued.queued || queued.direct), queued: Boolean(queued.queued), duplicate: Boolean(queued.duplicate), delayed_ms: delayMs || 0 };
   } catch (error) {
     console.warn("[payment-proof] message not sent", { orderId: order.id, automationType, message: error?.message || String(error) });
     return { sent: false, reason: "send_failed" };
@@ -411,6 +424,14 @@ export const buildPaymentProofApprovedMessage = (order = {}, { trackingUrl = "" 
 // have its money recorded, and "طلبك بيتجهز للشحن" would be wrong on both.
 const NOT_WORTH_ANNOUNCING = new Set(["cancelled", "canceled", "cancelled_by_customer", "returned", "delivered", "completed"]);
 
+/*
+ * The receipt waits (owner, 2026-09-20). The Vodafone Cash matcher approves a website order about
+ * a second after checkout, so "استلمنا طلبك" and "تم تأكيد دفع رسوم الشحن" landed back to back on
+ * the same number — the burst pattern that got the account restricted once already. Five minutes
+ * puts a human-sized gap between them; the customer is not waiting on this message for anything.
+ */
+export const PAYMENT_APPROVED_DELAY_MS = Math.max(0, Number(process.env.PAYMENT_APPROVED_DELAY_MINUTES ?? 5) || 0) * 60 * 1000;
+
 /**
  * Tell the customer their money landed — from EVERY approval path (owner, 2026-09-20): the orders
  * page, the employee portal, the manager portal, the AI Inbox order card and the wallet SMS
@@ -432,6 +453,7 @@ export const notifyPaymentProofApproved = async (order = null) => {
     idempotencySuffix: `paid:${Math.round(money(order.paid_amount) * 100)}`,
     message: buildPaymentProofApprovedMessage(order, { trackingUrl: buildOrderTrackingUrl(orderRef(order), phone) }),
     source: "whatsapp_payment_proof_approved",
+    delayMs: PAYMENT_APPROVED_DELAY_MS,
   });
 };
 

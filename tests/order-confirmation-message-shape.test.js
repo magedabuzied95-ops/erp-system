@@ -136,3 +136,23 @@ test("an order with no readable number still gets a confirmation", () => {
   assert.ok(!msg.includes("رقم  يا"), "no dangling empty order number");
 });
 
+// ---- "استلمنا طلبك": the first reply a website order gets ----
+import { buildPaymentReviewMessage } from "../server/services/whatsappOrderConfirmationService.js";
+
+test("the website order reply names the order total and nothing else about the money", () => {
+  // Owner dictated this message on 2026-09-20 (INV-1772). One money line: the order's own total.
+  const message = buildPaymentReviewMessage(
+    { invoice_number: "INV-1772", customer_name: "Ahmed Saeed", total_amount: 1300, paid_amount: 100, cod_amount: 1200 },
+    [{ product_name: "Adidas Ultra Boost", color: "Black", size: "43", quantity: 1 }]
+  );
+  assert.equal(message, [
+    "أهلاً يا Ahmed 👋",
+    "✅ استلمنا طلبك من M1 Store",
+    "📦 تفاصيل طلبك",
+    "🔢 رقم الطلب: #INV-1772\n🛍️ المنتجات:\n- Adidas Ultra Boost (Black / 43) x1",
+    "🧾 تم استلام إثبات التحويل، وطلبك دلوقتي قيد المراجعة ⏳\n💰 إجمالي الاوردر : 1,300 ج\n🔍 هنراجع الطلب ونأكد معاك قبل الشحن 🚚",
+  ].join("\n\n"));
+  // An order with no readable total drops the line rather than printing "💰 إجمالي الاوردر :  ج".
+  assert.doesNotMatch(buildPaymentReviewMessage({ invoice_number: "INV-9" }, []), /إجمالي الاوردر/);
+});
+

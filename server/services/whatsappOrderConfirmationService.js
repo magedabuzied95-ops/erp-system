@@ -125,7 +125,6 @@ const number = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
-const money = (value) => number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const extractWhatsAppMessageId = (result = {}) => text(result?.result?.message_id || result?.result?.messageId || result?.result?.key?.id || result?.message_id || result?.id || "");
 const isOrderConfirmationTimeoutError = (error = {}) =>
@@ -386,46 +385,32 @@ const buildConfirmationMessage = (order = {}, items = []) => buildCodOrderConfir
   confirmationLink: order.confirmation_link || order.confirmation_url || "",
 });
 
-const remainingAmount = (order = {}) => {
-  const total = number(order.total_amount ?? order.total_price ?? order.total);
-  const paid = number(order.paid_amount ?? order.amount_paid ?? order.total_paid);
-  if (number(order.cod_amount) > 0) return number(order.cod_amount);
-  return Math.max(0, total - paid);
-};
-
-// A website transfer is stored unpaid until someone approves its proof, so paid/remaining would tell
-// the customer they owe the whole total at the door. While the proof waits, name the transfer instead.
-const transferAwaitingReview = (order = {}) =>
-  text(order.transfer_proof_status).toLowerCase() === "pending"
-  && !isCodPayment(order)
-  && number(order.paid_amount ?? order.amount_paid ?? order.total_paid) <= 0;
-
-const paymentReviewAmountLines = (order = {}) => {
-  const total = money(order.total_amount ?? order.total_price ?? order.total);
-  if (transferAwaitingReview(order)) {
-    return `💰 الإجمالي: ${total} جنيه
-💳 المبلغ المحوَّل (قيد المراجعة): ${total} جنيه`;
-  }
-  return `💰 الإجمالي: ${total} جنيه
-💳 المدفوع: ${money(order.paid_amount ?? order.amount_paid ?? order.total_paid)} جنيه
-💵 المتبقي عند الاستلام: ${money(remainingAmount(order))} جنيه`;
-};
-
-const buildPaymentReviewMessage = (order = {}, items = []) => `أهلاً يا ${firstName(order.customer_name)} 👋
-
-✅ استلمنا طلبك من M1 Store
-
-📦 تفاصيل طلبك
-
-🔢 رقم الطلب: #${orderNumber(order)}
+/*
+ * "استلمنا طلبك" — the first thing a website order says, while its transfer waits for review.
+ *
+ * The money block used to be three lines (الإجمالي / المدفوع / المتبقي), and on a transfer still
+ * in review it printed "المبلغ المحوَّل (قيد المراجعة)" equal to the WHOLE total — which on a
+ * restricted-COD order was simply untrue: INV-1772 transferred the 100 EGP shipping fee and was
+ * told 1,300 was under review. The owner cut it to one line (2026-09-20): the order's own total,
+ * nothing about what was transferred or what is left. What the courier collects is named later,
+ * in the confirmation and in the payment receipt, once it is actually known.
+ */
+export const buildPaymentReviewMessage = (order = {}, items = []) => {
+  const total = formatAmount(order.total_amount ?? order.total_price ?? order.total);
+  return [
+    `أهلاً يا ${firstName(order.customer_name)} 👋`,
+    "✅ استلمنا طلبك من M1 Store",
+    "📦 تفاصيل طلبك",
+    `🔢 رقم الطلب: #${orderNumber(order)}
 🛍️ المنتجات:
-${productSummary(items)}
-
-🧾 تم استلام إثبات التحويل/تأكيد الشحن، وطلبك دلوقتي قيد المراجعة ⏳
-
-${paymentReviewAmountLines(order)}
-
-🔍 هنراجع الطلب ونأكد معاك قبل الشحن 🚚`;
+${productSummary(items)}`,
+    [
+      "🧾 تم استلام إثبات التحويل، وطلبك دلوقتي قيد المراجعة ⏳",
+      total && `💰 إجمالي الاوردر : ${total} ج`,
+      "🔍 هنراجع الطلب ونأكد معاك قبل الشحن 🚚",
+    ].filter(Boolean).join("\n"),
+  ].join("\n\n");
+};
 
 const loadOrderItems = async (orderId) => {
   const result = await db.query(
