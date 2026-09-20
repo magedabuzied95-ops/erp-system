@@ -83,7 +83,11 @@ const composerLineFromCard = (card = {}) => ({
 });
 
 function InboxOrderComposer({ open, conversation = {}, products = [], busy = false, headers = {}, onClose, onSubmit, portalTarget = null, picks = null, onRequestPick, onSendMessage }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The sheet follows the app language: Arabic reads from the right, English
+  // from the left. It was pinned to rtl, so English headings sat on the wrong
+  // edge and their full stops landed at the start of the line.
+  const dir = i18n.resolvedLanguage === "ar" ? "rtl" : "ltr";
   const profile = conversation?.customer_profile || {};
   const [lines, setLines] = useState([]);
   const consumedPickBatchRef = useRef("");
@@ -403,7 +407,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   });
   const content = (
     <div className="ai-order ai-order__scrim fixed inset-0 z-[140] flex justify-end backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
-      <section dir="rtl" className="ai-order__dialog h-full w-full max-w-2xl overflow-y-auto p-5">
+      <section dir={dir} className="ai-order__dialog h-full w-full max-w-2xl overflow-y-auto p-5">
         <div className="ai-order__header flex items-start justify-between gap-3 pb-4">
           <div>
             <h2 className="ai-order__title">{t("aiSupport.inbox.order.orderHeading")}</h2>
