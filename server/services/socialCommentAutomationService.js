@@ -1851,45 +1851,6 @@ const upsertSocialCommentAutomationRunAudit = async ({
   }
 };
 
-// Did this person already get the private reply for THIS post, under some earlier comment?
-//
-// Deliberately not time-boxed. The DM carries the post's colour carousel, and those cards do not
-// change because the customer typed again — they are still sitting in the thread, above whatever
-// they just wrote. A second copy is noise on the customer's phone and noise in the operator's
-// transcript. If the cards themselves ever go stale that is a reason to resend them, not a reason
-// to resend on a timer.
-const findCommenterPostPrivateReply = async ({
-  tenantId = null,
-  platform = "",
-  postId = "",
-  commenterId = "",
-  exceptCommentId = "",
-} = {}) => {
-  const safeTenantId = Number(tenantId || 0);
-  const safePostId = text(postId);
-  const safeCommenterId = text(commenterId);
-  // With no post or no commenter there is no "same person, same post" to speak of, and guessing
-  // would silence a DM that should go out.
-  if (!safeTenantId || !safePostId || !safeCommenterId) return null;
-
-  const result = await db.query(
-    `
-    SELECT id, comment_id, created_at
-    FROM social_comment_automation_runs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = $3::text
-      AND commenter_id = $4::text
-      AND comment_id <> $5::text
-      AND LOWER(COALESCE(dm_status, '')) = 'sent'
-    ORDER BY created_at DESC, id DESC
-    LIMIT 1
-    `,
-    [safeTenantId, text(platform), safePostId, safeCommenterId, text(exceptCommentId)]
-  );
-  return result.rows[0] || null;
-};
-
 const findSocialCommentAutomationRunByKey = async ({
   tenantId = null,
   platform = "",
@@ -7128,43 +7089,7 @@ export const executeSocialCommentAutomation = async ({
     publicReplyStatus = socialCommentAutomationStepFinal(publicReplyStatus) ? publicReplyStatus : "skipped";
   }
 
-  // ONE DM PER PERSON PER POST.
-  //
-  // The dedupe guard above keys on comment_id, so a genuinely new comment is a new run and the
-  // whole automation fires again. That is right for the like and the public reply — each comment
-  // deserves its own — but not for the DM: the same commenter under the same post got the same
-  // greeting and the identical colour carousel again, on top of the cards already sitting in their
-  // thread. Six "Hm" comments produced six carousels.
-  //
-  // The like and the public reply above have already run by this point and are untouched.
-  const priorPostDm = privateMessageNeeded
-    ? await findCommenterPostPrivateReply({
-        tenantId: safeTenantId,
-        platform: normalizedPlatform,
-        postId: text(safeRow.post_id || ""),
-        commenterId: text(safeRow.commenter_id || ""),
-        exceptCommentId: text(safeRow.comment_id || ""),
-      }).catch(() => null)
-    : null;
-
-  if (priorPostDm) {
-    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SKIPPED_ALREADY_SENT_FOR_POST", {
-      tenant_id: safeTenantId,
-      platform: normalizedPlatform,
-      post_id: text(safeRow.post_id || ""),
-      comment_id: text(safeRow.comment_id || ""),
-      commenter_id: text(safeRow.commenter_id || ""),
-      previous_run_id: priorPostDm.id || null,
-      previous_comment_id: text(priorPostDm.comment_id || ""),
-      previous_sent_at: text(priorPostDm.created_at || ""),
-    });
-    // This function reports through automationState, which reportState persists — it has no
-    // stepResults array of its own.
-    dmStatus = "skipped";
-    automationState.dm_status = "skipped";
-    automationState.dm_skipped_reason = "already_sent_for_post";
-    automationState.dm_skipped_previous_comment_id = text(priorPostDm.comment_id || "");
-  } else if (privateMessageNeeded) {
+  if (privateMessageNeeded) {
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CONTEXT_USED", {
       post_id: text(safeRow.post_id || ""),
       comment_id: text(safeRow.comment_id || ""),
