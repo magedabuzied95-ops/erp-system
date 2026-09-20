@@ -1555,10 +1555,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         if (event.target === event.currentTarget) onClose?.();
       }}
     >
-      <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
+      {/* The dim behind the dialog. On the phone the picker IS the whole screen, so there is
+          nothing to dim — and M1 remaps bg-black/70 to a light token, which showed through as
+          a beige band under the sheet. */}
+      {inlineFullscreenMode ? null : <div className="absolute inset-0 bg-black/70" aria-hidden="true" />}
       <section
         className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : posPickerMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-[#171714] text-white" : desktopInboxMode ? "ai-inbox-product-picker-desktop__dialog relative z-10 flex min-w-0 flex-col overflow-hidden border border-white/10 bg-slate-950 text-white shadow-[0_30px_90px_rgba(0,0,0,0.65)]" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
-        style={desktopInboxMode ? undefined : { position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: posPickerMode ? "100dvh" : "85dvh", margin: 0, borderRadius: posPickerMode ? 0 : "1.35rem" }}
+        /* The inline height/radius override the classes above. On the phone they capped the
+           dialog at 85dvh and rounded it, so the catalog stopped short of the bottom edge and
+           left a band of empty screen under it; there the picker is the whole screen. */
+        style={desktopInboxMode ? undefined : { position: "relative", inset: "auto", width: "100%", height: inlineFullscreenMode ? "100dvh" : "auto", maxHeight: posPickerMode || inlineFullscreenMode ? "100dvh" : "85dvh", margin: 0, borderRadius: posPickerMode || inlineFullscreenMode ? 0 : "1.35rem" }}
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
