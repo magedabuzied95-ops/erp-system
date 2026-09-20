@@ -44,16 +44,57 @@ const STOPWORDS = new Set(
     .filter(Boolean)
 );
 
+/*
+ * Light stemming, because Arabic morphology defeats exact token matching. "الشحن" and "بتشحنوا" are the
+ * same question to a customer and two unrelated strings to a computer: the first carries the definite
+ * article, the second a verb prefix and a plural suffix. Without this, the two ways people actually ask
+ * about shipping never cluster, and the whole suggestion list stays empty on a busy inbox.
+ */
+const stemToken = (token = "") => {
+  let out = token;
+  const prefixes = ["وال", "بال", "كال", "فال", "لل", "ال"];
+  for (const prefix of prefixes) {
+    if (out.startsWith(prefix) && out.length - prefix.length >= 3) {
+      out = out.slice(prefix.length);
+      break;
+    }
+  }
+  const suffixes = ["هما", "كما", "هم", "هن", "كم", "كن", "نا", "ها", "ون", "ين", "ات", "وا"];
+  for (const suffix of suffixes) {
+    if (out.endsWith(suffix) && out.length - suffix.length >= 3) {
+      out = out.slice(0, -suffix.length);
+      break;
+    }
+  }
+  return out;
+};
+
 const tokenize = (value = "") =>
   normalizeKnowledgeText(value)
     .split(" ")
-    .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
+    .filter((token) => token.length >= 2 && !STOPWORDS.has(token))
+    .map(stemToken)
+    .filter((token) => token.length >= 2);
+
+// Two stems count as the same word when one contains the other — "شحن" inside "تشحن" is the same idea
+// with a conjugation on it. Requiring 3 characters keeps that from collapsing unrelated short words.
+const tokensMatch = (a, b) => {
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  return shorter.length >= 3 && longer.includes(shorter);
+};
 
 const jaccard = (a, b) => {
   if (!a.size || !b.size) return 0;
   let shared = 0;
   a.forEach((token) => {
-    if (b.has(token)) shared += 1;
+    for (const other of b) {
+      if (tokensMatch(token, other)) {
+        shared += 1;
+        break;
+      }
+    }
   });
   return shared / (a.size + b.size - shared);
 };

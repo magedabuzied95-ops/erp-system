@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BookOpen, Check, GraduationCap, Loader2, MessageSquareQuote, Pencil, Plus, TestTube2, Trash2, X } from "lucide-react";
+import { BookOpen, Check, GraduationCap, Lightbulb, Loader2, MessageSquareQuote, Pencil, Plus, TestTube2, Trash2, X } from "lucide-react";
 
 import { api } from "../../../../shared/api/api";
 import { ActionButton, PanelSection, PanelSkeleton } from "../integrations/integrationsUi.jsx";
@@ -35,6 +35,11 @@ export default function TeachAgentPanel({ headers, tenantId }) {
   const [testMessage, setTestMessage] = useState("");
   const [testResult, setTestResult] = useState(null);
   const [testing, setTesting] = useState(false);
+
+  // Mined on demand, never on mount: it reads 60 days of conversations, which is not a cost to pay
+  // for someone who only opened this tab to add one rule.
+  const [suggestions, setSuggestions] = useState(null);
+  const [mining, setMining] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -127,6 +132,19 @@ export default function TeachAgentPanel({ headers, tenantId }) {
       setTesting(false);
     }
   }, [headers, t, tenantId, testMessage]);
+
+  const loadSuggestions = useCallback(async () => {
+    setMining(true);
+    setError("");
+    try {
+      const payload = await api.get("/ai-agent/knowledge/suggestions", { params: { tenant_id: tenantId }, headers });
+      setSuggestions(payload || null);
+    } catch (err) {
+      setError(err?.message || t("aiSupport.controlCenter.teach.suggestionsError"));
+    } finally {
+      setMining(false);
+    }
+  }, [headers, t, tenantId]);
 
   if (loading) return <PanelSkeleton rows={4} />;
 
@@ -300,6 +318,61 @@ export default function TeachAgentPanel({ headers, tenantId }) {
         ) : (
           <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
             {t("aiSupport.controlCenter.teach.knowledgeEmpty")}
+          </div>
+        )}
+      </PanelSection>
+
+      <PanelSection
+        icon={Lightbulb}
+        title={t("aiSupport.controlCenter.teach.suggestionsTitle")}
+        subtitle={t("aiSupport.controlCenter.teach.suggestionsSubtitle")}
+        action={
+          <ActionButton tone="ghost" icon={Lightbulb} loading={mining} onClick={loadSuggestions}>
+            {t("aiSupport.controlCenter.teach.suggestionsRun")}
+          </ActionButton>
+        }
+      >
+        {suggestions === null ? (
+          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+            {t("aiSupport.controlCenter.teach.suggestionsIdle")}
+          </div>
+        ) : !suggestions.enough_history ? (
+          <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-3 text-[11px] font-bold leading-5 text-slate-400">
+            {t("aiSupport.controlCenter.teach.suggestionsThin", { count: suggestions.pairs_examined || 0 })}
+          </div>
+        ) : suggestions.suggestions?.length ? (
+          <div className="grid gap-2">
+            {suggestions.suggestions.map((item, index) => (
+              <div key={`${item.question}-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/40 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-[10px] font-black text-amber-100">
+                    {t("aiSupport.controlCenter.teach.askedCount", { count: item.asked_count })}
+                  </span>
+                </div>
+                <div dir="auto" className="mt-1.5 text-sm font-black text-white">{item.question}</div>
+                <div dir="auto" className="mt-1 line-clamp-3 text-[11px] leading-5 text-slate-400">{item.suggested_answer}</div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraft({
+                      ...EMPTY_DRAFT,
+                      kind: "fixed_answer",
+                      title: item.question.slice(0, 120),
+                      triggers: (item.suggested_triggers || []).join("، "),
+                      answer: item.suggested_answer,
+                    })
+                  }
+                  className="mt-2.5 inline-flex h-9 items-center gap-1.5 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-3 text-[11px] font-black text-cyan-100"
+                >
+                  <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t("aiSupport.controlCenter.teach.teachThis")}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-slate-500">
+            {t("aiSupport.controlCenter.teach.suggestionsNone")}
           </div>
         )}
       </PanelSection>

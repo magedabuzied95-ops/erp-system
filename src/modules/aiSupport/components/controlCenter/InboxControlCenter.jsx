@@ -21,6 +21,7 @@ import {
   BarChart3,
   Bot,
   Gauge,
+  GraduationCap,
   LayoutGrid,
   Megaphone,
   MessageSquareText,
@@ -41,6 +42,7 @@ import WhatsappMessageVariantsEditor from "../WhatsappMessageVariantsEditor.jsx"
 import AgentBehaviourPanel from "./AgentBehaviourPanel.jsx";
 import AgentActionsPanel from "./AgentActionsPanel.jsx";
 import AgentPlaygroundPanel from "./AgentPlaygroundPanel.jsx";
+import TeachAgentPanel from "./TeachAgentPanel.jsx";
 import TeamPerformancePanel from "./TeamPerformancePanel.jsx";
 import BroadcastsPanel from "./BroadcastsPanel.jsx";
 
@@ -60,7 +62,7 @@ const MetaGlyph = () => (
 );
 
 export const CONTROL_CENTER_GROUPS = [
-  { key: "agent", sections: ["agent", "actions", "playground"] },
+  { key: "agent", sections: ["agent", "teach", "actions", "playground"] },
   { key: "workspace", sections: ["quick_replies", "comments", "invoice_messages"] },
   { key: "growth", sections: ["broadcasts"] },
   { key: "insight", sections: ["performance"] },
@@ -80,6 +82,7 @@ export const LEGACY_MENU_SECTIONS = {
 
 const SECTION_ICON = {
   agent: Bot,
+  teach: GraduationCap,
   actions: Workflow,
   playground: PlayCircle,
   quick_replies: Zap,
@@ -98,6 +101,7 @@ const SECTION_ICON = {
 // Literal keys, never an interpolated nav.<key> lookup: a missing translation must be greppable.
 const sectionLabel = (t, key) => {
   if (key === "agent") return t("aiSupport.controlCenter.nav.agent");
+  if (key === "teach") return t("aiSupport.controlCenter.nav.teach");
   if (key === "actions") return t("aiSupport.controlCenter.nav.actions");
   if (key === "playground") return t("aiSupport.controlCenter.nav.playground");
   if (key === "quick_replies") return t("aiSupport.quickReplies.title");
@@ -223,6 +227,7 @@ export default function InboxControlCenter({
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 md:p-4">
             <Suspense fallback={<PanelFallback />}>
               {section === "agent" ? <AgentBehaviourPanel {...panelProps} /> : null}
+              {section === "teach" ? <TeachAgentPanel {...panelProps} /> : null}
               {section === "actions" ? <AgentActionsPanel {...panelProps} /> : null}
               {section === "playground" ? <AgentPlaygroundPanel {...panelProps} /> : null}
               {section === "quick_replies" ? (
