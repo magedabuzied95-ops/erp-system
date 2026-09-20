@@ -1091,15 +1091,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const allDistinct = images.length === swatches.length && new Set(images).size === images.length;
     return allDistinct ? swatches : swatches.map((item) => ({ ...item, image: "" }));
   }, [activeColors, selectedProduct]);
-  // The size grid holds the height of the colour with the MOST sizes, so moving between
-  // colours no longer resizes the sheet under the seller's thumb.
-  const maxSizeRows = useMemo(() => {
-    const product = selectedProduct || {};
-    const widest = activeColors.length
-      ? activeColors.reduce((max, color) => Math.max(max, productSizes(product, color, restockMode).length), 0)
-      : productSizes(product, "", restockMode).length;
-    return Math.ceil(widest / 2);
-  }, [activeColors, restockMode, selectedProduct]);
   const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor, restockMode), [restockMode, selectedColor, selectedProduct]);
   const outOfStockSizes = useMemo(() => {
     if (!restockMode) return new Set();
@@ -1875,7 +1866,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             className={
               variantSheetMode
                 ? (variantSheetOpen
-                    ? "ai-picker-variant-sheet fixed inset-x-0 bottom-0 z-[56] max-h-[84dvh] min-h-0 overflow-y-auto rounded-t-3xl border border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_rgba(15,23,42,0.35)]"
+                    // A FIXED height, not a max: the number of sizes changes with the colour, so
+                    // a sheet that hugged its content grew and shrank under the seller's thumb.
+                    ? "ai-picker-variant-sheet fixed inset-x-0 bottom-0 z-[56] flex h-[88dvh] max-h-[88dvh] min-h-0 flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_rgba(15,23,42,0.35)]"
                     : "hidden")
                 : `${desktopInboxMode ? "ai-inbox-product-picker-desktop__preview" : ""} min-h-0 overflow-y-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3`
             }
@@ -1931,9 +1924,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
               </div>
             ) : selectedProduct ? (
-              <div className="space-y-3">
+              <div className={variantSheetMode ? "flex min-h-0 flex-1 flex-col" : "space-y-3"}>
                 {variantSheetMode ? (
-                  <div className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 pb-2 pt-3">
+                  <div className="-mx-3 -mt-3 mb-2 flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 pb-2 pt-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-black text-slate-900">{selectedProduct.name || selectedProduct.product_name || t("aiSupport.inbox.picker.product")}</div>
                       <div className="mt-0.5 text-[11px] font-bold text-slate-500">{t("aiSupport.inbox.picker.chooseColorAndSize")}</div>
@@ -1957,7 +1950,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     {previewCollapsed ? t("aiSupport.inbox.picker.showPreview") : t("aiSupport.inbox.picker.hidePreview")}
                   </button>
                 )}
-                <div className={variantSheetMode || !previewCollapsed ? "space-y-3" : "hidden"}>
+                <div className={variantSheetMode ? "min-h-0 flex-1 space-y-3 overflow-y-auto" : previewCollapsed ? "hidden" : "space-y-3"}>
                 <div className={`flex items-center gap-3 overflow-hidden rounded-2xl border p-3 ${variantSheetMode ? "border-slate-200 bg-slate-50" : "border-white/10 bg-[#1d1d1a]"}`}>
                   {activeImage ? (
                     <HoverZoomImage src={activeImage} alt={selectedProduct.name || t("aiSupport.inbox.picker.product")} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" />
@@ -2016,7 +2009,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                                       : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                                 }`}
                           >
-                            {image ? <img src={image} alt={color} loading="lazy" className="h-14 w-14 rounded-xl bg-white object-cover" /> : color}
+                            {image ? <img src={image} alt={color} loading="lazy" className="h-[4.5rem] w-[4.5rem] rounded-xl bg-white object-cover" /> : color}
                           </button>
                         );
                       })
@@ -2031,12 +2024,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     <div className={`text-sm font-black ${variantSheetMode ? "text-slate-900" : "text-white"}`}>{t("aiSupport.inbox.picker.size")}</div>
                     <div className={`text-[11px] font-bold ${variantSheetMode ? "text-slate-500" : "text-slate-500"}`}>{restockMode ? t("aiSupport.inbox.picker.allSizesForRestock") : t("aiSupport.inbox.picker.availableSizesOnly")}</div>
                   </div>
-                  <div
-                    className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"
-                    style={variantSheetMode && maxSizeRows > 0
-                      ? { minHeight: `calc(${maxSizeRows} * ${restockMode ? "4.25rem" : "3rem"} + ${Math.max(0, maxSizeRows - 1)} * 0.5rem)` }
-                      : undefined}
-                  >
+                  {/* content-start, or a lone size stretches to fill the row it sits in. */}
+                  <div className="mt-2 grid grid-cols-2 content-start gap-2 sm:grid-cols-3">
                     {activeSizes.length ? (
                       activeSizes.map((size) => {
                         const active = lower(selectedSize) === lower(size);
@@ -2046,7 +2035,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             key={size}
                             type="button"
                             onClick={() => setSelectedSize(size)}
-                            className={`${variantSheetMode && restockMode ? "min-h-[4.25rem]" : "min-h-12"} rounded-2xl border px-3 py-2 text-start transition ${
+                            className={`min-h-12 rounded-2xl border px-3 py-2 text-start transition ${
                               active
                                 ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
                                 : soldOut
@@ -2083,33 +2072,55 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    console.info("[ProductCardPicker] button clicked");
-                    submitSelection();
-                  }}
-                  disabled={submitDisabled}
-                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {submitLabel}
-                </button>
-
-                {/* Multi-select on the phone: put the sheet away and carry on picking, without
-                    sending what is in the batch so far. */}
-                {variantSheetMode && allowMultiple ? (
-                  <button
-                    type="button"
-                    onClick={closeVariantSheet}
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                  >
-                    {t("aiSupport.inbox.picker.keepPicking")}
-                  </button>
-                ) : null}
-
-                {error ? <div className={`rounded-2xl border p-3 text-sm font-bold ${variantSheetMode ? "border-rose-200 bg-rose-50 text-rose-700" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{error}</div> : null}
+                {variantSheetMode ? null : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.info("[ProductCardPicker] button clicked");
+                        submitSelection();
+                      }}
+                      disabled={submitDisabled}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {submitLabel}
+                    </button>
+                    {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+                  </>
+                )}
                 </div>
+
+                {/* In the sheet the actions are PINNED under the scroll area, so the colour and
+                    size a seller is tapping never push them out from under their thumb. */}
+                {variantSheetMode ? (
+                  <div className="-mx-3 mt-2 shrink-0 space-y-2 border-t border-slate-200 bg-white px-3 pt-2.5">
+                    {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.info("[ProductCardPicker] button clicked");
+                        submitSelection();
+                      }}
+                      disabled={submitDisabled}
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {submitLabel}
+                    </button>
+                    {/* Multi-select: put the sheet away and carry on picking, without sending
+                        what is in the batch so far. */}
+                    {allowMultiple ? (
+                      <button
+                        type="button"
+                        onClick={closeVariantSheet}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                      >
+                        {t("aiSupport.inbox.picker.keepPicking")}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="grid min-h-[24rem] place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
