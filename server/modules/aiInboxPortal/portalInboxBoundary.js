@@ -14,7 +14,6 @@ const OPERATOR_ONLY_SEGMENT = /\/(ai-debug|ai-trace|ai-harness|ai-pipeline-debug
 const READ_ONLY_PATHS = [
   /^\/api\/auth\/me$/,
   /^\/api\/ai-inbox\/quick-replies$/,
-  /^\/api\/ai-inbox\/customer-addresses$/,
   /^\/api\/ai-inbox\/shipping-quote$/,
   /^\/api\/products\/with-variants$/,
   /^\/api\/products\/available-sizes$/,

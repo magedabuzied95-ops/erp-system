@@ -94,7 +94,6 @@ import {
   confirmAiOrder,
   createAiOrderDraft,
   createAiOrderDraftLines,
-  listCustomerSavedAddresses,
   saveCustomerAddress,
   listAiOrderDrafts,
   resolveAiOrderShipping,
@@ -5152,18 +5151,6 @@ const resolveProductCardSendConversation = async ({ tenantId, conversationId }) 
 
   return { conversation, lookupFields, hasConversationKeyColumn };
 };
-
-// "My addresses" for the order composer: every address this phone has ordered to
-// before, most recent first. Keyed by phone so it follows the customer across channels.
-router.get("/customer-addresses", protect, inboxReply(), async (req, res) => {
-  try {
-    const tenantId = toTenantId(req);
-    const addresses = await listCustomerSavedAddresses({ tenantId, phone: req.query?.phone || "" });
-    return res.json({ success: true, addresses });
-  } catch (error) {
-    return sendError(res, error, "Failed to load saved addresses");
-  }
-});
 
 // What the order composer shows as shipping before the seller saves. It calls
 // the same resolver the order itself is priced through, so the previewed figure
