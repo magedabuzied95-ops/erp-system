@@ -12,7 +12,7 @@ import { getAvailableProductSizes, getProductsBySizeCount } from "../services/pi
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { PosProductCard } from "../../pos/components/ProductGrid";
 import { MAX_BATCH_PRODUCTS } from "../lib/productSelection.js";
-import { resolveSelectedCards, resolveSubmitBatch } from "../lib/pickerSelection.js";
+import { resolveCardSendScope, resolveSelectedCards, resolveSubmitBatch } from "../lib/pickerSelection.js";
 import { useProductClassifications } from "../../products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions, normalizeCanonicalProductType } from "../../products/lib/productClassifications";
 import { collectProductManufacturerIds, matchesQuickFilterGroups, moveWinterCollectionToEnd, normalizeMultiFilterValue, toggleMultiFilterValue } from "../../pos/lib/posQuickFilterLogic";
@@ -497,6 +497,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   // Phase 13.4 — retain the canonical card payload for every selected product (keyed by id) so the manual batch
   // selection SURVIVES search/filter/pagination (off-screen products stay selected) and submits real cards.
   const [selectedCardsById, setSelectedCardsById] = useState({});
+  // What the operator actually CLICKED, per product. This chooser pre-selects the first colour
+  // and the first size the moment a product is opened, so the card always carries a colour and a
+  // size — which is exactly why the card alone cannot say what was chosen. The phone has nothing
+  // selected until the seller taps, so there the pick is the state itself.
+  const [pickedScopeById, setPickedScopeById] = useState({});
   const [selectedSizeCards, setSelectedSizeCards] = useState([]);
   const [selectedLinkSizes, setSelectedLinkSizes] = useState([]);
   const [selectedLinkGender, setSelectedLinkGender] = useState("all");
@@ -999,6 +1004,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     // conversations or picker sessions). Selection then survives search/filter WITHIN this open.
     setSelectedProductIds([]);
     setSelectedCardsById({});
+    setPickedScopeById({});
     if (sizeMode) {
       setSelectedProductId("");
       setSelectedColor("");
@@ -1168,6 +1174,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     if (already) {
       setSelectedProductIds((cur) => cur.filter((id) => id !== productId));
       setSelectedCardsById((m) => { const next = { ...m }; delete next[productId]; return next; });
+      setPickedScopeById((m) => { const next = { ...m }; delete next[productId]; return next; });
       return;
     }
     // Phase 13.4 — hard cap: block the (MAX+1)th selection with a clear message; never silently drop it.
@@ -1225,7 +1232,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setPreviewCollapsed(true);
   }, []);
 
+  const markPickedScope = useCallback((scope) => {
+    const productId = String(selectedProductId || "");
+    if (!productId) return;
+    setPickedScopeById((current) => (current[productId] === scope ? current : { ...current, [productId]: scope }));
+  }, [selectedProductId]);
+
   const chooseColor = useCallback((color) => {
+    // Picking a colour moves the size to that colour's first one, so the choice drops back to
+    // the colour alone until a size is clicked again.
+    markPickedScope("color");
     setSelectedColor(color);
     const nextSizes = productSizes(selectedProduct || {}, color, restockMode);
     if (nextSizes.length) {
@@ -1233,7 +1249,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     } else {
       setSelectedSize("");
     }
-  }, [restockMode, selectedProduct]);
+  }, [markPickedScope, restockMode, selectedProduct]);
+
+  const chooseSize = useCallback((size) => {
+    markPickedScope("color_size");
+    setSelectedSize(size);
+  }, [markPickedScope]);
 
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
@@ -1260,12 +1281,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSelectedSizeCards((current) => current.filter((card) => !visibleSizeCardKeySet.has(card.key)));
   }, [visibleSizeCardKeySet]);
 
+  // The card leaves naming what the operator picked — the rule lives in lib/pickerSelection.js.
+  // Without it the server expands a colour+size card into EVERY colour, which is what a send from
+  // this picker used to do while the phone already sent the one colour.
+  const withSendScope = useCallback((card = {}) => ({
+    ...card,
+    send_scope: resolveCardSendScope({ card, pickedScope: pickedScopeById[String(card.product_id ?? card.id ?? "")] || "" }),
+  }), [pickedScopeById]);
+
   const submitSelection = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
     // Phase 13.4 — batch send: submit the ORDERED multi-selection when present (manual multi-select), else the
     // single active card. Nothing reached the provider before this explicit click. The parent returns per-card
     // results; on partial failure we KEEP ONLY the failed cards selected (successful ones are removed).
-    const batch = resolveSubmitBatch({ allowMultiple, selectedCards: selectedProducts, activeCard });
+    const batch = resolveSubmitBatch({ allowMultiple, selectedCards: selectedProducts, activeCard }).map(withSendScope);
     if (!batch.length || submitting) return;
     setSubmitting(true);
     setError("");
@@ -1285,7 +1314,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     } finally {
       setSubmitting(false);
     }
-  }, [activeCard, allowMultiple, onSubmit, selectedProducts, submitting, t]);
+  }, [activeCard, allowMultiple, onSubmit, selectedProducts, submitting, t, withSendScope]);
 
   const submitSelectionWithSizeMode = useCallback(async () => {
     console.info("[ProductCardPicker] submit started");
@@ -2052,7 +2081,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           <button
                             key={size}
                             type="button"
-                            onClick={() => setSelectedSize(size)}
+                            onClick={() => chooseSize(size)}
                             className={`min-h-12 rounded-2xl border px-3 py-2 text-start transition ${
                               active
                                 ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
