@@ -876,17 +876,35 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         if (id && name && !namesById.has(id)) namesById.set(id, name);
       });
     });
+    // Display text for a factory known by name, taken from the row that actually
+    // carries that name — the product's own name would mislabel a variant's factory.
+    const labelByName = new Map();
+    smartFilterSource.forEach(({ product }) => {
+      [product, ...asArray(product.variants)].forEach((row) => {
+        const name = clean(row?.manufacturer_name || row?.variant_manufacturer_name || row?.manufacturer);
+        const key = name ? normalizeSmartText(name) : "";
+        if (key && !labelByName.has(key)) labelByName.set(key, name);
+      });
+    });
     const selectedFactories = new Set(normalizeMultiFilterValue(facetFilters.manufacturers).map(String));
     const addRow = (row, onlySelected) => {
       row.manufacturerIds.forEach((id) => {
         const name = namesById.get(id);
-        if (onlySelected && !selectedFactories.has(String(id))) return;
-        if (name && !map.has(id)) map.set(id, { id, name });
+        if (!name) return;
+        const isSelected = selectedFactories.has(String(id));
+        if (onlySelected && !isSelected) return;
+        // The SAME factory was listed twice — once under its numeric id and once
+        // under `name:`, because a row that carries both produces both. The name
+        // entry matches every row for that factory, id or no id, so it is the one
+        // that survives. An id already applied as a filter stays listed, or there
+        // would be no pill left to switch it off.
+        if (!isSelected && labelByName.has(normalizeSmartText(name))) return;
+        if (!map.has(id)) map.set(id, { id, name });
       });
       row.manufacturerNames.forEach((normalizedName) => {
         const id = `name:${normalizedName}`;
         if (onlySelected && !selectedFactories.has(id)) return;
-        if (!map.has(id)) map.set(id, { id, name: clean(row.product.manufacturer_name || row.product.manufacturer || normalizedName) });
+        if (!map.has(id)) map.set(id, { id, name: labelByName.get(normalizedName) || normalizedName });
       });
     };
     facetRows.manufacturers.forEach((row) => addRow(row, false));
@@ -2132,6 +2150,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       </section>
       <SmartPosFilters
         open={filtersOpen}
+        /* Only the phone sheet is white/slate. POS and the desktop inbox picker are both
+           dark surfaces the canonical drawer already matches. */
+        variant={inlineFullscreenMode ? "picker" : ""}
         smartFilterOptions={{ gender: posGenderOptions, productType: posTypeOptions, grade: posGradeOptions }}
         selectedGender={draftPosFilters?.gender ?? gender}
         onGenderChange={(value) => updateDraftMultiFilter("gender", value)}

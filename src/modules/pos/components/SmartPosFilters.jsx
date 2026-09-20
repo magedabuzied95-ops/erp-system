@@ -135,6 +135,9 @@ function SmartPosFilters({
   selectedFavorite = "all",
   onFavoriteChange,
   activeSmartFilterCount = 0,
+  // "picker": the AI Inbox product sheet opens this drawer, and that sheet is a
+  // white/slate surface — not the beige M1 card the POS screen is built on.
+  variant = "",
   onApply,
   onReset,
   onClose,
@@ -163,7 +166,7 @@ function SmartPosFilters({
 
   const content = (
     <div
-      className="m1-smart-filter-overlay fixed inset-0 flex items-end justify-center bg-black/75 px-4 py-4 sm:items-center sm:py-6"
+      className={`m1-smart-filter-overlay ${variant === "picker" ? "m1-smart-filter--picker" : ""} fixed inset-0 flex items-end justify-center bg-black/75 px-4 py-4 sm:items-center sm:py-6`}
       style={{ zIndex: 2147483000 }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();

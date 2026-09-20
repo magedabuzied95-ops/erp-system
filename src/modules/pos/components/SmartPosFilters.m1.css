@@ -150,3 +150,118 @@
     border-radius: 20px 20px 0 0 !important;
   }
 }
+
+/* ==========================================================================
+   PICKER VARIANT
+   --------------------------------------------------------------------------
+   The AI Inbox product sheet opens this same drawer. That sheet is white/slate
+   with a gold selection and an emerald action; the canonical M1 card tokens are
+   beige, so the drawer arrived in a different palette from the screen that
+   opened it. Light values are literals for exactly that reason — in the light
+   palette the tokens ARE the beige. Dark follows the tokens, which is what the
+   sheet itself resolves to there.
+   ====================================================================== */
+.m1-smart-filter-overlay.m1-smart-filter--picker {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.m1-smart-filter--picker .m1-smart-filter-panel,
+.m1-smart-filter--picker .m1-smart-filter-header,
+.m1-smart-filter--picker .m1-smart-filter-footer {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-panel h2 {
+  color: #0f172a !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-panel p,
+.m1-smart-filter--picker .m1-smart-filter-label {
+  color: #64748b !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-group {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-pill,
+.m1-smart-filter--picker .m1-smart-filter-select,
+.m1-smart-filter--picker .m1-smart-filter-close,
+.m1-smart-filter--picker .m1-smart-filter-footer button:not(.m1-smart-filter-apply) {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-count {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-pill:hover:not(:disabled) {
+  border-color: #d4af37 !important;
+  color: #0f172a !important;
+}
+
+/* The sheet marks a chosen colour with this gold; the drawer marks a chosen
+   filter with the same one. */
+.m1-smart-filter--picker .m1-smart-filter-pill.is-active {
+  background: #d4af37 !important;
+  border-color: #d4af37 !important;
+  color: #171714 !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-pill.is-active .m1-smart-filter-count {
+  background: rgba(23, 23, 20, 0.14) !important;
+  color: #171714 !important;
+}
+
+/* Same green as "add to order". */
+.m1-smart-filter--picker .m1-smart-filter-apply {
+  background: #6ee7b7 !important;
+  border-color: #6ee7b7 !important;
+  color: #020617 !important;
+}
+
+.m1-smart-filter--picker .m1-smart-filter-apply:hover {
+  background: #a7f3d0 !important;
+}
+
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-panel,
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-header,
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-footer {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-panel h2 {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-panel p,
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-label {
+  color: var(--muted) !important;
+}
+
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-group {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-pill,
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-select,
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-close,
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-footer button:not(.m1-smart-filter-apply) {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .m1-smart-filter--picker .m1-smart-filter-count {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--muted) !important;
+}
