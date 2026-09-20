@@ -1310,7 +1310,7 @@ function MetricCard({ label, value, icon: Icon, tone = "slate" }) {
     slate: "border-border bg-surface text-text",
   };
   return (
-    <article className={`rounded-2xl border p-4 shadow-sm ${tones[tone] || tones.slate}`}>
+    <article className={`rounded-[var(--radius-control)] border p-4 shadow-sm ${tones[tone] || tones.slate}`}>
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-black leading-6">{label}</span>
         <Icon className="h-5 w-5 opacity-75" />
@@ -1348,7 +1348,7 @@ function TimelineItem({ item, text, language }) {
       : "bg-danger-subtle text-text";
   return (
     <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
-      <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
+      <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] ${tone}`}>
         {renderTransactionIcon(type, "h-4 w-4")}
       </div>
       <div className="min-w-0">
@@ -1384,7 +1384,7 @@ function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt =
 
   return (
     <div className="relative shrink-0">
-      <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[18px] border border-border bg-surface text-sm font-black text-text shadow-[var(--shadow-card)] md:h-14 md:w-14">
+      <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface text-sm font-black text-text shadow-[var(--shadow-card)] md:h-14 md:w-14">
         {showImage ? (
           <img
             src={src}
@@ -1444,7 +1444,7 @@ function EmployeeStatsCards({ cards = [] }) {
             <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
             <div className="flex items-start justify-between gap-2">
               <div className="text-[10px] font-black leading-4 text-text-muted">{label}</div>
-              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${accentClasses.iconWrap}`}>
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] ${accentClasses.iconWrap}`}>
                 <Icon className="h-3.5 w-3.5" />
               </span>
             </div>
@@ -1477,7 +1477,7 @@ function AttendancePanel({
   language,
 }) {
   return (
-    <section className="rounded-3xl bg-surface p-3 text-text shadow-[var(--shadow-card)] md:p-4">
+    <section className="rounded-[var(--radius-control)] bg-surface p-3 text-text shadow-[var(--shadow-card)] md:p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs font-black text-text-muted">{text.attendanceTab}</div>
@@ -1486,26 +1486,26 @@ function AttendancePanel({
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-success text-[var(--primary-contrast)]" : "bg-surface-soft text-text"}`}>{employeeStatus}</span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs font-bold md:mt-4 md:gap-2">
-        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+        <div className="rounded-[var(--radius-control)] bg-surface-soft px-2.5 py-2 md:p-3">
           <div className="text-[11px] text-text-muted">{text.checkIn}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div>
         </div>
-        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+        <div className="rounded-[var(--radius-control)] bg-surface-soft px-2.5 py-2 md:p-3">
           <div className="text-[11px] text-text-muted">{ui("workedToday")}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm" dir="ltr">{formatMinutesShort(workedMinutes)}</div>
         </div>
-        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+        <div className="rounded-[var(--radius-control)] bg-surface-soft px-2.5 py-2 md:p-3">
           <div className="text-[11px] text-text-muted">{ui("startTime")}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div>
         </div>
-        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+        <div className="rounded-[var(--radius-control)] bg-surface-soft px-2.5 py-2 md:p-3">
           <div className="text-[11px] text-text-muted">{ui("endTime")}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div>
         </div>
       </div>
       {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-text-muted md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
       {tomorrowShift ? (
-        <div className="mt-3 rounded-2xl border border-border bg-success-subtle px-3 py-2 text-xs font-bold leading-5 text-text">
+        <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-success-subtle px-3 py-2 text-xs font-bold leading-5 text-text">
           <div className="flex items-center justify-between gap-2">
             <span>{tomorrowShift.isOpening ? "أنت فاتح الفرع غدًا" : "شيفت بكرة"}</span>
             <span className="rounded-full bg-success px-2 py-0.5 text-[10px] font-black text-[var(--primary-contrast)]">
@@ -1543,7 +1543,7 @@ function AttendancePanel({
           </div>
         )}
       </div>
-      {portalNotice ? <div className="mt-2.5 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text md:mt-3" dir="auto">{portalNotice}</div> : null}
+      {portalNotice ? <div className="mt-2.5 rounded-[var(--radius-control)] bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text md:mt-3" dir="auto">{portalNotice}</div> : null}
     </section>
   );
 }
@@ -3954,22 +3954,22 @@ export default function EmployeePayrollPortal() {
 
         {!portal && loading ? (
           <div className="mt-4 grid gap-3">
-            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
               <div className="animate-pulse space-y-3">
                 <div className="h-4 w-28 rounded-full bg-border" />
-                <div className="h-7 w-44 rounded-2xl bg-border" />
+                <div className="h-7 w-44 rounded-[var(--radius-control)] bg-border" />
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="h-20 rounded-2xl bg-surface-soft" />
-                  <div className="h-20 rounded-2xl bg-surface-soft" />
-                  <div className="h-20 rounded-2xl bg-surface-soft" />
+                  <div className="h-20 rounded-[var(--radius-control)] bg-surface-soft" />
+                  <div className="h-20 rounded-[var(--radius-control)] bg-surface-soft" />
+                  <div className="h-20 rounded-[var(--radius-control)] bg-surface-soft" />
                 </div>
               </div>
             </div>
-            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
               <div className="animate-pulse space-y-3">
                 <div className="h-4 w-24 rounded-full bg-border" />
-                <div className="h-16 rounded-2xl bg-surface-soft" />
-                <div className="h-16 rounded-2xl bg-surface-soft" />
+                <div className="h-16 rounded-[var(--radius-control)] bg-surface-soft" />
+                <div className="h-16 rounded-[var(--radius-control)] bg-surface-soft" />
               </div>
             </div>
           </div>
@@ -3981,7 +3981,7 @@ export default function EmployeePayrollPortal() {
         ) : (
           <section className="space-y-2 pb-4">
             {showHomeTabSections ? (
-            <div data-testid="employee-portal-home-card" className="sticky top-2 z-30 rounded-[24px] border border-border bg-surface/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
+            <div data-testid="employee-portal-home-card" className="sticky top-2 z-30 rounded-[var(--radius-card)] border border-border bg-surface/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   <EmployeeHeaderAvatar
@@ -4019,7 +4019,7 @@ export default function EmployeePayrollPortal() {
                 data-testid="warehouse-request-link"
                 onPointerEnter={() => { void import("./EmployeePortalProducts"); }}
                 onFocus={() => { void import("./EmployeePortalProducts"); }}
-                className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] shadow-sm transition hover:bg-primary-hover"
+                className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] shadow-sm transition hover:bg-primary-hover"
               >
                 <Package2 className="h-4 w-4" />
                 <span>{text.warehouseRequest}</span>
@@ -4091,12 +4091,12 @@ export default function EmployeePayrollPortal() {
               // its siblings at the page inset. They used to live inside this
               // panel's p-4, which cost each card ~16px a side on a phone.
               <section className="grid gap-3 text-text">
-                <div className="rounded-[28px] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-[var(--shadow-card)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="m1-section-title">{text.salesOpportunitiesTitle}</h2>
                   </div>
-                  <div className="flex min-h-16 shrink-0 flex-col justify-center rounded-2xl border border-border bg-primary-subtle px-3 py-2 text-left">
+                  <div className="flex min-h-16 shrink-0 flex-col justify-center rounded-[var(--radius-card)] border border-border bg-primary-subtle px-3 py-2 text-left">
                     <div className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{text.today}</div>
                     <div className="mt-0.5 text-lg font-black text-primary">{salesBoardCounts.total || 0}</div>
                   </div>
@@ -4142,21 +4142,21 @@ export default function EmployeePayrollPortal() {
                 </div>
 
                 {salesBoardLoading && !salesBoard.items.length ? (
-                  <div className="grid gap-2">
+                  <div className="grid gap-2.5">
                     {Array.from({ length: 2 }).map((_, index) => (
-                      <div key={index} className="flex flex-row-reverse gap-3 rounded-[22px] border border-border bg-surface-soft p-3">
-                        <div className="h-20 w-20 rounded-2xl bg-surface-soft" />
+                      <div key={index} className="flex flex-row-reverse gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+                        <div className="h-20 w-20 rounded-[var(--radius-control)] bg-surface-soft" />
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="h-4 w-24 rounded-full bg-surface-soft" />
                           <div className="h-5 w-40 rounded-full bg-surface-soft" />
                           <div className="h-3 w-full rounded-full bg-surface-soft" />
-                          <div className="h-9 w-28 rounded-2xl bg-surface-soft" />
+                          <div className="h-9 w-28 rounded-[var(--radius-control)] bg-surface-soft" />
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : salesBoardError ? (
-                  <div className="rounded-[22px] border border-border bg-warning-subtle p-3 text-sm font-bold leading-6 text-text">
+                  <div className="rounded-[var(--radius-card)] border border-border bg-warning-subtle p-3 text-sm font-bold leading-6 text-text">
                     <div>{salesBoardError}</div>
                     <button
                       type="button"
@@ -4168,13 +4168,13 @@ export default function EmployeePayrollPortal() {
                     </button>
                   </div>
                 ) : salesBoard.items.length ? (
-                  <div className={`grid gap-2 transition-opacity ${salesBoardLoading ? "opacity-60" : "opacity-100"}`}>
+                  <div className={`grid gap-2.5 transition-opacity ${salesBoardLoading ? "opacity-60" : "opacity-100"}`}>
                     {salesBoard.items.map((card) => (
                       <article
                         key={card.key}
-                        className="flex flex-row-reverse gap-3 rounded-[22px] border border-border bg-surface-soft p-3 shadow-[var(--shadow-card)]"
+                        className="flex flex-row-reverse gap-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 shadow-[var(--shadow-card)]"
                       >
-                        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface-soft">
+                        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-soft">
                           {card.image_url ? (
                             <img
                               src={resolveProductImageUrl(card.image_url)}
@@ -4268,7 +4268,7 @@ export default function EmployeePayrollPortal() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="rounded-[22px] border border-border bg-surface-soft px-4 py-3 text-sm font-bold leading-6 text-text-muted">
+                  <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-3 text-sm font-bold leading-6 text-text-muted">
                     <div>{salesBoardFiltersActive ? text.salesBoardEmpty : "لا توجد فرص بيع حالياً"}</div>
                     {salesBoardFiltersActive ? (
                       <button
@@ -4288,9 +4288,9 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {showHomeTabSections && showInstallCard ? (
-              <div className="rounded-3xl border border-border bg-success-subtle p-4 text-text shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-border bg-success-subtle p-3 text-text shadow-sm">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-surface text-success shadow-sm">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-surface text-success shadow-sm">
                     <Smartphone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -4316,9 +4316,9 @@ export default function EmployeePayrollPortal() {
                 type="button"
                 onClick={() => enableNotifications()}
                 disabled={notificationSaving || notificationState === "unsupported"}
-                className="flex w-full items-center gap-3 rounded-[var(--radius-control)] border border-border bg-warning-subtle p-4 text-start text-text shadow-sm disabled:opacity-70"
+                className="flex w-full items-center gap-3 rounded-[var(--radius-control)] border border-border bg-warning-subtle p-3 text-start text-text shadow-sm disabled:opacity-70"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-warning text-[var(--primary-contrast)] shadow-sm">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-warning text-[var(--primary-contrast)] shadow-sm">
                   {notificationSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -4331,7 +4331,7 @@ export default function EmployeePayrollPortal() {
               </button>
             ) : null}
 
-            {activeTab === "notifications" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+            {activeTab === "notifications" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="m1-section-title text-text">
@@ -4362,7 +4362,7 @@ export default function EmployeePayrollPortal() {
               // Header card, notifications as siblings — same reason as the other
               // portal lists: a padded panel around them wasted a phone's width.
               <div className="grid gap-3">
-                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <h3 className="m1-section-title">{ui("notificationsTab")}</h3>
                   <button
                     type="button"
@@ -4377,7 +4377,7 @@ export default function EmployeePayrollPortal() {
                     تعليم الكل كمقروء
                   </button>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2.5">
                   {employeeNotifications.length ? employeeNotifications.map((item) => {
                     const isDisplayRefill = item.type === "display_refill_alert";
                     return (
@@ -4408,7 +4408,7 @@ export default function EmployeePayrollPortal() {
                       <div className="mt-1 text-[11px] font-bold text-text-muted"><DateSafe>{formatEmployeePortalDateTime(item.created_at, language)}</DateSafe></div>
                     </button>
                   );}) : (
-                    <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
                   )}
                 </div>
               </div>
@@ -4419,7 +4419,7 @@ export default function EmployeePayrollPortal() {
               // whole list in a padded panel cost every row ~15px of a phone's
               // width on each side — a card inside a card inside the page inset.
               <div className="grid gap-3">
-                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3.5 shadow-sm">
+                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <div className="min-w-0">
                     <h3 className="m1-section-title text-text">{text.displayRefillTitle}</h3>
                   </div>
@@ -4428,7 +4428,7 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
                 <div className="grid gap-3">
-                  <section className="grid gap-2">
+                  <section className="grid gap-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-black text-text">{text.displayRefillPending}</h4>
                       <span className="rounded-full bg-warning-subtle px-2 py-1 text-[11px] font-black text-text">{pendingDisplayRefillAlerts.length}</span>
@@ -4439,7 +4439,7 @@ export default function EmployeePayrollPortal() {
                         : "";
                       const isSaving = displayRefillSavingId === String(alert.id);
                       return (
-                        <article key={alert.id} className="rounded-2xl border border-border bg-warning-subtle p-2.5 shadow-sm">
+                        <article key={alert.id} className="rounded-[var(--radius-card)] border border-border bg-warning-subtle p-3 shadow-sm">
                           <div className="flex items-start gap-2.5">
                             <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                               {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-warning"><AlertTriangle className="h-5 w-5" /></div>}
@@ -4490,11 +4490,11 @@ export default function EmployeePayrollPortal() {
                         </article>
                       );
                     }) : hasDisplayRefillAlerts ? (
-                      <div className="rounded-2xl border border-dashed border-border bg-warning-subtle px-3 py-4 text-center text-sm font-bold text-text">{ui("displayRefillEmpty")}</div>
+                      <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-warning-subtle px-3 py-4 text-center text-sm font-bold text-text">{ui("displayRefillEmpty")}</div>
                     ) : null}
                   </section>
                   {completedAlerts.length ? (
-                    <section className="grid gap-2">
+                    <section className="grid gap-2.5">
                       <div className="flex items-center justify-between gap-3">
                         <h4 className="text-sm font-black text-text">{text.displayRefillDone}</h4>
                         <span className="rounded-full bg-surface-soft px-2 py-1 text-[11px] font-black text-text-muted">{completedAlerts.length}</span>
@@ -4504,7 +4504,7 @@ export default function EmployeePayrollPortal() {
                           ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
                           : "";
                         return (
-                          <article key={alert.id} className="rounded-2xl border border-border bg-surface-soft p-2.5 opacity-90">
+                          <article key={alert.id} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 opacity-90">
                             <div className="flex items-start gap-2.5">
                               <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
                                 {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover grayscale" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-text-muted"><CheckCheck className="h-5 w-5" /></div>}
@@ -4564,7 +4564,7 @@ export default function EmployeePayrollPortal() {
                     </section>
                   ) : null}
                   {!hasDisplayRefillAlerts ? (
-                    <div className="rounded-2xl border border-dashed border-border bg-warning-subtle px-3 py-4 text-center text-sm font-bold text-text">{ui("displayRefillEmpty")}</div>
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-warning-subtle px-3 py-4 text-center text-sm font-bold text-text">{ui("displayRefillEmpty")}</div>
                   ) : null}
                 </div>
               </div>
@@ -4599,7 +4599,7 @@ export default function EmployeePayrollPortal() {
 
             {EMPLOYEE_PORTAL_SALARY_ENABLED && activeTab === "salary" ? (
               <div className="grid gap-3">
-                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="m1-section-title text-text">{ui("payrollSummary")}</h3>
@@ -4615,7 +4615,7 @@ export default function EmployeePayrollPortal() {
                     </span>
                   </div>
 
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
                     {[
                       { label: ui("basicSalary"), value: money(portal?.base_salary), subtitle: text.baseSalary },
                       { label: ui("bonusesAndCommissions"), value: money((portal?.sales_commission ?? portal?.commissions ?? 0) + (portal?.bonuses ?? 0)), subtitle: `${text.commission} + ${text.bonuses}` },
@@ -4624,7 +4624,7 @@ export default function EmployeePayrollPortal() {
                       { label: ui("totalDeductions"), value: money(wallet.total_deductions ?? portal?.total_deductions) },
                       { label: ui("netSalary"), value: payrollExists ? money(wallet.current_net_salary ?? portal?.net_salary ?? portal?.payslip?.net_salary) : "-", subtitle: payrollExists ? (portal?.current_payroll_period || ui("currentMonthSubtitle")) : ui("salaryNotGenerated") },
                     ].map((item) => (
-                      <div key={item.label} className="rounded-2xl bg-surface-soft px-3 py-2.5">
+                      <div key={item.label} className="rounded-[var(--radius-control)] bg-surface-soft px-3 py-2.5">
                         <div className="text-[11px] font-black text-text-muted">{item.label}</div>
                         <div className="mt-1 text-[15px] font-black text-text" dir="ltr">{item.value}</div>
                         {item.subtitle ? <div className="mt-1 text-[11px] font-bold text-text-muted" dir="auto">{item.subtitle}</div> : null}
@@ -4632,7 +4632,7 @@ export default function EmployeePayrollPortal() {
                     ))}
                   </div>
 
-                  <div className="mt-3 rounded-2xl bg-surface-soft px-3 py-3">
+                  <div className="mt-3 rounded-[var(--radius-control)] bg-surface-soft px-3 py-3">
                     <div className="flex items-center gap-2">
                       <span className={`h-2.5 w-2.5 rounded-full ${payrollLifecycleDotClassName}`} />
                       <div className="text-sm font-black text-text">{ui("payrollStatus")}: {payrollLifecycle.label}</div>
@@ -4655,14 +4655,14 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
 
-                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-text">
                     <span>{ui("payrollHistory")}</span>
                     <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{walletTransactions.length}</span>
                   </summary>
-                  <div className="mt-3 grid gap-2">
+                  <div className="mt-3 grid gap-2.5">
                     {walletTransactions.length ? walletTransactions.slice(0, 6).map((item) => (
-                      <div key={item.id || `${item.type || "transaction"}-${item.created_at || item.date || item.amount || ""}`} className="rounded-2xl bg-surface-soft px-3 py-2.5">
+                      <div key={item.id || `${item.type || "transaction"}-${item.created_at || item.date || item.amount || ""}`} className="rounded-[var(--radius-control)] bg-surface-soft px-3 py-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="text-sm font-black text-text" dir="auto">{walletTransactionTypeLabel(item, text, language)}</div>
@@ -4673,50 +4673,50 @@ export default function EmployeePayrollPortal() {
                         <div className="mt-1 text-[11px] font-bold text-text-muted"><DateSafe>{formatWalletDateLocal(item.created_at || item.date, language)}</DateSafe></div>
                       </div>
                     )) : (
-                      <div className="rounded-2xl border border-dashed border-border px-3 py-4 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
+                      <div className="rounded-[var(--radius-control)] border border-dashed border-border px-3 py-4 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
                     )}
                   </div>
                 </details>
 
-                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-text">
                     <span>{ui("attendanceSnapshot")}</span>
                     <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{attendanceRows.length}</span>
                   </summary>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.attendanceDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.absenceDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.lateDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.overtimeHours}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{ui("attendedDays")}</div>
                       <div className="mt-1 text-lg font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
                     </div>
-                    <div className="rounded-2xl bg-danger-subtle p-3 text-text">
+                    <div className="rounded-[var(--radius-control)] bg-danger-subtle p-3 text-text">
                       <div className="text-danger">{text.deductedAbsenceAmount}</div>
                       <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
                     </div>
                   </div>
                 </details>
 
-                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-text">
                     <span>{ui("technicalValidationChecklist")}</span>
                     <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">5</span>
                   </summary>
-                  <div className="mt-3 grid gap-2 text-sm font-bold">
+                  <div className="mt-3 grid gap-2.5 text-sm font-bold">
                     {[
                       { label: ui("employeeName"), ok: Boolean(portal?.payslip?.employee_name || profile.name) },
                       { label: ui("payrollMonth"), ok: Boolean(portal?.current_payroll_period || portal?.payslip?.payroll_period) },
@@ -4724,7 +4724,7 @@ export default function EmployeePayrollPortal() {
                       { label: ui("attendanceRecordsResolved"), ok: !hasUnresolvedAttendance },
                       { label: ui("statusBlockingApproval"), ok: payrollBlockingIssues.length === 0 },
                     ].map((item) => (
-                      <div key={item.label} className="flex items-center justify-between rounded-2xl bg-surface-soft px-3 py-2.5">
+                      <div key={item.label} className="flex items-center justify-between rounded-[var(--radius-control)] bg-surface-soft px-3 py-2.5">
                         <span>{item.label}</span>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${item.ok ? "bg-success-subtle text-text" : "bg-warning-subtle text-text"}`}>
                           <CheckCircle2 className="h-3.5 w-3.5" />
@@ -4737,13 +4737,13 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="m1-section-title">{text.performance}</h3>
                   <div className="mt-1 text-xs font-bold text-text-muted">{text.rewardPoints}: <span dir="ltr">{rewardPoints.points_balance || 0}</span></div>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-xl font-black text-[var(--primary-contrast)]" dir="ltr">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-control)] bg-primary text-xl font-black text-[var(--primary-contrast)]" dir="ltr">
                   {score.overall || 0}
                 </div>
               </div>
@@ -4755,37 +4755,37 @@ export default function EmployeePayrollPortal() {
                 <ProgressRow label={text.penaltiesImpact} value={score.penalties_impact} />
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-black">
-                <div className="rounded-2xl bg-surface-soft p-2"><Target className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.monthlySalesTarget}</div><div dir="ltr">{money(goals.monthly_sales_target || 0)}</div></div>
-                <div className="rounded-2xl bg-surface-soft p-2"><CalendarDays className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.attendanceTarget}</div><div dir="ltr">{goals.attendance_days || 0}/{goals.attendance_target_days || 0}</div></div>
-                <div className="rounded-2xl bg-surface-soft p-2"><Star className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.branchKpi}</div><div dir="ltr">{Math.round(goals.branch_kpi_progress || 0)}%</div></div>
+                <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><Target className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.monthlySalesTarget}</div><div dir="ltr">{money(goals.monthly_sales_target || 0)}</div></div>
+                <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><CalendarDays className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.attendanceTarget}</div><div dir="ltr">{goals.attendance_days || 0}/{goals.attendance_target_days || 0}</div></div>
+                <div className="rounded-[var(--radius-control)] bg-surface-soft p-2"><Star className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.branchKpi}</div><div dir="ltr">{Math.round(goals.branch_kpi_progress || 0)}%</div></div>
               </div>
-              <div className="mt-4 grid gap-2">
+              <div className="mt-4 grid gap-2.5">
                 <h4 className="text-sm font-black">{text.achievements}</h4>
                 {badges.length ? badges.map((badge) => (
-                  <div key={`${badge.badge_code}-${badge.period}`} className="flex items-center justify-between rounded-2xl bg-warning-subtle px-3 py-2 text-sm font-black text-text">
+                  <div key={`${badge.badge_code}-${badge.period}`} className="flex items-center justify-between rounded-[var(--radius-control)] bg-warning-subtle px-3 py-2 text-sm font-black text-text">
                     <span className="inline-flex items-center gap-2"><Trophy className="h-4 w-4" />{badge.badge_label}</span>
                     <span dir="ltr">+{badge.points || 0}</span>
                   </div>
-                )) : <div className="rounded-2xl border border-dashed border-border px-3 py-4 text-center text-sm font-bold text-text-muted">{text.noBadges}</div>}
+                )) : <div className="rounded-[var(--radius-control)] border border-dashed border-border px-3 py-4 text-center text-sm font-bold text-text-muted">{text.noBadges}</div>}
               </div>
             </div> : null}
 
-            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
               <h3 className="m1-section-title">{text.leaderboard}</h3>
-              <div className="mt-3 grid gap-2">
+              <div className="mt-3 grid gap-2.5">
                 {optionalLoading && leaderboardLazy ? (
-                  <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-sm font-bold text-text-muted">
+                  <div className="flex items-center justify-center gap-2 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-5 text-sm font-bold text-text-muted">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     {text.loading}
                   </div>
                 ) : leaderboard.length ? leaderboard.slice(0, 5).map((row) => (
-                  <div key={row.employee_id} className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl px-3 py-2 text-sm font-black ${String(row.employee_id) === String(profile.id) ? "bg-success-subtle text-text" : "bg-surface-soft text-text"}`}>
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface" dir="ltr">#{row.rank}</span>
+                  <div key={row.employee_id} className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[var(--radius-control)] px-3 py-2 text-sm font-black ${String(row.employee_id) === String(profile.id) ? "bg-success-subtle text-text" : "bg-surface-soft text-text"}`}>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] bg-surface" dir="ltr">#{row.rank}</span>
                     <span className="truncate" dir="auto">{row.employee_name}</span>
                     <span dir="ltr">{row.score}</span>
                   </div>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
                 )}
               </div>
             </div> : null}
@@ -4813,30 +4813,30 @@ export default function EmployeePayrollPortal() {
                   language={language}
                 />
 
-                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                   <h3 className="m1-section-title">{text.attendanceSummary}</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.presentDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.absentDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.lateDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{text.overtimeHours}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-surface-soft p-3">
+                    <div className="rounded-[var(--radius-control)] bg-surface-soft p-3">
                       <div className="text-text-muted">{ui("attendedDays")}</div>
                       <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
                     </div>
-                    <div className="rounded-2xl bg-danger-subtle p-3 text-text">
+                    <div className="rounded-[var(--radius-control)] bg-danger-subtle p-3 text-text">
                       <div className="text-danger">{text.deductedAbsenceAmount}</div>
                       <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
                     </div>
@@ -4846,13 +4846,13 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {activeTab === "attendance" ? <div className="grid gap-3">
-              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
                 <h3 className="m1-section-title">{text.attendanceTimeline}</h3>
                 <CalendarDays className="h-5 w-5 text-text-muted" />
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2.5">
                 {attendanceRows.length ? attendanceRows.map((row) => (
-                  <div key={`${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-border bg-surface-soft p-3 text-sm font-bold">
+                  <div key={`${row.date}-${row.check_in || ""}`} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
                       <div className="font-black tabular-nums"><DateSafe>{formatEmployeePortalDate(row.attendance_date || row.date || row.check_in || row.check_out, language)}</DateSafe></div>
                       <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-black text-text">{attendanceStatusLabel(row, text)}</span>
@@ -4867,7 +4867,7 @@ export default function EmployeePayrollPortal() {
                     {row.notes ? <div className="mt-2 text-xs leading-5 text-text-muted" dir="auto">{text.notes}: {row.notes}</div> : null}
                   </div>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noAttendance}</div>
+                  <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noAttendance}</div>
                 )}
               </div>
             </div> : null}
@@ -4878,8 +4878,8 @@ export default function EmployeePayrollPortal() {
               <div className="grid gap-3">
                 <h3 className="m1-section-title">{text.tasks}</h3>
                 {!tasks.length ? (
-                  <div className="mt-3 rounded-3xl border border-border bg-success-subtle px-4 py-6 text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface text-success shadow-sm">
+                  <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-success-subtle px-4 py-6 text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[var(--radius-control)] bg-surface text-success shadow-sm">
                       <CheckCircle2 className="h-7 w-7" />
                     </div>
                     <div className="mt-3 text-xl font-black text-success">{ui("noTasksToday")}</div>
@@ -4896,9 +4896,9 @@ export default function EmployeePayrollPortal() {
                         <span>{title}</span>
                         <span dir="ltr">{rows.length}</span>
                       </div>
-                      <div className="grid gap-2">
+                      <div className="grid gap-2.5">
                         {rows.length ? rows.map((task) => (
-                          <div key={task.id} className="rounded-2xl border border-border bg-surface-soft p-3">
+                          <div key={task.id} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
                             <div className="flex items-start justify-between gap-3">
                               {task.product_image_url || task.variant_image_url ? (
                                 <img
@@ -4952,7 +4952,7 @@ export default function EmployeePayrollPortal() {
                             </div>
                           </div>
                         )) : (
-                          <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-3 text-center text-xs font-black text-text-muted">0</div>
+                          <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-3 text-center text-xs font-black text-text-muted">0</div>
                         )}
                       </div>
                     </section>
@@ -4962,7 +4962,7 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {activeTab === "requests" ? <div className="grid gap-3">
-              <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+              <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
               <h3 className="m1-section-title">{text.requests}</h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {[
@@ -4976,7 +4976,7 @@ export default function EmployeePayrollPortal() {
                   </button>
                 ))}
               </div>
-              <div className="mt-3 grid gap-2">
+              <div className="mt-3 grid gap-2.5">
                 {requestType === "advance" ? (
                   <>
                     <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-bold outline-none" />
@@ -4999,7 +4999,7 @@ export default function EmployeePayrollPortal() {
                 {requestType === "late_permission" ? (
                   <>
                     {latePermissionBalance ? (
-                      <div data-testid="late-permission-balance" className={`rounded-2xl px-3 py-2 text-xs font-black leading-5 ${latePermissionBalance.late_permissions_left > 0 ? "bg-primary-subtle text-text" : "bg-danger-subtle text-text"}`}>
+                      <div data-testid="late-permission-balance" className={`rounded-[var(--radius-control)] px-3 py-2 text-xs font-black leading-5 ${latePermissionBalance.late_permissions_left > 0 ? "bg-primary-subtle text-text" : "bg-danger-subtle text-text"}`}>
                         {latePermissionBalance.late_permissions_left > 0
                           ? i18n.t("employeePortal.rules.permissionsLeft", { lng: language, left: latePermissionBalance.late_permissions_left, total: latePermissionBalance.late_permissions_total, minutes: latePermissionMaxMinutes })
                           : i18n.t("employeePortal.rules.permissionsUsed", { lng: language, total: latePermissionBalance.late_permissions_total, threshold: latePermissionThreshold })}
@@ -5020,14 +5020,14 @@ export default function EmployeePayrollPortal() {
                 {requestSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                 {text.sendRequest}
               </button>
-              {portalNotice ? <div className="mt-3 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text" dir="auto">{portalNotice}</div> : null}
+              {portalNotice ? <div className="mt-3 rounded-[var(--radius-control)] bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text" dir="auto">{portalNotice}</div> : null}
               </form>
               {/* The history is a sibling of the form, not a list nested inside
                   its padding — same reason as the other portal lists. */}
               <h4 className="text-sm font-black text-text">{text.requestHistory}</h4>
-                <div className="grid gap-2">
+                <div className="grid gap-2.5">
                   {visibleRequests.length ? visibleRequests.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-border bg-surface-soft p-3 text-sm font-bold">
+                    <div key={item.id} className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-sm font-bold">
                       <div className="flex items-center justify-between gap-3">
                         <span>{requestTypeLabel(item, text)}</span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-black ${requestStatusClass(item.status)}`}>
@@ -5040,10 +5040,10 @@ export default function EmployeePayrollPortal() {
                       {String(item.request_type || "").toLowerCase() === "advance" ? <div>{text.payoutLabel} <span>{item.payment_method === "vodafone_cash" ? "فودافون كاش" : item.payment_method === "instapay" ? "إنستاباي" : "كاش"}</span></div> : null}
                     </div>
                       {item.amount ? <div className="mt-1 text-xs font-black text-text-muted" dir="ltr">{money(item.amount)}</div> : null}
-                      {item.admin_note ? <div className="mt-2 rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-text" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
+                      {item.admin_note ? <div className="mt-2 rounded-[var(--radius-control)] bg-surface px-3 py-2 text-xs leading-5 text-text" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
                     </div>
                   )) : (
-                    <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-4 text-center text-sm font-bold text-text-muted">{ui("noRequestsSubmitted")}</div>
+                    <div className="rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft px-3 py-4 text-center text-sm font-bold text-text-muted">{ui("noRequestsSubmitted")}</div>
                   )}
                   {employeeRequests.length > 1 ? (
                     <button
@@ -5113,7 +5113,7 @@ export default function EmployeePayrollPortal() {
                 </div>
               ) : null}
               {chatRing.outgoing ? <div className="mx-4 my-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div> : null}
-              {chatError ? <div className="mx-4 my-2 rounded-2xl border border-border bg-danger-subtle px-3 py-2 text-sm font-bold text-text" dir="auto">{chatError}</div> : null}
+              {chatError ? <div className="mx-4 my-2 rounded-[var(--radius-card)] border border-border bg-danger-subtle px-3 py-2 text-sm font-bold text-text" dir="auto">{chatError}</div> : null}
             </div>
             <PortalChatMessageList
               messages={visibleChatMessages}
@@ -5218,7 +5218,7 @@ export default function EmployeePayrollPortal() {
       ) : null}
       {earlyCheckoutOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-soft p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-surface p-5 shadow-[var(--shadow-overlay)]">
+          <div className="w-full max-w-sm rounded-[var(--radius-control)] bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <h2 className="m1-section-title text-text">{ui("earlyCheckoutTitle")}</h2>
             <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{ui("earlyCheckoutMessage")}</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
@@ -5234,9 +5234,9 @@ export default function EmployeePayrollPortal() {
       ) : null}
       {locationGate ? (
         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[var(--overlay-scrim)] p-4" dir="rtl">
-          <div className="w-full max-w-sm rounded-3xl bg-surface p-5 shadow-[var(--shadow-overlay)]">
+          <div className="w-full max-w-sm rounded-[var(--radius-control)] bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-danger-subtle text-text">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-danger-subtle text-text">
                 <MapPin className="h-5 w-5" />
               </span>
               <div>
@@ -5245,7 +5245,7 @@ export default function EmployeePayrollPortal() {
               </div>
             </div>
             {locationGate.showSteps ? (
-              <p className="mt-4 whitespace-pre-line rounded-2xl bg-surface-soft p-3 text-xs font-bold leading-6 text-text-muted" dir="auto">
+              <p className="mt-4 whitespace-pre-line rounded-[var(--radius-control)] bg-surface-soft p-3 text-xs font-bold leading-6 text-text-muted" dir="auto">
                 {ui("locationGateSteps")}
               </p>
             ) : null}
@@ -5267,7 +5267,7 @@ export default function EmployeePayrollPortal() {
       ) : null}
       {profileSettingsOpen ? (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-surface-soft p-3 sm:items-center" dir="rtl">
-          <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[28px] bg-surface p-5 shadow-[var(--shadow-overlay)]">
+          <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[var(--radius-control)] bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="m1-section-title text-text">{text.profileSettings}</h2>
@@ -5276,8 +5276,8 @@ export default function EmployeePayrollPortal() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <label className="mt-5 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-border bg-surface-soft p-3">
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-border">
+            <label className="mt-5 flex cursor-pointer items-center gap-4 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-soft p-3">
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-[var(--radius-control)] bg-border">
                 {profilePhotoPreview ? <img src={profilePhotoPreview} alt={text.photoPreview} className="h-full w-full object-cover" /> : <UserRound className="m-5 h-10 w-10 text-text-muted" />}
               </div>
               <div className="min-w-0 text-sm font-black text-text">
@@ -5309,7 +5309,7 @@ export default function EmployeePayrollPortal() {
             </label>
             {/* The PIN never leaves this phone as text: it is set here and, on the
                 ERP, only ever checked against its hash. */}
-            <div className="mt-5 rounded-2xl border border-border bg-surface-soft p-3">
+            <div className="mt-5 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-sm font-black text-text">{text.staffPinTitle}</h3>
                 <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${hasStaffPin ? "bg-success-subtle text-text" : "bg-warning-subtle text-text"}`}>
