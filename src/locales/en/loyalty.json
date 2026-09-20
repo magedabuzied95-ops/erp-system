@@ -4,13 +4,9 @@
     "title": "Customer Loyalty Intelligence",
     "stats": {
       "totalCustomers": "Total loyalty customers",
-      "totalCustomersHint": "Customers enrolled in the program",
       "pointsIssued": "Total points issued",
-      "pointsIssuedHint": "Lifetime earned points",
       "pointsRedeemed": "Total points redeemed",
-      "pointsRedeemedHint": "Points spent at checkout",
-      "activeRules": "Active rules",
-      "activeRulesHint": "Current point and tier policies"
+      "activeRules": "Active rules"
     },
     "top": {
       "title": "Top Loyalty Customers",
@@ -47,7 +43,6 @@
     "value": "Value",
     "date": "Date",
     "redeemTitle": "Redeem points",
-    "redeemHint": "Convert points into value when the customer completes a purchase.",
     "pointsToRedeem": "Points to redeem"
   },
   "rules": {

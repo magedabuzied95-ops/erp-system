@@ -165,7 +165,6 @@
     },
     "shift": {
       "restoring": "Restoring shift session",
-      "restoringHint": "Checking the cached active shift before showing the open shift screen.",
       "openingCash": "Opening cash",
       "duration": "Shift duration"
     },

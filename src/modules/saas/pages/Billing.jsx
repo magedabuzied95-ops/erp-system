@@ -21,7 +21,6 @@ function Billing() {
   return (
     <SaaSShell
       title={t("saas.billing.title")}
-      subtitle={t("saas.billing.subtitle")}
       actions={
         <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <CheckCircle2 className="h-4 w-4" />
@@ -46,8 +45,7 @@ function Billing() {
         <div className="rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
           <h3 className="m1-section-title text-white">{t("saas.billing.current")}</h3>
           <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">{t("saas.billing.subscription")}</div>
-            <div className="mt-2 text-3xl font-black text-white">{billing?.plan?.name || "Trial"}</div>
+            <div className="text-3xl font-black text-white">{billing?.plan?.name || "Trial"}</div>
             <p className="mt-2 text-sm text-primary/80">
               {billing?.plan?.features?.join(" • ") || "Billing placeholders available until live checkout is connected."}
             </p>

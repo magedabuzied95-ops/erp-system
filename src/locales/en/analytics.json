@@ -34,11 +34,9 @@
   "sections": {
     "revenueTrend": "Revenue and profit trend",
     "customers": "Customer intelligence",
-    "customerSubtitle": "Understand customer value, risk, and next-best actions.",
     "reorder": "AI reorder suggestions",
     "reorderSubtitle": "Review the items most likely to need replenishment.",
     "deadStock": "AI dead stock intelligence",
-    "deadStockSubtitle": "Identify slow-moving inventory with blocked capital and clear action recommendations.",
     "risk": "Risk signals",
     "riskSubtitle": "System-wide risk signals for proactive replenishment."
   },
@@ -85,7 +83,6 @@
     "walletBalance": "Wallet balance",
     "loyaltyPoints": "Loyalty points",
     "recentCustomer": "Recent customer",
-    "smartAlertsSubtitle": "Operational notifications that highlight critical anomalies.",
     "noSmartAlerts": "No smart alerts available yet.",
     "reorderTableTitle": "AI Reorder Suggestions",
     "deadStockTableTitle": "AI Dead Stock Intelligence",
@@ -108,10 +105,7 @@
     "unavailable": "Analytics endpoints are unavailable. No placeholder data is shown.",
     "unavailableToast": "Unable to load analytics data",
     "aiInsights": "AI insights",
-    "aiInsightsSubtitle": "Narrative intelligence generated from the latest ERP signals.",
     "predictedSales": "Predicted sales",
-    "predictedSalesSubtitle": "Forecasted demand with confidence scoring.",
-    "deadStockPanelSubtitle": "Items that are moving slowly and are tying up working capital.",
     "cashEfficiency": "Cash efficiency"
   },
   "empty": {
@@ -120,9 +114,7 @@
   "charts": {
     "aiInsight": "AI insight",
     "salesTrend": "Sales trend",
-    "salesTrendSubtitle": "Order movement and sales velocity using backend chart data.",
     "channelMix": "Channel mix",
-    "channelMixSubtitle": "Sales distribution across commerce channels.",
     "noChannelData": "No sales channel data available."
   }
 }

@@ -1002,9 +1002,6 @@ function Customers() {
           <div>
             <div className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">{t("customers.eyebrow")}</div>
             <h1 className="m1-display mt-2 text-text">{t("customers.title")}</h1>
-            <p className="mt-3 text-sm font-medium text-text-muted">
-              {t("customers.subtitle")}
-            </p>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1038,7 +1035,6 @@ function Customers() {
           >
           <div className="mb-5 flex flex-col gap-1">
             <h2 className="m1-section-title text-text">{editingId ? t("customers.form.titleUpdate") : t("customers.form.titleAdd")}</h2>
-            <p className="text-sm text-text-muted">{t("customers.form.subtitle")}</p>
           </div>
 
           <div className="grid w-full grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1840,7 +1836,6 @@ function CustomerStatementDrawer({
               <Sparkles className="h-4 w-4" />
               {tt("customers.preferences.title")}
             </div>
-            <p className="mt-1 text-xs font-semibold text-text-muted">{tt("customers.preferences.hint")}</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <PreferenceChips title={tt("customers.preferences.sections")} items={preferredDepartments} tone="emerald" />
               <PreferenceChips title={tt("customers.preferences.categories")} items={preferredCategories} tone="cyan" />

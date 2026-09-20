@@ -9,7 +9,7 @@ export default function PermissionsShell({ title, subtitle, actions, tabs = [], 
         <div>
           <div className="text-[11px] uppercase tracking-[0.24em] text-[var(--primary)]/70">{t("access.shell.title")}</div>
           <h1 className="m1-display mt-2 text-[var(--text)]">{title}</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{subtitle}</p>
+          {subtitle ? <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">{subtitle}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>

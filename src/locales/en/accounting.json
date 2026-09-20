@@ -136,7 +136,6 @@
     "grossProfit": "Revenue less COGS"
   },
   "snapshotTitle": "Accounting snapshot",
-  "snapshotSubtitle": "Journaled inventory movements, sales, purchases, and returns are reflected here.",
   "tiles": {
     "salesTotal": "Sales total",
     "purchasesTotal": "Purchases total",
@@ -176,11 +175,9 @@
     },
     "view": "View the ledger",
     "loading": "Loading the ledger",
-    "loadingHint": "Fetching the current accounting movements.",
     "ledger": "Ledger",
     "selectAccountFirst": "Select an account first to view the ledger.",
     "generalLedger": "General ledger",
-    "generalLedgerSubtitle": "The general ledger is built directly on accounts, journal entries, and entry lines",
     "openingBalance": "Opening balance",
     "loadingMovements": "Loading movements...",
     "selectAccount": "Select an account to view the general ledger.",
@@ -442,7 +439,6 @@
     "noAccess": "Only admins can open the Accounting Cost Fix Center.",
     "savedNotice": "Costs were saved. Run Sync Accounting Entries again to rebuild COGS and profit reports.",
     "catalogTitle": "Catalog cost fixes",
-    "catalogSubtitle": "Resolvable products and variants can be fixed by updating catalog cost.",
     "historicalTitle": "Historical unresolved line fixes",
     "historicalSubtitle": "Sold order item snapshots without catalog links can receive a manual COGS override without linking them to products.",
     "actions": {
@@ -509,9 +505,7 @@
     "title": "Journal Entries",
     "subtitle": "Journal entries with manual entry and backfill preview only — no automatic posting",
     "ledgerTitle": "Ledger",
-    "ledgerSubtitle": "Search by reference, filter by type, and inspect each balanced entry.",
     "detailTitle": "Journal detail",
-    "balanceHint": "Debits and credits are stored as balanced journal lines only.",
     "showingEntries": "Showing {{shown}} of {{total}} entries",
     "actions": {
       "closeDrawer": "Close drawer"
@@ -730,7 +724,6 @@
     },
     "reconciled": "Cash account reconciliation is balanced",
     "accountBalances": "Account balances",
-    "accountBalancesHint": "Cash and operating accounts used across POS, purchases, expenses, refunds, and payroll.",
     "topUp": "Top up",
     "opening": "Opening",
     "cashTransfer": "Cash transfer",

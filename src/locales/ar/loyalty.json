@@ -4,13 +4,9 @@
     "title": "ذكاء ولاء العملاء",
     "stats": {
       "totalCustomers": "إجمالي عملاء الولاء",
-      "totalCustomersHint": "العملاء المشتركون في البرنامج",
       "pointsIssued": "إجمالي النقاط الممنوحة",
-      "pointsIssuedHint": "النقاط المكتسبة مدى الحياة",
       "pointsRedeemed": "إجمالي النقاط المستبدلة",
-      "pointsRedeemedHint": "النقاط المستخدمة عند الدفع",
-      "activeRules": "القواعد النشطة",
-      "activeRulesHint": "سياسات النقاط والفئات الحالية"
+      "activeRules": "القواعد النشطة"
     },
     "top": {
       "title": "أفضل عملاء الولاء",
@@ -47,7 +43,6 @@
     "value": "القيمة",
     "date": "التاريخ",
     "redeemTitle": "استبدال النقاط",
-    "redeemHint": "حوّل النقاط إلى قيمة عند إتمام شراء العميل.",
     "pointsToRedeem": "النقاط المطلوب استبدالها"
   },
   "rules": {

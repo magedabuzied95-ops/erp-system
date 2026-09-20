@@ -51,9 +51,11 @@ export default function ProductsShell({
             <h1 className="m1-display mt-2 text-[var(--text)] sm:mt-3">
               {title}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:mt-3 xl:text-base">
-              {description}
-            </p>
+            {description ? (
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)] sm:mt-3 xl:text-base">
+                {description}
+              </p>
+            ) : null}
           </div>
 
           {actions ? <div className="flex flex-wrap gap-2 sm:gap-3">{actions}</div> : null}

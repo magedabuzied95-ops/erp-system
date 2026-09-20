@@ -70,7 +70,6 @@
     "explainer3": "stock, price, size, product, or policy facts. A preference becomes",
     "explainerStable": "Stable",
     "explainer4": "after ≥5 consistent edits per intent; conflicting edits disable it. Reset clears learned style but keeps correction/audit history.",
-    "factsNote": "Style only — price, stock and sizes always come from system data.",
     "noPreference": "No stable style preference yet — evidence accumulating ({{count}} edits so far).",
     "evidence": "evidence {{have}}/{{need}}",
     "signals": {
@@ -454,7 +453,6 @@
       "customPath": "Custom path…",
       "fullContextPath": "full context path",
       "fieldOptional": "field (optional), e.g. products.length",
-      "fromStepHint": "Uses the output of a previous step at run time.",
       "enterValue": "Enter a value",
       "if": "If",
       "leftPlaceholder": "value to check, e.g. steps.search.output.products.length",

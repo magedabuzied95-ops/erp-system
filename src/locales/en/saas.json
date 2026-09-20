@@ -17,7 +17,6 @@
       "revenue": "Revenue placeholder"
     },
     "current": "Current workspace",
-    "currentHint": "Tenant-aware session persisted in local storage.",
     "subscription": "Subscription",
     "plan": "Plan",
     "expires": "Expires",

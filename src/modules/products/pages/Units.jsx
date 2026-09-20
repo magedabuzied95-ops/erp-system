@@ -52,7 +52,6 @@ function Units() {
   return (
     <ProductsShell
       title={t("products.units.title")}
-      description={t("products.units.description")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
@@ -109,7 +108,6 @@ function Units() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title text-white">{t("products.units.management")}</h2>
-              <p className="mt-1 text-sm text-zinc-500">{t("products.units.managementDescription")}</p>
             </div>
             <div className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
               {t("products.units.count", { count: items.length })}

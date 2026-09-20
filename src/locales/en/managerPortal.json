@@ -464,7 +464,6 @@
   },
   "sales": {
     "summary": "Sales summary",
-    "summaryHint": "Monthly sales, invoices, and growth in compact cards.",
     "growth": "Growth",
     "monthSales": "Monthly sales",
     "currentMonth": "Current month",
@@ -501,8 +500,7 @@
     "noTrendHint": "The daily trend appears once invoices exist for the month.",
     "noSoldProducts": "No products sold",
     "noSoldProductsHint": "Top sellers will appear here once real data is available.",
-    "noHourlyData": "No hourly data",
-    "noHourlyDataHint": "If there are no invoices today, this panel stays empty."
+    "noHourlyData": "No hourly data"
   },
   "chat": {
     "title": "Employee conversations",
@@ -542,7 +540,6 @@
     "permissions": "Permissions",
     "noPermissions": "No visible permissions",
     "language": "Portal language",
-    "languageSubtitle": "Manager portal only — does not change the system language",
     "languageHint": "This choice applies to the manager portal only; the rest of the system keeps its own language.",
     "languageFollowSystem": "Follow system language",
     "themeDark": "Dark mode",
@@ -553,7 +550,6 @@
     "role": "Role",
     "email": "Email",
     "keyColor": "Key colour",
-    "keyColorHint": "Pick the colour of the portal buttons and keys",
     "keyColorPreview": "Preview",
     "accents": {
       "default": "M1 Gold",

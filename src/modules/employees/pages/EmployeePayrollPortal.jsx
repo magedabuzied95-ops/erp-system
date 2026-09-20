@@ -108,7 +108,6 @@ const labels = {
   ar: {
     chatDeleteForEveryone: "حذف هذه الرسالة لدى الجميع؟",
     profileSettings: "إعدادات الملف الشخصي",
-    profileSettingsSubtitle: "حدّث صورتك ورقم الموبايل والرقم السري",
     staffPinTitle: "الرقم السري بتاعك",
     staffPinHint: "بتستخدمه لما تدخل منتج جديد على السيستم، عشان يتسجل باسمك إنت.",
     staffPinSet: "الرقم السري متسجل",
@@ -126,7 +125,6 @@ const labels = {
     enablePortalNotifications: "تفعيل إشعارات بوابة الموظف",
     resetNotifications: "إعادة ضبط الإشعارات",
     displayRefillTitle: "نواقص العرض",
-    displayRefillSubtitle: "المقاسات المطلوبة للعرض الحالي وتاريخ التنفيذ.",
     displayRefillPending: "قيد التنفيذ",
     displayRefillOnDisplay: "قيد العرض",
     displayRefillDone: "تم التنفيذ",
@@ -217,7 +215,6 @@ const labels = {
   en: {
     chatDeleteForEveryone: "Delete this message for everyone?",
     profileSettings: "Profile settings",
-    profileSettingsSubtitle: "Update your photo, mobile number and PIN",
     staffPinTitle: "Your PIN",
     staffPinHint: "You use it when entering a new product, so it is recorded under your name.",
     staffPinSet: "A PIN is set",
@@ -235,7 +232,6 @@ const labels = {
     enablePortalNotifications: "Enable employee portal notifications",
     resetNotifications: "Reset notifications",
     displayRefillTitle: "Display shortages",
-    displayRefillSubtitle: "Sizes required for the current display, and the completion date.",
     displayRefillPending: "In progress",
     displayRefillOnDisplay: "On display",
     displayRefillDone: "Completed",
@@ -552,7 +548,6 @@ Object.assign(labels.ar, {
   daysUnit: "يوم",
   fromTotalDays: "من أصل",
   openTasksSubtitle: "مهام مفتوحة",
-  totalAdvancesSubtitle: "إجمالي السلف",
   currentMonthSubtitle: "الشهر الحالي",
   notificationsShort: "تنبيهات",
   displayRefillShort: "عرض",
@@ -582,7 +577,6 @@ Object.assign(labels.ar, {
   showDetails: "إظهار التفاصيل",
   hideDetails: "إخفاء التفاصيل",
   noTasksToday: "لا توجد مهام اليوم",
-  noTasksSubtitle: "كل شيء مكتمل حاليا.",
   noRequestsSubmitted: "لم تقدم أي طلبات بعد.",
   noTimeline: "لا توجد حركات على المحفظة حتى الآن.",
   advanceRequest: "طلب سلفة",
@@ -645,7 +639,6 @@ Object.assign(labels.en, {
   daysUnit: "days",
   fromTotalDays: "of",
   openTasksSubtitle: "Open tasks",
-  totalAdvancesSubtitle: "Total advances",
   currentMonthSubtitle: "Current month",
   notificationsShort: "Alerts",
   displayRefillShort: "Display",
@@ -675,7 +668,6 @@ Object.assign(labels.en, {
   showDetails: "Show details",
   hideDetails: "Hide details",
   noTasksToday: "No tasks assigned today.",
-  noTasksSubtitle: "Everything is clear right now.",
   noRequestsSubmitted: "You have not submitted any requests.",
   noTimeline: "No wallet activity yet.",
   advanceRequest: "Advance Request",
@@ -1457,7 +1449,7 @@ function EmployeeStatsCards({ cards = [] }) {
               </span>
             </div>
             <div className={`mt-3 break-words text-[16px] font-black leading-5 tabular-nums text-text ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
-            <div className="mt-1 text-[10px] font-bold leading-4 text-text-muted">{subtitle}</div>
+            {subtitle ? <div className="mt-1 text-[10px] font-bold leading-4 text-text-muted">{subtitle}</div> : null}
           </div>
         );
       })}
@@ -2818,7 +2810,6 @@ export default function EmployeePayrollPortal() {
       {
         label: text.advances,
         value: money(wallet.total_advances ?? portal.advances),
-        subtitle: ui("totalAdvancesSubtitle"),
         Icon: CreditCard,
         numeric: true,
         accent: "amber",
@@ -4368,8 +4359,10 @@ export default function EmployeePayrollPortal() {
             </div> : null}
 
             {activeTab === "notifications" ? (
-              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
+              // Header card, notifications as siblings — same reason as the other
+              // portal lists: a padded panel around them wasted a phone's width.
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
                   <h3 className="m1-section-title">{ui("notificationsTab")}</h3>
                   <button
                     type="button"
@@ -4384,7 +4377,7 @@ export default function EmployeePayrollPortal() {
                     تعليم الكل كمقروء
                   </button>
                 </div>
-                <div className="mt-3 grid gap-2">
+                <div className="grid gap-2">
                   {employeeNotifications.length ? employeeNotifications.map((item) => {
                     const isDisplayRefill = item.type === "display_refill_alert";
                     return (
@@ -4429,7 +4422,6 @@ export default function EmployeePayrollPortal() {
                 <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3.5 shadow-sm">
                   <div className="min-w-0">
                     <h3 className="m1-section-title text-text">{text.displayRefillTitle}</h3>
-                    <p className="mt-1 text-xs font-bold text-text-muted">{text.displayRefillSubtitle}</p>
                   </div>
                   <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] bg-surface-soft px-3 text-[11px] font-black text-text">
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -4628,14 +4620,14 @@ export default function EmployeePayrollPortal() {
                       { label: ui("basicSalary"), value: money(portal?.base_salary), subtitle: text.baseSalary },
                       { label: ui("bonusesAndCommissions"), value: money((portal?.sales_commission ?? portal?.commissions ?? 0) + (portal?.bonuses ?? 0)), subtitle: `${text.commission} + ${text.bonuses}` },
                       { label: ui("attendanceDeductions"), value: money(portal?.absence_deduction ?? attendance?.deducted_absence_amount ?? portal?.payslip?.absence_deduction ?? 0), subtitle: text.absenceDeductions },
-                      { label: text.advances, value: money(wallet.total_advances ?? portal?.advances), subtitle: ui("totalAdvancesSubtitle") },
-                      { label: ui("totalDeductions"), value: money(wallet.total_deductions ?? portal?.total_deductions), subtitle: text.totalDeductions },
+                      { label: text.advances, value: money(wallet.total_advances ?? portal?.advances) },
+                      { label: ui("totalDeductions"), value: money(wallet.total_deductions ?? portal?.total_deductions) },
                       { label: ui("netSalary"), value: payrollExists ? money(wallet.current_net_salary ?? portal?.net_salary ?? portal?.payslip?.net_salary) : "-", subtitle: payrollExists ? (portal?.current_payroll_period || ui("currentMonthSubtitle")) : ui("salaryNotGenerated") },
                     ].map((item) => (
                       <div key={item.label} className="rounded-2xl bg-surface-soft px-3 py-2.5">
                         <div className="text-[11px] font-black text-text-muted">{item.label}</div>
                         <div className="mt-1 text-[15px] font-black text-text" dir="ltr">{item.value}</div>
-                        <div className="mt-1 text-[11px] font-bold text-text-muted" dir="auto">{item.subtitle}</div>
+                        {item.subtitle ? <div className="mt-1 text-[11px] font-bold text-text-muted" dir="auto">{item.subtitle}</div> : null}
                       </div>
                     ))}
                   </div>
@@ -4891,7 +4883,6 @@ export default function EmployeePayrollPortal() {
                       <CheckCircle2 className="h-7 w-7" />
                     </div>
                     <div className="mt-3 text-xl font-black text-success">{ui("noTasksToday")}</div>
-                    <div className="mt-1 text-sm font-bold text-success">{ui("noTasksSubtitle")}</div>
                   </div>
                 ) : null}
                 <div className="grid gap-4">
@@ -5280,7 +5271,6 @@ export default function EmployeePayrollPortal() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="m1-section-title text-text">{text.profileSettings}</h2>
-                <p className="mt-1 text-xs font-bold text-text-muted">{text.profileSettingsSubtitle}</p>
               </div>
               <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-surface-soft text-text" aria-label={text.closeLabel}>
                 <X className="h-5 w-5" />

@@ -293,8 +293,6 @@ export default function ProductColors({
           className="m1-section-title text-white"
         >{t("products.colors.title", "Product Colors")}</h2>
 
-        <p className="text-gray-400 mt-2">{t("products.colors.description", "Add colors, images and sizes")}</p>
-
       </div>
 
       {/* QUICK COLORS */}

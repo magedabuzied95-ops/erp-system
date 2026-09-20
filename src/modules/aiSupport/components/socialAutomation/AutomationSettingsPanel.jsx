@@ -18,7 +18,6 @@ export default function AutomationSettingsPanel({ settings = {}, onChange }) {
   return (
     <section className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Automation Settings</div>
-      <div className="mt-1 text-sm font-black text-white">Rules and execution toggles</div>
 
       <div className="mt-3 grid gap-2">
         {toggles.map((toggle) => {

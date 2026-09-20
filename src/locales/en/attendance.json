@@ -27,7 +27,6 @@
     "loadingOvertimeApprovals": "Loading overtime approvals...",
     "noOvertimeApprovals": "No overtime approval requests in this range.",
     "tableTitle": "Attendance table",
-    "tableSubtitle": "Employee, branch, worked hours, and checkout status.",
     "employee": "Employee",
     "branch": "Branch",
     "date": "Date",

@@ -24,7 +24,7 @@ export default function EmployeeAnalyticsShell({
           <div className="max-w-3xl">
             <p className={labelClass}>{eyebrow}</p>
             <h1 className="m1-display mt-3 text-white">{title}</h1>
-            <p className="mt-4 text-sm leading-7 text-zinc-400 xl:text-base">{subtitle}</p>
+            {subtitle ? <p className="mt-4 text-sm leading-7 text-zinc-400 xl:text-base">{subtitle}</p> : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

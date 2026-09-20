@@ -126,10 +126,7 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
     <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>
-            {isArabic ? "وصول بوابة المدير" : "Manager Portal Access"}
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="m1-section-title text-white">{isArabic ? "إدارة بوابة المدير" : "Manager portal settings"}</h3>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${hasAccess ? "bg-emerald-500/15 text-emerald-200" : "bg-amber-500/15 text-amber-100"}`}>
               {hasAccess ? (isArabic ? "مفعّل" : "Enabled") : (isArabic ? "بدون صلاحية" : "No access")}
@@ -142,11 +139,6 @@ export default function ManagerPortalAccessCard({ employee, onEmployeeTokenChang
               <span className="rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 py-1 text-emerald-100">{isArabic ? "مفعل من الإعداد" : "Enabled by toggle"}</span>
             ) : null}
           </div>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            {isArabic
-              ? "رابط بوابة المدير مرتبط بملف الموظف نفسه ويمكن إنشاؤه أو تجديده من هنا دون فصل عن ملف الموظف."
-              : "The manager portal link is tied to the employee record and can be generated or regenerated here without leaving the employee profile."}
-          </p>
         </div>
         {hasPortalLink ? (
           <div className="rounded-2xl bg-white p-3">

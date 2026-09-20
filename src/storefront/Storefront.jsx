@@ -4737,7 +4737,6 @@ function GuidedSizeFilter({ sizes = [], selectedSize, onSelect, disabled }) {
     <div className={`mb-2 rounded-[0.9rem] border border-stone-200 bg-white p-2 shadow-[0_10px_24px_rgba(39,20,75,0.05)] dark:border-white/10 dark:bg-[#101010] md:mb-3 md:rounded-[1.15rem] md:p-2.5 ${disabled ? "opacity-55" : ""}`}>
       <div className="mb-1.5 flex items-center justify-between gap-2 md:mb-2 md:gap-3">
         <div>
-          <p className="text-[8px] font-black uppercase tracking-[0.14em] text-[#d4af37] md:text-[9px] md:tracking-[0.18em]">{t("storefront.filters.sizeFilter")}</p>
           <h3 className="text-[11px] font-black md:text-xs">{t("storefront.filters.availableSize")}</h3>
         </div>
         {selectedSize ? (
@@ -7838,8 +7837,8 @@ function RelatedProductsContent({ currentProduct, ...props }) {
     : "/products";
   return (
     <div className="sf-related-products mt-5">
-      <StorefrontRecommendationRail title={sfText("storefront.products.relatedProducts")} subtitle={sfText("storefront.products.relatedSubtitle")} href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} genders={RECOMMENDATION_AUDIENCES} activeGender={audience} onGenderChange={setAudience} {...props} />
-      <StorefrontRecommendationRail title={brand ? sfText("storefront.products.moreFromBrand", undefined, { brand }) : sfText("storefront.products.sameBrand")} subtitle={sfText("storefront.products.sameBrand")} href={brandHref} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} genders={brand ? RECOMMENDATION_AUDIENCES : []} activeGender={brandAudience} onGenderChange={setBrandAudience} {...props} />
+      <StorefrontRecommendationRail title={sfText("storefront.products.relatedProducts")} href={similarHref} products={similarResult.products} loading={similarResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} genders={RECOMMENDATION_AUDIENCES} activeGender={audience} onGenderChange={setAudience} {...props} />
+      <StorefrontRecommendationRail title={brand ? sfText("storefront.products.moreFromBrand", undefined, { brand }) : sfText("storefront.products.sameBrand")} href={brandHref} products={brandResult.products} loading={brandResult.loading} currentId={currentId} minItems={RECOMMENDATION_RAIL_MIN_ITEMS} genders={brand ? RECOMMENDATION_AUDIENCES : []} activeGender={brandAudience} onGenderChange={setBrandAudience} {...props} />
     </div>
   );
 }

@@ -12,7 +12,7 @@ function OrdersShell({ title, subtitle, actions, header, children }) {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <h1 className="m1-page-title text-[var(--text)]">{title}</h1>
-              <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p>
+              {subtitle ? <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">
               <NavButton to="/orders" label={t("sidebar.dashboard")} />

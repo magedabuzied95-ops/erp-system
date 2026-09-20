@@ -204,11 +204,6 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
               {portalStatusActive ? (isArabic ? "نشط" : "Active") : (isArabic ? "معطل" : "Disabled")}
             </span>
           </div>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-            {isArabic
-              ? "رابط بوابة الموظف ورمز QR وعمليات المشاركة والتجديد من داخل ملف الموظف."
-              : "Portal link, QR access, sharing, and regeneration now live inside the employee profile."}
-          </p>
         </div>
         {effectivePortalUrl ? (
           <div className="rounded-2xl bg-white p-3">

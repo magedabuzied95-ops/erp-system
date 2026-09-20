@@ -4065,7 +4065,6 @@ function SocialCommentsWorkspace({
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">{t("aiSupport.inbox.ui.commentsTimeline")}</div>
                       <div className="mt-1 text-sm font-black text-white">{t("aiSupport.inbox.socialWorkspace.commentsCount", { count: displayComments.length })}</div>
-                      <div className="mt-1 text-xs text-slate-500">{t("aiSupport.inbox.socialWorkspace.timelineHint")}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {hasMoreComments ? (
