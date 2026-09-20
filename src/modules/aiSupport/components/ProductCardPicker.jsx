@@ -315,6 +315,22 @@ const findMatchingColorVariant = (product = {}, color = "") => {
   );
 };
 
+// The photo that stands for ONE colourway, resolved from that colour's own variant with the
+// same field precedence the big preview image uses.
+const colorSwatchImage = (product = {}, color = "") => {
+  const variant = findMatchingColorVariant(product, color);
+  if (!variant) return "";
+  return resolveProductImageUrl(firstText(
+    variant.color_image_url,
+    variant.colorImageUrl,
+    variant.variant_image_url,
+    variant.variantImageUrl,
+    variant.primary_image_url,
+    variant.image_url,
+    variant.image
+  )) || productImage(product, variant);
+};
+
 const buildProductCardPayload = (product = {}, variant = null) => {
   const activeImage = productImage(product, variant);
   const activeVariantId = variant?.variant_id ?? variant?.id ?? null;
@@ -1066,6 +1082,24 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return resolveProductImageUrl(selectedImage || productImage(selectedProduct || {}, activeVariant));
   }, [activeColorVariant, activeVariant, selectedProduct]);
   const activeColors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
+  // One thumbnail per colourway, in place of its name. A photo only IDENTIFIES a colour when
+  // it is that colour's own photo: models that carry a single image for every colour would
+  // become a row of identical unlabelled tiles, so those keep the names.
+  const colorSwatches = useMemo(() => {
+    const swatches = activeColors.map((color) => ({ color, image: colorSwatchImage(selectedProduct || {}, color) }));
+    const images = swatches.map((item) => item.image).filter(Boolean);
+    const allDistinct = images.length === swatches.length && new Set(images).size === images.length;
+    return allDistinct ? swatches : swatches.map((item) => ({ ...item, image: "" }));
+  }, [activeColors, selectedProduct]);
+  // The size grid holds the height of the colour with the MOST sizes, so moving between
+  // colours no longer resizes the sheet under the seller's thumb.
+  const maxSizeRows = useMemo(() => {
+    const product = selectedProduct || {};
+    const widest = activeColors.length
+      ? activeColors.reduce((max, color) => Math.max(max, productSizes(product, color, restockMode).length), 0)
+      : productSizes(product, "", restockMode).length;
+    return Math.ceil(widest / 2);
+  }, [activeColors, restockMode, selectedProduct]);
   const activeSizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor, restockMode), [restockMode, selectedColor, selectedProduct]);
   const outOfStockSizes = useMemo(() => {
     if (!restockMode) return new Set();
@@ -1181,6 +1215,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSelectedProductId("");
     setPreviewCollapsed(true);
   }, []);
+
+  const chooseColor = useCallback((color) => {
+    setSelectedColor(color);
+    const nextSizes = productSizes(selectedProduct || {}, color, restockMode);
+    if (nextSizes.length) {
+      setSelectedSize((current) => (nextSizes.some((item) => lower(item) === lower(current)) ? current : nextSizes[0]));
+    } else {
+      setSelectedSize("");
+    }
+  }, [restockMode, selectedProduct]);
 
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
@@ -1943,31 +1987,36 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 <div className={`rounded-2xl border p-3 ${variantSheetMode ? "border-slate-200 bg-white" : "border-white/10 bg-slate-950/60"}`}>
                   <div className={`text-sm font-black ${variantSheetMode ? "text-slate-900" : "text-white"}`}>{t("aiSupport.inbox.picker.color")}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {activeColors.length ? (
-                      activeColors.map((color) => {
+                    {colorSwatches.length ? (
+                      colorSwatches.map(({ color, image }) => {
                         const active = lower(selectedColor) === lower(color);
                         return (
                           <button
                             key={color}
                             type="button"
-                            onClick={() => {
-                              setSelectedColor(color);
-                              const nextSizes = productSizes(selectedProduct, color, restockMode);
-                              if (nextSizes.length) {
-                                setSelectedSize((current) => (nextSizes.some((item) => lower(item) === lower(current)) ? current : nextSizes[0]));
-                              } else {
-                                setSelectedSize("");
-                              }
-                            }}
-                            className={`min-h-10 rounded-full border px-4 py-2 text-sm font-black transition ${
-                              active
-                                ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
-                                : variantSheetMode
-                                  ? "border-slate-200 bg-slate-50 text-slate-900 hover:border-[#d4af37]/60 hover:bg-[#d4af37]/10"
-                                  : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
-                            }`}
+                            onClick={() => chooseColor(color)}
+                            aria-pressed={active}
+                            aria-label={color}
+                            title={color}
+                            /* The gold has to be a BACKGROUND: M1 resolves every border colour
+                               to the --border token, so a gold outline would not survive. */
+                            className={image
+                              ? `rounded-2xl p-1 transition ${
+                                  active
+                                    ? "bg-[#d4af37]"
+                                    : variantSheetMode
+                                      ? "bg-slate-100 hover:bg-[#d4af37]/25"
+                                      : "bg-white/[0.08] hover:bg-[#d4af37]/25"
+                                }`
+                              : `min-h-10 rounded-full border px-4 py-2 text-sm font-black transition ${
+                                  active
+                                    ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
+                                    : variantSheetMode
+                                      ? "border-slate-200 bg-slate-50 text-slate-900 hover:border-[#d4af37]/60 hover:bg-[#d4af37]/10"
+                                      : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
+                                }`}
                           >
-                            {color}
+                            {image ? <img src={image} alt={color} loading="lazy" className="h-14 w-14 rounded-xl bg-white object-cover" /> : color}
                           </button>
                         );
                       })
@@ -1982,7 +2031,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     <div className={`text-sm font-black ${variantSheetMode ? "text-slate-900" : "text-white"}`}>{t("aiSupport.inbox.picker.size")}</div>
                     <div className={`text-[11px] font-bold ${variantSheetMode ? "text-slate-500" : "text-slate-500"}`}>{restockMode ? t("aiSupport.inbox.picker.allSizesForRestock") : t("aiSupport.inbox.picker.availableSizesOnly")}</div>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div
+                    className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3"
+                    style={variantSheetMode && maxSizeRows > 0
+                      ? { minHeight: `calc(${maxSizeRows} * ${restockMode ? "4.25rem" : "3rem"} + ${Math.max(0, maxSizeRows - 1)} * 0.5rem)` }
+                      : undefined}
+                  >
                     {activeSizes.length ? (
                       activeSizes.map((size) => {
                         const active = lower(selectedSize) === lower(size);
@@ -1992,7 +2046,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             key={size}
                             type="button"
                             onClick={() => setSelectedSize(size)}
-                            className={`min-h-12 rounded-2xl border px-3 py-2 text-start transition ${
+                            className={`${variantSheetMode && restockMode ? "min-h-[4.25rem]" : "min-h-12"} rounded-2xl border px-3 py-2 text-start transition ${
                               active
                                 ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
                                 : soldOut
