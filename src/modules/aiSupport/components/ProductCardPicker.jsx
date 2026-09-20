@@ -980,7 +980,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       setSelectedLinkMaxPrice("");
       return;
     }
-    if (!visibleProducts.length) {
+    // On the phone the chooser is a sheet, so a default product would throw that sheet
+    // open over the catalog the moment the picker opens — the first model looked pinned
+    // and came back every time the sheet was closed. Nothing is chosen there until a tap.
+    if (inlineFullscreenMode || !visibleProducts.length) {
       setSelectedProductId("");
       return;
     }
@@ -988,14 +991,16 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     if (!selectedProductId || !selectedExists) {
       setSelectedProductId(String(visibleProducts[0].product_id || visibleProducts[0].id || ""));
     }
-  }, [desktopInboxMode, open, selectedProductId, sizeMode, visibleProducts]);
+  }, [desktopInboxMode, inlineFullscreenMode, open, selectedProductId, sizeMode, visibleProducts]);
 
   const selectedProduct = useMemo(() => {
     if (!visibleProducts.length) return null;
-    if (sizeMode && !selectedProductId) return null;
+    if ((sizeMode || inlineFullscreenMode) && !selectedProductId) return null;
     const selected = visibleProducts.find((product) => String(product.product_id || product.id || "") === String(selectedProductId || ""));
-    return selected || (sizeMode ? null : visibleProducts[0] || null);
-  }, [selectedProductId, sizeMode, visibleProducts]);
+    // The same default, one layer down: without this the sheet reopened on the first
+    // model the instant its X cleared the selection.
+    return selected || (sizeMode || inlineFullscreenMode ? null : visibleProducts[0] || null);
+  }, [inlineFullscreenMode, selectedProductId, sizeMode, visibleProducts]);
 
   useEffect(() => {
     if (!selectedProduct) return;
@@ -1108,7 +1113,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
   const toggleProductSelection = useCallback((product) => {
     const productId = String(product.product_id || product.id || "");
-    setSelectedProductId(productId);
+    // The tick box is not the way into the chooser: on the phone that would pop the sheet
+    // open — including when the tap was there to REMOVE the product from the batch.
+    if (!inlineFullscreenMode) setSelectedProductId(productId);
     if (!allowMultiple) {
       setSelectedProductIds([]);
       setSelectedCardsById({});
@@ -1132,7 +1139,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     const card = buildProductCardPayload(product, chosenVariant);
     setSelectedProductIds((cur) => [...cur, productId]);
     setSelectedCardsById((m) => ({ ...m, [productId]: card }));
-  }, [activeVariant, allowMultiple, selectedProductId, selectedProductIds, t]);
+  }, [activeVariant, allowMultiple, inlineFullscreenMode, selectedProductId, selectedProductIds, t]);
 
   // Tapping a product tile OPENS it: it becomes the one the colour/size chooser edits,
   // and in multi-select it joins the batch. The tile used to call toggleProductSelection,
