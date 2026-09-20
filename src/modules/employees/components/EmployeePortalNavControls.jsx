@@ -28,22 +28,19 @@ export const canNavigateEmployeePortalBack = () => {
   }
 };
 
+// `tone` used to fork this control into a hardcoded light and a hardcoded dark
+// copy, which is why it looked like a different control on the catalogue than on
+// every other portal page. The surface tokens already follow the theme, so one
+// appearance is correct in both and the prop is gone.
 export default function EmployeePortalNavControls({
   onBack,
   onHome,
   backLabel = "رجوع",
   homeLabel = "الرئيسية",
-  tone = "light",
   className = "",
 }) {
-  const shellClassName =
-    tone === "dark"
-      ? "border-white/10 bg-zinc-950/88 text-white shadow-[0_18px_45px_rgba(0,0,0,0.45)] backdrop-blur"
-      : "border-slate-200 bg-white/92 text-slate-950 shadow-sm backdrop-blur";
-  const buttonClassName =
-    tone === "dark"
-      ? "border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.12]"
-      : "border-slate-200 bg-white text-slate-900 hover:bg-slate-50";
+  const shellClassName = "border-border bg-surface/92 text-text shadow-[var(--shadow-card)] backdrop-blur";
+  const buttonClassName = "border-border bg-surface text-text hover:bg-surface-soft";
 
   return (
     <div dir="ltr" className={`sticky top-[calc(env(safe-area-inset-top)+12px)] z-40 mb-3 flex justify-start ${className}`.trim()}>

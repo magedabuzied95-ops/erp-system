@@ -1263,9 +1263,9 @@ const requestTypeLabel = (item = {}, text = labels.en) => {
 
 const requestStatusClass = (status = "") => {
   const normalized = String(status || "").trim().toLowerCase();
-  if (normalized === "approved") return "bg-emerald-100 text-emerald-800";
-  if (normalized === "rejected") return "bg-red-100 text-red-800";
-  return "bg-amber-100 text-amber-800";
+  if (normalized === "approved") return "bg-success-subtle text-text";
+  if (normalized === "rejected") return "bg-danger-subtle text-text";
+  return "bg-warning-subtle text-text";
 };
 
 const renderTransactionIcon = (type, className = "") => {
@@ -1292,11 +1292,11 @@ function SalesBoardFilter({ label, allLabel, value, options = [], onChange, clas
     // counter above the filters uses, so caption+control and caption+number line
     // up instead of the filters sitting 6px short (owner request 2026-09-19).
     <label className={`flex min-h-16 min-w-0 flex-col gap-1 text-right ${className}`}>
-      <span className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{label}</span>
+      <span className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</span>
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[var(--control-height-md)] w-full min-w-0 flex-1 rounded-[var(--radius-control)] border border-white/10 bg-slate-900/80 px-2 text-[13px] font-black text-white outline-none focus:border-primary/60"
+        className="min-h-[var(--control-height-md)] w-full min-w-0 flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-2 text-[13px] font-black text-text outline-none focus:border-primary/60"
       >
         <option value="all">{allLabel}</option>
         {safeArray(options).map((option) => (
@@ -1311,11 +1311,11 @@ function SalesBoardFilter({ label, allLabel, value, options = [], onChange, clas
 
 function MetricCard({ label, value, icon: Icon, tone = "slate" }) {
   const tones = {
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
-    amber: "border-amber-200 bg-amber-50 text-amber-950",
-    red: "border-red-200 bg-red-50 text-red-950",
-    sky: "border-primary/30 bg-primary-subtle text-primary",
-    slate: "border-slate-200 bg-white text-slate-950",
+    emerald: "border-border bg-success-subtle text-text",
+    amber: "border-border bg-warning-subtle text-text",
+    red: "border-border bg-danger-subtle text-text",
+    sky: "border-primary/30 bg-primary-subtle text-text",
+    slate: "border-border bg-surface text-text",
   };
   return (
     <article className={`rounded-2xl border p-4 shadow-sm ${tones[tone] || tones.slate}`}>
@@ -1332,14 +1332,14 @@ function ProgressRow({ label, value, detail }) {
   const pct = Math.max(0, Math.min(100, Number(value || 0)));
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 text-xs font-black text-slate-600">
+      <div className="flex items-center justify-between gap-3 text-xs font-black text-text-muted">
         <span>{label}</span>
         <span dir="ltr">{Math.round(pct)}%</span>
       </div>
-      <div className="mt-1 h-2 rounded-full bg-slate-200">
-        <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+      <div className="mt-1 h-2 rounded-full bg-border">
+        <div className="h-2 rounded-full bg-primary" style={{ width: `${pct}%` }} />
       </div>
-      {detail ? <div className="mt-1 text-xs font-bold text-slate-400" dir="auto">{detail}</div> : null}
+      {detail ? <div className="mt-1 text-xs font-bold text-text-muted" dir="auto">{detail}</div> : null}
     </div>
   );
 }
@@ -1350,28 +1350,28 @@ function TimelineItem({ item, text, language }) {
   const isAdvance = type === "advance";
   const label = walletTransactionTypeLabel(item, text, language);
   const tone = isAdvance
-    ? "bg-amber-50 text-amber-700"
+    ? "bg-warning-subtle text-text"
     : credit
-      ? "bg-emerald-50 text-emerald-700"
-      : "bg-red-50 text-red-700";
+      ? "bg-success-subtle text-text"
+      : "bg-danger-subtle text-text";
   return (
-    <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3 shadow-sm">
       <div className={`mt-1 flex h-9 w-9 items-center justify-center rounded-xl ${tone}`}>
         {renderTransactionIcon(type, "h-4 w-4")}
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black text-slate-950">{label}</div>
-        <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{text.reason}: {item.description || item.status || "-"}</div>
-        <div className="mt-1 text-xs font-bold text-slate-400"><DateSafe>{formatEmployeePortalDate(item.date, language)}</DateSafe></div>
+        <div className="text-sm font-black text-text">{label}</div>
+        <div className="mt-1 text-xs font-bold text-text-muted" dir="auto">{text.reason}: {item.description || item.status || "-"}</div>
+        <div className="mt-1 text-xs font-bold text-text-muted"><DateSafe>{formatEmployeePortalDate(item.date, language)}</DateSafe></div>
       </div>
-      <div className={`whitespace-nowrap text-sm font-black tabular-nums ${isAdvance ? "text-amber-700" : credit ? "text-emerald-700" : "text-red-700"}`} dir="ltr">
+      <div className={`whitespace-nowrap text-sm font-black tabular-nums ${isAdvance ? "text-warning" : credit ? "text-success" : "text-danger"}`} dir="ltr">
         {credit ? "+" : "-"} {money(item.amount)}
       </div>
     </div>
   );
 }
 
-function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt = "", statusClassName = "bg-slate-400" }) {
+function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt = "", statusClassName = "bg-text-muted" }) {
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -1392,7 +1392,7 @@ function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt =
 
   return (
     <div className="relative shrink-0">
-      <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[18px] border border-white/70 bg-slate-950 text-sm font-black text-white shadow-[0_8px_24px_rgba(15,23,42,0.12)] md:h-14 md:w-14">
+      <div className="flex h-[52px] w-[52px] items-center justify-center overflow-hidden rounded-[18px] border border-border bg-surface text-sm font-black text-text shadow-[var(--shadow-card)] md:h-14 md:w-14">
         {showImage ? (
           <img
             src={src}
@@ -1414,7 +1414,7 @@ function EmployeeHeaderAvatar({ src = "", originalSrc = "", initials = "", alt =
           initials || <UserRound className="h-5 w-5" />
         )}
       </div>
-      <span className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white shadow-sm ${statusClassName}`} />
+      <span className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-surface shadow-sm ${statusClassName}`} />
     </div>
   );
 }
@@ -1427,37 +1427,37 @@ function EmployeeStatsCards({ cards = [] }) {
       {cards.map(({ label, value, subtitle, Icon, numeric, accent }) => {
         const accentClasses = {
           green: {
-            stripe: "bg-emerald-500",
-            iconWrap: "bg-emerald-50 text-emerald-700",
+            stripe: "bg-primary",
+            iconWrap: "bg-success-subtle text-text",
           },
           blue: {
             stripe: "bg-primary",
-            iconWrap: "bg-primary-subtle text-primary",
+            iconWrap: "bg-primary-subtle text-text",
           },
           amber: {
-            stripe: "bg-amber-500",
-            iconWrap: "bg-amber-50 text-amber-700",
+            stripe: "bg-warning",
+            iconWrap: "bg-warning-subtle text-text",
           },
           slate: {
-            stripe: "bg-slate-500",
-            iconWrap: "bg-slate-100 text-slate-700",
+            stripe: "bg-text-muted",
+            iconWrap: "bg-surface-soft text-text",
           },
         }[accent] || {
-          stripe: "bg-slate-500",
-          iconWrap: "bg-slate-100 text-slate-700",
+          stripe: "bg-text-muted",
+          iconWrap: "bg-surface-soft text-text",
         };
 
         return (
-          <div key={label} className="relative min-h-[84px] overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+          <div key={label} className="relative min-h-[84px] overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2.5 shadow-sm">
             <span className={`absolute inset-y-3 right-0 w-1 rounded-l-full ${accentClasses.stripe}`} aria-hidden="true" />
             <div className="flex items-start justify-between gap-2">
-              <div className="text-[10px] font-black leading-4 text-slate-500">{label}</div>
+              <div className="text-[10px] font-black leading-4 text-text-muted">{label}</div>
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${accentClasses.iconWrap}`}>
                 <Icon className="h-3.5 w-3.5" />
               </span>
             </div>
-            <div className={`mt-3 break-words text-[16px] font-black leading-5 tabular-nums text-slate-950 ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
-            <div className="mt-1 text-[10px] font-bold leading-4 text-slate-400">{subtitle}</div>
+            <div className={`mt-3 break-words text-[16px] font-black leading-5 tabular-nums text-text ${numeric ? "text-start" : ""}`} dir={numeric ? "ltr" : "auto"}>{value}</div>
+            <div className="mt-1 text-[10px] font-bold leading-4 text-text-muted">{subtitle}</div>
           </div>
         );
       })}
@@ -1485,38 +1485,38 @@ function AttendancePanel({
   language,
 }) {
   return (
-    <section className="rounded-3xl bg-slate-950 p-3 text-white shadow-xl shadow-slate-300 md:p-4">
+    <section className="rounded-3xl bg-surface p-3 text-text shadow-[var(--shadow-card)] md:p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-xs font-black text-slate-300">{text.attendanceTab}</div>
+          <div className="text-xs font-black text-text-muted">{text.attendanceTab}</div>
           <h3 className="m1-section-title mt-1">{isCheckedIn ? ui("checkedIn") : isCheckedOut ? ui("checkedOut") : ui("notCheckedIn")}</h3>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white"}`}>{employeeStatus}</span>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-black md:px-3 md:text-xs ${isCheckedIn ? "bg-success text-[var(--primary-contrast)]" : "bg-surface-soft text-text"}`}>{employeeStatus}</span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-1.5 text-xs font-bold md:mt-4 md:gap-2">
-        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
-          <div className="text-[11px] text-slate-300">{text.checkIn}</div>
+        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-text-muted">{text.checkIn}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div>
         </div>
-        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
-          <div className="text-[11px] text-slate-300">{ui("workedToday")}</div>
+        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-text-muted">{ui("workedToday")}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm" dir="ltr">{formatMinutesShort(workedMinutes)}</div>
         </div>
-        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
-          <div className="text-[11px] text-slate-300">{ui("startTime")}</div>
+        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-text-muted">{ui("startTime")}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.start_time || currentShift.startTime, language)}</DateSafe></div>
         </div>
-        <div className="rounded-2xl bg-white/10 px-2.5 py-2 md:p-3">
-          <div className="text-[11px] text-slate-300">{ui("endTime")}</div>
+        <div className="rounded-2xl bg-surface-soft px-2.5 py-2 md:p-3">
+          <div className="text-[11px] text-text-muted">{ui("endTime")}</div>
           <div className="mt-0.5 text-[13px] font-black md:mt-1 md:text-sm"><DateSafe>{formatShiftTimeLocal(currentShift.end_time || currentShift.endTime, language)}</DateSafe></div>
         </div>
       </div>
-      {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-slate-300 md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
+      {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-text-muted md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
       {tomorrowShift ? (
-        <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold leading-5 text-emerald-50">
+        <div className="mt-3 rounded-2xl border border-border bg-success-subtle px-3 py-2 text-xs font-bold leading-5 text-text">
           <div className="flex items-center justify-between gap-2">
             <span>{tomorrowShift.isOpening ? "أنت فاتح الفرع غدًا" : "شيفت بكرة"}</span>
-            <span className="rounded-full bg-emerald-300 px-2 py-0.5 text-[10px] font-black text-emerald-950">
+            <span className="rounded-full bg-success px-2 py-0.5 text-[10px] font-black text-[var(--primary-contrast)]">
               {tomorrowShift.branch_name || tomorrowShift.branchName || ""}
             </span>
           </div>
@@ -1529,41 +1529,41 @@ function AttendancePanel({
       ) : null}
       <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
         {canCheckInToday ? (
-          <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
+          <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-3 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
             {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             {text.checkIn}
           </button>
         ) : (
           // The day already carries a check-in, so offering the button again
           // only invites a second one over the stored record.
-          <div className="min-h-12 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
+          <div className="min-h-12 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-center text-[11px] font-bold leading-5 text-text-muted">
             {ui(isCheckedIn ? "alreadyCheckedInToday" : "dayCompletedToday")}
           </div>
         )}
         {canCheckOutToday ? (
-          <button type="button" onClick={() => onCheckOut()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-white px-3 text-sm font-black text-slate-950 disabled:opacity-50">
+          <button type="button" onClick={() => onCheckOut()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text disabled:opacity-50">
             {attendanceSaving === "check_out" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarDays className="h-4 w-4" />}
             {text.checkOut}
           </button>
         ) : (
-          <div className="min-h-12 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-center text-[11px] font-bold leading-5 text-slate-400">
+          <div className="min-h-12 rounded-[var(--radius-card)] border border-border bg-surface-soft px-3 py-2 text-center text-[11px] font-bold leading-5 text-text-muted">
             {ui(isCheckedOut ? "checkedOut" : "notCheckedIn")}
           </div>
         )}
       </div>
-      {portalNotice ? <div className="mt-2.5 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white md:mt-3" dir="auto">{portalNotice}</div> : null}
+      {portalNotice ? <div className="mt-2.5 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text md:mt-3" dir="auto">{portalNotice}</div> : null}
     </section>
   );
 }
 
 function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) {
   const toneClassName = {
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    amber: "border-amber-200 bg-amber-50 text-amber-700",
-    sky: "border-primary/30 bg-primary-subtle text-primary",
-    orange: "border-orange-200 bg-orange-50 text-orange-700",
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-  }[tone] || "border-slate-200 bg-slate-50 text-slate-700";
+    emerald: "border-border bg-success-subtle text-text",
+    amber: "border-border bg-warning-subtle text-text",
+    sky: "border-primary/30 bg-primary-subtle text-text",
+    orange: "border-border bg-warning-subtle text-text",
+    slate: "border-border bg-surface-soft text-text",
+  }[tone] || "border-border bg-surface-soft text-text";
 
   return (
     <button
@@ -1574,7 +1574,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
       className={`relative inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full border shadow-sm md:h-[var(--control-height-md)] md:w-10 ${toneClassName}`}
     >
       <Icon className="h-4 w-4" />
-      <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-950 px-1 text-[10px] font-black leading-4 text-white">
+      <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-surface px-1 text-[10px] font-black leading-4 text-text">
         {count > 99 ? "99+" : count}
       </span>
     </button>
@@ -2289,7 +2289,7 @@ export default function EmployeePayrollPortal() {
   // admin correction, never a second portal check-in over the old record.
   const canCheckInToday = !todayCheckIn;
   const employeeStatus = isCheckedOut ? ui("checkedOut") : isCheckedIn ? ui("present") : ui("absent");
-  const employeeStatusDotClassName = isCheckedIn ? "bg-emerald-500" : isCheckedOut ? "bg-slate-400" : "bg-red-500";
+  const employeeStatusDotClassName = isCheckedIn ? "bg-primary" : isCheckedOut ? "bg-text-muted" : "bg-danger";
   const workedMinutes = todayCheckIn ? minutesBetween(todayCheckIn, todayCheckOut || nowTick) : 0;
   const expectedDays = Number(attendance.expected_working_days || attendance.expected_days || 0);
   const presentDays = Number(attendance.attended_days || attendance.present_days || 0);
@@ -2359,19 +2359,19 @@ export default function EmployeePayrollPortal() {
           ? ui("approveSalary")
           : ui("calculateSalary");
   const payrollLifecycleBadgeClassName = payrollLifecycle.tone === "emerald"
-    ? "bg-emerald-100 text-emerald-800"
+    ? "bg-success-subtle text-text"
     : payrollLifecycle.tone === "blue"
-      ? "bg-primary-subtle text-primary"
+      ? "bg-primary-subtle text-text"
       : payrollLifecycle.tone === "amber"
-        ? "bg-amber-100 text-amber-800"
-        : "bg-emerald-100 text-emerald-800";
+        ? "bg-warning-subtle text-text"
+        : "bg-success-subtle text-text";
   const payrollLifecycleDotClassName = payrollLifecycle.tone === "emerald"
-    ? "bg-emerald-500"
+    ? "bg-primary"
     : payrollLifecycle.tone === "blue"
       ? "bg-primary"
       : payrollLifecycle.tone === "amber"
-        ? "bg-amber-500"
-        : "bg-emerald-500";
+        ? "bg-warning"
+        : "bg-primary";
   const requestBadgeIds = useMemo(
     () => employeeRequests
       .filter((item) => ["approved", "rejected"].includes(String(item.status || "").toLowerCase()))
@@ -3922,12 +3922,12 @@ export default function EmployeePayrollPortal() {
   };
 
   return (
-    <main dir={direction} className="employee-portal-shell employee-portal-min-screen overflow-x-hidden bg-slate-100 px-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-slate-950">
+    <main dir={direction} className="employee-portal-shell employee-portal-min-screen overflow-x-hidden bg-background px-3 pb-[calc(128px+env(safe-area-inset-bottom))] text-text">
       <ChatRingOverlay ring={chatRing.incoming} onAnswer={answerRingAndOpenChat} onReply={answerRingAndOpenChat} onDismiss={chatRing.dismissIncoming} />
       <div className="mx-auto w-full max-w-md md:max-w-3xl xl:max-w-5xl">
         <header className="flex items-center justify-between gap-3 py-0.5">
-          <div className="flex items-center gap-2 text-sm font-black text-slate-700">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+          <div className="flex items-center gap-2 text-sm font-black text-text">
+            <ShieldCheck className="h-4 w-4 text-success" />
             <span>{ui("employeeDashboard")}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -3936,7 +3936,7 @@ export default function EmployeePayrollPortal() {
               type="button"
               onClick={() => setRulesOpen(true)}
               data-testid="attendance-rules-open"
-              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+              className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-black text-text shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
             >
               <ScrollText className="h-4 w-4 shrink-0" />
               <span>{i18n.t("employeePortal.rules.open", { lng: language })}</span>
@@ -3945,7 +3945,7 @@ export default function EmployeePayrollPortal() {
           <button
             type="button"
             onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
-            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
             aria-label={theme.mode === "dark" ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
             title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
           >
@@ -3963,34 +3963,34 @@ export default function EmployeePayrollPortal() {
 
         {!portal && loading ? (
           <div className="mt-4 grid gap-3">
-            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <div className="animate-pulse space-y-3">
-                <div className="h-4 w-28 rounded-full bg-slate-200" />
-                <div className="h-7 w-44 rounded-2xl bg-slate-200" />
+                <div className="h-4 w-28 rounded-full bg-border" />
+                <div className="h-7 w-44 rounded-2xl bg-border" />
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="h-20 rounded-2xl bg-slate-100" />
-                  <div className="h-20 rounded-2xl bg-slate-100" />
-                  <div className="h-20 rounded-2xl bg-slate-100" />
+                  <div className="h-20 rounded-2xl bg-surface-soft" />
+                  <div className="h-20 rounded-2xl bg-surface-soft" />
+                  <div className="h-20 rounded-2xl bg-surface-soft" />
                 </div>
               </div>
             </div>
-            <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <div className="animate-pulse space-y-3">
-                <div className="h-4 w-24 rounded-full bg-slate-200" />
-                <div className="h-16 rounded-2xl bg-slate-100" />
-                <div className="h-16 rounded-2xl bg-slate-100" />
+                <div className="h-4 w-24 rounded-full bg-border" />
+                <div className="h-16 rounded-2xl bg-surface-soft" />
+                <div className="h-16 rounded-2xl bg-surface-soft" />
               </div>
             </div>
           </div>
         ) : !portal ? (
-          <div className="mt-4 rounded-[var(--radius-card)] border border-red-200 bg-white p-5 text-sm font-bold leading-6 text-red-800 shadow-sm">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface p-5 text-sm font-bold leading-6 text-danger shadow-sm">
             <AlertTriangle className="h-6 w-6" />
             <div className="mt-3">{error || text.invalidLink || labels.en.invalidLink}</div>
           </div>
         ) : (
           <section className="space-y-2 pb-4">
             {showHomeTabSections ? (
-            <div data-testid="employee-portal-home-card" className="sticky top-2 z-30 rounded-[24px] border border-slate-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
+            <div data-testid="employee-portal-home-card" className="sticky top-2 z-30 rounded-[24px] border border-border bg-surface/95 px-3 py-3 shadow-sm backdrop-blur md:px-4 md:py-4">
               <div className="flex items-start gap-3">
                 <div className="shrink-0">
                   <EmployeeHeaderAvatar
@@ -4002,21 +4002,21 @@ export default function EmployeePayrollPortal() {
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="break-words text-[15px] font-black leading-5 text-slate-950 sm:text-base md:text-[1.05rem]" dir="auto">
+                  <div className="break-words text-[15px] font-black leading-5 text-text sm:text-base md:text-[1.05rem]" dir="auto">
                     {profile.name}
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-black text-slate-500">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] font-black text-text-muted">
                     <span className={`h-2 w-2 rounded-full ${employeeStatusDotClassName}`} />
                     <span className="whitespace-nowrap">{employeeStatus}</span>
-                    {profile.branch ? <span className="text-slate-300">•</span> : null}
+                    {profile.branch ? <span className="text-text-muted">•</span> : null}
                     {profile.branch ? <span className="break-words">{profile.branch}</span> : null}
                   </div>
-                  {profile.code ? <div className="mt-1 break-words text-[11px] font-bold text-slate-400">{profile.code}</div> : null}
+                  {profile.code ? <div className="mt-1 break-words text-[11px] font-bold text-text-muted">{profile.code}</div> : null}
                 </div>
                 <button
                   type="button"
                   onClick={openProfileSettings}
-                  className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 text-slate-700"
+                  className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text"
                   aria-label={text.profileSettings}
                 >
                   <Settings className="h-5 w-5" />
@@ -4028,7 +4028,7 @@ export default function EmployeePayrollPortal() {
                 data-testid="warehouse-request-link"
                 onPointerEnter={() => { void import("./EmployeePortalProducts"); }}
                 onFocus={() => { void import("./EmployeePortalProducts"); }}
-                className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-500"
+                className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] shadow-sm transition hover:bg-primary-hover"
               >
                 <Package2 className="h-4 w-4" />
                 <span>{text.warehouseRequest}</span>
@@ -4039,7 +4039,7 @@ export default function EmployeePayrollPortal() {
                 data-testid="employee-inventory-link"
                 onPointerEnter={() => { void import("./EmployeePortalInventory"); }}
                 onFocus={() => { void import("./EmployeePortalInventory"); }}
-                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface px-4 py-3 text-sm font-black text-text shadow-sm transition hover:bg-surface-soft"
               >
                 <ClipboardList className="h-4 w-4" />
                 <span>{text.inventoryTab}</span>
@@ -4054,11 +4054,11 @@ export default function EmployeePayrollPortal() {
                     key={key}
                     type="button"
                     onClick={() => setActiveTab(key)}
-                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${ tone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700" }`}
+                    className={`inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border px-2.5 py-2 text-[11px] font-black shadow-sm transition ${ tone === "emerald" ? "border-border bg-success-subtle text-text" : "border-border bg-warning-subtle text-text" }`}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{label}</span>
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/90 px-1 text-[10px] font-black text-slate-950">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface/90 px-1 text-[10px] font-black text-text">
                       {count > 99 ? "99+" : count}
                     </span>
                   </button>
@@ -4070,12 +4070,12 @@ export default function EmployeePayrollPortal() {
                   type="button"
                   data-testid="employee-home-advance-request"
                   onClick={() => setActiveTab("requests")}
-                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-slate-200 bg-white px-2.5 py-2 text-[11px] font-black text-slate-800 shadow-sm transition"
+                  className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-border bg-surface px-2.5 py-2 text-[11px] font-black text-text shadow-sm transition"
                 >
                   <MessageCircle className="h-4 w-4 shrink-0" />
                   <span className="truncate">{ui("advanceRequest")}</span>
                   {badgeCounts.pendingNotifications > 0 ? (
-                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1 text-[10px] font-black text-slate-950">
+                    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-surface-soft px-1 text-[10px] font-black text-text">
                       {badgeCounts.pendingNotifications > 99 ? "99+" : badgeCounts.pendingNotifications}
                     </span>
                   ) : null}
@@ -4096,13 +4096,13 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {showHomeTabSections ? (
-              <section className="rounded-[28px] border border-slate-800 bg-[linear-gradient(180deg,#0b1220,#111827)] p-4 text-white shadow-[0_16px_30px_rgba(2,6,23,0.18)]">
+              <section className="rounded-[28px] border border-border bg-surface p-4 text-text shadow-[var(--shadow-card)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="m1-section-title">{text.salesOpportunitiesTitle}</h2>
                   </div>
-                  <div className="flex min-h-16 shrink-0 flex-col justify-center rounded-2xl border border-primary/20 bg-primary/10 px-3 py-2 text-left">
-                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-primary/70">{text.today}</div>
+                  <div className="flex min-h-16 shrink-0 flex-col justify-center rounded-2xl border border-border bg-primary-subtle px-3 py-2 text-left">
+                    <div className="text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{text.today}</div>
                     <div className="mt-0.5 text-lg font-black text-primary">{salesBoardCounts.total || 0}</div>
                   </div>
                 </div>
@@ -4136,10 +4136,10 @@ export default function EmployeePayrollPortal() {
 
                 {salesBoardCounts.total ? (
                   <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 text-[11px] font-black">
-                    <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary">
+                    <span className="rounded-full border border-border bg-primary-subtle px-2 py-0.5 text-text">
                       {salesBoardCounts.offers || 0} {text.salesBoardOffersCount}
                     </span>
-                    <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2 py-0.5 text-amber-100">
+                    <span className="rounded-full border border-border bg-warning-subtle px-2 py-0.5 text-text">
                       {salesBoardCounts.last_one || 0} {text.salesBoardLastOneCount}
                     </span>
                   </div>
@@ -4148,24 +4148,24 @@ export default function EmployeePayrollPortal() {
                 {salesBoardLoading && !salesBoard.items.length ? (
                   <div className="mt-4 grid gap-2">
                     {Array.from({ length: 2 }).map((_, index) => (
-                      <div key={index} className="flex flex-row-reverse gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3">
-                        <div className="h-20 w-20 rounded-2xl bg-white/10" />
+                      <div key={index} className="flex flex-row-reverse gap-3 rounded-[22px] border border-border bg-surface-soft p-3">
+                        <div className="h-20 w-20 rounded-2xl bg-surface-soft" />
                         <div className="min-w-0 flex-1 space-y-2">
-                          <div className="h-4 w-24 rounded-full bg-white/10" />
-                          <div className="h-5 w-40 rounded-full bg-white/10" />
-                          <div className="h-3 w-full rounded-full bg-white/10" />
-                          <div className="h-9 w-28 rounded-2xl bg-white/10" />
+                          <div className="h-4 w-24 rounded-full bg-surface-soft" />
+                          <div className="h-5 w-40 rounded-full bg-surface-soft" />
+                          <div className="h-3 w-full rounded-full bg-surface-soft" />
+                          <div className="h-9 w-28 rounded-2xl bg-surface-soft" />
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : salesBoardError ? (
-                  <div className="mt-4 rounded-[22px] border border-amber-300/20 bg-amber-400/10 p-3 text-sm font-bold leading-6 text-amber-50">
+                  <div className="mt-4 rounded-[22px] border border-border bg-warning-subtle p-3 text-sm font-bold leading-6 text-text">
                     <div>{salesBoardError}</div>
                     <button
                       type="button"
                       onClick={() => void loadSalesBoard()}
-                      className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-200/20 bg-white/10 px-4 text-xs font-black text-white"
+                      className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-xs font-black text-text"
                     >
                       <RefreshCw className="h-4 w-4" />
                       إعادة المحاولة
@@ -4176,9 +4176,9 @@ export default function EmployeePayrollPortal() {
                     {salesBoard.items.map((card) => (
                       <article
                         key={card.key}
-                        className="flex flex-row-reverse gap-3 rounded-[22px] border border-white/10 bg-white/5 p-3 shadow-[0_8px_18px_rgba(2,6,23,0.12)]"
+                        className="flex flex-row-reverse gap-3 rounded-[22px] border border-border bg-surface-soft p-3 shadow-[var(--shadow-card)]"
                       >
-                        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80">
+                        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface-soft">
                           {card.image_url ? (
                             <img
                               src={resolveProductImageUrl(card.image_url)}
@@ -4193,13 +4193,13 @@ export default function EmployeePayrollPortal() {
                         <div className="min-w-0 flex-1 text-right">
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
                             {card.is_offer ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-black text-primary">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-border bg-primary-subtle px-2.5 py-1 text-[11px] font-black text-text">
                                 <Tag className="h-3 w-3 shrink-0" />
                                 {text.salesBoardOfferBadge}
                               </span>
                             ) : null}
                             {card.has_last_one ? (
-                              <span className="rounded-full border border-amber-300/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-black text-amber-100">
+                              <span className="rounded-full border border-border bg-warning-subtle px-2.5 py-1 text-[11px] font-black text-text">
                                 {text.salesBoardLastOneBadge}
                               </span>
                             ) : null}
@@ -4210,32 +4210,32 @@ export default function EmployeePayrollPortal() {
                           {/* text-left is physically left here: the utilities layer beats
                               the RTL flip in index.css, so the name sits next to the photo
                               like the badges above it (justify-end resolves left in RTL). */}
-                          <div className="mt-2 truncate text-left text-[15px] font-black leading-5 text-white" dir="auto">
+                          <div className="mt-2 truncate text-left text-[15px] font-black leading-5 text-text" dir="auto">
                             {card.product_name || "منتج"}
                           </div>
-                          <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[11px] font-bold text-slate-300">
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{card.color || "بدون لون"}</span>
+                          <div className="mt-1 flex flex-wrap justify-end gap-1.5 text-[11px] font-bold text-text-muted">
+                            <span className="rounded-full border border-border bg-surface-soft px-2 py-1">{card.color || "بدون لون"}</span>
                             {safeArray(card.audience_labels).map((label) => (
-                              <span key={label} className="rounded-full border border-white/10 bg-white/5 px-2 py-1">{label}</span>
+                              <span key={label} className="rounded-full border border-border bg-surface-soft px-2 py-1">{label}</span>
                             ))}
                           </div>
                           {safeArray(card.sizes).length ? (
                             <div className="mt-2 flex flex-wrap items-center justify-end gap-1">
-                              <span className="text-[11px] font-bold text-slate-400">{text.salesBoardAvailableSizes}</span>
+                              <span className="text-[11px] font-bold text-text-muted">{text.salesBoardAvailableSizes}</span>
                               {card.sizes.slice(0, 8).map((size) => (
                                 <span
                                   key={size}
                                   className={`rounded-full px-2 py-0.5 text-[11px] font-black ${
                                     safeArray(card.last_one_sizes).includes(size)
-                                      ? "border border-amber-300/40 bg-amber-400/15 text-amber-100"
-                                      : "border border-white/10 bg-white/5 text-slate-200"
+                                      ? "border border-border bg-warning-subtle text-text"
+                                      : "border border-border bg-surface-soft text-text-muted"
                                   }`}
                                 >
                                   {size}
                                 </span>
                               ))}
                               {card.sizes.length > 8 ? (
-                                <span className="text-[11px] font-black text-slate-400">+{card.sizes.length - 8}</span>
+                                <span className="text-[11px] font-black text-text-muted">+{card.sizes.length - 8}</span>
                               ) : null}
                             </div>
                           ) : null}
@@ -4243,7 +4243,7 @@ export default function EmployeePayrollPortal() {
                             {card.price > 0 ? (
                               <div className="flex items-baseline gap-2">
                                 {card.compare_price > card.price ? (
-                                  <span className="text-[12px] font-bold text-slate-400 line-through">{formatCurrency(card.compare_price)}</span>
+                                  <span className="text-[12px] font-bold text-text-muted line-through">{formatCurrency(card.compare_price)}</span>
                                 ) : null}
                                 <span className="text-[15px] font-black text-primary">{formatCurrency(card.price)}</span>
                               </div>
@@ -4251,7 +4251,7 @@ export default function EmployeePayrollPortal() {
                             <button
                               type="button"
                               onClick={() => window.location.assign(salesOpportunityRoute(token, card))}
-                              className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-slate-950 shadow-sm transition hover:bg-primary"
+                              className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-xs font-black text-[var(--primary-contrast)] shadow-sm transition hover:bg-primary-hover"
                             >
                               عرض المنتج
                             </button>
@@ -4264,7 +4264,7 @@ export default function EmployeePayrollPortal() {
                         type="button"
                         onClick={() => setSalesBoardLimit((current) => current + SALES_BOARD_PAGE_SIZE)}
                         disabled={salesBoardLoading}
-                        className="mt-1 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 text-xs font-black text-white disabled:opacity-60"
+                        className="mt-1 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-xs font-black text-text disabled:opacity-60"
                       >
                         {salesBoardLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {text.salesBoardShowMore}
@@ -4272,7 +4272,7 @@ export default function EmployeePayrollPortal() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-[22px] border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold leading-6 text-slate-300">
+                  <div className="mt-4 rounded-[22px] border border-border bg-surface-soft px-4 py-3 text-sm font-bold leading-6 text-text-muted">
                     <div>{salesBoardFiltersActive ? text.salesBoardEmpty : "لا توجد فرص بيع حالياً"}</div>
                     {salesBoardFiltersActive ? (
                       <button
@@ -4281,7 +4281,7 @@ export default function EmployeePayrollPortal() {
                           setSalesBoardLimit(SALES_BOARD_PAGE_SIZE);
                           setSalesBoardFilters(SALES_BOARD_EMPTY_FILTERS);
                         }}
-                        className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/10 px-4 text-xs font-black text-white"
+                        className="mt-3 inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-xs font-black text-text"
                       >
                         {text.salesBoardClearFilters}
                       </button>
@@ -4292,14 +4292,14 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {showHomeTabSections && showInstallCard ? (
-              <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-950 shadow-sm">
+              <div className="rounded-3xl border border-border bg-success-subtle p-4 text-text shadow-sm">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-surface text-success shadow-sm">
                     <Smartphone className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="m1-section-title">{text.portalAsApp}</h3>
-                    <p className="mt-1 text-xs font-bold leading-5 text-emerald-800">
+                    <p className="mt-1 text-xs font-bold leading-5 text-success">
                       {isIosDevice()
                         ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
                         : "أضف بوابة الموظف إلى الشاشة الرئيسية لتعمل كتطبيق مستقل."}
@@ -4320,14 +4320,14 @@ export default function EmployeePayrollPortal() {
                 type="button"
                 onClick={() => enableNotifications()}
                 disabled={notificationSaving || notificationState === "unsupported"}
-                className="flex w-full items-center gap-3 rounded-[var(--radius-control)] border border-amber-200 bg-amber-50 p-4 text-start text-amber-950 shadow-sm disabled:opacity-70"
+                className="flex w-full items-center gap-3 rounded-[var(--radius-control)] border border-border bg-warning-subtle p-4 text-start text-text shadow-sm disabled:opacity-70"
               >
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-sm">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-warning text-[var(--primary-contrast)] shadow-sm">
                   {notificationSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Bell className="h-5 w-5" />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-black">{text.enablePortalNotifications}</span>
-                  <span className="mt-1 block text-xs font-bold leading-5 text-amber-800">
+                  <span className="mt-1 block text-xs font-bold leading-5 text-warning">
                     {notificationMessage || "اضغط هنا لاستقبال رسائل الإدارة والمهام حتى عند إغلاق التطبيق."}
                   </span>
                 </span>
@@ -4335,13 +4335,13 @@ export default function EmployeePayrollPortal() {
               </button>
             ) : null}
 
-            {activeTab === "notifications" ? <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "notifications" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="m1-section-title text-slate-950">
+                  <h3 className="m1-section-title text-text">
                     {notificationsReady ? "الإشعارات مفعلة" : "فعّل الإشعارات لاستقبال رسائل الإدارة والتنبيهات"}
                   </h3>
-                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                  <p className="mt-1 text-xs font-bold leading-5 text-text-muted">
                     {isIosDevice() && !standalone
                       ? "على iPhone: اضغط مشاركة ثم Add to Home Screen ثم افتح التطبيق من الأيقونة وفعّل الإشعارات."
                       : notificationMessage || (notificationState === "unsupported" ? "الإشعارات غير مدعومة على هذا الجهاز." : "سنرسل تنبيهًا عند تعيين مهمة أو تحديث طلب أو إنشاء الراتب.")}
@@ -4363,7 +4363,7 @@ export default function EmployeePayrollPortal() {
             </div> : null}
 
             {activeTab === "notifications" ? (
-              <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="m1-section-title">{ui("notificationsTab")}</h3>
                   <button
@@ -4374,7 +4374,7 @@ export default function EmployeePayrollPortal() {
                       });
                       setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })), unread_notifications_count: 0 } : current);
                     }}
-                    className="rounded-[var(--radius-control)] bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700"
+                    className="rounded-[var(--radius-control)] bg-surface-soft px-3 py-2 text-[11px] font-black text-text"
                   >
                     تعليم الكل كمقروء
                   </button>
@@ -4398,40 +4398,40 @@ export default function EmployeePayrollPortal() {
                         }
                         if (isDisplayRefill) setActiveTab("display-refill");
                       }}
-                      className={`rounded-[var(--radius-control)] border px-3 py-2 text-start ${isDisplayRefill ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-slate-50"}`}
+                      className={`rounded-[var(--radius-control)] border px-3 py-2 text-start ${isDisplayRefill ? "border-border bg-warning-subtle" : "border-border bg-surface-soft"}`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className={`truncate text-sm font-black ${isDisplayRefill ? "text-amber-950" : "text-slate-900"}`} dir="auto">{isDisplayRefill ? "نواقص العرض" : item.title}</div>
-                          <div className="mt-1 text-xs font-bold leading-5 text-slate-600" dir="auto">{item.body}</div>
+                          <div className={`truncate text-sm font-black ${isDisplayRefill ? "text-warning" : "text-text"}`} dir="auto">{isDisplayRefill ? "نواقص العرض" : item.title}</div>
+                          <div className="mt-1 text-xs font-bold leading-5 text-text-muted" dir="auto">{item.body}</div>
                         </div>
-                        {!item.read_at ? <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isDisplayRefill ? "bg-amber-500" : "bg-emerald-500"}`} /> : null}
+                        {!item.read_at ? <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isDisplayRefill ? "bg-warning" : "bg-primary"}`} /> : null}
                       </div>
-                      <div className="mt-1 text-[11px] font-bold text-slate-400"><DateSafe>{formatEmployeePortalDateTime(item.created_at, language)}</DateSafe></div>
+                      <div className="mt-1 text-[11px] font-bold text-text-muted"><DateSafe>{formatEmployeePortalDateTime(item.created_at, language)}</DateSafe></div>
                     </button>
                   );}) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                    <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
                   )}
                 </div>
               </div>
             ) : null}
 
             {activeTab === "display-refill" ? (
-              <div className="rounded-[var(--radius-card)] border border-amber-200 bg-white p-3.5 shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3.5 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="m1-section-title text-slate-950">{text.displayRefillTitle}</h3>
-                    <p className="mt-1 text-xs font-bold text-slate-500">{text.displayRefillSubtitle}</p>
+                    <h3 className="m1-section-title text-text">{text.displayRefillTitle}</h3>
+                    <p className="mt-1 text-xs font-bold text-text-muted">{text.displayRefillSubtitle}</p>
                   </div>
-                  <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] bg-slate-100 px-3 text-[11px] font-black text-slate-700">
+                  <button type="button" onClick={() => loadDisplayRefillAlerts()} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] bg-surface-soft px-3 text-[11px] font-black text-text">
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </button>
                 </div>
                 <div className="mt-3 grid gap-3">
                   <section className="grid gap-2">
                     <div className="flex items-center justify-between gap-3">
-                      <h4 className="text-sm font-black text-slate-950">{text.displayRefillPending}</h4>
-                      <span className="rounded-full bg-amber-100 px-2 py-1 text-[11px] font-black text-amber-900">{pendingDisplayRefillAlerts.length}</span>
+                      <h4 className="text-sm font-black text-text">{text.displayRefillPending}</h4>
+                      <span className="rounded-full bg-warning-subtle px-2 py-1 text-[11px] font-black text-text">{pendingDisplayRefillAlerts.length}</span>
                     </div>
                     {pendingDisplayRefillAlerts.length ? pendingDisplayRefillAlerts.map((alert) => {
                       const imageSrc = alert.image_url
@@ -4439,32 +4439,32 @@ export default function EmployeePayrollPortal() {
                         : "";
                       const isSaving = displayRefillSavingId === String(alert.id);
                       return (
-                        <article key={alert.id} className="rounded-2xl border border-amber-200 bg-amber-50/70 p-2.5 shadow-sm">
+                        <article key={alert.id} className="rounded-2xl border border-border bg-warning-subtle p-2.5 shadow-sm">
                           <div className="flex items-start gap-2.5">
-                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-amber-100 bg-white">
-                              {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-amber-700"><AlertTriangle className="h-5 w-5" /></div>}
+                            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+                              {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-warning"><AlertTriangle className="h-5 w-5" /></div>}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-2">
-                                <div className="inline-flex rounded-full bg-amber-200 px-2 py-1 text-[10px] font-black text-amber-950">{text.displayRefillOnDisplay}</div>
-                                {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-slate-400">{alert.invoice_number}</div> : null}
+                                <div className="inline-flex rounded-full bg-warning-subtle px-2 py-1 text-[10px] font-black text-text">{text.displayRefillOnDisplay}</div>
+                                {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-text-muted">{alert.invoice_number}</div> : null}
                               </div>
                               <h4
-                                className="mt-1 text-[13px] font-black leading-4 text-slate-950"
+                                className="mt-1 text-[13px] font-black leading-4 text-text"
                                 dir="auto"
                                 style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden" }}
                               >
                                 {alert.product_name}
                               </h4>
                               <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">{text.soldSize} {alert.sold_size || "-"}</span>
-                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">{text.showSize} {alert.replacement_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-warning-subtle px-2 py-1 text-text">{text.soldSize} {alert.sold_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-success-subtle px-2 py-1 text-text">{text.showSize} {alert.replacement_size || "-"}</span>
                               </div>
-                              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
+                              <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-text-muted">
                                 {alert.color_name ? <span>{alert.color_name}</span> : null}
-                                {alert.color_name ? <span className="text-slate-300">•</span> : null}
+                                {alert.color_name ? <span className="text-text-muted">•</span> : null}
                                 <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
-                                {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>{text.availableLabel} {alert.remaining_stock}</span></> : null}
+                                {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-text-muted">•</span><span>{text.availableLabel} {alert.remaining_stock}</span></> : null}
                               </div>
                             </div>
                           </div>
@@ -4481,7 +4481,7 @@ export default function EmployeePayrollPortal() {
                             <button
                               type="button"
                               onClick={() => printDisplayRefillBarcode(alert)}
-                              className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
+                              className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-[13px] font-black text-text"
                             >
                               <Printer className="h-4 w-4" />
                               Print Barcode
@@ -4490,58 +4490,58 @@ export default function EmployeePayrollPortal() {
                         </article>
                       );
                     }) : hasDisplayRefillAlerts ? (
-                      <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-4 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
+                      <div className="rounded-2xl border border-dashed border-border bg-warning-subtle px-3 py-4 text-center text-sm font-bold text-text">{ui("displayRefillEmpty")}</div>
                     ) : null}
                   </section>
                   {completedAlerts.length ? (
                     <section className="grid gap-2">
                       <div className="flex items-center justify-between gap-3">
-                        <h4 className="text-sm font-black text-slate-950">{text.displayRefillDone}</h4>
-                        <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black text-slate-600">{completedAlerts.length}</span>
+                        <h4 className="text-sm font-black text-text">{text.displayRefillDone}</h4>
+                        <span className="rounded-full bg-surface-soft px-2 py-1 text-[11px] font-black text-text-muted">{completedAlerts.length}</span>
                       </div>
                       {visibleCompletedAlerts.map((alert) => {
                         const imageSrc = alert.image_url
                           ? (/^https?:\/\//i.test(alert.image_url) ? alert.image_url : `${API_ORIGIN}${String(alert.image_url).startsWith("/") ? "" : "/"}${alert.image_url}`)
                           : "";
                         return (
-                          <article key={alert.id} className="rounded-2xl border border-slate-200 bg-slate-50/90 p-2.5 opacity-90">
+                          <article key={alert.id} className="rounded-2xl border border-border bg-surface-soft p-2.5 opacity-90">
                             <div className="flex items-start gap-2.5">
-                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-slate-200 bg-white">
-                                {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover grayscale" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-slate-400"><CheckCheck className="h-5 w-5" /></div>}
+                              <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
+                                {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover grayscale" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-text-muted"><CheckCheck className="h-5 w-5" /></div>}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="inline-flex rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-700">{text.displayRefillDisplayed}</div>
-                                  {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-slate-400">{alert.invoice_number}</div> : null}
+                                  <div className="inline-flex rounded-full bg-border px-2 py-1 text-[10px] font-black text-text">{text.displayRefillDisplayed}</div>
+                                  {alert.invoice_number ? <div className="truncate text-[11px] font-bold text-text-muted">{alert.invoice_number}</div> : null}
                                 </div>
                                 <h4
-                                  className="mt-1 text-[13px] font-black leading-4 text-slate-700"
+                                  className="mt-1 text-[13px] font-black leading-4 text-text"
                                   dir="auto"
                                   style={{ display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden" }}
                                 >
                                   {alert.product_name}
                                 </h4>
                                 <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
-                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">{text.soldSize} {alert.sold_size || "-"}</span>
-                                  <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">{text.showSize} {alert.replacement_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-surface-soft px-2 py-1 text-text">{text.soldSize} {alert.sold_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-border px-2 py-1 text-text">{text.showSize} {alert.replacement_size || "-"}</span>
                                 </div>
-                                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
+                                <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-text-muted">
                                   {alert.color_name ? <span>{alert.color_name}</span> : null}
-                                  {alert.color_name ? <span className="text-slate-300">•</span> : null}
+                                  {alert.color_name ? <span className="text-text-muted">•</span> : null}
                                   <span><DateSafe>{formatEmployeePortalDateTime(alert.created_at, language)}</DateSafe></span>
-                                  {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-slate-300">•</span><span>{text.availableLabel} {alert.remaining_stock}</span></> : null}
+                                  {Number(alert.remaining_stock || 0) > 0 ? <><span className="text-text-muted">•</span><span>{text.availableLabel} {alert.remaining_stock}</span></> : null}
                                 </div>
                               </div>
                             </div>
                             <div className="mt-2 flex items-center gap-2">
-                              <button type="button" disabled className="inline-flex h-[var(--control-height-md)] min-w-[6.75rem] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-slate-200 px-3 text-[13px] font-black text-slate-600">
+                              <button type="button" disabled className="inline-flex h-[var(--control-height-md)] min-w-[6.75rem] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-border px-3 text-[13px] font-black text-text-muted">
                                 <CheckCheck className="h-4 w-4" />
                                 تم التنفيذ
                               </button>
                               <button
                                 type="button"
                                 onClick={() => printDisplayRefillBarcode(alert)}
-                                className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-[13px] font-black text-slate-800"
+                                className="inline-flex h-[var(--control-height-md)] flex-1 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-[13px] font-black text-text"
                               >
                                 <Printer className="h-4 w-4" />
                                 Print Barcode
@@ -4554,7 +4554,7 @@ export default function EmployeePayrollPortal() {
                         <button
                           type="button"
                           onClick={() => setCompletedExpanded((current) => !current)}
-                          className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-700"
+                          className="inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text"
                         >
                           {completedExpanded
                             ? ui("displayRefillCompletedHide")
@@ -4564,7 +4564,7 @@ export default function EmployeePayrollPortal() {
                     </section>
                   ) : null}
                   {!hasDisplayRefillAlerts ? (
-                    <div className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-4 text-center text-sm font-bold text-amber-800">{ui("displayRefillEmpty")}</div>
+                    <div className="rounded-2xl border border-dashed border-border bg-warning-subtle px-3 py-4 text-center text-sm font-bold text-text">{ui("displayRefillEmpty")}</div>
                   ) : null}
                 </div>
               </div>
@@ -4581,7 +4581,7 @@ export default function EmployeePayrollPortal() {
               />
             ) : null}
 
-            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${NAV_GRID_COLUMNS[mobileTabs.length] || "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur`}>
+            <nav className={`fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+12px)] z-40 mx-auto grid max-w-md ${NAV_GRID_COLUMNS[mobileTabs.length] || "grid-cols-7"} gap-1 rounded-[var(--radius-card)] border border-border bg-surface/95 p-1.5 shadow-[var(--shadow-card)] backdrop-blur`}>
               {mobileTabs.map(([key, label, Icon]) => (
                 <button
                   key={key}
@@ -4589,7 +4589,7 @@ export default function EmployeePayrollPortal() {
                   data-testid={`employee-nav-${key}`}
                   onPointerEnter={key === ONLINE_ORDERS_NAV_KEY ? () => preloadOnlineOrdersPage().catch(() => {}) : key === INBOX_NAV_KEY ? () => { void import("./EmployeePortalInbox"); } : undefined}
                   onClick={() => (key === ONLINE_ORDERS_NAV_KEY ? openOnlineOrdersPage() : key === INBOX_NAV_KEY ? navigate(`${employeeFeatureBasePath}/${encodeURIComponent(token)}/inbox`) : setActiveTab(key))}
-                  className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-control)] px-1 py-1.5 text-[10px] font-black leading-tight ${activeTab === key ? "bg-slate-950/95 text-white shadow-sm" : "text-slate-500"}`}
+                  className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[var(--radius-control)] px-1 py-1.5 text-[10px] font-black leading-tight ${activeTab === key ? "bg-primary-subtle text-text shadow-sm" : "text-text-muted"}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="w-full whitespace-normal text-center leading-[1.15]">{label}</span>
@@ -4599,15 +4599,15 @@ export default function EmployeePayrollPortal() {
 
             {EMPLOYEE_PORTAL_SALARY_ENABLED && activeTab === "salary" ? (
               <div className="grid gap-3">
-                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="m1-section-title text-slate-950">{ui("payrollSummary")}</h3>
-                      <div className="mt-1 text-xs font-bold text-slate-500">
-                        {ui("employeeName")}: <span className="text-slate-950" dir="auto">{portal?.payslip?.employee_name || profile.name || portal?.employee_name || "-"}</span>
+                      <h3 className="m1-section-title text-text">{ui("payrollSummary")}</h3>
+                      <div className="mt-1 text-xs font-bold text-text-muted">
+                        {ui("employeeName")}: <span className="text-text" dir="auto">{portal?.payslip?.employee_name || profile.name || portal?.employee_name || "-"}</span>
                       </div>
-                      <div className="mt-1 text-xs font-bold text-slate-500">
-                        {ui("payrollMonth")}: <span className="text-slate-950" dir="ltr">{portal?.current_payroll_period || portal?.payslip?.payroll_period || "-"}</span>
+                      <div className="mt-1 text-xs font-bold text-text-muted">
+                        {ui("payrollMonth")}: <span className="text-text" dir="ltr">{portal?.current_payroll_period || portal?.payslip?.payroll_period || "-"}</span>
                       </div>
                     </div>
                     <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-black ${payrollLifecycleBadgeClassName}`}>
@@ -4624,24 +4624,24 @@ export default function EmployeePayrollPortal() {
                       { label: ui("totalDeductions"), value: money(wallet.total_deductions ?? portal?.total_deductions), subtitle: text.totalDeductions },
                       { label: ui("netSalary"), value: payrollExists ? money(wallet.current_net_salary ?? portal?.net_salary ?? portal?.payslip?.net_salary) : "-", subtitle: payrollExists ? (portal?.current_payroll_period || ui("currentMonthSubtitle")) : ui("salaryNotGenerated") },
                     ].map((item) => (
-                      <div key={item.label} className="rounded-2xl bg-slate-50 px-3 py-2.5">
-                        <div className="text-[11px] font-black text-slate-500">{item.label}</div>
-                        <div className="mt-1 text-[15px] font-black text-slate-950" dir="ltr">{item.value}</div>
-                        <div className="mt-1 text-[11px] font-bold text-slate-400" dir="auto">{item.subtitle}</div>
+                      <div key={item.label} className="rounded-2xl bg-surface-soft px-3 py-2.5">
+                        <div className="text-[11px] font-black text-text-muted">{item.label}</div>
+                        <div className="mt-1 text-[15px] font-black text-text" dir="ltr">{item.value}</div>
+                        <div className="mt-1 text-[11px] font-bold text-text-muted" dir="auto">{item.subtitle}</div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-3">
+                  <div className="mt-3 rounded-2xl bg-surface-soft px-3 py-3">
                     <div className="flex items-center gap-2">
                       <span className={`h-2.5 w-2.5 rounded-full ${payrollLifecycleDotClassName}`} />
-                      <div className="text-sm font-black text-slate-950">{ui("payrollStatus")}: {payrollLifecycle.label}</div>
+                      <div className="text-sm font-black text-text">{ui("payrollStatus")}: {payrollLifecycle.label}</div>
                     </div>
                     {payrollLifecycle.key === "blocked" && payrollBlockingIssues.length ? (
-                      <ul className="mt-2 space-y-1.5 text-sm font-bold text-slate-700">
+                      <ul className="mt-2 space-y-1.5 text-sm font-bold text-text">
                         {payrollBlockingIssues.map((issue) => (
                           <li key={issue} className="flex items-start gap-2">
-                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-text-muted" />
                             <span>{issue}</span>
                           </li>
                         ))}
@@ -4655,66 +4655,66 @@ export default function EmployeePayrollPortal() {
                   </button>
                 </div>
 
-                <details className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
+                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-text">
                     <span>{ui("payrollHistory")}</span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">{walletTransactions.length}</span>
+                    <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{walletTransactions.length}</span>
                   </summary>
                   <div className="mt-3 grid gap-2">
                     {walletTransactions.length ? walletTransactions.slice(0, 6).map((item) => (
-                      <div key={item.id || `${item.type || "transaction"}-${item.created_at || item.date || item.amount || ""}`} className="rounded-2xl bg-slate-50 px-3 py-2.5">
+                      <div key={item.id || `${item.type || "transaction"}-${item.created_at || item.date || item.amount || ""}`} className="rounded-2xl bg-surface-soft px-3 py-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="text-sm font-black text-slate-950" dir="auto">{walletTransactionTypeLabel(item, text, language)}</div>
-                            {item.description ? <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{item.description}</div> : null}
+                            <div className="text-sm font-black text-text" dir="auto">{walletTransactionTypeLabel(item, text, language)}</div>
+                            {item.description ? <div className="mt-1 text-xs font-bold text-text-muted" dir="auto">{item.description}</div> : null}
                           </div>
-                          <div className="shrink-0 text-sm font-black text-slate-950" dir="ltr">{money(item.amount)}</div>
+                          <div className="shrink-0 text-sm font-black text-text" dir="ltr">{money(item.amount)}</div>
                         </div>
-                        <div className="mt-1 text-[11px] font-bold text-slate-400"><DateSafe>{formatWalletDateLocal(item.created_at || item.date, language)}</DateSafe></div>
+                        <div className="mt-1 text-[11px] font-bold text-text-muted"><DateSafe>{formatWalletDateLocal(item.created_at || item.date, language)}</DateSafe></div>
                       </div>
                     )) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-4 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                      <div className="rounded-2xl border border-dashed border-border px-3 py-4 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
                     )}
                   </div>
                 </details>
 
-                <details className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
+                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-text">
                     <span>{ui("attendanceSnapshot")}</span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">{attendanceRows.length}</span>
+                    <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">{attendanceRows.length}</span>
                   </summary>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.attendanceDays}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.attendanceDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.absenceDays}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.absenceDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.lateDays}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.lateDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.overtimeHours}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.overtimeHours}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{ui("attendedDays")}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{ui("attendedDays")}</div>
                       <div className="mt-1 text-lg font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
                     </div>
-                    <div className="rounded-2xl bg-red-50 p-3 text-red-950">
-                      <div className="text-red-700">{text.deductedAbsenceAmount}</div>
+                    <div className="rounded-2xl bg-danger-subtle p-3 text-text">
+                      <div className="text-danger">{text.deductedAbsenceAmount}</div>
                       <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
                     </div>
                   </div>
                 </details>
 
-                <details className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-slate-950">
+                <details className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-base font-black text-text">
                     <span>{ui("technicalValidationChecklist")}</span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black text-slate-600">5</span>
+                    <span className="rounded-full bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text-muted">5</span>
                   </summary>
                   <div className="mt-3 grid gap-2 text-sm font-bold">
                     {[
@@ -4724,9 +4724,9 @@ export default function EmployeePayrollPortal() {
                       { label: ui("attendanceRecordsResolved"), ok: !hasUnresolvedAttendance },
                       { label: ui("statusBlockingApproval"), ok: payrollBlockingIssues.length === 0 },
                     ].map((item) => (
-                      <div key={item.label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5">
+                      <div key={item.label} className="flex items-center justify-between rounded-2xl bg-surface-soft px-3 py-2.5">
                         <span>{item.label}</span>
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${item.ok ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black ${item.ok ? "bg-success-subtle text-text" : "bg-warning-subtle text-text"}`}>
                           <CheckCircle2 className="h-3.5 w-3.5" />
                           {item.ok ? ui("statusApproved") : ui("statusBlockingApproval")}
                         </span>
@@ -4737,13 +4737,13 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-emerald-200 bg-white p-4 shadow-sm">
+            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <h3 className="m1-section-title">{text.performance}</h3>
-                  <div className="mt-1 text-xs font-bold text-slate-500">{text.rewardPoints}: <span dir="ltr">{rewardPoints.points_balance || 0}</span></div>
+                  <div className="mt-1 text-xs font-bold text-text-muted">{text.rewardPoints}: <span dir="ltr">{rewardPoints.points_balance || 0}</span></div>
                 </div>
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-xl font-black text-white" dir="ltr">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-xl font-black text-[var(--primary-contrast)]" dir="ltr">
                   {score.overall || 0}
                 </div>
               </div>
@@ -4755,37 +4755,37 @@ export default function EmployeePayrollPortal() {
                 <ProgressRow label={text.penaltiesImpact} value={score.penalties_impact} />
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs font-black">
-                <div className="rounded-2xl bg-slate-50 p-2"><Target className="mx-auto h-4 w-4 text-slate-500" /><div className="mt-1">{text.monthlySalesTarget}</div><div dir="ltr">{money(goals.monthly_sales_target || 0)}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-2"><CalendarDays className="mx-auto h-4 w-4 text-slate-500" /><div className="mt-1">{text.attendanceTarget}</div><div dir="ltr">{goals.attendance_days || 0}/{goals.attendance_target_days || 0}</div></div>
-                <div className="rounded-2xl bg-slate-50 p-2"><Star className="mx-auto h-4 w-4 text-slate-500" /><div className="mt-1">{text.branchKpi}</div><div dir="ltr">{Math.round(goals.branch_kpi_progress || 0)}%</div></div>
+                <div className="rounded-2xl bg-surface-soft p-2"><Target className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.monthlySalesTarget}</div><div dir="ltr">{money(goals.monthly_sales_target || 0)}</div></div>
+                <div className="rounded-2xl bg-surface-soft p-2"><CalendarDays className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.attendanceTarget}</div><div dir="ltr">{goals.attendance_days || 0}/{goals.attendance_target_days || 0}</div></div>
+                <div className="rounded-2xl bg-surface-soft p-2"><Star className="mx-auto h-4 w-4 text-text-muted" /><div className="mt-1">{text.branchKpi}</div><div dir="ltr">{Math.round(goals.branch_kpi_progress || 0)}%</div></div>
               </div>
               <div className="mt-4 grid gap-2">
                 <h4 className="text-sm font-black">{text.achievements}</h4>
                 {badges.length ? badges.map((badge) => (
-                  <div key={`${badge.badge_code}-${badge.period}`} className="flex items-center justify-between rounded-2xl bg-amber-50 px-3 py-2 text-sm font-black text-amber-900">
+                  <div key={`${badge.badge_code}-${badge.period}`} className="flex items-center justify-between rounded-2xl bg-warning-subtle px-3 py-2 text-sm font-black text-text">
                     <span className="inline-flex items-center gap-2"><Trophy className="h-4 w-4" />{badge.badge_label}</span>
                     <span dir="ltr">+{badge.points || 0}</span>
                   </div>
-                )) : <div className="rounded-2xl border border-dashed border-slate-200 px-3 py-4 text-center text-sm font-bold text-slate-500">{text.noBadges}</div>}
+                )) : <div className="rounded-2xl border border-dashed border-border px-3 py-4 text-center text-sm font-bold text-text-muted">{text.noBadges}</div>}
               </div>
             </div> : null}
 
-            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "performance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <h3 className="m1-section-title">{text.leaderboard}</h3>
               <div className="mt-3 grid gap-2">
                 {optionalLoading && leaderboardLazy ? (
-                  <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-sm font-bold text-slate-500">
+                  <div className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-sm font-bold text-text-muted">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     {text.loading}
                   </div>
                 ) : leaderboard.length ? leaderboard.slice(0, 5).map((row) => (
-                  <div key={row.employee_id} className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl px-3 py-2 text-sm font-black ${String(row.employee_id) === String(profile.id) ? "bg-emerald-50 text-emerald-900" : "bg-slate-50 text-slate-700"}`}>
-                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white" dir="ltr">#{row.rank}</span>
+                  <div key={row.employee_id} className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-2xl px-3 py-2 text-sm font-black ${String(row.employee_id) === String(profile.id) ? "bg-success-subtle text-text" : "bg-surface-soft text-text"}`}>
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-surface" dir="ltr">#{row.rank}</span>
                     <span className="truncate" dir="auto">{row.employee_name}</span>
                     <span dir="ltr">{row.score}</span>
                   </div>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noTransactions}</div>
+                  <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noTransactions}</div>
                 )}
               </div>
             </div> : null}
@@ -4813,31 +4813,31 @@ export default function EmployeePayrollPortal() {
                   language={language}
                 />
 
-                <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
                   <h3 className="m1-section-title">{text.attendanceSummary}</h3>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm font-bold">
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.presentDays}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.presentDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.attended_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.absentDays}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.absentDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.absence_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.lateDays}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.lateDays}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.late_days || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{text.overtimeHours}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{text.overtimeHours}</div>
                       <div className="mt-1 text-xl font-black tabular-nums">{attendance.overtime_hours || 0}</div>
                     </div>
-                    <div className="rounded-2xl bg-slate-50 p-3">
-                      <div className="text-slate-500">{ui("attendedDays")}</div>
+                    <div className="rounded-2xl bg-surface-soft p-3">
+                      <div className="text-text-muted">{ui("attendedDays")}</div>
                       <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{presentDays} / {expectedDays} {ui("attendedDaysSuffix")}</div>
                     </div>
-                    <div className="rounded-2xl bg-red-50 p-3 text-red-950">
-                      <div className="text-red-700">{text.deductedAbsenceAmount}</div>
+                    <div className="rounded-2xl bg-danger-subtle p-3 text-text">
+                      <div className="text-danger">{text.deductedAbsenceAmount}</div>
                       <div className="mt-1 text-xl font-black tabular-nums" dir="ltr">{money(attendance.deducted_absence_amount || portal?.absence_deduction || 0)}</div>
                     </div>
                   </div>
@@ -4845,43 +4845,43 @@ export default function EmployeePayrollPortal() {
               </>
             ) : null}
 
-            {activeTab === "attendance" ? <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "attendance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="m1-section-title">{text.attendanceTimeline}</h3>
-                <CalendarDays className="h-5 w-5 text-slate-400" />
+                <CalendarDays className="h-5 w-5 text-text-muted" />
               </div>
               <div className="mt-3 grid gap-2">
                 {attendanceRows.length ? attendanceRows.map((row) => (
-                  <div key={`${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
+                  <div key={`${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-border bg-surface-soft p-3 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
                       <div className="font-black tabular-nums"><DateSafe>{formatEmployeePortalDate(row.attendance_date || row.date || row.check_in || row.check_out, language)}</DateSafe></div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{attendanceStatusLabel(row, text)}</span>
+                      <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-black text-text">{attendanceStatusLabel(row, text)}</span>
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
-                      <div className="col-span-2"><span className="font-black text-slate-950">{text.shift}: </span><span dir="auto">{formatShiftLabelLocal(row, language)}</span></div>
-                      <div><span className="font-black text-slate-950">{text.checkIn}: </span><DateSafe>{formatTimeLocal(row.check_in, language)}</DateSafe></div>
-                      <div><span className="font-black text-slate-950">{text.checkOut}: </span><DateSafe>{formatTimeLocal(row.check_out, language)}</DateSafe></div>
-                      <div><span className="font-black text-slate-950">{text.lateMinutes}: </span><span dir="ltr">{row.late_minutes || 0}</span></div>
-                      <div><span className="font-black text-slate-950">{text.overtimeHours}: </span><span dir="ltr">{row.overtime_hours || 0}</span></div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-muted">
+                      <div className="col-span-2"><span className="font-black text-text">{text.shift}: </span><span dir="auto">{formatShiftLabelLocal(row, language)}</span></div>
+                      <div><span className="font-black text-text">{text.checkIn}: </span><DateSafe>{formatTimeLocal(row.check_in, language)}</DateSafe></div>
+                      <div><span className="font-black text-text">{text.checkOut}: </span><DateSafe>{formatTimeLocal(row.check_out, language)}</DateSafe></div>
+                      <div><span className="font-black text-text">{text.lateMinutes}: </span><span dir="ltr">{row.late_minutes || 0}</span></div>
+                      <div><span className="font-black text-text">{text.overtimeHours}: </span><span dir="ltr">{row.overtime_hours || 0}</span></div>
                     </div>
-                    {row.notes ? <div className="mt-2 text-xs leading-5 text-slate-500" dir="auto">{text.notes}: {row.notes}</div> : null}
+                    {row.notes ? <div className="mt-2 text-xs leading-5 text-text-muted" dir="auto">{text.notes}: {row.notes}</div> : null}
                   </div>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm font-bold text-slate-500">{text.noAttendance}</div>
+                  <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-5 text-center text-sm font-bold text-text-muted">{text.noAttendance}</div>
                 )}
               </div>
             </div> : null}
 
             {activeTab === "tasks" ? (
-              <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
                 <h3 className="m1-section-title">{text.tasks}</h3>
                 {!tasks.length ? (
-                  <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-6 text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-emerald-600 shadow-sm">
+                  <div className="mt-3 rounded-3xl border border-border bg-success-subtle px-4 py-6 text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface text-success shadow-sm">
                       <CheckCircle2 className="h-7 w-7" />
                     </div>
-                    <div className="mt-3 text-xl font-black text-emerald-950">{ui("noTasksToday")}</div>
-                    <div className="mt-1 text-sm font-bold text-emerald-700">{ui("noTasksSubtitle")}</div>
+                    <div className="mt-3 text-xl font-black text-success">{ui("noTasksToday")}</div>
+                    <div className="mt-1 text-sm font-bold text-success">{ui("noTasksSubtitle")}</div>
                   </div>
                 ) : null}
                 <div className="mt-3 grid gap-4">
@@ -4891,49 +4891,49 @@ export default function EmployeePayrollPortal() {
                     [ui("completedTasks"), completedTasks],
                   ].map(([title, rows]) => (
                     <section key={title}>
-                      <div className="mb-2 flex items-center justify-between text-xs font-black text-slate-500">
+                      <div className="mb-2 flex items-center justify-between text-xs font-black text-text-muted">
                         <span>{title}</span>
                         <span dir="ltr">{rows.length}</span>
                       </div>
                       <div className="grid gap-2">
                         {rows.length ? rows.map((task) => (
-                          <div key={task.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                          <div key={task.id} className="rounded-2xl border border-border bg-surface-soft p-3">
                             <div className="flex items-start justify-between gap-3">
                               {task.product_image_url || task.variant_image_url ? (
                                 <img
                                   src={resolveProductImageUrl(task.variant_image_url || task.product_image_url)}
                                   alt={task.product_name || "منتج"}
-                                  className="h-16 w-16 shrink-0 rounded-[var(--radius-card)] border border-slate-200 bg-white object-cover"
+                                  className="h-16 w-16 shrink-0 rounded-[var(--radius-card)] border border-border bg-surface object-cover"
                                   loading="lazy"
                                 />
                               ) : null}
                               <div className="min-w-0">
-                                <div className="text-sm font-black text-slate-950" dir="auto">{task.task_title_ar || task.title_ar || task.title}</div>
-                                <div className="mt-1 text-xs font-bold text-slate-500" dir="auto">{task.task_description_ar || task.description_ar || task.description || task.notes || "-"}</div>
+                                <div className="text-sm font-black text-text" dir="auto">{task.task_title_ar || task.title_ar || task.title}</div>
+                                <div className="mt-1 text-xs font-bold text-text-muted" dir="auto">{task.task_description_ar || task.description_ar || task.description || task.notes || "-"}</div>
                                 {task.task_type === "daily_inventory_count" ? (
-                                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black text-slate-600">
-                                    {task.variant_color ? <span className="rounded-full bg-white px-2 py-1">{task.variant_color}</span> : null}
-                                    {task.variant_size ? <span className="rounded-full bg-white px-2 py-1">{text.sizeLabel} {task.variant_size}</span> : null}
-                                    {task.variant_article_code || task.variant_sku ? <span className="rounded-full bg-white px-2 py-1" dir="ltr">{task.variant_article_code || task.variant_sku}</span> : null}
-                                    {task.product_grade ? <span className="rounded-full bg-amber-50 px-2 py-1 text-amber-800">{task.product_grade}</span> : null}
+                                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black text-text-muted">
+                                    {task.variant_color ? <span className="rounded-full bg-surface px-2 py-1">{task.variant_color}</span> : null}
+                                    {task.variant_size ? <span className="rounded-full bg-surface px-2 py-1">{text.sizeLabel} {task.variant_size}</span> : null}
+                                    {task.variant_article_code || task.variant_sku ? <span className="rounded-full bg-surface px-2 py-1" dir="ltr">{task.variant_article_code || task.variant_sku}</span> : null}
+                                    {task.product_grade ? <span className="rounded-full bg-warning-subtle px-2 py-1 text-text">{task.product_grade}</span> : null}
                                   </div>
                                 ) : null}
                               </div>
-                              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-black text-slate-700">{task.status}</span>
+                              <span className="rounded-full bg-surface px-2.5 py-1 text-xs font-black text-text">{task.status}</span>
                             </div>
-                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-text-muted">
                               <div>{ui("dueDate")}: <DateSafe>{formatEmployeePortalDate(task.due_at || task.due_date || task.deadline, language)}</DateSafe></div>
                               <div>{ui("priority")}: <span>{task.priority || "-"}</span></div>
                             </div>
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {["pending", "overdue", "reassigned"].includes(taskStatusKey(task.status)) ? (
-                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task, "in_progress")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-300 bg-white px-3 text-sm font-black text-slate-800 disabled:opacity-50">
+                                <button type="button" disabled={Boolean(taskSavingId)} onClick={() => updateWalletTask(task, "in_progress")} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-50">
                                   {taskSavingId === `${task.id}:in_progress` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                                   {text.startTask}
                                 </button>
                               ) : null}
                               {taskStatusKey(task.status) === "in_progress" && isInventoryTaskRecord(task) ? (
-                                <button type="button" onClick={() => openInventoryTask(task)} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300 bg-amber-50 px-3 text-sm font-black text-amber-900">
+                                <button type="button" onClick={() => openInventoryTask(task)} className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-warning-subtle px-3 text-sm font-black text-text">
                                   <ClipboardList className="h-4 w-4" />
                                   فتح الجرد
                                 </button>
@@ -4944,14 +4944,14 @@ export default function EmployeePayrollPortal() {
                                   {text.completeTask}
                                 </button>
                               ) : null}
-                              <button type="button" className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-600">
+                              <button type="button" className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text-muted">
                                 <FileText className="h-4 w-4" />
                                 {ui("uploadProof")}
                               </button>
                             </div>
                           </div>
                         )) : (
-                          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-black text-slate-400">0</div>
+                          <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-3 text-center text-xs font-black text-text-muted">0</div>
                         )}
                       </div>
                     </section>
@@ -4960,7 +4960,7 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-4 shadow-sm">
+            {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <h3 className="m1-section-title">{text.requests}</h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {[
@@ -4969,7 +4969,7 @@ export default function EmployeePayrollPortal() {
                   ["late_permission", ui("latePermission")],
                   ["hr_note", ui("hrNote")],
                 ].map(([value, label]) => (
-                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-2 text-xs font-black ${value === requestType ? "bg-primary text-[var(--primary-contrast)]" : "bg-slate-100 text-slate-700"}`}>
+                  <button key={value} type="button" onClick={() => chooseRequestType(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] px-2 text-xs font-black ${value === requestType ? "bg-primary text-[var(--primary-contrast)]" : "bg-surface-soft text-text"}`}>
                     {label}
                   </button>
                 ))}
@@ -4977,16 +4977,16 @@ export default function EmployeePayrollPortal() {
               <div className="mt-3 grid gap-2">
                 {requestType === "advance" ? (
                   <>
-                    <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                    <input value={requestAmount} onChange={(event) => setRequestAmount(event.target.value)} type="number" min="0" step="0.01" placeholder={text.amount} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-bold outline-none" />
                     <div>
-                      <div className="mb-2 text-xs font-black text-slate-600">{text.advancePayoutMethod}</div>
+                      <div className="mb-2 text-xs font-black text-text-muted">{text.advancePayoutMethod}</div>
                       <div className="grid grid-cols-3 gap-2">
                         {[
                           ["cash", "كاش"],
                           ["vodafone_cash", "فودافون كاش"],
                           ["instapay", "إنستاباي"],
                         ].map(([value, label]) => (
-                          <button key={value} type="button" onClick={() => setRequestPaymentMethod(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-2 text-[11px] font-black ${requestPaymentMethod === value ? "border-amber-400 bg-amber-400 text-slate-950" : "border-slate-200 bg-slate-50 text-slate-700"}`}>
+                          <button key={value} type="button" onClick={() => setRequestPaymentMethod(value)} className={`min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border px-2 text-[11px] font-black ${requestPaymentMethod === value ? "border-border bg-warning text-[var(--primary-contrast)]" : "border-border bg-surface-soft text-text"}`}>
                             {label}
                           </button>
                         ))}
@@ -4997,54 +4997,54 @@ export default function EmployeePayrollPortal() {
                 {requestType === "late_permission" ? (
                   <>
                     {latePermissionBalance ? (
-                      <div data-testid="late-permission-balance" className={`rounded-2xl px-3 py-2 text-xs font-black leading-5 ${latePermissionBalance.late_permissions_left > 0 ? "bg-primary-subtle text-primary" : "bg-red-50 text-red-700"}`}>
+                      <div data-testid="late-permission-balance" className={`rounded-2xl px-3 py-2 text-xs font-black leading-5 ${latePermissionBalance.late_permissions_left > 0 ? "bg-primary-subtle text-text" : "bg-danger-subtle text-text"}`}>
                         {latePermissionBalance.late_permissions_left > 0
                           ? i18n.t("employeePortal.rules.permissionsLeft", { lng: language, left: latePermissionBalance.late_permissions_left, total: latePermissionBalance.late_permissions_total, minutes: latePermissionMaxMinutes })
                           : i18n.t("employeePortal.rules.permissionsUsed", { lng: language, total: latePermissionBalance.late_permissions_total, threshold: latePermissionThreshold })}
                       </div>
                     ) : null}
-                    <input value={requestMinutes} onChange={(event) => setRequestMinutes(event.target.value)} type="number" inputMode="numeric" min="0" max={latePermissionMaxMinutes} step="1" placeholder={`${ui("lateMinutes")} (${latePermissionMaxMinutes})`} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                    <input value={requestMinutes} onChange={(event) => setRequestMinutes(event.target.value)} type="number" inputMode="numeric" min="0" max={latePermissionMaxMinutes} step="1" placeholder={`${ui("lateMinutes")} (${latePermissionMaxMinutes})`} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-bold outline-none" />
                   </>
                 ) : null}
                 <div className="grid grid-cols-2 gap-2">
-                  <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                  <input value={requestDate} onChange={(event) => setRequestDate(event.target.value)} type="date" aria-label={text.requestDate} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-bold outline-none" />
                   {requestType === "vacation" ? (
-                    <input value={requestEndDate} onChange={(event) => setRequestEndDate(event.target.value)} type="date" aria-label={text.endDate} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 text-sm font-bold outline-none" />
+                    <input value={requestEndDate} onChange={(event) => setRequestEndDate(event.target.value)} type="date" aria-label={text.endDate} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-bold outline-none" />
                   ) : null}
                 </div>
-                <textarea value={requestMessage} onChange={(event) => setRequestMessage(event.target.value)} placeholder={text.message} className="min-h-24 rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-bold outline-none" dir="auto" />
+                <textarea value={requestMessage} onChange={(event) => setRequestMessage(event.target.value)} placeholder={text.message} className="min-h-24 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-3 text-sm font-bold outline-none" dir="auto" />
               </div>
               <button type="submit" disabled={requestSaving || (requestType === "advance" && !requestAmount) || (requestType === "late_permission" && latePermissionBalance?.late_permissions_left === 0)} className="mt-3 inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
                 {requestSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                 {text.sendRequest}
               </button>
-              {portalNotice ? <div className="mt-3 rounded-2xl bg-slate-100 px-3 py-2 text-sm font-bold leading-6 text-slate-700" dir="auto">{portalNotice}</div> : null}
-              <h4 className="mt-4 text-sm font-black text-slate-700">{text.requestHistory}</h4>
+              {portalNotice ? <div className="mt-3 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text" dir="auto">{portalNotice}</div> : null}
+              <h4 className="mt-4 text-sm font-black text-text">{text.requestHistory}</h4>
                 <div className="mt-3 grid gap-2">
                   {visibleRequests.length ? visibleRequests.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-bold">
+                    <div key={item.id} className="rounded-2xl border border-border bg-surface-soft p-3 text-sm font-bold">
                       <div className="flex items-center justify-between gap-3">
                         <span>{requestTypeLabel(item, text)}</span>
                       <span className={`rounded-full px-2.5 py-1 text-xs font-black ${requestStatusClass(item.status)}`}>
                         {text[item.status] || item.status}
                       </span>
                     </div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-500">
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-text-muted">
                       <div>{text.requestType}: <span>{requestTypeLabel(item, text)}</span></div>
                       <div>{text.requestDate}: <DateSafe>{formatEmployeePortalDate(item.request_date || item.created_at, language)}</DateSafe></div>
                       {String(item.request_type || "").toLowerCase() === "advance" ? <div>{text.payoutLabel} <span>{item.payment_method === "vodafone_cash" ? "فودافون كاش" : item.payment_method === "instapay" ? "إنستاباي" : "كاش"}</span></div> : null}
                     </div>
-                      {item.amount ? <div className="mt-1 text-xs font-black text-slate-600" dir="ltr">{money(item.amount)}</div> : null}
-                      {item.admin_note ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-slate-700" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
+                      {item.amount ? <div className="mt-1 text-xs font-black text-text-muted" dir="ltr">{money(item.amount)}</div> : null}
+                      {item.admin_note ? <div className="mt-2 rounded-xl bg-surface px-3 py-2 text-xs leading-5 text-text" dir="auto">{text.adminNote}: {item.admin_note}</div> : null}
                     </div>
                   )) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">{ui("noRequestsSubmitted")}</div>
+                    <div className="rounded-2xl border border-dashed border-border bg-surface-soft px-3 py-4 text-center text-sm font-bold text-text-muted">{ui("noRequestsSubmitted")}</div>
                   )}
                   {employeeRequests.length > 1 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllRequests((current) => !current)}
-                      className="mx-auto mt-1 inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 shadow-sm"
+                      className="mx-auto mt-1 inline-flex min-h-[var(--control-height-md)] items-center justify-center rounded-full border border-border bg-surface px-4 text-xs font-black text-text shadow-sm"
                     >
                       {showAllRequests ? "عرض أقل" : `عرض المزيد${employeeRequests.length > 1 ? ` (${employeeRequests.length - 1})` : ""}`}
                     </button>
@@ -5059,15 +5059,15 @@ export default function EmployeePayrollPortal() {
         <button
           type="button"
           onClick={clearPortalToast}
-          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-[var(--radius-control)] border px-4 py-3 text-center text-sm font-black text-[var(--primary-contrast)] shadow-2xl transition ${ activeToast.type === "error" ? "border-red-300/50 bg-red-600" : activeToast.type === "warning" ? "border-amber-300/50 bg-amber-500 text-amber-950" : "border-emerald-300/40 bg-primary" }`}
+          className={`fixed inset-x-4 top-[calc(5rem+env(safe-area-inset-top))] z-50 mx-auto max-w-sm rounded-[var(--radius-control)] border px-4 py-3 text-center text-sm font-black text-[var(--primary-contrast)] shadow-[var(--shadow-overlay)] transition ${ activeToast.type === "error" ? "border-border bg-danger" : activeToast.type === "warning" ? "border-border bg-warning text-[var(--primary-contrast)]" : "border-border bg-primary" }`}
           dir="auto"
         >
           {activeToast.message}
         </button>
       ) : null}
       {chatOpen ? (
-        <div className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-black/50 p-0" style={chatPanelStyle}>
-          <section className="employee-portal-chat mx-auto flex h-full max-h-full w-full flex-col overflow-hidden border border-[var(--chat-border)] bg-[var(--chat-bg)] text-[var(--chat-text)] shadow-2xl sm:max-w-md" dir={direction}>
+        <div className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-[var(--overlay-scrim)] p-0" style={chatPanelStyle}>
+          <section className="employee-portal-chat mx-auto flex h-full max-h-full w-full flex-col overflow-hidden border border-[var(--chat-border)] bg-[var(--chat-bg)] text-[var(--chat-text)] shadow-[var(--shadow-overlay)] sm:max-w-md" dir={direction}>
             <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[var(--chat-bg)]">
               <div className="employee-chat-status-safe-area" aria-hidden="true" />
               <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-[var(--chat-border)] bg-[var(--chat-chrome)] px-2 py-2">
@@ -5075,7 +5075,7 @@ export default function EmployeePayrollPortal() {
                   <button type="button" onClick={closeEmployeeChat} className="flex h-[var(--control-height-md)] w-9 shrink-0 items-center justify-center rounded-full text-[var(--chat-text)] transition hover:bg-[var(--surface-hover)]" aria-label={text.back}>
                     <ArrowRight className="h-5 w-5" />
                   </button>
-                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20" aria-label={text.storeInfo}>
+                  <button type="button" onClick={() => setChatContactInfoOpen(true)} className="employee-chat-m1-avatar relative flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-border" aria-label={text.storeInfo}>
                     <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" />
                     <img src="/branding/m-one-logo-white-m.png" alt="" aria-hidden="true" className="employee-chat-m1-moving-part absolute inset-0 h-full w-full object-contain" />
                   </button>
@@ -5090,7 +5090,7 @@ export default function EmployeePayrollPortal() {
                   disabled={ringSending || chatRing.outgoing?.status === "ringing"}
                   title={ringText("ringTitle")}
                   aria-label={ringText("ringButton")}
-                  className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full bg-amber-400 text-zinc-950 transition disabled:opacity-50"
+                  className="grid h-[var(--control-height-md)] w-10 shrink-0 place-items-center rounded-full bg-warning text-[var(--primary-contrast)] transition disabled:opacity-50"
                 >
                   <PhoneCall className={`h-5 w-5 ${chatRing.outgoing?.status === "ringing" ? "animate-pulse" : ""}`} />
                 </button>
@@ -5108,7 +5108,7 @@ export default function EmployeePayrollPortal() {
                 </div>
               ) : null}
               {chatRing.outgoing ? <div className="mx-4 my-2"><ChatRingStatus outgoing={chatRing.outgoing} onClear={chatRing.clearOutgoing} /></div> : null}
-              {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
+              {chatError ? <div className="mx-4 my-2 rounded-2xl border border-border bg-danger-subtle px-3 py-2 text-sm font-bold text-text" dir="auto">{chatError}</div> : null}
             </div>
             <PortalChatMessageList
               messages={visibleChatMessages}
@@ -5201,20 +5201,23 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {chatImagePreview ? (
+        // The one deliberate fixed colour left in the portal: a photo viewer is
+        // dark in both themes so nothing competes with the image. Every other
+        // surface here follows the theme tokens.
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
-          <button type="button" onClick={() => setChatImagePreview("")} className="absolute end-4 top-[calc(1rem+env(safe-area-inset-top))] flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-white/10 text-white">
+          <button type="button" onClick={() => setChatImagePreview("")} className="absolute end-4 top-[calc(1rem+env(safe-area-inset-top))] flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-full bg-surface-soft text-text">
             <X className="h-5 w-5" />
           </button>
           <img src={chatImagePreview} alt="" className="max-h-full max-w-full object-contain" />
         </div>
       ) : null}
       {earlyCheckoutOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
-            <h2 className="m1-section-title text-slate-950">{ui("earlyCheckoutTitle")}</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{ui("earlyCheckoutMessage")}</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-soft p-4">
+          <div className="w-full max-w-sm rounded-3xl bg-surface p-5 shadow-[var(--shadow-overlay)]">
+            <h2 className="m1-section-title text-text">{ui("earlyCheckoutTitle")}</h2>
+            <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{ui("earlyCheckoutMessage")}</p>
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 px-4 text-sm font-black text-slate-700">
+              <button type="button" onClick={() => setEarlyCheckoutOpen(false)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border px-4 text-sm font-black text-text">
                 {ui("cancel")}
               </button>
               <button type="button" onClick={() => submitAttendanceAction("check_out")} disabled={!canCheckOutToday} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50">
@@ -5225,24 +5228,24 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {locationGate ? (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-slate-950/70 p-4" dir="rtl">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[var(--overlay-scrim)] p-4" dir="rtl">
+          <div className="w-full max-w-sm rounded-3xl bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <div className="flex items-start gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-danger-subtle text-text">
                 <MapPin className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="m1-section-title text-slate-950">{ui("locationGateTitle")}</h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-700" dir="auto">{locationGate.message}</p>
+                <h2 className="m1-section-title text-text">{ui("locationGateTitle")}</h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-text" dir="auto">{locationGate.message}</p>
               </div>
             </div>
             {locationGate.showSteps ? (
-              <p className="mt-4 whitespace-pre-line rounded-2xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-600" dir="auto">
+              <p className="mt-4 whitespace-pre-line rounded-2xl bg-surface-soft p-3 text-xs font-bold leading-6 text-text-muted" dir="auto">
                 {ui("locationGateSteps")}
               </p>
             ) : null}
             <div className="mt-5 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setLocationGate(null)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-slate-200 px-4 text-sm font-black text-slate-700">
+              <button type="button" onClick={() => setLocationGate(null)} className="min-h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-border px-4 text-sm font-black text-text">
                 {ui("locationGateClose")}
               </button>
               <button
@@ -5258,24 +5261,24 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {profileSettingsOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/60 p-3 sm:items-center" dir="rtl">
-          <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-surface-soft p-3 sm:items-center" dir="rtl">
+          <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[28px] bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="m1-section-title text-slate-950">{text.profileSettings}</h2>
-                <p className="mt-1 text-xs font-bold text-slate-500">{text.profileSettingsSubtitle}</p>
+                <h2 className="m1-section-title text-text">{text.profileSettings}</h2>
+                <p className="mt-1 text-xs font-bold text-text-muted">{text.profileSettingsSubtitle}</p>
               </div>
-              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700" aria-label={text.closeLabel}>
+              <button type="button" onClick={() => setProfileSettingsOpen(false)} className="flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-full bg-surface-soft text-text" aria-label={text.closeLabel}>
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <label className="mt-5 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3">
-              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-slate-200">
-                {profilePhotoPreview ? <img src={profilePhotoPreview} alt={text.photoPreview} className="h-full w-full object-cover" /> : <UserRound className="m-5 h-10 w-10 text-slate-400" />}
+            <label className="mt-5 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-border bg-surface-soft p-3">
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-border">
+                {profilePhotoPreview ? <img src={profilePhotoPreview} alt={text.photoPreview} className="h-full w-full object-cover" /> : <UserRound className="m-5 h-10 w-10 text-text-muted" />}
               </div>
-              <div className="min-w-0 text-sm font-black text-slate-800">
+              <div className="min-w-0 text-sm font-black text-text">
                 اختر صورة جديدة
-                <div className="mt-1 text-xs font-bold text-slate-500">{text.photoHint}</div>
+                <div className="mt-1 text-xs font-bold text-text-muted">{text.photoHint}</div>
               </div>
               <input
                 type="file"
@@ -5288,7 +5291,7 @@ export default function EmployeePayrollPortal() {
                 }}
               />
             </label>
-            <label className="mt-4 block text-sm font-black text-slate-800">
+            <label className="mt-4 block text-sm font-black text-text">
               رقم الموبايل
               <input
                 type="tel"
@@ -5296,22 +5299,22 @@ export default function EmployeePayrollPortal() {
                 value={profileMobile}
                 onChange={(event) => setProfileMobile(event.target.value)}
                 placeholder="01xxxxxxxxx"
-                className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                className="mt-2 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-left text-base font-bold text-text outline-none focus:border-border"
                 dir="ltr"
               />
             </label>
             {/* The PIN never leaves this phone as text: it is set here and, on the
                 ERP, only ever checked against its hash. */}
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+            <div className="mt-5 rounded-2xl border border-border bg-surface-soft p-3">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-sm font-black text-slate-900">{text.staffPinTitle}</h3>
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${hasStaffPin ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                <h3 className="text-sm font-black text-text">{text.staffPinTitle}</h3>
+                <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${hasStaffPin ? "bg-success-subtle text-text" : "bg-warning-subtle text-text"}`}>
                   {hasStaffPin ? text.staffPinSet : text.staffPinMissing}
                 </span>
               </div>
-              <p className="mt-1 text-xs font-bold text-slate-500">{text.staffPinHint}</p>
+              <p className="mt-1 text-xs font-bold text-text-muted">{text.staffPinHint}</p>
               {hasStaffPin ? (
-                <label className="mt-3 block text-xs font-black text-slate-800">
+                <label className="mt-3 block text-xs font-black text-text">
                   {text.staffPinCurrent}
                   <input
                     type="password"
@@ -5319,13 +5322,13 @@ export default function EmployeePayrollPortal() {
                     autoComplete="off"
                     value={staffPinCurrent}
                     onChange={(event) => setStaffPinCurrent(event.target.value)}
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-left text-base font-bold text-text outline-none focus:border-border"
                     dir="ltr"
                   />
                 </label>
               ) : null}
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block text-xs font-black text-slate-800">
+                <label className="block text-xs font-black text-text">
                   {text.staffPinNew}
                   <input
                     type="password"
@@ -5333,11 +5336,11 @@ export default function EmployeePayrollPortal() {
                     autoComplete="new-password"
                     value={staffPinNext}
                     onChange={(event) => setStaffPinNext(event.target.value)}
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-left text-base font-bold text-text outline-none focus:border-border"
                     dir="ltr"
                   />
                 </label>
-                <label className="block text-xs font-black text-slate-800">
+                <label className="block text-xs font-black text-text">
                   {text.staffPinConfirm}
                   <input
                     type="password"
@@ -5345,7 +5348,7 @@ export default function EmployeePayrollPortal() {
                     autoComplete="new-password"
                     value={staffPinConfirm}
                     onChange={(event) => setStaffPinConfirm(event.target.value)}
-                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-left text-base font-bold text-slate-950 outline-none focus:border-emerald-500"
+                    className="mt-1 h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] border border-border bg-surface px-4 text-left text-base font-bold text-text outline-none focus:border-border"
                     dir="ltr"
                   />
                 </label>
@@ -5354,7 +5357,7 @@ export default function EmployeePayrollPortal() {
                 type="button"
                 onClick={saveStaffPin}
                 disabled={staffPinSaving || !staffPinNext || !staffPinConfirm}
-                className="mt-3 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-300 bg-white px-4 text-sm font-black text-slate-900 disabled:opacity-60"
+                className="mt-3 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-sm font-black text-text disabled:opacity-60"
               >
                 {staffPinSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {staffPinSaving ? text.staffPinSaving : text.staffPinSave}

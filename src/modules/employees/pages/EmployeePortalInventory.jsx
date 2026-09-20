@@ -223,12 +223,12 @@ const sessionStatusLabels = {
   get cancelled() { return tt("employeePortal.status.cancelled"); },};
 
 const sessionStatusTone = {
-  draft: "border-slate-200 bg-slate-50 text-slate-700",
-  in_progress: "border-amber-200 bg-amber-50 text-amber-700",
-  pending_review: "border-primary/30 bg-primary-subtle text-primary",
-  rejected: "border-rose-200 bg-rose-50 text-rose-700",
-  completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  cancelled: "border-zinc-200 bg-zinc-100 text-zinc-600",
+  draft: "border-border bg-surface-soft text-text",
+  in_progress: "border-border bg-warning-subtle text-text",
+  pending_review: "border-primary/30 bg-primary-subtle text-text",
+  rejected: "border-border bg-danger-subtle text-text",
+  completed: "border-border bg-success-subtle text-text",
+  cancelled: "border-border bg-surface-soft text-text-muted",
 };
 
 // Module-scope array: stores translation KEYS and resolves them at render, so the
@@ -360,7 +360,7 @@ function InventoryImage({ src, alt = "", className = "" }) {
   }
 
   return (
-    <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-slate-400 ${className}`.trim()}>
+    <div className={`flex h-full w-full items-center justify-center bg-surface-soft text-text-muted ${className}`.trim()}>
       <Warehouse className="h-5 w-5" />
     </div>
   );
@@ -383,20 +383,20 @@ const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable,
     <div
         data-count-group={group.key}
         data-count-variant={group.variants.map((variant) => `v${variant.product_variant_id ?? variant.variant_id ?? variant.id ?? ""}`).join(" ")}
-        className={`inventory-wrap inventory-color-card rounded-2xl border bg-slate-50 p-2.5 ${flash ? "inventory-color-card--flash border-emerald-400" : "border-slate-200"}`}
+        className={`inventory-wrap inventory-color-card rounded-2xl border bg-surface-soft p-2.5 ${flash ? "inventory-color-card--flash border-border" : "border-border"}`}
       >
       <div className="flex min-w-0 items-center gap-2.5">
-        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-slate-200 bg-slate-100">
+        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-control)] border border-border bg-surface-soft">
           <InventoryImage src={resolveCardImage(group)} alt={group.product_name || tt("employeePortal.common.product")} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-black text-slate-950">{group.product_name || tt("employeePortal.common.product")}</div>
-          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
-            <span className="max-w-[9rem] truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-700">
+          <div className="truncate text-sm font-black text-text">{group.product_name || tt("employeePortal.common.product")}</div>
+          <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-bold text-text-muted">
+            <span className="max-w-[9rem] truncate rounded-full border border-border bg-surface px-2 py-0.5 text-text">
               {group.color || tt("employeePortal.stockCount.unknownColor")}
             </span>
             <span dir="ltr">{group.counted_total} / {group.system_total}</span>
-            <span className={group.difference_total === 0 ? "text-emerald-700" : group.difference_total > 0 ? "text-amber-700" : "text-rose-700"}>
+            <span className={group.difference_total === 0 ? "text-success" : group.difference_total > 0 ? "text-warning" : "text-danger"}>
               {group.difference_total === 0 ? tt("employeePortal.status.balanced") : group.difference_total > 0 ? `زيادة ${group.difference_total}` : `عجز ${Math.abs(group.difference_total)}`}
             </span>
           </div>
@@ -405,7 +405,7 @@ const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable,
           type="button"
           onClick={() => onDelete(group)}
           disabled={!isEditable || deleting}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-rose-200 bg-rose-50 text-rose-700 disabled:opacity-60"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-danger-subtle text-text disabled:opacity-60"
           aria-label={tt("employeePortal.stockCount.deleteColor")}
           title={tt("employeePortal.stockCount.deleteColor")}
         >
@@ -424,18 +424,18 @@ const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable,
           return (
             <div
               key={variantId}
-              className={`inventory-size-tile rounded-[var(--radius-card)] border bg-white p-2 ${difference === 0 ? "border-slate-200" : difference > 0 ? "border-amber-300" : "border-rose-300"}`}
+              className={`inventory-size-tile rounded-[var(--radius-card)] border bg-surface p-2 ${difference === 0 ? "border-border" : difference > 0 ? "border-border" : "border-border"}`}
             >
               <div className="flex min-w-0 items-center justify-between gap-1">
-                <span className="truncate text-sm font-black text-slate-950">{variant.size || tt("employeePortal.stockCount.unknownSize")}</span>
-                <span className="shrink-0 text-[10px] font-bold text-slate-400" dir="ltr">{tt("employeePortal.stockCount.expectedShort")} {toNumber(variant.system_quantity, 0)}</span>
+                <span className="truncate text-sm font-black text-text">{variant.size || tt("employeePortal.stockCount.unknownSize")}</span>
+                <span className="shrink-0 text-[10px] font-bold text-text-muted" dir="ltr">{tt("employeePortal.stockCount.expectedShort")} {toNumber(variant.system_quantity, 0)}</span>
               </div>
               <div className="mt-1.5 grid grid-cols-[44px_minmax(0,1fr)_44px] gap-1">
                 <button
                   type="button"
                   onClick={() => onAdjust(variant, -1)}
                   disabled={!isEditable}
-                  className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-2xl font-black text-slate-700 active:bg-slate-100 disabled:opacity-50"
+                  className="inline-flex h-12 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-2xl font-black text-text active:bg-surface-soft disabled:opacity-50"
                   aria-label={tt("employeePortal.stockCount.decrement")}
                 >
                   -
@@ -451,7 +451,7 @@ const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable,
                     onSet(variant, digits === "" ? 0 : Number(digits));
                   }}
                   disabled={!isEditable}
-                  className="h-12 w-full rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1 text-center text-lg font-black text-slate-950 outline-none focus:border-emerald-400 focus:bg-white disabled:opacity-70"
+                  className="h-12 w-full rounded-[var(--radius-control)] border border-border bg-surface-soft px-1 text-center text-lg font-black text-text outline-none focus:border-border focus:bg-surface disabled:opacity-70"
                   aria-label={`${group.product_name || ""} ${variant.size || ""}`}
                 />
                 <button
@@ -465,11 +465,11 @@ const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable,
                 </button>
               </div>
               <div className="mt-1 flex items-center justify-between gap-1 text-[10px] font-black">
-                <span className={difference === 0 ? "text-emerald-700" : difference > 0 ? "text-amber-700" : "text-rose-700"} dir="ltr">
+                <span className={difference === 0 ? "text-success" : difference > 0 ? "text-warning" : "text-danger"} dir="ltr">
                   {difference === 0 ? tt("employeePortal.status.balanced") : difference > 0 ? `+${difference}` : difference}
                 </span>
                 {pending ? (
-                  <span className="inline-flex items-center gap-0.5 text-amber-700" title={tt("employeePortal.sync.pending")}>
+                  <span className="inline-flex items-center gap-0.5 text-warning" title={tt("employeePortal.sync.pending")}>
                     <CloudOff className="h-3 w-3" />
                   </span>
                 ) : null}
@@ -520,30 +520,30 @@ function ScannerModal({ onClose, onScan }) {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/80 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+      className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-surface-soft p-3 backdrop-blur-sm sm:items-center sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/70 sm:rounded-3xl"
+        className="flex w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-border bg-background shadow-[var(--shadow-overlay)] sm:rounded-3xl"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={tt("employeePortal.scanner.title")}
         dir="rtl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 text-white">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4 text-text">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">{tt("employeePortal.chrome.inventory")}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-success">{tt("employeePortal.chrome.inventory")}</div>
             <h3 className="m1-section-title mt-1">{tt("employeePortal.scanner.scanNow")}</h3>
           </div>
-          <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-300">
+          <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="p-4">
-          <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-3">
+          <div className="overflow-hidden rounded-3xl border border-border bg-surface-soft p-3">
             <BarcodeScanner
               onScan={submitScan}
               onPermissionDenied={(message) => {
@@ -558,7 +558,7 @@ function ScannerModal({ onClose, onScan }) {
                 setScannerMessage(message || tt("employeePortal.scanner.startFailed"));
                 toast.error(message || tt("employeePortal.scanner.startFailed"));
               }}
-              className="overflow-hidden rounded-[1.35rem] bg-black"
+              className="overflow-hidden rounded-[1.35rem] bg-surface"
               scannerClassName="min-h-[320px] w-full"
               detectorFormats={["code_128", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"]}
               html5Fps={25}
@@ -578,15 +578,15 @@ function ScannerModal({ onClose, onScan }) {
               overlayFrameHeight={140}
             />
           </div>
-          <div className="mt-4 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3 text-white">
+          <div className="mt-4 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3 text-text">
             <button
               type="button"
               onClick={() => manualInputRef.current?.focus()}
-              className="text-xs font-black text-emerald-200"
+              className="text-xs font-black text-success"
             >
               {tt("employeePortal.scanner.typeManually")}
             </button>
-            <div className="mt-1 text-[11px] font-semibold text-zinc-400">{tt("employeePortal.scanner.manualHint")}</div>
+            <div className="mt-1 text-[11px] font-semibold text-text-muted">{tt("employeePortal.scanner.manualHint")}</div>
             <div className="mt-2 flex gap-2">
               <input
                 ref={manualInputRef}
@@ -599,7 +599,7 @@ function ScannerModal({ onClose, onScan }) {
                   }
                 }}
                 placeholder={tt("employeePortal.scanner.manualEntry")}
-                className="h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-black/40 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none placeholder:text-text-muted"
               />
               <button
                 type="button"
@@ -610,7 +610,7 @@ function ScannerModal({ onClose, onScan }) {
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tt("employeePortal.common.search")}
               </button>
             </div>
-            {scannerMessage ? <div className="mt-2 text-xs font-semibold text-amber-200">{scannerMessage}</div> : null}
+            {scannerMessage ? <div className="mt-2 text-xs font-semibold text-warning">{scannerMessage}</div> : null}
           </div>
         </div>
       </section>
@@ -1473,7 +1473,7 @@ export default function EmployeePortalInventory() {
       : `عجز: ${Math.abs(differenceTotal)}`;
 
   return (
-    <div dir="rtl" className={`${searchActive ? "inventory-searching " : ""}employee-portal-workspace employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4`}>
+    <div dir="rtl" className={`${searchActive ? "inventory-searching " : ""}employee-portal-workspace employee-portal-inventory min-h-screen bg-background px-3 py-3 text-text sm:px-4 sm:py-4`}>
       <style>{`
         .employee-portal-inventory {
           width: 100%;
@@ -1533,8 +1533,8 @@ export default function EmployeePortalInventory() {
         }
         /* A colour that was just added or jumped to announces itself once. */
         @keyframes inventory-card-flash {
-          0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
-          100% { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
+          0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent); }
+          100% { box-shadow: 0 0 0 14px transparent; }
         }
         .employee-portal-inventory .inventory-color-card { scroll-margin-top: 220px; content-visibility: auto; contain-intrinsic-size: auto 260px; }
         .employee-portal-inventory .inventory-color-card--flash { animation: inventory-card-flash 0.8s ease-out 2; }
@@ -1548,7 +1548,7 @@ export default function EmployeePortalInventory() {
           z-index: 20;
           margin: 0 -2px;
           padding: 8px 2px calc(8px + env(safe-area-inset-bottom, 0px));
-          background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, 0.92) 42%, #f8fafc 100%);
+          background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 92%, transparent) 42%, var(--bg) 100%);
         }
         /* The count header follows the sizes so progress and the sync state are
            always one glance away. */
@@ -1585,19 +1585,18 @@ export default function EmployeePortalInventory() {
             else navigate(buildEmployeePortalHomePath({ pathname: window.location.pathname, token }), { replace: true });
           }}
           onHome={() => navigate(buildEmployeePortalHomePath({ pathname: window.location.pathname, token }))}
-          tone="light"
           className="px-0"
         />
 
-        <section className="rounded-[var(--radius-card)] border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
+        <section className="rounded-[var(--radius-card)] border border-border bg-surface/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-[var(--shadow-overlay)]">
           <div className="inventory-wrap flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="hidden items-center gap-2 text-emerald-700 sm:flex">
+              <div className="hidden items-center gap-2 text-success sm:flex">
                 <Warehouse className="h-5 w-5" />
                 <span className="text-xs font-black uppercase tracking-[0.18em]">{tt("employeePortal.shell.title")}</span>
               </div>
-              <h1 className="m1-page-title text-slate-950 sm:mt-2">{tt("employeePortal.nav.stockCount")}</h1>
-              <div className="mt-2 hidden max-w-3xl rounded-2xl border border-primary/30 bg-primary-subtle px-3 py-2 text-xs font-bold leading-5 text-primary sm:inline-flex sm:text-sm">
+              <h1 className="m1-page-title text-text sm:mt-2">{tt("employeePortal.nav.stockCount")}</h1>
+              <div className="mt-2 hidden max-w-3xl rounded-2xl border border-primary/30 bg-primary-subtle px-3 py-2 text-xs font-bold leading-5 text-text sm:inline-flex sm:text-sm">
                 {tt("employeePortal.stockCount.reviewHint")}
               </div>
             </div>
@@ -1605,7 +1604,7 @@ export default function EmployeePortalInventory() {
               <button
                 type="button"
                 onClick={() => setBranchDrawerOpen(true)}
-                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:hidden"
+                className="inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-sm font-black text-text lg:hidden"
                 aria-label={tt("employeePortal.stockCount.branchCounts")}
               >
                 <Menu className="h-4 w-4" />
@@ -1614,7 +1613,7 @@ export default function EmployeePortalInventory() {
               <button
                 type="button"
                 onClick={loadSessions}
-                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 lg:inline-flex"
+                className="hidden min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-4 text-sm font-black text-text lg:inline-flex"
               >
                 <RefreshCw className="h-4 w-4" />
                 {tt("employeePortal.common.refresh")}
@@ -1637,7 +1636,7 @@ export default function EmployeePortalInventory() {
                 key={filter.value}
                 type="button"
                 onClick={() => setStatusFilter(filter.value)}
-                className={`rounded-full border px-4 py-2 text-sm font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-600" }`}
+                className={`rounded-full border px-4 py-2 text-sm font-black transition ${ statusFilter === filter.value ? "border-border bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface text-text-muted" }`}
               >
                 {tt(filter.labelKey)}
               </button>
@@ -1646,16 +1645,16 @@ export default function EmployeePortalInventory() {
         </section>
 
         <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="inventory-wrap hidden rounded-[2rem] border border-white/70 bg-white/95 p-4 shadow-2xl shadow-slate-200/60 backdrop-blur lg:block">
+          <aside className="inventory-wrap hidden rounded-[2rem] border border-border bg-surface/95 p-4 shadow-[var(--shadow-overlay)] backdrop-blur lg:block">
             <div className="flex min-w-0 items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="m1-section-title text-slate-950">{tt("employeePortal.stockCount.branchCounts")}</h2>
-                <p className="text-xs font-semibold text-slate-500">{tt("employeePortal.stockCount.filterHint")}</p>
+                <h2 className="m1-section-title text-text">{tt("employeePortal.stockCount.branchCounts")}</h2>
+                <p className="text-xs font-semibold text-text-muted">{tt("employeePortal.stockCount.filterHint")}</p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
+              <span className="rounded-full bg-surface-soft px-3 py-1 text-xs font-black text-text">{visibleSessions.length}</span>
             </div>
-            <label className="inventory-wrap mt-3 block rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <div className="flex items-center gap-2 text-xs font-black text-slate-400">
+            <label className="inventory-wrap mt-3 block rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2 shadow-sm">
+              <div className="flex items-center gap-2 text-xs font-black text-text-muted">
                 <Search className="h-4 w-4" />
                 {tt("employeePortal.common.search")}
               </div>
@@ -1663,15 +1662,15 @@ export default function EmployeePortalInventory() {
                 value={sessionSearch}
                 onChange={(event) => setSessionSearch(event.target.value)}
                 placeholder={tt("employeePortal.stockCount.searchPlaceholder")}
-                className="mt-1 w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+                className="mt-1 w-full bg-transparent text-base font-semibold text-text outline-none placeholder:text-text-muted"
               />
             </label>
 
             <div className="mt-4 space-y-2">
               {sessionsLoading ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">{tt("employeePortal.common.loading")}</div>
+                <div className="rounded-2xl border border-border bg-surface-soft p-4 text-sm font-bold text-text-muted">{tt("employeePortal.common.loading")}</div>
               ) : sessionsError ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-700">{sessionsError}</div>
+                <div className="rounded-2xl border border-border bg-danger-subtle p-4 text-sm font-bold leading-6 text-text">{sessionsError}</div>
               ) : visibleSessions.length ? (
                 visibleSessions.map((row) => {
                   const active = String(row.id) === String(selectedSessionId);
@@ -1681,12 +1680,12 @@ export default function EmployeePortalInventory() {
                       key={row.id}
                       type="button"
                       onClick={() => selectSession(row.id)}
-                      className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50" }`}
+                      className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface hover:bg-surface-soft" }`}
                     >
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
-                          <div className="truncate text-sm font-black text-slate-950">{row.title || tt("employeePortal.stockCount.new")}</div>
-                          <div className="mt-1 text-xs font-semibold text-slate-500">
+                          <div className="truncate text-sm font-black text-text">{row.title || tt("employeePortal.stockCount.new")}</div>
+                          <div className="mt-1 text-xs font-semibold text-text-muted">
                             {row.branch_name || tt("employeePortal.common.branch")}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
                           </div>
                         </div>
@@ -1698,24 +1697,24 @@ export default function EmployeePortalInventory() {
                   );
                 })
               ) : (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-500">
+                <div className="rounded-2xl border border-border bg-surface-soft p-4 text-sm font-bold leading-6 text-text-muted">
                   {tt("employeePortal.stockCount.noMatch")}
                 </div>
               )}
             </div>
           </aside>
 
-          <main className="inventory-wrap rounded-[var(--radius-card)] border border-white/70 bg-white/95 p-2.5 shadow-xl shadow-slate-200/50 backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-2xl">
+          <main className="inventory-wrap rounded-[var(--radius-card)] border border-border bg-surface/95 p-2.5 shadow-[var(--shadow-card)] backdrop-blur sm:rounded-[2rem] sm:p-4 sm:shadow-[var(--shadow-overlay)]">
             {!session && sessionLoading ? (
-              <div className="flex min-h-[420px] items-center justify-center gap-2 text-sm font-black text-slate-500">
+              <div className="flex min-h-[420px] items-center justify-center gap-2 text-sm font-black text-text-muted">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {tt("employeePortal.stockCount.loading")}
               </div>
             ) : !session ? (
-              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
-                <ClipboardList className="h-12 w-12 text-slate-300" />
-                <h2 className="m1-section-title mt-4 text-slate-950">{tt("employeePortal.stockCount.pickOrCreate")}</h2>
-                <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-slate-500">
+              <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-border bg-surface-soft px-6 text-center">
+                <ClipboardList className="h-12 w-12 text-text-muted" />
+                <h2 className="m1-section-title mt-4 text-text">{tt("employeePortal.stockCount.pickOrCreate")}</h2>
+                <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-text-muted">
                   {tt("employeePortal.stockCount.scopeHint")}
                 </p>
               </div>
@@ -1724,47 +1723,47 @@ export default function EmployeePortalInventory() {
                 {/* Count header: what is being counted, how far it has got, and
                     whether anything is still owed to the server. Everything the
                     employee needs to trust the sheet, in one strip. */}
-                <div className="inventory-head inventory-wrap rounded-[1.25rem] border border-slate-200 bg-white p-2.5 shadow-sm">
+                <div className="inventory-head inventory-wrap rounded-[1.25rem] border border-border bg-surface p-2.5 shadow-sm">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <h2 className="m1-section-title min-w-0 flex-1 truncate text-slate-950">{titleDraft || session.title || tt("employeePortal.stockCount.new")}</h2>
+                    <h2 className="m1-section-title min-w-0 flex-1 truncate text-text">{titleDraft || session.title || tt("employeePortal.stockCount.new")}</h2>
                     <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-black ${sessionStatusTone[session.status] || sessionStatusTone.draft}`}>
                       {sessionStatusLabels[session.status] || session.status}
                     </span>
                   </div>
-                  <div className="mt-0.5 truncate text-xs font-semibold text-slate-500">
+                  <div className="mt-0.5 truncate text-xs font-semibold text-text-muted">
                     {session.branch_name || tt("employeePortal.common.branch")}{session.warehouse_name ? ` • ${session.warehouse_name}` : ""}
                   </div>
 
                   <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
-                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1.5 py-1.5">
-                      <div className="text-base font-black leading-5 text-slate-950">{groupedItems.length}</div>
-                      <div className="truncate text-[10px] font-bold text-slate-500">{tt("employeePortal.stockCount.colorsCounted")}</div>
+                    <div className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-1.5 py-1.5">
+                      <div className="text-base font-black leading-5 text-text">{groupedItems.length}</div>
+                      <div className="truncate text-[10px] font-bold text-text-muted">{tt("employeePortal.stockCount.colorsCounted")}</div>
                     </div>
-                    <div className="rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 px-1.5 py-1.5">
-                      <div className="text-base font-black leading-5 text-slate-950">{countedTotal}</div>
-                      <div className="truncate text-[10px] font-bold text-slate-500">{tt("employeePortal.stockCount.piecesCounted")}</div>
+                    <div className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-1.5 py-1.5">
+                      <div className="text-base font-black leading-5 text-text">{countedTotal}</div>
+                      <div className="truncate text-[10px] font-bold text-text-muted">{tt("employeePortal.stockCount.piecesCounted")}</div>
                     </div>
-                    <div className={`rounded-[var(--radius-control)] border px-1.5 py-1.5 ${differenceTotal === 0 ? "border-emerald-200 bg-emerald-50" : differenceTotal > 0 ? "border-amber-200 bg-amber-50" : "border-rose-200 bg-rose-50"}`}>
-                      <div className={`text-base font-black leading-5 ${differenceTotal === 0 ? "text-emerald-700" : differenceTotal > 0 ? "text-amber-700" : "text-rose-700"}`} dir="ltr">
+                    <div className={`rounded-[var(--radius-control)] border px-1.5 py-1.5 ${differenceTotal === 0 ? "border-border bg-success-subtle" : differenceTotal > 0 ? "border-border bg-warning-subtle" : "border-border bg-danger-subtle"}`}>
+                      <div className={`text-base font-black leading-5 ${differenceTotal === 0 ? "text-success" : differenceTotal > 0 ? "text-warning" : "text-danger"}`} dir="ltr">
                         {differenceTotal > 0 ? `+${differenceTotal}` : differenceTotal}
                       </div>
-                      <div className="truncate text-[10px] font-bold text-slate-500">{tt("employeePortal.chrome.differences")}</div>
+                      <div className="truncate text-[10px] font-bold text-text-muted">{tt("employeePortal.chrome.differences")}</div>
                     </div>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-black text-slate-500">
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-black text-text-muted">
                     <span>{tt("employeePortal.stockCount.coverage", { done: visitedRows, total: items.length })}</span>
                     <span dir="ltr">{progressPercent}%</span>
                   </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progressPercent}%` }} />
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface-soft">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progressPercent}%` }} />
                   </div>
 
                   {/* The sync line is the offline promise made visible: counted
                       rows are safe on the device, and this says what is still
                       owed to the server. */}
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-black ${online ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-black ${online ? "border-border bg-success-subtle text-text" : "border-border bg-warning-subtle text-text"}`}>
                       {online ? <Wifi className="h-3.5 w-3.5" /> : <CloudOff className="h-3.5 w-3.5" />}
                       {online ? tt("employeePortal.stockCount.online") : tt("employeePortal.stockCount.offline")}
                     </span>
@@ -1773,17 +1772,17 @@ export default function EmployeePortalInventory() {
                         type="button"
                         onClick={() => flushOutbox({ silent: false })}
                         disabled={syncing || !online}
-                        className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-800 disabled:opacity-60"
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-warning-subtle px-2 py-1 text-[11px] font-black text-text disabled:opacity-60"
                       >
                         {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                         {tt("employeePortal.stockCount.pendingRows", { count: pendingCount })}
                       </button>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-black text-slate-600">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-soft px-2 py-1 text-[11px] font-black text-text-muted">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                         {tt("employeePortal.stockCount.allSynced")}
                         {lastSyncedAt ? (
-                          <span className="font-bold text-slate-400" dir="ltr">
+                          <span className="font-bold text-text-muted" dir="ltr">
                             {new Date(lastSyncedAt).toLocaleTimeString(i18nRuntime.language === "en" ? "en-GB" : "ar-EG", { hour: "numeric", minute: "2-digit" })}
                           </span>
                         ) : null}
@@ -1793,7 +1792,7 @@ export default function EmployeePortalInventory() {
                       type="button"
                       onClick={refreshOfflineCatalog}
                       disabled={catalogLoading || !online}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-black text-slate-600 disabled:opacity-60"
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1 text-[11px] font-black text-text-muted disabled:opacity-60"
                       title={tt("employeePortal.stockCount.catalogHint")}
                     >
                       {catalogLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanBarcode className="h-3.5 w-3.5" />}
@@ -1808,7 +1807,7 @@ export default function EmployeePortalInventory() {
                       type="button"
                       onClick={handleOpenSession}
                       disabled={sessionOpening}
-                      className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-60"
+                      className="mt-2 inline-flex min-h-[var(--control-height-md)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-black text-text disabled:opacity-60"
                     >
                       {sessionOpening ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
                       بدء الجرد
@@ -1817,20 +1816,20 @@ export default function EmployeePortalInventory() {
                 </div>
 
                 {isPendingReview ? (
-                  <div className="rounded-2xl border border-primary/30 bg-primary-subtle px-4 py-3 text-sm font-black text-primary">
+                  <div className="rounded-2xl border border-primary/30 bg-primary-subtle px-4 py-3 text-sm font-black text-text">
                     {tt("employeePortal.stockCount.submitted")}
                   </div>
                 ) : null}
 
                 {isRejected ? (
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold leading-6 text-rose-800">
+                  <div className="rounded-2xl border border-border bg-danger-subtle px-4 py-3 text-sm font-bold leading-6 text-text">
                     <div className="font-black">{tt("employeePortal.stockCount.rejectionReason")}</div>
                     <div className="mt-1">{clean(session.rejection_reason || session.rejectionReason || "") || tt("employeePortal.stockCount.noReasonGiven")}</div>
                     <button
                       type="button"
                       onClick={handleReopenSession}
                       disabled={sessionReopening}
-                      className="mt-3 inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-rose-600 px-4 text-sm font-black text-white disabled:opacity-60"
+                      className="mt-3 inline-flex min-h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-danger px-4 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-60"
                     >
                       {sessionReopening ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                       إعادة فتح للتعديل
@@ -1841,34 +1840,34 @@ export default function EmployeePortalInventory() {
                 {/* Name and notes are set once at the start and never during the
                     count itself, so they fold away instead of pushing the sizes
                     off the first screen. */}
-                <details className="inventory-wrap rounded-[var(--radius-card)] border border-slate-200 bg-white shadow-sm">
-                  <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-black text-slate-600">
+                <details className="inventory-wrap rounded-[var(--radius-card)] border border-border bg-surface shadow-sm">
+                  <summary className="cursor-pointer list-none px-3 py-2.5 text-xs font-black text-text-muted">
                     {tt("employeePortal.stockCount.details")}
                   </summary>
                   <div className="grid min-w-0 gap-2 px-3 pb-3 lg:grid-cols-[1fr_1fr]">
-                    <label className="inventory-wrap block rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 p-2.5">
-                      <div className="text-xs font-black text-slate-400">{tt("employeePortal.stockCount.name")}</div>
+                    <label className="inventory-wrap block rounded-[var(--radius-control)] border border-border bg-surface-soft p-2.5">
+                      <div className="text-xs font-black text-text-muted">{tt("employeePortal.stockCount.name")}</div>
                       <input
                         value={titleDraft}
                         onChange={(event) => setTitleDraft(event.target.value)}
                         disabled={!isEditable}
-                        className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
+                        className="mt-1.5 w-full bg-transparent text-base font-semibold text-text outline-none disabled:opacity-70"
                       />
                     </label>
-                    <label className="inventory-wrap block rounded-[var(--radius-control)] border border-slate-200 bg-slate-50 p-2.5">
-                      <div className="text-xs font-black text-slate-400">{tt("employeePortal.common.notes")}</div>
+                    <label className="inventory-wrap block rounded-[var(--radius-control)] border border-border bg-surface-soft p-2.5">
+                      <div className="text-xs font-black text-text-muted">{tt("employeePortal.common.notes")}</div>
                       <input
                         value={notesDraft}
                         onChange={(event) => setNotesDraft(event.target.value)}
                         disabled={!isEditable}
-                        className="mt-1.5 w-full bg-transparent text-base font-semibold text-slate-950 outline-none disabled:opacity-70"
+                        className="mt-1.5 w-full bg-transparent text-base font-semibold text-text outline-none disabled:opacity-70"
                       />
                     </label>
                     <button
                       type="button"
                       onClick={handleSaveSessionMeta}
                       disabled={sessionSaving || !isEditable || !online}
-                      className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-3 text-sm font-black text-slate-700 disabled:opacity-60 lg:col-span-2"
+                      className="inline-flex min-h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-black text-text disabled:opacity-60 lg:col-span-2"
                     >
                       {sessionSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                       {tt("employeePortal.common.save")}
@@ -1895,15 +1894,15 @@ export default function EmployeePortalInventory() {
                   onActiveChange={setSearchActive}
                 />
 
-                <section className="inventory-wrap rounded-[1.5rem] border border-slate-200 bg-white p-2.5 shadow-sm sm:p-3">
+                <section className="inventory-wrap rounded-[1.5rem] border border-border bg-surface p-2.5 shadow-sm sm:p-3">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <div className="inventory-title">
-                      <h3 className="m1-section-title text-slate-950">{tt("employeePortal.stockCount.items")}</h3>
-                      <p className="text-xs font-semibold text-slate-500">
+                      <h3 className="m1-section-title text-text">{tt("employeePortal.stockCount.items")}</h3>
+                      <p className="text-xs font-semibold text-text-muted">
                         المتوقع: {expectedTotal} • الفعلي: {countedTotal} • الفرق: {currentBalance}
                       </p>
                     </div>
-                    <div className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
+                    <div className="shrink-0 rounded-full border border-border bg-surface-soft px-3 py-1 text-xs font-black text-text-muted">
                       {groupedItems.length} لون
                     </div>
                   </div>
@@ -1923,7 +1922,7 @@ export default function EmployeePortalInventory() {
                         onDelete={handleDeleteColorGroup}
                       />
                     )) : (
-                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm font-bold leading-6 text-slate-500">
+                      <div className="rounded-2xl border border-dashed border-border bg-surface-soft p-6 text-sm font-bold leading-6 text-text-muted">
                         {tt("employeePortal.stockCount.noItemsYet")}
                       </div>
                     )}
@@ -1939,7 +1938,7 @@ export default function EmployeePortalInventory() {
                       type="button"
                       onClick={handleSubmitSession}
                       disabled={sessionSubmitting || !items.length}
-                      className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] shadow-lg shadow-emerald-900/10 disabled:opacity-60"
+                      className="inline-flex min-h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-primary px-4 text-sm font-black text-[var(--primary-contrast)] shadow-[var(--shadow-card)] disabled:opacity-60"
                     >
                       {sessionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       {pendingCount ? tt("employeePortal.stockCount.sendWithPending", { count: pendingCount }) : "إرسال للمراجعة"}
@@ -2022,28 +2021,28 @@ function BranchInventoryDrawer({
 }) {
   return createPortal(
     <div
-      className="fixed inset-0 z-[2147483001] bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[2147483001] bg-surface-soft backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <aside
-        className="absolute inset-y-0 end-0 flex h-full w-[min(100vw,22rem)] flex-col border-s border-white/10 bg-white shadow-2xl shadow-black/30"
+        className="absolute inset-y-0 end-0 flex h-full w-[min(100vw,22rem)] flex-col border-s border-border bg-surface shadow-[var(--shadow-overlay)] "
         dir="rtl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="branch-inventory-drawer-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">{tt("employeePortal.shell.title")}</div>
-            <h2 id="branch-inventory-drawer-title" className="m1-section-title mt-1 text-slate-950">{tt("employeePortal.stockCount.branchCounts")}</h2>
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-success">{tt("employeePortal.shell.title")}</div>
+            <h2 id="branch-inventory-drawer-title" className="m1-section-title mt-1 text-text">{tt("employeePortal.stockCount.branchCounts")}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 shadow-sm"
+            className="inline-flex h-[var(--control-height-lg)] w-11 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface text-text shadow-sm"
             aria-label={tt("employeePortal.common.close")}
           >
             <X className="h-5 w-5" />
@@ -2057,7 +2056,7 @@ function BranchInventoryDrawer({
                 key={filter.value}
                 type="button"
                 onClick={() => setStatusFilter(filter.value)}
-                className={`rounded-full border px-3 py-2 text-xs font-black transition ${ statusFilter === filter.value ? "border-emerald-500 bg-primary text-[var(--primary-contrast)]" : "border-slate-200 bg-white text-slate-600" }`}
+                className={`rounded-full border px-3 py-2 text-xs font-black transition ${ statusFilter === filter.value ? "border-border bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface text-text-muted" }`}
               >
                 {tt(filter.labelKey)}
               </button>
@@ -2074,8 +2073,8 @@ function BranchInventoryDrawer({
             جرد جديد
           </button>
 
-          <label className="mt-4 block rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-black text-slate-400">
+          <label className="mt-4 block rounded-[var(--radius-card)] border border-border bg-surface px-3 py-2 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-black text-text-muted">
               <Search className="h-4 w-4" />
               {tt("employeePortal.common.search")}
             </div>
@@ -2083,20 +2082,20 @@ function BranchInventoryDrawer({
               value={sessionSearch}
               onChange={(event) => setSessionSearch(event.target.value)}
               placeholder={tt("employeePortal.stockCount.searchPlaceholder")}
-              className="mt-1 w-full bg-transparent text-base font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+              className="mt-1 w-full bg-transparent text-base font-semibold text-text outline-none placeholder:text-text-muted"
             />
           </label>
 
           <div className="mt-4 flex items-center justify-between gap-3">
-            <div className="text-sm font-black text-slate-950">{tt("employeePortal.nav.menu")}</div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{visibleSessions.length}</span>
+            <div className="text-sm font-black text-text">{tt("employeePortal.nav.menu")}</div>
+            <span className="rounded-full bg-surface-soft px-3 py-1 text-xs font-black text-text">{visibleSessions.length}</span>
           </div>
 
           <div className="mt-3 space-y-2">
             {sessionsLoading ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-500">{tt("employeePortal.common.loadingAlt")}</div>
+              <div className="rounded-2xl border border-border bg-surface-soft p-4 text-sm font-bold text-text-muted">{tt("employeePortal.common.loadingAlt")}</div>
             ) : sessionsError ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold leading-6 text-rose-700">{sessionsError}</div>
+              <div className="rounded-2xl border border-border bg-danger-subtle p-4 text-sm font-bold leading-6 text-text">{sessionsError}</div>
             ) : visibleSessions.length ? (
               visibleSessions.map((row) => {
                 const active = String(row.id) === String(selectedSessionId);
@@ -2106,12 +2105,12 @@ function BranchInventoryDrawer({
                     key={row.id}
                     type="button"
                     onClick={() => onSelectSession(row.id)}
-                    className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-emerald-500 bg-emerald-50 shadow-sm" : "border-slate-200 bg-white hover:bg-slate-50" }`}
+                    className={`w-full rounded-[var(--radius-control)] border p-3 text-right transition ${ active ? "border-border bg-success-subtle shadow-sm" : "border-border bg-surface hover:bg-surface-soft" }`}
                   >
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-black text-slate-950">{row.title || tt("employeePortal.stockCount.new")}</div>
-                        <div className="mt-1 text-xs font-semibold text-slate-500">
+                        <div className="truncate text-sm font-black text-text">{row.title || tt("employeePortal.stockCount.new")}</div>
+                        <div className="mt-1 text-xs font-semibold text-text-muted">
                           {row.branch_name || tt("employeePortal.common.branch")}{row.warehouse_name ? ` • ${row.warehouse_name}` : ""}
                         </div>
                       </div>
@@ -2123,7 +2122,7 @@ function BranchInventoryDrawer({
                 );
               })
             ) : (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold leading-6 text-slate-500">
+              <div className="rounded-2xl border border-border bg-surface-soft p-4 text-sm font-bold leading-6 text-text-muted">
                 {tt("employeePortal.stockCount.noMatch")}
               </div>
             )}

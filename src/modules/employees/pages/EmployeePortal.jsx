@@ -35,9 +35,9 @@ const priorityLabel = {
 
 const priorityClass = {
   low: "border-border bg-surface-soft text-text",
-  medium: "border-primary/30 bg-primary-subtle text-primary",
-  high: "border-amber-100 bg-amber-50 text-amber-800",
-  critical: "border-red-100 bg-red-50 text-red-700",
+  medium: "border-primary/30 bg-primary-subtle text-text",
+  high: "border-border bg-warning-subtle text-text",
+  critical: "border-border bg-danger-subtle text-text",
 };
 
 const formatTime = (value) => {
@@ -110,12 +110,12 @@ function EmptyState({ children }) {
 // fixed-light surface model, and are correct as they stand.
 function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
   return (
-    <section className="mt-4 rounded-3xl border border-white/10 bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
-      <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/10 p-4 backdrop-blur">
+    <section className="mt-4 rounded-3xl border border-border bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
+      <div className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 backdrop-blur">
         <h2 className="m1-section-title">{tt("employeePortal.install.title")}</h2>
-        <p className="mt-2 text-sm font-semibold leading-6 text-white/70">{tt("employeePortal.install.hint")}</p>
+        <p className="mt-2 text-sm font-semibold leading-6 text-text-muted">{tt("employeePortal.install.hint")}</p>
         {ios && !canInstall ? (
-          <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-sm font-bold leading-6 text-white">
+          <p className="mt-3 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text">
             {tt("employeePortal.install.iosShort")}
           </p>
         ) : null}
@@ -124,11 +124,11 @@ function InstallBanner({ ios, onInstall, onDismiss, canInstall }) {
             type="button"
             disabled={!canInstall}
             onClick={onInstall}
-            className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-text disabled:opacity-50"
+            className="rounded-[var(--radius-control)] bg-primary px-4 py-3 text-sm font-black text-[var(--primary-contrast)] disabled:opacity-50"
           >
             {tt("employeePortal.install.action")}
           </button>
-          <button type="button" onClick={onDismiss} className="rounded-[var(--radius-control)] border border-white/15 px-4 py-3 text-sm font-black text-white">
+          <button type="button" onClick={onDismiss} className="rounded-[var(--radius-control)] border border-border px-4 py-3 text-sm font-black text-text">
             {tt("employeePortal.install.later")}
           </button>
         </div>
@@ -144,7 +144,7 @@ function OfflineNotice({ syncState }) {
       ? tt("employeePortal.sync.inProgress")
       : tt("employeePortal.sync.pending");
   return (
-    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900">
+    <div className="mt-4 rounded-2xl border border-border bg-warning-subtle p-4 text-sm font-bold leading-6 text-text">
       {tt("employeePortal.sync.offline")}
       <div className="mt-1 text-xs font-black">{label}</div>
     </div>
@@ -197,28 +197,28 @@ function TaskCard({ task, readOnly, saving, onStatus, onChecklist, onPhoto }) {
   const pastDue = isOpen && task.due_at && new Date(task.due_at).getTime() < Date.now();
 
   return (
-    <article className={`rounded-[var(--radius-card)] border bg-surface p-3 shadow-sm ${isCompleted ? "border-emerald-100" : isOverdue || pastDue ? "border-rose-300 bg-rose-50/60 dark:bg-rose-500/5" : "border-border"}`}>
+    <article className={`rounded-[var(--radius-card)] border bg-surface p-3 shadow-sm ${isCompleted ? "border-border" : isOverdue || pastDue ? "border-border bg-danger-subtle" : "border-border"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            {isFixedTask(task) ? <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-black text-amber-700 dark:text-amber-300">{tt("employeePortal.tasks.fixed")}</span> : null}
+            {isFixedTask(task) ? <span className="rounded-full bg-warning-subtle px-2.5 py-1 text-[11px] font-black text-text">{tt("employeePortal.tasks.fixed")}</span> : null}
             <span className={`rounded-full border px-2.5 py-1 text-[11px] font-black ${priorityClass[task.priority] || priorityClass.medium}`}>
               {task.priority_label_ar || priorityLabel[task.priority] || priorityLabel.medium}
             </span>
-            <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-emerald-50 text-emerald-700" : isOverdue ? "bg-orange-100 text-orange-800" : "bg-surface-soft text-text"}`}>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${isCompleted ? "bg-success-subtle text-text" : isOverdue ? "bg-warning-subtle text-text" : "bg-surface-soft text-text"}`}>
               {task.status_label_ar || statusLabel[task.status] || statusLabel.pending}
             </span>
-            {isOverdue || pastDue ? <span className="rounded-full bg-red-600 px-2.5 py-1 text-[11px] font-black text-white">{isOverdue ? tt("employeePortal.tasks.escalate") : tt("employeePortal.tasks.pastDue")}</span> : null}
+            {isOverdue || pastDue ? <span className="rounded-full bg-danger px-2.5 py-1 text-[11px] font-black text-[var(--primary-contrast)]">{isOverdue ? tt("employeePortal.tasks.escalate") : tt("employeePortal.tasks.pastDue")}</span> : null}
           </div>
           <h3 className="m1-section-title mt-2 text-text">{title}</h3>
         </div>
-        {isCompleted ? <CheckCircle2 className="mt-1 h-5 w-5 flex-none text-emerald-600" /> : <ClipboardList className="mt-1 h-5 w-5 flex-none text-text-muted" />}
+        {isCompleted ? <CheckCircle2 className="mt-1 h-5 w-5 flex-none text-success" /> : <ClipboardList className="mt-1 h-5 w-5 flex-none text-text-muted" />}
       </div>
 
       {description ? <p className="mt-2 line-clamp-2 text-sm font-semibold leading-6 text-text-muted">{description}</p> : null}
 
       <div className="mt-3 grid gap-1.5 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold text-text">
-        <div className={`flex items-center gap-2 ${pastDue ? "text-rose-600" : ""}`}>
+        <div className={`flex items-center gap-2 ${pastDue ? "text-danger" : ""}`}>
           <Clock3 className="h-4 w-4 text-text-muted" />
           <span>{tt("employeePortal.chrome.appointment")}: {formatTime(task.due_at)}</span>
         </div>
@@ -231,7 +231,7 @@ function TaskCard({ task, readOnly, saving, onStatus, onChecklist, onPhoto }) {
             const checked = done.has(index);
             return (
               <li key={index}>
-                <label className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${checked ? "border-emerald-200 bg-emerald-50/60 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-border text-text"}`}>
+                <label className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${checked ? "border-border bg-success-subtle text-text" : "border-border text-text"}`}>
                   <input
                     type="checkbox"
                     checked={checked}
@@ -255,7 +255,7 @@ function TaskCard({ task, readOnly, saving, onStatus, onChecklist, onPhoto }) {
             </a>
           ) : null}
           {isInProgress && !readOnly ? (
-            <label className={`inline-flex min-h-[var(--control-height-md)] cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm font-black ${photoUrl ? "border-border text-text" : "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"}`}>
+            <label className={`inline-flex min-h-[var(--control-height-md)] cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3 py-2 text-sm font-black ${photoUrl ? "border-border text-text" : "border-border bg-warning-subtle text-text"}`}>
               <Camera className="h-4 w-4" />
               {photoUrl ? tt("employeePortal.tasks.replacePhoto") : tt("employeePortal.tasks.takePhoto")}
               <input
@@ -593,8 +593,8 @@ export default function EmployeePortal() {
   if (error) {
     return (
       <main dir="rtl" className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
-        <section className="mx-auto max-w-md rounded-[var(--radius-card)] border border-amber-200 bg-surface p-5 text-right shadow-sm">
-          <AlertTriangle className="h-8 w-8 text-amber-600" />
+        <section className="mx-auto max-w-md rounded-[var(--radius-card)] border border-border bg-surface p-5 text-right shadow-sm">
+          <AlertTriangle className="h-8 w-8 text-warning" />
           <h1 className="m1-page-title mt-4">{tt("employeePortal.shell.unavailable")}</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-text-muted">{error}</p>
           <button type="button" onClick={() => loadPortal()} className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--topbar)] text-[var(--topbar-text)] px-4 py-4 text-sm font-black">
@@ -610,27 +610,27 @@ export default function EmployeePortal() {
     <main dir="rtl" className="min-h-[100dvh] bg-background px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-text">
       <div className="mx-auto max-w-md">
         <header className="rounded-3xl bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
-          <div className="text-xs font-black text-white/70">{tt("employeePortal.shell.title")}</div>
+          <div className="text-xs font-black text-text-muted">{tt("employeePortal.shell.title")}</div>
           <h1 className="m1-page-title mt-2">{portal?.employee?.name || tt("employeePortal.nav.myTasks")}</h1>
-          <div className="mt-1 text-sm font-semibold leading-6 text-white/70">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
+          <div className="mt-1 text-sm font-semibold leading-6 text-text-muted">{portal?.employee?.branch_name || portal?.employee?.employee_code}</div>
           <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl bg-white/10 p-3 text-center">
+            <div className="rounded-2xl bg-surface-soft p-3 text-center">
               <div className="text-2xl font-black">{summary.today}</div>
-              <div className="text-[11px] font-bold text-white/70">{tt("employeePortal.tasks.today")}</div>
+              <div className="text-[11px] font-bold text-text-muted">{tt("employeePortal.tasks.today")}</div>
             </div>
-            <div className="rounded-2xl bg-white/10 p-3 text-center">
+            <div className="rounded-2xl bg-surface-soft p-3 text-center">
               <div className="text-2xl font-black">{summary.pending}</div>
-              <div className="text-[11px] font-bold text-white/70">{tt("employeePortal.status.inProgress")}</div>
+              <div className="text-[11px] font-bold text-text-muted">{tt("employeePortal.status.inProgress")}</div>
             </div>
-            <div className="rounded-2xl bg-white/10 p-3 text-center">
+            <div className="rounded-2xl bg-surface-soft p-3 text-center">
               <div className="text-2xl font-black">{summary.completed}</div>
-              <div className="text-[11px] font-bold text-white/70">{tt("employeePortal.status.completed")}</div>
+              <div className="text-[11px] font-bold text-text-muted">{tt("employeePortal.status.completed")}</div>
             </div>
           </div>
         </header>
 
         {portal?.read_only ? (
-          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-900">
+          <div className="mt-4 flex items-start gap-3 rounded-2xl border border-border bg-warning-subtle p-4 text-sm font-bold leading-6 text-text">
             <Lock className="mt-0.5 h-4 w-4 flex-none" />
             {tt("employeePortal.tasks.loggedOut")}
           </div>

@@ -562,9 +562,9 @@ function ProductCard({ product, active, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(product)}
-      className={`flex w-full flex-row-reverse gap-3 rounded-[1.35rem] border p-3 text-right shadow-[0_20px_50px_rgba(0,0,0,0.22)] transition active:scale-[0.99] ${ active ? "border-emerald-300/40 bg-gradient-to-br from-emerald-500/10 via-zinc-950 to-black ring-1 ring-emerald-400/20" : "border-white/10 bg-zinc-950 hover:border-emerald-300/30 hover:bg-zinc-900" }`}
+      className={`flex w-full flex-row-reverse gap-3 rounded-[1.35rem] border p-3 text-right shadow-[var(--shadow-card)] transition active:scale-[0.99] ${ active ? "border-border bg-primary-subtle ring-1 ring-border" : "border-border bg-background hover:border-border hover:bg-surface" }`}
     >
-      <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+      <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-surface-soft">
         {previewImageUrl ? (
           <img
             src={resolveProductImageUrl(previewImageUrl)}
@@ -576,35 +576,35 @@ function ProductCard({ product, active, onOpen }) {
             }}
           />
         ) : (
-          <Package2 className="h-10 w-10 text-zinc-500" />
+          <Package2 className="h-10 w-10 text-text-muted" />
         )}
       </div>
 
       <div className="min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="m1-section-title truncate text-white">{product.name || "Product"}</h3>
-            <div className="mt-1 truncate text-[11px] font-semibold text-zinc-400">
+            <h3 className="m1-section-title truncate text-text">{product.name || "Product"}</h3>
+            <div className="mt-1 truncate text-[11px] font-semibold text-text-muted">
               {product.article_code ? `SKU / Article: ${product.article_code}` : "SKU / Article: -"}
             </div>
-            <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">
+            <div className="mt-0.5 truncate text-[11px] font-semibold text-text-muted">
               {product.manufacturer_name ? `Brand: ${product.manufacturer_name}` : "Brand: -"}
             </div>
           </div>
-          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-2.5 py-1 text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">{tt("employeePortal.chrome.stock")}</div>
-            <div className="text-base font-black text-emerald-100">{Number(product.total_stock || 0)}</div>
+          <div className="rounded-2xl border border-border bg-success-subtle px-2.5 py-1 text-center">
+            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-success">{tt("employeePortal.chrome.stock")}</div>
+            <div className="text-base font-black text-success">{Number(product.total_stock || 0)}</div>
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           {colors.map((color) => (
-            <span key={color} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-200">
+            <span key={color} className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text">
               {color}
             </span>
           ))}
           {product.colors.length > colors.length ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-400">
+            <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text-muted">
               +{product.colors.length - colors.length}
             </span>
           ) : null}
@@ -616,13 +616,13 @@ function ProductCard({ product, active, onOpen }) {
               .filter((variant) => text(variant.size) === text(size))
               .reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
             return (
-              <span key={size} className="rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] font-black text-white">
+              <span key={size} className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-black text-text">
                 {Number(stock || 0)} × {size}
               </span>
             );
           })}
           {!sizes.length ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-bold text-zinc-500">{tt("employeePortal.chrome.noSizes")}</span>
+            <span className="rounded-full border border-border bg-surface-soft px-2.5 py-1 text-[11px] font-bold text-text-muted">{tt("employeePortal.chrome.noSizes")}</span>
           ) : null}
         </div>
       </div>
@@ -655,14 +655,14 @@ function ProductPickerSheet({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:items-center sm:px-4 sm:py-6">
-      <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.35rem] border border-white/10 bg-zinc-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)]">
-        <EmployeePortalNavControls onBack={onBack} onHome={onHome} tone="dark" className="mb-0 px-3 pt-2 sm:px-4 sm:pt-3" />
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[var(--overlay-scrim)] px-2 py-2 sm:items-center sm:px-4 sm:py-6">
+      <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.35rem] border border-border bg-background shadow-[var(--shadow-overlay)]">
+        <EmployeePortalNavControls onBack={onBack} onHome={onHome} className="mb-0 px-3 pt-2 sm:px-4 sm:pt-3" />
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">{tt("employeePortal.chrome.variantSelection")}</div>
-            <h3 className="m1-section-title truncate text-white">{product.name || "Product"}</h3>
-            <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-zinc-400">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-success">{tt("employeePortal.chrome.variantSelection")}</div>
+            <h3 className="m1-section-title truncate text-text">{product.name || "Product"}</h3>
+            <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-text-muted">
               <span>{tt("employeePortal.chrome.skuArticle")}: {product.article_code || "-"}</span>
               <span>Brand: {product.manufacturer_name || "-"}</span>
             </div>
@@ -670,7 +670,7 @@ function ProductPickerSheet({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"
+            className="inline-flex h-[var(--control-height-md)] w-10 shrink-0 items-center justify-center rounded-full border border-border bg-surface-soft text-text"
           >
             <ArrowRight className="h-4 w-4" />
             <span>{tt("employeePortal.common.back")}</span>
@@ -678,8 +678,8 @@ function ProductPickerSheet({
         </div>
 
         <div className="grid flex-1 gap-3 overflow-y-auto px-4 py-3 lg:grid-cols-[1.05fr_0.95fr] lg:gap-4 lg:py-4">
-          <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-2.5 sm:p-3">
-            <div className="flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1rem] bg-black/25 sm:min-h-[12rem]">
+          <div className="rounded-[1.25rem] border border-border bg-surface-soft p-2.5 sm:p-3">
+            <div className="flex min-h-[10rem] items-center justify-center overflow-hidden rounded-[1rem] bg-surface-soft sm:min-h-[12rem]">
               {previewImageUrl ? (
                 <img
                   src={resolveProductImageUrl(previewImageUrl)}
@@ -691,15 +691,15 @@ function ProductPickerSheet({
                   }}
                 />
               ) : (
-                <Package2 className="h-20 w-20 text-zinc-600" />
+                <Package2 className="h-20 w-20 text-text-muted" />
               )}
             </div>
 
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-3">
-              <div className="text-sm font-black text-white">{tt("employeePortal.chrome.colors")}</div>
+            <div className="rounded-[1.25rem] border border-border bg-surface-soft p-3">
+              <div className="text-sm font-black text-text">{tt("employeePortal.chrome.colors")}</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {product.colors.length ? (
                   product.colors.map((color) => {
@@ -710,23 +710,23 @@ function ProductPickerSheet({
                         key={color || "default"}
                         type="button"
                         onClick={() => onSelectColor(color)}
-                        className={`min-h-[var(--control-height-lg)] rounded-full border px-4 py-2 text-sm font-black transition ${ active ? "border-emerald-400/30 bg-primary text-[var(--primary-contrast)]" : "border-white/10 bg-black/30 text-[var(--primary-contrast)] hover:bg-white/[0.08]" }`}
+                        className={`min-h-[var(--control-height-lg)] rounded-full border px-4 py-2 text-sm font-black transition ${ active ? "border-border bg-primary text-[var(--primary-contrast)]" : "border-border bg-surface-soft text-text hover:bg-surface-hover" }`}
                       >
                         {color}
-                        <span className={`mr-2 text-[11px] font-bold ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>({colorStock})</span>
+                        <span className={`mr-2 text-[11px] font-bold ${active ? "text-text-muted" : "text-text-muted"}`}>({colorStock})</span>
                       </button>
                     );
                   })
                 ) : (
-                  <span className="text-sm font-semibold text-zinc-500">{tt("employeePortal.chrome.noColors")}</span>
+                  <span className="text-sm font-semibold text-text-muted">{tt("employeePortal.chrome.noColors")}</span>
                 )}
               </div>
             </div>
 
-            <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.03] p-3">
+            <div className="rounded-[1.25rem] border border-border bg-surface-soft p-3">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-black text-white">{tt("employeePortal.chrome.sizes")}</div>
-                <div className="text-[11px] font-bold text-zinc-500">{tt("employeePortal.chrome.onlyAvailableSizes")}</div>
+                <div className="text-sm font-black text-text">{tt("employeePortal.chrome.sizes")}</div>
+                <div className="text-[11px] font-bold text-text-muted">{tt("employeePortal.chrome.onlyAvailableSizes")}</div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {sizeOptions.length ? (
@@ -738,15 +738,15 @@ function ProductPickerSheet({
                         type="button"
                         onClick={() => onSelectSize(size)}
                         disabled={Number(stock || 0) <= 0}
-                        className={`min-h-16 rounded-[var(--radius-control)] border px-3 py-2 text-right transition ${ active ? "border-emerald-400/30 bg-primary text-[var(--primary-contrast)]" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600" : "border-white/10 bg-black/30 text-[var(--primary-contrast)] hover:bg-white/[0.08]" }`}
+                        className={`min-h-16 rounded-[var(--radius-control)] border px-3 py-2 text-right transition ${ active ? "border-border bg-primary text-[var(--primary-contrast)]" : Number(stock || 0) <= 0 ? "cursor-not-allowed border-border bg-surface-soft text-text-muted" : "border-border bg-surface-soft text-text hover:bg-surface-hover" }`}
                       >
                         <div className="text-2xl font-black leading-none">{size}</div>
-                        <div className={`mt-1 text-[11px] font-semibold leading-none ${active ? "text-zinc-950/70" : "text-zinc-400"}`}>Stock: {Number(stock || 0)}</div>
+                        <div className={`mt-1 text-[11px] font-semibold leading-none ${active ? "text-text-muted" : "text-text-muted"}`}>Stock: {Number(stock || 0)}</div>
                       </button>
                     );
                   })
                 ) : (
-                  <div className="col-span-full text-sm font-semibold text-zinc-500">No available sizes for this color</div>
+                  <div className="col-span-full text-sm font-semibold text-text-muted">No available sizes for this color</div>
                 )}
               </div>
             </div>
@@ -794,29 +794,29 @@ function EmployeePortalCameraScannerModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/80 px-2 py-2 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-surface-soft px-2 py-2 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="flex w-full max-w-md min-w-0 flex-col overflow-hidden rounded-t-3xl border border-emerald-400/20 bg-slate-950 shadow-2xl shadow-black/70 sm:rounded-3xl"
+        className="flex w-full max-w-md min-w-0 flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-[var(--shadow-overlay)] sm:rounded-3xl"
         onMouseDown={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="employee-portal-camera-scanner-title"
         dir="rtl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
           <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{tt("employeePortal.chrome.employeeScanner")}</div>
-            <h3 id="employee-portal-camera-scanner-title" className="m1-section-title mt-1 text-white">{tt("employeePortal.scanner.scanBarcodeOrQr")}</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">{tt("employeePortal.scanner.frameHintDot")}</p>
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success">{tt("employeePortal.chrome.employeeScanner")}</div>
+            <h3 id="employee-portal-camera-scanner-title" className="m1-section-title mt-1 text-text">{tt("employeePortal.scanner.scanBarcodeOrQr")}</h3>
+            <p className="mt-1 text-xs font-semibold text-text-muted">{tt("employeePortal.scanner.frameHintDot")}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-zinc-100 transition hover:bg-white/[0.08]"
+            className="inline-flex min-h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text transition hover:bg-surface-soft"
             aria-label={tt("employeePortal.scanner.close")}
           >
             <ArrowRight className="h-4 w-4" />
@@ -825,7 +825,7 @@ function EmployeePortalCameraScannerModal({
         </div>
 
         <div className="p-4">
-          <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-3">
+          <div className="overflow-hidden rounded-3xl border border-border bg-surface-soft p-3">
             <BarcodeScanner
               onScan={onScan}
               onPermissionDenied={onPermissionDenied}
@@ -833,45 +833,45 @@ function EmployeePortalCameraScannerModal({
               onError={onError}
               onDebugChange={onDebugChange}
               enable1dFallback
-              className="overflow-hidden rounded-[1.35rem] bg-black"
+              className="overflow-hidden rounded-[1.35rem] bg-surface"
               scannerClassName="min-h-[320px]"
             />
           </div>
-          <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-center text-sm font-black text-emerald-100">
+          <div className="mt-3 rounded-2xl border border-border bg-success-subtle px-4 py-3 text-center text-sm font-black text-text">
             {tt("employeePortal.scanner.qrHint")}
           </div>
           {isDevBuild ? (
-            <div className="mt-3 grid gap-3 rounded-3xl border border-primary/20 bg-primary/10 p-3 text-left">
+            <div className="mt-3 grid gap-3 rounded-3xl border border-border bg-primary-subtle p-3 text-left">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary">Scanner Debug</div>
               <div className="text-[11px] font-bold text-primary">{scanDebug?.stage ? text(scanDebug.stage).replace(/_/g, " ") : "idle"}</div>
             </div>
             <div className="grid gap-2 text-[11px] font-semibold text-primary sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Last raw value</div>
-                <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.rawValue || "")}</div>
+              <div className="rounded-2xl border border-border bg-surface-soft px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted">Last raw value</div>
+                <div className="mt-1 break-all text-sm text-text">{formatScanDebugValue(scanDebug?.rawValue || "")}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Detected format</div>
-                <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.detectedFormat || "")}</div>
+              <div className="rounded-2xl border border-border bg-surface-soft px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted">Detected format</div>
+                <div className="mt-1 break-all text-sm text-text">{formatScanDebugValue(scanDebug?.detectedFormat || "")}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Resolver called</div>
-                <div className="mt-1 text-sm text-white">{scanDebug?.resolverCalled ? "yes" : "no"}</div>
+              <div className="rounded-2xl border border-border bg-surface-soft px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted">Resolver called</div>
+                <div className="mt-1 text-sm text-text">{scanDebug?.resolverCalled ? "yes" : "no"}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Resolver result</div>
-                <div className="mt-1 text-sm text-white">{formatScanDebugValue(scanDebug?.resolverResult || "idle")}</div>
+              <div className="rounded-2xl border border-border bg-surface-soft px-3 py-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted">Resolver result</div>
+                <div className="mt-1 text-sm text-text">{formatScanDebugValue(scanDebug?.resolverResult || "idle")}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 sm:col-span-2">
-                <div className="text-[10px] uppercase tracking-[0.2em] text-primary/80">Source</div>
-                <div className="mt-1 break-all text-sm text-white">{formatScanDebugValue(scanDebug?.source || "")}</div>
+              <div className="rounded-2xl border border-border bg-surface-soft px-3 py-2 sm:col-span-2">
+                <div className="text-[10px] uppercase tracking-[0.2em] text-text-muted">Source</div>
+                <div className="mt-1 break-all text-sm text-text">{formatScanDebugValue(scanDebug?.source || "")}</div>
               </div>
             </div>
             </div>
           ) : null}
-          <div className="mt-3 rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-3">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{tt("employeePortal.scanner.manualTitle")}</div>
+          <div className="mt-3 rounded-[var(--radius-card)] border border-border bg-surface-soft p-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-success">{tt("employeePortal.scanner.manualTitle")}</div>
             <div className="mt-2 flex flex-col gap-2 sm:flex-row">
               <input
                 value={manualBarcodeValue}
@@ -883,7 +883,7 @@ function EmployeePortalCameraScannerModal({
                   }
                 }}
                 placeholder={tt("employeePortal.scanner.manualEntry")}
-                className="min-h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-white/10 bg-black/30 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="min-h-[var(--control-height-lg)] flex-1 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-semibold text-text outline-none placeholder:text-text-muted"
               />
               <button
                 type="button"
@@ -894,7 +894,7 @@ function EmployeePortalCameraScannerModal({
               </button>
             </div>
           </div>
-          <div className="mt-3 text-center text-xs font-semibold text-zinc-500">
+          <div className="mt-3 text-center text-xs font-semibold text-text-muted">
             {tt("employeePortal.scanner.supportHint")}
           </div>
         </div>
@@ -1898,11 +1898,11 @@ export default function EmployeePortalProducts() {
 
   if (loading && !normalizedProducts.length) {
     return (
-      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-zinc-950 px-4 text-white">
+      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-background px-4 text-text">
         <div className="w-full max-w-7xl">
-          <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" className="px-0" />
+          <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} className="px-0" />
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-7 w-7 animate-spin text-emerald-400" />
+            <Loader2 className="h-7 w-7 animate-spin text-success" />
           </div>
         </div>
       </main>
@@ -1911,15 +1911,15 @@ export default function EmployeePortalProducts() {
 
   if (error && !normalizedProducts.length) {
     return (
-      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top bg-zinc-950 px-4 py-6 text-right text-white">
+      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top bg-background px-4 py-6 text-right text-text">
         <div className="mx-auto max-w-xl">
-          <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" />
-          <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] p-5 shadow-[0_20px_50px_rgba(0,0,0,0.25)]">
-            <div className="flex items-center gap-2 text-amber-300">
+          <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} />
+          <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 text-warning">
               <Store className="h-5 w-5" />
               <h1 className="m1-page-title">{tt("employeePortal.chrome.portalProducts")}</h1>
             </div>
-            <p className="mt-3 text-sm font-semibold leading-6 text-zinc-300">{error}</p>
+            <p className="mt-3 text-sm font-semibold leading-6 text-text-muted">{error}</p>
           </section>
         </div>
       </main>
@@ -1927,10 +1927,10 @@ export default function EmployeePortalProducts() {
   }
 
   return (
-    <main dir="rtl" className="employee-portal-products employee-portal-min-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-3 py-3 text-right text-white sm:px-4 sm:py-4">
+    <main dir="rtl" className="employee-portal-products employee-portal-min-screen overflow-x-hidden bg-background px-3 py-3 text-right text-text sm:px-4 sm:py-4">
       <div className="mx-auto max-w-7xl">
-        {!sheetOpen ? <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" /> : null}
-        <section className="employee-portal-safe-top mt-3 rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-3 shadow-[0_20px_50px_rgba(0,0,0,0.2)] backdrop-blur">
+        {!sheetOpen ? <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} /> : null}
+        <section className="employee-portal-safe-top mt-3 rounded-[1.5rem] border border-border bg-surface-soft p-3 shadow-[var(--shadow-card)] backdrop-blur">
           <div className="flex min-w-0 items-center gap-2">
             <button
               type="button"
@@ -1940,34 +1940,34 @@ export default function EmployeePortalProducts() {
                 setCameraScannerOpen(true);
               }}
               disabled={resolvingScan}
-              className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-white/10 bg-white/[0.04] text-zinc-200 transition hover:border-emerald-300/30 hover:bg-emerald-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text transition hover:border-border hover:bg-success-subtle disabled:cursor-not-allowed disabled:opacity-50"
               aria-label={tt("employeePortal.scanner.open")}
               title={tt("employeePortal.scanner.open")}
             >
               {resolvingScan ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             </button>
-            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-3">
-              <Search className="h-4 w-4 shrink-0 text-zinc-500" />
+            <label className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-border bg-surface-soft px-3">
+              <Search className="h-4 w-4 shrink-0 text-text-muted" />
               <input
                 ref={searchInputRef}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={tt("employeePortal.products.searchPlaceholder")}
-                className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+                className="w-full bg-transparent text-sm font-semibold text-text outline-none placeholder:text-text-muted"
               />
             </label>
             <button
               type="button"
               onClick={() => setFiltersOpen(true)}
               aria-expanded={filtersOpen}
-              className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]" : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10" }`}
+              className={`inline-flex h-[var(--control-height-lg)] w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] border transition ${ filtersOpen || activeFilterCount > 0 ? "border-border bg-primary-subtle text-text" : "border-border bg-surface-soft text-text hover:border-border hover:bg-success-subtle" }`}
               aria-label={tt("employeePortal.common.filters")}
               title={tt("employeePortal.common.filters")}
             >
               <span className="relative inline-flex">
                 <Filter className="h-4 w-4" />
                 {activeFilterCount > 0 ? (
-                  <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-emerald-400 px-1 text-[10px] font-black text-zinc-950">
+                  <span className="absolute -right-2 -top-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-success px-1 text-[10px] font-black text-[var(--primary-contrast)]">
                     {activeFilterCount > 99 ? "99+" : activeFilterCount}
                   </span>
                 ) : null}
@@ -1979,13 +1979,13 @@ export default function EmployeePortalProducts() {
 
         <section className="mt-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="m1-section-title text-zinc-300">{tt("employeePortal.products.results")}</h2>
-            <div className="text-xs font-semibold text-zinc-500">{visibleProducts.length.toLocaleString("ar-EG")} منتج</div>
+            <h2 className="m1-section-title text-text-muted">{tt("employeePortal.products.results")}</h2>
+            <div className="text-xs font-semibold text-text-muted">{visibleProducts.length.toLocaleString("ar-EG")} منتج</div>
           </div>
           {/* Honest about where the rows came from: the phone answered, and stock
               on it is as of the last sync until the server confirms. */}
           {listSource === "cache" && visibleProducts.length ? (
-            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-black text-amber-200" role="status">
+            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-warning-subtle px-3 py-1 text-[11px] font-black text-text" role="status">
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Package2 className="h-3.5 w-3.5" />}
               {tt("employeePortal.products.fromDevice")}
             </div>
@@ -2004,7 +2004,7 @@ export default function EmployeePortalProducts() {
               type="button"
               onClick={loadMoreProducts}
               disabled={loadingMoreProducts}
-              className="mt-3 flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-emerald-400/30 bg-emerald-500/10 px-4 text-sm font-black text-emerald-100 transition hover:bg-emerald-500/20 disabled:opacity-50"
+              className="mt-3 flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-success-subtle px-4 text-sm font-black text-text transition hover:bg-success-subtle disabled:opacity-50"
             >
               {loadingMoreProducts ? tt("employeePortal.common.loading") : tt("employeePortal.common.loadMore")}
             </button>

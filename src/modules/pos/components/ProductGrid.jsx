@@ -154,11 +154,11 @@ function ProductGrid({
       return (
         <div className="grid grid-cols-1 gap-2 max-[380px]:grid-cols-1 min-[381px]:grid-cols-2">
           {Array.from({ length: 6 }).map((_, index) => (
-            <div key={index} className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-[0_8px_20px_rgba(0,0,0,0.22)]">
-              <div className="m-1.5 h-36 animate-pulse rounded-xl bg-white/10" />
+            <div key={index} className="overflow-hidden rounded-2xl border border-border bg-background shadow-[0_8px_20px_rgba(0,0,0,0.22)]">
+              <div className="m-1.5 h-36 animate-pulse rounded-xl bg-surface-soft" />
               <div className="space-y-2 p-2 pt-1">
-                <div className="h-3 w-3/4 animate-pulse rounded-full bg-white/10" />
-                <div className="h-8 animate-pulse rounded-xl bg-white/10" />
+                <div className="h-3 w-3/4 animate-pulse rounded-full bg-surface-soft" />
+                <div className="h-8 animate-pulse rounded-xl bg-surface-soft" />
               </div>
             </div>
           ))}
@@ -178,9 +178,9 @@ function ProductGrid({
 
   if (error) {
     return (
-      <div className="flex h-56 items-center justify-center rounded-3xl border border-red-500/20 bg-red-500/5 p-5 text-center lg:h-[28rem] lg:p-8">
+      <div className="flex h-56 items-center justify-center rounded-3xl border border-border bg-danger-subtle p-5 text-center lg:h-[28rem] lg:p-8">
         <div>
-          <AlertTriangle className="mx-auto h-10 w-10 text-red-300" />
+          <AlertTriangle className="mx-auto h-10 w-10 text-danger" />
           <h3 className="mt-4 text-lg font-bold text-[var(--text)]">{t("pos.productGrid.feedUnavailable")}</h3>
           <p className="mt-2 max-w-xl text-sm text-[var(--muted)]">{error}</p>
         </div>
@@ -294,10 +294,10 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       style={{ contentVisibility: "auto", containIntrinsicSize: "144px 222px" }}
-      className="pos-product-card group relative flex min-h-[12.75rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-white/20 lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
+      className="pos-product-card group relative flex min-h-[12.75rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-border bg-surface text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-border lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
     >
       <div className="relative p-1.5 pb-0">
-        <div className="pos-product-card-image relative h-36 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-40 sm:h-32 lg:h-28">
+        <div className="pos-product-card-image relative h-36 overflow-hidden rounded-xl border border-border bg-surface-soft max-[380px]:h-40 sm:h-32 lg:h-28">
           {(isFavorite || canEditProduct) ? (
             <div className="absolute left-1.5 top-1.5 z-10 flex flex-col items-start gap-1">
               {canToggleFavorite ? (
@@ -310,8 +310,8 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
                   aria-pressed={isFavorite}
                   className={`pos-product-favorite flex h-7 w-7 items-center justify-center rounded-full border shadow-md backdrop-blur transition disabled:opacity-60 ${
                     isFavorite
-                      ? "border-amber-200/60 bg-zinc-950/90 text-amber-300"
-                      : "pos-product-favorite-off border-white/25 bg-zinc-950/70 text-zinc-400 hover:border-amber-200/60 hover:text-amber-300"
+                      ? "border-border bg-warning-subtle text-text"
+                      : "pos-product-favorite-off border-border bg-surface-soft text-text-muted hover:border-border hover:text-warning"
                   }`}
                   title={isFavorite ? t("pos.productGrid.removeFavorite") : t("pos.productGrid.addFavorite")}
                   aria-label={isFavorite ? t("pos.productGrid.removeFavorite") : t("pos.productGrid.addFavorite")}
@@ -320,7 +320,7 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
                 </button>
               ) : isFavorite ? (
                 <div
-                  className="pos-product-favorite flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
+                  className="pos-product-favorite flex h-7 w-7 items-center justify-center rounded-full border border-border bg-warning-subtle text-text shadow-md backdrop-blur"
                   title={t("pos.productGrid.favorite")}
                   aria-label={t("pos.productGrid.favorite")}
                 >
@@ -335,7 +335,7 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
                   onClick={stopCardActivation}
                   onKeyDown={stopCardActivation}
                   onPointerDown={stopCardActivation}
-                  className="pos-product-edit flex h-6 w-6 items-center justify-center rounded-full border border-sky-200/50 bg-zinc-950/90 text-sky-200 shadow-md backdrop-blur transition hover:border-sky-200 hover:text-white"
+                  className="pos-product-edit flex h-6 w-6 items-center justify-center rounded-full border border-border bg-info-subtle text-text shadow-md backdrop-blur transition hover:border-border hover:text-text"
                   title={t("pos.productGrid.editProduct")}
                   aria-label={t("pos.productGrid.editProduct")}
                 >
@@ -351,21 +351,21 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
             alt={product.name}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300">
-            <Box className="h-10 w-10 text-zinc-400" />
+          <div className="flex h-full w-full items-center justify-center bg-surface-soft">
+            <Box className="h-10 w-10 text-text-muted" />
           </div>
         )}
 
           <div
-            className="pos-product-stock absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur"
+            className="pos-product-stock absolute right-1.5 top-1.5 rounded-full border border-border bg-success-subtle px-1.5 py-0.5 text-[8px] font-black text-text shadow-sm backdrop-blur"
             title={isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
           >
             <span className="inline-flex items-center gap-0.5">
               {employeeFilteredSizes.length ? (
-                <span dir="ltr" className="text-amber-100">{employeeFilteredSizes.join(" / ")}</span>
+                <span dir="ltr" className="text-warning">{employeeFilteredSizes.join(" / ")}</span>
               ) : (
                 <>
-                  <Box className="h-2.5 w-2.5 text-emerald-500" />
+                  <Box className="h-2.5 w-2.5 text-success" />
                   {/* The count alone keeps the badge off the product photo; the
                       wording stays in the tooltip and for screen readers. */}
                   <span className="sr-only">
@@ -380,7 +380,7 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
           </div>
           {articleCode ? (
             <div className="absolute inset-x-2 bottom-2 flex justify-center">
-              <div className="pos-product-article inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-black leading-none text-zinc-200 shadow-sm backdrop-blur-sm">
+              <div className="pos-product-article inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-border bg-surface-soft px-2 py-1 text-[10px] font-black leading-none text-text shadow-sm backdrop-blur-sm">
                 <span className="min-w-0 max-w-full truncate">
                   {articleCode}
                 </span>
@@ -392,31 +392,31 @@ export const PosProductCard = memo(function PosProductCard({ product, onSelectPr
       </div>
 
       <div className="pos-product-card-body flex flex-1 flex-col gap-1 p-1.5 pt-1 sm:p-2 sm:pt-1.5 lg:gap-0.5">
-        <h3 className="pos-product-title min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
+        <h3 className="pos-product-title min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-text sm:text-[0.76rem]">
           <span className="line-clamp-2 min-h-[1.8rem] sm:min-h-[1.7rem]">{product.name}</span>
         </h3>
 
         {(colors.length || sizes.length) ? (
           <div className={`flex min-h-5 flex-wrap justify-center gap-1 overflow-hidden ${isEmployeeScopedVariant ? "" : "lg:hidden"}`}>
             {colors.slice(0, 2).map((color) => (
-              <span key={`color-${color}`} className="pos-product-meta max-w-[4.5rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-black text-zinc-300">
+              <span key={`color-${color}`} className="pos-product-meta max-w-[4.5rem] truncate rounded-full border border-border bg-surface-soft px-1.5 py-0.5 text-[8px] font-black text-text-muted">
                 {color}
               </span>
             ))}
             {sizes.slice(0, 2).map((size) => (
-              <span key={`size-${size}`} className="pos-product-meta pos-product-size rounded-full border border-emerald-300/15 bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-black text-emerald-100">
+              <span key={`size-${size}`} className="pos-product-meta pos-product-size rounded-full border border-border bg-success-subtle px-1.5 py-0.5 text-[8px] font-black text-text">
                 {size}
               </span>
             ))}
           </div>
         ) : null}
 
-        <div className={`pos-product-price mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${ hasPrice ? "border-emerald-300/20 bg-emerald-950/20" : "border-amber-300/30 bg-amber-500/10" }`}>
-          <div className={`pos-product-price-label truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-emerald-200/80" : "text-amber-200"}`}>
+        <div className={`pos-product-price mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${ hasPrice ? "border-border bg-success-subtle" : "border-border bg-warning-subtle" }`}>
+          <div className={`pos-product-price-label truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-text-muted" : "text-text"}`}>
             {saleBadge || t("pos.productGrid.price")}
           </div>
-          {originalPrice ? <div className="pos-product-original-price text-[9px] font-bold leading-tight text-zinc-400 line-through decoration-zinc-300/70">{originalPrice}</div> : null}
-          <div className={`pos-product-price-value truncate text-[0.82rem] font-black leading-tight sm:text-[0.86rem] ${hasPrice ? "text-white" : "text-amber-100"}`}>
+          {originalPrice ? <div className="pos-product-original-price text-[9px] font-bold leading-tight text-text-muted line-through decoration-border">{originalPrice}</div> : null}
+          <div className="pos-product-price-value truncate text-[0.82rem] font-black leading-tight text-text sm:text-[0.86rem]">
             {formatProductPrice(product, t)}
           </div>
         </div>
@@ -440,8 +440,8 @@ function ProductImage({ src, fallbackSrc, alt }) {
 
   if (!currentSrc || failed) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300">
-        <Box className="h-10 w-10 text-zinc-400" />
+      <div className="flex h-full w-full items-center justify-center bg-surface-soft">
+        <Box className="h-10 w-10 text-text-muted" />
       </div>
     );
   }

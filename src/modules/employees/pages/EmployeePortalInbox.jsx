@@ -77,7 +77,7 @@ export default function EmployeePortalInbox() {
   return (
     <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top min-h-[100dvh] bg-background px-3 py-3 text-text">
       <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
-        <EmployeePortalNavControls onBack={() => navigate(homePath, { replace: true })} onHome={() => navigate(homePath)} tone="light" className="px-0" />
+        <EmployeePortalNavControls onBack={() => navigate(homePath, { replace: true })} onHome={() => navigate(homePath)} className="px-0" />
         <section className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-6 text-center shadow-sm">
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-surface-muted text-text-muted">
             <MessageCircleMore className="h-6 w-6" />

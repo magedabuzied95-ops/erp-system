@@ -50,7 +50,6 @@ export default function EmployeePortalOnlineOrders() {
             else navigate(homePath(), { replace: true });
           }}
           onHome={() => navigate(homePath())}
-          tone="light"
           className="px-0"
         />
 

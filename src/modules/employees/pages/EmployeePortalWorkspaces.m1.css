@@ -1,93 +1,31 @@
+/* Employee portal workspaces (catalogue + stock count).
+   ---------------------------------------------------------------------------
+   This file used to be a compensation layer: the two pages were written with a
+   fixed palette (the catalogue always dark, the stock count always light), and
+   these rules repainted them per theme with `!important` attribute selectors
+   such as [class*="text-white"]. That could only ever cover the class names
+   somebody remembered to list, which is why `text-emerald-50`, `text-amber-100`,
+   `text-slate-200` and `bg-amber-200` kept rendering invisible on one theme or
+   the other.
+
+   The pages now use the semantic tokens directly (bg-surface / text-text /
+   border-border / bg-*-subtle), so nothing needs repainting. What is left here
+   is the genuinely structural part only. */
+
 .employee-portal-products,
 .employee-portal-workspace {
-  background: var(--bg) !important;
-  color: var(--text) !important;
+  /* Both workspaces are Arabic-first regardless of the interface language. */
   font-family: var(--font-ar) !important;
 }
 
-.employee-portal-products :where(header, section),
-.employee-portal-workspace :where(header, section, article) {
-  border-color: var(--border) !important;
-}
-
-/* M1 gold is reserved for actions. */
-.employee-portal-products button[class*="bg-emerald-"],
-.employee-portal-products button[class*="bg-cyan-"],
-.employee-portal-workspace button[class*="bg-emerald-"],
-.employee-portal-workspace button[class*="bg-cyan-"] {
-  background: var(--primary) !important;
-  background-image: none !important;
-  border-color: var(--primary-active) !important;
-  color: var(--primary-contrast) !important;
-}
-
-.employee-portal-products button[class*="bg-emerald-"] :where(svg, span),
-.employee-portal-products button[class*="bg-cyan-"] :where(svg, span),
-.employee-portal-workspace button[class*="bg-emerald-"] :where(svg, span),
-.employee-portal-workspace button[class*="bg-cyan-"] :where(svg, span) {
-  color: currentColor !important;
-}
-
-html[data-theme="light"] .employee-portal-products :where(header, section) {
-  background: var(--surface) !important;
-  box-shadow: var(--shadow-card) !important;
-}
-
-html[data-theme="light"] .employee-portal-products :where([class*="text-white"], [class*="text-zinc-200"]) {
-  color: var(--text) !important;
-}
-
-html[data-theme="light"] .employee-portal-products :where([class*="text-zinc-300"], [class*="text-zinc-400"], [class*="text-zinc-500"]) {
-  color: var(--muted) !important;
-}
-
-html[data-theme="light"] .employee-portal-products :where([class*="bg-black"], [class*="bg-white/"], [class*="bg-zinc-950"]) {
-  background: var(--surface-soft) !important;
-  color: var(--text) !important;
-}
-
-html[data-theme="light"] .employee-portal-products :where(input, select, textarea) {
-  color: var(--text) !important;
-}
-
-html[data-theme="dark"] .employee-portal-workspace :where([class*="bg-white"], [class*="bg-slate-50"], [class*="bg-slate-100"]) {
-  background: var(--surface) !important;
-  color: var(--text) !important;
-}
-
-html[data-theme="dark"] .employee-portal-workspace :where([class*="text-slate-950"], [class*="text-slate-900"], [class*="text-slate-800"], [class*="text-slate-700"]) {
-  color: var(--text) !important;
-}
-
-html[data-theme="dark"] .employee-portal-workspace :where([class*="text-slate-400"], [class*="text-slate-500"], [class*="text-slate-600"]) {
-  color: var(--muted) !important;
-}
-
-html[data-theme="dark"] .employee-portal-workspace :where(input, select, textarea) {
-  background: var(--surface-soft) !important;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
-}
-
-/* Inventory fields are composite controls: their label/search wrapper owns the surface. */
-html[data-theme="dark"] .employee-portal-inventory input[class*="bg-transparent"],
-html[data-theme="light"] .employee-portal-inventory input[class*="bg-transparent"],
-html[data-theme="dark"] .employee-portal-inventory textarea[class*="bg-transparent"],
-html[data-theme="light"] .employee-portal-inventory textarea[class*="bg-transparent"] {
+/* Inventory fields are composite controls: the label/search wrapper owns the
+   surface, so the input inside it must stay completely transparent. */
+.employee-portal-inventory input[class*="bg-transparent"],
+.employee-portal-inventory textarea[class*="bg-transparent"] {
   background: transparent !important;
   background-image: none !important;
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   outline: 0 !important;
-}
-
-html[data-theme="dark"] .employee-portal-workspace :where([class*="border-slate-"], [class*="border-white/"]) {
-  border-color: var(--border) !important;
-}
-
-/* Green remains semantic for inventory/success labels only. */
-.employee-portal-products :where([class*="text-emerald-"], [class*="text-green-"]),
-.employee-portal-workspace :where([class*="text-emerald-"], [class*="text-green-"]) {
-  color: var(--success) !important;
 }
