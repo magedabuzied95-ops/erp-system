@@ -55,6 +55,15 @@ import {
   resolveAgentActions,
 } from "../services/aiAgentActionPolicy.js";
 import { loadInboxTeamPerformance } from "../services/aiInboxTeamPerformanceService.js";
+import {
+  buildKnowledgeLines,
+  createAgentKnowledge,
+  deleteAgentKnowledge,
+  listAgentKnowledge,
+  matchFixedAnswer,
+  updateAgentKnowledge,
+} from "../services/aiAgentKnowledgeService.js";
+import { mineAnswerSuggestions } from "../services/aiInboxAnswerMiningService.js";
 import { buildSuggestedReplies } from "../services/aiSuggestedReplies.js";
 import {
   getAIChannelSettings,
@@ -5711,7 +5720,16 @@ router.get("/conversations/:conversationId/ai-pipeline-debug", protect, inboxVie
   }
 });
 
-router.post("/conversations/:conversationId/messages/:messageId/correction", protect, inboxReply(), async (req, res) => {
+/*
+ * Saving a correction to an AI reply.
+ *
+ * Registered on BOTH /conversations/:id/... and /inbox/:id/... because the client has always built
+ * the /inbox/ form (aiReplyCorrectionEndpoint → aiAgentInboxEndpoint) while only the /conversations/
+ * form existed on the server. Every correction the team ever typed 404d, on both surfaces, which is
+ * why ai_reply_corrections is empty and the style profile has never had a single example to learn
+ * from. Same dual-surface shape as the takeover/close/assign pairs below.
+ */
+const handleReplyCorrection = async (req, res) => {
   try {
     const tenantId = toTenantId(req);
     const conversationId = envText(req.params.conversationId);
@@ -5775,7 +5793,10 @@ router.post("/conversations/:conversationId/messages/:messageId/correction", pro
   } catch (error) {
     return sendError(res, error, "Failed to save correction");
   }
-});
+};
+
+router.post("/conversations/:conversationId/messages/:messageId/correction", protect, inboxReply(), handleReplyCorrection);
+router.post("/inbox/:conversationId/messages/:messageId/correction", protect, inboxReply(), handleReplyCorrection);
 
 router.get("/conversations/:conversationId/corrections", protect, inboxView(), async (req, res) => {
   try {
@@ -8475,6 +8496,96 @@ router.put("/settings", protect, permit("settings", "edit"), async (req, res) =>
     });
   } catch (error) {
     return sendError(res, error, "Failed to update AI agent settings");
+  }
+});
+
+/*
+ * What the owner taught the agent.
+ *
+ * Reading is settings:view; writing is settings:edit, because a fixed answer is sent to customers
+ * verbatim — it is closer to publishing than to configuring.
+ */
+router.get("/knowledge", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const entries = await listAgentKnowledge({ tenantId, kind: envText(req.query?.kind) });
+    return res.json({ success: true, entries });
+  } catch (error) {
+    return sendError(res, error, "Failed to load what the agent was taught");
+  }
+});
+
+router.post("/knowledge", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const entry = await createAgentKnowledge({
+      tenantId,
+      kind: req.body?.kind,
+      title: req.body?.title,
+      triggers: req.body?.triggers,
+      answer: req.body?.answer,
+      enabled: req.body?.enabled,
+      priority: req.body?.priority,
+      createdBy: req.user?.id || null,
+    });
+    return res.status(201).json({ success: true, entry });
+  } catch (error) {
+    return sendError(res, error, "Failed to save the entry");
+  }
+});
+
+router.patch("/knowledge/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const entry = await updateAgentKnowledge({ tenantId, id: Number(req.params.id), patch: req.body || {} });
+    return res.json({ success: true, entry });
+  } catch (error) {
+    return sendError(res, error, "Failed to update the entry");
+  }
+});
+
+router.delete("/knowledge/:id", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const result = await deleteAgentKnowledge({ tenantId, id: Number(req.params.id) });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to delete the entry");
+  }
+});
+
+/*
+ * "If a customer wrote this, which of my rules fires?" — the only honest way to let an owner verify a
+ * trigger before a customer meets it. Read-only: it matches, it does not send, log or count.
+ */
+
+// What the inbox has to teach: questions customers asked repeatedly that a PERSON had to answer,
+// clustered. Suggestions only — nothing changes a reply until the owner saves one as an entry.
+router.get("/knowledge/suggestions", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const report = await mineAnswerSuggestions({ tenantId: toTenantId(req), days: req.query?.days });
+    return res.json({ success: true, ...report });
+  } catch (error) {
+    return sendError(res, error, "Failed to read what the conversations have to teach");
+  }
+});
+
+router.post("/knowledge/test", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const message = envText(req.body?.message);
+    const entries = await listAgentKnowledge({ tenantId });
+    const matched = matchFixedAnswer(entries, message);
+    return res.json({
+      success: true,
+      message,
+      matched: matched
+        ? { entry_id: matched.entry.id, title: matched.entry.title, trigger: matched.trigger, answer: matched.entry.answer }
+        : null,
+      knowledge_lines: buildKnowledgeLines(entries).length,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to test the message");
   }
 });
 

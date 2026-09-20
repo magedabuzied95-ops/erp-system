@@ -241,3 +241,5 @@ server/data/backfill/
 !server/services/aiInboxTeamPerformanceService.js
 !server/services/marketingConsentService.js
 !server/services/marketingBroadcastService.js
+!server/services/aiAgentKnowledgeService.js
+!server/services/aiInboxAnswerMiningService.js

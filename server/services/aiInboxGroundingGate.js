@@ -25,6 +25,9 @@ import {
   loadSupportKnowledgeBase,
   renderSupportFactAnswer,
 } from "./aiSupportKnowledgeBaseService.js";
+// What the OWNER taught the agent: their own triggers and their own exact wording, which outranks the
+// built-in support facts because it is the more specific instruction. See aiAgentKnowledgeService.js.
+import { findFixedAnswerForMessage, recordKnowledgeMatch } from "./aiAgentKnowledgeService.js";
 
 // ---- Phase 12.1 — Durable grounded PRODUCT SUBJECT context (bounded, deterministic) -------------------
 // Reuse a recently GROUNDED product IDENTITY as conversational context for a continuation that omits the
@@ -561,6 +564,47 @@ export const applyInboxGroundingGate = async ({ tenantId, message, contextMessag
     // customer's current message; the KB fields are the facts, the LLM never supplies them. A same-message
     // product/category mention still wins (that turn genuinely is about a product), so existing product
     // grounding is untouched. Never sends; only replaces the already-composed draft text + clears cards.
+    // OWNER-AUTHORED FIXED ANSWERS come first, ahead of even the canonical support facts. The nine
+    // support-fact intents are frozen in code and fill eleven predetermined blanks; a fixed answer is
+    // the shop owner writing both the trigger and the exact sentence, which is strictly more specific
+    // than any built-in default. It inherits the same product suppression below: a turn that mentions a
+    // product is genuinely about that product, and a canned reply must not hijack a sale.
+    if (!entities.productType) {
+      const findFixed = deps.findFixedAnswerForMessage || findFixedAnswerForMessage;
+      const matched = await findFixed({ tenantId, message }).catch(() => null);
+      const fixedAnswer = String(matched?.entry?.answer || "").trim();
+      if (fixedAnswer) {
+        recordKnowledgeMatch({ tenantId, id: matched.entry.id });
+        return {
+          changed: true,
+          entities,
+          requestedIntent: "owner_fixed_answer",
+          action: "owner_fixed_answer",
+          answer: fixedAnswer,
+          confidence: 0.99,
+          suggested_products: [],
+          send_ready_card: null,
+          card_choices: [],
+          color_choices: [],
+          product_ambiguous: false,
+          color_choice_required: false,
+          selection_semantics: null,
+          kb_missing_fields: [],
+          grounding: {
+            requested: { trigger: matched.trigger },
+            resolved: {
+              source: "owner_fixed_answer",
+              entry_id: matched.entry.id,
+              entry_title: matched.entry.title,
+              trigger: matched.trigger,
+            },
+            action: "owner_fixed_answer",
+            product_resolution: { source: "none" },
+          },
+        };
+      }
+    }
+
     const supportFactIntent = entities.productType ? "" : detectSupportFactIntent(message);
     if (supportFactIntent) {
       const loadKb = deps.loadSupportKnowledgeBase || loadSupportKnowledgeBase;

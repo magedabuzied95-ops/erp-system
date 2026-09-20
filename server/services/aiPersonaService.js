@@ -16,6 +16,7 @@
  */
 import db from "../database/db.js";
 import { agentActionGuidanceLines } from "./aiAgentActionPolicy.js";
+import { loadKnowledgeLines } from "./aiAgentKnowledgeService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -106,6 +107,11 @@ export const loadPersona = async ({ tenantId } = {}) => {
   // aiAgentActionPolicy.js. Never persisted back: savePersona strips it before writing.
   const actionGuidance = agentActionGuidanceLines(settings || {});
   if (actionGuidance.length) persona.action_guidance = actionGuidance;
+  // What the owner taught the agent, in its own words. Same ride as the action guidance: every builder
+  // of the instruction block already loads the persona, so none of them needs to learn about knowledge
+  // rows. Capped in the service. Never persisted back — savePersona strips it.
+  const knowledge = await loadKnowledgeLines({ tenantId }).catch(() => []);
+  if (knowledge.length) persona.shop_knowledge = knowledge;
   return persona;
 };
 
@@ -115,6 +121,7 @@ export const savePersona = async ({ tenantId, patch = {} } = {}) => {
   const nextPersona = mergePersona(DEFAULT_PERSONA, { ...(settings?.[SETTINGS_KEY] || {}), ...patch });
   // Derived at read time from action_policies; storing a copy here would let the two drift.
   delete nextPersona.action_guidance;
+  delete nextPersona.shop_knowledge;
   const nextSettings = { ...settings, [SETTINGS_KEY]: nextPersona };
 
   await db.query(
@@ -236,6 +243,16 @@ export const buildInstructions = ({
   // action fires; a disabled action never reaches this list, so nothing here can switch one on.
   if (Array.isArray(persona.action_guidance) && persona.action_guidance.length) {
     lines.push("", "# إمتى تعمل كل إجراء:", ...persona.action_guidance);
+  }
+
+  // Facts the owner wrote about their own shop. They are context, not permission: the grounding rules
+  // at the top of this block still bind, so nothing here can invent a price, a stock level or an ETA.
+  if (Array.isArray(persona.shop_knowledge) && persona.shop_knowledge.length) {
+    lines.push(
+      "",
+      "# معلومات صاحب المحل عن المتجر — استخدمها بأسلوبك، ومتقولش حاجة مش مكتوبة فيها:",
+      ...persona.shop_knowledge
+    );
   }
 
   if (understanding) {

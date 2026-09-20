@@ -175,6 +175,14 @@ const readAgentSettingsRow = async (tenantId) => {
   }
 };
 
+/**
+ * The tenant's agent settings, cached.
+ *
+ * Exported for the few call sites that need one flag and must not pull in aiSalesAgentService — a
+ * 370KB module — to read it. This file imports only `db`, so it cannot create an import cycle.
+ */
+export const readAgentSettings = async ({ tenantId } = {}) => readAgentSettingsRow(tenantId);
+
 export const agentActionAllowed = async ({ tenantId, actionId } = {}) => {
   const definition = agentActionDefinition(actionId);
   if (!definition) return false;

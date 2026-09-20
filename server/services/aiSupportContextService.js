@@ -28,6 +28,7 @@ import {
   buildReplyCorrectionContextSource,
   searchRelevantCorrections,
 } from "./aiCorrectionMemoryService.js";
+import { readAgentSettings } from "./aiAgentActionPolicy.js";
 import { normalizeSaleModeSettings, resolveSaleModePrice } from "./saleModeService.js";
 import { normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -5418,7 +5419,18 @@ const buildAiSupportTrustedContextInner = async ({ tenantId, message, req = null
       })
     : null;
   const memorySource = buildAiMemoryContextSource(conversationMemory);
-  const employeeCorrections = tenantId
+  /*
+   * Style learning is OPT-IN and ships off (`ai_agent_settings.style_learning_enabled`, default false).
+   * The inbox path honours that flag; this storefront path used to read corrections unconditionally, so
+   * a shop that had never switched learning on still had its staff's past wording pushed to the front of
+   * the model's trusted context. One switch, one meaning — the flag is now checked on both paths.
+   */
+  const styleLearningEnabled = tenantId
+    ? await readAgentSettings({ tenantId })
+        .then((settings) => settings?.style_learning_enabled === true)
+        .catch(() => false)
+    : false;
+  const employeeCorrections = tenantId && styleLearningEnabled
     ? await searchRelevantCorrections({
         tenantId,
         query: message,
