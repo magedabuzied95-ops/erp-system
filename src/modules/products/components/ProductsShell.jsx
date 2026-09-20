@@ -44,11 +44,12 @@ export default function ProductsShell({
     <div className="m1-products-page w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
       <div className="m1-products-heading rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          {/* No eyebrow. "وحدة المنتجات" over "كتالوج المنتجات" said the word
+              twice and bought nothing: the sidebar already says which module
+              this is, and on a phone the label plus its tracking cost a line
+              of the first screen. One title per screen. */}
           <div className="max-w-3xl">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)] sm:text-xs sm:tracking-[0.24em]">
-              {t("products.moduleEyebrow")}
-            </p>
-            <h1 className="m1-display mt-2 text-[var(--text)] sm:mt-3">
+            <h1 className="m1-display text-[var(--text)]">
               {title}
             </h1>
             {description ? (

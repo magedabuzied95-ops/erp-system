@@ -2610,46 +2610,27 @@ function CreateProduct() {
       <ColorNameDatalist />
       <form id="create-product-form" onSubmit={handleSubmit} className="m1-product-form w-full min-w-0 max-w-none space-y-4 overflow-x-hidden pb-28 lg:pb-24">
         <div className="flex w-full min-w-0 max-w-none flex-col gap-4 px-4 sm:px-6 lg:px-8">
-          {/* One bar instead of three stacked layers. The page title is already
-              rendered by ProductsShell directly above, so repeating it here only
-              pushed the form down; the workflow description, the section
-              jump-nav and the page actions now share this single sticky bar.
-
-              Both actions are carried over verbatim, so the submit contract
-              (three native submits, each guarded while saving) is intact. */}
+          {/* Section jump-nav, and nothing else. The page title is already
+              rendered by ProductsShell directly above, and saving now lives in
+              exactly one place: the sticky ProductActionBar at the foot of the
+              screen, which is on screen at every scroll position. The copies
+              that used to sit here and at the end of the form said the same
+              thing three times over, which on a phone is three times the
+              chrome for one action. Leaving the bar with only the nav in it is
+              deliberate — one submit, one way back. */}
           <div className="-mx-1 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2">
-            <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
-              <nav className="flex w-full min-w-0 gap-2 overflow-x-auto md:w-auto md:flex-1">
-                {pageNavSections.map((section) => (
-                  <button
-                    key={section.id}
-                    type="button"
-                    onClick={() => scrollToSection(section.id)}
-                    className="h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-                  >
-                    {section.title}
-                  </button>
-                ))}
-              </nav>
-
-              <div className="flex w-full shrink-0 flex-wrap justify-end gap-2 md:w-auto">
-                <Link
-                  to="/products"
-                  onClick={confirmLeaveIfDirty}
-                  className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
-                >
-                  {t("products.editor.backToList")}
-                </Link>
+            <nav className="flex w-full min-w-0 gap-2 overflow-x-auto">
+              {pageNavSections.map((section) => (
                 <button
-                  type="submit"
-                  disabled={saving}
-                  className={buttonClasses("primary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
+                  key={section.id}
+                  type="button"
+                  onClick={() => scrollToSection(section.id)}
+                  className="h-[var(--control-height-md)] shrink-0 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-xs font-bold text-text transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
                 >
-                  <Plus size={16} strokeWidth={2} />
-                  {saving ? savingStep || t("products.shared.saving") : t("products.editor.saveProduct")}
+                  {section.title}
                 </button>
-              </div>
-            </div>
+              ))}
+            </nav>
           </div>
 
           <div className="space-y-4">
@@ -3794,23 +3775,6 @@ function CreateProduct() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className={buttonClasses("primary", "rounded-[var(--radius-control)] px-6 py-3")}
-          >
-            <Plus size={18} />
-            {saving ? t("common.saving", "جارٍ الحفظ...") : t("products.editor.createTitle", "إنشاء منتج")}
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/products")}
-            className={buttonClasses("secondary", "rounded-[var(--radius-control)] px-6 py-3")}
-          >
-            إلغاء
-          </button>
-        </div>
         <ProductActionBar
           mode="create"
           saving={saving}
