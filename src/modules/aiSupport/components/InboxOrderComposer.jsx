@@ -90,7 +90,6 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
   const [paymentMethod, setPaymentMethod] = useState("cash_on_delivery");
   const [discountType, setDiscountType] = useState("amount");
   const [discountValue, setDiscountValue] = useState(0);
-  const [savedAddresses, setSavedAddresses] = useState([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [shippingProvider, setShippingProvider] = useState("bosta");
@@ -175,19 +174,6 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
     });
   }, [open, picks]);
 
-  // "My addresses": everything this phone has ordered to before, so a returning
-  // customer's address is one tap instead of eight fields.
-  useEffect(() => {
-    if (!open || !clean(customerPhone)) {
-      setSavedAddresses([]);
-      return undefined;
-    }
-    let active = true;
-    api.get(`/ai-inbox/customer-addresses?phone=${encodeURIComponent(clean(customerPhone))}`, { headers, suppressErrorStatuses: [404, 500] })
-      .then((data) => active && setSavedAddresses(asArray(data?.addresses)))
-      .catch(() => active && setSavedAddresses([]));
-    return () => { active = false; };
-  }, [customerPhone, headers, open]);
 
   // Everything the customer typed on the public page lands in the form in one
   // shot. City first: the id chain re-triggers the zone/district loads above.
@@ -494,38 +480,6 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
               )}
             </div>
 
-            {/* Addresses this customer has ordered to before — one tap instead of
-                retyping the whole block. */}
-            {savedAddresses.length ? (
-              <div className="ai-order__saved mb-3 p-2.5">
-                <div className="ai-order__label mb-2">{t("aiSupport.inbox.order.myAddresses")}</div>
-                <div className="flex flex-wrap gap-2">
-                  {savedAddresses.map((address) => (
-                    <button
-                      key={address.id}
-                      type="button"
-                      onClick={() => {
-                        setShippingProvider(clean(address.shipping_provider) || shippingProvider);
-                        setGovernorate(clean(address.governorate));
-                        setCityArea(clean(address.city_area));
-                        setShippingCityId(clean(address.shipping_city_id));
-                        setShippingZoneId(clean(address.shipping_zone_id));
-                        setShippingDistrictId(clean(address.shipping_district_id));
-                        setStreetAddress(clean(address.street_address));
-                        setBuildingNumber(clean(address.building_number));
-                        setFloorNumber(clean(address.floor_number));
-                        setApartmentNumber(clean(address.apartment_number));
-                        setLandmark(clean(address.landmark));
-                      }}
-                      className="ai-order__saved-chip max-w-full truncate px-3 py-1.5"
-                      title={[address.street_address, address.city_area, address.governorate].filter(Boolean).join(" — ")}
-                    >
-                      {[address.street_address, address.city_area || address.governorate].filter(Boolean).join(" — ") || t("aiSupport.inbox.order.savedAddress")}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <span className="ai-order__label mb-1.5 block">{t("aiSupport.inbox.order.courierRequired")}</span>
