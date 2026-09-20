@@ -173,19 +173,44 @@ const cardSubtitle = (card = {}, t, priceValue) => {
  * Arabic on every ERP language — they are not interface text and must not be translated.
  */
 const metaTemplateCopy = (card = {}) => {
+  // WHAT LEFT THE BUILDING WINS. A card read back off Meta's echo carries the element itself —
+  // the title, the subtitle and the buttons exactly as Meta drew them — and rebuilding that copy
+  // from the parts is how the inbox and the customer's phone drifted apart: the phone showed
+  // "Alexander Mcqueen Sneakers — أبيض — 1100 جنيه" over "المقاسات: 37 | 41 | 42 | 45" and two
+  // buttons, and the inbox showed the bare product name and one button. Only a card with no
+  // element behind it (a fresh send, an old row) falls through to the reconstruction below.
+  const templateTitle = clean(card.template_title);
+  const templateButtons = asArray(card.template_buttons)
+    .map((button) => ({ title: clean(button?.title), url: clean(button?.url), type: clean(button?.type) }))
+    .filter((button) => button.title);
+  if (templateTitle || templateButtons.length) {
+    return {
+      title: templateTitle,
+      subtitle: clean(card.template_subtitle || card.subtitle),
+      buttons: templateButtons,
+    };
+  }
+
   const priceValue = Number(card.price ?? card.final_price ?? 0);
   const priceText = priceValue > 0 ? `${priceValue.toLocaleString("en-US")} جنيه` : "";
   const title = [firstText(card.color, card.product_name, card.name, card.title), priceText].filter(Boolean).join(" — ");
   const sizes = [...new Set([...asArray(card.available_sizes), ...asArray(card.sizes), ...asArray(card.size_options)].map(clean).filter(Boolean))];
   const selectedSize = clean(card.size || card.selected_size);
-  const subtitle = selectedSize
+  const subtitle = clean(card.subtitle) || (selectedSize
     ? `المقاس: ${selectedSize}`
     : sizes.length
       ? `المقاسات المتاحة:
 ${sizes.join(" · ")}`
-      : "";
-  const button = clean(card.variant_id || card.price_variant_id) ? "اطلب اللون ده ✅" : "عرض المنتج";
-  return { title, subtitle, button };
+      : "");
+  // The comment automation puts BOTH buttons on a card: pick this colour, and open the product.
+  // buildMetaCarouselElement puts one. Mirror whichever this card can actually justify.
+  const canOrderColor = Boolean(clean(card.variant_id || card.price_variant_id || card.color_select_payload));
+  const productUrl = clean(card.product_url || card.url || card.storefront_url || card.share_url);
+  const buttons = [
+    ...(canOrderColor ? [{ title: "✅ اطلب اللون ده", type: "postback", url: "" }] : []),
+    ...(productUrl ? [{ title: "عرض المنتج", type: "web_url", url: productUrl }] : []),
+  ];
+  return { title, subtitle, buttons: buttons.length ? buttons : [{ title: "عرض المنتج", type: "web_url", url: productUrl }] };
 };
 
 /*
@@ -312,15 +337,35 @@ function ProductCardMessage({
             {copy.subtitle ? (
               <p style={{ color: chrome.cardMuted }} className="mt-0.5 whitespace-pre-line text-[13px] leading-[18px]">{copy.subtitle}</p>
             ) : null}
-            <a
-              href={storefrontUrl || undefined}
-              target="_blank"
-              rel="noreferrer"
-              style={{ background: chrome.cardButtonBg, color: chrome.cardButtonInk }}
-              className="mt-2.5 block rounded-[10px] px-3 py-2 text-center text-[14px] font-bold"
-            >
-              {copy.button}
-            </a>
+            {/*
+              Every button the card went out with, stacked as Messenger stacks them. A postback has
+              nowhere to go — it is the customer's tap, not ours — so it renders as the button they
+              see rather than a link that would take the operator somewhere they did not ask for.
+            */}
+            <div className="mt-2.5 space-y-1.5">
+              {asArray(copy.buttons).map((button, buttonIndex) =>
+                button.url ? (
+                  <a
+                    key={`${cardKey}-btn-${buttonIndex}`}
+                    href={button.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ background: chrome.cardButtonBg, color: chrome.cardButtonInk }}
+                    className="block rounded-[10px] px-3 py-2 text-center text-[14px] font-bold"
+                  >
+                    {button.title}
+                  </a>
+                ) : (
+                  <div
+                    key={`${cardKey}-btn-${buttonIndex}`}
+                    style={{ background: chrome.cardButtonBg, color: chrome.cardButtonInk }}
+                    className="block rounded-[10px] px-3 py-2 text-center text-[14px] font-bold"
+                  >
+                    {button.title}
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </article>
       );

@@ -1832,19 +1832,44 @@ const templateElementToProductCard = (element = {}) => {
   const title = text(element.title);
   const imageUrl = text(element.image_url);
   if (!title && !imageUrl) return null;
-  const [namePart, pricePart = ""] = title.split(" — ");
-  const price = Number(String(pricePart).replace(/[^\d.]/g, "")) || null;
+  // A title is "<name> — <price> جنيه" from buildMetaCarouselElement, but the comment automation
+  // sends "<name> — <colour> — <price> جنيه" (buildSocialCommentCardTitle). Splitting on " — " and
+  // calling the SECOND chunk the price read the colour as the price: "أبيض" parsed to null, and the
+  // price and the colour both vanished off the card the operator was shown. The price is whichever
+  // chunk actually carries digits, and what is left of it is the colour.
+  const chunks = title.split(" — ").map(text).filter(Boolean);
+  const priceIndex = chunks.findIndex((chunk, index) => index > 0 && /\d/.test(chunk));
+  const price = priceIndex >= 0 ? Number(chunks[priceIndex].replace(/[^\d.]/g, "")) || null : null;
+  const namePart = chunks[0] || title;
+  const colorPart = chunks.slice(1).filter((_chunk, index) => index + 1 !== priceIndex).join(" — ");
   const buttons = Array.isArray(element.buttons) ? element.buttons : [];
   const postback = text(buttons.find((button) => text(button?.type) === "postback")?.payload || "");
+  // Two payload shapes reach a card: buildMetaCarouselElement's "choose_color:<id>" and the comment
+  // automation's "SOCIAL_COLOR_SELECT::{json}". Recognising only the first is what turned an
+  // automation card's two buttons into one "عرض المنتج".
   const variantId = (postback.match(/^choose_color:(\d+)$/) || [])[1] || "";
+  const socialColorPayload = postback.startsWith("SOCIAL_COLOR_SELECT::") ? postback : "";
   return {
     variant_id: variantId || null,
-    name: text(namePart) || title,
-    title: text(namePart) || title,
+    name: namePart,
+    title: namePart,
+    color: colorPart,
     price,
     image_url: imageUrl,
     product_url: text(buttons.find((button) => text(button?.type) === "web_url")?.url || ""),
     subtitle: text(element.subtitle),
+    // The element exactly as Meta drew it. The inbox renders THIS rather than rebuilding the copy
+    // from the parts above, so the operator reads the card letter for letter as the customer does.
+    template_title: title,
+    template_subtitle: text(element.subtitle),
+    template_buttons: buttons
+      .map((button) => ({
+        type: text(button?.type),
+        title: text(button?.title),
+        url: text(button?.url),
+      }))
+      .filter((button) => button.title),
+    color_select_payload: socialColorPayload,
   };
 };
 
