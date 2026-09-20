@@ -304,3 +304,79 @@
   line-height: var(--font-label-lh);
   font-weight: 500;
 }
+/* Product picker is fullscreen on mobile, but its palette must still follow the PWA theme. */
+.ai-pwa-product-picker--dark,
+.ai-pwa-product-picker--dark > section,
+.ai-pwa-product-picker--dark .bg-white {
+  background-color: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+.ai-pwa-product-picker--dark .bg-slate-50,
+.ai-pwa-product-picker--dark .bg-slate-100 {
+  background-color: var(--surface-soft) !important;
+}
+
+.ai-pwa-product-picker--dark :where(.text-slate-900, .text-slate-950) {
+  color: var(--text) !important;
+}
+
+.ai-pwa-product-picker--dark :where(.text-slate-600, .text-slate-700) {
+  color: var(--text-secondary) !important;
+}
+
+.ai-pwa-product-picker--dark :where(.text-slate-400, .text-slate-500) {
+  color: var(--muted) !important;
+}
+
+.ai-pwa-product-picker--dark :where(.border-slate-200, .border-slate-300) {
+  border-color: var(--border) !important;
+}
+
+.ai-pwa-product-picker--dark input,
+.ai-pwa-product-picker--dark select {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.ai-pwa-product-picker--dark input::placeholder {
+  color: var(--muted) !important;
+  opacity: 0.9;
+}
+
+.ai-pwa-product-picker--dark option {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+/* The colour/size chooser is a sheet over the catalog on the phone. It is written in the
+   light palette and the rules above pull it to the dark tokens; these are the accents the
+   base block does not carry. */
+.ai-picker-variant-sheet {
+  margin-inline: auto;
+  max-width: 640px;
+}
+
+.ai-pwa-product-picker--dark :where(.text-emerald-700) {
+  color: #6ee7b7 !important;
+}
+
+.ai-pwa-product-picker--dark :where(.text-cyan-700, .text-cyan-600) {
+  color: #67e8f9 !important;
+}
+
+.ai-pwa-product-picker--dark :where(.text-rose-700, .text-rose-600) {
+  color: #fda4af !important;
+}
+
+.ai-pwa-product-picker--dark .bg-rose-50 {
+  background-color: color-mix(in srgb, #f43f5e 16%, transparent) !important;
+}
+
+/* The sheet sits ON TOP of the catalog, so it has to read as a raised surface rather than
+   taking the same --surface the list behind it uses. */
+.ai-pwa-product-picker--dark .ai-picker-variant-sheet,
+.ai-pwa-product-picker--dark .ai-picker-variant-sheet .bg-white {
+  background-color: var(--surface-raised) !important;
+}

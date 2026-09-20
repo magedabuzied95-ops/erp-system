@@ -1167,6 +1167,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setSelectedCardsById((m) => ({ ...m, [productId]: card }));
   }, [allowMultiple, restockMode, selectedCardsById, selectedProductIds, t]);
 
+  // Closing the phone sheet only puts the chooser away: the colour/size just picked was
+  // already written into selectedCardsById by the effect above, so a ticked product keeps
+  // its variant and re-opening it restores exactly what was chosen.
+  const closeVariantSheet = useCallback(() => {
+    setSelectedProductId("");
+    setPreviewCollapsed(true);
+  }, []);
+
   const toggleSizeCardSelection = useCallback((card) => {
     setSelectedSizeCards((current) => {
       const exists = current.some((item) => item.key === card.key);
@@ -1322,7 +1330,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             <div className="min-w-0">
               <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.aiInbox")}</div>
               <h3 id="ai-product-card-picker-title" className="ai-plink__title mt-1">{t("aiSupport.inbox.picker.availableBySize")}</h3>
-              <p className="ai-plink__subtitle mt-1">{t("aiSupport.inbox.picker.availableBySizeHint")}</p>
             </div>
             <button
               data-testid="available-by-size-close"
@@ -1338,7 +1345,6 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             <div className="ai-plink__group p-4">
               <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.productType")}</div>
               <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseTypes")}</div>
-              <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseTypesHint")}</div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -1378,8 +1384,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
             {gradeOptions.length ? (
               <div className="ai-plink__group p-4">
-                <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.quality")}</div>
-                <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseQuality")}</div>
+                <div className="ai-plink__group-title">{t("aiSupport.inbox.picker.chooseQuality")}</div>
                 <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseQualityHint")}</div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
@@ -1412,8 +1417,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             ) : null}
 
             <div className="ai-plink__group p-4">
-              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.gender")}</div>
-              <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseGender")}</div>
+              <div className="ai-plink__group-title">{t("aiSupport.inbox.picker.chooseGender")}</div>
               <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseGenderHint")}</div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -1445,8 +1449,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             </div>
 
             <div className="ai-plink__group p-4">
-              <div className="ai-plink__eyebrow">{t("aiSupport.inbox.picker.sizes")}</div>
-              <div className="ai-plink__group-title mt-2">{t("aiSupport.inbox.picker.chooseSizes")}</div>
+              <div className="ai-plink__group-title">{t("aiSupport.inbox.picker.chooseSizes")}</div>
               <div className="ai-plink__hint mt-1">{t("aiSupport.inbox.picker.chooseSizesHint")}</div>
               {availableSizes.length ? (
                 <div className="ai-plink__size-grid mt-4">
@@ -1523,6 +1526,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     return inlineFullscreenMode ? sizeContent : createPortal(sizeContent, portalTarget || document.body);
   }
 
+  // On the phone the colour/size chooser used to be the SECOND column of a grid that
+  // stacks — it sat under the whole catalog, so tapping a product scrolled nothing into
+  // view and looked like it did nothing at all. There it is a sheet over the list now,
+  // opened by the tap and closed by its own X, and the catalog keeps a footer bar so the
+  // batch can still be sent once the sheet is closed.
+  const variantSheetMode = inlineFullscreenMode && !(sizeMode && selectedSize);
+  const variantSheetOpen = variantSheetMode && Boolean(selectedProduct);
+  const submitDisabled = submitting || (!allowMultiple ? !activeCard : !(selectedProducts.length || activeCard));
+  const submitLabel = restockMode
+    ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.restockConfirmCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.restockConfirm"))
+    : orderMode
+      ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.order.pickerAddCountToOrder", { count: selectedProducts.length }) : t("aiSupport.inbox.order.pickerAddToOrder"))
+      : (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.sendSelectedCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.sendProduct"));
+
   const content = (
     <div
       className={`ai-pwa-product-picker ${desktopInboxMode ? "ai-inbox-product-picker-desktop" : ""} ${posPickerMode ? "pos-pro-shell" : ""} ${darkMode ? "ai-pwa-product-picker--dark" : "ai-pwa-product-picker--light"} ${inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}`}
@@ -1541,16 +1558,19 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         aria-labelledby="ai-product-card-picker-title"
         dir={pickerDir}
       >
-        <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 backdrop-blur ${desktopInboxMode ? "ai-inbox-product-picker-desktop__header bg-slate-950/95 px-6 py-4" : `px-4 py-3 ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}`}>
+        {/* On the phone the header used to be an eyebrow + a huge title + a subtitle: three
+            lines of chrome that pushed the search box and the catalog down for no information
+            the screen doesn't already carry. It is one compact line there now. */}
+        <div className={inlineFullscreenMode ? "flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5" : `sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 backdrop-blur ${desktopInboxMode ? "ai-inbox-product-picker-desktop__header bg-slate-950/95 px-6 py-4" : `px-4 py-3 ${posPickerMode ? "bg-[#171714]/95" : "bg-slate-950/95"}`}`}>
           <div className="min-w-0">
-            <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : `text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>{t("aiSupport.inbox.picker.aiInbox")}</div>
-            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{restockMode ? t("aiSupport.inbox.picker.restockTitle") : orderMode ? t("aiSupport.inbox.order.pickerOrderTitle") : t("aiSupport.inbox.picker.sendProduct")}</h3>
-            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>{restockMode ? t("aiSupport.inbox.picker.restockSubtitle") : orderMode ? t("aiSupport.inbox.order.pickerOrderSubtitle") : t("aiSupport.inbox.picker.sendProductHint")}</p>
+            {inlineFullscreenMode ? null : <div className={`text-[10px] font-black uppercase tracking-[0.22em] ${posPickerMode ? "text-[#d4af37]" : "text-cyan-200"}`}>{t("aiSupport.inbox.picker.aiInbox")}</div>}
+            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "truncate text-sm font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{restockMode ? t("aiSupport.inbox.picker.restockTitle") : orderMode ? t("aiSupport.inbox.order.pickerOrderTitle") : t("aiSupport.inbox.picker.sendProduct")}</h3>
+            {inlineFullscreenMode ? null : <p className="mt-1 text-xs font-semibold text-zinc-500">{restockMode ? t("aiSupport.inbox.picker.restockSubtitle") : orderMode ? t("aiSupport.inbox.order.pickerOrderSubtitle") : t("aiSupport.inbox.picker.sendProductHint")}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={inlineFullscreenMode ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900" : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"}
+            className={inlineFullscreenMode ? "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900" : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"}
           >
             <X className="h-4 w-4" />
           </button>
@@ -1648,7 +1668,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                                   {card.size ? <span>{t("aiSupport.inbox.picker.sizeValue", { size: card.size })}</span> : null}
                                 </div>
                               </div>
-                              {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
+                              {isSelected ? <CheckCircle2 className={`h-4 w-4 shrink-0 ${inlineFullscreenMode ? "text-cyan-600" : "text-cyan-200"}`} /> : null}
                             </div>
                             <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                               {Number.isFinite(card.price) && card.price > 0 ? <span className={`font-black ${inlineFullscreenMode ? "text-emerald-700" : "text-emerald-100"}`}>{money(card.price)}</span> : null}
@@ -1691,7 +1711,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         type="button"
                         onClick={() => openProductForPreview(product)}
                         className={`ai-picker-tile flex w-full items-start gap-3 rounded-2xl border p-2.5 text-start transition ${
-                          isActive ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
+                          isActive
+                            ? (inlineFullscreenMode ? "border-cyan-500/60 bg-cyan-500/10" : "border-cyan-300/40 bg-cyan-300/10")
+                            : inlineFullscreenMode
+                              ? "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                              : "border-white/10 bg-slate-950/60 hover:border-white/20 hover:bg-white/[0.04]"
                         }`}
                       >
                         {previewImage ? (
@@ -1710,7 +1734,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                                 {product.category || product.category_name ? <span>{product.category || product.category_name}</span> : null}
                               </div>
                             </div>
-                            {isActive ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
+                            {isActive ? <CheckCircle2 className={`h-4 w-4 shrink-0 ${inlineFullscreenMode ? "text-cyan-600" : "text-cyan-200"}`} /> : null}
                           </div>
                           <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                             {Number.isFinite(previewPrice) && previewPrice > 0 ? <span className={`font-black ${inlineFullscreenMode ? "text-emerald-700" : "text-emerald-100"}`}>{money(previewPrice)}</span> : null}
@@ -1744,7 +1768,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     <button
                       type="button"
                       onClick={() => setVisibleLimit((current) => current + PICKER_RENDER_STEP)}
-                      className="col-span-full mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-xs font-black text-slate-100 transition hover:border-amber-300/25"
+                      className={`col-span-full mt-1 inline-flex h-10 items-center justify-center gap-2 rounded-2xl border px-4 text-xs font-black transition ${inlineFullscreenMode ? "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300" : "border-white/10 bg-white/[0.06] text-slate-100 hover:border-amber-300/25"}`}
                     >
                       {t("aiSupport.inbox.picker.loadMoreProgress", { visible: visibleLimit, total: visibleProducts.length })}
                     </button>
@@ -1756,15 +1780,56 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </div>
               )}
             </div>
+
+            {/* With the chooser closed there is no send button on screen, so the catalog keeps
+                the batch's own footer: count, clear, and the one action that submits it. */}
+            {variantSheetMode && allowMultiple && selectedProducts.length > 0 ? (
+              <div className="sticky bottom-0 -mx-4 mt-auto flex items-center gap-2 border-t border-slate-200 bg-white px-4 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2.5">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedProductIds([]); setSelectedCardsById({}); }}
+                  className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700"
+                >
+                  {t("aiSupport.inbox.picker.clearSelection")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => submitSelection()}
+                  disabled={submitDisabled}
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {submitLabel}
+                </button>
+              </div>
+            ) : null}
           </div>
 
-          <div className={`${desktopInboxMode ? "ai-inbox-product-picker-desktop__preview" : ""} min-h-0 overflow-y-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3`}>
+          {variantSheetOpen ? (
+            <button
+              type="button"
+              aria-label={t("aiSupport.inbox.picker.closeVariantSheet")}
+              onClick={closeVariantSheet}
+              className="fixed inset-0 z-[55] bg-slate-900/45"
+            />
+          ) : null}
+
+          <div
+            className={
+              variantSheetMode
+                ? (variantSheetOpen
+                    ? "ai-picker-variant-sheet fixed inset-x-0 bottom-0 z-[56] max-h-[84dvh] min-h-0 overflow-y-auto rounded-t-3xl border border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-20px_60px_rgba(15,23,42,0.35)]"
+                    : "hidden")
+                : `${desktopInboxMode ? "ai-inbox-product-picker-desktop__preview" : ""} min-h-0 overflow-y-auto rounded-3xl border border-white/10 bg-white/[0.035] p-3`
+            }
+            role={variantSheetOpen ? "dialog" : undefined}
+            aria-modal={variantSheetOpen ? "true" : undefined}
+          >
             {sizeMode && selectedSize ? (
               <div className="space-y-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                   <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>{t("aiSupport.inbox.picker.sizeMode")}</div>
                   <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{t("aiSupport.inbox.picker.selectedSize", { size: selectedSize })}</div>
-                  <div className="mt-2 text-sm font-semibold text-slate-400">{t("aiSupport.inbox.picker.chooseProductsHint")}</div>
                   <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
                     {t("aiSupport.inbox.picker.selectedProductCount", { count: selectedSizeCards.length })}
                 </div>
@@ -1810,37 +1875,60 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               </div>
             ) : selectedProduct ? (
               <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={() => setPreviewCollapsed((current) => !current)}
-                  className="sticky top-0 z-10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#27251f] px-4 py-2 text-sm font-black text-[#f4df9a] shadow-lg"
-                >
-                  {previewCollapsed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                  {previewCollapsed ? t("aiSupport.inbox.picker.showPreview") : t("aiSupport.inbox.picker.hidePreview")}
-                </button>
-                <div className={previewCollapsed ? "hidden" : "space-y-3"}>
-                <div className="flex items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#1d1d1a] p-3">
+                {variantSheetMode ? (
+                  <div className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 pb-2 pt-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black text-slate-900">{selectedProduct.name || selectedProduct.product_name || t("aiSupport.inbox.picker.product")}</div>
+                      <div className="mt-0.5 text-[11px] font-bold text-slate-500">{t("aiSupport.inbox.picker.chooseColorAndSize")}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeVariantSheet}
+                      aria-label={t("aiSupport.inbox.picker.closeVariantSheet")}
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewCollapsed((current) => !current)}
+                    className="sticky top-0 z-10 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/30 bg-[#27251f] px-4 py-2 text-sm font-black text-[#f4df9a] shadow-lg"
+                  >
+                    {previewCollapsed ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    {previewCollapsed ? t("aiSupport.inbox.picker.showPreview") : t("aiSupport.inbox.picker.hidePreview")}
+                  </button>
+                )}
+                <div className={variantSheetMode || !previewCollapsed ? "space-y-3" : "hidden"}>
+                <div className={`flex items-center gap-3 overflow-hidden rounded-2xl border p-3 ${variantSheetMode ? "border-slate-200 bg-slate-50" : "border-white/10 bg-[#1d1d1a]"}`}>
                   {activeImage ? (
                     <HoverZoomImage src={activeImage} alt={selectedProduct.name || t("aiSupport.inbox.picker.product")} className="h-24 w-24 shrink-0 rounded-2xl border border-white/10 bg-white object-cover" />
                   ) : (
-                    <div className="grid h-24 w-24 shrink-0 place-items-center rounded-2xl bg-white/[0.05]">
+                    <div className={`grid h-24 w-24 shrink-0 place-items-center rounded-2xl ${variantSheetMode ? "bg-slate-100" : "bg-white/[0.05]"}`}>
                       <ShoppingBag className="h-8 w-8 text-stone-500" />
                     </div>
                   )}
                   <div className="min-w-0 flex-1 py-1">
-                    <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-stone-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-[#d4af37]"}>{t("aiSupport.inbox.picker.selectedProduct")}</div>
-                    <div className={inlineFullscreenMode ? "mt-1 truncate text-base font-black text-stone-900" : "mt-1 truncate text-base font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || t("aiSupport.inbox.picker.product")}</div>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] font-bold text-stone-400">
-                      {selectedProduct.brand || selectedProduct.brand_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.brand || selectedProduct.brand_name}</span> : null}
-                      {selectedProduct.category || selectedProduct.category_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.category || selectedProduct.category_name}</span> : null}
-                      {productBarcode(selectedProduct) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{t("aiSupport.inbox.picker.barcodeValue", { barcode: productBarcode(selectedProduct) })}</span> : null}
+                    {/* The sheet header already names the product — repeating it here would be the
+                        same title twice on a 375px screen. */}
+                    {variantSheetMode ? null : (
+                      <>
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-[#d4af37]">{t("aiSupport.inbox.picker.selectedProduct")}</div>
+                        <div className="mt-1 truncate text-base font-black text-white">{selectedProduct.name || selectedProduct.product_name || t("aiSupport.inbox.picker.product")}</div>
+                      </>
+                    )}
+                    <div className={`flex flex-wrap gap-1.5 text-[10px] font-bold ${variantSheetMode ? "text-slate-600" : "mt-1.5 text-stone-400"}`}>
+                      {selectedProduct.brand || selectedProduct.brand_name ? <span className={`rounded-full border px-2 py-1 ${variantSheetMode ? "border-slate-200 bg-white" : "border-white/10 bg-white/[0.04]"}`}>{selectedProduct.brand || selectedProduct.brand_name}</span> : null}
+                      {selectedProduct.category || selectedProduct.category_name ? <span className={`rounded-full border px-2 py-1 ${variantSheetMode ? "border-slate-200 bg-white" : "border-white/10 bg-white/[0.04]"}`}>{selectedProduct.category || selectedProduct.category_name}</span> : null}
+                      {productBarcode(selectedProduct) ? <span className={`rounded-full border px-2 py-1 ${variantSheetMode ? "border-slate-200 bg-white" : "border-white/10 bg-white/[0.04]"}`}>{t("aiSupport.inbox.picker.barcodeValue", { barcode: productBarcode(selectedProduct) })}</span> : null}
                     </div>
-                    {activePrice > 0 ? <div className="mt-2 text-sm font-black text-emerald-200">{money(activePrice)}</div> : null}
+                    {activePrice > 0 ? <div className={`mt-2 text-sm font-black ${variantSheetMode ? "text-emerald-700" : "text-emerald-200"}`}>{money(activePrice)}</div> : null}
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-sm font-black text-white">{t("aiSupport.inbox.picker.color")}</div>
+                <div className={`rounded-2xl border p-3 ${variantSheetMode ? "border-slate-200 bg-white" : "border-white/10 bg-slate-950/60"}`}>
+                  <div className={`text-sm font-black ${variantSheetMode ? "text-slate-900" : "text-white"}`}>{t("aiSupport.inbox.picker.color")}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {activeColors.length ? (
                       activeColors.map((color) => {
@@ -1859,7 +1947,11 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                               }
                             }}
                             className={`min-h-10 rounded-full border px-4 py-2 text-sm font-black transition ${
-                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
+                              active
+                                ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
+                                : variantSheetMode
+                                  ? "border-slate-200 bg-slate-50 text-slate-900 hover:border-[#d4af37]/60 hover:bg-[#d4af37]/10"
+                                  : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                             }`}
                           >
                             {color}
@@ -1872,10 +1964,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-[#22221e] p-3">
+                <div className={`rounded-2xl border p-3 ${variantSheetMode ? "border-slate-200 bg-white" : "border-white/10 bg-[#22221e]"}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-black text-white">{t("aiSupport.inbox.picker.size")}</div>
-                    <div className="text-[11px] font-bold text-slate-500">{restockMode ? t("aiSupport.inbox.picker.allSizesForRestock") : t("aiSupport.inbox.picker.availableSizesOnly")}</div>
+                    <div className={`text-sm font-black ${variantSheetMode ? "text-slate-900" : "text-white"}`}>{t("aiSupport.inbox.picker.size")}</div>
+                    <div className={`text-[11px] font-bold ${variantSheetMode ? "text-slate-500" : "text-slate-500"}`}>{restockMode ? t("aiSupport.inbox.picker.allSizesForRestock") : t("aiSupport.inbox.picker.availableSizesOnly")}</div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {activeSizes.length ? (
@@ -1888,11 +1980,19 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             type="button"
                             onClick={() => setSelectedSize(size)}
                             className={`min-h-12 rounded-2xl border px-3 py-2 text-start transition ${
-                              active ? "border-[#d4af37] bg-[#d4af37] text-[#171714]" : soldOut ? "border-dashed border-rose-300/40 bg-rose-400/5 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10" : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
+                              active
+                                ? "border-[#d4af37] bg-[#d4af37] text-[#171714]"
+                                : soldOut
+                                  ? (variantSheetMode
+                                      ? "border-dashed border-rose-300 bg-rose-50 text-slate-900 hover:border-[#d4af37]/60"
+                                      : "border-dashed border-rose-300/40 bg-rose-400/5 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10")
+                                  : variantSheetMode
+                                    ? "border-slate-200 bg-slate-50 text-slate-900 hover:border-[#d4af37]/60 hover:bg-[#d4af37]/10"
+                                    : "border-white/10 bg-black/30 text-white hover:border-[#d4af37]/40 hover:bg-[#d4af37]/10"
                             }`}
                           >
                             <div className="text-xl font-black leading-none">{size}</div>
-                            {soldOut ? <div className={`mt-1 text-[10px] font-black ${active ? "text-[#171714]/70" : "text-rose-300"}`}>{t("aiSupport.inbox.picker.sizeSoldOut")}</div> : null}
+                            {soldOut ? <div className={`mt-1 text-[10px] font-black ${active ? "text-[#171714]/70" : variantSheetMode ? "text-rose-600" : "text-rose-300"}`}>{t("aiSupport.inbox.picker.sizeSoldOut")}</div> : null}
                           </button>
                         );
                       })
@@ -1904,12 +2004,12 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
                 {/* Phase 13.4 — manual multi-select bar: count + clear, above the explicit send action. */}
                 {allowMultiple && selectedProducts.length > 0 ? (
-                  <div className="flex items-center justify-between gap-2 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-3 py-2">
-                    <span className="text-xs font-black text-cyan-100">{t("aiSupport.inbox.picker.selectedProductCount", { count: selectedProducts.length })}</span>
+                  <div className={`flex items-center justify-between gap-2 rounded-2xl border px-3 py-2 ${variantSheetMode ? "border-cyan-500/30 bg-cyan-500/10" : "border-cyan-300/25 bg-cyan-400/10"}`}>
+                    <span className={`text-xs font-black ${variantSheetMode ? "text-cyan-700" : "text-cyan-100"}`}>{t("aiSupport.inbox.picker.selectedProductCount", { count: selectedProducts.length })}</span>
                     <button
                       type="button"
                       onClick={() => { setSelectedProductIds([]); setSelectedCardsById({}); }}
-                      className="rounded-lg border border-white/15 bg-white/[0.06] px-2 py-1 text-[11px] font-black text-slate-100 hover:bg-white/[0.1]"
+                      className={`rounded-lg border px-2 py-1 text-[11px] font-black ${variantSheetMode ? "border-slate-200 bg-white text-slate-700 hover:bg-slate-50" : "border-white/15 bg-white/[0.06] text-slate-100 hover:bg-white/[0.1]"}`}
                     >
                       {t("aiSupport.inbox.picker.clearSelection")}
                     </button>
@@ -1922,18 +2022,26 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     console.info("[ProductCardPicker] button clicked");
                     submitSelection();
                   }}
-                  disabled={submitting || (!allowMultiple ? !activeCard : !(selectedProducts.length || activeCard))}
+                  disabled={submitDisabled}
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {restockMode
-                    ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.restockConfirmCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.restockConfirm"))
-                    : orderMode
-                      ? (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.order.pickerAddCountToOrder", { count: selectedProducts.length }) : t("aiSupport.inbox.order.pickerAddToOrder"))
-                      : (allowMultiple && selectedProducts.length ? t("aiSupport.inbox.picker.sendSelectedCount", { count: selectedProducts.length }) : t("aiSupport.inbox.picker.sendProduct"))}
+                  {submitLabel}
                 </button>
 
-                {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+                {/* Multi-select on the phone: put the sheet away and carry on picking, without
+                    sending what is in the batch so far. */}
+                {variantSheetMode && allowMultiple ? (
+                  <button
+                    type="button"
+                    onClick={closeVariantSheet}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                  >
+                    {t("aiSupport.inbox.picker.keepPicking")}
+                  </button>
+                ) : null}
+
+                {error ? <div className={`rounded-2xl border p-3 text-sm font-bold ${variantSheetMode ? "border-rose-200 bg-rose-50 text-rose-700" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>{error}</div> : null}
                 </div>
               </div>
             ) : (

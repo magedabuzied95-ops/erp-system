@@ -213,51 +213,9 @@ html[data-theme="light"] .ai-pwa-order-composer {
   background-color: color-mix(in srgb, #0f172a 46%, transparent) !important;
 }
 
-/* Product picker is fullscreen on mobile, but its palette must still follow the PWA theme. */
-.ai-pwa-product-picker--dark,
-.ai-pwa-product-picker--dark > section,
-.ai-pwa-product-picker--dark .bg-white {
-  background-color: var(--surface) !important;
-  color: var(--text) !important;
-}
-
-.ai-pwa-product-picker--dark .bg-slate-50,
-.ai-pwa-product-picker--dark .bg-slate-100 {
-  background-color: var(--surface-soft) !important;
-}
-
-.ai-pwa-product-picker--dark :where(.text-slate-900, .text-slate-950) {
-  color: var(--text) !important;
-}
-
-.ai-pwa-product-picker--dark :where(.text-slate-600, .text-slate-700) {
-  color: var(--text-secondary) !important;
-}
-
-.ai-pwa-product-picker--dark :where(.text-slate-400, .text-slate-500) {
-  color: var(--muted) !important;
-}
-
-.ai-pwa-product-picker--dark :where(.border-slate-200, .border-slate-300) {
-  border-color: var(--border) !important;
-}
-
-.ai-pwa-product-picker--dark input,
-.ai-pwa-product-picker--dark select {
-  background: var(--surface-raised) !important;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
-}
-
-.ai-pwa-product-picker--dark input::placeholder {
-  color: var(--muted) !important;
-  opacity: 0.9;
-}
-
-.ai-pwa-product-picker--dark option {
-  background: var(--surface-raised);
-  color: var(--text);
-}
+/* The product picker's own palette now lives in ProductLinkPicker.m1.css, which the
+   component imports itself — the picker also renders from the desktop AI Inbox page,
+   which never loads this stylesheet. */
 
 .ai-pwa-pos-filter-trigger {
   border-color: var(--border);
