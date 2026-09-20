@@ -2654,6 +2654,9 @@ function ProductSheet({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [productFilters, setProductFilters] = useState(() => ({ ...PRODUCT_FILTER_DEFAULTS }));
   const [draftPosFilters, setDraftPosFilters] = useState(null);
+  // Which row the seller actually tapped. `sending` is one flag for the whole sheet, so
+  // without this every send button spun at once and the list looked like it was sending all of them.
+  const [quickSendingSheetId, setQuickSendingSheetId] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -2664,7 +2667,12 @@ function ProductSheet({
     setFiltersOpen(false);
     setProductFilters({ ...PRODUCT_FILTER_DEFAULTS });
     setDraftPosFilters(null);
+    setQuickSendingSheetId("");
   }, [open, selectedConversation?.session_id]);
+
+  useEffect(() => {
+    if (!sending) setQuickSendingSheetId("");
+  }, [sending]);
 
   const productEntries = useMemo(
     () =>
@@ -2917,8 +2925,9 @@ function ProductSheet({
   };
 
   // The row's own send: the whole product — every colour, every size — without opening it.
-  const handleQuickSendProduct = (product) => {
+  const handleQuickSendProduct = (product, sheetId) => {
     if (!selectedConversation?.session_id || sending) return;
+    setQuickSendingSheetId(String(sheetId || ""));
     onSend([{ ...buildProductCardPayload(product, null, "", "", []), send_scope: "all_colors" }]);
   };
 
@@ -3016,6 +3025,7 @@ function ProductSheet({
                   filteredProductEntries.slice(0, 120).map(({ product, sheetId }) => {
                     const active = sheetId === selectedProductEntry?.sheetId;
                     const previewImage = productImage(product);
+                    const quickSending = sending && quickSendingSheetId === sheetId;
                     return (
                       <div key={sheetId} className="relative">
                       <button
@@ -3026,7 +3036,7 @@ function ProductSheet({
                           setSelectedSize("");
                           setView("detail");
                         }}
-                        className={`ai-pwa-product-sheet__product-row flex w-full items-center gap-3 rounded-2xl border p-3 pe-[4.25rem] text-left transition ${
+                        className={`ai-pwa-product-sheet__product-row flex w-full items-center gap-3 rounded-2xl border p-3 pe-[7.5rem] text-left transition ${
                           active ? "is-active border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
                         }`}
                       >
@@ -3048,13 +3058,14 @@ function ProductSheet({
                           would open the product as well as sending it. */}
                       <button
                         type="button"
-                        onClick={() => handleQuickSendProduct(product)}
+                        onClick={() => handleQuickSendProduct(product, sheetId)}
                         disabled={sending || !selectedConversation?.session_id}
                         aria-label={t("aiSupport.inbox.pwa.quickSendAllColors", { name: product.name || product.product_name || "" })}
                         title={t("aiSupport.inbox.pwa.quickSendAllColors", { name: product.name || product.product_name || "" })}
-                        className="absolute end-3 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-slate-900 text-white shadow-sm transition active:scale-95 disabled:opacity-40"
+                        className={`ai-pwa-product-sheet__quick-send absolute end-3 top-1/2 inline-flex h-11 -translate-y-1/2 items-center justify-center gap-1.5 rounded-full px-3.5 text-[12px] font-bold text-white bg-slate-900 shadow-sm transition active:scale-95 ${quickSending ? "is-sending" : "disabled:opacity-60"}`}
                       >
-                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {quickSending ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <Send className="h-4 w-4 shrink-0" />}
+                        <span>{quickSending ? t("aiSupport.inbox.pwa.quickSendSending") : t("aiSupport.inbox.pwa.quickSendLabel")}</span>
                       </button>
                       </div>
                     );
@@ -3213,7 +3224,8 @@ function ProductSheet({
               disabled={!canSend}
               className="ai-pwa-product-sheet__send inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {/* Only the button that is actually sending spins: a row's quick send must not make the whole sheet look busy. */}
+              {sending && !quickSendingSheetId ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {t("aiSupport.inbox.picker.sendProduct")}
             </button>
             {!selectedConversation ? (

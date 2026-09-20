@@ -334,6 +334,27 @@ html[data-theme="light"] .ai-pwa-order-composer {
   color: var(--text) !important;
 }
 
+/* The row send button: a real button in both themes, not a dark disc on a dark row. */
+.ai-pwa-product-sheet__quick-send {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+  border: 1px solid var(--primary-active) !important;
+}
+
+.ai-pwa-product-sheet__quick-send:disabled {
+  background: var(--surface-raised) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border) !important;
+}
+
+/* The row being sent keeps the live colour even while every button is disabled. */
+.ai-pwa-product-sheet__quick-send.is-sending:disabled {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+  border-color: var(--primary-active) !important;
+  opacity: 1 !important;
+}
+
 .ai-pwa-product-sheet__product-row:hover {
   background: var(--surface-raised) !important;
   border-color: var(--border-strong) !important;
