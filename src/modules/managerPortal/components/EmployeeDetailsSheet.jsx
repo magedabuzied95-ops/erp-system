@@ -340,7 +340,7 @@ export default function EmployeeDetailsSheet({ token, employee, initialTab = "ov
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 sm:items-center">
       <button type="button" aria-label={tt("managerPortal.invoice.close")} onClick={onClose} className="absolute inset-0" />
-      <section className="manager-employee-sheet relative flex h-[94dvh] w-full max-w-3xl flex-col overflow-hidden sm:h-[85dvh] rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]" dir="rtl">
+      <section className="manager-employee-sheet relative flex h-[94dvh] w-full max-w-3xl flex-col overflow-hidden sm:h-[85dvh] rounded-t-[2rem] border border-slate-200 bg-white shadow-2xl sm:rounded-[2rem]">
         <div className="flex shrink-0 items-center gap-3 border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-700 bg-slate-800 text-lg font-black">
             {photo ? <img src={photo} alt={name} className="h-full w-full object-cover" /> : <span>{String(name).trim().charAt(0)}</span>}

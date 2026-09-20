@@ -421,7 +421,7 @@ export default function Customer360Drawer({
                 {metricCard("Customer Since", formatDateTime(profileData.customer_since || context.customerSince || ""))}
               </div>
               {(preferredDepartments.length || preferredCategories.length || preferredSizes.length) ? (
-                <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]" dir="rtl">
+                <div className="rounded-3xl border border-[#E2E8F0] bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
                   <div className="flex items-center gap-2 text-sm font-black text-slate-900">
                     <ShoppingBag className="h-4 w-4 text-emerald-600" />
                     {t("aiSupport.inbox.customer360.recordedPreferences")}

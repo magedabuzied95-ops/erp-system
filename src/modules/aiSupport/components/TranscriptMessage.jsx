@@ -188,7 +188,6 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
   const isPwa = variant === "pwa";
   return (
     <section
-      dir="rtl"
       aria-label={t("aiSupport.inbox.message.pinnedMessages")}
       className={`sticky top-0 z-30 rounded-2xl border p-2 shadow-lg backdrop-blur-xl ${isPwa ? "border-amber-200 bg-white/95 text-slate-900" : "border-amber-300/20 bg-[#24251f]/95 text-white"}`}
     >
@@ -230,7 +229,7 @@ export function PinnedMessagesBar({ rows = [], variant = "desktop" }) {
 }
 
 function MessageActionShell({ row, message, variant, mode = "dark", align = "left", createdAt = "", channelLabel = "", channelKey = "", onReact, onEditMessage, onDeleteMessage, reactionOptions = QUICK_MESSAGE_REACTIONS, children }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const key = messageIdentity(row, message);
   const [menuOpen, setMenuOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -569,7 +568,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
       <div data-ai-message-body="true">{children}</div>
       {editing ? (
         <div data-ai-message-editor="true" className={`mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
-          <div dir="rtl" className={`w-full max-w-[420px] rounded-2xl border p-2 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-amber-300/40 bg-[#20231f] text-white"}`}>
+          <div dir={i18n.dir()} className={`w-full max-w-[420px] rounded-2xl border p-2 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-amber-300/40 bg-[#20231f] text-white"}`}>
             <div className="mb-1 text-[10px] font-black text-amber-400">{t("aiSupport.inbox.message.editTitle")}</div>
             <textarea
               autoFocus
@@ -597,7 +596,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
       ) : null}
       {deleteOpen ? (
         <div data-ai-message-delete="true" className={`mt-1 flex px-2 ${align === "right" ? "justify-end" : "justify-start"}`}>
-          <div dir="rtl" className={`w-full max-w-[420px] rounded-2xl border p-3 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#20231f] text-white"}`}>
+          <div dir={i18n.dir()} className={`w-full max-w-[420px] rounded-2xl border p-3 shadow-lg ${variant === "pwa" ? "border-slate-200 bg-white text-slate-900" : "border-white/10 bg-[#20231f] text-white"}`}>
             <div className="flex items-center gap-1.5 text-[12px] font-black" style={{ color: "#ef4444" }}>
               <Trash2 className="h-3.5 w-3.5" />
               {t("aiSupport.inbox.message.deleteTitle")}
@@ -694,7 +693,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
       ) : null}
       {infoOpen ? (
         <div className="fixed inset-0 z-[2147482500] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setInfoOpen(false); }}>
-          <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.messageInfo")} className="w-full max-w-md rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
+          <section dir={i18n.dir()} role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.messageInfo")} className="w-full max-w-md rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <div><h3 className="text-lg font-black">{t("aiSupport.inbox.message.messageInfo")}</h3></div>
               <button type="button" onClick={() => setInfoOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5"><X className="h-4 w-4" /></button>
@@ -732,7 +731,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
       ) : null}
       {historyOpen ? (
         <div className="fixed inset-0 z-[2147482500] grid place-items-center bg-black/65 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setHistoryOpen(false); }}>
-          <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.editHistory")} className="flex max-h-[80vh] w-full max-w-md flex-col rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
+          <section dir={i18n.dir()} role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.message.editHistory")} className="flex max-h-[80vh] w-full max-w-md flex-col rounded-3xl border border-white/10 bg-[#20231f] p-5 text-white shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <h3 className="flex items-center gap-2 text-lg font-black"><History className="h-5 w-5" /> {t("aiSupport.inbox.message.editHistory")}</h3>
               <button type="button" onClick={() => setHistoryOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5"><X className="h-4 w-4" /></button>

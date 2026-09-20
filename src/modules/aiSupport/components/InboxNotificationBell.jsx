@@ -166,7 +166,6 @@ export default function InboxNotificationBell({
         <div
           ref={panelRef}
           role="menu"
-          dir="rtl"
           style={menuStyle}
           className="z-[9999] overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         >

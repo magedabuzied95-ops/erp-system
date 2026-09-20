@@ -431,7 +431,7 @@ function CartSidebar({
 }) {
   // memo() component: without its own subscription the cart chrome keeps the
   // previous language after an AR<->EN switch until an unrelated prop changes.
-  useTranslation();
+  const { i18n } = useTranslation();
   const renderCountRef = useRef(0);
   const [discountLoyaltyOpen, setDiscountLoyaltyOpen] = useState(false);
   const [invoiceDiscountOpen, setInvoiceDiscountOpen] = useState(false);
@@ -608,7 +608,7 @@ function CartSidebar({
   return (
     <>
     <aside className="pos-cart-panel flex h-full min-w-0 flex-col gap-3 overflow-y-auto overflow-x-hidden xl:min-h-0" dir="auto">
-      <div className="theme-card flex items-center gap-1.5 overflow-x-auto p-2" dir="rtl">
+      <div className="theme-card flex items-center gap-1.5 overflow-x-auto p-2" dir={i18n.dir()}>
         {invoiceTabs.map((tab, index) => (
           <div
             key={tab.id}
@@ -1573,7 +1573,6 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
 
   return (
     <div
-      dir="rtl"
       className={`pos-receipt mx-auto overflow-hidden bg-white text-zinc-950 ${compact ? "border border-zinc-300 shadow-none" : "border border-emerald-100 shadow-2xl shadow-black/20"} ${compactShellClass}`}
     >
       <div className="rounded-[22px] border border-emerald-200 bg-[linear-gradient(180deg,#f5fff9_0%,#ffffff_64%)] px-3 py-3 text-center">
@@ -2669,7 +2668,7 @@ function EditPaymentDifferenceCard({
     : posLabel("payment.dueNow", "Due to collect now");
   const headlineValue = refundOrCreditDue > 0.009 ? refundOrCreditDue : Number(amountDue || 0);
   return (
-    <div className={`rounded-xl border border-cyan-300/25 bg-cyan-400/10 ${compact ? "p-2.5" : "mt-2 p-3"}`} dir="rtl">
+    <div className={`rounded-xl border border-cyan-300/25 bg-cyan-400/10 ${compact ? "p-2.5" : "mt-2 p-3"}`}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

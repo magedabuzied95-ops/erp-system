@@ -805,7 +805,6 @@ function EmployeePortalCameraScannerModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="employee-portal-camera-scanner-title"
-        dir="rtl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
           <div className="min-w-0 flex-1">
@@ -1895,7 +1894,7 @@ export default function EmployeePortalProducts() {
 
   if (loading && !normalizedProducts.length) {
     return (
-      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-background px-4 text-text">
+      <main className="employee-portal-min-screen employee-portal-safe-top flex items-center justify-center bg-background px-4 text-text">
         <div className="w-full max-w-7xl">
           <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} className="px-0" />
           <div className="flex items-center justify-center py-8">
@@ -1908,7 +1907,7 @@ export default function EmployeePortalProducts() {
 
   if (error && !normalizedProducts.length) {
     return (
-      <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top bg-background px-4 py-6 text-right text-text">
+      <main className="employee-portal-min-screen employee-portal-safe-top bg-background px-4 py-6 text-text">
         <div className="mx-auto max-w-xl">
           <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} />
           <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-5 shadow-[var(--shadow-card)]">
@@ -1924,7 +1923,7 @@ export default function EmployeePortalProducts() {
   }
 
   return (
-    <main dir="rtl" className="employee-portal-products employee-portal-min-screen overflow-x-hidden bg-background px-3 py-3 text-right text-text sm:px-4 sm:py-4">
+    <main className="employee-portal-products employee-portal-min-screen overflow-x-hidden bg-background px-3 py-3 text-text sm:px-4 sm:py-4">
       <div className="mx-auto max-w-7xl">
         {!sheetOpen ? <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} /> : null}
         <section className="employee-portal-safe-top mt-3 rounded-[1.5rem] border border-border bg-surface-soft p-3 shadow-[var(--shadow-card)] backdrop-blur">

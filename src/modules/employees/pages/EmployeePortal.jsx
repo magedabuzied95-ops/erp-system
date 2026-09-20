@@ -584,7 +584,7 @@ export default function EmployeePortal() {
 
   if (loading) {
     return (
-      <main dir="rtl" className="flex min-h-[100dvh] items-center justify-center bg-background p-5 font-sans text-text">
+      <main className="flex min-h-[100dvh] items-center justify-center bg-background p-5 font-sans text-text">
         <Loader2 className="h-6 w-6 animate-spin" />
       </main>
     );
@@ -592,7 +592,7 @@ export default function EmployeePortal() {
 
   if (error) {
     return (
-      <main dir="rtl" className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
+      <main className="min-h-[100dvh] bg-background px-4 py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] font-sans text-text">
         <section className="mx-auto max-w-md rounded-[var(--radius-card)] border border-border bg-surface p-5 text-right shadow-sm">
           <AlertTriangle className="h-8 w-8 text-warning" />
           <h1 className="m1-page-title mt-4">{tt("employeePortal.shell.unavailable")}</h1>
@@ -607,7 +607,7 @@ export default function EmployeePortal() {
   }
 
   return (
-    <main dir="rtl" className="min-h-[100dvh] bg-background px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-text">
+    <main className="min-h-[100dvh] bg-background px-3 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] font-sans text-text">
       <div className="mx-auto max-w-md">
         <header className="rounded-3xl bg-[var(--topbar)] text-[var(--topbar-text)] p-4 text-right shadow-[var(--shadow-overlay)]">
           <div className="text-xs font-black text-text-muted">{tt("employeePortal.shell.title")}</div>

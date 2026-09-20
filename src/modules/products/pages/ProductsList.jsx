@@ -1360,7 +1360,6 @@ const ProductThumbnail = memo(function ProductThumbnail({ row }) {
           </p>
           {colorPreviews.length ? <div
             className="grid gap-2"
-            dir="rtl"
             style={{ gridTemplateColumns: `repeat(${Math.min(4, colorPreviews.length)}, minmax(0, 1fr))` }}
           >
             {colorPreviews.map((preview) => (

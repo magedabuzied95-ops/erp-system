@@ -3183,7 +3183,7 @@ function SocialCommentsWorkspace({
     return (
       <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] shadow-[var(--shadow-card)]">
         <div dir="ltr" className="grid h-full min-h-0 min-w-0 flex-1 gap-2 p-2 min-[960px]:grid-cols-[300px_minmax(0,1fr)] min-[1440px]:grid-cols-[326px_minmax(0,1fr)]">
-          <aside dir="rtl" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
             <div className="flex min-h-[62px] flex-col justify-center border-b border-[var(--border)] px-3 py-2">
               <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -3324,7 +3324,7 @@ function SocialCommentsWorkspace({
             </div>
           </aside>
 
-          <main dir="rtl" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
+          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--border)] bg-[var(--surface)]">
             <header className="flex min-h-[62px] items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2">
               <div className="flex min-w-0 items-center gap-2.5">
                 <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--surface-soft)]">

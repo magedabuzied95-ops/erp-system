@@ -109,7 +109,7 @@ export default function PostAutomationSheet({ open = false, post = null, tenantI
   const productName = clean(post?.product_name || post?.primary_product?.name || post?.linked_products?.[0]?.name || "");
 
   return (
-    <div className="fixed inset-0 z-[80]" dir="rtl">
+    <div className="fixed inset-0 z-[80]">
       <button
         type="button"
         aria-label="إغلاق إعدادات الأتمتة"

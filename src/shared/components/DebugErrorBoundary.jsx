@@ -12,7 +12,7 @@ import {
 // rest of the app -- the POS till above all -- working offline.
 function ChunkOfflineFallback({ onBack }) {
   return (
-    <div dir="rtl" role="alert" className="flex min-h-[50vh] items-center justify-center px-4 py-10 text-[var(--text,#fff)]">
+    <div role="alert" className="flex min-h-[50vh] items-center justify-center px-4 py-10 text-[var(--text,#fff)]">
       <div className="flex w-full max-w-md flex-col items-center justify-center gap-3 rounded-2xl border border-amber-400/40 bg-amber-400/10 p-6 text-center">
         <h1 className="m1-page-title">
           {i18n.t("common.chunkOffline.title", { defaultValue: "الشاشة دي محتاجة إنترنت" })}
@@ -36,7 +36,7 @@ function ChunkOfflineFallback({ onBack }) {
 
 function ChunkReloadFallback({ showAction = false }) {
   return (
-    <div dir="rtl" className="flex min-h-screen items-center justify-center bg-stone-950 px-4 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-stone-950 px-4 text-white">
       <div className="flex min-h-32 w-full max-w-md flex-col items-center justify-center text-center">
         <span className="h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-white" aria-hidden="true" />
         {showAction ? (

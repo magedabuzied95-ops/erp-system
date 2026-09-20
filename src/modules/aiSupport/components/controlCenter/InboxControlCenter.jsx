@@ -169,7 +169,6 @@ export default function InboxControlCenter({
 
   return (
     <div
-      dir="rtl"
       className="fixed inset-0 z-[260] flex items-end justify-center bg-[#050810]/75 p-2 backdrop-blur-sm md:items-center md:p-4"
       onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}
     >

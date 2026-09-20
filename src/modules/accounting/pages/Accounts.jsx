@@ -258,7 +258,7 @@ function Accounts() {
               <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.accounts.noMatches")}</div>
             ) : (
               <div className="m1-table-container mt-5 overflow-x-auto">
-                <table className="m1-table m1-table--compact min-w-[860px] w-full text-right text-sm" dir="rtl">
+                <table className="m1-table m1-table--compact min-w-[860px] w-full text-sm">
                   <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                     <tr>
                       <Th align="right">{tt("common.employeeHub.attendance.fields.code")}</Th>
@@ -353,7 +353,7 @@ function Accounts() {
               <div className="m-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.common.empty.noMovements")}</div>
             ) : (
               <div className="m1-table-container overflow-x-auto">
-                <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
+                <table className="m1-table m1-table--compact min-w-[980px] w-full text-sm">
                   <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                     <tr>
                       <Th align="right">{t("accounting.common.labels.date")}</Th>

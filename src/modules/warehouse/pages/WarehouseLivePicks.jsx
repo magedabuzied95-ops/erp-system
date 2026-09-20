@@ -421,7 +421,7 @@ function WarehouseLivePicks() {
   };
 
   return (
-    <div dir="rtl" className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.14),_transparent_30%),linear-gradient(180deg,#070b14_0%,#06070b_100%)] text-white">
+    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.14),_transparent_30%),linear-gradient(180deg,#070b14_0%,#06070b_100%)] text-white">
       <audio ref={audioRef} src={ALERT_SOUND_PATH} preload="auto" playsInline />
 
       {flash ? <div className="pointer-events-none fixed inset-0 z-50 bg-amber-300/20 mix-blend-screen animate-pulse" /> : null}

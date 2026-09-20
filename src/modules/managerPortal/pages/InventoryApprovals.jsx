@@ -256,7 +256,7 @@ export default function InventoryApprovalsPage() {
 
   if (!token) {
     return (
-      <main dir="rtl" className="manager-portal-shell inventory-approvals-page min-h-[100dvh] px-4 py-6">
+      <main className="manager-portal-shell inventory-approvals-page min-h-[100dvh] px-4 py-6">
         <div className="mx-auto max-w-2xl rounded-[var(--radius-card)] border border-border bg-surface-soft p-6 shadow-2xl backdrop-blur">
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-amber-300" />
@@ -279,7 +279,7 @@ export default function InventoryApprovalsPage() {
   }
 
   return (
-    <main dir="rtl" className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
+    <main className="manager-portal-shell inventory-approvals-page min-h-[100dvh] overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
       <div className="mx-auto max-w-[96rem] space-y-4">
         <header className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-2xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">

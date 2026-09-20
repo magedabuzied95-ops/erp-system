@@ -169,7 +169,7 @@ export default function InboxExchangeSheet({
   // Portalled: the panel lives inside scrolling drawers, and a sheet nested there would
   // share their stacking context instead of covering the page.
   const sheet = (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" dir="rtl">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4">
       <div className={`flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border sm:rounded-3xl ${shell}`}>
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div className="inline-flex items-center gap-2 text-sm font-black">

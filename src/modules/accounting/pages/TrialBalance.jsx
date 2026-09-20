@@ -150,7 +150,7 @@ function TrialBalance() {
           <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.trialBalance.noBalances")}</div>
         ) : (
           <div className="m1-table-container mt-5 overflow-x-auto">
-            <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
+            <table className="m1-table m1-table--compact min-w-[980px] w-full text-sm">
               <thead className="bg-white/5 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                 <tr>
                   <Th>{tt("accounting.trialBalance.accountCode")}</Th>

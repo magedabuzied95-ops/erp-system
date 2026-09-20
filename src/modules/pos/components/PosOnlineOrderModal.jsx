@@ -416,7 +416,6 @@ export default function PosOnlineOrderModal({
         role="dialog"
         aria-modal="true"
         aria-label={posLabel("title", "أوردر أونلاين")}
-        dir="rtl"
         className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text)] shadow-[0_30px_80px_rgba(0,0,0,0.5)]"
       >
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3">

@@ -72,7 +72,7 @@ export function WhatsappMessageVariantsModal({ open, onClose, initialType = "inv
       className="fixed inset-0 z-[260] flex items-end justify-center bg-[#17130d]/60 p-3 backdrop-blur-sm md:items-center"
       onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}
     >
-      <section dir="rtl" className="m1-ai-scope flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-amber-300/15 bg-[#181a18] text-white shadow-[0_30px_100px_rgba(47,35,12,0.36)]">
+      <section className="m1-ai-scope flex max-h-[90dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-amber-300/15 bg-[#181a18] text-white shadow-[0_30px_100px_rgba(47,35,12,0.36)]">
         <header className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#171917] px-4 py-4 md:px-5">
           <div className="flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-2xl bg-amber-400/10 text-amber-200"><Receipt className="h-5 w-5" /></span>

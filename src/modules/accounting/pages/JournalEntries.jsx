@@ -361,7 +361,7 @@ function JournalEntries() {
 
           <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
             <div className="m1-table-container overflow-x-auto">
-              <table className="m1-table m1-table--compact min-w-full text-right text-sm" dir="rtl">
+              <table className="m1-table m1-table--compact min-w-full text-sm">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <Th className="text-right">{t("accounting.common.labels.reference")}</Th>
@@ -458,7 +458,7 @@ function JournalEntries() {
           </Field>
 
           <div className="m1-table-container mt-5 overflow-x-auto">
-            <table className="m1-table m1-table--compact min-w-[980px] w-full text-right text-sm" dir="rtl">
+            <table className="m1-table m1-table--compact min-w-[980px] w-full text-sm">
               <thead className="bg-white/5 text-zinc-400">
                 <tr>
                   <Th className="text-right">{tt("accounting.common.labels.account")}</Th>
@@ -562,7 +562,7 @@ function JournalEntries() {
             <div className="mt-5 rounded-[var(--radius-card)] border border-dashed border-white/10 bg-white/5 p-8 text-sm text-zinc-400">{tt("accounting.journal.noPreviewResults")}</div>
           ) : (
             <div className="m1-table-container mt-5 overflow-x-auto">
-              <table className="m1-table m1-table--compact min-w-[1120px] w-full text-right text-sm" dir="rtl">
+              <table className="m1-table m1-table--compact min-w-[1120px] w-full text-sm">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <Th className="text-right">{tt("orders.filters.source")}</Th>
@@ -652,7 +652,7 @@ function EntryDrawer({ entry, loading, onClose, t }) {
             </div>
 
             <div className="mt-4 overflow-x-auto rounded-3xl border border-white/10">
-              <table className="m1-table m1-table--compact min-w-full text-right text-sm" dir="rtl">
+              <table className="m1-table m1-table--compact min-w-full text-sm">
                 <thead className="bg-white/5 text-zinc-400">
                   <tr>
                     <Th className="text-right">{t("accounting.common.labels.account")}</Th>

@@ -184,6 +184,8 @@ import {
   transcriptRowTime,
 } from "../lib/conversationHelpers";
 import { attachmentFilesFromTransfer, attachmentKindOf, attachmentProblem, prepareOutboundImage } from "../utils/outboundAttachment.js";
+import { isScrollerNearBottom, pinScrollerToBottom } from "../utils/transcriptScroll.js";
+import JumpToLatestButton from "../components/JumpToLatestButton.jsx";
 
 // Loaded on demand: the integrations center pulls in the whole Meta/marketing
 // API surface, which the inbox itself never touches.
@@ -9189,7 +9191,7 @@ export default function AiInbox({ reviewerMode = false }) {
 
   if (isAnalyticsMode) {
     return (
-      <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+      <div className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
         {toast.text ? (
           <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
             toast.tone === "rose"
@@ -9284,7 +9286,7 @@ export default function AiInbox({ reviewerMode = false }) {
             onOpenControlCenter={openControlCenter}
             configActive={controlCenterOpen}
           />
-          <div dir="rtl" className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {renderSocialCommentsWorkspaceFrame()}
           </div>
         </div>
@@ -9294,7 +9296,7 @@ export default function AiInbox({ reviewerMode = false }) {
 
   if (isAutomationMode) {
     return (
-      <div dir="rtl" className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
+      <div className="min-h-[100dvh] overflow-hidden bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] text-white [padding-bottom:env(safe-area-inset-bottom)] [padding-top:env(safe-area-inset-top)]">
         {toast.text ? (
           <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-black shadow-2xl backdrop-blur ${
             toast.tone === "rose"
@@ -9601,7 +9603,7 @@ export default function AiInbox({ reviewerMode = false }) {
 	            </div>
 	          </aside>
 
-          <main dir="rtl" className={`ai-omni-panel ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
+          <main className={`ai-omni-panel ai-omni-chat-panel min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.045] p-2 shadow-[0_16px_50px_rgba(0,0,0,0.18)] ${mobileView === "chat" ? "flex" : "hidden md:flex"}`}>
             {isSocialMode ? (
               <>
                 <div className="flex min-h-0 flex-1 overflow-hidden">

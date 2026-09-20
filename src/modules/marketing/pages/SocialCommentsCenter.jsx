@@ -923,7 +923,6 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   return (
     <div
       ref={fullscreenHostRef}
-      dir="rtl"
       className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3"
     >
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full flex-col gap-2 overflow-hidden">

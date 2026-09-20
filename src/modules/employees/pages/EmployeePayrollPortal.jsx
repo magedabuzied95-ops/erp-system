@@ -5233,7 +5233,7 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {locationGate ? (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[var(--overlay-scrim)] p-4" dir="rtl">
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[var(--overlay-scrim)] p-4">
           <div className="w-full max-w-sm rounded-[var(--radius-control)] bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <div className="flex items-start gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-danger-subtle text-text">
@@ -5266,7 +5266,7 @@ export default function EmployeePayrollPortal() {
         </div>
       ) : null}
       {profileSettingsOpen ? (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-surface-soft p-3 sm:items-center" dir="rtl">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-surface-soft p-3 sm:items-center">
           <form onSubmit={saveProfileSettings} className="w-full max-w-md rounded-[var(--radius-control)] bg-surface p-5 shadow-[var(--shadow-overlay)]">
             <div className="flex items-center justify-between gap-3">
               <div>

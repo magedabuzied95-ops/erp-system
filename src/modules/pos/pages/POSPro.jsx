@@ -9172,7 +9172,6 @@ function POSPro() {
                 setRecentOperationsOpen(true);
               }}
               className="inline-flex h-[var(--control-height-md)] shrink-0 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 transition hover:border-emerald-200/50 hover:bg-emerald-400/15"
-              dir="rtl"
             >
               <History className="h-4 w-4" />
               العمليات الأخيرة
@@ -11353,7 +11352,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
   const invoiceCount = Number(totals.invoice_count || 0);
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-      <div dir="rtl" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-black text-white">{t("pos.posPro.shiftReport.title")}</h2>
@@ -11409,7 +11408,6 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
         role="dialog"
         aria-modal="true"
         aria-labelledby="pos-camera-scanner-title"
-        dir="rtl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
           <div className="min-w-0">

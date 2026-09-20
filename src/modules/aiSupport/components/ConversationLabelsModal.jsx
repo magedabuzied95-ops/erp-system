@@ -73,7 +73,7 @@ function ConversationLabelsModal({ open, labels = [], saving = false, onClose, o
 
   return (
     <div className="fixed inset-0 z-[2147482600] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose?.(); }}>
-      <section dir="rtl" role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.ui.conversationLabels")} className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#20231f] text-white shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-label={t("aiSupport.inbox.ui.conversationLabels")} className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#20231f] text-white shadow-2xl">
         <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div className="flex items-center gap-2"><Tag className="h-5 w-5 text-amber-300" /><div><h3 className="text-base font-black">{t("aiSupport.inbox.ui.conversationLabels")}</h3><p className="text-[11px] text-slate-400">{t("aiSupport.inbox.ui.labelsHint")}</p></div></div>
           <button type="button" onClick={onClose} disabled={saving} aria-label={t("aiSupport.inbox.ui.closeLabels")} className="grid h-9 w-9 place-items-center rounded-full text-slate-400 transition hover:bg-white/10 hover:text-white disabled:opacity-50"><XCircle className="h-5 w-5" /></button>

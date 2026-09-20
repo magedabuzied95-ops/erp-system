@@ -220,7 +220,7 @@ const MessageBubble = memo(function MessageBubble({
           onTouchEnd={handlers.current.onEndSwipe}
           onTouchCancel={handlers.current.onEndSwipe}
           className={`relative touch-pan-y break-words rounded-[1.05rem] text-[15px] font-medium leading-5 shadow-sm ${selectable ? "select-text" : "select-none"} ${size} ${surface} ${tail} ${failed ? "opacity-70" : ""}`}
-          dir="rtl"
+          dir={textDirection}
         >
           {!deleted ? (
             <button

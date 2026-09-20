@@ -158,7 +158,7 @@ export default function GenerationPlanModal({ open, onClose, onQueued, defaults 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/70 p-3 backdrop-blur-sm md:p-6" dir="rtl">
+    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/70 p-3 backdrop-blur-sm md:p-6">
       <div className="my-4 w-full max-w-3xl rounded-3xl border border-white/10 bg-[#0a0e18] text-white shadow-2xl">
         <header className="flex items-center justify-between gap-3 border-b border-white/10 p-5">
           <div className="flex items-center gap-3">

@@ -531,7 +531,6 @@ function ScannerModal({ onClose, onScan }) {
         role="dialog"
         aria-modal="true"
         aria-label={tt("employeePortal.scanner.title")}
-        dir="rtl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4 text-text">
           <div>
@@ -1473,7 +1472,7 @@ export default function EmployeePortalInventory() {
       : `عجز: ${Math.abs(differenceTotal)}`;
 
   return (
-    <div dir="rtl" className={`${searchActive ? "inventory-searching " : ""}employee-portal-workspace employee-portal-inventory min-h-screen bg-background px-3 py-3 text-text sm:px-4 sm:py-4`}>
+    <div className={`${searchActive ? "inventory-searching " : ""}employee-portal-workspace employee-portal-inventory min-h-screen bg-background px-3 py-3 text-text sm:px-4 sm:py-4`}>
       <style>{`
         .employee-portal-inventory {
           width: 100%;
@@ -2028,7 +2027,6 @@ function BranchInventoryDrawer({
     >
       <aside
         className="absolute inset-y-0 end-0 flex h-full w-[min(100vw,22rem)] flex-col border-s border-border bg-surface shadow-[var(--shadow-overlay)] "
-        dir="rtl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="branch-inventory-drawer-title"

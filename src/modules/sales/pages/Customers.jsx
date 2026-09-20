@@ -1368,7 +1368,7 @@ function CustomerImportModal({
   const importDone = Boolean(result);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <section className="w-full max-w-5xl overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface text-text shadow-2xl shadow-black/50">
         <div className="border-b border-border bg-surface p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1754,7 +1754,7 @@ function CustomerStatementDrawer({
   const preferredSizes = Array.isArray(purchasePreferences.sizeBreakdown) ? purchasePreferences.sizeBreakdown : [];
 
   return (
-    <div className="m1-customers-page min-h-screen bg-background px-4 py-6 text-text sm:px-6" dir="rtl">
+    <div className="m1-customers-page min-h-screen bg-background px-4 py-6 text-text sm:px-6">
       <main className="mx-auto w-full max-w-[1500px] rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:p-7">
         <div className="flex flex-col gap-3 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>

@@ -769,7 +769,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="pos-recent-operations-overlay fixed inset-0 z-[2147483000] isolate h-[100dvh] w-screen overflow-hidden bg-black/70 backdrop-blur-sm" dir="rtl">
+    <div className="pos-recent-operations-overlay fixed inset-0 z-[2147483000] isolate h-[100dvh] w-screen overflow-hidden bg-black/70 backdrop-blur-sm">
       <button type="button" className="absolute inset-0 z-0 h-full w-full cursor-default" onClick={onClose} aria-label={t("pos.recentOps.close")} />
       <aside
         aria-label={t("pos.recentOps.title")}
@@ -891,7 +891,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
 function WhatsappResendModal({ order, loading, onClose, onConfirm }) {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center" dir="rtl">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center">
       <div className="w-full max-w-md rounded-3xl border border-emerald-400/30 bg-zinc-950 p-5 text-white shadow-2xl shadow-emerald-950/20">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-emerald-500/15 p-2 text-emerald-200"><MessageCircle className="h-5 w-5" /></div>
@@ -1021,7 +1021,7 @@ function PermanentDeleteModal({ order, value, loading, onChange, onClose, onConf
   const { t } = useTranslation();
   const canConfirm = value.trim() === "DELETE" || value.trim() === "حذف";
   return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center" dir="rtl">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center">
       <div className="w-full max-w-md rounded-3xl border border-rose-400/35 bg-zinc-950 p-5 text-white shadow-2xl shadow-rose-950/20">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl bg-rose-500/15 p-2 text-rose-200"><Trash2 className="h-5 w-5" /></div>
@@ -1156,7 +1156,7 @@ function ReturnExchangeModal({ order, currentCartTotal = 0, onClose, onCreated }
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center" dir="rtl">
+    <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/75 px-3 py-4 sm:items-center">
       <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
           <div>
@@ -1318,7 +1318,7 @@ function DetailsModal({ order, onClose }) {
   };
 
   return (
-        <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/70 px-3 py-4 sm:items-center" dir="rtl">
+        <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/70 px-3 py-4 sm:items-center">
           <div className="max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 text-white shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-white/10 p-4">
               <div>

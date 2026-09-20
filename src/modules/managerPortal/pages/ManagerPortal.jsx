@@ -549,7 +549,7 @@ const MobileSalesChart = ({ points = [], valueKey = "revenue", formatValue = for
   const middle = rows[Math.floor(rows.length / 2)]?.day;
   const last = rows[rows.length - 1]?.day;
   return (
-    <div className="mt-4 rounded-2xl border border-slate-800 bg-black/20 px-3 pb-2.5 pt-3" dir="rtl">
+    <div className="mt-4 rounded-2xl border border-slate-800 bg-black/20 px-3 pb-2.5 pt-3">
       <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-bold text-slate-400">
         <span>{tt("managerPortal.leads.highestValue")} <b className="text-slate-100">{formatValue(max)}</b></span>
         <span>{tt("managerPortal.leads.dailyAverage")} <b className="text-slate-100">{formatValue(average)}</b></span>
@@ -947,7 +947,7 @@ const DailyProfitCard = ({ token, salesData, canView, className = "" }) => {
       </button>
       {modalOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" onClick={() => { if (!submitting) { setModalOpen(false); setError(""); } }}>
-          <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-[#0b1220] p-5 text-right shadow-2xl" dir="rtl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-xs rounded-2xl border border-slate-700 bg-[#0b1220] p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="text-sm font-black text-white">{tt("managerPortal.profit.enterPassword")}</div>
             <input type="password" value={password} autoComplete="off" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }} className="mt-3 w-full rounded-[var(--radius-control)] border border-slate-700 bg-[#0f172a] px-3 py-2 text-sm font-bold text-white outline-none transition focus:border-amber-500" placeholder="••••••" />
             {error ? <div className="mt-2 text-xs font-bold text-rose-400">{error}</div> : null}

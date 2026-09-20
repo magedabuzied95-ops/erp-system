@@ -75,7 +75,7 @@ export default function EmployeePortalInbox() {
   if (state.status === "opening") return <OpeningScreen label={t("employeePortal.messages.opening")} />;
 
   return (
-    <main dir="rtl" className="employee-portal-min-screen employee-portal-safe-top min-h-[100dvh] bg-background px-3 py-3 text-text">
+    <main className="employee-portal-min-screen employee-portal-safe-top min-h-[100dvh] bg-background px-3 py-3 text-text">
       <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
         <EmployeePortalNavControls onBack={() => navigate(homePath, { replace: true })} onHome={() => navigate(homePath)} className="px-0" />
         <section className="flex flex-col items-center gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-6 text-center shadow-sm">
@@ -105,7 +105,7 @@ export default function EmployeePortalInbox() {
 
 function OpeningScreen({ label }) {
   return (
-    <main dir="rtl" className="grid min-h-[100dvh] place-items-center bg-background text-text-muted">
+    <main className="grid min-h-[100dvh] place-items-center bg-background text-text-muted">
       <div className="flex items-center gap-2 text-sm font-bold">
         <Loader2 className="h-5 w-5 animate-spin" />
         {label}
