@@ -1710,18 +1710,22 @@ const productUrl = (card = {}) => {
   return `/shop/product/${encodeURIComponent(productId)}`;
 };
 
-const buildProductCardUrl = (product = {}, variant = null, selectedColor = "") => {
+const buildProductCardUrl = (product = {}, variant = null, selectedColor = "", selectedSize = "") => {
   const productId = product.product_id ?? product.id ?? "";
   if (!productId) return "";
 
   const baseUrl = `/shop/product/${encodeURIComponent(productId)}`;
   const color = clean(selectedColor).toLowerCase();
   const variantId = clean(variant?.id ?? "");
-  if (variantId) {
-    return color ? `${baseUrl}?variant=${encodeURIComponent(variantId)}&color=${encodeURIComponent(color)}` : `${baseUrl}?variant=${encodeURIComponent(variantId)}`;
-  }
-  if (color) return `${baseUrl}?color=${encodeURIComponent(color)}`;
-  return baseUrl;
+  // The product page reads ?variant / ?color / ?size (lib/pdpSelection.js). A card sent for one
+  // colour AND one size has to land on that size too, or the customer opens the link and picks again.
+  const size = clean(selectedSize || variant?.size || variant?.size_name || variant?.variant_size || "");
+  const params = new URLSearchParams();
+  if (variantId) params.set("variant", variantId);
+  if (color) params.set("color", color);
+  if (size) params.set("size", size);
+  const query = params.toString();
+  return query ? `${baseUrl}?${query}` : baseUrl;
 };
 
 const productCardPreviewText = (cards = []) => {
@@ -1777,8 +1781,8 @@ const buildProductCardPayload = (
   sizes: asArray(availableSizes).map(clean).filter(Boolean),
   size_options: asArray(availableSizes).map(clean).filter(Boolean),
   card_reply_mode: clean(selectedColor) && !clean(selectedSize) ? "color_only" : "",
-  product_url: buildProductCardUrl(product, clean(selectedSize) ? variant : null, selectedColor),
-  storefront_url: buildProductCardUrl(product, clean(selectedSize) ? variant : null, selectedColor),
+  product_url: buildProductCardUrl(product, clean(selectedSize) ? variant : null, selectedColor, selectedSize),
+  storefront_url: buildProductCardUrl(product, clean(selectedSize) ? variant : null, selectedColor, selectedSize),
 });
 
 const productColors = (product = {}) =>
@@ -2425,7 +2429,7 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
   // desktop workspace, so a bubble is never judged against the ERP panel.
   const canvas = platformCanvas(resolveMessagePlatform({}, threadChannel), "light");
   return (
-    <div dir="rtl" style={canvas ? { background: canvas } : undefined} className="-mx-2 space-y-2.5 px-2 pb-3">
+    <div style={canvas ? { background: canvas } : undefined} className="-mx-2 space-y-2.5 px-2 pb-3">
       {conversation?.older_messages_available ? (
         <div className="flex justify-center">
           <button
@@ -2538,7 +2542,7 @@ const OptimizedTranscript = memo(function OptimizedTranscript({
   }
 
   return (
-    <div dir="rtl" className="space-y-2.5 pb-3">
+    <div className="space-y-2.5 pb-3">
       <PinnedMessagesBar rows={rows} variant="pwa" />
       {olderMessagesAvailable ? (
         <div className="flex justify-center">

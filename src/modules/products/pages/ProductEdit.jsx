@@ -2546,7 +2546,7 @@ function ProductEdit() {
 
     console.log("[bulk-stock] updated groups", updatedGroups);
     setColorGroups(updatedGroups);
-    toast.success(changedCount > 0 ? `Stock applied to ${changedCount} row(s)` : "No size rows to update");
+    toast.success(changedCount > 0 ? t("products.editor.stockAppliedToRows", "Stock applied to {{value}} row(s)", { value: changedCount }) : t("products.editor.noVariantRows", "No size rows to update"));
   };
 
   const applyBulkArticleCode = (targetGroupId = null, overwrite = false) => {
@@ -3794,7 +3794,7 @@ function ProductEdit() {
           className={buttonClasses("secondary", "h-[var(--control-height-md)] rounded-[var(--radius-control)] px-4")}
         >
           <ArrowLeft size={18} />
-          Back to products
+          {t("products.editor.backToProducts", "Back to products")}
         </Link>
       }
     >
@@ -4021,7 +4021,7 @@ function ProductEdit() {
                       className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-4 text-sm font-black text-primary transition hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {aiCoverRegeneratingKey === "product:product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      {aiCoverRegeneratingKey === "product:product" ? "Queueing AI Cover..." : "Regenerate AI Cover"}
+                      {aiCoverRegeneratingKey === "product:product" ? t("products.editor.queueingAiCover", "Queueing AI Cover...") : t("products.editor.regenerateAiCover", "Regenerate AI Cover")}
                     </button>
                   ) : null}
                   <button
@@ -4040,7 +4040,7 @@ function ProductEdit() {
                     className="inline-flex h-[var(--control-height-lg)] w-full items-center justify-center gap-2 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    {"Generate AI Thermal Artwork"}
+                    {t("products.editor.generateThermalArtwork", "Generate AI Thermal Artwork")}
                   </button>
                 </div>
 
@@ -4097,7 +4097,7 @@ function ProductEdit() {
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[var(--radius-card)] border border-dashed border-border bg-surface-raised px-4 py-5 text-center text-xs font-semibold text-text-muted">
-                    No gallery images.
+                    {t("products.editor.noGalleryImages", "No gallery images.")}
                   </div>
                 )}
               </div>
@@ -4317,7 +4317,7 @@ function ProductEdit() {
                   className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-4 text-sm font-semibold text-text"
                 >
                   <Plus size={16} />
-                  Add color
+                  {t("products.editor.addColor", "Add color")}
                 </button>
               </div>
             </div>
@@ -4402,7 +4402,7 @@ function ProductEdit() {
                         setExpandedGroupId((current) => (current === group.id ? "" : group.id));
                       }
                     }}
-                    className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-hover"
+                    className="flex w-full cursor-pointer flex-wrap items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-hover"
                     aria-expanded={isExpanded}
                   >
                     <div className="group/thumb relative shrink-0">
@@ -4455,12 +4455,12 @@ function ProductEdit() {
                         ) : null}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
-                        <span>{getGroupSizeCount(group)} size(s)</span>
-                        {getGroupPlannedQty(group) ? <span>{getGroupPlannedQty(group)} stock qty</span> : null}
+                        <span>{t("products.editor.sizesCount", "{{value}} size(s)", { value: getGroupSizeCount(group) })}</span>
+                        {getGroupPlannedQty(group) ? <span>{t("products.editor.plannedStockQty", "{{value}} stock qty", { value: getGroupPlannedQty(group) })}</span> : null}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto lg:flex-nowrap">
                       <span
                         role="button"
                         tabIndex={0}
@@ -4518,7 +4518,7 @@ function ProductEdit() {
                   </div>
 
                   {isExpanded ? (
-                  <div className="border-t border-border p-4">
+                  <div className="border-t border-border p-3 sm:p-4">
                     <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[180px_minmax(0,1fr)] xl:items-start">
                     <div className="space-y-2">
                       <label className="relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface">
@@ -4567,7 +4567,7 @@ function ProductEdit() {
                         className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                        {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
+                        {group.thermal_image_url ? t("products.editor.regenerateThermalArtwork", "Regenerate AI Thermal Artwork") : t("products.editor.generateThermalArtwork", "Generate AI Thermal Artwork")}
                       </button>
                       <AiCoverStatusBadge state={group.ai_cover} />
                       {canRegenerateAiCover ? (
@@ -4578,7 +4578,7 @@ function ProductEdit() {
                           className="inline-flex h-[var(--control-height-md)] w-full items-center justify-center gap-1.5 rounded-[var(--radius-control)] border border-primary/25 bg-primary/10 px-3 text-xs font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                          {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? "Queueing AI Cover..." : "Regenerate AI Cover"}
+                          {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? t("products.editor.queueingAiCover", "Queueing AI Cover...") : t("products.editor.regenerateAiCover", "Regenerate AI Cover")}
                         </button>
                       ) : null}
                       <div className="flex w-full max-w-[520px] flex-col gap-2">
@@ -4758,7 +4758,7 @@ function ProductEdit() {
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <label className="text-sm font-semibold text-text-muted">{t("products.fields.manufacturer", "Manufacturer")}</label>
                               <span className="rounded-full border border-border bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-muted">
-                                Color level
+                                {t("products.editor.colorLevel", "Color level")}
                               </span>
                             </div>
                             <ManufacturerSelect
@@ -4796,7 +4796,7 @@ function ProductEdit() {
                             className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             {colorDetecting[group.id] ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
-                            AI Rename
+                            {t("products.editor.aiRename", "AI Rename")}
                           </button>
                           <button
                             type="button"
@@ -4810,7 +4810,7 @@ function ProductEdit() {
                             disabled={Boolean(colorDetecting[group.id]) || !getPrimaryColorImage(group)}
                             className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-45"
                           >
-                            Pick color
+                            {t("products.editor.pickColor", "Pick color")}
                           </button>
                           {mirrorEditionEnabled ? (
                             <button
@@ -4831,7 +4831,7 @@ function ProductEdit() {
                                 onClick={() => applyBulkSizes(group.id)}
                                 className="inline-flex h-[var(--control-height-md)] items-center justify-center rounded-[var(--radius-control)] border border-primary/20 bg-primary/10 px-3 text-sm font-semibold text-primary transition hover:bg-primary/15"
                               >
-                                Apply bulk sizes
+                                {t("products.editor.applyBulkSizes", "Apply bulk sizes")}
                               </button>
                             ) : null}
                             <button
@@ -4850,7 +4850,7 @@ function ProductEdit() {
                                 className="inline-flex h-[var(--control-height-md)] items-center justify-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface px-3 text-sm font-semibold text-text"
                               >
                                 <Plus size={16} />
-                                Add size
+                                {t("products.editor.addSize", "Add size")}
                                 </button>
                             ) : null}
                             {isCrocsProductType(product.product_type) ? (
@@ -4875,7 +4875,7 @@ function ProductEdit() {
                           </div>
                         </div>
 
-                        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3">
+                        <div className="rounded-[var(--radius-card)] border border-border bg-surface p-2 sm:p-3">
                           <div className="mb-3 flex items-center justify-between gap-3">
                             <div>
                               <p className="text-[11px] uppercase tracking-[0.18em] text-text-muted">
@@ -4888,7 +4888,7 @@ function ProductEdit() {
                               </p>
                             </div>
                             <div className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-text-muted">
-                              {isColorOnlyMode ? 1 : group.sizes.length} row(s)
+                              {t("products.editor.rowsCount", "{{value}} row(s)", { value: isColorOnlyMode ? 1 : group.sizes.length })}
                             </div>
                           </div>
 
@@ -4905,7 +4905,7 @@ function ProductEdit() {
                             {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                               <div
                                 key={row.id}
-                                className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
+                                className={`grid gap-2 rounded-[var(--radius-card)] border border-border bg-surface p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(90px,110px)_110px_minmax(130px,150px)_minmax(160px,185px)_minmax(220px,280px)_190px]"}`}
                               >
                                 {!isColorOnlyMode ? <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-muted xl:sr-only">
@@ -5211,10 +5211,10 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
       : t("products.editor.updateProduct", "Update Product");
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised px-4 py-3 shadow-[var(--shadow-overlay)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[var(--radius-card)] md:border">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface-raised px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[var(--shadow-overlay)] backdrop-blur md:left-auto md:right-6 md:bottom-6 md:w-auto md:min-w-[360px] md:rounded-[var(--radius-card)] md:border md:pb-3">
+      <div className="flex flex-row items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-text-muted">{t("products.editor.productEditor", "Product Editor")}</p>
+          <p className="hidden text-xs font-semibold text-text-muted sm:block">{t("products.editor.productEditor", "Product Editor")}</p>
           <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-warning" : "text-success"}`}>
             {hasUnsavedChanges
               ? t("products.editor.unsavedChanges", "Unsaved changes")
@@ -5225,7 +5225,7 @@ function ProductActionBar({ mode = "edit", saving = false, hasUnsavedChanges = f
           type="button"
           onClick={onSave}
           disabled={saving}
-          className={buttonClasses("primary", "h-[var(--control-height-lg)] w-full rounded-[var(--radius-control)] px-5 sm:w-auto")}
+          className={buttonClasses("primary", "h-[var(--control-height-lg)] w-auto shrink-0 rounded-[var(--radius-control)] px-5")}
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           {saving ? t("common.saving", "Saving...") : label}

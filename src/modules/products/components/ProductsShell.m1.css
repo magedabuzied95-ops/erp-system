@@ -35,7 +35,11 @@
 /* the tab strip is a nested group, so it takes the card corner like the
    Orders filter group it now matches */
 .m1-products-catalog>div:first-child{border-radius:var(--radius-card)!important;background:var(--surface-soft)!important}
-.m1-products-catalog>div:first-child>button{border-radius:var(--radius-control)!important;color:var(--muted)!important}
+/* The colour lives on the button itself: the active tab carries
+   text-[var(--primary-contrast)] over bg-primary, the inactive one text-text-muted.
+   Forcing --muted here painted BOTH of them muted, so the selected tab read at
+   1.46:1 on the gold fill. Only the radius belongs to the shell. */
+.m1-products-catalog>div:first-child>button{border-radius:var(--radius-control)!important}
 .m1-products-catalog table{border-collapse:collapse!important;border-spacing:0!important;font-size:12px}
 .m1-products-catalog thead tr{background:var(--table-head)!important}
 .m1-products-catalog thead th{padding:11px 14px!important;border-bottom:1px solid var(--border)!important;color:var(--muted)!important;font-size:11px!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important}

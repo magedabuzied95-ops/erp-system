@@ -13,6 +13,7 @@ import {
   Eye,
   EyeOff,
   Filter,
+  RefreshCw,
   ImageOff,
   MoreHorizontal,
   Package2,
@@ -1157,8 +1158,8 @@ function PriceLine({
         : "text-text-muted";
 
   return (
-    <div className="flex items-baseline justify-center gap-2">
-      <span className="shrink-0 font-bold text-text-muted">{label}:</span>
+    <div className="flex flex-col items-center gap-0.5 text-center sm:flex-row sm:items-baseline sm:justify-center sm:gap-2 sm:text-start">
+      <span className="shrink-0 font-bold text-text-muted">{label}<span className="hidden sm:inline">:</span></span>
       {concealed ? (
         <button
           type="button"
@@ -3224,7 +3225,7 @@ function ProductsList() {
             onClick={() => setReloadNonce((prev) => prev + 1)}
             className="m1-products-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition sm:px-5 sm:py-3 sm:text-base"
           >
-            <Filter size={18} />
+            <RefreshCw size={18} />
             {t("products.refresh")}
           </button>
         </>
