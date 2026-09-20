@@ -28,7 +28,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
   return (
     <>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.8fr)]">
-        <Panel title={t("analytics.sections.revenueTrend")} subtitle={t("analytics.sections.revenueTrend")}>
+        <Panel title={t("analytics.sections.revenueTrend")}>
           <div className="h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
               {data.revenueSeries.length > 0 ? (
@@ -54,7 +54,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
           </div>
         </Panel>
 
-        <Panel title={t("analytics.charts.salesTrend")} subtitle={t("analytics.charts.salesTrendSubtitle")}>
+        <Panel title={t("analytics.charts.salesTrend")}>
           <div className="h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
               {data.salesTrendSeries.length > 0 ? (
@@ -74,7 +74,7 @@ export default function AnalyticsCharts({ data, Panel, t }) {
         </Panel>
       </div>
 
-      <Panel title={t("analytics.charts.channelMix")} subtitle={t("analytics.charts.channelMixSubtitle")}>
+      <Panel title={t("analytics.charts.channelMix")}>
         <div className="h-[340px]">
           <ResponsiveContainer width="100%" height="100%">
             {data.channelSeries.length > 0 ? (

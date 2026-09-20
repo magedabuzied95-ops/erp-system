@@ -90,7 +90,7 @@ export default function InventoryIntelligence() {
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-4">
-        <ReportsHeader title={t("inventoryAnalytics.title")} subtitle={t("inventoryAnalytics.subtitle")}>
+        <ReportsHeader title={t("inventoryAnalytics.title")}>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector
               filters={filters.filters}

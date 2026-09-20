@@ -121,7 +121,6 @@ function RolesPage() {
   return (
     <PermissionsShell
       title={t("access.roles.title")}
-      subtitle={t("access.roles.subtitle")}
       actions={
         <>
           <Link to="/settings/permissions" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">

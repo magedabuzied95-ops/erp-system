@@ -350,7 +350,6 @@ export function StorefrontComparePage({ onAddToCart, saleModeEnabled }) {
       <header className="sfx-page-head sfx-cmp-top">
         <div className="sfx-page-head__text">
           <h1 className="sfx-title">{t("storefront.compare.title")}</h1>
-          <p className="sfx-subtitle">{t("storefront.compare.subtitle")}</p>
         </div>
         <div className="sfx-page-head__actions sfx-cmp-top__actions">
           <label className={`sfx-cmp-switch${items.length < 2 ? " is-disabled" : ""}`}>

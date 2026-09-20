@@ -1350,7 +1350,6 @@ function InventoryCountPage() {
     <>
       <InventoryShell
         title={tt("inventory.tabs.count")}
-        subtitle={tt("inventory.count.pageSubtitle")}
         actions={
           <div className="flex flex-wrap gap-2">
             {isDetail ? (
@@ -1781,7 +1780,6 @@ function InventoryCountPage() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h2 className="m1-section-title text-text">{tt("inventory.count.sessions")}</h2>
-                  <p className="mt-1 text-sm text-text-muted">{tt("inventory.count.sessionsHint")}</p>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[
@@ -2228,7 +2226,6 @@ function ScopeModal({ branches, warehouses, form, setForm, onClose, onCreate }) 
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{tt("inventory.count.startNew")}</div>
             <h3 className="m1-section-title mt-1 text-text">{tt("inventory.count.selectScope")}</h3>
-            <p className="mt-2 text-sm leading-6 text-text-muted">{tt("inventory.count.selectScopeHint")}</p>
           </div>
           <button type="button" onClick={onClose} className="inline-flex min-h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 text-sm font-black text-text transition hover:bg-surface-hover" aria-label={tt("common.back")}>
             <ArrowRight className="h-4 w-4" />

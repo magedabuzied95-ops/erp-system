@@ -264,7 +264,6 @@ export default function AiAgentAnalytics() {
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><BarChart3 className="h-4 w-4" />{t("aiSupport.analytics.eyebrow")}</div>
               <h1 className="m1-display mt-3">{t("aiSupport.analytics.title")}</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">{t("aiSupport.analytics.subtitle")}</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-4">
               <input type="date" value={filters.from_date} onChange={(event) => setFilters((current) => ({ ...current, from_date: event.target.value }))} className="h-[var(--control-height-lg)] rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 text-sm font-bold text-white outline-none focus:border-primary/40" />

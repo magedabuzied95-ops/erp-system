@@ -943,7 +943,7 @@ function BarcodeLabels() {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
               <div className="rounded-[32px] border border-white/10 bg-zinc-950/80 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.24)]">
                 {loading ? (
-                  <StateCard title={t("products.barcodeLabels.loadingBarcodeShop")} subtitle={t("products.barcodeLabels.loadingSubtitle")} />
+                  <StateCard title={t("products.barcodeLabels.loadingBarcodeShop")} />
                 ) : error ? (
                   <StateCard title={t("products.barcodeLabels.barcodeShopUnavailable")} subtitle={error} />
                 ) : !normalizedProduct ? (
@@ -1028,7 +1028,6 @@ function BarcodeLabels() {
       <div className="barcode-preview-only print:hidden">
         <ProductsShell
           title={t("products.barcodeLabels.labelSheetTitle")}
-          description={t("products.barcodeLabels.labelSheetDescription")}
           actions={
             <span className="rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-zinc-200">
               {language === "ar" ? "باركود المنتج" : "Product barcode"}
@@ -1135,7 +1134,7 @@ function BarcodeLabels() {
           <div className="mt-6 grid grid-cols-1 items-start gap-6 2xl:grid-cols-[1.45fr_1.55fr]">
             <div className="space-y-4">
                 {loading ? (
-                  <StateCard title={t("products.barcodeLabels.loadingLabels")} subtitle={t("products.barcodeLabels.loadingLabelsSubtitle")} />
+                  <StateCard title={t("products.barcodeLabels.loadingLabels")} />
                 ) : error ? (
                   <StateCard
                   title={t("products.barcodeLabels.barcodeLabelsUnavailable")}

@@ -59,7 +59,6 @@ export default function EmployeePortalOnlineOrders() {
           </span>
           <div className="min-w-0">
             <h1 className="m1-page-title text-text">{t("orders.portalBoard.title")}</h1>
-            <p className="mt-0.5 text-xs font-bold text-text-muted">{t("orders.portalBoard.subtitle")}</p>
           </div>
         </header>
 

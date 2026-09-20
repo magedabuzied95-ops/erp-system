@@ -97,11 +97,7 @@ function LoyaltyDashboard() {
     <div className="space-y-6 text-[var(--text)]">
       <div className="flex flex-col justify-between gap-4 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6 shadow-[var(--shadow-card)] xl:flex-row xl:items-center">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-primary/80">{t("loyalty.dashboard.eyebrow")}</p>
-          <h1 className="m1-page-title mt-2">{t("loyalty.dashboard.title")}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-            Track points issuance, redemptions, tier movement, and customer value from one operational dashboard.
-          </p>
+          <h1 className="m1-page-title">{t("loyalty.dashboard.title")}</h1>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link to="/loyalty/rules" className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--surface)]">
@@ -117,10 +113,10 @@ function LoyaltyDashboard() {
       {error ? <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">{error}</div> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t("loyalty.dashboard.stats.totalCustomers")} value={loading ? "..." : summary.totalCustomers || 0} icon={UsersRound} hint={t("loyalty.dashboard.stats.totalCustomersHint")} />
-        <StatCard label={t("loyalty.dashboard.stats.pointsIssued")} value={loading ? "..." : Number(summary.totalPointsIssued || 0).toLocaleString()} icon={Coins} hint={t("loyalty.dashboard.stats.pointsIssuedHint")} />
-        <StatCard label={t("loyalty.dashboard.stats.pointsRedeemed")} value={loading ? "..." : Number(summary.totalPointsRedeemed || 0).toLocaleString()} icon={Gift} hint={t("loyalty.dashboard.stats.pointsRedeemedHint")} />
-        <StatCard label={t("loyalty.dashboard.stats.activeRules")} value={loading ? "..." : rules.filter((rule) => rule.is_active !== false).length} icon={Award} hint={t("loyalty.dashboard.stats.activeRulesHint")} />
+        <StatCard label={t("loyalty.dashboard.stats.totalCustomers")} value={loading ? "..." : summary.totalCustomers || 0} icon={UsersRound} />
+        <StatCard label={t("loyalty.dashboard.stats.pointsIssued")} value={loading ? "..." : Number(summary.totalPointsIssued || 0).toLocaleString()} icon={Coins} />
+        <StatCard label={t("loyalty.dashboard.stats.pointsRedeemed")} value={loading ? "..." : Number(summary.totalPointsRedeemed || 0).toLocaleString()} icon={Gift} />
+        <StatCard label={t("loyalty.dashboard.stats.activeRules")} value={loading ? "..." : rules.filter((rule) => rule.is_active !== false).length} icon={Award} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
@@ -128,7 +124,6 @@ function LoyaltyDashboard() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title">{t("loyalty.dashboard.top.title")}</h2>
-              <p className="mt-1 text-sm text-[var(--muted)]">{t("loyalty.dashboard.top.subtitle")}</p>
             </div>
             <TrendingUp className="h-5 w-5 text-primary" />
           </div>

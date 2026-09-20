@@ -432,7 +432,6 @@ function UsersPage() {
   return (
     <PermissionsShell
       title={t("access.users.title")}
-      subtitle={t("access.users.subtitle")}
       actions={
         <>
           <Link to="/settings/roles" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -499,7 +498,6 @@ function UsersPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="m1-section-title text-white">{t("access.users.listTitle")}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{t("access.users.listSubtitle")}</p>
             </div>
             <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
               {filteredUsers.length} rows

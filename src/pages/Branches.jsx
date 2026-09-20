@@ -40,15 +40,11 @@ const emptyForm = {
 };
 
 const fallbackLabels = {
-  "branches.eyebrow": "Branch network",
   "branches.title": "Branches",
-  "branches.subtitle": "Manage branch identities, contact details, managers, and active status.",
   "branches.create": "+ Add Branch",
   "branches.edit": "Edit branch",
   "branches.new": "New branch",
   "branches.view": "Branch details",
-  "branches.createHint": "Create a branch profile for sales, employees, and warehouse operations.",
-  "branches.updateHint": "Update branch identity, contact details, notes, and status.",
   "branches.stats.total": "Total branches",
   "branches.stats.active": "Active branches",
   "branches.stats.mapped": "Warehouse mapped",
@@ -98,7 +94,6 @@ const fallbackLabels = {
   "branches.buttons.regenerateShortCode": "Regenerate Short Code",
   "branches.buttons.regenerateQr": "Regenerate QR",
   "branches.qr.title": "Attendance QR",
-  "branches.qr.subtitle": "Employees scan this branch QR and enter their phone number or employee code.",
   "branches.qr.publicUrl": "Public attendance URL",
   "branches.qr.shortUrl": "Short attendance link",
   "branches.qr.loading": "Loading QR...",
@@ -538,12 +533,7 @@ function Branches() {
         <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[var(--primary)]">
-                <Building2 className="h-5 w-5" />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em]">{t("branches.eyebrow")}</span>
-              </div>
-              <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("branches.title")}</h1>
-              <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{t("branches.subtitle")}</p>
+              <h1 className="m1-page-title text-[var(--text)]">{t("branches.title")}</h1>
             </div>
             <button
               type="button"
@@ -655,9 +645,6 @@ function Branches() {
                 <h2 className="m1-section-title mt-2 text-[var(--text)]">
                   {editingBranch ? editingBranch?.name || t("branches.row.unassigned") : t("branches.new")}
                 </h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">
-                  {editingBranch ? t("branches.updateHint") : t("branches.createHint")}
-                </p>
               </div>
               <button
                 type="button"
@@ -803,7 +790,6 @@ function Branches() {
                     </div>
                     <h3 className="m1-section-title mt-3 text-[var(--text)]">{viewBranch?.name || t("branches.row.unassigned")}</h3>
                     {qrInfo?.company_name ? <p className="mt-1 text-sm font-semibold text-[var(--muted)]">{qrInfo?.company_name}</p> : null}
-                    <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted)]">{t("branches.qr.subtitle")}</p>
                   </div>
                   {qrInfo?.company_logo_url ? (
                     <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-[var(--radius-card)] border border-[var(--border)] bg-white p-2">

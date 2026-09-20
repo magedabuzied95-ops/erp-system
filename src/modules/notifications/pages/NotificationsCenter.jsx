@@ -101,8 +101,7 @@ function NotificationsCenter() {
         <div className="notification-hero__body border-b p-4 sm:p-6">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
             <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.24em] text-slate-400">{t("notifications.center.eyebrow")}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="notification-hero__icon inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border">
                   <Bell className="h-5 w-5" aria-hidden="true" />
                 </span>
@@ -113,7 +112,6 @@ function NotificationsCenter() {
                   </span>
                 ) : null}
               </div>
-              <p className="mt-2 text-sm leading-6 text-slate-400">{t("notifications.center.subtitle")}</p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <button

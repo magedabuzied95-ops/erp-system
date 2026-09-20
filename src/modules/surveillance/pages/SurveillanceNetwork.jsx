@@ -55,7 +55,6 @@ export default function SurveillanceNetwork() {
       <PageHeader
         eyebrowIcon={Network}
         title={t("surveillance.network.title")}
-        subtitle={t("surveillance.network.subtitle")}
         actions={
           <button type="button" onClick={() => void load()}
             className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20">

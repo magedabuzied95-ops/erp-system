@@ -147,7 +147,6 @@ function ReorderSuggestions() {
   return (
     <FlowShell
       title={t("purchases.reorder.title")}
-      subtitle={t("purchases.reorder.subtitle")}
       actions={
         <Link to="/purchases/create" className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-black text-black transition hover:bg-zinc-200">
           {t("purchases.reorder.createPurchaseInvoice")}

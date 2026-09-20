@@ -1,8 +1,6 @@
-import { BrainCircuit, Sparkles } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { BrainCircuit } from "lucide-react";
 
 function AiInsightCard({ title, insight, tone = "cyan" }) {
-  const { t } = useTranslation();
   const tones = {
     cyan: "border-primary/20 bg-primary/10 text-primary",
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
@@ -16,17 +14,11 @@ function AiInsightCard({ title, insight, tone = "cyan" }) {
           <BrainCircuit className="h-5 w-5" />
         </div>
         <div>
-          <div className="text-xs uppercase tracking-[0.22em] text-[var(--muted)]">{t("analytics.charts.aiInsight")}</div>
-          <h3 className="m1-section-title mt-1 text-[var(--text)]">{title}</h3>
+          <h3 className="m1-section-title text-[var(--text)]">{title}</h3>
         </div>
       </div>
 
       <p className="mt-4 text-sm leading-7 text-[var(--text)]/85">{insight}</p>
-
-      <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-semibold text-[var(--text)]">
-        <Sparkles className="h-3.5 w-3.5" />
-        Generated from sales, stock, and customer patterns
-      </div>
     </div>
   );
 }

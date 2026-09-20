@@ -113,7 +113,6 @@ function ReplyStyleLearningCard() {
         </div>
       </div>
       <p className="mt-1.5 text-[12px] text-slate-400">{t("aiStudio.style.explainer1")} <b className="text-slate-200">{t("aiStudio.style.explainerHow")}</b> {t("aiStudio.style.explainer2")} <b className="text-slate-200">{t("aiStudio.style.explainerNever")}</b> {t("aiStudio.style.explainer3")} <b className="text-slate-200">{t("aiStudio.style.explainerStable")}</b> {t("aiStudio.style.explainer4")}</p>
-      <p className="mt-1 text-[12px] text-slate-400">{t("aiStudio.style.factsNote")}</p>
       {!intents.length ? (
         <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-[12px] text-slate-400">{t("aiStudio.style.noPreference", { count: Number(data?.evidence_count || 0) })}</div>
       ) : intents.map((intent) => (
@@ -159,7 +158,6 @@ const MODULE_GROUPS = [
   {
     id: "conversations",
     titleKey: "aiStudio.groups.conversations.title",
-    subtitleKey: "aiStudio.groups.conversations.subtitle",
     modules: [
       { id: "aiInbox", labelKey: "aiStudio.modules.aiInbox.label", descriptionKey: "aiStudio.modules.aiInbox.description", to: "/admin/ai-inbox", icon: Bot, permission: "settings.view", adminOnly: true },
       { id: "inboxPwa", labelKey: "aiStudio.modules.inboxPwa.label", descriptionKey: "aiStudio.modules.inboxPwa.description", to: "/inbox", icon: MessageSquare, permission: "ai_inbox_messenger.view" },
@@ -169,7 +167,6 @@ const MODULE_GROUPS = [
   {
     id: "agents",
     titleKey: "aiStudio.groups.agents.title",
-    subtitleKey: "aiStudio.groups.agents.subtitle",
     modules: [
       { id: "agentSettings", labelKey: "aiStudio.modules.agentSettings.label", descriptionKey: "aiStudio.modules.agentSettings.description", to: "/admin/ai-agent-settings", icon: Settings2, permission: "settings.view", adminOnly: true },
       { id: "replySettings", labelKey: "aiStudio.modules.replySettings.label", descriptionKey: "aiStudio.modules.replySettings.description", to: "/ai/settings", icon: Sparkles, permission: "settings.edit" },
@@ -179,7 +176,6 @@ const MODULE_GROUPS = [
   {
     id: "channels",
     titleKey: "aiStudio.groups.channels.title",
-    subtitleKey: "aiStudio.groups.channels.subtitle",
     modules: [
       { id: "channels", labelKey: "aiStudio.modules.channels.label", descriptionKey: "aiStudio.modules.channels.description", to: "/admin/ai-inbox?integrations=overview", icon: Share2, permission: "settings.view", adminOnly: true },
       { id: "marketingAutomation", labelKey: "aiStudio.modules.marketingAutomation.label", descriptionKey: "aiStudio.modules.marketingAutomation.description", to: "/marketing/automation", icon: Zap, permission: "marketing.view" },
@@ -189,7 +185,6 @@ const MODULE_GROUPS = [
   {
     id: "observability",
     titleKey: "aiStudio.groups.observability.title",
-    subtitleKey: "aiStudio.groups.observability.subtitle",
     modules: [
       { id: "agentAnalytics", labelKey: "aiStudio.modules.agentAnalytics.label", descriptionKey: "aiStudio.modules.agentAnalytics.description", to: "/admin/ai-agent-analytics", icon: LineChart, permission: "settings.view", adminOnly: true },
     ],
@@ -197,7 +192,6 @@ const MODULE_GROUPS = [
   {
     id: "marketing",
     titleKey: "aiStudio.groups.marketing.title",
-    subtitleKey: "aiStudio.groups.marketing.subtitle",
     modules: [
       { id: "marketingCenter", labelKey: "aiStudio.modules.marketingCenter.label", descriptionKey: "aiStudio.modules.marketingCenter.description", to: "/marketing/ai-center", icon: Megaphone, permission: "marketing.view" },
       { id: "leadCenter", labelKey: "aiStudio.modules.leadCenter.label", descriptionKey: "aiStudio.modules.leadCenter.description", to: "/marketing/ai-center/leads", icon: Users, permission: "marketing.view" },
@@ -316,12 +310,7 @@ export default function AiStudio() {
       <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary">
-              <Sparkles className="h-4 w-4" />
-              {t("aiStudio.page.eyebrow")}
-            </div>
-            <h1 className="m1-page-title mt-1 text-white">{t("aiStudio.page.title")}</h1>
-            <p className="mt-1 text-sm text-slate-400">{t("aiStudio.page.subtitle")}</p>
+            <h1 className="m1-page-title text-white">{t("aiStudio.page.title")}</h1>
           </div>
           <button
             type="button"
@@ -360,7 +349,6 @@ export default function AiStudio() {
         <section key={group.id}>
           <div className="mb-2 px-1">
             <h2 className="m1-section-title text-[12px] uppercase tracking-[0.16em] text-slate-300">{t(group.titleKey)}</h2>
-            {group.subtitleKey ? <p className="text-[11px] font-medium text-slate-500">{t(group.subtitleKey)}</p> : null}
           </div>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {group.modules.map((module) => {

@@ -1,23 +1,14 @@
 import { NavLink } from "react-router-dom";
-import { useTranslation } from "react-i18next";
-
-import { Warehouse } from "lucide-react";
 
 function InventoryShell({ title, subtitle, actions, tabs = [], children }) {
-  const { t } = useTranslation();
-
   return (
     <div dir="rtl" className="min-h-screen bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,var(--primary)_10%,transparent),transparent_32%),linear-gradient(180deg,var(--bg)_0%,var(--surface)_100%)] text-right text-[var(--text)]">
       <div className="mx-auto flex w-full flex-col gap-4 px-4 py-4 lg:px-6">
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[var(--primary)]">
-                <Warehouse className="h-5 w-5" />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em]">{t("inventory.title", "المخزون")}</span>
-              </div>
-              <h1 className="m1-page-title mt-2 text-[var(--text)]">{title}</h1>
-              <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p>
+              <h1 className="m1-page-title text-[var(--text)]">{title}</h1>
+              {subtitle ? <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">{actions}</div>
           </div>

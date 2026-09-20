@@ -284,8 +284,7 @@ export default function InventoryApprovalsPage() {
         <header className="manager-inventory-panel rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 shadow-2xl backdrop-blur sm:rounded-[var(--radius-card)] sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="hidden text-xs font-black uppercase tracking-[0.22em] text-text-muted sm:block">{tt("managerPortal.stockCount.centerTitle")}</div>
-              <h1 className="m1-page-title sm:mt-2">{tt("managerPortal.stockCount.title")}</h1>
+              <h1 className="m1-page-title">{tt("managerPortal.stockCount.title")}</h1>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted sm:mt-2 sm:text-sm sm:leading-6">
                 {tt("managerPortal.stockCount.centerSubtitle")}
               </p>

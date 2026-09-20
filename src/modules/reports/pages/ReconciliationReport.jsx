@@ -263,7 +263,6 @@ export default function ReconciliationReport() {
         <SectionCard
           id="reconciliation-warnings"
           title={t("reconciliation.warnings.title")}
-          subtitle={t("reconciliation.warnings.subtitle")}
           status={report.status}
           error={report.error}
           onRetry={report.refresh}

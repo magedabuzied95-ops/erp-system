@@ -89,7 +89,6 @@ function SupplierDetails() {
   return (
     <FlowShell
       title={supplier.name}
-      subtitle={t("purchases.supplierDetails.subtitle")}
       actions={
         <Link
           to="/suppliers"
@@ -120,7 +119,6 @@ function SupplierDetails() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("purchases.supplierDetails.profile")}</div>
-                <h2 className="m1-section-title mt-2 text-white">{supplier.name}</h2>
                 <p className="mt-1 text-sm text-zinc-400">{supplier.address || t("purchases.supplierDetails.noAddress")}</p>
               </div>
               <StatusBadge value={supplier.status} />

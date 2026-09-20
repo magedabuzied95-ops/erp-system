@@ -420,8 +420,7 @@ function InboxOrderComposer({ open, conversation = {}, products = [], busy = fal
       <section dir="rtl" className="ai-order__dialog h-full w-full max-w-2xl overflow-y-auto p-5">
         <div className="ai-order__header flex items-start justify-between gap-3 pb-4">
           <div>
-            <div className="ai-order__eyebrow">{t("aiSupport.inbox.order.orderTitle")}</div>
-            <h2 className="ai-order__title mt-1">{t("aiSupport.inbox.order.orderHeading")}</h2>
+            <h2 className="ai-order__title">{t("aiSupport.inbox.order.orderHeading")}</h2>
             <p className="ai-order__subtitle mt-1">{t("aiSupport.inbox.order.orderNote")}</p>
           </div>
           <button type="button" onClick={onClose} className="ai-order__close grid h-10 w-10 place-items-center"><XCircle className="h-5 w-5" /></button>

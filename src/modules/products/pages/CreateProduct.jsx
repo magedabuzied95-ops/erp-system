@@ -2597,7 +2597,6 @@ function CreateProduct() {
   return (
     <ProductsShell
       title={t("products.editor.createTitle", "إنشاء منتج")}
-      description={t("products.editor.createDescription", "Enterprise-grade product intake with catalog metadata, pricing, media, barcode generation, and variant generation.")}
       actions={
         <Link
           to="/products"
@@ -2616,16 +2615,9 @@ function CreateProduct() {
               pushed the form down; the workflow description, the section
               jump-nav and the page actions now share this single sticky bar.
 
-              The description is a quiet meta line rather than a heading block —
-              same surface, no extra card, one truncated line. <nav> wraps only
-              the jump links so the description is not announced as navigation.
               Both actions are carried over verbatim, so the submit contract
               (three native submits, each guarded while saving) is intact. */}
           <div className="-mx-1 rounded-[var(--radius-card)] border border-border bg-surface-soft px-2 py-2">
-            <p className="truncate px-1 pb-1.5 text-[11px] leading-4 text-text-muted">
-              {t("products.editor.createWorkflowDescription")}
-            </p>
-
             <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
               <nav className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
                 {pageNavSections.map((section) => (
@@ -2675,7 +2667,6 @@ function CreateProduct() {
               <SectionHeader
                 icon={Sparkles}
                 title={t("products.editor.basicInformation")}
-                subtitle={t("products.editor.basicInformationHelp")}
                 tone="emerald"
               />
 
@@ -2907,7 +2898,6 @@ function CreateProduct() {
               <SectionHeader
                 icon={Search}
                 title={t("products.editor.productContentSeo")}
-                subtitle={t("products.editor.productContentSeoHelp")}
                 tone="sky"
               />
 
@@ -2946,7 +2936,6 @@ function CreateProduct() {
               <SectionHeader
                 icon={Layers3}
                 title={t("products.editor.catalogControls")}
-                subtitle={t("products.editor.advancedSettingsHelp")}
                 tone="violet"
               />
 

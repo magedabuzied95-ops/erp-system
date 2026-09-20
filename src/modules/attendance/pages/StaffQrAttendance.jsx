@@ -217,8 +217,7 @@ export default function StaffQrAttendance() {
                 </div>
                 <div className="mt-4 space-y-4">
                   <div>
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{t("attendance.qr.result")}</div>
-                  <div className="mt-1 text-2xl font-black text-white">
+                  <div className="text-2xl font-black text-white">
                       {isCheckout ? "Check out recorded" : "Check in recorded"}
                   </div>
                   </div>

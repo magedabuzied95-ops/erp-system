@@ -142,7 +142,6 @@ function SmartPosFilters({
   const { i18n } = useTranslation();
   const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
   const copy = {
-    eyebrow: isArabic ? "فلاتر POS الذكية" : "SMART POS FILTERS",
     title: isArabic ? "فلاتر نقطة البيع الذكية" : "Smart POS Filters",
     subtitle: isArabic ? "اختر من التصنيفات النشطة فقط." : "Choose only from active classifications.",
     close: isArabic ? "إغلاق الفلاتر" : "Close filters",
@@ -180,8 +179,7 @@ function SmartPosFilters({
       >
         <div className="m1-smart-filter-header flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-3.5">
           <div className="min-w-0">
-            <div className="m1-smart-filter-eyebrow text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-200 sm:text-[11px]">{copy.eyebrow}</div>
-            <h2 id="smart-pos-filters-title" className="m1-smart-filter-title mt-1 text-lg font-extrabold text-white sm:text-xl">
+            <h2 id="smart-pos-filters-title" className="m1-smart-filter-title text-lg font-extrabold text-white sm:text-xl">
               {copy.title}
             </h2>
             <p className="m1-smart-filter-subtitle mt-1 text-xs font-medium text-zinc-400 sm:text-sm">{copy.subtitle}</p>

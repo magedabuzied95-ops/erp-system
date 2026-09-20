@@ -135,7 +135,6 @@ export default function AiStudioRestockRecovery() {
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><PackageCheck className="h-4 w-4" />{t("aiStudio.restock.eyebrow")}</div>
             <h1 className="m1-page-title mt-1">{t("aiStudio.restock.title")}</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-400">{t("aiStudio.restock.introBefore")} <b>{t("aiStudio.restock.introInternal")}</b> {t("aiStudio.restock.introAfter")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {!wf ? (

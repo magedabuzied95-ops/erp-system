@@ -894,9 +894,6 @@ function EmployeePortalCameraScannerModal({
               </button>
             </div>
           </div>
-          <div className="mt-3 text-center text-xs font-semibold text-text-muted">
-            {tt("employeePortal.scanner.supportHint")}
-          </div>
         </div>
       </section>
     </div>,

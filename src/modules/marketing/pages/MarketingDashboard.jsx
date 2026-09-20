@@ -66,12 +66,7 @@ export default function MarketingDashboard() {
         <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-                <Megaphone className="h-3.5 w-3.5" />
-                {t("marketing.dashboard.eyebrow")}
-              </div>
               <h1 className="m1-display">{t("marketing.dashboard.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">{t("marketing.dashboard.subtitle")}</p>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {quickActions.map(({ label, to, icon: Icon }) => (
@@ -104,7 +99,6 @@ export default function MarketingDashboard() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.dashboard.recent.title")}</h2>
-              <p className="text-sm text-[var(--muted)]">{t("marketing.dashboard.recent.subtitle")}</p>
             </div>
           </div>
           <div className="m1-table-container overflow-x-auto">

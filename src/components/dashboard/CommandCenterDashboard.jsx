@@ -56,9 +56,6 @@ export const CommandCenterDashboard = memo(function CommandCenterDashboard({
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300">{t("dashboard.commandCenter.eyebrow")}</div>
             <h2 className="m1-section-title mt-1 text-white">{t("dashboard.commandCenter.title")}</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-400">
-              {t("dashboard.commandCenter.subtitle")}
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded-full border px-3 py-1.5 text-xs font-black ${command.socketConnected ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-amber-300/20 bg-amber-400/10 text-amber-100"}`}>

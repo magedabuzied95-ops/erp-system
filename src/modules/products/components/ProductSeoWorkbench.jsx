@@ -445,7 +445,6 @@ const ProductSeoWorkbench = ({
 
         <div className="lg:col-span-2">
           <label className="text-sm font-semibold text-text">{t("products.editor.seoWorkbench.metaDescription")}</label>
-          <p className="mt-0.5 text-[11px] text-text-muted">{t("products.editor.seoWorkbench.metaDescriptionHelp")}</p>
           <textarea
             value={seoDescription}
             dir="auto"

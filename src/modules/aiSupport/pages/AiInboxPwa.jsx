@@ -3358,14 +3358,12 @@ function MoreView({ installAvailable, onInstall }) {
       >
         <div>
           <div className="text-sm font-semibold text-slate-900">{t("aiSupport.inbox.pwa.installApp")}</div>
-          <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.installAppHint")}</div>
         </div>
         <Download className="h-4 w-4 text-slate-500" />
       </button>
       <Link to="/admin/ai-inbox" className="flex items-center justify-between rounded-3xl border border-slate-200 bg-white px-4 py-4 text-left shadow-sm">
         <div>
           <div className="text-sm font-semibold text-slate-900">{t("aiSupport.inbox.pwa.openAdminInbox")}</div>
-          <div className="text-xs text-slate-500">{t("aiSupport.inbox.pwa.openAdminInboxHint")}</div>
         </div>
         <ChevronLeft className="h-4 w-4 rotate-180 text-slate-500" />
       </Link>
@@ -7729,13 +7727,11 @@ export default function AiInboxPwa({ portal = null } = {}) {
                       <h2 className="mt-1 line-clamp-3 text-lg font-black text-slate-900">{postCaption || t("aiSupport.inbox.pwa.post")}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{platformLabel}</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.pwa.comment")}</span>
                         <span title={t("aiSupport.inbox.pwa.commentsTotalHint")} className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.pwa.commentCount", { count: commentCount })}</span>
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{t("aiSupport.inbox.pwa.newCount", { count: newCommentCount })}</span>
                         <span title={t("aiSupport.inbox.pwa.pendingCommentHint")} className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialPost?.platform || selectedSocialThread?.post?.platform || "Facebook")}</span>
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || t("aiSupport.inbox.pwa.manual"))}</span>
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || t("aiSupport.inbox.ui.product"))}</span>
                       </div>

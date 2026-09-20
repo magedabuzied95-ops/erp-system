@@ -331,7 +331,6 @@ export default function MarketingAutomation() {
                 {t("marketing.automation.eyebrow")}
               </div>
               <h1 className="m1-page-title mt-3">{t("marketing.automation.title")}</h1>
-              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.automation.subtitle")}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.05] px-4 py-3">
@@ -395,7 +394,6 @@ export default function MarketingAutomation() {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <h2 className="m1-section-title">{t("marketing.automation.ruleEditor")}</h2>
-                <p className="text-sm text-slate-400">{t("marketing.automation.ruleEditorDescription")}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => setForm((current) => ({ ...current, enabled: !current.enabled }))} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold">

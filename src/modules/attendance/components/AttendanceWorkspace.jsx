@@ -1353,9 +1353,6 @@ function AttendanceWorkspace({
         <div>
           <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.24em] text-zinc-500"}>{tr("eyebrow")}</div>
           <h1 className="m1-page-title mt-2 text-white">{tr("title")}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-zinc-400">
-            {tr("subtitle")}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1601,9 +1598,6 @@ function AttendanceWorkspace({
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.employeeList")}</div>
                 <h2 className="m1-section-title text-white">{tr("employees.employeesAndShifts")}</h2>
-                <p className="mt-2 text-sm leading-6 text-zinc-400">
-                  {isArabic ? "اختار موظف للتعديل أو افتح ملف موظف جديد. بيانات الموظف الكاملة أصبحت في صفحة مستقلة بدل الفورم الجانبي." : "Select an employee to edit or open a new employee profile. Full employee settings now live in a dedicated page."}
-                </p>
               </div>
               <button
                 type="button"
@@ -1704,11 +1698,6 @@ function AttendanceWorkspace({
                   <h2 className="m1-section-title mt-2 text-white">
                     {employeeForm.id ? (employeeForm.full_name || tr("employees.editEmployee")) : (isArabic ? "إضافة موظف جديد" : "Add new employee")}
                   </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
-                    {isArabic
-                      ? "كل ما يخص الموظف في مكان واحد: البيانات الأساسية، بوابة الموظف، بوابة المدير، الراتب، العمولات، لوائح الخصم، صلاحية فتح الفرع والوردية."
-                      : "Everything for the employee in one place: basics, employee portal, manager portal, salary, commissions, deduction rules, branch-opening eligibility, and shifts."}
-                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -2380,9 +2369,6 @@ function AttendanceWorkspace({
           <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-5">
             <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("kiosk.mode")}</div>
             <h2 className="m1-section-title text-white">{tr("kiosk.openCloseShift")}</h2>
-            <p className="mt-2 text-sm text-zinc-400">
-              {tr("kiosk.subtitle")}
-            </p>
 
             <div className="mt-5 grid gap-3">
               <SelectField

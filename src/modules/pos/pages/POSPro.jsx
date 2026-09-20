@@ -9047,7 +9047,6 @@ function POSPro() {
           <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-3xl border border-white/10 bg-zinc-950/90 px-6 py-8 text-center shadow-2xl shadow-black/30">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
             <div className="text-lg font-black text-white">{t("pos.posPro.shift.restoring")}</div>
-            <div className="text-sm text-zinc-400">{t("pos.posPro.shift.restoringHint")}</div>
           </div>
         </div>
       </div>
@@ -9332,8 +9331,7 @@ function POSPro() {
               >
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
                   <div className="min-w-0">
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">CUSTOMER</div>
-                    <h3 id="pos-add-customer-title" className="mt-1 text-lg font-black text-white">{t("pos.posPro.quickCustomer.title")}</h3>
+                    <h3 id="pos-add-customer-title" className="text-lg font-black text-white">{t("pos.posPro.quickCustomer.title")}</h3>
                   </div>
                   <button
                     type="button"
@@ -9958,7 +9956,6 @@ function POSPro() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">{t("pos.labels.variantSelection")}</div>
-                  <div className="mt-1 line-clamp-2 text-sm font-black leading-tight text-white">{activeProduct.name}</div>
                   <div className="mt-1 truncate text-xs font-semibold text-zinc-400">{activeProduct.sku || activeProduct.barcode || t("common.notAvailable")}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-black text-white">
@@ -10025,7 +10022,6 @@ function POSPro() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.quantity", "Quantity")}</div>
-                      <div className="mt-0.5 text-xs font-semibold text-zinc-400">{t("pos.labels.selectQuantity", "Choose how many to add")}</div>
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-2 py-1.5">
                       <button
@@ -10073,9 +10069,6 @@ function POSPro() {
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">{t("pos.labels.variantSelection")}</div>
                   <h3 className="mt-0.5 line-clamp-1 text-base font-black text-white sm:text-2xl">{activeProduct.name}</h3>
-                  <p className="mt-0.5 hidden text-sm text-zinc-400 sm:block">
-                    {t("pos.labels.chooseVariantPrompt")}
-                  </p>
                 </div>
                 <button
                   type="button"
@@ -10108,11 +10101,7 @@ function POSPro() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">{t("pos.labels.variantSelection")}</div>
-                      <div className="mt-1 line-clamp-2 text-sm font-black leading-tight text-white" title={activeProduct.name}>
-                        {activeProduct.name}
-                      </div>
-                      <div className="mt-2 truncate text-xs font-semibold text-zinc-400">
+                      <div className="truncate text-xs font-semibold text-zinc-400">
                         {activeVariant?.color || t("pos.labels.default")} / {activeVariantSizeLabel || t("pos.labels.oneSize")}
                       </div>
                     </div>
@@ -10844,12 +10833,7 @@ function ShiftCloseModal({
       <div dir={isArabic ? "rtl" : "ltr"} className="max-h-[96vh] w-[94vw] max-w-[1260px] overflow-y-auto rounded-3xl border border-white/10 bg-zinc-950 p-3 shadow-2xl shadow-black/60 sm:max-h-[92vh] sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">
-              <CheckCircle2 className="h-4 w-4" />
-              {labels.shiftClose}
-            </div>
-            <h2 className="mt-2 text-xl font-black text-white sm:text-2xl">{copy.title}</h2>
-            <p className="mt-1 text-sm font-semibold text-zinc-400">{copy.subtitle}</p>
+            <h2 className="text-xl font-black text-white sm:text-2xl">{copy.title}</h2>
           </div>
           <button
             type="button"
@@ -11372,8 +11356,7 @@ function ShiftReportModal({ report, onClose, onPrint }) {
       <div dir="rtl" className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/50">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-200">{t("pos.posPro.shiftReport.eyebrow")}</div>
-            <h2 className="mt-1 text-2xl font-black text-white">{t("pos.posPro.shiftReport.title")}</h2>
+            <h2 className="text-2xl font-black text-white">{t("pos.posPro.shiftReport.title")}</h2>
           </div>
           <div className="flex gap-2">
             <button type="button" onClick={() => onPrint?.(report)} className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-sm font-bold text-emerald-100">
@@ -11385,9 +11368,6 @@ function ShiftReportModal({ report, onClose, onPrint }) {
           </div>
         </div>
         <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-          <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-100">
-            تم إغلاق الوردية بنجاح
-          </div>
           <div className="space-y-2 text-sm text-zinc-200">
             <div className="flex items-center justify-between gap-3 rounded-xl bg-black/20 px-3 py-2">
               <span className="font-semibold text-zinc-400">{t("pos.posPro.shiftReport.expectedDrawer")}</span>
@@ -11435,7 +11415,6 @@ function PosCameraScannerModal({ onClose, onScan, onPermissionDenied, onUnsuppor
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{t("pos.posPro.misc.posScanner")}</div>
             <h3 id="pos-camera-scanner-title" className="mt-1 text-lg font-black text-white">{t("pos.posPro.cameraScanner.title")}</h3>
-            <p className="mt-1 text-xs font-semibold text-zinc-500">{t("pos.posPro.cameraScanner.subtitle")}</p>
           </div>
           <button
             type="button"
@@ -11496,8 +11475,7 @@ function QuickExpenseModal({ value, onChange, onClose, onSave, saving, branchNam
       <section className="w-full max-w-sm rounded-3xl border border-amber-300/20 bg-zinc-950 p-4 text-white shadow-2xl shadow-black/60" dir="auto">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">{t("pos.posPro.misc.posExpense")}</div>
-            <h3 className="mt-1 text-xl font-black">{t("pos.posPro.chrome.expense")}</h3>
+            <h3 className="text-xl font-black">{t("pos.posPro.chrome.expense")}</h3>
             <p className="mt-1 text-xs font-semibold text-zinc-500">
               {branchName || "الفرع الحالي"} {shiftId ? `#${shiftId}` : ""}
             </p>

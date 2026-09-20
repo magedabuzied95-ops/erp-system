@@ -341,14 +341,7 @@ export default function InvoiceStudio() {
         <section className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.055] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary">
-                <Receipt className="h-4 w-4" />
-                {tr("eyebrow", "الفاتورة")}
-              </div>
-              <h1 className="m1-page-title mt-3">{tr("title", "استوديو الفاتورة")}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                {tr("subtitle", "كل ما يظهر للعميل في الفاتورة — المطبوعة، إيصال الكاشير، الرابط العام، ورسالة واتساب — من مكان واحد.")}
-              </p>
+              <h1 className="m1-page-title">{tr("title", "استوديو الفاتورة")}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={addTemplate} disabled={disabled} className="inline-flex h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-slate-950/55 px-4 text-sm font-black text-white disabled:opacity-50">

@@ -2838,7 +2838,6 @@ function CommentReplyDraftPanel({ draftText = "", onLoadDraft, onCopyDraft, load
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-100">{t("aiSupport.inbox.panel.commentDraft")}</div>
-          <div className="mt-1 text-xs text-slate-400">{t("aiSupport.inbox.panel.commentDraftHint")}</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -3408,7 +3407,6 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
       />
       <div className="mb-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">{t("aiSupport.inbox.ui.recommendedNextStep")}</div>
           <Pill tone={leadTone}>{lead.label || "بارد"} / {Number(lead.score || 0).toFixed(0)}%</Pill>
         </div>
         <p className="mt-2 text-sm font-black leading-6 text-white">{recommendedStep}</p>
@@ -3682,7 +3680,6 @@ function AiDebugPanel({ open, loading, error, data, onToggle, onRefresh }) {
           <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-300/10 text-violet-100 ring-1 ring-violet-300/20"><Brain className="h-4 w-4" /></span>
           <div>
             <div className="text-sm font-black text-white">{t("aiSupport.inbox.debug.title")}</div>
-            <div className="text-xs text-slate-500">{t("aiSupport.inbox.debug.subtitle")}</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -8936,11 +8933,7 @@ export default function AiInbox({ reviewerMode = false }) {
     <section dir="ltr" className="shrink-0 rounded-3xl border border-white/10 bg-white/[0.055] px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.16)] backdrop-blur">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
-            <Bot className="h-4 w-4" />
-            AI Social Media Center
-          </div>
-          <div className="mt-1 text-base font-black text-white">{t("aiSupport.inbox.kpi.socialCenter")}</div>
+          <div className="text-base font-black text-white">{t("aiSupport.inbox.kpi.socialCenter")}</div>
         </div>
         {renderModeTabs()}
       </div>
@@ -9496,7 +9489,6 @@ export default function AiInbox({ reviewerMode = false }) {
 	                  <div className="flex items-center justify-between gap-3 px-1">
 	                    <div>
 	                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">{t("aiSupport.inbox.rail.conversations")}</div>
-	                      <div className="mt-0.5 text-xs text-slate-500">{t("aiSupport.inbox.rail.subtitle")}</div>
 	                    </div>
 	                    <div className="flex shrink-0 items-center gap-2">
 	                      <InboxNotificationBell
@@ -10330,7 +10322,6 @@ export default function AiInbox({ reviewerMode = false }) {
                         <div className="mb-1 flex items-center justify-between gap-3">
                           <div>
                             <h3 className="text-sm font-black leading-5">{t("aiSupport.inbox.ui.transcriptTitle")}</h3>
-                            <p className="text-[11px] leading-4.5 text-slate-400">{t("aiSupport.inbox.ui.transcriptHint")}</p>
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>

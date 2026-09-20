@@ -500,9 +500,6 @@ function AnalyticsDashboard() {
             <h1 className="m1-display mt-3 text-[var(--text)]">
               {t("analytics.title")}
             </h1>
-            <p className="mt-4 text-sm leading-7 text-[var(--muted)] xl:text-base">
-              {t("analytics.subtitle")}
-            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -707,7 +704,7 @@ function AnalyticsDashboard() {
       </Suspense>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Panel title={t("analytics.labels.customerTableTitle")} subtitle={t("analytics.sections.customerSubtitle")}>
+        <Panel title={t("analytics.labels.customerTableTitle")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <InfoCard label={t("analytics.kpis.customers")} value={data.customerSummary.totalCustomers || data.summary.customers} />
             <InfoCard label={t("analytics.labels.activeCustomers", "Active customers")} value={data.customerSummary.activeCustomers || 0} />
@@ -749,7 +746,7 @@ function AnalyticsDashboard() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Panel title={t("analytics.labels.aiInsights")} subtitle={t("analytics.labels.aiInsightsSubtitle")}>
+        <Panel title={t("analytics.labels.aiInsights")}>
           <div className="grid gap-4">
             {data.aiInsights.length > 0 ? (
               data.aiInsights.map((item, index) => (
@@ -769,7 +766,7 @@ function AnalyticsDashboard() {
         </Panel>
 
         <div className="grid gap-4">
-          <Panel title={t("analytics.labels.predictedSales")} subtitle={t("analytics.labels.predictedSalesSubtitle")}>
+          <Panel title={t("analytics.labels.predictedSales")}>
             <div className="grid gap-4 sm:grid-cols-2">
               {data.predictedSales.length > 0 ? (
                 data.predictedSales.map((item) => (
@@ -800,7 +797,7 @@ function AnalyticsDashboard() {
             </div>
           </Panel>
 
-          <Panel title={t("analytics.labels.smartAlerts")} subtitle={t("analytics.labels.smartAlertsSubtitle", "Operational notifications that highlight critical anomalies.")}>
+          <Panel title={t("analytics.labels.smartAlerts")}>
             <div className="space-y-3">
               {data.smartAlerts.length > 0 ? (
                 data.smartAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)
@@ -814,7 +811,7 @@ function AnalyticsDashboard() {
         </div>
       </div>
 
-      <Panel title={t("analytics.labels.customerTableTitle")} subtitle={t("analytics.sections.customerSubtitle")}>
+      <Panel title={t("analytics.labels.customerTableTitle")}>
         {data.customerIntelligence.length > 0 ? (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -887,7 +884,7 @@ function AnalyticsDashboard() {
         )}
       </Panel>
 
-      <Panel title={t("analytics.sections.reorder")} subtitle={t("analytics.sections.reorder")}>
+      <Panel title={t("analytics.sections.reorder")}>
         {data.reorderSuggestions.length > 0 ? (
           <div className="overflow-hidden rounded-[26px] border border-[var(--border)] bg-[var(--surface)]">
             <div className="m1-table-container overflow-x-auto">
@@ -933,7 +930,7 @@ function AnalyticsDashboard() {
         )}
       </Panel>
 
-      <Panel title={t("analytics.labels.deadStockTableTitle")} subtitle={t("analytics.sections.deadStockSubtitle")}>
+      <Panel title={t("analytics.labels.deadStockTableTitle")}>
         {data.deadStockAnalysis.length > 0 ? (
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-4">
@@ -999,7 +996,7 @@ function AnalyticsDashboard() {
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <Panel title={t("analytics.labels.deadStockPanelTitle")} subtitle={t("analytics.labels.deadStockPanelSubtitle")}>
+        <Panel title={t("analytics.labels.deadStockPanelTitle")}>
           <div className="grid gap-4 lg:grid-cols-2">
             {data.deadStockItems.length > 0 ? (
               data.deadStockItems.map((item) => (
@@ -1030,7 +1027,7 @@ function AnalyticsDashboard() {
           </div>
         </Panel>
 
-        <Panel title={t("analytics.labels.inventoryRiskTitle")} subtitle="System-wide risk signals for proactive replenishment.">
+        <Panel title={t("analytics.labels.inventoryRiskTitle")}>
           <div className="grid gap-4">
             <RiskCard
               title={t("analytics.kpis.lowStock")}
@@ -1093,13 +1090,12 @@ function AnalyticsLoadingState() {
   );
 }
 
-function Panel({ title, subtitle, children }) {
+function Panel({ title, children }) {
   return (
     <section className="rounded-[34px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.2)]">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="m1-section-title text-[var(--text)]">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{subtitle}</p>
         </div>
       </div>
       <div className="mt-5">{children}</div>

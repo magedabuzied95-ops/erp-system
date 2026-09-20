@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { Bot, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
@@ -197,11 +197,7 @@ export default function AiSupportKnowledgeBase() {
       <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl shadow-[var(--shadow)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
-              <Bot className="h-4 w-4" />
-              {t("aiSupport.knowledgeBase.badge")}
-            </div>
-            <h1 className="m1-page-title mt-4 text-[var(--text)]">{t("aiSupport.knowledgeBase.title")}</h1>
+            <h1 className="m1-page-title text-[var(--text)]">{t("aiSupport.knowledgeBase.title")}</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
               {t("aiSupport.knowledgeBase.subtitle")}
             </p>

@@ -551,9 +551,6 @@ export default function AiSupportConsole() {
                   {t("aiSupport.console.internalOnly")}
                 </div>
                 <h1 className="m1-display mt-4">{t("aiSupport.console.title")}</h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                  {t("aiSupport.console.subtitle")}
-                </p>
               </div>
               <div className="rounded-2xl border border-primary/15 bg-primary/10 px-4 py-3 text-sm font-black text-primary">
                 Tenant: {!authHydrated ? "loading..." : tenantId || "not resolved"}
@@ -832,7 +829,6 @@ export default function AiSupportConsole() {
                   <PackageSearch className="h-4 w-4" />
                   AI support insights
                 </div>
-                <p className="mt-2 text-sm text-slate-400">{t("aiSupport.console.insights.subtitle")}</p>
               </div>
               <button
                 type="button"
@@ -875,7 +871,6 @@ export default function AiSupportConsole() {
                   <MessageSquareText className="h-4 w-4" />
                   Admin review history
                 </div>
-                <p className="mt-2 text-sm text-slate-400">Latest tenant-scoped AI support test conversations for quality and failure review.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select

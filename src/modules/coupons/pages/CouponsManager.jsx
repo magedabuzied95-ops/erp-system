@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Download, FileText, Mail, MessageCircle, Plus, Printer, Search, Sparkles, Tag, TicketPercent, X, Loader2 } from "lucide-react";
+import { ChevronDown, Download, FileText, Mail, MessageCircle, Plus, Printer, Search, Sparkles, Tag, X, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import i18n from "../../../i18n/i18n";
@@ -489,12 +489,7 @@ export default function CouponsManager() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.14),transparent_32%),linear-gradient(180deg,#050816,#09090b)] p-4 text-white md:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-violet-100">
-            <TicketPercent className="h-4 w-4" />
-            {cText("eyebrow", "الكوبونات")}
-          </div>
-          <h1 className="m1-display mt-3">{cText("title", "حملات الكوبونات")}</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-400">{cText("subtitle", "أنشئ أكواد الكوبونات وولّدها وتابعها وصدّرها من داخل النظام.")}</p>
+          <h1 className="m1-display">{cText("title", "حملات الكوبونات")}</h1>
         </div>
         <button type="button" onClick={openCreate} className="inline-flex h-[var(--control-height-lg)] items-center justify-center gap-2 rounded-[var(--radius-control)] bg-violet-400 px-4 text-sm font-black text-black shadow-lg shadow-violet-950/30">
           <Plus className="h-4 w-4" />

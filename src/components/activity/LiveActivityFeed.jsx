@@ -38,9 +38,6 @@ export const LiveActivityFeed = memo(function LiveActivityFeed({ initialEvents =
             {t("dashboard.activity.live")}
             {paused ? <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-amber-200">{t("dashboard.activity.paused")}</span> : null}
           </div>
-          <p className="mt-1 text-xs leading-5 text-zinc-500">
-            {t("dashboard.activity.description")}
-          </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <button

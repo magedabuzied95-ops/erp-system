@@ -211,7 +211,6 @@ function SmartWarehouse() {
   return (
     <InventoryShell
       title={tt("inventory.smartWarehouse.title")}
-      subtitle={tt("inventory.smartWarehouse.subtitle")}
       actions={
         <button
           type="button"

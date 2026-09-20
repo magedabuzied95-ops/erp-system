@@ -130,9 +130,6 @@ function Branches() {
           <h1 className="m1-display text-gray-900 dark:text-white">
             Branches
           </h1>
-          <p className="mt-3 text-lg text-gray-500">
-            Backend-backed branch management for employees, attendance, and operations.
-          </p>
         </div>
         <div className="rounded-2xl bg-emerald-600 px-7 py-5 text-lg font-black text-white shadow-xl">
           {activeBranches.length} Active
@@ -164,9 +161,6 @@ function Branches() {
       <div className="rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-800">
         <div className="mb-8">
           <h2 className="m1-section-title dark:text-white">{t("branches.createTitle")}</h2>
-          <p className="mt-2 text-gray-500">
-            {t("branches.apiHint")}
-          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">

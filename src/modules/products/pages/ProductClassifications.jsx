@@ -232,7 +232,6 @@ function ProductClassifications() {
   return (
     <ProductsShell
       title={t("products.classifications.title")}
-      description={t("products.classifications.description")}
     >
       <div className="grid min-w-0 gap-4">
         <section className="min-w-0 rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-card)] sm:p-5">

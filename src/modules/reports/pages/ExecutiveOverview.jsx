@@ -55,7 +55,7 @@ export default function ExecutiveOverview() {
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-5">
-        <ReportsHeader title={t("overview.title")} subtitle={t("overview.subtitle")}>
+        <ReportsHeader title={t("overview.title")}>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector
               filters={filters}

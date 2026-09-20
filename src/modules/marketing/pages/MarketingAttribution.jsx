@@ -125,7 +125,6 @@ export default function MarketingAttribution() {
                 {t("marketing.analytics.attribution.eyebrow")}
               </div>
               <h1 className="m1-display">{t("marketing.analytics.attribution.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">{t("marketing.analytics.attribution.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -278,7 +277,6 @@ export default function MarketingAttribution() {
           <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
             <div className="mb-4">
               <h2 className="m1-section-title text-[var(--text)]">{t("marketing.analytics.attribution.topPostsBySales")}</h2>
-              <p className="text-sm text-[var(--muted)]">{t("marketing.analytics.attribution.bestPerformers")}</p>
             </div>
             <div className="m1-table-container overflow-x-auto">
               <table className="m1-table m1-table--compact min-w-full">

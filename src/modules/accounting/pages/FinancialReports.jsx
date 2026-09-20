@@ -44,13 +44,13 @@ const defaultFilters = {
 
 const txtForTab = (key, isArabic) => {
   const copy = {
-    dashboard: [isArabic ? "الملخص المالي" : "Financial Dashboard", isArabic ? "نظرة مركزة على الأداء المالي والسيولة والمخزون." : "Focused view of profitability, liquidity, and inventory."],
-    income: [isArabic ? "قائمة الدخل" : "Income Statement", isArabic ? "إيرادات ومردودات ومصاريف وصافي الربح للفترة المحددة." : "Revenue, returns, expenses, and profit for the selected period."],
-    cash: [isArabic ? "الحسابات النقدية والبنكية" : "Cash & Bank Accounts", isArabic ? "حركة الحسابات المالية مع الرصيد الافتتاحي والختامي." : "Account movement with opening and closing balances."],
-    receivables: [isArabic ? "مديونيات العملاء" : "Receivables", isArabic ? "البيع الآجل والتحصيل والعملاء الأعلى مديونية." : "Credit sales, collections, and top debtors."],
-    payables: [isArabic ? "مستحقات الموردين" : "Payables", isArabic ? "المشتريات غير المسددة أو الجزئية وأعلى الموردين." : "Outstanding purchases and top suppliers."],
-    inventory: [isArabic ? "قيمة المخزون و COGS" : "Inventory Value & COGS", isArabic ? "تقييم المخزون وتكلفة البضاعة المباعة وفق البيانات الحالية." : "Inventory valuation and available COGS estimate."],
-    specials: [isArabic ? "الحركات الخاصة" : "Special Transactions", isArabic ? "خصومات ومرتجعات وسلف واستخدام مالك وحركات خاصة." : "Discounts, refunds, advances, owner use, and special items."],
+    dashboard: [isArabic ? "الملخص المالي" : "Financial Dashboard"],
+    income: [isArabic ? "قائمة الدخل" : "Income Statement"],
+    cash: [isArabic ? "الحسابات النقدية والبنكية" : "Cash & Bank Accounts"],
+    receivables: [isArabic ? "مديونيات العملاء" : "Receivables"],
+    payables: [isArabic ? "مستحقات الموردين" : "Payables"],
+    inventory: [isArabic ? "قيمة المخزون و COGS" : "Inventory Value & COGS"],
+    specials: [isArabic ? "الحركات الخاصة" : "Special Transactions"],
   };
   return copy[key];
 };
@@ -67,9 +67,6 @@ function FinancialReports() {
   const [error, setError] = useState("");
 
   const shellTitle = isArabic ? "التقارير المحاسبية" : "Accounting Reports";
-  const shellSubtitle = isArabic
-    ? "لوحة تقارير محاسبية مركزة للمدير تشمل الربحية والسيولة والمخزون والمستحقات."
-    : "Executive accounting reporting across profit, cash, inventory, receivables, and payables.";
 
   const requestParams = useMemo(
     () =>
@@ -140,14 +137,13 @@ function FinancialReports() {
     loadReports();
   }, [requestParams]);
 
-  const [activeTitle, activeDescription] = txtForTab(activeTab, isArabic);
+  const [activeTitle] = txtForTab(activeTab, isArabic);
   const activeTabError = reportErrors[activeTab] || "";
 
   return (
     <div dir={isArabic ? "rtl" : "ltr"}>
       <AccountingShell
         title={shellTitle}
-        subtitle={shellSubtitle}
         actions={
           <>
             <div className="flex items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--muted)]">
@@ -263,7 +259,6 @@ function FinancialReports() {
               {isArabic ? "التبويب الحالي" : "Current report"}
             </div>
             <h2 className="m1-section-title text-[var(--text)]">{activeTitle}</h2>
-            <p className="text-sm text-[var(--muted)]">{activeDescription}</p>
           </div>
 
           {error ? (

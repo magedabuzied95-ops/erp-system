@@ -99,11 +99,6 @@ export default function HRRequestsWorkspace() {
             <h2 className="m1-section-title mt-2 text-[var(--text)]">
               {isArabic ? "طلبات الموظفين من البوابة" : "Employee requests from the portal"}
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              {isArabic
-                ? "اعتمد أو ارفض طلبات الإجازات والسلف وملاحظات الموارد البشرية مع بقاء كل طلب مرتبطاً بالموظف."
-                : "Review vacation requests, advance requests, and HR notes while keeping every request tied to the employee profile."}
-            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="flex min-h-11 items-center gap-2 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] px-3 text-xs font-black text-[var(--muted)]">

@@ -402,14 +402,7 @@ function Reports() {
         <header className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(6,78,59,0.72))] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
-                <BarChart3 className="h-4 w-4" />
-                {isArabic ? "التحليلات والتقارير" : "Analytics & Reports"}
-              </div>
-              <h1 className="m1-display mt-3">{isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"}</h1>
-              <p className="mt-2 max-w-3xl text-sm font-semibold text-zinc-300">
-                {isArabic ? "عرض مركزي لأداء المبيعات والطلبات والمخزون والموظفين والولاء والحسابات والفروع والمخازن." : "Centralized performance intelligence across POS, orders, inventory, attendance, shifts, loyalty, accounting, branches, and warehouses."}
-              </p>
+              <h1 className="m1-display">{isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"}</h1>
             </div>
             <div className="flex flex-wrap gap-2">
               <ActionButton icon={RefreshCw} label={t("reports.center.actions.refresh")} onClick={loadReports} disabled={loading} />

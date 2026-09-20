@@ -426,7 +426,6 @@ function StockMovements() {
   return (
     <InventoryShell
       title={tt("inventory.movements.title")}
-      subtitle={tt("inventory.movements.groupingHintExact")}
       actions={
         <div className="flex flex-wrap gap-2">
           <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text">
@@ -742,7 +741,6 @@ function CurrentStockSummary({ loading, error, rows }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-xs uppercase tracking-[0.18em] text-text-muted">{tt("inventory.movements.balanceSummary")}</div>
-          <div className="mt-1 text-sm text-text-muted">{tt("inventory.movements.balanceSummaryHint")}</div>
         </div>
         {loading ? <Loader2 className="h-4 w-4 animate-spin text-emerald-400" /> : null}
       </div>

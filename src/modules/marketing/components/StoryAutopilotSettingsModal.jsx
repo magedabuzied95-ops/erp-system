@@ -238,9 +238,6 @@ const StoryAutopilotSettingsModal = ({ open, onClose, canUpdate = true, canPubli
             </span>
             <div>
               <h2 className="text-lg font-black">إعدادات النشر التلقائي للاستوري</h2>
-              <p className="text-xs font-semibold text-slate-400">
-                ينشر الاستوريهات المولّدة بتصميماتك المعتمدة في أفضل أوقات التفاعل على فيسبوك.
-              </p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 hover:bg-white/10">

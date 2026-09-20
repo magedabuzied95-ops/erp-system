@@ -140,28 +140,9 @@ export default function BarcodePrintQueue() {
   return (
     <ProductsShell
       title={t("products.barcodePrintQueue.title", "Barcode Print Queue")}
-      description={t(
-        "products.barcodePrintQueue.description",
-        "Prepared thermal label jobs waiting for manual printing."
-      )}
     >
       <div className="rounded-[32px] border border-white/10 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-2">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">
-              {t("products.barcodePrintQueue.eyebrow", "Barcode queue")}
-            </p>
-            <h2 className="m1-section-title text-white">
-              {t("products.barcodePrintQueue.title", "Barcode Print Queue")}
-            </h2>
-            <p className="max-w-2xl text-sm leading-6 text-zinc-400">
-              {t(
-                "products.barcodePrintQueue.description",
-                "Prepared thermal label jobs waiting for manual printing."
-              )}
-            </p>
-          </div>
-
           <label className="inline-flex items-center gap-3 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
             <input
               type="checkbox"

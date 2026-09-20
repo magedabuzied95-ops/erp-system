@@ -322,7 +322,6 @@ function JournalEntries() {
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <h3 className="m1-section-title text-white">{t("accounting.journal.ledgerTitle")}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{t("accounting.journal.ledgerSubtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <FilterChip value={referenceType} onChange={setReferenceType} options={movementTypes()} />

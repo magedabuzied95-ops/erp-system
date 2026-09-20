@@ -522,7 +522,6 @@ export default function SiteStudio() {
     <div className="m1-site">
       <PageHeader
         title={tr("title")}
-        description={tr("subtitle")}
         actions={
           <>
             <Button
@@ -930,7 +929,6 @@ export default function SiteStudio() {
 
               <header className="m1-site__panel-head">
                 <h2>{tr("sectionTitlesTitle")}</h2>
-                <p>{tr("sectionTitlesHint")}</p>
               </header>
               {TITLED_HOME_SECTIONS.map((section) => (
                 <BilingualField

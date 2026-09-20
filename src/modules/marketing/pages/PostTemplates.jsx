@@ -148,12 +148,7 @@ export default function PostTemplates() {
         <section className="rounded-[var(--radius-card)] border border-amber-300/20 bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
-                <LayoutTemplate className="h-3.5 w-3.5" />
-                {t("marketing.templates.eyebrow")}
-              </div>
               <h1 className="m1-display">{t("marketing.templates.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">{t("marketing.templates.subtitle")}</p>
             </div>
             <div className="flex gap-3">
               {canCreate ? (
@@ -173,10 +168,9 @@ export default function PostTemplates() {
         <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)]">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">{t("marketing.templates.library")}</div>
-              <h2 className="m1-section-title mt-2 text-[var(--text)]">{t("marketing.templates.curatedCards")}</h2>
+              <h2 className="m1-section-title text-[var(--text)]">{t("marketing.templates.curatedCards")}</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted)]">
-                Six organized template cards for common marketing flows. These are presentation-only cards and do not change the AI prompt.
+                These are presentation-only cards and do not change the AI prompt.
               </p>
             </div>
             <div className="hidden rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-xs font-semibold text-[var(--muted)] md:block">

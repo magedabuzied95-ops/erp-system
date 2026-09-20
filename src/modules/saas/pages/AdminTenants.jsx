@@ -28,7 +28,6 @@ function AdminTenants() {
   return (
     <SaaSShell
       title={t("access.tenants.title")}
-      subtitle={t("access.tenants.subtitle")}
       actions={
         <Link to="/workspace" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <Building2 className="h-4 w-4" />

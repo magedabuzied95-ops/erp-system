@@ -64,7 +64,6 @@ function ProfitAndLoss() {
   return (
     <AccountingShell
       title={t("accounting.profitLoss.title")}
-      subtitle={t("accounting.profitLoss.subtitle")}
       actions={
         <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
           <Calculator className="h-4 w-4" />

@@ -361,7 +361,6 @@ function SuppliersDashboard() {
   return (
     <FlowShell
       title={t("suppliers.title")}
-      subtitle={t("suppliers.subtitle")}
       actions={
         <>
           <Link to="/purchases/create" className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-black text-black transition hover:bg-emerald-400">
@@ -628,8 +627,7 @@ function SupplierModal({ supplier, form, setForm, error, saving, onClose, onSubm
         <div className="border-b border-white/10 bg-white/[0.03] p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">{t("purchases.tabs.suppliers")}</div>
-              <h2 className="m1-section-title mt-1 text-white">{supplier ? t("purchases.suppliersDashboard.editSupplier") : t("purchases.suppliersDashboard.addSupplier")}</h2>
+              <h2 className="m1-section-title text-white">{supplier ? t("purchases.suppliersDashboard.editSupplier") : t("purchases.suppliersDashboard.addSupplier")}</h2>
             </div>
             <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-white/10 bg-white/5 p-2 text-white">
               <X className="h-5 w-5" />

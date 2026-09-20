@@ -137,7 +137,6 @@ export default function StoryExportControls({ campaign, templateId, currentIndex
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-black text-white">{t("marketing.story.export.title")}</div>
-          <p className="mt-1 text-xs leading-5 text-slate-400">{t("marketing.story.export.description")}</p>
         </div>
         {exporting ? <Loader2 className="h-5 w-5 animate-spin text-primary" /> : null}
       </div>

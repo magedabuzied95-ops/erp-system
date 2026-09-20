@@ -86,7 +86,6 @@ export default function TeamPerformancePanel({ headers, tenantId }) {
       <PanelSection
         icon={BarChart3}
         title={t("aiSupport.controlCenter.performance.title")}
-        subtitle={t("aiSupport.controlCenter.performance.subtitle")}
         action={<ActionButton tone="ghost" loading={loading} onClick={load}>{t("aiSupport.integrations.common.refresh")}</ActionButton>}
       >
         <div className="grid gap-4">

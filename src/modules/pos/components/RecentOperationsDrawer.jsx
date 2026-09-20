@@ -780,7 +780,6 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">POS</div>
               <h2 className="mt-1 text-2xl font-black">{t("pos.recentOps.title")}</h2>
-              <p className="mt-1 text-sm text-zinc-400">{t("pos.recentOps.subtitle")}</p>
             </div>
             <button type="button" onClick={onClose} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300">
               <X className="h-4 w-4" />

@@ -303,9 +303,6 @@ export default function NotificationBell() {
                   <h2 id="notifications-drawer-title" className="m1-section-title mt-3">
                     {t("notifications.bell.title")}
                   </h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-                    {t("notifications.bell.subtitle")}
-                  </p>
                 </div>
                 <button
                   type="button"

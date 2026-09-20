@@ -255,7 +255,6 @@ function ProductForm({
       <section className="rounded-[var(--radius-card)] border border-border bg-surface-soft p-4 sm:p-5 xl:col-span-3 xl:row-start-2">
         <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-primary">{t("products.form.variationMode")}</p>
-            <p className="mt-1 text-sm text-text-muted">{t("products.form.variationHelp")}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -287,7 +286,6 @@ function ProductForm({
         <div className="mb-4 border-b border-border pb-4">
             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">02 · التصنيف الذكي</p>
             <h3 className="m1-section-title mt-1 text-text">{t("products.form.smartPosFilters")}</h3>
-            <p className="mt-1 text-xs leading-5 text-text-muted">{t("products.form.smartPosHelp")}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
@@ -436,9 +434,6 @@ function ProductForm({
         <div className="mb-4">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
             {t("products.form.purchaseSettings", "إعدادات الشراء")}
-          </p>
-          <p className="mt-1 text-sm text-text-muted">
-            {t("products.form.purchaseSettingsHelp", "احفظ افتراضيات الشراء المرتبطة بالكرتونة داخل سجل المنتج.")}
           </p>
         </div>
 
@@ -608,13 +603,6 @@ function ProductForm({
             </div>
           ) : null}
 
-          <div className="rounded-[var(--radius-card)] border border-amber-300/15 bg-surface-soft px-4 py-3 text-sm leading-6 text-amber-50/90">
-            <ul className="space-y-2">
-              <li>{t("products.form.purchaseSettingsBullet1", "إذا تم إيقاف تنبيهات الشراء فلن يظهر المنتج في تنبيهات إعادة الطلب.")}</li>
-              <li>{t("products.form.purchaseSettingsBullet2", "حجم الكرتونة يستخدم لاحقاً في تنبيهات الكرتونة.")}</li>
-              <li>{t("products.form.purchaseSettingsBullet3", "عدد الكراتين المقترح يستخدم كإجراء افتراضي عند إنشاء طلب شراء.")}</li>
-            </ul>
-          </div>
         </div>
       </section>
     </div>

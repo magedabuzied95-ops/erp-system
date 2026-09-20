@@ -34,11 +34,6 @@ export default function AccountingAnalytics() {
     <div dir={isArabic ? "rtl" : "ltr"}>
       <AccountingShell
         title={isArabic ? "التحليلات المحاسبية المتقدمة" : "Advanced accounting analytics"}
-        subtitle={
-          isArabic
-            ? "لوحات تفاعلية للربحية والسيولة والمخزون والمديونيات، مع عزل بيانات كل شركة تلقائيًا."
-            : "Interactive profitability, liquidity, inventory, and aging dashboards with automatic tenant isolation."
-        }
         actions={
           <button
             type="button"

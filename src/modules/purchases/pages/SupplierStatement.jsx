@@ -112,8 +112,7 @@ function SupplierStatement() {
           <div dir={i18n.dir()} className="rounded-2xl border border-white/10 bg-zinc-950/90 px-4 py-3 shadow-lg shadow-black/10">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 text-start">
-                <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">{t("purchases.statement.title")}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-300">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-300">
                   <span className="font-black text-white">{supplier.name || "-"}</span>
                   <span className="text-zinc-500">|</span>
                   <span className="font-mono text-emerald-300">{supplier.supplier_code || "-"}</span>

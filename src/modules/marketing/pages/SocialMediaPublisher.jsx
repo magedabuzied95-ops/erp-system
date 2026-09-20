@@ -1814,12 +1814,11 @@ export default function SocialMediaPublisher() {
     toast.success(t("marketing.socialPublisher.toasts.postRemoved"));
   };
 
-  const renderPreviewCard = (platformName, accentClass, platformHint) => (
+  const renderPreviewCard = (platformName, accentClass) => (
     <article className={`min-h-[680px] rounded-[2rem] border ${accentClass} bg-slate-950/70 p-5 shadow-xl shadow-black/20`}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-base font-black text-white">{platformName}</div>
-          <div className="text-xs text-slate-400">{platformHint}</div>
         </div>
         <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
           Preview
@@ -1875,9 +1874,7 @@ export default function SocialMediaPublisher() {
     <div className="min-h-screen w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
       <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 pb-32 pt-5 md:px-6 md:pb-10 lg:px-7 lg:pb-12">
         <MarketingStudioHeader
-          eyebrow={t("marketing.socialPublisher.header.eyebrow")}
           title={t("marketing.socialPublisher.header.title")}
-          description={t("marketing.socialPublisher.header.description")}
         />
 
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
@@ -1890,7 +1887,6 @@ export default function SocialMediaPublisher() {
               </div>
               <div className="min-w-0">
                 <h2 className="m1-section-title">{t("marketing.socialPublisher.uploadTitle")}</h2>
-                <p className="text-sm text-slate-400">{t("marketing.socialPublisher.uploadHint")}</p>
               </div>
             </div>
 
@@ -1902,7 +1898,6 @@ export default function SocialMediaPublisher() {
                   </div>
                   <div>
                     <div className="text-sm font-black text-white">{t("marketing.socialPublisher.createFrom.title")}</div>
-                    <div className="text-xs text-slate-400">{t("marketing.socialPublisher.createFrom.hint")}</div>
                   </div>
                 </div>
 
@@ -1979,10 +1974,6 @@ export default function SocialMediaPublisher() {
                           {selectedCatalogProductDiscount ? <span className={`${sharedBadgeClass} border-emerald-300/20 bg-emerald-300/15 text-emerald-100`}>{selectedCatalogProductDiscount}</span> : null}
                         </div>
                         <div className="grid gap-2 text-xs text-emerald-100/85 sm:grid-cols-2 xl:grid-cols-3">
-                          <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
-                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.productName")}</div>
-                            <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{selectedCatalogProduct.name || t("marketing.socialPublisher.catalog.selectedProduct")}</div>
-                          </div>
                           <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.03] px-3 py-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">{t("marketing.socialPublisher.catalog.currentPrice")}</div>
                             <div className="mt-1 text-sm font-semibold text-white">
@@ -2581,7 +2572,6 @@ export default function SocialMediaPublisher() {
                 <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
                   <div className="min-w-0">
                     <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">{t("marketing.socialPublisher.preview")}</div>
-                    <div className="text-xs text-slate-400">{t("marketing.socialPublisher.previewSubtitle")}</div>
                   </div>
                   <button
                     type="button"
@@ -2630,13 +2620,11 @@ export default function SocialMediaPublisher() {
                       <div className="grid gap-4 md:grid-cols-2">
                         {renderPreviewCard(
                           t("marketing.socialPublisher.facebookPreview"),
-                          "border-[#1877F2]/20",
-                          t("marketing.socialPublisher.facebookPreviewHint")
+                          "border-[#1877F2]/20"
                         )}
                         {renderPreviewCard(
                           t("marketing.socialPublisher.instagramPreview"),
-                          "border-fuchsia-400/20",
-                          t("marketing.socialPublisher.instagramPreviewHint")
+                          "border-fuchsia-400/20"
                         )}
                       </div>
                     </div>

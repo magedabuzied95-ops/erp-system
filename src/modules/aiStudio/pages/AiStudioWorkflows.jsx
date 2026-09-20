@@ -127,7 +127,6 @@ export default function AiStudioWorkflows() {
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-primary"><Workflow className="h-4 w-4" />{t("aiStudio.pages.eyebrow")}</div>
             <h1 className="m1-page-title mt-1">{t("aiStudio.pages.workflows.title")}</h1>
-            <p className="mt-1 text-sm text-slate-400">{t("aiStudio.pages.workflows.subtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={doNewTemplate} disabled={busy === "tpl"} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black hover:border-white/20 disabled:opacity-50">

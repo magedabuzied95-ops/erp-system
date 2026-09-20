@@ -169,7 +169,6 @@ const SECTION_LABEL_KEYS = {
 const labels = {
   en: {
     title: "Attendance Center",
-    subtitle: "Live attendance, QR and GPS check-ins, absences, late arrivals, missing hours, and branch monitoring.",
     filters: "Filters",
     search: "Search employee",
     branch: "Branch",
@@ -255,7 +254,6 @@ const labels = {
   },
   ar: {
     title: "مركز الحضور",
-    subtitle: "حضور QR والغياب وساعات النقص وتأثير الرواتب والإجازات وتحليل الفروع.",
     filters: "الفلاتر",
     search: "بحث عن موظف",
     branch: "الفرع",
@@ -603,7 +601,6 @@ export default function AttendanceCenter() {
   const text = isArabic ? labels.ar : labels.en;
   const sectionLabel = (key) => (SECTION_LABEL_KEYS[key] ? t(SECTION_LABEL_KEYS[key]) : key);
   const pageTitle = t("common.attendanceCenterPage.title", { defaultValue: text.title });
-  const pageSubtitle = t("common.attendanceCenterPage.subtitle", { defaultValue: text.subtitle });
   const [activeTab, setActiveTab] = useState("overview");
   const [dense, setDense] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -904,7 +901,6 @@ export default function AttendanceCenter() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h2 className="m1-section-title text-[var(--text)]">{pageTitle}</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-6 text-[var(--muted)]">{pageSubtitle}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => openManualAttendance()} className="inline-flex h-[var(--control-height-md)] items-center gap-2 rounded-[var(--radius-control)] border border-emerald-500/30 bg-emerald-500/15 px-3 text-sm font-black text-emerald-300">

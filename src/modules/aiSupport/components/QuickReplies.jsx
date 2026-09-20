@@ -331,7 +331,7 @@ export function QuickRepliesConfig({ open, onClose, light: lightOverride, ...pan
         <header className={`flex items-center justify-between gap-3 border-b px-4 py-4 md:px-5 ${light ? "border-[#ded4bd] bg-[#f5efe2]" : "border-white/10 bg-[#171917]"}`}>
           <div className="flex items-center gap-3">
             <span className={`grid h-11 w-11 place-items-center rounded-2xl ${light ? "bg-[#fff8e7] text-[#a87400] ring-1 ring-[#e6d4a6]" : "bg-amber-400/10 text-amber-200"}`}><Settings className="h-5 w-5" /></span>
-            <div><div className="text-lg font-black">{t("aiSupport.quickReplies.config")}</div><div className={`text-xs ${light ? "text-[#756c5b]" : "text-slate-400"}`}>{t("aiSupport.quickReplies.subtitle")}</div></div>
+            <div><div className="text-lg font-black">{t("aiSupport.quickReplies.config")}</div></div>
           </div>
           <button type="button" onClick={onClose} className={`grid h-10 w-10 place-items-center rounded-xl transition ${light ? "bg-white text-[#625b4d] ring-1 ring-[#e3dbc9] hover:bg-[#f5efe2]" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"}`}><X className="h-5 w-5" /></button>
         </header>

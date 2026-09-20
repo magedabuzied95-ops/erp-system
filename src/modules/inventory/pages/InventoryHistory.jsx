@@ -129,7 +129,6 @@ function InventoryHistory() {
   return (
     <InventoryShell
       title={tt("inventory.history.title")}
-      subtitle={tt("inventory.history.pageSubtitle")}
       actions={
         <>
           <Link

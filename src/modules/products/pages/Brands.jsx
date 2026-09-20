@@ -196,15 +196,13 @@ function Brands() {
   return (
     <ProductsShell
       title={t("products.brands.title")}
-      description={t("products.brands.description")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
           <div className="flex items-center gap-3">
             <BadgeCheck className="text-primary" />
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-zinc-500">{t("products.brands.editor")}</p>
-              <h2 className="m1-section-title mt-1 text-white">{editingId ? t("products.brands.editBrand") : t("products.brands.addBrand")}</h2>
+              <h2 className="m1-section-title text-white">{editingId ? t("products.brands.editBrand") : t("products.brands.addBrand")}</h2>
             </div>
           </div>
 
@@ -307,7 +305,6 @@ function Brands() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title text-white">{t("products.brands.registry")}</h2>
-              <p className="mt-1 text-sm text-zinc-500">{t("products.brands.registryDescription")}</p>
             </div>
             <div className="rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm font-semibold text-zinc-300">
               {loading ? t("common.loading") : t("products.brands.count", { count: items.length })}

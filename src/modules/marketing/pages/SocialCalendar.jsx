@@ -209,10 +209,7 @@ export default function SocialCalendar() {
                 <CalendarDays className="h-3.5 w-3.5" />
                 {t("marketing.socialCalendar.eyebrow")}
               </div>
-              <div className="space-y-2">
-                <h1 className="m1-display">{t("marketing.socialCalendar.title")}</h1>
-                <p className="max-w-3xl text-sm leading-6 text-slate-300 md:text-base">{t("marketing.socialCalendar.subtitle")}</p>
-              </div>
+              <h1 className="m1-display">{t("marketing.socialCalendar.title")}</h1>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatChip label={t("marketing.socialCalendar.summary.month")} value={monthLabel} />
@@ -228,7 +225,6 @@ export default function SocialCalendar() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.month.title")}</h2>
-                <p className="text-sm text-slate-400">{t("marketing.socialCalendar.month.subtitle")}</p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
                 <Clock3 className="h-3.5 w-3.5 text-primary" />
@@ -284,7 +280,6 @@ export default function SocialCalendar() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.week.title")}</h2>
-                <p className="text-sm text-slate-400">{t("marketing.socialCalendar.week.subtitle")}</p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
                 <LayoutGrid className="h-3.5 w-3.5 text-amber-200" />
@@ -345,7 +340,6 @@ export default function SocialCalendar() {
           <div className="mb-5 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.draft.title")}</h2>
-              <p className="text-sm text-slate-400">{t("marketing.socialCalendar.draft.subtitle")}</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-100">
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -378,7 +372,6 @@ export default function SocialCalendar() {
               <div className="mt-4 space-y-3">
                 <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-sm font-black text-white">{t("marketing.socialCalendar.draft.canvas.title")}</div>
-                  <div className="mt-1 text-sm text-slate-400">{t("marketing.socialCalendar.draft.canvas.subtitle")}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-3xl border border-white/10 bg-primary/10 p-4">
@@ -416,7 +409,6 @@ export default function SocialCalendar() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5">
             <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.cards.title")}</h2>
-            <p className="text-sm text-slate-400">{t("marketing.socialCalendar.cards.subtitle")}</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {cards.map((card) => (
@@ -429,7 +421,6 @@ export default function SocialCalendar() {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.scheduled.title")}</h2>
-              <p className="text-sm text-slate-400">{t("marketing.socialCalendar.scheduled.subtitle")}</p>
             </div>
             <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
               {scheduledPosts.length} {t("marketing.socialCalendar.scheduled.countSuffix")}
@@ -465,7 +456,6 @@ export default function SocialCalendar() {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("marketing.socialCalendar.history.title")}</h2>
-              <p className="text-sm text-slate-400">{t("marketing.socialCalendar.history.subtitle")}</p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs font-semibold text-slate-300">
               <History className="h-3.5 w-3.5 text-amber-200" />

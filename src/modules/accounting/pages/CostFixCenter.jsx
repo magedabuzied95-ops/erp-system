@@ -235,7 +235,6 @@ function CostFixCenter() {
         <div className="flex flex-col gap-3 border-b border-white/10 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="m1-section-title text-white">{t("accounting.costFix.catalogTitle")}</h2>
-            <p className="mt-1 text-sm text-zinc-400">{t("accounting.costFix.catalogSubtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={applySuggestedCosts} disabled={!catalogRows.length || Boolean(savingKey)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-black text-primary transition hover:bg-primary/20 disabled:opacity-60">

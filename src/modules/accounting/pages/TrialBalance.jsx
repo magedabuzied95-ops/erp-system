@@ -82,7 +82,6 @@ function TrialBalance() {
   return (
     <AccountingShell
       title={tt("accounting.reports.tabs.trialBalance")}
-      subtitle={tt("accounting.trialBalance.subtitle")}
       actions={
         <>
           <button

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Megaphone, Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
@@ -105,12 +105,7 @@ export default function Campaigns() {
         <section className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-                <Megaphone className="h-3.5 w-3.5" />
-                {t("marketing.campaigns.eyebrow")}
-              </div>
               <h1 className="m1-display">{t("marketing.campaigns.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-[var(--muted)]">{t("marketing.campaigns.subtitle")}</p>
             </div>
             <div className="flex gap-3">
               {canCreate ? (

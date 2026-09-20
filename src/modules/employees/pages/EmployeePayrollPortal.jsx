@@ -4096,7 +4096,11 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {showHomeTabSections ? (
-              <section className="rounded-[28px] border border-border bg-surface p-4 text-text shadow-[var(--shadow-card)]">
+              // Title, filters and counts are one card; the opportunity cards are
+              // its siblings at the page inset. They used to live inside this
+              // panel's p-4, which cost each card ~16px a side on a phone.
+              <section className="grid gap-3 text-text">
+                <div className="rounded-[28px] border border-border bg-surface p-4 shadow-[var(--shadow-card)]">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <h2 className="m1-section-title">{text.salesOpportunitiesTitle}</h2>
@@ -4144,9 +4148,10 @@ export default function EmployeePayrollPortal() {
                     </span>
                   </div>
                 ) : null}
+                </div>
 
                 {salesBoardLoading && !salesBoard.items.length ? (
-                  <div className="mt-4 grid gap-2">
+                  <div className="grid gap-2">
                     {Array.from({ length: 2 }).map((_, index) => (
                       <div key={index} className="flex flex-row-reverse gap-3 rounded-[22px] border border-border bg-surface-soft p-3">
                         <div className="h-20 w-20 rounded-2xl bg-surface-soft" />
@@ -4160,7 +4165,7 @@ export default function EmployeePayrollPortal() {
                     ))}
                   </div>
                 ) : salesBoardError ? (
-                  <div className="mt-4 rounded-[22px] border border-border bg-warning-subtle p-3 text-sm font-bold leading-6 text-text">
+                  <div className="rounded-[22px] border border-border bg-warning-subtle p-3 text-sm font-bold leading-6 text-text">
                     <div>{salesBoardError}</div>
                     <button
                       type="button"
@@ -4172,7 +4177,7 @@ export default function EmployeePayrollPortal() {
                     </button>
                   </div>
                 ) : salesBoard.items.length ? (
-                  <div className={`mt-4 grid gap-2 transition-opacity ${salesBoardLoading ? "opacity-60" : "opacity-100"}`}>
+                  <div className={`grid gap-2 transition-opacity ${salesBoardLoading ? "opacity-60" : "opacity-100"}`}>
                     {salesBoard.items.map((card) => (
                       <article
                         key={card.key}
@@ -4272,7 +4277,7 @@ export default function EmployeePayrollPortal() {
                     ) : null}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-[22px] border border-border bg-surface-soft px-4 py-3 text-sm font-bold leading-6 text-text-muted">
+                  <div className="rounded-[22px] border border-border bg-surface-soft px-4 py-3 text-sm font-bold leading-6 text-text-muted">
                     <div>{salesBoardFiltersActive ? text.salesBoardEmpty : "لا توجد فرص بيع حالياً"}</div>
                     {salesBoardFiltersActive ? (
                       <button
@@ -4417,8 +4422,11 @@ export default function EmployeePayrollPortal() {
             ) : null}
 
             {activeTab === "display-refill" ? (
-              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-3.5 shadow-sm">
-                <div className="flex items-center justify-between gap-3">
+              // The header is the card; the alerts are its siblings. Wrapping the
+              // whole list in a padded panel cost every row ~15px of a phone's
+              // width on each side — a card inside a card inside the page inset.
+              <div className="grid gap-3">
+                <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-3.5 shadow-sm">
                   <div className="min-w-0">
                     <h3 className="m1-section-title text-text">{text.displayRefillTitle}</h3>
                     <p className="mt-1 text-xs font-bold text-text-muted">{text.displayRefillSubtitle}</p>
@@ -4427,7 +4435,7 @@ export default function EmployeePayrollPortal() {
                     {displayRefillLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   </button>
                 </div>
-                <div className="mt-3 grid gap-3">
+                <div className="grid gap-3">
                   <section className="grid gap-2">
                     <div className="flex items-center justify-between gap-3">
                       <h4 className="text-sm font-black text-text">{text.displayRefillPending}</h4>
@@ -4845,12 +4853,12 @@ export default function EmployeePayrollPortal() {
               </>
             ) : null}
 
-            {activeTab === "attendance" ? <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
+            {activeTab === "attendance" ? <div className="grid gap-3">
+              <div className="flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
                 <h3 className="m1-section-title">{text.attendanceTimeline}</h3>
                 <CalendarDays className="h-5 w-5 text-text-muted" />
               </div>
-              <div className="mt-3 grid gap-2">
+              <div className="grid gap-2">
                 {attendanceRows.length ? attendanceRows.map((row) => (
                   <div key={`${row.date}-${row.check_in || ""}`} className="rounded-2xl border border-border bg-surface-soft p-3 text-sm font-bold">
                     <div className="flex items-center justify-between gap-3">
@@ -4873,7 +4881,9 @@ export default function EmployeePayrollPortal() {
             </div> : null}
 
             {activeTab === "tasks" ? (
-              <div className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+              // Heading and list at the page inset, not inside a padded panel —
+              // see the display-refill note above.
+              <div className="grid gap-3">
                 <h3 className="m1-section-title">{text.tasks}</h3>
                 {!tasks.length ? (
                   <div className="mt-3 rounded-3xl border border-border bg-success-subtle px-4 py-6 text-center">
@@ -4884,7 +4894,7 @@ export default function EmployeePayrollPortal() {
                     <div className="mt-1 text-sm font-bold text-success">{ui("noTasksSubtitle")}</div>
                   </div>
                 ) : null}
-                <div className="mt-3 grid gap-4">
+                <div className="grid gap-4">
                   {[
                     [ui("pendingTasksTitle"), pendingTasks],
                     [ui("inProgressTasks"), inProgressTasks],
@@ -4960,7 +4970,8 @@ export default function EmployeePayrollPortal() {
               </div>
             ) : null}
 
-            {activeTab === "requests" ? <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
+            {activeTab === "requests" ? <div className="grid gap-3">
+              <form onSubmit={submitRequest} className="rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-sm">
               <h3 className="m1-section-title">{text.requests}</h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 {[
@@ -5019,8 +5030,11 @@ export default function EmployeePayrollPortal() {
                 {text.sendRequest}
               </button>
               {portalNotice ? <div className="mt-3 rounded-2xl bg-surface-soft px-3 py-2 text-sm font-bold leading-6 text-text" dir="auto">{portalNotice}</div> : null}
-              <h4 className="mt-4 text-sm font-black text-text">{text.requestHistory}</h4>
-                <div className="mt-3 grid gap-2">
+              </form>
+              {/* The history is a sibling of the form, not a list nested inside
+                  its padding — same reason as the other portal lists. */}
+              <h4 className="text-sm font-black text-text">{text.requestHistory}</h4>
+                <div className="grid gap-2">
                   {visibleRequests.length ? visibleRequests.map((item) => (
                     <div key={item.id} className="rounded-2xl border border-border bg-surface-soft p-3 text-sm font-bold">
                       <div className="flex items-center justify-between gap-3">
@@ -5050,7 +5064,7 @@ export default function EmployeePayrollPortal() {
                     </button>
                   ) : null}
                 </div>
-            </form> : null}
+            </div> : null}
 
           </section>
         )}

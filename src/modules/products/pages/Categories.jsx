@@ -119,7 +119,6 @@ function Categories() {
   return (
     <ProductsShell
       title={t("products.categories.title")}
-      description={t("products.categories.description")}
     >
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">

@@ -2776,9 +2776,6 @@ export default function ManagerPortal() {
                       <h2 id="manager-notifications-title" className="m1-section-title mt-3 text-white">
                         {tt("managerPortal.notifications.title")}
                       </h2>
-                      <p className="mt-1 text-sm leading-6 text-slate-300">
-                        {tt("managerPortal.notifications.subtitle")}
-                      </p>
                     </div>
                     <button
                       type="button"
@@ -2956,7 +2953,6 @@ export default function ManagerPortal() {
               <section>
                 <Card
                   title={tt("managerPortal.dayAccounts.title")}
-                  subtitle={tt("managerPortal.dayAccounts.subtitle")}
                   icon={Store}
                   compact
                   bodyClassName="space-y-3"
@@ -3328,7 +3324,7 @@ export default function ManagerPortal() {
                 </section>
               ) : null}
 
-              <Card title={tt("managerPortal.sections.paymentBreakdown")} subtitle={tt("managerPortal.sections.paymentBreakdown")} icon={ArrowLeftRight}>
+              <Card title={tt("managerPortal.sections.paymentBreakdown")} icon={ArrowLeftRight}>
                 {paymentBreakdown.length ? (
                   <div className="space-y-2">
                     {paymentBreakdown.map((row) => (
@@ -3344,7 +3340,7 @@ export default function ManagerPortal() {
               </Card>
 
               {false && mobileAlertBuckets.aiInsights.length ? (
-                <Card title={tt("managerPortal.sections.aiInsights")} subtitle={tt("managerPortal.sections.smartAnalytics")} icon={Bot}>
+                <Card title={tt("managerPortal.sections.aiInsights")} icon={Bot}>
                   <div className="grid gap-2 md:grid-cols-2">
                     {mobileAlertBuckets.aiInsights.map((item, index) => (
                       <div key={`${item.title || item.body || index}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 text-sm font-semibold leading-6 text-slate-800">
@@ -3607,7 +3603,7 @@ export default function ManagerPortal() {
                   </Card>
                 )
               )) : (
-                <EmptyState title={tt("managerPortal.team.empty")} body={tt("managerPortal.team.emptyHint")} />
+                <EmptyState title={tt("managerPortal.team.empty")} />
               )}
             </div>
           ) : null}
@@ -3616,8 +3612,7 @@ export default function ManagerPortal() {
             <div className="manager-portal-tab manager-portal-tab--tasks space-y-4">
               <div className="manager-portal-card flex items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border bg-surface p-4 shadow-[var(--shadow-card)]" data-tone="gold">
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-black leading-5 tracking-normal text-text-muted">{tt("managerPortal.chrome.createTask")}</div>
-                  <h2 className="m1-section-title mt-1 text-text">{tt("managerPortal.tasks.create")}</h2>
+                  <h2 className="m1-section-title text-text">{tt("managerPortal.tasks.create")}</h2>
                 </div>
                 <button
                   type="button"
@@ -3786,9 +3781,7 @@ export default function ManagerPortal() {
                 <div className="manager-portal-mobile-sales-hero rounded-[1.6rem] border border-slate-800 bg-[#08111f] p-4 shadow-[0_18px_32px_rgba(2,6,23,0.16)]">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">{tt("managerPortal.sales.summary")}</div>
-                      <div className="mt-1 text-lg font-black text-white">{tt("managerPortal.sales.summary")}</div>
-                      <div className="mt-1 text-sm font-semibold leading-6 text-slate-300">{tt("managerPortal.sales.summaryHint")}</div>
+                      <div className="text-lg font-black text-white">{tt("managerPortal.sales.summary")}</div>
                     </div>
                     <div className={`shrink-0 rounded-2xl border px-3 py-2 text-left ${salesGrowthPercent >= 0 ? "border-emerald-400/20 bg-emerald-400/10" : "border-rose-400/20 bg-rose-400/10"}`}>
                       <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">{tt("managerPortal.sales.growth")}</div>
@@ -3954,7 +3947,7 @@ export default function ManagerPortal() {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                <Card title={tt("managerPortal.sales.yesterdayVsToday")} subtitle={tt("managerPortal.sales.dailyComparison")} icon={ArrowUpRight}>
+                <Card title={tt("managerPortal.sales.yesterdayVsToday")} icon={ArrowUpRight}>
                   <div className="grid gap-3 sm:grid-cols-3">
                     {[
                       {
@@ -3994,7 +3987,7 @@ export default function ManagerPortal() {
                   </div>
                 </Card>
 
-                <Card title={tt("managerPortal.sales.averageInvoice")} subtitle={tt("managerPortal.sales.invoiceValue")} icon={ClipboardList}>
+                <Card title={tt("managerPortal.sales.averageInvoice")} icon={ClipboardList}>
                   <div className="space-y-3">
                     <div className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-4 py-4 text-slate-900 shadow-sm">
                       <div className="text-xs font-black text-slate-500">{tt("managerPortal.common.today")}</div>
@@ -4092,7 +4085,7 @@ export default function ManagerPortal() {
                 )}
               </Card>
 
-              <Card title={tt("managerPortal.conversions.topProducts")} subtitle={tt("managerPortal.conversions.topProducts")} icon={Package}>
+              <Card title={tt("managerPortal.conversions.topProducts")} icon={Package}>
                 {topProducts.length ? topProducts.map((item) => (
                   <div key={item.name} className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700">
                     <span><InlineName>{portalText(item.name)}</InlineName></span>
@@ -4100,7 +4093,7 @@ export default function ManagerPortal() {
                   </div>
                 )) : <EmptyState title={tt("managerPortal.sales.noSoldProducts")} body={tt("managerPortal.sales.noSoldProductsHint")} />}
               </Card>
-              <Card title={tt("managerPortal.conversions.hourlyTrend")} subtitle={tt("managerPortal.conversions.hourlyTrend")} icon={Clock3}>
+              <Card title={tt("managerPortal.conversions.hourlyTrend")} icon={Clock3}>
                 {Array.isArray(sales?.hourly) && sales.hourly.length ? (
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-6">
                     {sales.hourly.map((item) => (
@@ -4111,7 +4104,7 @@ export default function ManagerPortal() {
                     ))}
                   </div>
                 ) : (
-                  <EmptyState title={tt("managerPortal.sales.noHourlyData")} body={tt("managerPortal.sales.noHourlyDataHint")} />
+                  <EmptyState title={tt("managerPortal.sales.noHourlyData")} />
                 )}
               </Card>
             </div>
@@ -4239,7 +4232,7 @@ export default function ManagerPortal() {
               </section>
 
               {/* Portal-only language — independent from the ERP system language. */}
-              <Card title={tt("managerPortal.settings.language")} subtitle={tt("managerPortal.settings.languageSubtitle")} icon={Languages} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="gold">
+              <Card title={tt("managerPortal.settings.language")} icon={Languages} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="gold">
                 <div role="radiogroup" aria-label={tt("managerPortal.settings.language")} className="manager-portal-language-switch grid grid-cols-2 gap-1 rounded-[var(--radius-control)] border border-border bg-surface-soft p-1">
                   {[
                     { code: "ar", label: "العربية", hint: "Arabic" },
@@ -4292,7 +4285,7 @@ export default function ManagerPortal() {
               </Card>
 
               {/* Key colour (accent). Persists per browser via the theme store. */}
-              <Card title={tt("managerPortal.settings.keyColor")} subtitle={tt("managerPortal.settings.keyColorHint")} icon={Palette} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
+              <Card title={tt("managerPortal.settings.keyColor")} icon={Palette} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="manager-portal-accent-grid flex flex-wrap gap-2">
                   {accents.map((accent) => {
                     const active = accent.id === accentId;
@@ -4321,7 +4314,7 @@ export default function ManagerPortal() {
 
               {/* Branch + account details as definition lists. */}
               <div className="grid gap-4 xl:grid-cols-2">
-                <Card title={tt("managerPortal.settings.branchData")} subtitle={tt("managerPortal.settings.branchInfo")} icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
+                <Card title={tt("managerPortal.settings.branchData")} icon={Store} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                   <dl className="manager-portal-more-list divide-y divide-border text-sm font-semibold">
                     {[
                       [tt("managerPortal.settings.branch"), portalText(me?.branch_name || tt("managerPortal.settings.allBranches"))],
@@ -4335,7 +4328,7 @@ export default function ManagerPortal() {
                     ))}
                   </dl>
                 </Card>
-                <Card title={tt("managerPortal.settings.profile")} subtitle={tt("managerPortal.settings.managerProfile")} icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="green">
+                <Card title={tt("managerPortal.settings.profile")} icon={Building2} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="green">
                   <dl className="manager-portal-more-list divide-y divide-border text-sm font-semibold">
                     {[
                       [tt("managerPortal.settings.role"), portalText(me?.role || "manager")],
@@ -4630,7 +4623,7 @@ export default function ManagerPortal() {
                 <Settings className="h-4 w-4" />
                 {tt("managerPortal.settings.back")}
               </button>
-              <Card title={tt("managerPortal.alerts.settings")} subtitle={tt("managerPortal.settings.notifications")} icon={Bell}>
+              <Card title={tt("managerPortal.alerts.settings")} icon={Bell}>
                 <div className="grid gap-3 md:grid-cols-2">
                   {Object.entries(settings).map(([category, config]) => (
                     <div key={category} className="space-y-2 rounded-[var(--radius-card)] border border-slate-200 bg-white p-3 shadow-sm">
@@ -4658,7 +4651,7 @@ export default function ManagerPortal() {
                 </div>
               </Card>
 
-              <Card title={tt("managerPortal.push.title")} subtitle={tt("managerPortal.push.subtitle")} icon={Smartphone}>
+              <Card title={tt("managerPortal.push.title")} icon={Smartphone}>
                 <div className="space-y-3">
                   <div className="grid gap-2 sm:grid-cols-2">
                     <Badge className={`${pushState.supported ? "border-emerald-200 text-emerald-700" : "border-rose-200 text-rose-700"} dark:border-white/10 dark:bg-white/[0.03] dark:text-white`}>
@@ -4700,7 +4693,7 @@ export default function ManagerPortal() {
                 </div>
               </Card>
 
-              <Card title={tt("managerPortal.chat.quickSummary")} subtitle={tt("managerPortal.chat.quickSummary")} icon={Megaphone}>
+              <Card title={tt("managerPortal.chat.quickSummary")} icon={Megaphone}>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm">
                     <div className="text-xs font-black text-slate-300">{tt("managerPortal.notifications.unreadCount")}</div>
@@ -4718,7 +4711,7 @@ export default function ManagerPortal() {
 
         <aside className="hidden space-y-3 lg:block">
           {visibleAiInsights.length ? (
-            <Card title={tt("managerPortal.alerts.smart")} subtitle={tt("managerPortal.alerts.smart")} icon={Bot} compact bodyClassName="space-y-2">
+            <Card title={tt("managerPortal.alerts.smart")} icon={Bot} compact bodyClassName="space-y-2">
               <div className="space-y-1.5">
                 {visibleAiInsights.map((insight, index) => {
                   const importance = insightActionabilityScore(insight);
@@ -4751,7 +4744,7 @@ export default function ManagerPortal() {
           ) : null}
 
           {visibleLeads.length ? (
-            <Card title={tt("managerPortal.sections.hotLeads")} subtitle={tt("managerPortal.sections.hotLeads")} icon={Store} compact bodyClassName="space-y-2">
+            <Card title={tt("managerPortal.sections.hotLeads")} icon={Store} compact bodyClassName="space-y-2">
               <div className="space-y-1.5">
                 {visibleLeads.map((lead) => {
                   const product = leadPrimaryProduct(lead);
@@ -4792,7 +4785,7 @@ export default function ManagerPortal() {
           ) : null}
 
           {visibleLowStock.length ? (
-            <Card title={tt("managerPortal.sections.lowStock")} subtitle={tt("managerPortal.sections.lowStock")} icon={Package} compact bodyClassName="space-y-2">
+            <Card title={tt("managerPortal.sections.lowStock")} icon={Package} compact bodyClassName="space-y-2">
               <div className="space-y-1.5">
                 {visibleLowStock.map((item) => (
                   <div key={`${item.id}-${item.name}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
@@ -4851,8 +4844,7 @@ export default function ManagerPortal() {
           <section className="manager-task-modal relative max-h-[92dvh] w-full max-w-2xl overflow-hidden rounded-t-[2rem] border border-border bg-surface shadow-2xl sm:rounded-[2rem]" dir={portalLanguage === "ar" ? "rtl" : "ltr"}>
             <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-4">
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-black leading-5 text-text-muted">{tt("managerPortal.chrome.createTask")}</div>
-                <h2 className="m1-section-title mt-1 text-text">{editingTaskId || editingTemplateId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.tasks.create")}</h2>
+                <h2 className="m1-section-title text-text">{editingTaskId || editingTemplateId ? tt("managerPortal.tasks.saveChanges") : tt("managerPortal.tasks.create")}</h2>
               </div>
               <button type="button" aria-label={tt("managerPortal.tasks.cancelEdit")} onClick={resetTaskDraft} className="inline-flex h-[var(--control-height-md)] w-10 items-center justify-center rounded-[var(--radius-control)] border border-border bg-surface-soft text-text">
                 <X className="h-5 w-5" />
@@ -5056,7 +5048,7 @@ export default function ManagerPortal() {
                     ))}
                   </div>
 
-                  <Card title={tt("managerPortal.invoice.payment")} subtitle={tt("managerPortal.invoice.paymentMethodSplit")} icon={ArrowLeftRight} compact>
+                  <Card title={tt("managerPortal.invoice.payment")} icon={ArrowLeftRight} compact>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 shadow-sm">
                         <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{paymentMethodLabel(invoiceSheet.invoice.payment_method)}</span>
@@ -5085,7 +5077,7 @@ export default function ManagerPortal() {
                     </div>
                   </Card>
 
-                  <Card title={tt("managerPortal.common.products")} subtitle={tt("managerPortal.invoice.productList")} icon={Package} compact>
+                  <Card title={tt("managerPortal.common.products")} icon={Package} compact>
                     <div className="space-y-2">
                       {(invoiceSheet.invoice.items || []).length ? invoiceSheet.invoice.items.map((item) => (
                         <div key={item.id || `${item.product_name}-${item.variant_id}`} className="rounded-[var(--radius-card)] border border-slate-200 bg-white px-3 py-3 text-sm shadow-sm">

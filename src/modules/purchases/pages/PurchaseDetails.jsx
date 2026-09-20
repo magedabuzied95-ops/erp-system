@@ -199,7 +199,7 @@ function PurchaseDetails() {
 
   if (loading) {
     return (
-      <FlowShell title={t("purchases.details.title")} subtitle={t("purchases.details.loadingSubtitle")}>
+      <FlowShell title={t("purchases.details.title")}>
         <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 p-6 text-sm text-zinc-300">{t("purchases.details.loading")}</div>
       </FlowShell>
     );
@@ -279,7 +279,6 @@ function PurchaseDetails() {
   return (
     <FlowShell
       title={t("purchases.details.purchaseTitle", { invoice: purchase.invoice_number })}
-      subtitle={t("purchases.details.subtitle")}
       actions={<Link to="/purchases" className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">{t("purchases.details.back")}</Link>}
       tabs={[
         { to: "/purchases", label: t("purchases.tabs.purchases"), end: true },
@@ -993,7 +992,6 @@ function AdjustmentModal({ purchase, onClose, onSave }) {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h2 className="m1-section-title text-white">{t("purchases.details.addAdjustmentTitle")}</h2>
-            <p className="mt-1 text-sm text-zinc-400">{t("purchases.details.addAdjustmentSubtitle")}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full border border-white/10 bg-white/5 p-2 text-white"><X className="h-5 w-5" /></button>
         </div>

@@ -15,7 +15,6 @@ function Taxes() {
   return (
     <AccountingShell
       title={t("accounting.compliance.title")}
-      subtitle={t("accounting.compliance.subtitle")}
       actions={
         <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
           <ShieldCheck className="h-4 w-4" />

@@ -177,7 +177,6 @@ export default function InboxControlCenter({
             </span>
             <div className="min-w-0">
               <div className="truncate text-lg font-black">{t("aiSupport.controlCenter.title")}</div>
-              <div className="truncate text-xs text-slate-400">{t("aiSupport.controlCenter.subtitle")}</div>
             </div>
           </div>
           <button

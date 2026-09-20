@@ -775,7 +775,6 @@ function ProductDetails() {
   return (
     <ProductsShell
       title={t("products.details.title", "تفاصيل المنتج")}
-      description={t("products.details.description", "عرض كامل للمنتج مع الاختيارات المجمعة والمخزون والأسعار والصور والإجراءات السريعة.")}
       actions={
         <Link
           to="/products"
@@ -874,7 +873,6 @@ function ProductDetails() {
               <Package2 className="text-emerald-400" />
               <div>
                 <h2 className="m1-section-title text-white">{t("products.details.variantGroups", "Variant groups")}</h2>
-                <p className="mt-1 text-sm text-zinc-400">{t("products.details.variantGroupsDescription", "Grouped by color with size-level stock, SKU, article code, barcode, and price details.")}</p>
               </div>
             </div>
 
@@ -986,7 +984,6 @@ function ProductDetails() {
                 <Clock3 className="text-primary" />
                 <div>
                   <h2 className="m1-section-title text-white">{t("products.stock.historyTitle", "سجل المخزون")}</h2>
-                  <p className="mt-1 text-sm text-zinc-400">{t("products.stock.historyDescription", "Recent inventory movements recorded for this product.")}</p>
                 </div>
               </div>
               <Link
@@ -1107,7 +1104,6 @@ function ProductDetails() {
               <ImageIcon className="text-primary" />
               <div>
                 <h2 className="m1-section-title text-white">{t("products.images.gallery", "Gallery")}</h2>
-                <p className="mt-1 text-sm text-zinc-400">{t("products.images.galleryDescription", "Product gallery images available on the product record.")}</p>
               </div>
             </div>
 

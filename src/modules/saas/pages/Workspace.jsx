@@ -21,7 +21,6 @@ function Workspace() {
   return (
     <SaaSShell
       title={t("saas.workspace.title")}
-      subtitle={t("saas.workspace.subtitle")}
       actions={
         <>
           <Link to="/register-company" className="inline-flex items-center gap-2 rounded-2xl bg-primary px-4 py-2 text-sm font-black text-black">
@@ -54,7 +53,6 @@ function Workspace() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="m1-section-title text-white">{t("saas.workspace.current")}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{t("saas.workspace.currentHint")}</p>
             </div>
             <button type="button" className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
               <ArrowRightLeft className="h-4 w-4" />
@@ -65,8 +63,7 @@ function Workspace() {
           <div className="mt-4 rounded-3xl border border-primary/20 bg-primary/10 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-primary/70">{t("saas.workspace.title")}</div>
-                <div className="mt-2 text-2xl font-black text-white">{currentTenant?.companyName || "No workspace selected"}</div>
+                <div className="text-2xl font-black text-white">{currentTenant?.companyName || "No workspace selected"}</div>
                 <div className="mt-1 text-sm text-primary/80">{currentTenant?.ownerEmail || "Sign in to attach a tenant workspace."}</div>
               </div>
               <ShieldCheck className="h-10 w-10 text-primary" />

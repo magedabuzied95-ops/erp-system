@@ -502,7 +502,6 @@ function PickupRequestModal({ open, onClose }) {
         <header className="flex items-start justify-between gap-4 border-b border-[var(--border)] p-5">
           <div>
             <h2 className="text-lg font-black">{t("shipping.center.pickups.title")}</h2>
-            <p className="mt-1 text-xs font-semibold leading-5 text-[var(--muted)]">{t("shipping.center.pickups.subtitle")}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={t("shipping.center.pickups.close")} className="rounded-full border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text-secondary)] hover:bg-[var(--table-hover)]"><X className="h-4 w-4" /></button>
         </header>
@@ -715,7 +714,6 @@ export default function ShippingCenter() {
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">{t("shipping.center.eyebrow")}</div>
             <h1 className="m1-page-title mt-2">{t("shipping.center.title")}</h1>
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[var(--muted)]">Centralized shipment operations for Bosta and future providers with status monitoring, bulk actions, webhook timelines, and analytics.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setView("table")} className={`rounded-[var(--radius-control)] px-4 py-2 text-sm font-black ${view === "table" ? "bg-primary text-[var(--primary-contrast)]" : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"}`}>{t("shipping.center.tableView")}</button>

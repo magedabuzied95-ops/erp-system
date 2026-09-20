@@ -61,7 +61,6 @@ export default function SurveillanceDevices() {
               {t("surveillance.eyebrow")}
             </div>
             <h1 className="m1-page-title mt-1">{t("surveillance.devices.title")}</h1>
-            <p className="mt-1 text-sm text-slate-400">{t("surveillance.devices.subtitle")}</p>
           </div>
           <button
             type="button"

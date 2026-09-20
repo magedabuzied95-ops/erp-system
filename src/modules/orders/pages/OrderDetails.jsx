@@ -1045,7 +1045,6 @@ function OrderDetails() {
   return (
     <OrdersShell
       title={t("orders.details.orderTitle", { invoice: order.invoice_number })}
-      subtitle={t("orders.details.subtitle")}
       actions={
         <Link
           to="/orders"

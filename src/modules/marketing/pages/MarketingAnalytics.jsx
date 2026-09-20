@@ -120,7 +120,6 @@ export default function MarketingAnalytics() {
                 {t("marketing.analytics.eyebrow")}
               </div>
               <h1 className="m1-display">{t("marketing.analytics.title")}</h1>
-              <p className="max-w-4xl text-base leading-7 text-[var(--muted)]">{t("marketing.analytics.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button

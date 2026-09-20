@@ -148,8 +148,10 @@ export default function EmployeeDisplayAuditPanel({ data = {}, loading = false, 
       {audienceKey === "kids" ? <div className="grid gap-3">
         {KIDS_STAGE_PANELS.map((stage) => {
           const stageProducts = kidsStageProducts[stage.key] || [];
-          return <section key={stage.key} className="overflow-hidden rounded-3xl border border-border bg-surface-soft p-3 shadow-sm">
-            <header className="mb-3 flex items-center justify-between rounded-2xl bg-surface-soft px-4 py-3 text-text">
+          // The stage header is the card; its products are siblings. Nesting the
+          // grid inside a padded panel cost every product card ~12px a side.
+          return <section key={stage.key} className="grid gap-2">
+            <header className="flex items-center justify-between rounded-2xl border border-border bg-surface px-4 py-3 text-text shadow-sm">
               <div><h3 className="m1-section-title">{t(stage.labelKey)}</h3><p className="mt-0.5 text-[11px] font-bold text-text-muted">{t("employeePortal.display.stageSizesFrom", { range: stage.range })}</p></div>
               <span className="rounded-full bg-surface-soft px-3 py-1 text-xs font-black">{stageProducts.length}</span>
             </header>

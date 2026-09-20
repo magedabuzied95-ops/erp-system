@@ -127,9 +127,6 @@ export default function AttendanceDashboard() {
                 {tt("employeePortal.attendance.dashboardTitle")}
               </div>
               <h1 className="m1-display">{tt("employeePortal.attendance.todaySummary")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                {tt("employeePortal.attendance.dashboardSubtitle")}
-              </p>
             </div>
             <button
               type="button"

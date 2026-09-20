@@ -94,7 +94,6 @@ export default function IntegrationsOverviewPanel({ headers, onOpenSection }) {
       <PanelSection
         icon={LayoutGrid}
         title={t("aiSupport.integrations.overview.title")}
-        subtitle={t("aiSupport.integrations.overview.subtitle")}
         action={
           <ActionButton tone="ghost" icon={RefreshCw} loading={loading} onClick={load}>
             {t("aiSupport.integrations.common.refresh")}

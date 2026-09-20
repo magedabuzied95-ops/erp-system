@@ -159,7 +159,6 @@ function Accounts() {
   return (
     <AccountingShell
       title={tt("accounting.tabs.accounts")}
-      subtitle={tt("accounting.accounts.subtitle")}
       actions={
         <>
           <Link to="/accounting/reports" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
@@ -320,7 +319,7 @@ function Accounts() {
             </div>
           </form>
 
-          {loading ? <StateBanner icon={<Loader2 className="h-5 w-5 animate-spin" />} title={tt("accounting.ledgers.loading")} text={tt("accounting.ledgers.loadingHint")} /> : null}
+          {loading ? <StateBanner icon={<Loader2 className="h-5 w-5 animate-spin" />} title={tt("accounting.ledgers.loading")} /> : null}
 
           {error ? (
             <StateBanner

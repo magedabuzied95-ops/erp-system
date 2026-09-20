@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
-import { Check, Download, Moon, Paintbrush, Plus, RotateCcw, Save, Search, Sun, Trash2, User } from "lucide-react";
+import { Check, Download, Moon, Plus, RotateCcw, Save, Search, Sun, Trash2, User } from "lucide-react";
 
 import {
   Badge,
@@ -205,12 +205,7 @@ export default function AppearanceStudio() {
     <div className="m1-page m1-appearance">
       <header className="m1-appearance__hero">
         <div>
-          <div className="m1-appearance__eyebrow">
-            <Paintbrush size={15} aria-hidden="true" />
-            {tr("eyebrow")}
-          </div>
           <h1 className="m1-page-title">{tr("title")}</h1>
-          <p className="m1-body m1-muted m1-appearance__subtitle">{tr("subtitle")}</p>
         </div>
         <div className="m1-appearance__hero-actions">
           <Button icon={RotateCcw} onClick={() => { resetAppearance(); toast.success(tr("resetDone")); }} disabled={!hasLocalAppearance}>

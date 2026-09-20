@@ -986,9 +986,6 @@ function AiMarketingCenter() {
           <div className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">
             AI Queue
           </div>
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
-            Focused generation for new arrivals, real last-piece variants, and premium AI product posts.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button

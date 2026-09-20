@@ -382,7 +382,6 @@ function PurchasesDashboard() {
   return (
     <FlowShell
       title={t("purchases.title")}
-      subtitle={t("purchases.subtitle")}
       actions={
         <Link
           to="/purchases/create"
@@ -412,7 +411,6 @@ function PurchasesDashboard() {
         <div className="rounded-2xl border border-white/10 bg-black/20 p-2.5">
           <div className="grid items-end gap-2 md:grid-cols-2 xl:grid-cols-12">
             <label className="block md:col-span-2 xl:col-span-4">
-              <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">{t("purchases.searchPlaceholder")}</div>
               <div className="relative">
                 <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
                 <input

@@ -412,9 +412,6 @@ export default function AiLeadCenter() {
                 {t("marketing.leadCenter.brand")}
               </div>
               <h1 className="m1-display mt-3">{t("marketing.leadCenter.title")}</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-                {t("marketing.leadCenter.subtitle")}
-              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -560,24 +557,12 @@ export default function AiLeadCenter() {
                           </div>
                           <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.customer")}</div>
-                              <div className="mt-1 truncate text-sm font-semibold text-white">{lead.customer || t("marketing.leadCenter.fallback.customer")}</div>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.platform")}</div>
-                              <div className="mt-1 truncate text-sm font-semibold text-white">{platformLabel(lead.platform)}</div>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.sourcePost")}</div>
                               <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.sourcePost || t("marketing.leadCenter.fallback.sourcePost")}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.interestedProduct")}</div>
                               <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.interestedProduct || t("marketing.leadCenter.fallback.interestedProduct")}</div>
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.currentStage")}</div>
-                              <div className="mt-1 text-sm font-semibold text-white">{leadStageLabel(lead.currentStage)}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t("marketing.leadCenter.fields.assignedAi")}</div>
@@ -614,7 +599,6 @@ export default function AiLeadCenter() {
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-black uppercase tracking-[0.18em] text-primary">{t("marketing.leadCenter.detail.title")}</div>
-                  <div className="text-xs text-slate-400">{t("marketing.leadCenter.detail.subtitle")}</div>
                 </div>
                 {selectedLead ? <Pill tone={selectedLead.stageTone}>{leadStageLabel(selectedLead.currentStage)}</Pill> : null}
               </div>

@@ -8,7 +8,7 @@
 // one could be trusted as the current state.
 
 import { useEffect, useMemo, useState } from "react";
-import { Bot, ExternalLink, MessageCircle, Plug, Plus, Settings2, Trash2 } from "lucide-react";
+import { Bot, ExternalLink, Plug, Plus, Settings2, Trash2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -182,9 +182,6 @@ export default function MarketingSettings() {
               {t("marketing.automation.commentDm.eyebrow")}
             </div>
             <h1 className="m1-display">{t("marketing.automation.commentDm.title")}</h1>
-            <p className="max-w-3xl text-base leading-7 text-[var(--muted)]">
-              {t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")}
-            </p>
           </div>
         </section>
 
@@ -214,12 +211,7 @@ export default function MarketingSettings() {
         <section id="marketing-settings-automation" className="scroll-mt-6 rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)] md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
-                <MessageCircle className="h-4 w-4" />
-                {t("marketing.automation.commentDm.eyebrow")}
-              </div>
-              <h2 className="m1-section-title mt-3">{t("marketing.automation.commentDm.title")}</h2>
-              <p className="mt-2 text-base leading-7 text-[var(--muted)]">
+              <p className="text-base leading-7 text-[var(--muted)]">
                 {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}
                 {loading ? ` — ${t("marketing.common.loading")}` : ""}
               </p>

@@ -51,7 +51,6 @@ export default function SurveillanceRecordingSettings() {
       <PageHeader
         eyebrowIcon={CalendarClock}
         title={t("surveillance.recording.title")}
-        subtitle={t("surveillance.recording.subtitle")}
         actions={<DeviceChannelPicker value={selection} onChange={setSelection} />}
       />
 

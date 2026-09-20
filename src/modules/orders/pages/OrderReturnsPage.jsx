@@ -492,7 +492,6 @@ function PageHeader({ onCreate }) {
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">{t("orders.moduleEyebrow")}</div>
           <h1 className="m1-page-title mt-2 text-[var(--text)]">{t("orders.returns.page.pageTitle")}</h1>
-          <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{t("orders.returns.page.pageSubtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
@@ -694,8 +693,7 @@ function SupplierReturnQueue({ groups, onMarkReturned, showPurchaseCost = true }
     <section className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">{t("orders.returns.supplierReturns")}</div>
-          <h2 className="m1-section-title mt-1 text-[var(--text)]">{t("orders.returns.page.defectQueueTitle")}</h2>
+          <h2 className="m1-section-title text-[var(--text)]">{t("orders.returns.page.defectQueueTitle")}</h2>
         </div>
         <MiniStat label={t("orders.returns.page.totalItems")} value={groups.reduce((sum, group) => sum + Number(group.totalQuantity || 0), 0)} />
       </div>
@@ -938,9 +936,7 @@ function ReturnFormDrawer({ t, mode, form, setForm, orders, selectedOrder, onClo
       <section className="absolute right-0 top-0 flex h-full w-full max-w-[46rem] flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--surface)] text-[var(--text)] shadow-2xl">
         <header className="flex items-start justify-between gap-3 border-b border-[var(--border)] p-4">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{t(mode === "edit" ? "orders.returns.page.drawer.eyebrowEdit" : "orders.returns.page.drawer.eyebrowCreate")}</div>
-            <h2 className="m1-section-title mt-1">{t(mode === "edit" ? "orders.returns.page.drawer.editTitle" : "orders.returns.page.drawer.createTitle")}</h2>
-            <p className="mt-1 text-sm text-[var(--muted)]">{t("orders.returns.page.drawer.subtitle")}</p>
+            <h2 className="m1-section-title">{t(mode === "edit" ? "orders.returns.page.drawer.editTitle" : "orders.returns.page.drawer.createTitle")}</h2>
           </div>
           <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)] hover:bg-[var(--surface)]">
             <X className="h-5 w-5" />

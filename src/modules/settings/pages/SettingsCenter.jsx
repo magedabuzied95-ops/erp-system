@@ -98,7 +98,6 @@ const copy = {
   en: {
     title: "Settings Center",
     subtitle: "Manage your entire ERP from one place.",
-    description: "Manage company, operations, orders, AI and security settings.",
     search: "Search settings",
     save: "Save Changes",
     saving: "Saving",
@@ -139,7 +138,6 @@ const copy = {
   ar: {
     title: "مركز الإعدادات",
     subtitle: "إدارة إعدادات النظام بالكامل من شاشة واحدة.",
-    description: "تحكم في إعدادات الشركة والتشغيل والطلبات والذكاء الاصطناعي والأمان.",
     search: "ابحث في الإعدادات",
     save: "حفظ التغييرات",
     saving: "جارِ الحفظ",
@@ -970,7 +968,6 @@ function SettingsCenterContent({ debugMode = false }) {
                 {isDirty || siteSettingsDirty ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800 dark:bg-amber-400/15 dark:text-amber-200">{dirtyCount} {ui.unsaved}</span> : null}
               </div>
               <h1 className={`m1-page-title mt-3 max-w-full break-words ${headingText}`}>{ui.subtitle}</h1>
-              <p className={`mt-1 text-sm font-medium ${bodyText}`}>{ui.description}</p>
             </div>
             <div className="flex min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:items-center">
               <label className="relative min-w-0 max-w-full sm:w-80">
@@ -1331,7 +1328,7 @@ function StorefrontSettings(props) {
   const hasSeoPreview = Boolean(publicUrl || value("storefront.seo_title") || value("storefront.store_name") || value("storefront.seo_description"));
   return (
     <div className="grid gap-5">
-      <VisualSection icon={Store} title={t("settings.storefront.storeIdentity")} description="Name, URL, logo, and browser identity for the public store.">
+      <VisualSection icon={Store} title={t("settings.storefront.storeIdentity")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.enabled"), true)}
           {renderField(setting("storefront.store_name"), true)}
@@ -1342,7 +1339,7 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
-      <VisualSection icon={Phone} title={t("settings.storefront.contactSocial")} description={t("settings.storefront.contactSocialHint")}>
+      <VisualSection icon={Phone} title={t("settings.storefront.contactSocial")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.contact_phone"), true)}
           {renderField(setting("storefront.whatsapp_phone"), true)}
@@ -1357,7 +1354,7 @@ function StorefrontSettings(props) {
         </div>
       </VisualSection>
 
-      <VisualSection icon={Image} title={t("settings.storefront.homepage")} description={t("settings.storefront.homepageHint")}>
+      <VisualSection icon={Image} title={t("settings.storefront.homepage")}>
         <div className="grid gap-4 xl:grid-cols-2">
           <PremiumInput label={t("settings.storefront.heroTitle")} value={hero.title || ""} onChange={(next) => updateHero({ title: next })} />
           <PremiumInput label={t("settings.storefront.heroSubtitle")} value={hero.subtitle || ""} onChange={(next) => updateHero({ subtitle: next })} />
@@ -1379,7 +1376,7 @@ function StorefrontSettings(props) {
         ) : null}
       </VisualSection>
 
-      <VisualSection icon={Package} title={t("settings.storefront.catalog")} description={t("settings.storefront.catalogHint")}>
+      <VisualSection icon={Package} title={t("settings.storefront.catalog")}>
         <div className="grid gap-4 xl:grid-cols-2">
           {renderField(setting("storefront.product_sorting_default"), true)}
           {renderField(setting("storefront.show_sold_out_products"), true)}
@@ -1390,7 +1387,6 @@ function StorefrontSettings(props) {
           {renderField(setting("storefront.enable_size_guide"), true)}
           <article id="setting-storefront.featured_collections" className={`rounded-2xl p-4 xl:col-span-2 ${fieldSurface}`}>
             <h3 className={`m1-section-title ${headingText}`}>{t("settings.storefront.featuredCollections")}</h3>
-            <p className={`mt-1 text-xs ${bodyText}`}>Searchable collection selector replacement for the old JSON list.</p>
             <div className="mt-3">
               <CollectionSelector collections={featuredCollections} draft={collectionDraft} setDraft={setCollectionDraft} onChange={(next) => updateValue("storefront.featured_collections", next)} hint={ui.collectionHint} />
             </div>
@@ -1439,13 +1435,12 @@ function StorefrontSettings(props) {
         ) : null}
       </VisualSection>
 
-      <VisualSection icon={CreditCard} title={t("settings.payments.title")} description={t("settings.payments.subtitle")}>
+      <VisualSection icon={CreditCard} title={t("settings.payments.title")}>
         <div className="grid gap-4 xl:grid-cols-2">
           <article className={`rounded-2xl p-4 ${fieldSurface}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className={`m1-section-title ${headingText}`}>{t("settings.payments.vodafoneWallet")}</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.vodafoneHint")}</p>
               </div>
               <TogglePill label={t("settings.payments.enabled")} checked={Boolean(value("storefront.payment_methods.vodafone_cash_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.vodafone_cash_enabled", checked)} />
             </div>
@@ -1464,7 +1459,6 @@ function StorefrontSettings(props) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className={`m1-section-title ${headingText}`}>InstaPay</h3>
-                <p className={`mt-1 text-xs leading-5 ${bodyText}`}>{t("settings.payments.instapayHint")}</p>
               </div>
               <TogglePill label={t("settings.payments.enabled")} checked={Boolean(value("storefront.payment_methods.instapay_enabled"))} onChange={(checked) => updateValue("storefront.payment_methods.instapay_enabled", checked)} />
             </div>
@@ -3844,7 +3838,7 @@ function VisualSection({ icon: Icon, title, description, children }) {
         <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-700 dark:bg-white/8 dark:text-slate-200"><Icon className="h-6 w-6" /></span>
         <div>
           <h2 className={`m1-section-title ${headingText}`}>{title}</h2>
-          <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{description}</p>
+          {description ? <p className={`mt-1 text-sm leading-6 ${bodyText}`}>{description}</p> : null}
         </div>
       </div>
       {children}
@@ -3980,8 +3974,7 @@ function PreviewDrawer({ ui, onClose, children }) {
       <aside className="absolute inset-y-0 end-0 flex w-full max-w-xl flex-col border-slate-200 bg-[#f6f8fb] shadow-[-24px_0_80px_rgba(15,23,42,0.22)] dark:border-white/10 dark:bg-[#050816] dark:shadow-[-24px_0_80px_rgba(0,0,0,0.5)] sm:border-s">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-white/10">
           <div>
-            <div className={`text-xs font-black uppercase tracking-[0.16em] ${mutedText}`}>{ui.preview}</div>
-            <h2 className={`m1-section-title mt-1 ${headingText}`}>{ui.previewTitle}</h2>
+            <h2 className={`m1-section-title ${headingText}`}>{ui.previewTitle}</h2>
           </div>
           <button type="button" onClick={onClose} className="grid h-[var(--control-height-lg)] w-11 place-items-center rounded-[var(--radius-control)] border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
             <X className="h-5 w-5" />

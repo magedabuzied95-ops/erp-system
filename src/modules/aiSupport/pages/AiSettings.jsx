@@ -173,7 +173,6 @@ export default function AiSettings() {
             <div>
               <div className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-primary"><Bot className="h-4 w-4" />{t("aiSupport.aiSettings.eyebrow")}</div>
               <h1 className="m1-page-title mt-3">{t("aiSupport.aiSettings.title")}</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{t("aiSupport.aiSettings.subtitle")}</p>
               <p className="mt-3 max-w-3xl rounded-xl border border-primary/15 bg-primary/10 px-3 py-2 text-xs font-bold leading-5 text-primary">
                 {t("aiSupport.aiSettings.masterNote")}
               </p>

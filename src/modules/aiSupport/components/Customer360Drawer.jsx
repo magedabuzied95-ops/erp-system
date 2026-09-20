@@ -426,7 +426,6 @@ export default function Customer360Drawer({
                     <ShoppingBag className="h-4 w-4 text-emerald-600" />
                     {t("aiSupport.inbox.customer360.recordedPreferences")}
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">{t("aiSupport.inbox.customer360.recordedPreferencesHint")}</p>
                   <div className="mt-3 space-y-3">
                     {preferredDepartments.length ? (
                       <div>

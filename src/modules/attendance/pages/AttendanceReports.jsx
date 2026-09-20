@@ -1,7 +1,7 @@
 import { monthBoundsInAppTimezone, todayInAppTimezone } from "../../../shared/lib/appTimezone";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarClock, Download, Filter, RefreshCcw, Table2, TimerReset } from "lucide-react";
+import { CalendarClock, Download, Filter, RefreshCcw, TimerReset } from "lucide-react";
 
 import { getAttendanceReports } from "../attendanceApi";
 
@@ -150,14 +150,7 @@ export default function AttendanceReports() {
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-                <Table2 className="h-3.5 w-3.5" />
-                Attendance reports
-              </div>
               <h1 className="m1-display">{t("attendance.reports.exportReady")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                Filter by date and employee, then export a clean operational table with monthly totals.
-              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -238,7 +231,6 @@ export default function AttendanceReports() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("attendance.reports.monthlyTotals")}</h2>
-              <p className="text-sm text-slate-400">Grouped by month for the active filter range.</p>
             </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -311,7 +303,6 @@ export default function AttendanceReports() {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{t("attendance.reports.tableTitle")}</h2>
-              <p className="text-sm text-slate-400">{t("attendance.reports.tableSubtitle")}</p>
             </div>
             <div className="text-sm text-slate-400">{rows.length} rows</div>
           </div>

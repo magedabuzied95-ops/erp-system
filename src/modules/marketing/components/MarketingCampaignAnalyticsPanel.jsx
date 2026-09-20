@@ -263,7 +263,6 @@ export default function MarketingCampaignAnalyticsPanel({
           </div>
           <div>
             <h2 className="m1-section-title text-[var(--text)]">{t("marketing.campaignAnalytics.title")}</h2>
-            <p className="text-base text-[var(--muted)]">{t("marketing.campaignAnalytics.subtitle")}</p>
           </div>
         </div>
         <button
@@ -280,17 +279,14 @@ export default function MarketingCampaignAnalyticsPanel({
         <div className="rounded-[1.5rem] border border-emerald-400/25 bg-emerald-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">{t("marketing.campaignAnalytics.kpi.published")}</div>
           <div className="mt-3 text-4xl font-black text-[var(--text)]">{loading ? "-" : summary.published ?? analyticsCounts.published}</div>
-          <div className="mt-1 text-xs text-emerald-100/80">{t("marketing.campaignAnalytics.kpi.publishedHint")}</div>
         </div>
         <div className="rounded-[1.5rem] border border-amber-400/25 bg-amber-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-100">{t("marketing.campaignAnalytics.kpi.scheduled")}</div>
           <div className="mt-3 text-4xl font-black text-[var(--text)]">{loading ? "-" : summary.scheduled ?? analyticsCounts.scheduled}</div>
-          <div className="mt-1 text-xs text-amber-100/80">{t("marketing.campaignAnalytics.kpi.scheduledHint")}</div>
         </div>
         <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.kpi.drafts")}</div>
           <div className="mt-3 text-4xl font-black text-[var(--text)]">{loading ? "-" : summary.drafts ?? analyticsCounts.drafts}</div>
-          <div className="mt-1 text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.kpi.draftsHint")}</div>
         </div>
         <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--card)] p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-200">{t("marketing.campaignAnalytics.kpi.firstComments")}</div>
@@ -350,7 +346,6 @@ export default function MarketingCampaignAnalyticsPanel({
             <Activity className="h-4 w-4 text-amber-300" />
             <div>
               <div className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.timeline.title")}</div>
-              <div className="text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.timeline.subtitle")}</div>
             </div>
           </div>
           <div className="mt-4 space-y-3">
@@ -402,7 +397,6 @@ export default function MarketingCampaignAnalyticsPanel({
               {t("marketing.campaignAnalytics.history.badge")}
             </div>
             <h3 className="m1-section-title text-[var(--text)]">{t("marketing.campaignAnalytics.history.title")}</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("marketing.campaignAnalytics.history.subtitle")}</p>
           </div>
           <div className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)]">{t("marketing.campaignAnalytics.history.postCount", { count: visiblePosts.length })}</div>
         </div>
@@ -588,7 +582,6 @@ export default function MarketingCampaignAnalyticsPanel({
           <Sparkles className="h-4 w-4 text-amber-300" />
           <div>
             <div className="text-sm font-black uppercase tracking-[0.18em] text-[var(--muted)]">{t("marketing.campaignAnalytics.top.title")}</div>
-            <div className="text-xs text-[var(--muted)]">{t("marketing.campaignAnalytics.top.subtitle")}</div>
           </div>
         </div>
         <div className="m1-table-container overflow-x-auto">

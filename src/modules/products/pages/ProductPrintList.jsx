@@ -132,7 +132,6 @@ export default function ProductPrintList() {
   return (
     <ProductsShell
       title="قائمة الطباعة"
-      description="اجمع المنتجات من صفحة المنتجات واطبع كمياتها المتاحة بإعدادات كل قسم."
       actions={products.length ? (
         <button type="button" onClick={clear} className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-bold text-rose-200">
           <Trash2 size={16} /> مسح القائمة

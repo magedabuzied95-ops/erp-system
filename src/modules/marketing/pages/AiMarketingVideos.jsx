@@ -316,9 +316,6 @@ export default function AiMarketingVideos() {
             AI Video Queue
           </div>
           <h1 className="m1-display mt-3">{t("marketing.videos.page.videos")}</h1>
-          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
-            MVP queue for future MP4, Reels, beat-sync, captions, templates, and TikTok publishing.
-          </p>
         </div>
         <button type="button" onClick={load} disabled={loading} className={`${buttonClass} border border-white/10 bg-white/10 text-white hover:bg-white/15`}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -683,7 +680,6 @@ function VideoPreviewModal({ item, onClose, onApprove, onPublish }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="m1-section-title">{t("marketing.videos.preview.title")}</h2>
-              <p className="mt-2 text-sm font-semibold text-slate-400">{t("marketing.videos.preview.subtitle")}</p>
             </div>
             <button type="button" onClick={onClose} className={`${buttonClass} border border-white/10 bg-white/[0.06] text-white`}>
               <X className="h-4 w-4" />

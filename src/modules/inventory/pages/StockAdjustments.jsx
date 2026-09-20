@@ -618,7 +618,6 @@ function StockAdjustments() {
   return (
     <InventoryShell
       title={tt("inventory.adjustments.title")}
-      subtitle={tt("inventory.adjustments.pageSubtitle")}
       actions={
         <div className="flex flex-wrap gap-2">
           <Link
@@ -729,7 +728,6 @@ function StockAdjustments() {
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h3 className="m1-section-title text-text">{tt("inventory.adjustments.searchResults")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.searchResultsHint")}</p>
               </div>
                 <div className="text-sm text-text-muted">{filteredVariants.length} نتيجة</div>
             </div>
@@ -787,7 +785,6 @@ function StockAdjustments() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="m1-section-title text-text">{tt("inventory.adjustments.selectedProduct")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.balanceHint")}</p>
               </div>
             </div>
 
@@ -840,7 +837,6 @@ function StockAdjustments() {
           <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
             <div className="mb-4">
                 <h3 className="m1-section-title text-text">{tt("inventory.adjustments.form")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.formHint")}</p>
             </div>
 
             <div className="space-y-4">
@@ -950,7 +946,6 @@ function StockAdjustments() {
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div>
                 <h3 className="m1-section-title text-text">{tt("inventory.adjustments.recent")}</h3>
-                <p className="mt-1 text-sm text-text-muted">{tt("inventory.adjustments.recentHint")}</p>
               </div>
               <div className="text-sm text-text-muted">{recentAdjustments.length} عنصر</div>
             </div>
@@ -1124,8 +1119,7 @@ function ScannerModal({ onClose, onScan, onPermissionDenied, onUnsupported, onEr
         <div className="w-full rounded-[var(--radius-card)] border border-border bg-surface shadow-[0_30px_100px_rgba(0,0,0,0.55)]">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.24em] text-text-muted">{tt("inventory.scanner.title")}</div>
-              <h3 className="m1-section-title mt-1 text-text">{tt("inventory.scanner.scanProduct")}</h3>
+              <h3 className="m1-section-title text-text">{tt("inventory.scanner.scanProduct")}</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-[var(--radius-control)] border border-border bg-surface-soft px-3 py-2 text-sm font-semibold text-text">
               {tt("common.close")}

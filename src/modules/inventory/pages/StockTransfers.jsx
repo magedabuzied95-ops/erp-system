@@ -102,7 +102,6 @@ function StockTransfers() {
   return (
     <InventoryShell
       title={tt("inventory.transfers.title")}
-      subtitle={tt("inventory.transfers.pageSubtitle")}
       actions={
         <div className="flex flex-wrap gap-2">
           <Link to="/inventory/history" className="rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text">
@@ -185,12 +184,6 @@ function StockTransfers() {
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-card)] border border-border bg-surface p-5 shadow-2xl shadow-black/10">
-            <h3 className="m1-section-title text-text">{tt("inventory.transfers.title")}</h3>
-            <p className="mt-3 text-sm text-text-muted">
-              {tt("inventory.transfers.resilienceHint")}
-            </p>
-          </div>
         </div>
       </div>
     </InventoryShell>

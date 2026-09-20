@@ -120,7 +120,6 @@ function GeneralLedger() {
   return (
     <AccountingShell
       title={tt("accounting.tabs.ledgers")}
-      subtitle={tt("accounting.ledgers.generalLedgerSubtitle")}
       actions={
         <>
           <button

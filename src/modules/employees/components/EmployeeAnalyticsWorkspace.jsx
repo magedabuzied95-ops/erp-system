@@ -311,7 +311,6 @@ export default function EmployeeAnalyticsWorkspace() {
   return (
     <EmployeeAnalyticsShell
       title={t("common.employeeHub.analytics.title")}
-      subtitle={t("common.employeeHub.analytics.subtitle")}
       eyebrow={t("common.employeeHub.analytics.eyebrow")}
       actionLabels={{
         refresh: t("common.refresh"),
@@ -332,7 +331,6 @@ export default function EmployeeAnalyticsWorkspace() {
               <CalendarDays className="h-4 w-4 text-primary" />
               {t("common.employeeHub.analytics.filters.title")}
             </div>
-            <p className="mt-1 text-xs text-zinc-500">{t("common.employeeHub.analytics.filters.subtitle")}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -140,8 +140,8 @@ const formatEmployeeJobLabel = (employee = {}, language = "en") => {
 };
 const STAFF_TASK_COPY = {
   en: {
-    taskNumber: "Task #",
-    pageTitle: "Employee Tasks", pageDescription: "Attendance-aware task assignment, redistribution, inventory counts, and performance tracking.",
+    taskNumber: "Task #",
+    pageTitle: "Employee Tasks",
     realtimeLive: "Realtime live", realtimeReconnecting: "Realtime reconnecting", realtimeOffline: "Realtime offline",
     newTask: "New task", addDailyTask: "Add daily task", addWeeklyTask: "Add weekly task", dailyCounts: "Daily counts", redistribute: "Redistribute", reassignOverdue: "Reassign overdue",
     editOperationalTask: "Edit task template", createOperationalTask: "Create task template", panelDescription: "Simple daily and weekly task templates. Distribution is automatic by attendance.",
@@ -151,7 +151,7 @@ const STAFF_TASK_COPY = {
     dueTime: "Due time", everyDay: "Every day", pickWeekdays: "Pick weekdays", weekdayRequired: "Pick at least one weekday for a weekly task.",
     assignTo: "Assign to", autoAssignLeastBusy: "Auto — least busy on shift",
     sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
-    employeePortalSettings: "Employee portal settings", portalDescription: "Controls QR check-in redirect and task visibility enforcement.", requireCheckIn: "Require check-in", autoRedirect: "Auto redirect",
+    employeePortalSettings: "Employee portal settings", requireCheckIn: "Require check-in", autoRedirect: "Auto redirect",
     taskQueue: "Task queue", loadingTasks: "Loading tasks", visibleTasks: "visible tasks", allStatuses: "All statuses", allEmployees: "All employees", allBranches: "All branches", allPriorities: "All priorities", today: "Today",
     loadingTaskQueue: "Loading task queue...", noTasksMatch: "No tasks match this view.", performance: "Performance", auditTrail: "Audit trail", noTaskHistory: "No task history yet.",
     online: "Online", checkedIn: "Checked in", absentNotCheckedIn: "Absent / Not checked in", checkedInAt: "Checked in at", onlineNow: "Active online",
@@ -161,14 +161,14 @@ const STAFF_TASK_COPY = {
     low: "Low", medium: "Medium", high: "High", critical: "Critical",
   },
   ar: {
-    taskNumber: "مهمة #",
-    pageTitle: "مهام الموظفين", pageDescription: "إسناد المهام حسب الحضور، إعادة التوزيع، جرد المخزون، ومتابعة الأداء.",
+    taskNumber: "مهمة #",
+    pageTitle: "مهام الموظفين",
     realtimeLive: "التحديث المباشر يعمل", realtimeReconnecting: "إعادة الاتصال بالتحديث المباشر", realtimeOffline: "التحديث المباشر غير متصل",
     newTask: "مهمة جديدة", addDailyTask: "إضافة مهمة يومية", addWeeklyTask: "إضافة مهمة أسبوعية", dailyCounts: "الجرد اليومي", redistribute: "إعادة التوزيع", reassignOverdue: "إعادة إسناد المتأخر",
     editOperationalTask: "تعديل قالب المهمة", createOperationalTask: "إنشاء قالب المهمة", panelDescription: "قوالب يومية وأسبوعية بسيطة. التوزيع تلقائي حسب الحضور.",
     taskTitle: "عنوان المهمة", autoAssignEmployee: "إسناد تلقائي للموظف", anyBranch: "كل الفروع — مهمة لكل فرع", photoProof: "إثبات بصورة", qrVerification: "تحقق QR", gpsValidation: "تحقق GPS",
     taskDetails: "تفاصيل المهمة", checklistItems: "عناصر التحقق، عنصر في كل سطر", saveTask: "حفظ المهمة",
-    employeePortalSettings: "إعدادات بوابة الموظفين", portalDescription: "التحكم في تحويل تسجيل الحضور وإلزام عرض المهام.", requireCheckIn: "يتطلب تسجيل حضور", autoRedirect: "تحويل تلقائي",
+    employeePortalSettings: "إعدادات بوابة الموظفين", requireCheckIn: "يتطلب تسجيل حضور", autoRedirect: "تحويل تلقائي",
     taskQueue: "قائمة المهام", loadingTasks: "جاري تحميل المهام", visibleTasks: "مهام ظاهرة", allStatuses: "كل الحالات", allEmployees: "كل الموظفين", allBranches: "كل الفروع", allPriorities: "كل الأولويات", today: "اليوم",
     loadingTaskQueue: "جاري تحميل قائمة المهام...", noTasksMatch: "لا توجد مهام مطابقة لهذا العرض.", performance: "الأداء", auditTrail: "سجل التدقيق", noTaskHistory: "لا يوجد سجل مهام حتى الآن.",
     noDeadline: "لا يوجد موعد نهائي", noTaskNotes: "لا توجد ملاحظات للمهمة", unassigned: "غير مسند", staff: "موظف", edit: "تعديل", delete: "حذف", confirmDeleteTask: "هل تريد حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.", confirmDeleteTemplate: "هل تريد حذف قالب المهمة؟ لا يمكن التراجع عن هذا الإجراء.", templateDeleted: "تم حذف قالب المهمة", start: "بدء", done: "تم", pauseAvailable: "الإيقاف المؤقت متاح", escalated: "تم التصعيد",
@@ -668,7 +668,6 @@ function StaffTasks() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="m1-page-title text-[var(--text)]">{tr("pageTitle")}</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">{tr("pageDescription")}</p>
           <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-xs font-black text-[var(--muted)]">
             <Activity className={`h-3.5 w-3.5 ${realtime.connected ? "text-emerald-500" : "text-amber-500"}`} />
             {realtime.connected ? tr("realtimeLive") : realtime.connecting ? tr("realtimeReconnecting") : tr("realtimeOffline")}
@@ -821,7 +820,6 @@ function StaffTasks() {
               <Settings2 className="mt-1 h-5 w-5 text-[var(--primary)]" />
               <div>
                 <h2 className="m1-section-title text-[var(--text)]">{tr("employeePortalSettings")}</h2>
-                <p className="mt-1 text-sm text-[var(--muted)]">{tr("portalDescription")}</p>
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">

@@ -101,7 +101,7 @@ export default function SalesIntelligence() {
   return (
     <ReportsPage dir={isArabic ? "rtl" : "ltr"}>
       <div className="space-y-4">
-        <ReportsHeader title={t("salesAnalytics.title")} subtitle={t("salesAnalytics.subtitle")}>
+        <ReportsHeader title={t("salesAnalytics.title")}>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodSelector
               filters={filters.filters}

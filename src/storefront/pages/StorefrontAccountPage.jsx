@@ -1248,7 +1248,6 @@ function StorefrontAccountPageContent({
               <SectionHead
                 Icon={Heart}
                 title={sfText("storefront.header.wishlist", "المفضلة")}
-                subtitle={sfText("storefront.account.wishlistSubtitle", "كل اللي عجبك في مكان واحد")}
                 count={wishlistItems.length || null}
                 action={wishlistItems.length ? (
                   <Link to={ROOT_PATHS.wishlist || "/wishlist"} className="sfx-btn sfx-btn--secondary sfx-btn--sm">
@@ -1302,7 +1301,7 @@ function StorefrontAccountPageContent({
             </section>
 
             <section id="sfa-addresses" className="sfx-surface sfa-card">
-              <SectionHead Icon={MapPin} title={sfText("storefront.account.myAddresses", "عناويني")} subtitle={sfText("storefront.account.savedAddressesSubtitle")} />
+              <SectionHead Icon={MapPin} title={sfText("storefront.account.myAddresses", "عناويني")} />
               {addresses.length ? (
                 <ul className="sfa-addresses">
                   {addresses.map((address) => (

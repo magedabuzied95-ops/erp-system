@@ -693,7 +693,7 @@ export default function MetaIntegrationPanel({ onStatusChange }) {
         </PanelSection>
       ) : null}
 
-      <PanelSection icon={ShieldCheck} title={t("aiSupport.integrations.meta.capabilities.title")} subtitle={t("aiSupport.integrations.meta.capabilities.subtitle")}>
+      <PanelSection icon={ShieldCheck} title={t("aiSupport.integrations.meta.capabilities.title")}>
         <div className="grid gap-3 lg:grid-cols-2">
           {capabilityCards.map((card) => (
             <div key={card.key} className="rounded-xl border border-white/10 bg-slate-950/40 p-3">

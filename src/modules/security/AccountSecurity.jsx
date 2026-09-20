@@ -100,7 +100,6 @@ export default function AccountSecurity() {
     <div className="mx-auto w-full max-w-3xl space-y-4 p-4">
       <div>
         <h1 className="m1-page-title text-[var(--text)]">{t("access.security.title")}</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">{t("access.security.subtitle")}</p>
       </div>
 
       {loadError ? <div className={`${card} text-[var(--danger)]`}>{loadError}</div> : null}

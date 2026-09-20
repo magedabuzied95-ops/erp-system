@@ -64,7 +64,7 @@ export default function DashboardPrototype() {
 
         <div className="m1p-content">
           <section className="m1p-pagehead">
-            <div><p>مركز التحكم التنفيذي</p><h1>صباح الخير، ماجد</h1><span>إليك ملخص أداء M1 Store اليوم</span></div>
+            <div><p>مركز التحكم التنفيذي</p><h1>صباح الخير، ماجد</h1></div>
             <div className="m1p-head-actions"><button className="m1p-secondary"><RefreshCw size={16}/>تحديث</button><button className="m1p-primary"><Plus size={17}/>عملية بيع جديدة</button></div>
           </section>
 
@@ -76,19 +76,19 @@ export default function DashboardPrototype() {
 
           <section className="m1p-grid">
             <article className="m1p-panel m1p-chart-panel">
-              <div className="m1p-panel-head"><div><h2>أداء المبيعات</h2><p>الإيرادات والطلبات خلال الفترة المحددة</p></div><select value={range} onChange={e => setRange(e.target.value)}><option>آخر 7 أيام</option><option>هذا الشهر</option><option>آخر 90 يومًا</option></select></div>
+              <div className="m1p-panel-head"><div><h2>أداء المبيعات</h2></div><select value={range} onChange={e => setRange(e.target.value)}><option>آخر 7 أيام</option><option>هذا الشهر</option><option>آخر 90 يومًا</option></select></div>
               <div className="m1p-chart-summary"><div><span>إجمالي الإيرادات</span><strong>182,750 ج.م</strong><small><ArrowUpRight size={13}/> 12.4% عن الفترة السابقة</small></div><div><span>إجمالي الطلبات</span><strong>179</strong></div></div>
               <div className="m1p-chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={sales}><defs><linearGradient id="m1gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#b48916" stopOpacity={0.22}/><stop offset="100%" stopColor="#b48916" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="#eceae5" vertical={false}/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:"#79766f",fontSize:11}}/><YAxis axisLine={false} tickLine={false} tick={{fill:"#79766f",fontSize:11}}/><Tooltip contentStyle={{borderRadius:8,border:"1px solid #dedbd3",fontFamily:"Cairo"}}/><Area type="monotone" dataKey="revenue" stroke="#9a7310" strokeWidth={2.3} fill="url(#m1gold)"/></AreaChart></ResponsiveContainer></div>
             </article>
 
             <aside className="m1p-sidecards">
-              <article className="m1p-panel"><div className="m1p-panel-head"><div><h2>حالة المخزون</h2><p>نظرة سريعة على التوفر</p></div><button><MoreHorizontal size={18}/></button></div><div className="m1p-stock-ring"><div><strong>88%</strong><span>متوفر</span></div></div><ul className="m1p-legend"><li><i className="good"/>متوفر <strong>1,248</strong></li><li><i className="low"/>منخفض <strong>12</strong></li><li><i className="out"/>نفد <strong>4</strong></li></ul></article>
+              <article className="m1p-panel"><div className="m1p-panel-head"><div><h2>حالة المخزون</h2></div><button><MoreHorizontal size={18}/></button></div><div className="m1p-stock-ring"><div><strong>88%</strong><span>متوفر</span></div></div><ul className="m1p-legend"><li><i className="good"/>متوفر <strong>1,248</strong></li><li><i className="low"/>منخفض <strong>12</strong></li><li><i className="out"/>نفد <strong>4</strong></li></ul></article>
               <article className="m1p-panel m1p-activity"><div className="m1p-panel-head"><div><h2>آخر النشاطات</h2><p>تحديث مباشر</p></div><button>عرض الكل</button></div><div><i className="sale"><ArrowDownLeft size={15}/></i><p><strong>عملية بيع جديدة</strong><span>INV-2841 بقيمة 2,450 ج.م</span></p><time>منذ دقيقتين</time></div><div><i className="stock"><Box size={15}/></i><p><strong>تحديث مخزون</strong><span>تم استلام 24 قطعة</span></p><time>منذ 18 دقيقة</time></div><div><i className="order"><Clock3 size={15}/></i><p><strong>طلب بانتظار التجهيز</strong><span>الطلب INV-2840</span></p><time>منذ 31 دقيقة</time></div></article>
             </aside>
           </section>
 
           <section className="m1p-panel m1p-orders">
-            <div className="m1p-panel-head"><div><h2>أحدث الطلبات</h2><p>آخر العمليات المسجلة عبر جميع قنوات البيع</p></div><button className="m1p-text-btn">عرض كل الطلبات <ArrowUpRight size={15}/></button></div>
+            <div className="m1p-panel-head"><div><h2>أحدث الطلبات</h2></div><button className="m1p-text-btn">عرض كل الطلبات <ArrowUpRight size={15}/></button></div>
             <div className="m1p-table-wrap"><table><thead><tr><th>رقم الفاتورة</th><th>العميل</th><th>القناة</th><th>الإجمالي</th><th>الحالة</th><th>الوقت</th><th/></tr></thead><tbody>{orders.map(o => <tr key={o.id}><td><strong>{o.id}</strong></td><td>{o.customer}</td><td>{o.channel}</td><td><strong>{o.total}</strong></td><td><span className={`m1p-badge ${o.status === "مكتمل" ? "done" : o.status === "قيد التجهيز" ? "progress" : "pending"}`}>{o.status}</span></td><td>{o.time}</td><td><button><MoreHorizontal size={17}/></button></td></tr>)}</tbody></table></div>
           </section>
         </div>

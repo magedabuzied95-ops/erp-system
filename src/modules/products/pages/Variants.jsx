@@ -198,7 +198,6 @@ function Variants() {
   return (
     <ProductsShell
       title={t("products.variantPage.title")}
-      description={t("products.variantPage.description")}
     >
       <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-12">
         <section className="min-w-0 rounded-[34px] border border-white/8 bg-zinc-950/80 p-6 xl:col-span-4">
@@ -288,7 +287,6 @@ function Variants() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="m1-section-title text-white">{t("products.variantPage.variantGrid")}</h2>
-              <p className="mt-1 text-sm text-zinc-500">{t("products.variantPage.variantGridHelp")}</p>
             </div>
             <div className="relative min-w-0 max-w-sm flex-1">
               <Search className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />

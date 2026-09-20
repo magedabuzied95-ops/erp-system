@@ -203,7 +203,6 @@ export default function CourierSettlements() {
           <div>
             <div className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">{t("shipping.settlements.eyebrow")}</div>
             <h1 className="m1-page-title mt-2">{t("shipping.settlements.title")}</h1>
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-[var(--muted)]">{t("shipping.settlements.subtitle")}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link to="/operations/shipping" className={ghostButton}><ArrowRight className="h-4 w-4 rtl:rotate-180" /> {t("shipping.settlements.back")}</Link>

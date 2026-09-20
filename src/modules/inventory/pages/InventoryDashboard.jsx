@@ -444,7 +444,6 @@ function InventoryDashboard() {
   return (
     <InventoryShell
       title={t("inventory.title")}
-      subtitle={t("inventory.subtitle")}
       actions={
         <>
           <Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-[var(--radius-card)] border border-border bg-surface-soft px-4 py-2 text-sm font-semibold text-text transition hover:bg-surface-hover">

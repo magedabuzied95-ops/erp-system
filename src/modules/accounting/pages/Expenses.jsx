@@ -114,8 +114,7 @@ const blankRecurring = {
 
 const labels = {
   en: {
-    module: "Expenses Center",
-    subtitle: "Operational expenses, approvals, recurring liabilities, employee advances, and profit impact.",
+    module: "Expenses Center",
     dashboard: "Dashboard",
     expenses: "All Expenses",
     create: "Add / Edit",
@@ -182,8 +181,7 @@ const labels = {
     advanceDeducted: "Advance marked deducted",
   },
   ar: {
-    module: "مركز المصاريف",
-    subtitle: "المصاريف التشغيلية والاعتمادات والمصاريف المتكررة وسلف الموظفين وتأثير الربح.",
+    module: "مركز المصاريف",
     dashboard: "لوحة التحكم",
     expenses: "كل المصاريف",
     create: "إضافة / تعديل",
@@ -705,8 +703,7 @@ function Expenses({ defaultTab = "dashboard", visibleTabs = null }) {
 
   return (
     <AccountingShell
-      title={copy.module}
-      subtitle={copy.subtitle}
+      title={copy.module}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={loadAll} className="theme-button-soft px-3 py-2 text-sm" disabled={loading}>

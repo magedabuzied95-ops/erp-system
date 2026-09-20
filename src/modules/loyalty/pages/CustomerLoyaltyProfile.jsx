@@ -164,7 +164,6 @@ function CustomerLoyaltyProfile() {
 
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-5">
           <h2 className="m1-section-title">{t("loyalty.profile.redeemTitle")}</h2>
-          <p className="mt-2 text-sm text-[var(--muted)]">{t("loyalty.profile.redeemHint")}</p>
 
           <label className="mt-5 block space-y-2 text-sm text-[var(--muted)]">
             <span className="block text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{t("loyalty.profile.pointsToRedeem")}</span>

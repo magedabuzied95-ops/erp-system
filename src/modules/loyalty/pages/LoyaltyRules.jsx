@@ -111,9 +111,6 @@ function LoyaltyRules() {
       <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--card)] p-6">
         <p className="text-xs uppercase tracking-[0.3em] text-primary/80">{t("loyalty.rules.eyebrow")}</p>
         <h1 className="m1-page-title mt-2">{t("loyalty.rules.title")}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-          {t("loyalty.rules.subtitle")}
-        </p>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">

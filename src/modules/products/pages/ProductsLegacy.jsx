@@ -445,12 +445,6 @@ function Products() {
             {t("products.legacy.title")}
           </h1>
 
-          <p
-            className="text-gray-500 mt-3 text-lg"
-          >
-            {t("products.legacy.description")}
-          </p>
-
         </div>
 
       </div>

@@ -3787,7 +3787,6 @@ function ProductEdit() {
   return (
     <ProductsShell
       title={t("products.editor.editTitle", "Edit Product")}
-      description={t("products.editor.editDescription", "Update product details and manage colors, sizes, images, and variant records from one editor.")}
       actions={
         <Link
           to="/products"

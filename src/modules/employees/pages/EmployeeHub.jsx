@@ -114,9 +114,6 @@ export default function EmployeeHub() {
         <div className="flex flex-col gap-2">
           <div>
             <h1 className="m1-page-title text-[var(--text)]">{t("common.employeeHub.title")}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              {t("common.employeeHub.subtitle")}
-            </p>
           </div>
         </div>
 
@@ -185,8 +182,6 @@ export default function EmployeeHub() {
 }
 
 function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChange = null }) {
-  const { i18n } = useTranslation();
-  const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
   return (
     <div className="space-y-4">
@@ -199,11 +194,6 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
             <h2 className="m1-section-title mt-2 text-[var(--text)]">
               دليل الموظفين أولاً
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
-              {isRtl
-                ? "أضف الموظفين وعدل بياناتهم من الدليل الرئيسي، ثم انتقل لإعدادات البائعين والعمولات عند الحاجة."
-                : "أضف الموظفين وعدل بياناتهم من الدليل الرئيسي أولاً، ثم انتقل إلى إعدادات فريق المبيعات والعمولات عند الحاجة."}
-            </p>
           </div>
         </div>
       </section>
@@ -304,7 +294,6 @@ function EmployeeReports({ onSelectTab, t, isRtl }) {
     <section className="theme-card p-5">
       <div className="flex flex-col gap-2 border-b border-[var(--border)] pb-4">
         <h2 className="m1-section-title text-[var(--text)]">{t("common.employeeHub.reports.title")}</h2>
-        <p className="text-sm leading-6 text-[var(--muted)]">{t("common.employeeHub.reports.subtitle")}</p>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {reports.map((report) => (

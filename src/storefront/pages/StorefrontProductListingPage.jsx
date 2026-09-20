@@ -1316,7 +1316,6 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     <section className="sf-product-listing-page sfx-listing sfx-wrap pb-[calc(env(safe-area-inset-bottom)+2.25rem)] pt-4 md:py-8">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="sf-catalog-eyebrow sfx-eyebrow">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
           <h1 className="sf-catalog-title sfx-page-title text-stone-950">
             {seoCategory ? seoCategory.h1 : q
               ? t("storefront.search.resultsFor", "نتائج البحث عن \"{{query}}\"", { query: q })
@@ -1726,7 +1725,7 @@ function CatalogPriceFilter({ minPrice = "", maxPrice = "", onChange, priceBound
   );
 }
 
-function CatalogSectionShell({ eyebrow, title, icon: Icon = SlidersHorizontal, action = null, children, className = "" }) {
+function CatalogSectionShell({ title, icon: Icon = SlidersHorizontal, action = null, children, className = "" }) {
   return (
     <section className={`sfx-facet ${className}`}>
       <div className="sfx-facet__head">
@@ -1863,7 +1862,6 @@ function sortLabelForValue(value = "", t = (key, fallback) => fallback) {
 }
 
 function CatalogSingleSelectFilter({
-  eyebrow,
   title,
   icon: Icon = SlidersHorizontal,
   options = [],
@@ -1889,7 +1887,6 @@ function CatalogSingleSelectFilter({
   const hiddenCount = Math.max(0, options.length - visibleOptions.length);
   return (
     <CatalogSectionShell
-      eyebrow={eyebrow}
       title={title}
       icon={Icon}
       action={hasValue ? (
@@ -1982,19 +1979,19 @@ function CatalogFiltersPanel({
   const { t } = useTranslation();
   return (
     <div className="sfx-facets">
-      <CatalogSectionShell eyebrow={t("storefront.filters.sort", "ترتيب")} title={t("storefront.filters.sort", "ترتيب")} icon={SlidersHorizontal}>
+      <CatalogSectionShell title={t("storefront.filters.sort", "ترتيب")} icon={SlidersHorizontal}>
         <CatalogSortControl value={selectedSort} options={sortOptions} onChange={onSortChange} compact />
       </CatalogSectionShell>
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.filters.gender", "الجنس")} icon={Users} options={genderOptions} value={selectedGender} onChange={onGenderChange} onClear={() => onGenderChange("")} lang={lang} normalizeValue={normalizeStorefrontAudienceValue} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
+      <CatalogSingleSelectFilter title={t("storefront.filters.gender", "الجنس")} icon={Users} options={genderOptions} value={selectedGender} onChange={onGenderChange} onClear={() => onGenderChange("")} lang={lang} normalizeValue={normalizeStorefrontAudienceValue} />
+      <CatalogSingleSelectFilter title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
       {normalizeStorefrontProductTypeValue(selectedType) === "bags" && bagTypeOptions.length ? (
-        <CatalogSingleSelectFilter eyebrow={t("storefront.filters.bagType", "نوع الشنطة")} title={t("storefront.filters.bagType", "نوع الشنطة")} icon={Briefcase} options={bagTypeOptions} value={selectedBagType} onChange={onBagTypeChange} onClear={() => onBagTypeChange("")} lang={lang} />
+        <CatalogSingleSelectFilter title={t("storefront.filters.bagType", "نوع الشنطة")} icon={Briefcase} options={bagTypeOptions} value={selectedBagType} onChange={onBagTypeChange} onClear={() => onBagTypeChange("")} lang={lang} />
       ) : null}
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.grade", "الفئة / الجودة")} title={t("storefront.filters.grade", "الفئة / الجودة")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
+      <CatalogSingleSelectFilter title={t("storefront.filters.grade", "الفئة / الجودة")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
       <CatalogSizeFilter sizes={sizes} selectedSizes={selectedSizes} onToggle={onToggleSize} onClear={onClearSizes} />
       <CatalogPriceFilter minPrice={minPrice} maxPrice={maxPrice} onChange={onPriceChange} priceBounds={priceBounds} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "اللون")} title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} initialVisibleCount={14} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.brand", "البرند")} title={t("storefront.filters.brand", "البرند")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
+      <CatalogSingleSelectFilter title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} initialVisibleCount={14} />
+      <CatalogSingleSelectFilter title={t("storefront.filters.brand", "البرند")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
       {onClearAll ? (
         <button type="button" onClick={onClearAll} className="sfx-btn sfx-btn--outline sfx-facets__clear">
           {t("storefront.filters.clearAll", "مسح الكل")}

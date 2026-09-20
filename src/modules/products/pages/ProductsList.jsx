@@ -3211,7 +3211,6 @@ function ProductsList() {
     <ProductHistoryContext.Provider value={openProductHistory}>
     <ProductsShell
       title={t("products.title")}
-      description={t("products.description")}
       actions={
         <>
           <button
@@ -4036,10 +4035,7 @@ function BarcodeQueueBulkModal({
       <div className="w-full max-w-4xl overflow-hidden rounded-[var(--radius-card)] border border-border bg-surface shadow-2xl shadow-black/60">
         <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div className="min-w-0">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
-              {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
-            </p>
-            <h2 className="m1-section-title mt-2 text-text">
+            <h2 className="m1-section-title text-text">
               {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
             </h2>
             <p className="mt-2 text-sm leading-6 text-text-muted">

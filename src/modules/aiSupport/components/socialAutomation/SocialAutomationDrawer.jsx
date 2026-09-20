@@ -226,7 +226,6 @@ export default function SocialAutomationDrawer({
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Recent Runs</div>
-                    <div className="mt-1 text-sm font-black text-white">Latest automation outcomes</div>
                   </div>
                   <button
                     type="button"

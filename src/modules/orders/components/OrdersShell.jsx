@@ -1,8 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-import { ClipboardList } from "lucide-react";
-
 function OrdersShell({ title, subtitle, actions, header, children }) {
   const { t } = useTranslation();
   const embeddedWorkspace = header === null;
@@ -13,11 +11,7 @@ function OrdersShell({ title, subtitle, actions, header, children }) {
         <div className="rounded-[var(--radius-card)] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-[var(--shadow)]">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-[var(--primary)]">
-                <ClipboardList className="h-5 w-5" />
-                <span className="text-xs font-semibold uppercase tracking-[0.18em]">{t("orders.moduleEyebrow")}</span>
-              </div>
-              <h1 className="m1-page-title mt-2 text-[var(--text)]">{title}</h1>
+              <h1 className="m1-page-title text-[var(--text)]">{title}</h1>
               <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">{subtitle}</p>
             </div>
             <div className="flex flex-wrap gap-2">

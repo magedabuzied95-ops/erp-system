@@ -137,7 +137,6 @@ function PermissionsPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="m1-section-title text-white">{t("access.permissions.rolesTitle")}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{t("access.permissions.rolesSubtitle")}</p>
             </div>
             <div className="rounded-[var(--radius-card)] border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
               {roles.length} roles

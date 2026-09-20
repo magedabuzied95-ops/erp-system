@@ -2328,7 +2328,6 @@ function PurchaseOrder() {
         </button>
       }
       title={t("purchases.create.title")}
-      subtitle={t("purchases.create.subtitle")}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -3279,7 +3278,6 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
     ? {
         eyebrow: "كميات الشراء",
         title: "استخدم كميات المنتج",
-        description: "راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.",
         // Present in the English half only until now, so Arabic rendered the
         // `|| "Article"` fallback. The halves have to stay parallel.
         article: "الأرتيكل",
@@ -3299,7 +3297,6 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
     : {
         eyebrow: "Purchase quantities",
         title: "Use Product Purchase Qty",
-        description: "Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.",
         article: "Article",
         variant: "Size / color",
         current: "Current quantity",
@@ -3347,7 +3344,6 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
       <div className="space-y-4" dir={isArabic ? "rtl" : "ltr"}>
         <div className="rounded-3xl border border-amber-400/25 bg-amber-400/10 p-4">
           <div className="text-sm font-black text-text">{data?.group?.product_name || "Product"}</div>
-          <p className="mt-2 text-sm leading-6 text-text-muted">{labels.description}</p>
         </div>
 
         <div className="max-h-80 overflow-auto rounded-2xl border border-border bg-surface-soft">
@@ -3687,8 +3683,7 @@ function BulkModelPricingModal({ items = [], onClose, onApply }) {
     <Modal eyebrow={t("purchases.create.bulkPricing")} title={t("purchases.create.modelPricing.title")} onClose={onClose}>
       <div className="flex max-h-[82vh] flex-col gap-4">
         <div className="rounded-3xl border border-primary/25 bg-primary/10 p-4">
-          <div className="text-sm font-black text-text">{t("purchases.create.modelPricing.lead")}</div>
-          <p className="mt-2 text-sm leading-6 text-text-muted">
+          <p className="text-sm leading-6 text-text-muted">
             {t("purchases.create.modelPricing.note")}
           </p>
         </div>
@@ -4189,7 +4184,7 @@ function QuickSupplierModal({ form, setForm, saving, error, onClose, onSubmit })
   const { t } = useTranslation();
   const setField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   return (
-    <Modal eyebrow={t("purchases.suppliersDashboard.supplier")} title={t("purchases.create.quickCreateSupplier")} onClose={onClose}>
+    <Modal title={t("purchases.create.quickCreateSupplier")} onClose={onClose}>
       <form onSubmit={onSubmit}>
         {error ? <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</div> : null}
         <div className="grid gap-3 sm:grid-cols-2">
@@ -4213,7 +4208,7 @@ function QuickProductModal({ form, setForm, saving, error, onClose, onSubmit }) 
   const { t } = useTranslation();
   const setField = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
   return (
-    <Modal eyebrow={t("purchases.details.product")} title={t("purchases.create.quickCreateProduct")} onClose={onClose}>
+    <Modal title={t("purchases.create.quickCreateProduct")} onClose={onClose}>
       <form onSubmit={onSubmit}>
         {error ? <div className="mb-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</div> : null}
         <div className="grid gap-3 sm:grid-cols-2">

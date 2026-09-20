@@ -1250,9 +1250,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       {!embedded ? (
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className={eyebrowClass}>{t("sales.eyebrow", "ملفات موظفي المبيعات")}</div>
-          <h1 className="m1-page-title mt-2">{t("sales.title", "موظفو المبيعات والعمولات")}</h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{t("sales.subtitle", "قم بضبط موظفي المبيعات، وراجع العمولات، واستعرض الرواتب حسب الفرع.")}</p>
+          <h1 className="m1-page-title">{t("sales.title", "موظفو المبيعات والعمولات")}</h1>
         </div>
         <button onClick={() => loadAll()} className="theme-button-soft px-4 py-3 text-sm">
           <RefreshCw className="h-4 w-4" />
@@ -1327,7 +1325,6 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="m1-section-title">{t("sales.staff.title", "Sales Staff")}</h2>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.staff.subtitle", "Compact branch employee configuration. Open a row to edit POS alias, commission, and exclusions.")}</p>
               </div>
               <div className="text-xs font-bold text-[var(--muted)]">{t("sales.staff.employeesCount", "{{count}} employees", { count: employees.length })}</div>
             </div>
@@ -1492,7 +1489,6 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
                 <Gavel className="h-5 w-5 text-[var(--primary)]" />
                 <div>
                   <h2 className="m1-section-title">{t("sales.penalties.title", "Penalties")}</h2>
-                  <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.penalties.subtitle", "Add approved employee penalties and deduct them from payroll.")}</p>
                 </div>
               </div>
               <button type="button" onClick={savePenalty} disabled={penaltySaving || !penaltyForm.employee_id} className="theme-button-primary h-[var(--control-height-lg)] justify-center px-4 text-sm disabled:cursor-not-allowed disabled:opacity-60">
@@ -1600,7 +1596,6 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
               <div>
                 <div className={eyebrowClass}>{t("sales.drawer.eyebrow", "Sales configuration")}</div>
                 <h2 className="m1-section-title mt-1" dir="auto">{form.name || t("sales.drawer.selectEmployee", "Select employee")}</h2>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t("sales.drawer.subtitle", "POS alias, commission rules, and product/category exclusions.")}</p>
               </div>
               <button type="button" onClick={closeEmployeeConfig} className="theme-button-soft h-[var(--control-height-md)] w-10 justify-center p-0" aria-label={t("sales.drawer.close", "Close configuration")}>
                 <X className="h-4 w-4" />

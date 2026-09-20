@@ -931,7 +931,6 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
           <div className="min-w-0">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">{t("marketing.comments.breadcrumb")}</div>
             <div className="mt-1 text-xl font-black text-white">{t("marketing.comments.title")}</div>
-            <div className="mt-1 text-sm leading-6 text-slate-300">{t("marketing.comments.subtitle")}</div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button

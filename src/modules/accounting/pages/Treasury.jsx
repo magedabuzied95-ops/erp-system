@@ -159,7 +159,6 @@ export default function Treasury() {
   return (
     <AccountingShell
       title={tt("accounting.treasury.title")}
-      subtitle={tt("accounting.treasury.subtitle")}
       actions={
         <button type="button" onClick={() => loadTreasury(filters)} className="inline-flex items-center gap-2 rounded-[var(--radius-control)] border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10">
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -199,7 +198,6 @@ export default function Treasury() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h2 className="m1-section-title text-white">{tt("accounting.treasury.accountBalances")}</h2>
-              <p className="mt-1 text-sm text-zinc-400">{tt("accounting.treasury.accountBalancesHint")}</p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold text-zinc-300">{accounts.length} حساب</span>
           </div>
