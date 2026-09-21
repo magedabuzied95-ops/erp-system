@@ -759,9 +759,27 @@
     },
     "reconnecting": "Reconnecting",
     "login": {
+      "title": "Welcome back",
       "email": "Email",
       "password": "Password",
-      "workspace": "Workspace / company slug"
+      "workspace": "Company code",
+      "workspaceHint": "This email belongs to more than one company. Enter your company code.",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
+      "capsLock": "Caps Lock is on",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "forgot": "Forgot your password? Ask your manager to reset it.",
+      "version": "Version {{build}}",
+      "errors": {
+        "invalid": "Wrong email or password.",
+        "locked": "Too many failed attempts. Try again in {{time}}.",
+        "disabled": "This account is disabled. Contact your manager.",
+        "missing": "Enter your email and password.",
+        "workspaceUnknown": "That company code is not right.",
+        "network": "Can't reach the server. Check your connection and try again.",
+        "server": "Something went wrong on the server. Try again shortly."
+      }
     },
     "yesterday": "Yesterday",
     "zoomIn": "Zoom in",

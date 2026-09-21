@@ -1,0 +1,505 @@
+/* Sign-in page. Own classes instead of Tailwind colour utilities: the app remaps
+   text-white / border-* colours globally, and this page must read the theme
+   tokens exactly as ThemeProvider writes them (light and dark). */
+
+.m1-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--surface, #ffffff);
+  color: var(--text, #1b1915);
+}
+
+@media (min-width: 1024px) {
+  .m1-login {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  }
+}
+
+/* ---- Brand panel (desktop) ---------------------------------------------- */
+
+.m1-login__brand {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  background: var(--topbar, #1c1c1a);
+  color: var(--topbar-text, #f4f3ef);
+}
+
+@media (min-width: 1024px) {
+  .m1-login__brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+  }
+}
+
+.m1-login__brand::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(55% 45% at 50% 44%, color-mix(in srgb, var(--primary, #a47a12) 30%, transparent), transparent 72%);
+  pointer-events: none;
+}
+
+.m1-login__brand::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 24px);
+  pointer-events: none;
+}
+
+.m1-login__brand-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.m1-login__brand .m1-login-logo {
+  box-shadow:
+    0 0 0 10px rgba(255, 255, 255, 0.05),
+    0 28px 70px rgba(0, 0, 0, 0.45);
+}
+
+.m1-login__brand-name {
+  margin: 30px 0 0;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.m1-login__brand-tagline {
+  max-width: 32ch;
+  margin: 10px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--topbar-text, #f4f3ef) 64%, transparent);
+}
+
+/* ---- Logo frame ---------------------------------------------------------- */
+
+.m1-login-logo {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  width: var(--logo-size);
+  height: var(--logo-size);
+  background: #ffffff;
+}
+
+.m1-login-logo img {
+  display: block;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.m1-login-logo.is-loaded img {
+  opacity: 1;
+}
+
+/* Square-ish logos (the usual round badge) fill a circle. */
+.m1-login-logo--round {
+  border-radius: 50%;
+}
+
+.m1-login-logo--round img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Wordmarks and tall marks keep their whole shape inside a rounded frame. */
+.m1-login-logo--framed {
+  width: auto;
+  max-width: calc(var(--logo-size) * 2.6);
+  padding: calc(var(--logo-size) * 0.12) calc(var(--logo-size) * 0.16);
+  border-radius: 16px;
+}
+
+.m1-login-logo--framed img {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.m1-login-logo--initials {
+  border-radius: 50%;
+  background: var(--primary-soft, #faf0d6);
+  color: var(--primary, #a47a12);
+  font-size: calc(var(--logo-size) * 0.32);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Form column --------------------------------------------------------- */
+
+.m1-login__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .m1-login__main {
+    padding: 24px 40px;
+  }
+}
+
+.m1-login__top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.m1-login__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  max-width: 400px;
+  margin-inline: auto;
+  padding-block: 24px;
+}
+
+.m1-login__mobile-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.m1-login__mobile-brand p {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+@media (min-width: 1024px) {
+  .m1-login__mobile-brand {
+    display: none;
+  }
+}
+
+.m1-login__title {
+  margin: 0 0 24px;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.m1-login__help-text {
+  margin: -16px 0 24px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted, #6a665e);
+  text-align: center;
+}
+
+@media (min-width: 1024px) {
+  .m1-login__title,
+  .m1-login__help-text {
+    text-align: start;
+  }
+}
+
+/* ---- Fields -------------------------------------------------------------- */
+
+.m1-login__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.m1-login__label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text-secondary, var(--text, #1b1915));
+}
+
+.m1-login__input {
+  width: 100%;
+  height: 48px;
+  padding-inline: 14px;
+  border: 1px solid var(--border-strong, var(--border, #ded8cb));
+  border-radius: var(--radius-control, 10px);
+  outline: none;
+  background: var(--card, #ffffff);
+  color: var(--text, #1b1915);
+  font-size: 15px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.m1-login__input:hover {
+  border-color: var(--muted, #6a665e);
+}
+
+.m1-login__input:focus {
+  border-color: var(--primary, #a47a12);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(164, 122, 18, 0.3));
+}
+
+.m1-login__input--code {
+  font-size: 18px;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
+/* Browser autofill paints its own yellow; an inset shadow covers it with the card. */
+.m1-login__input:-webkit-autofill {
+  -webkit-text-fill-color: var(--text, #1b1915);
+  box-shadow: inset 0 0 0 1000px var(--card, #ffffff);
+  caret-color: var(--text, #1b1915);
+}
+
+.m1-login__input:-webkit-autofill:focus {
+  box-shadow:
+    inset 0 0 0 1000px var(--card, #ffffff),
+    0 0 0 3px var(--focus-ring, rgba(164, 122, 18, 0.3));
+}
+
+.m1-login__input:autofill {
+  box-shadow: inset 0 0 0 1000px var(--card, #ffffff);
+}
+
+.m1-login__input:autofill:focus {
+  box-shadow:
+    inset 0 0 0 1000px var(--card, #ffffff),
+    0 0 0 3px var(--focus-ring, rgba(164, 122, 18, 0.3));
+}
+
+.m1-login__pw {
+  position: relative;
+}
+
+.m1-login__pw .m1-login__input {
+  padding-inline-end: 48px;
+}
+
+.m1-login__eye {
+  position: absolute;
+  inset-block: 4px;
+  inset-inline-end: 4px;
+  display: grid;
+  width: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: calc(var(--radius-control, 10px) - 2px);
+  background: transparent;
+  color: var(--muted, #6a665e);
+  cursor: pointer;
+}
+
+.m1-login__eye:hover {
+  color: var(--text, #1b1915);
+}
+
+.m1-login__eye:focus-visible {
+  outline: 2px solid var(--primary, #a47a12);
+  outline-offset: -2px;
+}
+
+.m1-login__hint,
+.m1-login__caps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.m1-login__hint {
+  color: var(--muted, #6a665e);
+}
+
+.m1-login__caps {
+  color: var(--warning, #c47a08);
+  font-weight: 600;
+}
+
+/* ---- Actions and messages ------------------------------------------------ */
+
+.m1-login__submit {
+  display: inline-flex;
+  width: 100%;
+  height: 48px;
+  margin-top: 8px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-control, 10px);
+  background: var(--primary, #a47a12);
+  color: var(--primary-contrast, #0d0a02);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.m1-login__submit:hover:not(:disabled) {
+  background: var(--primary-hover, #8a6410);
+}
+
+.m1-login__submit:active:not(:disabled) {
+  background: var(--primary-active, #71510a);
+}
+
+.m1-login__submit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(164, 122, 18, 0.3));
+}
+
+.m1-login__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.m1-login__spin {
+  animation: m1-login-spin 0.8s linear infinite;
+}
+
+@keyframes m1-login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.m1-login__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-control, 10px);
+  background: var(--danger-soft, #fceaea);
+  color: var(--danger, #d14343);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.m1-login__alert svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.m1-login__alert--list {
+  display: block;
+  margin: 0 0 16px;
+  padding-inline-start: 28px;
+  list-style: disc;
+}
+
+.m1-login__policy {
+  margin-bottom: 16px;
+}
+
+.m1-login__alert--success {
+  background: var(--success-soft, #e9f7ef);
+  color: var(--success, #198754);
+}
+
+.m1-login__time {
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.m1-login__forgot {
+  margin: 20px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted, #6a665e);
+  text-align: center;
+}
+
+.m1-login__link {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  border: 0;
+  background: none;
+  color: var(--muted, #6a665e);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.m1-login__link:hover {
+  color: var(--text, #1b1915);
+}
+
+.m1-login__foot {
+  font-size: 12px;
+  color: var(--text-tertiary, var(--muted, #8a857b));
+  text-align: center;
+}
+
+.m1-login__foot span {
+  font-variant-numeric: tabular-nums;
+  unicode-bidi: isolate;
+}
+
+/* ---- Language toggle ----------------------------------------------------- */
+
+.m1-login__lang {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border, #ded8cb);
+  border-radius: 999px;
+  background: var(--surface-soft, #f4f1ea);
+}
+
+.m1-login__lang button {
+  min-width: 42px;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted, #6a665e);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.m1-login__lang button[aria-pressed="true"] {
+  background: var(--card, #ffffff);
+  color: var(--text, #1b1915);
+  box-shadow: var(--shadow-card, 0 1px 2px rgba(28, 25, 18, 0.06));
+}
+
+.m1-login__lang button:focus-visible {
+  outline: 2px solid var(--primary, #a47a12);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .m1-login-logo img,
+  .m1-login__input,
+  .m1-login__submit {
+    transition: none;
+  }
+}
