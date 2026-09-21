@@ -1,6 +1,6 @@
 ﻿import { memo, useContext, useMemo } from "react";
 import { useEffect, useRef, useState } from "react";
-import { Ban, Bot, Camera, CheckSquare, Copy, ExternalLink, History, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, Trash2, UserCheck, X } from "lucide-react";
+import { Ban, Bot, Camera, Check, CheckSquare, Copy, ExternalLink, History, Info, MessageSquareText, Pencil, Pin, PinOff, Reply as ReplyIcon, Smile, Sparkles, Star, Trash2, UserCheck, X } from "lucide-react";
 
 import { useTranslation } from "react-i18next";
 
@@ -254,6 +254,8 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
   const pressTimerRef = useRef(0);
   const pressOriginRef = useRef(null);
   const suppressClickRef = useRef(false);
+  // What the last press on this message was made with: a finger's tap must not open the sheet.
+  const pressPointerRef = useRef("");
   const text = messageBodyText(message);
   const reactions = asArray(row?.reactions).filter((reaction) => reactionEmoji(reaction?.message_text || reaction?.text || reaction?.customer_message || reaction?.staff_message));
   const ownReaction = reactions.find((reaction) => reaction.from_me === true || reaction.fromMe === true || clean(reaction.direction).toLowerCase() === "outbound" || clean(reaction.sender_type).toLowerCase() === "staff") || null;
@@ -372,6 +374,10 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
       suppressClickRef.current = false;
       return;
     }
+    // On a phone the sheet opens the way WhatsApp opens it — on a long press only. A tap on a
+    // message does nothing, so scrolling the thread or brushing a bubble never throws it up. The
+    // mouse keeps its click on the desktop inbox.
+    if (pressPointerRef.current && pressPointerRef.current !== "mouse") return;
     if (!canOpenActionsFrom(event.target)) return;
     openActions(event.target);
   };
@@ -386,6 +392,7 @@ function MessageActionShell({ row, message, variant, mode = "dark", align = "lef
     // A suppressed click that never arrived (the finger lifted over the scrim)
     // must not swallow the next real tap on this message.
     suppressClickRef.current = false;
+    pressPointerRef.current = event.pointerType || "";
     if (event.pointerType === "mouse") return;
     if (!canOpenActionsFrom(event.target)) return;
     const target = event.target;
@@ -810,30 +817,51 @@ function QuotedMessage({ quoted = null, skin, customerName = "" }) {
   );
 }
 
-// The reply buttons a WhatsApp prompt went out with, drawn the way the customer's app draws them:
-// full-width rows under the body, split by hairlines. Inert here — only the customer can press them.
-// Reply buttons, and the CTA buttons of the shipping-fee payment card (open a link / copy a value).
+// The buttons a WhatsApp message went out with, drawn the way the customer's app draws them:
+// full-width rows under the body, split by hairlines. They behave as they do in WhatsApp for the
+// sender too: a link button opens its link, a copy button copies its value, and a reply button is
+// inert — only the customer's tap on it means anything.
 const WHATSAPP_BUBBLE_BUTTON_TYPES = new Set(["whatsapp_reply_button", "whatsapp_url_button", "whatsapp_copy_button"]);
 const WHATSAPP_BUTTON_ICONS = { whatsapp_url_button: ExternalLink, whatsapp_copy_button: Copy };
+const isWebLink = (value = "") => /^https?:\/\/\S+$/i.test(clean(value));
 
 function ReplyButtons({ buttons = [], skin }) {
+  const [copiedIndex, setCopiedIndex] = useState(-1);
   if (!buttons.length) return null;
+  const copyValue = async (value, index) => {
+    try {
+      await navigator.clipboard?.writeText(value);
+      setCopiedIndex(index);
+      window.setTimeout(() => setCopiedIndex(-1), 1400);
+    } catch {
+      // A browser that refuses the clipboard leaves the button as it was.
+    }
+  };
   return (
     <div className="-mx-2.5 -mb-1.5 mt-1.5">
       {buttons.map((button, index) => {
-        const Icon = WHATSAPP_BUTTON_ICONS[button.type];
-        return (
-          <div
-            key={`${button.id || button.value || ""}:${index}`}
-            dir="auto"
-            title={button.value || undefined}
-            style={{ color: skin.link, borderTop: `1px solid ${skin.meta}` }}
-            className="flex items-center justify-center gap-1.5 px-2.5 py-2 text-center text-[13.5px] font-semibold leading-5"
-          >
+        const value = clean(button.value);
+        const Icon = copiedIndex === index ? Check : WHATSAPP_BUTTON_ICONS[button.type];
+        const rowKey = `${button.id || value}:${index}`;
+        const rowProps = {
+          dir: "auto",
+          title: value || undefined,
+          style: { color: skin.link, borderTop: `1px solid ${skin.meta}` },
+          className: "flex w-full items-center justify-center gap-1.5 px-2.5 py-2 text-center text-[13.5px] font-semibold leading-5",
+        };
+        const content = (
+          <>
             {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
             {button.title}
-          </div>
+          </>
         );
+        if (button.type === "whatsapp_url_button" && isWebLink(value)) {
+          return <a key={rowKey} {...rowProps} data-whatsapp-button="url" href={value} target="_blank" rel="noopener noreferrer">{content}</a>;
+        }
+        if (button.type === "whatsapp_copy_button" && value) {
+          return <button key={rowKey} {...rowProps} data-whatsapp-button="copy" type="button" onClick={() => void copyValue(value, index)}>{content}</button>;
+        }
+        return <div key={rowKey} {...rowProps}>{content}</div>;
       })}
     </div>
   );

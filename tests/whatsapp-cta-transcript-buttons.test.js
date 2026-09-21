@@ -151,3 +151,21 @@ test("the direct paths log the button only after the CTA call succeeded", () => 
     assert.match(source, /suggestedActions: transcriptButtons,/, `${path} writes them to the row`);
   }
 });
+
+// On the phone a light tap on a message threw up the reactions + actions sheet, and a tap on the
+// review button did the same. WhatsApp opens that sheet on a long press only, and its link button
+// opens the link.
+test("a finger's tap never opens the message sheet — only a long press does", () => {
+  const bubble = read("src/modules/aiSupport/components/TranscriptMessage.jsx");
+  assert.match(bubble, /pressPointerRef\.current = event\.pointerType \|\| "";\s*if \(event\.pointerType === "mouse"\) return;/, "the press records what it was made with");
+  assert.match(bubble, /if \(pressPointerRef\.current && pressPointerRef\.current !== "mouse"\) return;\s*if \(!canOpenActionsFrom\(event\.target\)\) return;\s*openActions\(event\.target\);/, "the click opens the sheet for a mouse only");
+  assert.match(bubble, /pressTimerRef\.current = window\.setTimeout\(\(\) => \{[\s\S]{0,400}openActions\(target\);/, "the long press still opens it");
+});
+
+test("a link button opens its link and a copy button copies, as in WhatsApp", () => {
+  const bubble = read("src/modules/aiSupport/components/TranscriptMessage.jsx");
+  assert.match(bubble, /button\.type === "whatsapp_url_button" && isWebLink\(value\)[\s\S]{0,120}<a key=\{rowKey\} \{\.\.\.rowProps\} data-whatsapp-button="url" href=\{value\} target="_blank" rel="noopener noreferrer">/);
+  assert.match(bubble, /button\.type === "whatsapp_copy_button" && value[\s\S]{0,120}<button key=\{rowKey\} \{\.\.\.rowProps\} data-whatsapp-button="copy" type="button" onClick=\{\(\) => void copyValue\(value, index\)\}>/);
+  // A tapped link or button must never double as the gesture that opens the sheet.
+  assert.match(bubble, /if \(target\.closest\("a, button, input, textarea, select, audio, video, \[role='button'\]"\)\) return false;/);
+});
