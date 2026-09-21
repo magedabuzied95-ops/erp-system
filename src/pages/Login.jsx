@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../shared/api/api";
 import { isMetaReviewerUser, setAuth, getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
 import { API_BASE_URL } from "../shared/constants/app.js?m1PreviewApi=2";
+import { resolveBrandImageUrl } from "../shared/lib/imageUrls";
 import MfaEnrollmentPanel, { RecoveryCodesList, inputClass, primaryButton } from "../modules/security/MfaEnrollmentPanel";
 
 function BrandBadge({ name, logoUrl }) {
@@ -71,10 +72,13 @@ function Login() {
     publicSettings?.["general.company_name"] ||
     publicSettings?.["storefront.store_name"] ||
     "MONE";
-  const brandLogo =
+  // Settings store the logo as a backend-relative /uploads path; rendered raw it
+  // hits the app origin, which answers the SPA shell instead of the image.
+  const brandLogo = resolveBrandImageUrl(
     publicSettings?.["general.company_logo_url"] ||
     publicSettings?.["storefront.store_logo_url"] ||
-    "";
+    ""
+  );
   const brandInitials =
     String(brandName || "MONE")
       .trim()
