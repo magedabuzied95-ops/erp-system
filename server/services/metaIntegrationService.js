@@ -17226,6 +17226,146 @@ const sendSocialCommentAddressCard = async ({ config, message, addressUrl = "", 
   }
 };
 
+/*
+ * The order summary as a CARD, not a paragraph.
+ *
+ * The customer has just settled a colour and a size, so the last thing they see before confirming
+ * should show them what they picked: the chosen colour's OWN photo, that colour-and-size's price
+ * under it, and the two buttons sitting on the card itself. The text version said the same words
+ * with no picture, and the buttons floated underneath as quick replies that vanish the moment the
+ * customer types anything.
+ *
+ * Instagram takes this template exactly as Messenger does — the colour carousel proves it — so the
+ * only channel-specific field is Messenger's image_aspect_ratio.
+ *
+ * The buttons are postbacks carrying the SAME ORDER_CONFIRM / ORDER_CANCEL payloads the quick
+ * replies carried, so the confirm step needs no change at all.
+ */
+const buildSocialCommentOrderSummaryCardPayload = ({
+  recipientId = "",
+  productName = "",
+  selectedColor = "",
+  selectedSize = "",
+  priceUsed = "",
+  imageUrl = "",
+  channel = AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+} = {}) => {
+  const isMessenger = text(channel) === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER;
+  const colorLabel = normalizeSocialCommentColorDisplay(selectedColor) || text(selectedColor);
+  const priceText = text(priceUsed) ? `${text(priceUsed)} جنيه` : "";
+  // Meta renders the title bold and the subtitle as plain grey, and caps both at 80 characters.
+  // So the product and its price take the title, and what the customer chose goes underneath.
+  const title = [text(productName) || "طلبك", priceText].filter(Boolean).join(" — ").slice(0, 80);
+  const subtitle = [
+    colorLabel ? `اللون: ${colorLabel}` : "",
+    text(selectedSize) ? `المقاس: ${text(selectedSize)}` : "",
+  ].filter(Boolean).join(" · ").slice(0, 80);
+  return {
+    recipient: { id: recipientId },
+    messaging_type: "RESPONSE",
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          // Without this Messenger letterboxes the shoe; the colour carousel ships square for the
+          // same reason. Instagram's template reference has no such field and rejects the payload.
+          ...(isMessenger ? { image_aspect_ratio: "square" } : {}),
+          elements: [
+            {
+              title: title || "تفاصيل طلبك",
+              ...(text(imageUrl) ? { image_url: text(imageUrl) } : {}),
+              ...(subtitle ? { subtitle } : {}),
+              buttons: [
+                { type: "postback", title: "✅ تأكيد الطلب", payload: "ORDER_CONFIRM" },
+                { type: "postback", title: "❌ إلغاء الطلب", payload: "ORDER_CANCEL" },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
+// Never throws, and returns false rather than half-sending: the caller falls back to the text
+// summary with its quick replies, so a refused template can never cost the confirmation step.
+const sendSocialCommentOrderSummaryCard = async ({
+  config,
+  message,
+  productName = "",
+  priceUsed = "",
+  imageUrl = "",
+  selectedColor = "",
+  selectedSize = "",
+} = {}) => {
+  const channel = text(message?.channel || "");
+  if (![AI_AGENT_CHANNELS.FACEBOOK_MESSENGER, AI_AGENT_CHANNELS.INSTAGRAM].includes(channel)) return false;
+  const recipientId = text(message?.external_customer_id || "");
+  // A card with no picture is just the text summary with worse typography, and Meta drops an
+  // element whose image_url it cannot fetch anyway. No photo ⇒ keep the words.
+  const absoluteImageUrl = absolutePublicUploadUrl(text(imageUrl));
+  if (!recipientId || !/^https?:\/\//i.test(absoluteImageUrl)) return false;
+  try {
+    const sendConfig = await resolveMetaSendConfig({
+      tenantId: Number(config?.tenant_id || 0) || null,
+      channel,
+      facebookPageId: text(config?.facebook_page_id || ""),
+      instagramBusinessAccountId: text(config?.instagram_business_account_id || ""),
+      preferredConfigId: config?.id || null,
+    });
+    const token = text(sendConfig?.token || "");
+    if (!token) return false;
+    const result = await postMetaMessageWithThreadControl({
+      token,
+      recipientId,
+      body: buildSocialCommentOrderSummaryCardPayload({
+        recipientId,
+        productName,
+        selectedColor,
+        selectedSize,
+        priceUsed,
+        imageUrl: absoluteImageUrl,
+        channel,
+      }),
+      sendContext: {
+        channel,
+        instagram_business_login: sendConfig?.instagramBusinessLogin === true,
+        resolved_instagram_account_id: text(
+          sendConfig?.config?.instagram_business_account_id || config?.instagram_business_account_id || ""
+        ),
+      },
+    }).catch((error) => {
+      console.warn("SOCIAL_COMMENT_ORDER_SUMMARY_CARD_FAILED", {
+        tenant_id: config?.tenant_id || null,
+        channel,
+        conversation_id: text(message?.external_conversation_id || ""),
+        status: error?.status || "",
+        error: error?.message || String(error),
+      });
+      return null;
+    });
+    if (!result) return false;
+    console.log("SOCIAL_COMMENT_ORDER_SUMMARY_CARD_SENT", {
+      tenant_id: config?.tenant_id || null,
+      channel,
+      conversation_id: text(message?.external_conversation_id || ""),
+      message_id: result?.message_id || "",
+      color: normalizeSocialCommentColorDisplay(selectedColor),
+      size: text(selectedSize),
+      price_used: text(priceUsed),
+    });
+    return true;
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_ORDER_SUMMARY_CARD_FAILED", {
+      tenant_id: config?.tenant_id || null,
+      conversation_id: text(message?.external_conversation_id || ""),
+      message: error?.message || String(error),
+    });
+    return false;
+  }
+};
+
 // The one live address link for this conversation. createAddressRequest already reuses a pending
 // code rather than minting a second, so re-confirming hands back the same URL the customer may
 // already have open. Never throws: a link that cannot be built falls back to the text ask.
@@ -18424,15 +18564,44 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       price_used: summaryPriceUsed,
       text_preview: text(summaryMessage).slice(0, 500),
     });
+    // The card IS the summary: the colour the customer picked, its photo, its price, the size, and
+    // the two buttons on the card itself. It replaces the paragraph rather than sitting above it —
+    // repeating the same four lines underneath a picture of them is noise. Only when Meta refuses
+    // the template (or the colour has no photo) does the text summary go out with quick replies,
+    // which is exactly what shipped before.
+    const summaryCardSent = await sendSocialCommentOrderSummaryCard({
+      config,
+      message,
+      productName: text(summaryVariantData?.productName || productData?.productName || ""),
+      priceUsed: summaryPriceUsed,
+      imageUrl: text(summaryVariantData?.productImageUrl || productData?.productImageUrl || ""),
+      selectedColor,
+      selectedSize,
+    });
     console.log("SOCIAL_COMMENT_ORDER_SUMMARY_OUTBOUND_PAYLOAD", {
-      text_preview: text(summaryMessage).slice(0, 500),
-      quick_replies: Array.isArray(quickReplies) ? quickReplies : [],
-      quick_reply_titles: Array.isArray(quickReplies) ? quickReplies.map((item) => text(item?.title || "")) : [],
-      quick_reply_payloads: Array.isArray(quickReplies) ? quickReplies.map((item) => text(item?.payload || "")) : [],
+      summary_card_sent: summaryCardSent,
+      text_preview: summaryCardSent ? "" : text(summaryMessage).slice(0, 500),
+      quick_replies: summaryCardSent ? [] : quickReplies,
+      quick_reply_titles: summaryCardSent ? [] : quickReplies.map((item) => text(item?.title || "")),
+      quick_reply_payloads: summaryCardSent ? [] : quickReplies.map((item) => text(item?.payload || "")),
       conversation_id: text(message.external_conversation_id || ""),
       product_id: Number(productId || 0) || null,
       selected_size: text(selectedSize),
     });
+    if (summaryCardSent) {
+      console.log("SOCIAL_COMMENT_ORDER_SUMMARY_SENT", {
+        tenant_id: config.tenant_id,
+        platform: text(message.channel || ""),
+        conversation_id: message.external_conversation_id,
+        session_id: message.external_conversation_id,
+        product_id: Number(productId || 0) || null,
+        size: text(selectedSize),
+        color: text(selectedColor),
+        step: "awaiting_order_confirmation",
+        surface: "card",
+      });
+      return { sent: true, surface: "card" };
+    }
     const reviewResult = await sendSocialCommentSalesFlowText({
       config,
       message,
@@ -18473,6 +18642,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       size: text(selectedSize),
       color: text(selectedColor),
       step: "awaiting_order_confirmation",
+      surface: "text",
       message_id: reviewResult?.message_id || reviewResult?.id || "",
     });
     return reviewResult;
