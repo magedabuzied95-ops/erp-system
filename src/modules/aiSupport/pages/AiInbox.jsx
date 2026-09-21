@@ -4676,6 +4676,8 @@ export default function AiInbox({ reviewerMode = false }) {
   // when it is dropped onto the workspace's navy panel instead.
   const { theme: activeTheme } = useTheme();
   const pinToBottomAfterRefreshRef = useRef(false);
+  // Releases the "hold at the bottom" started by the last pin (see pinScrollerToBottom).
+  const transcriptPinReleaseRef = useRef(null);
   const messengerProfileSyncAttemptedRef = useRef(new Set());
   const selectedSessionIdRef = useRef("");
   const selectedSocialCommentIdRef = useRef("");
@@ -6067,8 +6069,17 @@ export default function AiInbox({ reviewerMode = false }) {
   );
   const syncTranscriptScrollProximity = useCallback((scroller = transcriptScrollRef.current) => {
     if (!scroller) return;
-    setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
+    setUserIsNearBottom(isScrollerNearBottom(scroller));
   }, []);
+  // The way back to the newest message from anywhere in the thread.
+  const jumpToLatestMessage = useCallback(() => {
+    const scroller = transcriptScrollRef.current;
+    if (!scroller) return;
+    transcriptPinReleaseRef.current?.();
+    transcriptPinReleaseRef.current = pinScrollerToBottom(scroller, { smooth: true, settleMs: 1200, onPinned: () => setUserIsNearBottom(true) });
+    setUserIsNearBottom(true);
+  }, []);
+  useEffect(() => () => transcriptPinReleaseRef.current?.(), []);
   const openSocialCommentThread = useCallback((item = {}) => {
     const nextSelectionKey = clean(
       item?.group_key ||
@@ -6476,7 +6487,13 @@ export default function AiInbox({ reviewerMode = false }) {
       const latestMessageAppended = latestMessageKey && latestMessageKey !== previousLatestMessageKeyRef.current;
 
       if (conversationChanged || (latestMessageAppended && userIsNearBottom) || pinBottomAfterRefresh) {
-        scroller.scrollTop = scroller.scrollHeight;
+        // One assignment is never enough: the photos, product cards and the web
+        // font in the bubbles above settle AFTER this frame, and every pixel they
+        // add lands above the viewport — which is exactly what used to leave an
+        // opened conversation sitting in its middle. pinScrollerToBottom holds
+        // the bottom until the content stops growing (or the operator scrolls).
+        transcriptPinReleaseRef.current?.();
+        transcriptPinReleaseRef.current = pinScrollerToBottom(scroller, { onPinned: () => setUserIsNearBottom(true) });
         setUserIsNearBottom(true);
       } else {
         syncTranscriptScrollProximity(scroller);
@@ -9788,7 +9805,8 @@ export default function AiInbox({ reviewerMode = false }) {
                       {t("aiSupport.inbox.pwa.createCustomer")}
                     </button>
                   </div>
-                  <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+                  <div className="relative mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/40">
+                    <JumpToLatestButton visible={!userIsNearBottom} onClick={jumpToLatestMessage} />
                     <div ref={transcriptScrollRef} style={transcriptCanvas ? { background: transcriptCanvas } : undefined} className="min-h-0 flex-1 overflow-y-auto p-4">
                       <Transcript
                         conversation={selectedConversation}
@@ -10320,13 +10338,14 @@ export default function AiInbox({ reviewerMode = false }) {
 
                   <div className="mt-2 grid gap-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,0.75fr)]">
                     <div className="flex min-h-0 flex-col gap-2">
-                      <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-2">
+                      <div className="relative flex min-h-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.04] p-2">
                         <div className="mb-1 flex items-center justify-between gap-3">
                           <div>
                             <h3 className="text-sm font-black leading-5">{t("aiSupport.inbox.ui.transcriptTitle")}</h3>
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
+                        <JumpToLatestButton visible={!userIsNearBottom} onClick={jumpToLatestMessage} />
                         <div ref={transcriptScrollRef} style={transcriptCanvas ? { background: transcriptCanvas } : undefined} className="min-h-0 flex-1 overflow-y-auto pr-1">
                           <Transcript
                             conversation={selectedConversation}

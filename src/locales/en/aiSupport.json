@@ -1072,6 +1072,7 @@
       "preparing": "Preparing...",
       "approveAiReply": "Approve AI reply",
       "transcriptTitle": "Conversation transcript",
+      "jumpToLatest": "Latest messages",
       "selectedLabel": "Selected",
       "rejectedLabel": "Rejected",
       "recommendedActionLabel": "Recommended action:",

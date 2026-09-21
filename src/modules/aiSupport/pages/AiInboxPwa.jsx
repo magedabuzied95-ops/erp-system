@@ -119,6 +119,8 @@ import {
   mergeConversationPages,
 } from "../services/inboxChannels";
 import "./AiInboxPwa.css";
+import { isScrollerNearBottom, pinScrollerToBottom } from "../utils/transcriptScroll.js";
+import JumpToLatestButton from "../components/JumpToLatestButton.jsx";
 import { QuickRepliesPicker, useQuickReplies } from "../components/QuickReplies.jsx";
 import {
   ENABLE_SOCIAL_FAST_CENTER,
@@ -3601,6 +3603,10 @@ export default function AiInboxPwa({ portal = null } = {}) {
   // stutter under a finger. A ref carries it, and the scroll listener is
   // throttled to one frame.
   const nearBottomRef = useRef(true);
+  // The same proximity, but as state: the "latest messages" button renders from it.
+  const [awayFromLatest, setAwayFromLatest] = useState(false);
+  // Releases the "hold at the bottom" started by the last pin (see pinScrollerToBottom).
+  const transcriptPinReleaseRef = useRef(null);
   const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
   const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
   const [socialComments, setSocialComments] = useState(() => ({
@@ -5720,7 +5726,8 @@ export default function AiInboxPwa({ portal = null } = {}) {
       if (restoreState) {
         scroller.scrollTop = Math.max(0, restoreState.scrollTop + (scroller.scrollHeight - restoreState.scrollHeight));
         restoreScrollStateRef.current = null;
-        nearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140;
+        nearBottomRef.current = isScrollerNearBottom(scroller);
+        setAwayFromLatest(!nearBottomRef.current);
         isLoadingOlderRef.current = false;
         isAppendingNewMessageRef.current = false;
         return;
@@ -5732,10 +5739,22 @@ export default function AiInboxPwa({ portal = null } = {}) {
       const latestMessageAppended = latestMessageKey && latestMessageKey !== previousLatestMessageKeyRef.current;
 
       if (conversationChanged || (latestMessageAppended && nearBottomRef.current) || pinBottomAfterRefresh) {
-        scroller.scrollTop = scroller.scrollHeight;
+        // One assignment is never enough: the photos and cards in the bubbles
+        // above settle AFTER this frame and push the bottom down, which is what
+        // used to open a conversation in its middle. pinScrollerToBottom holds
+        // the bottom until the content stops growing (or the operator scrolls).
+        transcriptPinReleaseRef.current?.();
+        transcriptPinReleaseRef.current = pinScrollerToBottom(scroller, {
+          onPinned: () => {
+            nearBottomRef.current = true;
+            setAwayFromLatest(false);
+          },
+        });
         nearBottomRef.current = true;
+        setAwayFromLatest(false);
       } else {
-        nearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140;
+        nearBottomRef.current = isScrollerNearBottom(scroller);
+        setAwayFromLatest(!nearBottomRef.current);
       }
 
       previousConversationKeyRef.current = conversationKey;
@@ -6754,13 +6773,32 @@ export default function AiInboxPwa({ portal = null } = {}) {
       scrollFrameRef.current = 0;
       const scroller = mainScrollRef.current;
       if (!scroller) return;
-      nearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140;
+      nearBottomRef.current = isScrollerNearBottom(scroller);
+      setAwayFromLatest(!nearBottomRef.current);
     });
   }, []);
 
   useEffect(() => () => {
     if (scrollFrameRef.current) window.cancelAnimationFrame(scrollFrameRef.current);
   }, []);
+
+  // The way back to the newest message from anywhere in the thread.
+  const jumpToLatestMessage = useCallback(() => {
+    const scroller = mainScrollRef.current;
+    if (!scroller) return;
+    transcriptPinReleaseRef.current?.();
+    transcriptPinReleaseRef.current = pinScrollerToBottom(scroller, {
+      smooth: true,
+      settleMs: 1200,
+      onPinned: () => {
+        nearBottomRef.current = true;
+        setAwayFromLatest(false);
+      },
+    });
+    nearBottomRef.current = true;
+    setAwayFromLatest(false);
+  }, []);
+  useEffect(() => () => transcriptPinReleaseRef.current?.(), []);
 
   const openImagePicker = useCallback(() => {
     if (!imageInputRef.current) return;
@@ -8508,6 +8546,14 @@ export default function AiInboxPwa({ portal = null } = {}) {
           ) : null}
           {tab === "more" && !portalMode ? <MoreView installAvailable={Boolean(installPrompt)} onInstall={installApp} /> : null}
         </main>
+
+        {isConversationMode && contentScreen ? (
+          <JumpToLatestButton
+            visible={awayFromLatest}
+            onClick={jumpToLatestMessage}
+            positionClassName={`fixed left-1/2 -translate-x-1/2 ${showComposer ? "bottom-[calc(6.4rem+env(safe-area-inset-bottom))]" : "bottom-[calc(4.6rem+env(safe-area-inset-bottom))]"}`}
+          />
+        ) : null}
 
         {showComposer ? (
           <div className={`ai-pwa-fixed ai-pwa-composer fixed inset-x-0 z-20 mx-auto w-full px-2 ${contentScreen ? "bottom-[max(0.4rem,env(safe-area-inset-bottom))]" : "bottom-[calc(4rem+env(safe-area-inset-bottom))]"}`}>

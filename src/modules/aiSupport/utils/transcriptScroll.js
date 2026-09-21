@@ -46,8 +46,8 @@ export function pinScrollerToBottom(scroller, { settleMs = 2200, smooth = false,
 
   let released = false;
   let observer = null;
+  let childWatcher = null;
   let timer = 0;
-  let frame = 0;
 
   const jump = () => {
     if (released || !scroller) return;
@@ -62,8 +62,8 @@ export function pinScrollerToBottom(scroller, { settleMs = 2200, smooth = false,
     if (released) return;
     released = true;
     if (observer) observer.disconnect();
+    if (childWatcher) childWatcher.disconnect();
     if (timer) window.clearTimeout(timer);
-    if (frame) window.cancelAnimationFrame(frame);
     scroller.removeEventListener("load", jump, true);
     TAKEOVER_EVENTS.forEach((event) => scroller.removeEventListener(event, release));
   };
@@ -80,18 +80,39 @@ export function pinScrollerToBottom(scroller, { settleMs = 2200, smooth = false,
   scroller.addEventListener("load", jump, true);
 
   if (typeof ResizeObserver !== "undefined") {
+    let firstObservation = true;
     observer = new ResizeObserver(() => {
-      // A grown bubble moves the bottom away; re-pin on the next frame so the
-      // observer is not re-entered by our own write.
-      if (frame) window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        jump();
-      });
+      // A ResizeObserver delivers one callback the moment it starts observing;
+      // honouring that one would cut a smooth "back to latest" animation at its
+      // first frame, so an animated jump skips the opening delivery.
+      if (firstObservation) {
+        firstObservation = false;
+        if (smooth) return;
+      }
+      // Re-pinned synchronously, inside the callback: a requestAnimationFrame
+      // here would be throttled to a crawl whenever the tab is in the
+      // background, and the operator would come back to a drifted transcript.
+      // Writing scrollTop resizes nothing, so the observer cannot re-enter.
+      jump();
     });
     // The scroller's own box never changes; its content's does.
     Array.from(scroller.children).forEach((child) => observer.observe(child));
     if (!scroller.children.length) observer.observe(scroller);
+
+    // A panel or a bubble mounted DURING the hold is a child the observer has
+    // never seen — on the phone the transcript shares its scroller with the
+    // analysis panel and the order cards, which arrive on their own schedule.
+    if (typeof MutationObserver !== "undefined") {
+      childWatcher = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) observer.observe(node);
+          });
+        });
+        jump();
+      });
+      childWatcher.observe(scroller, { childList: true });
+    }
   }
 
   timer = window.setTimeout(release, Math.max(0, settleMs));
