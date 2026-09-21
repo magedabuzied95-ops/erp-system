@@ -2517,7 +2517,9 @@ export const sendCartCarouselMessage = async ({ phone, body = "", cards = [], fa
     };
   })))
     .filter((card) => card.body && (card.buttons[0].url || card.buttons[0].id));
-  if (!normalizedCards.length || !text(body)) throw gatewayError("A carousel needs a body and at least one card", "WHATSAPP_CAROUSEL_EMPTY", 400);
+  // A single card says everything itself, so the body above it may be empty — what a carousel
+  // cannot be without is a card.
+  if (!normalizedCards.length) throw gatewayError("A carousel needs at least one card", "WHATSAPP_CAROUSEL_EMPTY", 400);
   const current = requireEvolutionConfig();
   const endpoint = `/message/sendCarousel/${encodeURIComponent(current.instanceName)}`;
   const requestBody = JSON.stringify({ number: normalizedPhone, body: text(body), cards: normalizedCards });

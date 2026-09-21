@@ -2013,18 +2013,14 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
   if (selectedTransport === "evolution" && productCards.length >= 1) {
     try {
       const gateway = await import("./whatsappGatewayService.js");
-      // With one card the body must not repeat it. The card itself carries the colour, the price
-      // and the size, so the message above it keeps only what the card has no room for: the
-      // product's name, its link, and the question.
-      const singleCard = productCards.length === 1 ? productCards[0] : null;
-      const singleCardBody = singleCard
-        ? [
-          toText(singleCard.name || singleCard.title || singleCard.product_name),
-          toText(singleCard.product_url || singleCard.storefront_url || singleCard.url),
-          "تحب أحجزهولك؟",
-        ].filter(Boolean).join("\n")
-        : "";
-      const carouselBody = (singleCardBody || text || "اختار اللون اللي يعجبك 👇").slice(0, 1024);
+      // ONE card travels ALONE — no line above it (owner, 2026-09-21). The card already shows the
+      // photo, the colour, the price, the size and the button that orders it; the name, the raw
+      // link and the question were noise stacked on top of it. A batch still gets its lead line:
+      // that one introduces a choice between colours.
+      const singleCard = productCards.length === 1;
+      const carouselBody = singleCard
+        ? ""
+        : (text || "اختار اللون اللي يعجبك 👇").slice(0, 1024);
       const carouselCards = productCards.map((product) => {
         // One picked size is a size, not a list of what is in stock — the same rule the caption
         // follows, so the card and the caption cannot disagree.

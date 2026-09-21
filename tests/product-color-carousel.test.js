@@ -44,13 +44,22 @@ test("a single picked colour still goes as a card, not a photo with a caption", 
   assert.doesNotMatch(branch, /length >= 2/, "no threshold is left that would drop a single card");
 });
 
-// With one card the message body must not repeat what the card already shows.
-test("the body above a single card carries only what the card cannot", () => {
+// One card travels alone: no name, no raw link, no question stacked above it (owner decree).
+// A batch keeps its lead line, because that one introduces a choice between colours.
+test("a single card goes out with no words above it", () => {
   const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
-  const bodyBlock = branch.slice(branch.indexOf("const singleCardBody"), branch.indexOf("const carouselCards"));
-  assert.ok(bodyBlock.length > 0, "the single-card body is built");
-  assert.match(bodyBlock, /product_url \|\| singleCard\.storefront_url/, "the link the card has no room for");
-  assert.doesNotMatch(bodyBlock, /price_text|\.color/, "the card already shows the colour and the price");
+  const bodyBlock = branch.slice(branch.indexOf("const singleCard ="), branch.indexOf("const carouselCards"));
+  assert.ok(bodyBlock.length > 0, "the body is decided per card count");
+  assert.match(bodyBlock, /singleCard\s*$\s*\?\s*""/m, "one card means an empty body");
+  assert.match(bodyBlock, /\u0627\u062e\u062a\u0627\u0631 \u0627\u0644\u0644\u0648\u0646/, "a batch still gets its lead line");
+});
+
+// The gateway used to refuse a body-less carousel, which would have sent every single card
+// straight back to the photo-with-a-caption path.
+test("the gateway lets a card stand on its own", () => {
+  const guard = gateway.slice(gateway.indexOf("export const sendCartCarouselMessage"), gateway.indexOf("const CAROUSEL_NETWORK_RETRY_DELAY_MS"));
+  assert.match(guard, /if \(!normalizedCards\.length\) throw gatewayError/);
+  assert.doesNotMatch(guard, /!normalizedCards\.length \|\| !text\(body\)/, "a missing body is no longer a refusal");
 });
 
 // The card line and the caption must agree: one picked size reads as a size.
