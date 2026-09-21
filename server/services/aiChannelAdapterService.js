@@ -7,6 +7,7 @@ import { sharedMediaKind } from "../../src/shared/lib/sharedInboundMedia.js";
 import { resolveAIStatus } from "./aiStatusResolver.js";
 import {
   normalizeProductCards as normalizeStructuredProductCards,
+  productCardPickedSize,
   productCardReplyText,
 } from "./aiProductCards.js";
 
@@ -2003,18 +2004,39 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
   // back through the webhook as structured data, not free text for the AI to guess a colour from.
   // Any failure falls straight through to the proven per-card image loop; the carousel is an
   // upgrade, never a new way to lose the message.
+  //
+  // ONE card is a card too. The threshold used to be two, so a colour the operator picked on
+  // purpose left as a plain photo with a caption: the inbox showed a card, the customer got an
+  // image and some text, and the "order this colour" button — the one that carries the variant
+  // back as structured data — never reached them at all.
   let carouselHandled = false;
-  if (selectedTransport === "evolution" && productCards.length >= 2) {
+  if (selectedTransport === "evolution" && productCards.length >= 1) {
     try {
       const gateway = await import("./whatsappGatewayService.js");
-      const carouselBody = (text || "اختار اللون اللي يعجبك 👇").slice(0, 1024);
+      // With one card the body must not repeat it. The card itself carries the colour, the price
+      // and the size, so the message above it keeps only what the card has no room for: the
+      // product's name, its link, and the question.
+      const singleCard = productCards.length === 1 ? productCards[0] : null;
+      const singleCardBody = singleCard
+        ? [
+          toText(singleCard.name || singleCard.title || singleCard.product_name),
+          toText(singleCard.product_url || singleCard.storefront_url || singleCard.url),
+          "تحب أحجزهولك؟",
+        ].filter(Boolean).join("\n")
+        : "";
+      const carouselBody = (singleCardBody || text || "اختار اللون اللي يعجبك 👇").slice(0, 1024);
       const carouselCards = productCards.map((product) => {
+        // One picked size is a size, not a list of what is in stock — the same rule the caption
+        // follows, so the card and the caption cannot disagree.
+        const pickedSize = productCardPickedSize(product);
         const cardLines = [
           toText(product.color) || toText(product.name),
           toText(product.price_text),
-          Array.isArray(product.sizes) && product.sizes.length
-            ? `المقاسات: ${product.sizes.slice(0, 6).join(" / ")}`
-            : "",
+          pickedSize
+            ? `المقاس: ${pickedSize}`
+            : Array.isArray(product.sizes) && product.sizes.length
+              ? `المقاسات: ${product.sizes.slice(0, 6).join(" / ")}`
+              : "",
         ].filter(Boolean);
         const variantId = toText(product.variant_id || product.price_variant_id || "");
         return {
@@ -2025,7 +2047,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
             : { url: toText(product.storefront_url || product.product_url || ""), buttonText: "شوف المنتج 🛒" }),
         };
       }).filter((card) => card.imageUrl && (card.buttonId || card.url));
-      if (carouselCards.length >= 2) {
+      if (carouselCards.length >= 1) {
         // Evolution caps a carousel at 10 cards; chunk instead of silently truncating.
         for (let i = 0; i < carouselCards.length; i += 10) {
           const response = await gateway.sendCartCarouselMessage({
@@ -2042,6 +2064,7 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
         carouselHandled = true;
         console.info("[ai-agent:whatsapp] product carousel sent", {
           to: recipient,
+          single_card: carouselCards.length === 1,
           cards: carouselCards.length,
           with_variant_buttons: carouselCards.filter((c) => c.buttonId).length,
         });

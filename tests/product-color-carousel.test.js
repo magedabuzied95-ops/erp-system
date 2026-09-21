@@ -25,14 +25,39 @@ test("the carousel sender accepts reply buttons that carry a structured id", () 
   assert.match(fn, /ensureSquareCardImageUrl\(rawImage\)/);
 });
 
-test("two or more product cards on Evolution go as one carousel, not N images", () => {
+test("product cards on Evolution go as one carousel, not N images", () => {
   const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
   assert.ok(branch.length > 0, "the carousel branch exists");
-  assert.match(branch, /selectedTransport === "evolution" && productCards\.length >= 2/);
   assert.match(branch, /choose_color:\$\{variantId\}/, "each colour card carries its variant id");
   assert.match(branch, /i \+= 10/, "chunked at Evolution's 10-card cap, not truncated");
   // and the per-card loop is skipped only when the carousel actually went out
   assert.match(adapter, /if \(!carouselHandled\)\s*\r?\n\s*for \(let batchIndex = 0/);
+});
+
+// ONE card is a card. A colour the operator picked on purpose used to miss the threshold and
+// leave as a plain photo with a caption — no card, and no "order this colour" button — while
+// Messenger and Instagram already sent it as a template (metaIntegrationService templateMinimum).
+test("a single picked colour still goes as a card, not a photo with a caption", () => {
+  const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
+  assert.match(branch, /selectedTransport === "evolution" && productCards\.length >= 1/);
+  assert.match(branch, /if \(carouselCards\.length >= 1\)/);
+  assert.doesNotMatch(branch, /length >= 2/, "no threshold is left that would drop a single card");
+});
+
+// With one card the message body must not repeat what the card already shows.
+test("the body above a single card carries only what the card cannot", () => {
+  const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
+  const bodyBlock = branch.slice(branch.indexOf("const singleCardBody"), branch.indexOf("const carouselCards"));
+  assert.ok(bodyBlock.length > 0, "the single-card body is built");
+  assert.match(bodyBlock, /product_url \|\| singleCard\.storefront_url/, "the link the card has no room for");
+  assert.doesNotMatch(bodyBlock, /price_text|\.color/, "the card already shows the colour and the price");
+});
+
+// The card line and the caption must agree: one picked size reads as a size.
+test("a picked size is labelled a size on the card too", () => {
+  const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
+  assert.match(branch, /const pickedSize = productCardPickedSize\(product\)/);
+  assert.match(adapter, /productCardPickedSize,/, "imported from the card builder, not re-implemented");
 });
 
 test("a carousel failure falls back to the proven per-card loop", () => {

@@ -977,7 +977,7 @@ const productCardUrl = (product = {}) => text(product.product_url || product.url
 // The size the OPERATOR picked, which is not a list of what is in stock. A colour+size card
 // carries exactly one size, and printing it under "المتاح" read to the customer as a quantity
 // ("المتاح: 40") instead of the size they asked for.
-const productCardPickedSize = (product = {}) =>
+export const productCardPickedSize = (product = {}) =>
   (text(product?.send_scope).toLowerCase() === "color_size"
     ? text(product?.selected_size || product?.size)
     : "");
