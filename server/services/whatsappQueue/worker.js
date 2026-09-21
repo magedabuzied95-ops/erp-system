@@ -19,6 +19,7 @@ import {
   setQueueState,
 } from "./queueService.js";
 import { appendWhatsappOutboundSupportReply } from "../aiSupportLogService.js";
+import { transcriptButtonsForSend } from "../../utils/whatsappCtaTranscript.js";
 import { emitToRooms } from "../../utils/socket.js";
 
 /*
@@ -138,7 +139,7 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
         );
       }
       logLifecycle("cloud-template-send", { id: row.id, automation_type: row.automation_type, reason: "outside_service_window" });
-      return gateway.sendWhatsappTemplate({
+      const templateResult = await gateway.sendWhatsappTemplate({
         automationType: row.automation_type,
         phone,
         values: resolveTemplateValues(row.automation_type, {
@@ -147,6 +148,10 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
         }),
         instance,
       });
+      // Marked so the transcript does not draw the CTA's buttons under a template that never had them.
+      return templateResult && typeof templateResult === "object"
+        ? { ...templateResult, delivery_mode: "template" }
+        : { delivery_mode: "template" };
     }
   }
 
@@ -166,7 +171,10 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
       });
     } catch (ctaError) {
       logLifecycle("cta-unavailable", { id: row.id, automation_type: row.automation_type, error: ctaError?.message || String(ctaError) });
-      return gateway.sendTextMessage({ phone, message: text(send.fallbackText) || body, instance });
+      const textResult = await gateway.sendTextMessage({ phone, message: text(send.fallbackText) || body, instance });
+      return textResult && typeof textResult === "object"
+        ? { ...textResult, delivery_mode: "link_text" }
+        : { delivery_mode: "link_text" };
     }
   }
 
@@ -236,6 +244,41 @@ export const performSend = async (row, gateway, { lastInboundAt } = {}) => {
 };
 
 /*
+ * The inbox row for a sent queue message: its text and the buttons drawn under it. Pure, so the
+ * thread's fidelity to the customer's phone can be tested without a database.
+ */
+export const transcriptForSentRow = (row = {}, sendResult = null) => {
+  const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
+  const send = payload.send && typeof payload.send === "object" ? payload.send : {};
+  const onSent = payload.on_sent && typeof payload.on_sent === "object" ? payload.on_sent : {};
+  const transcript = onSent.transcript && typeof onSent.transcript === "object" ? onSent.transcript : {};
+  /*
+   * What the transcript shows must be what the customer received. A CTA send splits the message
+   * across title/body/button, so the caller supplies the single-string version it wants logged —
+   * but the moment a variant is in play that stored string is stale, and the variant IS the
+   * message. The queue rewrote send.fallbackText to the variant's full text (header and body) when
+   * it chose one, so that string wins whenever a variant was chosen.
+   */
+  const deliveryMode = text(sendResult?.delivery_mode);
+  const fellBackToText = deliveryMode === "link_text";
+  const message = row.message_variant_id || fellBackToText
+    ? (text(send.fallbackText) || text(row.rendered_body))
+    : (text(transcript.message) || text(row.rendered_body));
+  /*
+   * Buttons are part of what the customer received, so the thread shows them under the body. A
+   * caller may name them; a CTA send that names none still went out with its footer and button
+   * (the delivery message's "⭐ قيّمنا على جوجل"), so they are read back off the send itself.
+   * Neither a text fallback nor a Cloud template carried them.
+   */
+  const buttons = fellBackToText || deliveryMode === "template"
+    ? []
+    : Array.isArray(transcript.buttons)
+      ? transcript.buttons
+      : transcriptButtonsForSend(send);
+  return { message, buttons };
+};
+
+/*
  * The bookkeeping that used to sit inline after a direct send: stamp the order's once-only
  * column, write the outbound into the AI-inbox transcript, refresh the open inbox. Runs AFTER
  * the customer has the message, and a failure in it is never treated as a failed send.
@@ -244,7 +287,6 @@ export const runOnSent = async (row, sendResult) => {
   const payload = row?.payload && typeof row.payload === "object" ? row.payload : {};
   const onSent = payload.on_sent && typeof payload.on_sent === "object" ? payload.on_sent : null;
   if (!onSent) return;
-  const send = payload.send && typeof payload.send === "object" ? payload.send : {};
 
   const column = text(onSent.order_column);
   if (column && row.order_id) {
@@ -310,19 +352,7 @@ export const runOnSent = async (row, sendResult) => {
   if (!transcript) return;
   const tenantId = number(row.tenant_id, 0) || null;
   const sessionId = text(transcript.session_id) || `whatsapp:${text(row.recipient_phone)}`;
-  /*
-   * What the transcript shows must be what the customer received. A CTA send splits the message
-   * across title/body/button, so the caller supplies the single-string version it wants logged —
-   * but the moment a variant is in play that stored string is stale, and the variant IS the
-   * message. The queue rewrote send.fallbackText to the variant's full text (header and body) when
-   * it chose one, so that string wins whenever a variant was chosen.
-   */
-  const fellBackToText = text(sendResult?.delivery_mode) === "link_text";
-  const transcriptMessage = row.message_variant_id || fellBackToText
-    ? (text(send.fallbackText) || text(row.rendered_body))
-    : (text(transcript.message) || text(row.rendered_body));
-  // Reply buttons are part of what the customer received, so the thread shows them under the body.
-  const transcriptButtons = !fellBackToText && Array.isArray(transcript.buttons) ? transcript.buttons : [];
+  const { message: transcriptMessage, buttons: transcriptButtons } = transcriptForSentRow(row, sendResult);
   const saved = await appendWhatsappOutboundSupportReply({
     tenantId,
     sessionId,

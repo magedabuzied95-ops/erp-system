@@ -26,6 +26,7 @@ import { ensureProductReviewsSchema, issueReviewLink, listReviewableItems } from
 import { quietHoursSendAt } from "./storefrontPriceDropAlertService.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
+import { PRODUCT_REVIEW_BUTTON_TEXT, PRODUCT_REVIEW_REQUEST_TITLE } from "../utils/whatsappCtaTranscript.js";
 
 export const REVIEW_REQUEST_AUTOMATION_TYPE = "product_review_request";
 export const REVIEW_REQUEST_SETTING_KEYS = Object.freeze({
@@ -94,9 +95,9 @@ export const buildReviewRequestMessage = ({ customerName = "", productNames = []
       : "إن شاء الله طلبك يكون عجبك.";
   const body = `${greeting}\n${subject}\nقولنا رأيك في دقيقة — تقييمك بيساعد غيرك يختار صح.`;
   return {
-    title: "رأيك يهمنا ⭐",
+    title: PRODUCT_REVIEW_REQUEST_TITLE,
     body,
-    buttonText: "⭐ قيّم مشترياتك",
+    buttonText: PRODUCT_REVIEW_BUTTON_TEXT,
     url,
     fallbackText: `${body}\n\n${url}`,
   };
@@ -188,7 +189,10 @@ export const requestReviewForOrder = async (order = {}, { queue = queueWhatsappA
         session_id: normalizeWhatsappSessionId(phone),
         source: "whatsapp_product_review_request",
         customer_name: text(order.customer_name),
-        message: message.fallbackText,
+        // What the phone shows: the header over the body, and the link as the button under it
+        // (the worker reads the button back off `send`). A send that fell back to text logs
+        // fallbackText instead, link and all.
+        message: `${message.title}\n\n${message.body}`,
       },
     },
     directSend: async () => {

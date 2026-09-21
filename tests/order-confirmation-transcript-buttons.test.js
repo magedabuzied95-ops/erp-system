@@ -38,7 +38,7 @@ test("the queue writes the buttons only when they went out", () => {
   const worker = read("server/services/whatsappQueue/worker.js");
   assert.match(worker, /delivery_mode: "link_text"/, "a text fallback is marked");
   assert.match(worker, /suggestedActions: transcriptButtons/);
-  assert.match(worker, /!fellBackToText && Array\.isArray\(transcript\.buttons\)/);
+  assert.match(worker, /buttons: transcriptButtons \} = transcriptForSentRow\(row, sendResult\)/);
   const service = read("server/services/whatsappOrderConfirmationService.js");
   assert.match(service, /buttons: orderConfirmationTranscriptButtons\(\)/);
 });

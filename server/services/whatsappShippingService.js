@@ -1,6 +1,7 @@
 import db from "../database/db.js";
 import { normalizeEgyptPhone, sendTextMessage, sendCtaUrlMessage } from "./whatsappGatewayService.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+import { ctaUrlTranscriptButtons } from "../utils/whatsappCtaTranscript.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { emitToRooms } from "../utils/socket.js";
 import { appendWhatsappOutboundSupportReply } from "./aiSupportLogService.js";
@@ -230,6 +231,8 @@ const sendShippingNotification = async (order = {}, type) => {
     }
 
     let result;
+    // The transcript draws the button only when it actually went out with the message.
+    let transcriptButtons = [];
     if (reviewUrl) {
       try {
         result = await sendCtaUrlMessage({
@@ -244,6 +247,7 @@ const sendShippingNotification = async (order = {}, type) => {
           url: reviewUrl,
           fallbackText: message,
         });
+        transcriptButtons = ctaUrlTranscriptButtons({ footer: "M1 Store", displayText: "⭐ قيّمنا على جوجل", url: reviewUrl });
       } catch (ctaError) {
         console.warn("[whatsapp:delivered-review-cta-unavailable]", {
           orderId: claimed?.id || null,
@@ -262,6 +266,7 @@ const sendShippingNotification = async (order = {}, type) => {
         message,
         messageType: "text",
         senderType: "system",
+        suggestedActions: transcriptButtons,
         source: `whatsapp_${type}`,
         channel: "whatsapp",
         deliveryStatus: "sent",

@@ -39,6 +39,7 @@ import { detectEscalation } from "./aiEscalationDetector.js";
 import { getAISettings, getAIToneInstruction } from "./aiSettingsService.js";
 import { buildHumanizedReply } from "./aiHumanizedReplies.js";
 import { inferOrderConfirmationButtons } from "../utils/orderConfirmationMessage.js";
+import { inferLegacyCtaTranscript } from "../utils/whatsappCtaTranscript.js";
 import { buildReplyCorrectionContextSource, searchRelevantCorrections, ensureCorrectionMemorySchema, getTenantStyleProfile } from "./aiCorrectionMemoryService.js";
 import { normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
 import { getPhoneSearchVariants, phoneSqlDigits } from "../utils/phoneSearch.js";
@@ -997,7 +998,32 @@ const logAiInboxConversationFilterDebug = ({
 // place in the thread; the text, media and cards stay in the database only.
 export const DELETED_INBOX_MESSAGE_TEXT = "تم حذف هذه الرسالة";
 
-export const normalizeInboxMessage = (rawRow = {}) => {
+// A CTA row stored before the transcript kept its button: the text the phone showed, with the
+// footer and button it went out with. Null when the row needs nothing.
+const legacyCtaRow = (row = {}) => {
+  if (asArray(row.suggested_actions).length) return null;
+  const legacy = inferLegacyCtaTranscript({
+    detectedIntent: row.detected_intent,
+    body: row.message_text || row.staff_message || row.ai_answer || "",
+    createdAt: row.created_at,
+  });
+  if (!legacy) return null;
+  const message = legacy.message;
+  return {
+    ...row,
+    ...(message
+      ? {
+          message_text: message,
+          staff_message: row.staff_message ? message : "",
+          ai_answer: row.ai_answer ? message : "",
+        }
+      : {}),
+    suggested_actions: legacy.buttons,
+  };
+};
+
+export const normalizeInboxMessage = (sourceRow = {}) => {
+  const rawRow = (!sourceRow.deleted_at && legacyCtaRow(sourceRow)) || sourceRow;
   const row = rawRow.deleted_at
     ? {
         ...rawRow,

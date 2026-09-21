@@ -11,6 +11,7 @@ import { adjustVariantStock } from "./inventoryService.js";
 import { normalizeEgyptPhone, sendTextMessage, sendOrderConfirmationInteractiveMessage, sendCtaUrlMessage, extractWhatsappQuotedMessageId } from "./whatsappGatewayService.js";
 import { buildInvoiceReceiptWhatsappMessage, INVOICE_RECEIPT_GREETING, buildOrderTrackingUrl, buildPublicInvoiceUrl, buildWhatsappTextDebug, resolvePublicAppUrl } from "../utils/whatsapp.js";
 import { getGoogleReviewUrl } from "../utils/publicUrl.js";
+import { ctaUrlTranscriptButtons } from "../utils/whatsappCtaTranscript.js";
 import { queueWhatsappAutomation } from "./whatsappQueue/index.js";
 import { normalizeArabicIntentPayload } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -1499,6 +1500,8 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
     }
 
     let result;
+    // The transcript draws the button only when it actually went out with the receipt.
+    let transcriptButtons = [];
     try {
       result = await sendCtaUrlMessage({
         phone,
@@ -1512,6 +1515,7 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
         url: getGoogleReviewUrl(),
         fallbackText: message,
       });
+      transcriptButtons = ctaUrlTranscriptButtons({ footer: "M1 Store", displayText: "⭐ قيّمنا على جوجل", url: getGoogleReviewUrl() });
     } catch (ctaError) {
       console.warn("[whatsapp:invoice-review-cta-unavailable]", {
         order_id: current.id,
@@ -1549,6 +1553,7 @@ export const sendInvoiceWhatsapp = async (order = {}, options = {}) => {
         message,
         messageType: "text",
         senderType: "system",
+        suggestedActions: transcriptButtons,
         source: isPosInvoice ? "whatsapp_pos_invoice" : "whatsapp_invoice",
         channel: "whatsapp",
         deliveryStatus: "sent",
