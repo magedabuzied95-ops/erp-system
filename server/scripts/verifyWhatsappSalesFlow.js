@@ -90,10 +90,17 @@ assert.match(
   /const isWhatsapp = conversationId\.startsWith\(`\$\{AI_AGENT_CHANNELS\.WHATSAPP\}:`\)/,
   "the submit path must recognise a WhatsApp conversation"
 );
+// e782729 turned the one-liner into a block (the shipping-fee card rides with it) and put the
+// Meta send in its `else` — so the confirmation reaches WhatsApp through Evolution, and ONLY there.
 assert.match(
   completeBody,
-  /if \(isWhatsapp\) await sendConfirmation\(successText\);/,
+  /if \(isWhatsapp\) \{\s*await sendConfirmation\(successText\);/,
   "a WhatsApp customer must get the confirmation through Evolution, not through Meta"
+);
+assert.match(
+  completeBody,
+  /\n\s*\}\s*\n(?:\s*\/\/[^\n]*\n)*\s*else await sendSocialCommentSalesFlowText\(\{\s*config,\s*message,\s*text: successText,/,
+  "the Meta send of that same confirmation must be the else of the WhatsApp branch, never beside it"
 );
 assert.match(
   completeBody,

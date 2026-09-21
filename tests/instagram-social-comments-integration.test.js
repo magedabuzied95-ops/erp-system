@@ -66,8 +66,17 @@ test("post enrichment keeps graph fallback diagnostics available to its catch ha
 
 test("desktop and PWA inboxes expose Instagram social content", () => {
   for (const source of [desktopSource, pwaSource]) {
-    assert.match(source, /\{ key: "instagram", label: "Instagram" \}/);
+    // A literal label, or — after the i18n sweep — a translated one; either way the filter exists.
+    assert.match(
+      source,
+      /\{ key: "instagram", (?:label: "Instagram"|label: t\("aiSupport\.inbox\.pwa\.instagram"\)|labelKey: "aiSupport\.inbox\.pwa\.instagram") \}/
+    );
     assert.match(source, /instagram_comment/);
+  }
+  // A translated label is only a label if the key resolves; a missing one renders an empty tab.
+  for (const lang of ["ar", "en"]) {
+    const copy = JSON.parse(readFileSync(new URL(`../src/locales/${lang}/aiSupport.json`, import.meta.url), "utf8"));
+    assert.ok(String(copy?.inbox?.pwa?.instagram || "").trim(), `${lang}: aiSupport.inbox.pwa.instagram is missing`);
   }
 });
 

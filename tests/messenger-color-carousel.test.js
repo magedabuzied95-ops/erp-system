@@ -7,15 +7,14 @@ import fs from "node:fs";
 // choose_color:<variant_id> — the same structured tap the WhatsApp path already uses. Instagram
 // runs the identical template and is guarded separately in instagram-color-carousel.test.js.
 
-const adapter = fs.readFileSync(
-  new URL("../server/services/aiChannelAdapterService.js", import.meta.url), "utf8"
-);
-const routes = fs.readFileSync(
-  new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8"
-);
-const meta = fs.readFileSync(
-  new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8"
-);
+// A Windows checkout with core.autocrlf=true hands these files over with CRLF endings, while the
+// repository (and the Linux server) holds LF. Read them as the repository stores them, or a guard
+// that spells a line break passes on the server and fails on the machine it was written on.
+const readSource = (path) =>
+  fs.readFileSync(new URL(path, import.meta.url), "utf8").replace(/\r\n/g, "\n");
+const adapter = readSource("../server/services/aiChannelAdapterService.js");
+const routes = readSource("../server/routes/aiAgentOrders.js");
+const meta = readSource("../server/services/metaIntegrationService.js");
 
 test("Messenger sends a generic-template carousel for a colour batch", () => {
   const branch = adapter.slice(adapter.indexOf("let metaCarouselHandled = false"), adapter.indexOf("if (productCards.length && !metaCarouselHandled)"));
@@ -65,7 +64,10 @@ test("the REAL messenger sender groups cards into one horizontal carousel", () =
   assert.match(meta, /const buildMetaCarouselElement = /, "an element builder exists");
   assert.match(meta, /let metaCarouselDone = false/, "the group branch exists");
   const branch = meta.slice(meta.indexOf("let metaCarouselDone = false"), meta.indexOf("if (cards.length && !metaCarouselDone)"));
-  assert.match(branch, /cards\.length >= 2 && metaCarouselChannels\.includes\(normalizedChannel\)/, "a Meta channel + a batch");
+  // A batch still means two or more; ae81c2d lets ONE picked colour ride the template too, and
+  // only when the caller asked for exactly that — otherwise a lone card keeps its own send.
+  assert.match(branch, /cards\.length >= templateMinimum && metaCarouselChannels\.includes\(normalizedChannel\)/, "a Meta channel + a batch");
+  assert.match(meta, /const templateMinimum = singleCardAsTemplate && cards\.length === 1 \? 1 : 2;/, "a batch is two cards unless one picked colour was asked for");
   assert.ok(branch.includes('template_type: "generic"') && branch.includes("elements.slice(i, i + 10)"), "a multi-element generic template, chunked at 10");
   assert.match(branch, /catch \(carouselError\)/, "failure falls through to the per-card loop");
   assert.match(meta, /if \(cards\.length && !metaCarouselDone\)/, "per-card loop runs only when the carousel did not");
@@ -108,7 +110,9 @@ test("the lead line lands ABOVE the carousel, not after the cards", () => {
   const loopIdx = branch.indexOf("for (let i = 0; i < elements.length; i += 10)");
   assert.ok(leadIdx > -1 && loopIdx > -1 && leadIdx < loopIdx, "the lead send precedes the carousel element loop");
   // and the trailing body send is guarded so the lead is not repeated under the cards
-  assert.match(meta, /if \(!leadTextSentBeforeCarousel\) \{\s*meta = await postMetaMessage\(/, "the trailing body send is skipped once the lead already went out");
+  // 0f05672 added a second condition — an uncaptioned clip must not be followed by an empty text
+  // post Graph refuses — and the lead guard must survive beside it.
+  assert.match(meta, /if \(!leadTextSentBeforeCarousel && !textPostWouldBeEmpty\) \{\s*meta = await postMetaMessage\(/, "the trailing body send is skipped once the lead already went out");
 });
 
 test("the card layout: bold big colour+price title, sizes on their own line", () => {

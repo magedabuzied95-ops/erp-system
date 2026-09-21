@@ -6,7 +6,23 @@ const serviceSource = fs.readFileSync(new URL("../server/services/metaIntegratio
 const routeSource = fs.readFileSync(new URL("../server/routes/aiAgentOrders.js", import.meta.url), "utf8");
 
 test("Meta webhooks can verify against the deployed app secret fallback", () => {
-  assert.match(serviceSource, /decryptSecret\(config\.app_secret_encrypted\) \|\| text\(process\.env\.META_APP_SECRET/);
+  // Was `decryptSecret(config.app_secret_encrypted) || text(process.env.META_APP_SECRET…)`: the env
+  // secret only counted when the stored one was EMPTY, so a stale stored secret rejected every
+  // webhook. Since 88fa25f/45b9409 it is a candidate list and each secret is tried in turn — the
+  // deployed env secret must stay on BOTH lists (Instagram's and the page's) for that to hold.
+  const start = serviceSource.indexOf("const signatureCandidates = isInstagramWebhook");
+  assert.ok(start > 0, "the signature candidate list is gone");
+  const candidates = serviceSource.slice(start, serviceSource.indexOf("const uniqueSignatureCandidates", start));
+  const [instagramList, pageList] = candidates.split(/\]\s*:\s*\[/);
+  for (const [label, list] of [["instagram", instagramList], ["page", pageList]]) {
+    assert.match(list, /\{ source: "meta_config", secret: decryptSecret\(config\.app_secret_encrypted\) \}/, `${label}: the stored secret is a candidate`);
+    assert.match(list, /\{ source: "meta_env", secret: text\(process\.env\.META_APP_SECRET/, `${label}: the deployed env secret is a candidate`);
+  }
+  assert.match(
+    serviceSource,
+    /appSecrets: uniqueSignatureCandidates\.map\(\(candidate\) => candidate\.secret\)/,
+    "every candidate reaches the verifier"
+  );
 });
 
 test("Messenger sends recover thread control before retrying", () => {

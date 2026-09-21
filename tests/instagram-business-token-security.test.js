@@ -4,7 +4,22 @@ import { readFileSync } from "node:fs";
 
 const serviceSource = readFileSync(new URL("../server/services/metaIntegrationService.js", import.meta.url), "utf8");
 const routeSource = readFileSync(new URL("../server/routes/metaIntegration.js", import.meta.url), "utf8");
-const settingsSource = readFileSync(new URL("../src/modules/marketing/pages/MarketingSettings.jsx", import.meta.url), "utf8");
+// Token entry moved out of MarketingSettings.jsx into the AI Inbox integrations center (that
+// file's header says why: two screens able to rewrite the same Meta credentials meant neither
+// could be trusted). The write-only rules below follow the inputs to where they live now.
+const panelSource = readFileSync(new URL("../src/modules/aiSupport/components/integrations/MetaIntegrationPanel.jsx", import.meta.url), "utf8");
+const arSupport = JSON.parse(readFileSync(new URL("../src/locales/ar/aiSupport.json", import.meta.url), "utf8"));
+const instagramCopy = arSupport?.integrations?.meta?.instagram || {};
+// The <TextInput … /> element that sits under a card's title — the exact element, not the file,
+// so one password field elsewhere cannot vouch for a plain-text one here.
+const inputUnder = (titleKey) => {
+  const title = panelSource.indexOf(`t("aiSupport.integrations.meta.instagram.${titleKey}")`);
+  assert.ok(title > 0, `the ${titleKey} card is gone from the integrations panel`);
+  const open = panelSource.indexOf("<TextInput", title);
+  const close = panelSource.indexOf("/>", open);
+  assert.ok(open > title && open - title < 1200 && close > open, `no input under ${titleKey}`);
+  return panelSource.slice(open, close + 2);
+};
 const serverSource = readFileSync(new URL("../server/server.js", import.meta.url), "utf8");
 
 test("Instagram Business Login token is stored separately and encrypted", () => {
@@ -40,17 +55,30 @@ test("Instagram Business Login sends use Instagram Graph without changing Messen
 });
 
 test("admin UI treats the Instagram token as write-only", () => {
-  assert.match(settingsSource, /type="password"/);
-  assert.match(settingsSource, /autoComplete="new-password"/);
-  assert.match(settingsSource, /لن يستبدل رمز صفحة Facebook/);
-  assert.doesNotMatch(settingsSource, /value=\{metaConfig\.instagram_access_token/);
+  const input = inputUnder("tokenTitle");
+  assert.match(input, /type="password"/);
+  assert.match(input, /autoComplete="new-password"/);
+  // Bound to what the operator is typing now, never to anything the server sent back.
+  assert.match(input, /value=\{instagramAccessToken\}/);
+  assert.match(instagramCopy.tokenHint || "", /لا يستبدل رمز صفحة فيسبوك/, "the card says this token leaves the Facebook page token alone");
 });
 
 test("admin UI treats the Instagram App Secret as write-only", () => {
-  assert.match(settingsSource, /Instagram App Secret لتوقيع الرسائل/);
-  assert.match(settingsSource, /value=\{instagramAppSecret\}/);
-  assert.match(settingsSource, /autoComplete="new-password"/);
-  assert.doesNotMatch(settingsSource, /value=\{metaConfig\.instagram_app_secret/);
+  const input = inputUnder("secretTitle");
+  assert.match(input, /type="password"/);
+  assert.match(input, /autoComplete="new-password"/);
+  assert.match(input, /value=\{instagramAppSecret\}/);
+  assert.match(instagramCopy.secretHint || "", /توقيع Webhook/, "the card says what the secret is for");
+  assert.match(instagramCopy.subtitle || "", /لا تظهر مرة أخرى بعد الحفظ/, "and that a saved credential is never shown again");
+});
+
+test("no admin input anywhere is bound to a stored Meta credential", () => {
+  // The API only ever returns *_configured booleans; an input bound to a stored value would be
+  // the first thing to leak one the day that contract slips.
+  assert.doesNotMatch(
+    panelSource,
+    /value=\{metaConfig\.(instagram_access_token|instagram_app_secret|app_secret|page_access_token)\b/,
+  );
 });
 
 test("Meta webhook diagnostics never log signatures or raw message bodies", () => {
