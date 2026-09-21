@@ -2026,7 +2026,10 @@ export const sendWhatsAppCloudReply = async ({ to, reply = {}, messageText = "",
         // follows, so the card and the caption cannot disagree.
         const pickedSize = productCardPickedSize(product);
         const cardLines = [
-          toText(product.color) || toText(product.name),
+          // In a batch the cards differ by COLOUR and the lead line above names the product. A
+          // card travelling alone has no line above it, so it has to name the product itself —
+          // the card's own name already reads "Dior - White".
+          (singleCard ? toText(product.name) || toText(product.color) : toText(product.color) || toText(product.name)),
           toText(product.price_text),
           pickedSize
             ? `المقاس: ${pickedSize}`

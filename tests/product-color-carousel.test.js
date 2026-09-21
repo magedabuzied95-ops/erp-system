@@ -224,3 +224,13 @@ test("the colour expansion reads the canonical price columns, never a hand-rolle
     assert.ok(query.includes(column), `the legacy tier still needs ${column}`);
   }
 });
+
+// Nothing above the card means the card is the only place the product can be named. In a batch
+// the cards differ by colour and the lead line carries the product, so there the colour leads.
+test("a lone card names the product; a batch's cards lead with the colour", () => {
+  const branch = adapter.slice(adapter.indexOf("let carouselHandled = false"), adapter.indexOf("if (!carouselHandled)"));
+  assert.match(
+    branch,
+    /singleCard \? toText\(product\.name\) \|\| toText\(product\.color\) : toText\(product\.color\) \|\| toText\(product\.name\)/,
+  );
+});
