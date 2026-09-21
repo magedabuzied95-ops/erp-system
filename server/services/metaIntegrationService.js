@@ -202,6 +202,12 @@ const META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS = [
 // depends on the Graph version the app is pinned to — so it is the widest rung
 // of a ladder, never a requirement.
 const META_INSTAGRAM_WEBHOOK_ECHO_FIELDS = [...META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS, "message_echoes"];
+// `messaging_postbacks` is what carries a tap on a colour card's "اطلب اللون ده ✅" button back to
+// us. Without it Instagram simply never calls: the customer presses, and there is not even a line
+// in the log to find. So it rides down to the LAST rung with `messages` — a rejected `comments`
+// must not cost the buttons — and the bare rung below exists only so a webhook that refuses
+// everything else still delivers DMs.
+const META_INSTAGRAM_WEBHOOK_MESSAGING_FIELDS = ["messages", "messaging_postbacks"];
 const META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS = ["messages"];
 const META_WEBHOOK_MINIMAL_FIELDS = [
   "feed",
@@ -8539,6 +8545,7 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
     const instagramFieldLadder = [
       META_INSTAGRAM_WEBHOOK_ECHO_FIELDS,
       META_INSTAGRAM_WEBHOOK_SUBSCRIBED_FIELDS,
+      META_INSTAGRAM_WEBHOOK_MESSAGING_FIELDS,
       META_INSTAGRAM_WEBHOOK_REQUIRED_FIELDS,
     ];
     let instagramSubscriptionError = null;
@@ -8563,8 +8570,19 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
           instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
           subscribed_fields: fields,
           echoes: fields.includes("message_echoes"),
+          taps: fields.includes("messaging_postbacks"),
           fallback: rung > 0,
         });
+        // Say it out loud rather than leave it to be read off a field list: with this rung the
+        // colour cards still go out and their button still renders, but the tap never comes back.
+        if (!fields.includes("messaging_postbacks")) {
+          console.warn("META_INSTAGRAM_WEBHOOK_POSTBACKS_NOT_SUBSCRIBED", {
+            tenant_id: numberOrNull(tenantId),
+            instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+            subscribed_fields: fields,
+            impact: "instagram card button taps (choose_color) will not reach the webhook",
+          });
+        }
         instagramSubscriptionError = null;
         break;
       } catch (error) {
@@ -17064,6 +17082,15 @@ const isSocialCommentQuickReplyPayload = (value = "") => {
   const payload = text(value);
   if (!payload) return false;
   return [...socialCommentQuickReplyPrefixes].some((prefix) => payload.startsWith(prefix));
+};
+
+// A TAP, as opposed to anything a customer can type: a payload we ourselves put on a button.
+// The colour/size quick replies and the order actions carry a SOCIAL_*/ORDER_*/CHANGE_* prefix;
+// a colour card's own "اطلب اللون ده ✅" comes back as the postback choose_color:<variant_id>.
+const isSocialCommentSalesFlowTapPayload = (value = "") => {
+  const payload = text(value);
+  if (!payload) return false;
+  return isSocialCommentQuickReplyPayload(payload) || /^choose_color:\d+$/.test(payload);
 };
 
 const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
@@ -27274,7 +27301,71 @@ export const processMetaWebhook = async ({ req } = {}) => {
         source: "inbox_duplicate_after_failed_processing",
       });
     }
+    /*
+     * A TAP is answered whatever the reply switches say.
+     *
+     * The order buttons — colour, size, confirm — are not the AI writing free text; they are the
+     * customer pressing a control we put in front of them, naming a product, a colour and a size
+     * outright. Every switch below means "stop composing replies", not "stop the order I already
+     * started". Before this, a tap died silently behind whichever door happened to be shut first:
+     * the message was stored and the whole reply pipeline was skipped, so the customer pressed a
+     * button and nothing ever happened. There are FOUR such doors — the channel's own enable flag,
+     * auto-reply off, the conversation (ai_enabled=false, human_takeover, closed) and the global
+     * pause — and the earlier fix opened only ai_enabled. The other three are per-CHANNEL or
+     * per-conversation state, so one channel can swallow every tap while the other answers them.
+     *
+     * Only an explicit payload qualifies, and only while the deterministic handler CLAIMS it: an
+     * unhandled tap falls back through the same door it came to. Typed text still respects every
+     * switch, so a colleague handling a conversation by hand is never talked over.
+     */
+    const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);
+    const isSocialCommentTap = isSocialCommentSalesFlowTapPayload(socialCommentTapPayload);
+    const routeSocialCommentTapPastClosedDoor = async (door = "") => {
+      if (!isSocialCommentTap) return false;
+      console.log("[meta-inbox] sales_flow_tap_while_replies_paused", {
+        tenant_id: config.tenant_id,
+        session_id: message.external_conversation_id,
+        channel: alias,
+        closed_door: door,
+        payload: socialCommentTapPayload.slice(0, 60),
+      });
+      const tapResult = await handleSocialCommentMessengerQuickReplySelection({
+        config,
+        message,
+        inboundKey,
+        inboundMetaMid: message.external_message_id || messageId,
+      }).catch((error) => {
+        console.warn("[meta-inbox] sales_flow_tap_failed", {
+          session_id: message.external_conversation_id,
+          closed_door: door,
+          message: error?.message || String(error),
+        });
+        return null;
+      });
+      if (!tapResult?.handled) return false;
+      // Routed already: the handler further down must not answer the same tap a second time.
+      if (message?.raw?.event && typeof message.raw.event === "object") {
+        message.raw.event.__social_comment_quick_reply_routed = true;
+      }
+      markMessageProcessingStatus(messageId, "sent");
+      await storeProcessedInboundKey({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        inboundKey,
+        status: "sent",
+      });
+      results.push({
+        channel: alias,
+        external_user_id: message.external_customer_id,
+        stored: true,
+        sent: true,
+        reason: tapResult.reason,
+      });
+      return true;
+    };
     if (!shouldForceShippingHandler && !enabled) {
+      if (await routeSocialCommentTapPastClosedDoor("channel_disabled")) continue;
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "channel_disabled" });
       continue;
     }
@@ -27297,6 +27388,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       instagram_enabled: config.instagram_enabled === true,
     });
     if (!shouldForceShippingHandler && (settings.ai_replies_enabled !== true || autoReplyMode === "off")) {
+      if (await routeSocialCommentTapPastClosedDoor("auto_reply_disabled")) continue;
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "auto_reply_disabled" });
       continue;
     }
@@ -27325,71 +27417,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
       ai_paused: ["human_takeover", "closed"].includes(status),
       closed: status === "closed",
     });
-    /*
-     * A TAP is answered even when the AI is switched off for this conversation.
-     *
-     * The order buttons — colour, size, confirm — are not the AI writing free text; they are the
-     * customer pressing a control we put in front of them, naming a product, a colour and a size
-     * outright. Switching the AI off means "stop it composing replies", not "stop the order I
-     * already started". Before this, a conversation with ai_enabled=false swallowed every tap in
-     * silence: the message was stored and the whole reply pipeline was skipped, so the customer
-     * pressed a button and nothing ever happened. 36 of 238 live conversations sit in that state.
-     *
-     * Only an explicit payload qualifies. Typed text still respects the switch, so a colleague
-     * handling a conversation by hand is never talked over.
-     */
-    const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);
-    const isSocialCommentTap = Boolean(socialCommentTapPayload) && (
-      isSocialCommentQuickReplyPayload(socialCommentTapPayload)
-      || /^choose_color:\d+$/.test(socialCommentTapPayload)
-    );
-    if (isSocialCommentTap && !conversationAiEnabled) {
-      console.log("[meta-inbox] sales_flow_tap_while_ai_disabled", {
-        tenant_id: config.tenant_id,
-        session_id: message.external_conversation_id,
-        channel: alias,
-        payload: socialCommentTapPayload.slice(0, 60),
-      });
-      const tapResult = await handleSocialCommentMessengerQuickReplySelection({
-        config,
-        message,
-        inboundKey,
-        inboundMetaMid: message.external_message_id || messageId,
-      }).catch((error) => {
-        console.warn("[meta-inbox] sales_flow_tap_failed", {
-          session_id: message.external_conversation_id,
-          message: error?.message || String(error),
-        });
-        return null;
-      });
-      if (tapResult?.handled) {
-        // Routed already: the handler further down must not answer the same tap a second time.
-        if (message?.raw?.event && typeof message.raw.event === "object") {
-          message.raw.event.__social_comment_quick_reply_routed = true;
-        }
-        markMessageProcessingStatus(messageId, "sent");
-        await storeProcessedInboundKey({
-          tenantId: config.tenant_id,
-          channel: message.channel,
-          conversationId: message.external_conversation_id,
-          inboundKey,
-          status: "sent",
-        });
-        results.push({
-          channel: alias,
-          external_user_id: message.external_customer_id,
-          stored: true,
-          sent: true,
-          reason: tapResult.reason,
-        });
-        continue;
-      }
-    }
     if (!shouldForceShippingHandler && !conversationAiEnabled) {
+      if (await routeSocialCommentTapPastClosedDoor("conversation_ai_disabled")) continue;
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "conversation_ai_disabled" });
       continue;
     }
     if (!shouldForceShippingHandler && ["human_takeover", "closed"].includes(status)) {
+      if (await routeSocialCommentTapPastClosedDoor(status)) continue;
       console.log("[AI_AUTO_REPLY_SKIPPED] reason=human_takeover", {
         tenant_id: config.tenant_id,
         session_id: message.external_conversation_id,
@@ -27401,6 +27435,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
     }
     const globalAiSettings = await getAiAgentSettings({ tenantId: config.tenant_id }).catch(() => ({}));
     if (!shouldForceShippingHandler && isMetaAutoReplyChannel(message.channel) && globalAiSettings.ai_assistant_global_enabled === false) {
+      if (await routeSocialCommentTapPastClosedDoor("global_pause")) continue;
       const pauseChannel = metaAutoReplyPauseChannelLabel(message.channel);
       console.log(`[AI_AUTO_REPLY_SKIPPED] reason=global_pause channel=${pauseChannel}`, {
         tenant_id: config.tenant_id,

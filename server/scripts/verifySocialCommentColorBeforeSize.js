@@ -155,29 +155,62 @@ assert.match(
   "the lookup must not run when the conversation already has cards — it is on the ordinary text path"
 );
 
-// ── A tap is answered even when the AI is switched off ────────────────────────────────────────
+// ── A tap is answered whatever the reply switches say ─────────────────────────────────────────
 // 36 of 238 live conversations had ai_enabled=false, and that gate skipped the whole reply
 // pipeline — so a customer pressed a colour button and nothing happened, silently. The order
 // buttons are not the AI composing text; they are the customer naming a product, colour and size.
+// ai_enabled was only ONE of four doors: a colour card tapped on Instagram died behind
+// auto_reply_disabled instead, just as silently. Every door must route the tap before it closes.
 assert.match(
   metaSource,
-  /if \(isSocialCommentTap && !conversationAiEnabled\)/,
-  "an explicit tap must be answered even when the conversation's AI is off"
+  /const isSocialCommentSalesFlowTapPayload = \(value = ""\) => \{[\s\S]{0,320}?\/\^choose_color:\\d\+\$\//,
+  "a colour card's own choose_color:<variant_id> postback must count as a tap"
 );
 assert.match(
   metaSource,
-  /const isSocialCommentTap = Boolean\(socialCommentTapPayload\)/,
+  /const isSocialCommentTap = isSocialCommentSalesFlowTapPayload\(socialCommentTapPayload\);/,
   "only a real payload counts as a tap"
 );
-// Typed text must still respect the switch, or a colleague handling a chat by hand gets talked over.
+for (const door of ["channel_disabled", "auto_reply_disabled", "conversation_ai_disabled", "status", "global_pause"]) {
+  assert.match(
+    metaSource,
+    new RegExp(`if \\(await routeSocialCommentTapPastClosedDoor\\("?${door}"?\\)\\) continue;`),
+    `the "${door}" gate must route an explicit tap before it skips the reply pipeline`
+  );
+}
+// Each door routes FIRST and only then reports its own reason — otherwise the `continue` wins.
+for (const [gate, reason] of [
+  [/if \(!shouldForceShippingHandler && !enabled\) \{/, "channel_disabled"],
+  [/settings\.ai_replies_enabled !== true \|\| autoReplyMode === "off"/, "auto_reply_disabled"],
+  [/if \(!shouldForceShippingHandler && !conversationAiEnabled\) \{/, "conversation_ai_disabled"],
+  [/\["human_takeover", "closed"\]\.includes\(status\)/, "human_takeover"],
+  // Anchored on `shouldForceShippingHandler`: routeMessageThroughAi has its own identical
+  // global-pause gate, and that one is the AI composing a reply — no tap ever reaches it.
+  [/!shouldForceShippingHandler && isMetaAutoReplyChannel\(message\.channel\) && globalAiSettings\.ai_assistant_global_enabled === false/, "global_pause"],
+]) {
+  const gateStart = metaSource.search(gate);
+  assert.ok(gateStart > 0, `the ${reason} gate is gone`);
+  const gateBody = metaSource.slice(gateStart, gateStart + 700);
+  const routeAt = gateBody.indexOf("routeSocialCommentTapPastClosedDoor");
+  const continueAt = gateBody.indexOf("continue;");
+  assert.ok(routeAt > 0 && routeAt < continueAt, `the ${reason} gate skips the pipeline before routing the tap`);
+}
+// Typed text must still respect the switches, or a colleague handling a chat by hand gets talked over.
 const tapGateStart = metaSource.indexOf("const socialCommentTapPayload = socialCommentQuickReplyPayloadFromMessage(message);");
 assert.ok(tapGateStart > 0, "the tap gate is gone");
-const tapGateBody = metaSource.slice(tapGateStart, tapGateStart + 2600);
+const tapGateBody = metaSource.slice(tapGateStart, metaSource.indexOf("const settings = await getChannelSettings", tapGateStart));
 assert.doesNotMatch(tapGateBody, /message_text|messageText/, "the tap gate must not act on typed text");
 assert.match(
   tapGateBody,
   /__social_comment_quick_reply_routed = true/,
   "a tap answered here must not be answered again further down"
+);
+// An unclaimed tap has to fall back through the door it came to, or a stray payload would walk
+// straight past a human takeover into the AI pipeline.
+assert.match(
+  tapGateBody,
+  /if \(!tapResult\?\.handled\) return false;/,
+  "only a tap the deterministic handler CLAIMED may pass a closed door"
 );
 
 // ── Instagram gets colour BUTTONS, not a request to type ──────────────────────────────────────
