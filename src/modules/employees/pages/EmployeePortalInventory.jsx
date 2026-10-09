@@ -430,7 +430,7 @@ const CountColorCard = memo(function CountColorCard({ group, outbox, isEditable,
                 <span className="truncate text-sm font-black text-text">{variant.size || tt("employeePortal.stockCount.unknownSize")}</span>
                 <span className="shrink-0 text-[10px] font-bold text-text-muted" dir="ltr">{tt("employeePortal.stockCount.expectedShort")} {toNumber(variant.system_quantity, 0)}</span>
               </div>
-              <div className="mt-1.5 grid grid-cols-[44px_minmax(0,1fr)_44px] gap-1">
+              <div className="inventory-step-row mt-1.5">
                 <button
                   type="button"
                   onClick={() => onAdjust(variant, -1)}
@@ -1523,15 +1523,34 @@ export default function EmployeePortalInventory() {
         .employee-portal-inventory .inventory-grid-columns {
           grid-template-columns: minmax(0, 1fr) 110px 90px;
         }
-        /* Size tiles: as many as fit, never narrower than a thumb-sized
-           stepper plus a two-digit quantity. */
+        /* Size tiles: TWO to a row on every phone, more when there is room.
+           A flat 168px floor read as "two up" on the owner's wide screen and
+           as ONE PER ROW on an ordinary 360-400px phone — a colour with ten
+           sizes became a page of scrolling for the employee holding the boxes.
+           The floor is now half the row (minus the gap), so two always fit by
+           construction, and the 150px cap lets a tablet or the desktop column
+           go to three and four. */
         .employee-portal-inventory .inventory-size-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(min(50% - 4px, 150px), 1fr));
           gap: 8px;
         }
         .employee-portal-inventory .inventory-size-tile {
           min-width: 0;
+        }
+        /* The stepper gives its width back when a tile gets narrow: the two
+           buttons shrink off 44px before the quantity is squeezed, so a 320px
+           phone still shows the number instead of clipping it. */
+        .employee-portal-inventory .inventory-step-row {
+          display: grid;
+          grid-template-columns: minmax(0, 2.75rem) minmax(2.25rem, 1fr) minmax(0, 2.75rem);
+          gap: 4px;
+        }
+        /* On the narrowest phones every pixel of the tile belongs to the
+           stepper, not to padding. */
+        @media (max-width: 380px) {
+          .employee-portal-inventory .inventory-size-grid { gap: 6px; }
+          .employee-portal-inventory .inventory-size-tile { padding: 6px; }
         }
         /* A colour that was just added or jumped to announces itself once. */
         @keyframes inventory-card-flash {

@@ -162,6 +162,19 @@ test("adding a colour leaves the result list open; only a commit empties the box
   assert.match(page, /revealGroup\(added\[0\], \{ scroll \}\)/);
 });
 
+test("the size tiles are two to a row on every phone, not one", () => {
+  // A flat 168px floor needed ~424px of viewport before a second tile fit, so
+  // an ordinary 360-400px phone counted one size per screenful. The floor is
+  // half the row, which fits two by construction at any width.
+  assert.doesNotMatch(page, /minmax\(168px/, "a fixed floor is a width the phone has to be wide enough for");
+  assert.match(page, /grid-template-columns: repeat\(auto-fill, minmax\(min\(50% - 4px, 150px\), 1fr\)\);/);
+  // The stepper has to give width back as the tile narrows, or the quantity is
+  // squeezed out of a 320px phone's tile.
+  assert.doesNotMatch(page, /grid-cols-\[44px_minmax\(0,1fr\)_44px\]/, "fixed 44px buttons overflowed a half-width tile");
+  assert.match(page, /\.inventory-step-row \{[\s\S]*?minmax\(0, 2\.75rem\) minmax\(2\.25rem, 1fr\) minmax\(0, 2\.75rem\)/);
+  assert.match(page, /className="inventory-step-row mt-1\.5"/);
+});
+
 test("one tap adds a model's whole colour run, including colours below the cap", () => {
   assert.match(search, /const allMatches = local\.groups\.length \? local\.all : groups;/);
   assert.match(search, /for \(const group of model\.groups\)/, "add-all walks the model's full run");
