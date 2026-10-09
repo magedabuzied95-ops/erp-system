@@ -158,7 +158,13 @@ export const telegramPostButtons = ({ facts = {}, settings = {} } = {}) => {
   return rows.length ? { inline_keyboard: rows } : null;
 };
 
-export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false, labels = {} } = {}) => {
+// A channel tags what it does NOT already filter on. Every post in the men's
+// channel is men's, so #رجالي there is noise on every single one; the brand, the
+// type and the grade still earn their place because they vary inside it. The
+// rule is stated as the channel's own scope rather than "drop the gender tag",
+// so a channel scoped to a brand later drops ITS brand tag for the same reason.
+export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false, labels = {}, scopedTags = [] } = {}) => {
+  const scoped = (group) => (Array.isArray(scopedTags) ? scopedTags : []).includes(group);
   const sizes = sortTelegramSizes(facts.sizes || []);
   return renderTelegramCaption(settings.caption_template || TELEGRAM_CATALOG_DEFAULTS.caption_template, {
     name: facts.name,
@@ -169,10 +175,10 @@ export const telegramPostCaption = ({ facts = {}, settings = {}, soldOut = false
     sizes: soldOut || !sizes.length ? "—" : sizes.join(" · "),
     status: soldOut ? (settings.sold_out_label || TELEGRAM_CATALOG_DEFAULTS.sold_out_label) : "",
     tags: telegramCatalogTags({
-      audience_tag: classificationLabel(labels, "gender", facts.audience),
-      product_type_tag: classificationLabel(labels, "product_type", facts.product_type),
-      grade_tag: classificationLabel(labels, "grade", facts.grade),
-      brand_tag: facts.brand,
+      audience_tag: scoped("gender") ? "" : classificationLabel(labels, "gender", facts.audience),
+      product_type_tag: scoped("product_type") ? "" : classificationLabel(labels, "product_type", facts.product_type),
+      grade_tag: scoped("grade") ? "" : classificationLabel(labels, "grade", facts.grade),
+      brand_tag: scoped("brand") ? "" : facts.brand,
     }),
   });
 };
@@ -203,8 +209,8 @@ export const telegramCardImageUrl = (card = {}) =>
 // The whole post, ready for the worker: it carries everything needed to send or
 // edit without reading the catalogue again, because by the time the queue drains
 // the catalogue may have moved on.
-export const buildTelegramPostPayload = ({ facts = {}, settings = {}, imageUrl = "", soldOut = false, labels = {} } = {}) => {
-  const caption = telegramPostCaption({ facts, settings, soldOut, labels });
+export const buildTelegramPostPayload = ({ facts = {}, settings = {}, imageUrl = "", soldOut = false, labels = {}, scopedTags = [] } = {}) => {
+  const caption = telegramPostCaption({ facts, settings, soldOut, labels, scopedTags });
   const replyMarkup = telegramPostButtons({ facts, settings });
   return {
     caption,
@@ -237,6 +243,8 @@ export const syncTelegramChannel = async ({
   await ensureTelegramCatalogSchema(client);
   // One read per channel sweep, not one per colour.
   const labels = await loadLabels();
+  // What this channel already filters on, and therefore must not repeat as a tag.
+  const scopedTags = text(channel.audience) ? ["gender"] : [];
 
   // Oldest first: see orderCardsOldestFirst -- the last post is the first thing
   // a visitor sees, so the newest model has to be the last one in.
@@ -264,7 +272,7 @@ export const syncTelegramChannel = async ({
     }
 
     const imageUrl = telegramCardImageUrl(card);
-    const payload = buildTelegramPostPayload({ facts, settings, imageUrl, soldOut: false, labels });
+    const payload = buildTelegramPostPayload({ facts, settings, imageUrl, soldOut: false, labels, scopedTags });
     const row = existingByCard.get(facts.card_id);
 
     if (!row) {
@@ -323,7 +331,7 @@ export const syncTelegramChannel = async ({
       summary.skipped += 1;
       continue;
     }
-    const payload = buildTelegramPostPayload({ facts, settings, imageUrl: row.image_url, soldOut: true, labels });
+    const payload = buildTelegramPostPayload({ facts, settings, imageUrl: row.image_url, soldOut: true, labels, scopedTags });
     if (row.caption_hash === payload.fingerprint) continue;
     await enqueue({ tenantId, channelId: channel.id, cardId: row.card_id, action: "update", payload, client });
     summary.sold_out += 1;

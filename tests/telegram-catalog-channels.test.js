@@ -407,7 +407,9 @@ const runSync = async ({ cards = [], posts = [], channel = CHANNEL } = {}) => {
 
 const liveRowFor = (card, overrides = {}) => {
   const facts = telegramCardFacts(card, { audience: "men" });
-  const payload = buildTelegramPostPayload({ facts, settings: SETTINGS, imageUrl: card.image_url, labels: NO_LABELS });
+  // Mirrors what the sync does for a gender-scoped channel, so a caption built
+  // here and one built there are the same text.
+  const payload = buildTelegramPostPayload({ facts, settings: SETTINGS, imageUrl: card.image_url, labels: NO_LABELS, scopedTags: CHANNEL.audience ? ["gender"] : [] });
   return {
     card_id: card.card_id,
     message_id: "900",
@@ -684,5 +686,48 @@ test("a classification group the ERP cannot answer for leaves the other tags int
   });
   assert.deepEqual(labels.grade, {});
   assert.equal(labels.gender.men, "رجالي");
+  __resetTelegramClassificationLabels();
+});
+
+test("a channel does not repeat its own filter as a tag on every post", () => {
+  const facts = { ...FACTS, product_type: "sneakers", grade: "mirror_original", brand: "SKECHERS" };
+  const inMensChannel = telegramPostCaption({ facts, settings: SETTINGS, labels: SHOP_LABELS, scopedTags: ["gender"] });
+  assert.ok(!inMensChannel.includes("#رجالي"), "every post in the men's channel is men's");
+  // What still varies inside that channel keeps its tag.
+  assert.match(inMensChannel, /#Sneakers/);
+  assert.match(inMensChannel, /#ميرور_اوريجينال/);
+  assert.match(inMensChannel, /#SKECHERS/);
+});
+
+test("an unscoped channel still tags the audience", () => {
+  const facts = { ...FACTS, product_type: "", grade: "", brand: "" };
+  assert.match(telegramPostCaption({ facts, settings: SETTINGS, labels: SHOP_LABELS, scopedTags: [] }), /#رجالي/);
+});
+
+test("the rule is the channel's scope, not the gender: a brand channel drops its brand tag", () => {
+  const facts = { ...FACTS, product_type: "", grade: "", brand: "SKECHERS" };
+  const caption = telegramPostCaption({ facts, settings: SETTINGS, labels: SHOP_LABELS, scopedTags: ["brand"] });
+  assert.ok(!caption.includes("#SKECHERS"));
+  assert.match(caption, /#رجالي/);
+});
+
+test("the sync drops the audience tag for a gender channel", async () => {
+  __resetTelegramClassificationLabels();
+  const jobs = [];
+  await syncTelegramChannel({
+    channel: CHANNEL,
+    settings: SETTINGS,
+    tenantId: 1,
+    client: { query: async () => ({ rows: [] }) },
+    loadCards: async () => [{ ...CARD, product_type: "sneakers", grade: "mirror_original", brand: "SKECHERS" }],
+    listPosts: async () => [],
+    savePost: async () => {},
+    enqueue: async (args) => { jobs.push(args); },
+    markSynced: async () => {},
+    loadLabels: async () => SHOP_LABELS,
+  });
+  assert.equal(jobs.length, 1);
+  assert.ok(!jobs[0].payload.caption.includes("#رجالي"));
+  assert.match(jobs[0].payload.caption, /#ميرور_اوريجينال/);
   __resetTelegramClassificationLabels();
 });
