@@ -24,6 +24,9 @@ export const INBOX_ATTACHMENT_URL_PREFIX = "/uploads/inbox";
 // the composer is held to rather than one that fails per-channel.
 export const INBOX_ATTACHMENT_IMAGE_MAX_BYTES = Number(process.env.INBOX_ATTACHMENT_MAX_BYTES || 8 * 1024 * 1024);
 export const INBOX_ATTACHMENT_VIDEO_MAX_BYTES = Number(process.env.INBOX_ATTACHMENT_VIDEO_MAX_BYTES || 16 * 1024 * 1024);
+// A voice note recorded in the composer is seconds of Opus — tens of KB. The cap
+// is only here to stop someone attaching an album through the same door.
+export const INBOX_ATTACHMENT_AUDIO_MAX_BYTES = Number(process.env.INBOX_ATTACHMENT_AUDIO_MAX_BYTES || 16 * 1024 * 1024);
 
 const VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".3gp", ".3gpp", ".webm", ".mkv", ".avi"]);
 
@@ -43,13 +46,30 @@ const SENDABLE_VIDEO_MIME_TYPES = new Set([
 ]);
 const SENDABLE_VIDEO_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".3gp", ".3gpp"]);
 
+/*
+ * Voice notes an operator records in the composer.
+ *
+ * The browser decides the container, not us: Chrome's MediaRecorder writes
+ * audio/webm;codecs=opus and Safari writes audio/mp4. Both are fine — Evolution
+ * is asked to transcode to the Opus/OGG WhatsApp renders as a playable voice
+ * bubble, and Telegram/Graph take them as they are.
+ *
+ * `.webm` and `.3gp` are missing on purpose: they are in the VIDEO list too, so
+ * for those two containers only the MIME type can say which one it is.
+ */
+const AUDIO_EXTENSIONS = new Set([".ogg", ".oga", ".opus", ".mp3", ".m4a", ".aac", ".wav", ".amr"]);
+
 const extensionOf = (file = {}) => path.extname(String(file.originalname || "")).toLowerCase();
 const mimeOf = (file = {}) => String(file.mimetype || "").trim().toLowerCase();
 
-/** "image" | "video" | "" — what the operator actually picked. */
+/** "image" | "video" | "audio" | "" — what the operator actually picked. */
 export const inboxAttachmentKind = (file = {}) => {
   const mimetype = mimeOf(file);
   const extension = extensionOf(file);
+  // Audio is asked FIRST: a voice note recorded in Chrome is audio/webm, and
+  // .webm is also a video extension, so checking video first would send a voice
+  // note as a silent clip.
+  if (mimetype.startsWith("audio/") || AUDIO_EXTENSIONS.has(extension)) return "audio";
   if (mimetype.startsWith("video/") || VIDEO_EXTENSIONS.has(extension)) return "video";
   // isPotentialImageUpload treats an unknown mime as an image, so it is only
   // consulted AFTER video has had its say.
@@ -76,8 +96,8 @@ const inboxAttachmentUpload = multer({
   storage,
   fileFilter: (req, file, cb) => {
     const kind = inboxAttachmentKind(file);
-    if (kind === "image") return cb(null, true);
-    if (kind !== "video") return cb(rejectUpload("Only images and videos can be sent from the inbox.", "ATTACHMENT_KIND_UNSUPPORTED"));
+    if (kind === "image" || kind === "audio") return cb(null, true);
+    if (kind !== "video") return cb(rejectUpload("Only images, voice notes and videos can be sent from the inbox.", "ATTACHMENT_KIND_UNSUPPORTED"));
     if (!isSendableInboxVideo(file)) {
       return cb(rejectUpload("That video format cannot be sent — save it as MP4 first.", "ATTACHMENT_VIDEO_FORMAT"));
     }
@@ -87,7 +107,7 @@ const inboxAttachmentUpload = multer({
     // One ceiling for the transfer; the per-kind caps above are enforced in the
     // route, which knows whether it received a photo or a clip. multer only
     // learns the size as the bytes arrive, so this is the hard stop.
-    fileSize: Math.max(INBOX_ATTACHMENT_IMAGE_MAX_BYTES, INBOX_ATTACHMENT_VIDEO_MAX_BYTES),
+    fileSize: Math.max(INBOX_ATTACHMENT_IMAGE_MAX_BYTES, INBOX_ATTACHMENT_VIDEO_MAX_BYTES, INBOX_ATTACHMENT_AUDIO_MAX_BYTES),
     files: 1,
   },
 });

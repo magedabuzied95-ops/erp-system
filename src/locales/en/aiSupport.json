@@ -648,7 +648,14 @@
         "forwardSearch": "Search conversations",
         "forwardEmpty": "No matching conversations",
         "forwarded": "Sent to {{name}}."
-      }
+      },
+      "recordVoice": "Record a voice note",
+      "recordingVoice": "Recording…",
+      "discardVoice": "Discard the recording",
+      "sendVoice": "Send the voice note",
+      "voiceUnsupported": "This browser cannot record audio.",
+      "voicePermissionDenied": "No microphone permission. Allow it in the browser settings and try again.",
+      "audioTooLarge": "That audio is larger than 16 MB, which is more than the channel will accept."
     },
     "delivery": {
       "sending": "Sending",

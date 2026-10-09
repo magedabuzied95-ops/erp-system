@@ -13,6 +13,7 @@ import {
 } from "../modules/aiInboxPrivacy/conversationPrivacy.js";
 import { resolveInboxViewer } from "../modules/aiInboxPrivacy/inboxViewer.js";
 import inboxAttachmentUpload, {
+  INBOX_ATTACHMENT_AUDIO_MAX_BYTES,
   INBOX_ATTACHMENT_IMAGE_MAX_BYTES,
   INBOX_ATTACHMENT_URL_PREFIX,
   INBOX_ATTACHMENT_VIDEO_MAX_BYTES,
@@ -178,6 +179,7 @@ import { ensureAIPersistentEventLogSchema, logAIPersistentEvent } from "../servi
 import { loadAiReplyTraces } from "../services/aiReplyTraceService.js";
 import { buildReplyHarness, getLastReplyHarnessDebug } from "../services/aiReplyHarnessService.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
+import { sendWhatsappVoiceNote } from "../services/whatsappCapabilitiesService.js";
 import { WHATSAPP_EDIT_WINDOW_MS, editWhatsappTextMessage, getStatus as getWhatsappGatewayStatus, resolveWhatsappConversationInstance, sendImageMessage, sendWhatsappMediaMessage, sendWhatsappReaction, syncEvolutionChatsToAiInbox, syncEvolutionConversationMessagesToAiInbox, syncWhatsappCustomerProfilePictures, refreshWhatsappConversationAvatar } from "../services/whatsappGatewayService.js";
 import { autoRegisterWhatsappCustomer } from "../services/whatsappCustomerAutoRegistrationService.js";
 import { normalizeWhatsappLid, normalizeWhatsappPhone, normalizeWhatsappRemoteJid } from "../utils/whatsappIdentity.js";
@@ -7313,15 +7315,20 @@ router.post(
     const conversationId = envText(req.params.conversationId);
     const caption = envText(req.body?.caption || "");
     if (!req.file) {
-      return sendError(res, Object.assign(new Error("An image or video file is required"), { status: 400 }), "An image or video file is required");
+      return sendError(res, Object.assign(new Error("An image, voice note or video file is required"), { status: 400 }), "An image, voice note or video file is required");
     }
-    const attachmentKind = inboxAttachmentKind(req.file) === "video" ? "video" : "image";
+    const detectedKind = inboxAttachmentKind(req.file);
+    const attachmentKind = detectedKind === "video" || detectedKind === "audio" ? detectedKind : "image";
     const relativeUrl = `${INBOX_ATTACHMENT_URL_PREFIX}/${req.file.filename}`;
     const discardUpload = () => unlink(req.file.path).catch(() => {});
 
     // multer only knows the size once the bytes have landed, so the per-kind cap
     // is checked here — a 12 MB photo is refused while a 12 MB clip is fine.
-    const kindLimit = attachmentKind === "video" ? INBOX_ATTACHMENT_VIDEO_MAX_BYTES : INBOX_ATTACHMENT_IMAGE_MAX_BYTES;
+    const kindLimit = attachmentKind === "video"
+      ? INBOX_ATTACHMENT_VIDEO_MAX_BYTES
+      : attachmentKind === "audio"
+        ? INBOX_ATTACHMENT_AUDIO_MAX_BYTES
+        : INBOX_ATTACHMENT_IMAGE_MAX_BYTES;
     if (Number(req.file.size || 0) > kindLimit) {
       await discardUpload();
       return res.status(413).json({
@@ -7369,6 +7376,29 @@ router.post(
         sendResult = { sent: true, delivery_status: "stored" };
       } else if (!recipientId) {
         sendResult = { sent: false, delivery_status: "failed", delivery_error: "The conversation has no reachable recipient id." };
+      } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP && attachmentKind === "audio") {
+        /*
+         * A voice note is its own WhatsApp message type. Pushed through the media
+         * sender with an audio mimetype it arrives as a FILE the customer has to
+         * download; /message/sendWhatsAppAudio with encoding on transcodes to the
+         * Opus/OGG that renders as a playable voice bubble. Evolution fetches the
+         * file from us, so it needs the absolute URL, not the stored path.
+         */
+        sendResult = await sendWhatsappVoiceNote({
+          phone: recipientId,
+          audio: absolutePublicUploadUrl(relativeUrl) || relativeUrl,
+          instance: envText(channelMetadata.whatsapp_instance || channelMetadata.instance),
+        }).then((result) => ({
+          ...result,
+          sent: true,
+          delivery_status: "sent",
+          message_id: envText(result?.result?.key?.id || result?.result?.message_id || ""),
+        })).catch((error) => ({
+          sent: false,
+          delivery_status: "failed",
+          delivery_error: error?.message || "WhatsApp did not accept the voice note",
+          error_code: error?.code || "WHATSAPP_VOICE_SEND_FAILED",
+        }));
       } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
         sendResult = await sendWhatsappMediaMessage({
           phone: recipientId,
@@ -7403,7 +7433,7 @@ router.post(
           chatId: recipientId,
           // Telegram fetches the file itself and has no idea whose "/uploads" this is.
           mediaUrl: absolutePublicUploadUrl(relativeUrl) || relativeUrl,
-          mediaType: attachmentKind === "video" ? "video" : "photo",
+          mediaType: attachmentKind === "video" ? "video" : attachmentKind === "audio" ? "voice" : "photo",
           caption,
         }).catch((error) => ({
           sent: false,
@@ -7431,7 +7461,7 @@ router.post(
 
       deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
       if (deliveryStatus === "failed") {
-        deliveryError = sendResult?.delivery_error || sendResult?.message || "The image was not delivered";
+        deliveryError = sendResult?.delivery_error || sendResult?.message || `The ${attachmentKind} was not delivered`;
       }
 
       // The transcript row is written whether or not the channel accepted it, so
@@ -7451,7 +7481,9 @@ router.post(
         preserveExactMessage: true,
         previewMessage: caption || (attachmentKind === "video"
           ? "🎬 فيديو"
-          : "📷 صورة"),
+          : attachmentKind === "audio"
+            ? "🎤 رسالة صوتية"
+            : "📷 صورة"),
         messageType: attachmentKind,
         staffUserId: req.user?.id || null,
         staffUserName: userDisplayName(req.user),

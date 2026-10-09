@@ -12779,7 +12779,8 @@ const postMetaImageMessage = async ({ token, recipientId, imageUrl, mediaType = 
   // Messenger and Instagram both take a clip through the same attachment shape;
   // only the declared type differs, and a video pushed as `type: image` is
   // refused outright.
-  const attachmentType = text(mediaType).toLowerCase() === "video" ? "video" : "image";
+  const declaredType = text(mediaType).toLowerCase();
+  const attachmentType = declaredType === "video" ? "video" : declaredType === "audio" ? "audio" : "image";
   console.log("[meta-send] graphApiCalled", {
     channel: sendContext.channel || AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
     pageId: maskIdForLog(sendContext.resolved_page_id || ""),
@@ -12975,7 +12976,11 @@ const mediaAttachmentDescriptors = (attachments = []) => {
     seen.add(url);
     const declared = text(attachment?.type || attachment?.media_type || attachment?.mime_type || "").toLowerCase();
     const isVideo = declared === "video" || declared.startsWith("video/") || /\.(mp4|mov|m4v|3gpp?)(\?|#|$)/i.test(url);
-    descriptors.push({ url, mediaType: isVideo ? "video" : "image" });
+    // A voice note is a third kind. Graph refuses audio pushed as type: image,
+    // and the webm/m4a a browser records carries no audio extension to fall back
+    // on either — the declared type is what decides it.
+    const isAudio = declared === "audio" || declared === "voice" || declared.startsWith("audio/") || /\.(ogg|oga|opus|mp3|m4a|aac|wav|amr)(\?|#|$)/i.test(url);
+    descriptors.push({ url, mediaType: isAudio ? "audio" : isVideo ? "video" : "image" });
     if (descriptors.length >= 6) break;
   }
   return descriptors;

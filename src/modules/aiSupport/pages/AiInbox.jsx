@@ -110,6 +110,7 @@ import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/R
 // Conversation labels are shared with the PWA — see components/ConversationLabelsModal.jsx.
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
 import ConversationPrivacyModal from "../components/ConversationPrivacyModal";
+import VoiceNoteRecorder from "../components/VoiceNoteRecorder";
 import { canManageConversationPrivacy } from "../services/conversationPrivacyApi";
 import {
   MAX_BATCH_PRODUCTS, SELECTION_MODES, selectionModeFromSemantics, productSelectionKey, toggleProductSelection,
@@ -2952,6 +2953,7 @@ function ManualReplyComposer({
   composerMode = "reply",
   onComposerModeChange,
   onAttachImage,
+  onRecordVoice,
   onForwardAttachment,
   getForwardTargets,
   attachmentSending = false,
@@ -3213,6 +3215,17 @@ function ManualReplyComposer({
           >
             <ImageIcon className="h-5 w-5" />
           </button>
+          {onRecordVoice ? (
+            <span className="mb-1">
+              <VoiceNoteRecorder
+                tone="dark"
+                disabled={loading || noteMode || !canSendLive}
+                busy={attachmentSending}
+                onSend={(file) => void onRecordVoice(file)}
+                onError={(message) => onAttachmentRejected?.(message)}
+              />
+            </span>
+          ) : null}
           <button
             type="button"
             // No await before the read: Safari only shows its Paste callout
@@ -9902,6 +9915,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         composerMode={composerMode}
                         onComposerModeChange={setComposerMode}
                         onAttachImage={sendAttachment}
+                        onRecordVoice={sendAttachment}
                         onForwardAttachment={forwardAttachment}
                         getForwardTargets={getForwardTargets}
                         attachmentSending={attachmentSending}
@@ -10438,6 +10452,7 @@ export default function AiInbox({ reviewerMode = false }) {
                         composerMode={composerMode}
                         onComposerModeChange={setComposerMode}
                         onAttachImage={sendAttachment}
+                        onRecordVoice={sendAttachment}
                         onForwardAttachment={forwardAttachment}
                         getForwardTargets={getForwardTargets}
                         attachmentSending={attachmentSending}

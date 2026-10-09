@@ -87,6 +87,7 @@ import AiSuggestionCard from "../components/AiSuggestionCard";
 import ReplyCorrectionModal, { buildReplyCorrectionDraft } from "../components/ReplyCorrectionModal";
 import ConversationLabelsModal, { conversationLabelClass } from "../components/ConversationLabelsModal";
 import ConversationPrivacyModal from "../components/ConversationPrivacyModal";
+import VoiceNoteRecorder from "../components/VoiceNoteRecorder";
 import { canManageConversationPrivacy, conversationIsPrivate } from "../services/conversationPrivacyApi";
 import { aiInboxLabelsFromConversation, normalizeAiInboxConversationLabels } from "../../../../shared/aiInboxConversationLabels.js";
 import { isProductCardMessageType, messageProductCards } from "../lib/conversationHelpers";
@@ -2071,6 +2072,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
   onSubmit,
   onSetText,
   onPickImage,
+  onRecordVoice,
   onPasteFiles,
   onPasteClipboardImage = null,
   onEditorFocus = null,
@@ -2078,6 +2080,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
 }) {
   const { t } = useTranslation();
   const [attachOpen, setAttachOpen] = useState(false);
+  const [voiceRecording, setVoiceRecording] = useState(false);
   // Two booleans, not the text: the row only re-renders when the send button
   // flips between disabled and armed, or when a slash command opens the quick
   // replies. Typing an ordinary sentence renders nothing after the first letter.
@@ -2129,7 +2132,7 @@ const PwaComposerBar = memo(function PwaComposerBar({
         light={light}
       />
       <div className="flex items-end gap-2">
-        <div className="relative shrink-0">
+        <div className={`relative shrink-0 ${voiceRecording ? "hidden" : ""}`}>
           {attachOpen ? (
             <>
               <button
@@ -2177,9 +2180,21 @@ const PwaComposerBar = memo(function PwaComposerBar({
             <Plus className="h-5 w-5" />
           </button>
         </div>
+        {/* A voice note is a reply, never an internal note: there is nothing to
+            store staff-side in an audio file the customer never hears. */}
+        {onRecordVoice && mode !== "note" ? (
+          <VoiceNoteRecorder
+            busy={sending}
+            expand
+            onSend={(file) => void onRecordVoice(file)}
+            onError={(message) => toast.error(message)}
+            onRecordingChange={setVoiceRecording}
+          />
+        ) : null}
         {/* Never disabled. A reply already on its way to the provider is no
             reason to stop the next one being written — that lock is what made
             sending feel slow even though the bubble appeared instantly. */}
+        {voiceRecording ? null : (
         <PwaReplyEditor
           editorRef={editorRef}
           value={seedText}
@@ -2189,11 +2204,12 @@ const PwaComposerBar = memo(function PwaComposerBar({
           onFocus={onEditorFocus}
           placeholder={placeholder}
         />
+        )}
         <button
           type="button"
           onClick={() => void onSubmit?.()}
           disabled={!draftState.armed}
-          className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
+          className={`${voiceRecording ? "hidden" : "inline-flex"} h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-slate-50 disabled:opacity-50 ${sendTone === "amber" ? "bg-amber-500" : "bg-sky-600"}`}
           aria-label={mode === "note" ? t("aiSupport.inbox.pwa.saveNote") : t("aiSupport.inbox.pwa.sendReply")}
         >
           {sending && !draftState.armed ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
@@ -8724,6 +8740,7 @@ export default function AiInboxPwa({ portal = null } = {}) {
                 onSubmit={sendManualReply}
                 onSetText={setComposerText}
                 onPickImage={openImagePicker}
+                onRecordVoice={(file) => sendAttachmentFile(file)}
                 onPasteFiles={handleComposerPasteFiles}
                 onPasteClipboardImage={composerMode === "note" ? null : pasteImageFromClipboard}
                 onEditorFocus={autoCheckClipboardImage}

@@ -648,7 +648,14 @@
         "forwardSearch": "دوّر على محادثة",
         "forwardEmpty": "مفيش محادثات مطابقة",
         "forwarded": "اتبعتت لـ {{name}}."
-      }
+      },
+      "recordVoice": "تسجيل رسالة صوتية",
+      "recordingVoice": "بيسجل…",
+      "discardVoice": "إلغاء التسجيل",
+      "sendVoice": "إرسال الرسالة الصوتية",
+      "voiceUnsupported": "المتصفح ده مش بيدعم التسجيل الصوتي.",
+      "voicePermissionDenied": "مفيش إذن للمايك. افتح الإذن من إعدادات المتصفح وجرّب تاني.",
+      "audioTooLarge": "الملف الصوتي أكبر من 16 ميجا، وده أكتر من اللي القناة بتقبله."
     },
     "delivery": {
       "sending": "جاري الإرسال",

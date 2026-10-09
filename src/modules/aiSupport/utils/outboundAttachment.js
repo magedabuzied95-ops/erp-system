@@ -36,6 +36,14 @@ export const SENDABLE_VIDEO_EXTENSIONS = /\.(mp4|mov|m4v|3gpp?)$/i;
 export const SENDABLE_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/3gpp", "video/x-m4v"];
 export const MAX_OUTBOUND_VIDEO_BYTES = 16 * 1024 * 1024;
 
+/*
+ * A voice note recorded in the composer. The browser picks the container —
+ * Chrome writes audio/webm;codecs=opus, Safari writes audio/mp4 — and the server
+ * asks WhatsApp to transcode, so both travel. The cap is only a guard against an
+ * audio FILE being dragged in through the same door.
+ */
+export const MAX_OUTBOUND_AUDIO_BYTES = 16 * 1024 * 1024;
+
 const clean = (value = "") => String(value || "").trim();
 
 export const isImageFile = (file) => {
@@ -54,6 +62,14 @@ export const isVideoFile = (file) => {
   return /\.(mp4|mov|m4v|3gpp?|webm|mkv|avi)$/i.test(clean(file.name));
 };
 
+export const isAudioFile = (file) => {
+  if (!file) return false;
+  if (clean(file.type).toLowerCase().startsWith("audio/")) return true;
+  // .webm and .3gp are video extensions too, so for those the MIME type above is
+  // the only thing that can tell a voice note from a clip.
+  return /\.(ogg|oga|opus|mp3|m4a|aac|wav|amr)$/i.test(clean(file.name));
+};
+
 export const isSendableVideoFile = (file) => {
   if (!isVideoFile(file)) return false;
   const type = clean(file.type).toLowerCase();
@@ -61,8 +77,11 @@ export const isSendableVideoFile = (file) => {
   return SENDABLE_VIDEO_EXTENSIONS.test(clean(file.name));
 };
 
-/** "image" | "video" | "" — what the operator actually handed the composer. */
+/** "image" | "video" | "audio" | "" — what the operator actually handed the composer. */
 export const attachmentKindOf = (file) => {
+  // Audio is asked first: a recording is audio/webm, and isVideoFile would claim
+  // the .webm name before the MIME type ever got a say.
+  if (isAudioFile(file)) return "audio";
   if (isVideoFile(file)) return "video";
   return isImageFile(file) ? "image" : "";
 };
@@ -101,6 +120,7 @@ export const attachmentFilesFromTransfer = (transfer) => {
 export const attachmentProblem = (file) => {
   const kind = attachmentKindOf(file);
   if (!kind) return "attachmentUnsupported";
+  if (kind === "audio") return Number(file.size || 0) > MAX_OUTBOUND_AUDIO_BYTES ? "audioTooLarge" : "";
   if (kind !== "video") return "";
   if (!isSendableVideoFile(file)) return "videoFormatUnsupported";
   if (Number(file.size || 0) > MAX_OUTBOUND_VIDEO_BYTES) return "videoTooLarge";
