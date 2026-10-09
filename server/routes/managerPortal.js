@@ -53,6 +53,7 @@ import {
   updateManagerPortalSettings,
   loadManagerPortalByToken,
 } from "../services/managerPortalService.js";
+import { getManagerPortalReports } from "../services/managerPortalReportsService.js";
 import { getLinkPreview } from "../services/linkPreviewService.js";
 import { getPortalOnlineOrder, listPortalOnlineOrders } from "../modules/shipping/shipping.portal.service.js";
 import { runPortalBulkPrint, runPortalOrderAction } from "../modules/shipping/shipping.portal.actions.js";
@@ -575,6 +576,21 @@ router.get("/:token/sales", async (req, res) => {
   } catch (error) {
     console.error("[manager-portal] sales error", error);
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load sales analytics" });
+  }
+});
+
+// The Reporting Center's executive overview, scoped to this manager. Profit stays
+// masked unless the request carries a live profit unlock, same as the sales board.
+router.get("/:token/reports", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+    const manager = await loadVerifiedManager(req, res);
+    if (!manager) return;
+    const reports = await getManagerPortalReports({ manager, query: req.query || {}, profitToken: extractProfitToken(req) });
+    return res.json({ success: true, ...reports });
+  } catch (error) {
+    console.error("[manager-portal] reports error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load reports" });
   }
 });
 

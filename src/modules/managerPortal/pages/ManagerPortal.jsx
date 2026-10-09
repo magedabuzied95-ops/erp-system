@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
+  BarChart3,
   MoreVertical,
   Palette,
   Trash2,
@@ -65,6 +66,8 @@ const SharedPortalChat = lazy(() => import("../../../shared/chat/SharedPortalCha
 // a failed chunk load + reload ("first tap crashes, second opens").
 const preloadOnlineOrdersBoard = createChunkPreloader(() => import("../../../shared/components/portalOnlineOrders/PortalOnlineOrdersBoard"));
 const PortalOnlineOrdersBoard = lazy(() => preloadOnlineOrdersBoard());
+// التقارير is reached from المزيد, so its chunk is only fetched when a manager opens it.
+const PortalReports = lazy(() => import("../components/PortalReports"));
 import { chatCacheScope } from "../../../shared/chat/chatCache";
 import { createChunkPreloader } from "../../../shared/utils/chunkLoadRecovery";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -95,7 +98,7 @@ const portalLocale = () => (String(i18n.resolvedLanguage || i18n.language || "ar
 const TABS = ["today", "staff", "tasks", "sales", "shipping", "inventory", "more"];
 // Reachable by URL and by notification, but deliberately not in the bottom bar —
 // seven thumb targets is already the ceiling on a phone.
-const SECONDARY_TABS = ["notifications", "operations", "chat"];
+const SECONDARY_TABS = ["notifications", "operations", "chat", "reports"];
 const OPERATION_KINDS = ["all", "exchange", "return", "edit", "delete"];
 // A deleted invoice is the one operation that removes money from the day rather than
 // moving it, so it never borrows the amber "edit" tone — it reads as red on sight.
@@ -1000,6 +1003,7 @@ export default function ManagerPortal() {
     chat: "Employee Chat",
     notifications: tt("managerPortal.alerts.settings"),
     operations: tt("managerPortal.operations.title"),
+    reports: tt("managerPortal.reports.title"),
     more: "Manager Portal",
   };
   const [loading, setLoading] = useState(true);
@@ -4268,6 +4272,7 @@ export default function ManagerPortal() {
               <Card title={tt("managerPortal.settings.title")} subtitle={tt("managerPortal.nav.more")} icon={Settings} compact={isMobilePortal} className={isMobilePortal ? "manager-portal-mobile-panel" : ""} tone="amber">
                 <div className="manager-portal-more-actions grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
+                    { key: "reports", label: tt("managerPortal.nav.reports"), icon: BarChart3, tone: "bg-indigo-500/15 text-indigo-500", onClick: () => setActiveTab("reports") },
                     { key: "chat", label: tt("managerPortal.nav.chat"), icon: MessageSquare, tone: "bg-emerald-500/15 text-emerald-500", onClick: () => setActiveTab("chat") },
                     { key: "alerts", label: tt("managerPortal.settings.alerts"), icon: Bell, tone: "bg-amber-500/15 text-amber-500", badge: unreadCount, onClick: () => setActiveTab("notifications") },
                     { key: "operations", label: tt("managerPortal.operations.title"), icon: ArrowLeftRight, tone: "bg-sky-500/15 text-sky-500", onClick: () => setActiveTab("operations") },
@@ -4343,6 +4348,19 @@ export default function ManagerPortal() {
                   </dl>
                 </Card>
               </div>
+            </div>
+          ) : null}
+
+          {activeTab === "reports" ? (
+            <div className="manager-portal-tab manager-portal-tab--reports space-y-4">
+              <button type="button" onClick={() => setActiveTab("more")} className="inline-flex min-h-[var(--control-height-lg)] items-center gap-2 rounded-[var(--radius-control)] border border-slate-200 bg-white px-4 text-sm font-black text-slate-800 shadow-sm dark:border-white/10 dark:bg-white/[0.03] dark:text-white">
+                <Settings className="h-4 w-4" />
+                {tt("managerPortal.settings.back")}
+              </button>
+
+              <Suspense fallback={<div className="py-10 text-center text-sm font-bold text-text-muted">{tt("managerPortal.common.processing")}</div>}>
+                <PortalReports token={token} canViewProfit={canViewProfit} />
+              </Suspense>
             </div>
           ) : null}
 

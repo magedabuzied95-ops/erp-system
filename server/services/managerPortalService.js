@@ -515,6 +515,15 @@ const resolveProfitOk = async (manager = {}, profitToken = "") => {
   return Boolean(result && result.valid);
 };
 
+/**
+ * The same profit gate, for portal surfaces that live in their own module.
+ *
+ * Exported rather than copied: the gate is "holds a profit permission AND unlocked with
+ * the password in the last few minutes", and a second screen re-deriving that from
+ * permissions alone would show profit to a manager who never unlocked it.
+ */
+export const resolveManagerProfitAccess = resolveProfitOk;
+
 const publicInvoiceUrlForOrder = (order = {}) => {
   const origin = getPublicAppUrl() || clean(process.env.PUBLIC_APP_URL) || DEFAULT_MANAGER_PORTAL_APP_URL;
   const normalizedOrigin = clean(origin).replace(/\/+$/, "");

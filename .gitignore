@@ -103,6 +103,7 @@ services/
 .codex-monitoring*.log
 !server/services/
 server/services/*
+!server/services/managerPortalReportsService.js
 !server/services/chatPresenceService.js
 !server/services/codPolicyReplyService.js
 !server/services/transactionalEmail/

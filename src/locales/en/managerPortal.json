@@ -351,7 +351,8 @@
     "tasks": "Tasks",
     "chat": "Chat",
     "stockCount": "Stock count",
-    "more": "More"
+    "more": "More",
+    "reports": "Reports"
   },
   "theme": {
     "light": "Light mode",
@@ -820,5 +821,18 @@
     "day": "Day",
     "minutes": "{{count}} min",
     "wholeLateness": "Whole lateness"
+  },
+  "reports": {
+    "title": "Reports",
+    "calendarNote": "These figures count full calendar days (midnight to midnight), not the shift night the Today tab uses.",
+    "failed": "The reports could not be loaded.",
+    "profitLocked": "Profit is locked",
+    "profitLockedHint": "Enter the profit password to see profit, margin and inventory value.",
+    "presets": {
+      "last7": "Last 7 days",
+      "last30": "Last 30 days",
+      "thisMonth": "This month",
+      "lastMonth": "Last month"
+    }
   }
 }

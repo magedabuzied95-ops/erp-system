@@ -26,6 +26,15 @@ export const managerPortalApi = {
   onlineOrderDelete: (token, orderId, reason = "") => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/delete`, { reason }, { suppressErrorStatuses: [400, 404, 409] }),
   onlineOrdersPrintLabels: (token, orderIds = []) => api.post(`${tokenPath(token)}/online-orders/print-labels`, { order_ids: orderIds }, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
   onlineOrderAction: (token, orderId, action, input = {}) => api.post(`${tokenPath(token)}/online-orders/${encodeURIComponent(orderId)}/actions/${encodeURIComponent(action)}`, input || {}, { suppressErrorStatuses: [400, 403, 404, 409, 422, 502] }),
+  // The executive overview. `profitToken` is optional: without it the server masks
+  // profit, margin, cost and inventory value rather than sending them to be hidden.
+  reports: (token, params = {}, { profitToken = "", ...options } = {}) =>
+    api.get(`${tokenPath(token)}/reports`, {
+      cache: "no-store",
+      ...options,
+      params,
+      headers: { ...(options.headers || {}), ...(profitToken ? { "X-Profit-Authorization": `Bearer ${profitToken}` } : {}) },
+    }),
   stockAlerts: (token, options = {}) => api.get(`${tokenPath(token)}/stock-alerts`, options),
   daySummary: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/day-summary`, { ...options, params }),
   inventoryApprovals: (token, params = {}, options = {}) => api.get(`${tokenPath(token)}/inventory-approvals`, { ...options, params }),
